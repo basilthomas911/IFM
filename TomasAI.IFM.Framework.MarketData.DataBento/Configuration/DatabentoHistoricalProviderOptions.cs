@@ -20,6 +20,8 @@ public sealed record DatabentoHistoricalProviderOptions
     /// </summary>
     public int MaximumBatchRecords { get; init; } = 4_096;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Parameterless instance validation reports the persisted option property identity.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Parameterless instance validation reports the persisted option property identity.")]
     internal void Validate()
     {
         if (TimeoutMilliseconds is 0 or uint.MaxValue)

@@ -5,13 +5,14 @@ namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 /// <summary>Bounded process-local evidence. Missing evidence is never a successful check.</summary>
 public sealed class LivePipelineEvidence(TimeProvider time)
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<string, LivePipelineCheck> evidence = new(StringComparer.Ordinal);
     readonly Dictionary<Guid, (DateTime Seen, LiveUiHealthReport Report)> clients = new();
     readonly LinkedList<LivePipelineHealthSnapshot> audits = new();
     LivePipelineHealthSnapshot? audit;
     public void PublishAudit(LivePipelineHealthSnapshot snapshot)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         Volatile.Write(ref audit, snapshot);
         lock (gate)
         {
@@ -45,11 +46,12 @@ public sealed class LivePipelineEvidence(TimeProvider time)
     }
     public bool ReportUi(LiveUiHealthReport report)
     {
+        ArgumentNullException.ThrowIfNull(report);
         var now = time.GetUtcNow().UtcDateTime;
         if (report.SiteId == Guid.Empty || report.Streams is null || report.Streams.Count > 3
             || report.Streams.Any(x => x is null || x.ContractId is null || x.ContractId.Length > 128 || x.Symbol is not ("ES" or "VX" or "Outlook")
                 || x.ReceivedBarUtc > now.AddSeconds(5) || (x.RenderedBarUtc.HasValue && !x.ReceivedBarUtc.HasValue) || x.RenderedBarUtc > x.ReceivedBarUtc)
-            || report.Streams.Select(x => x.Symbol).Distinct().Count() != report.Streams.Count) return false;
+            || report.Streams.Select(x => x.Symbol).Distinct(StringComparer.Ordinal).Count() != report.Streams.Count) return false;
         lock (gate)
         {
             foreach (var id in clients.Where(x => now - x.Value.Seen > TimeSpan.FromHours(1)).Select(x => x.Key).ToArray()) clients.Remove(id);
@@ -61,6 +63,7 @@ public sealed class LivePipelineEvidence(TimeProvider time)
     public IReadOnlyList<LivePipelineCheck> CheckUi(DateOnly date, IReadOnlyDictionary<string, DateTime> latest,
         IReadOnlyDictionary<string, string>? contracts = null)
     {
+        ArgumentNullException.ThrowIfNull(latest);
         var now = time.GetUtcNow().UtcDateTime;
         lock (gate)
         {
@@ -81,8 +84,8 @@ public sealed class LivePipelineEvidence(TimeProvider time)
                 }
                 foreach (var (symbol, upstream) in latest)
                 {
-                    var stream = client.Report.Streams.FirstOrDefault(x => x.Symbol == symbol);
-                    if (contracts?.TryGetValue(symbol, out var expectedContract) == true && stream?.ContractId != expectedContract)
+                    var stream = client.Report.Streams.FirstOrDefault(x => string.Equals(x.Symbol,symbol,StringComparison.Ordinal));
+                    if (contracts?.TryGetValue(symbol, out var expectedContract) == true && !string.Equals(stream?.ContractId,expectedContract,StringComparison.Ordinal))
                     {
                         results.Add(new("UI contract", scope + "/" + symbol, "Degraded", "UI is not displaying the authoritative current contract.", now));
                         continue;

@@ -1,13 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Shared.EventChannel;
-
-/// <summary>
-///  event channel logger type
-/// </summary>
-public class EventChannel { }
 
 /// <summary>
 /// Represents a concurrent asynchronous event channel for processing data of type <typeparamref name="TData"/>.
@@ -17,7 +12,7 @@ public class EventChannel { }
 /// manner. The channel can be used to handle high-throughput scenarios where data needs to be processed concurrently.
 /// Logging is supported to track the channel's operations and any errors that occur during processing.</remarks>
 /// <typeparam name="TData">The type of data to be processed by the event channel.</typeparam>
-public class ConcurrentAsyncEventChannel<TData>
+public class ConcurrentAsyncEventChannel<TData> : IDisposable
 {
     readonly string _channelName;
     readonly Func<TData, ValueTask> _eventChannelAsyncMessageReader;
@@ -25,6 +20,7 @@ public class ConcurrentAsyncEventChannel<TData>
     readonly ILogger<EventChannel>? _logger;
     Channel<TData>? _eventChannel;
     Task? _processingTask;
+    int _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentAsyncEventChannel{TData}"/> class with the specified
@@ -57,6 +53,7 @@ public class ConcurrentAsyncEventChannel<TData>
     /// configured to support multiple writers and a single reader.  If the channel starts successfully, an
     /// informational log entry is created.  In case of failure, an error log entry is recorded.</remarks>
     /// <returns>The current instance of <see cref="ConcurrentAsyncEventChannel{TData}"/> to allow method chaining.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public ConcurrentAsyncEventChannel<TData> Start()
     {
         try
@@ -79,6 +76,7 @@ public class ConcurrentAsyncEventChannel<TData>
     /// disposes of the cancellation token source. After calling this method, the event channel  is no longer usable. A
     /// log entry is created to indicate the successful stop operation.</remarks>
     /// <returns>The current instance of <see cref="ConcurrentAsyncEventChannel{TData}"/>, allowing for method chaining.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     public ConcurrentAsyncEventChannel<TData> Stop()
     {
         try
@@ -86,13 +84,39 @@ public class ConcurrentAsyncEventChannel<TData>
             _cancellationTokenSource.Cancel();
             _eventChannel?.Writer.Complete();
         }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
         finally
         {
             _eventChannel = null;
         }
         _logger?.LogInformationEvent("EventChannel - {ChannelName}", "ConcurrentAsyncEventChannel stopped successfully.", _channelName);
         return this;
+    }
+
+    /// <summary>Stops immediately; processing resources are released after the active reader exits.</summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Stop();
+        _ = DisposeAfterProcessingAsync(_processingTask);
+    }
+
+    async Task DisposeAfterProcessingAsync(Task? processingTask)
+    {
+        try
+        {
+            if (processingTask is not null) await processingTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            _cancellationTokenSource.Dispose();
+        }
     }
 
     /// <summary>
@@ -114,6 +138,7 @@ public class ConcurrentAsyncEventChannel<TData>
     /// single-threaded context. If an exception occurs during message processing, it is logged, and  processing
     /// continues with the next message. The method stops processing when the event channel  becomes unavailable or the
     /// cancellation token is triggered.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async Task ProcessMessagesFromEventChannelAsync(Channel<TData> eventChannel, CancellationToken cancellationToken)
     {
         try
@@ -135,7 +160,7 @@ public class ConcurrentAsyncEventChannel<TData>
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
         catch (Exception ex)
         {
@@ -143,7 +168,7 @@ public class ConcurrentAsyncEventChannel<TData>
         }
         finally
         {
-            _processingTask = null;
+            // The owner retains the task until detached cleanup completes.
             _logger?.LogInformationEvent("EventChannel - {ChannelName}", "Message processing stopped.", _channelName);
         }
     }

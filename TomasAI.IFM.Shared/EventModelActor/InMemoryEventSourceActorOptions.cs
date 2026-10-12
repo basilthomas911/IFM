@@ -9,12 +9,11 @@ public sealed class InMemoryEventSourceActorOptions
     public int MaximumResidentStreams { get; set; } = 4096;
     public int MaximumCommandsPerWindow { get; set; } = 64;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless configuration validation deliberately identifies the invalid bound configuration property in the exception.")]
     public InMemoryEventSourceActorOptions Validate()
     {
-        if (MaximumResidentStreams <= 0)
-            throw new ArgumentOutOfRangeException(nameof(MaximumResidentStreams));
-        if (MaximumCommandsPerWindow <= 0)
-            throw new ArgumentOutOfRangeException(nameof(MaximumCommandsPerWindow));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaximumResidentStreams);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaximumCommandsPerWindow);
         return this;
     }
 }

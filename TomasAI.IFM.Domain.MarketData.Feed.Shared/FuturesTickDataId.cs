@@ -35,5 +35,5 @@ public record FuturesTickDataId(
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 
-    public override int GetHashCode() => $"{this}".GetHashCode();
+    public override int GetHashCode() => $"{this}".GetHashCode(StringComparison.Ordinal);
 }

@@ -1,9 +1,10 @@
-﻿namespace TomasAI.IFM.Domain.MarketData.Shared;
+namespace TomasAI.IFM.Domain.MarketData.Shared;
 
 /// <summary>
 /// Identifies current market, contract, session, or intrinsic-event state that is
 /// not defined by both a timeframe and period length.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "Preserve the byte-backed persisted/message enum representation.")]
 public enum ObservationMetricsType : byte
 {
     /// <summary>No market observation is selected.</summary>

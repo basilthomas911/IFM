@@ -20,5 +20,11 @@ public static class GetPortfolioFundStrategySnapshot
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetPortfolioFundStrategySnapshotQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetStrategySnapshotAsync(query.PortfolioId, query.TradingYear, query.DecisionHorizon, query.UnderlyingRoot, query.AssetType, query.AsOfUtc, query.WorkflowId, query.WorkflowRevision, query.CorrelationId, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetStrategySnapshotAsync(query.PortfolioId, query.TradingYear, query.DecisionHorizon, query.UnderlyingRoot, query.AssetType, query.AsOfUtc, query.WorkflowId, query.WorkflowRevision, query.CorrelationId, cancellationToken));
+    }
 }

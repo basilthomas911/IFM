@@ -7,20 +7,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Actor;
 
-/// <summary>Defines readonly services required by the Bollinger command actor.</summary>
-public interface IFuturesBbSignalCommandContext : ICommandActorContext<FuturesBbSignalCommandActor>
-{
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesBbSignalCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<FuturesBbSignalCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the typed Bollinger command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesBbSignalCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesBbSignalCommandActor>, IFuturesBbSignalCommandContext
+IFuturesBbSignalCommandContext
 {
     /// <summary>Initializes the context.</summary>
     public FuturesBbSignalCommandContext(IActorSupervisor supervisor,

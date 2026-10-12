@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using System.Data;
 using Microsoft.Data.SqlClient;
@@ -7,12 +7,13 @@ namespace TomasAI.IFM.Framework.Storage
 {
     public class ObjectDataBulkCopyContext : IObjectBulkCopyContext
     {
-        IObjectRepository _db;
-        string _tableName;
-        IDataReader _sourceDataReader;
+        readonly IObjectRepository _db;
+        readonly string _tableName;
+        readonly DataTableReader _sourceDataReader;
 
         public ObjectDataBulkCopyContext(IObjectRepository db, DataTable bulkCopyDataTable)
         {
+            ArgumentNullException.ThrowIfNull(bulkCopyDataTable);
             _db = db;
             _tableName = bulkCopyDataTable.TableName;
             _sourceDataReader = bulkCopyDataTable.CreateDataReader();
@@ -28,7 +29,7 @@ namespace TomasAI.IFM.Framework.Storage
                 conn.Open();
                 try
                 {
-                    using (var bulkCopy = new SqlBulkCopy(conn as SqlConnection))
+                    using (var bulkCopy = new SqlBulkCopy(conn))
                     {
                         bulkCopy.DestinationTableName = _tableName;
                         for (var ordinal = 0; ordinal < _sourceDataReader.FieldCount; ordinal++)
@@ -58,6 +59,6 @@ namespace TomasAI.IFM.Framework.Storage
         /// </summary>
         /// <returns></returns>
         public async Task BulkCopyAsync()
-            => await Task.Run(() => this.BulkCopy());
+            => await (Task.Run(() => this.BulkCopy())).ConfigureAwait(false);
     }
 }

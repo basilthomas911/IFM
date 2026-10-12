@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 
-internal class TurnTradeLiveFeedOffException : ApplicationException
+public class TurnTradeLiveFeedOffException : Exception
 {
     public TurnTradeLiveFeedOffException() { }
 

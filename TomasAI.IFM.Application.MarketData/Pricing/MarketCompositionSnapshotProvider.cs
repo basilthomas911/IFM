@@ -5,105 +5,12 @@ using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-[MessagePackObject]
-public sealed record CompositionSnapshotRequest([property: Key(0)] Guid SnapshotId, [property: Key(1)] string ScopeId, [property: Key(2)] string Horizon,
-    [property: Key(3)] Guid GenerationId, [property: Key(4)] DateTimeOffset EvaluatedAtUtc, [property: Key(5)] DateTimeOffset DeadlineUtc,
-    [property: Key(6)] bool IncludeOptions, [property: Key(7)] int MaximumContracts = 2048, [property: Key(8)] int MaximumQuoteAgeMilliseconds = 1000,
-    [property: Key(9)] int MaximumQuoteSkewMilliseconds = 250,
-    ImmutableArray<CompositionFutureDefinition> Futures = default)
-{
-    [Key(10)] public ImmutableArray<CompositionFutureDefinition> Futures { get; init; } = Futures.IsDefault ? [] : Futures;
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    [Key(11)] public bool SelectionOnly { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    [Key(12)] public bool AllowMissingOptionQuotes { get; init; }
-    /// <summary>Browsing captures calculate full risk values only for these selected contracts.</summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    [Key(13)] public string[] RiskContractIds { get; init; } = [];
-}
-
-/// <summary>One atomic source view; scope token and generation must remain stable across all pages.</summary>
-public sealed record CompositionMarketPage(string ScopeToken, Guid GenerationId, int TotalContracts,
-    ImmutableArray<CompositionMarketInstrument> Instruments, string? Continuation);
-
-[MessagePackObject]
-public sealed record CompositionFutureDefinition(
-    [property: Key(0)] string ContractId, [property: Key(1)] string Root,
-    [property: Key(2)] string Dataset, [property: Key(3)] string Exchange,
-    [property: Key(4)] string Currency, [property: Key(5)] DateTimeOffset LastTradingUtc,
-    [property: Key(6)] decimal Multiplier, [property: Key(7)] decimal TickSize,
-    [property: Key(8)] string DefinitionDigest);
-
-[MessagePackObject]
-public sealed record CompositionMarketInstrument(
-    [property: Key(0)] string ContractId,
-    [property: Key(1)] OptionPricingQuote? Quote,
-    [property: Key(2)] OptionPricingContext? Pricing,
-    [property: Key(3)] decimal? Strike,
-    [property: Key(4)] bool? IsCall,
-    [property: Key(5)] OptionPricingQuote? Underlying,
-    [property: Key(6)] CompositionFutureDefinition? FutureDefinition = null)
-{
-    [Key(7)]
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public OptionSelectionValue? Selection { get; init; }
-    [Key(8)] public long? SessionVolume { get; init; }
-    [Key(9)] public long? OpenInterest { get; init; }
-    [Key(10)] public DateTimeOffset? StatisticsAtUtc { get; init; }
-    /// <summary>Diagnostic reason for suppressing an unusable browsing quote; never authorizes execution.</summary>
-    [Key(11)] public string? QuoteUnavailableReason { get; init; }
-    [Key(12)] public DateTimeOffset? LastQuoteEventAtUtc { get; init; }
-    [Key(13)] public DateTimeOffset? LastQuoteReceivedAtUtc { get; init; }
-}
-
-/// <summary>Source owns complete-scope enumeration and current-generation price observations.</summary>
-public interface ICompositionMarketSource
-{
-    Task<CompositionMarketPage> ReadAsync(CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken);
-}
-
-[MessagePackObject]
-public sealed record CompositionInstrumentSnapshot(
-    [property: Key(0)] CompositionMarketInstrument Instrument,
-    [property: Key(1)] OptionPricingValue? Valuation);
-
-[MessagePackObject]
-public sealed record MarketCompositionSnapshot(
-    [property: Key(0)] int SchemaVersion,
-    [property: Key(1)] Guid SnapshotId,
-    [property: Key(2)] string ScopeId,
-    [property: Key(3)] string ScopeToken,
-    [property: Key(4)] string Horizon,
-    [property: Key(5)] Guid GenerationId,
-    [property: Key(6)] DateTimeOffset EvaluatedAtUtc,
-    [property: Key(7)] DateTimeOffset ValidUntilUtc,
-    [property: Key(8)] ImmutableArray<CompositionInstrumentSnapshot> Instruments,
-    [property: Key(9)] string Digest)
-{
-    /// <summary>Exact global policy used to prepare this ranking universe; absent on historical/manual snapshots.</summary>
-    [Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? StrategyOptionChainParametersJson { get; init; }
-    /// <summary>Normalized prepared direction, separate from catalog Balanced spelling.</summary>
-    [Key(11), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? StrategyOptionChainBias { get; init; }
-    /// <summary>Accepted operational value date of the prepared strategy scope.</summary>
-    [Key(12), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public DateOnly? StrategyOptionChainValueDate { get; init; }
-}
-
-[MessagePackObject]
-public sealed record CompositionSnapshotResult([property: Key(0)] MarketCompositionSnapshot? Snapshot, [property: Key(1)] OptionPricingFailure? Failure);
-
-public interface IMarketCompositionSnapshotProvider
-{
-    Task<CompositionSnapshotResult> CaptureAsync(CompositionSnapshotRequest request, CancellationToken cancellationToken);
-}
-
 /// <summary>Captures all pages and values the bounded scope at one frozen instant; never selects a strategy.</summary>
 public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource source, TimeProvider? time = null) : IMarketCompositionSnapshotProvider
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<CompositionSnapshotResult> CaptureAsync(CompositionSnapshotRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -134,7 +41,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                 var page = await source.ReadAsync(request, cursor, linked.Token).ConfigureAwait(false);
                 if (page.GenerationId != request.GenerationId) return Fail("Recovering");
                 if (string.IsNullOrWhiteSpace(page.ScopeToken) || page.ScopeToken.Length > 128
-                    || scopeToken is not null && scopeToken != page.ScopeToken
+                    || scopeToken is not null && !string.Equals(scopeToken,page.ScopeToken,StringComparison.Ordinal)
                     || total is not null && total != page.TotalContracts) return Fail("IncompleteChain");
                 scopeToken = page.ScopeToken; total = page.TotalContracts;
                 if (total < 0 || total > request.MaximumContracts || page.Instruments.IsDefault
@@ -142,7 +49,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                     return Fail("SnapshotLimit");
                 foreach (var instrument in page.Instruments)
                 {
-                    if (!seen.Add(instrument.ContractId) || instrument.Quote is { } observedQuote && observedQuote.ContractId != instrument.ContractId) return Fail("ConflictingDefinition");
+                    if (!seen.Add(instrument.ContractId) || instrument.Quote is { } observedQuote && !string.Equals(observedQuote.ContractId,instrument.ContractId,StringComparison.Ordinal)) return Fail("ConflictingDefinition");
                     if (instrument.Quote is null)
                     {
                         if (!request.AllowMissingOptionQuotes || !request.IncludeOptions
@@ -165,10 +72,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                                 <= Math.Min(optionContext.MaximumQuoteAgeMilliseconds, request.MaximumQuoteAgeMilliseconds);
                         if (!quoteUsable)
                         {
-                            var reason = liveQuote.GenerationId != request.GenerationId ? "QuoteGenerationMismatch"
-                                : liveQuote.Bid <= 0 || liveQuote.Ask < liveQuote.Bid || liveQuote.BidSize < 0 || liveQuote.AskSize < 0 ? "InvalidQuote"
-                                : liveQuote.ReceivedAtUtc > request.EvaluatedAtUtc || liveQuote.EventAtUtc > request.EvaluatedAtUtc.AddMilliseconds(optionContext.MaximumSourceClockLeadMilliseconds) ? "QuoteClockLead"
-                                : "QuoteAgeExceeded";
+                            var reason = (liveQuote.GenerationId != request.GenerationId) switch { true => "QuoteGenerationMismatch", false => (liveQuote.Bid <= 0 || liveQuote.Ask < liveQuote.Bid || liveQuote.BidSize < 0 || liveQuote.AskSize < 0) switch { true => "InvalidQuote", false => (liveQuote.ReceivedAtUtc > request.EvaluatedAtUtc || liveQuote.EventAtUtc > request.EvaluatedAtUtc.AddMilliseconds(optionContext.MaximumSourceClockLeadMilliseconds)) switch { true => "QuoteClockLead", false => "QuoteAgeExceeded" } } };
                             values.Add(new(instrument with { Quote = null, Selection = null,
                                 QuoteUnavailableReason = reason, LastQuoteEventAtUtc = liveQuote.EventAtUtc,
                                 LastQuoteReceivedAtUtc = liveQuote.ReceivedAtUtc }, null));
@@ -184,7 +88,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                             var selection = instrument.Selection;
                             var valid = instrument.Underlying is not null
                                 && Black76PricingModel.ValidateInputs(limited, instrument.Underlying, liveQuote, optionStrike, optionIsCall, request.EvaluatedAtUtc) is null
-                                && selection is not null && selection.ContextDigest == PricingSemanticHash.Compute(optionContext)
+                                && selection is not null && string.Equals(selection.ContextDigest,PricingSemanticHash.Compute(optionContext),StringComparison.Ordinal)
                                 && double.IsFinite(selection.Price) && double.IsFinite(selection.Delta) && double.IsFinite(selection.ImpliedVolatility)
                                 && selection.CalculatedAtUtc <= request.EvaluatedAtUtc && selection.ValidUntilUtc > request.EvaluatedAtUtc
                                 && selection.IvOption.GenerationId == request.GenerationId && selection.IvUnderlying.GenerationId == request.GenerationId;
@@ -217,7 +121,7 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                                 instrument.Strike.Value, instrument.IsCall.Value, request.EvaluatedAtUtc);
                             if (invalid is not null) return new(null, invalid);
                             var selection = instrument.Selection;
-                            if (selection is null || selection.ContextDigest != PricingSemanticHash.Compute(instrument.Pricing)
+                            if (selection is null || !string.Equals(selection.ContextDigest,PricingSemanticHash.Compute(instrument.Pricing),StringComparison.Ordinal)
                                 || !double.IsFinite(selection.Price) || !double.IsFinite(selection.Delta) || !double.IsFinite(selection.ImpliedVolatility)
                                 || selection.CalculatedAtUtc > request.EvaluatedAtUtc || selection.ValidUntilUtc <= request.EvaluatedAtUtc
                                 || selection.IvOption.GenerationId != request.GenerationId || selection.IvUnderlying.GenerationId != request.GenerationId)
@@ -241,8 +145,8 @@ public sealed class MarketCompositionSnapshotProvider(ICompositionMarketSource s
                         if (request.IncludeOptions || instrument.Strike is not null || instrument.IsCall is not null)
                             return Fail("PricingContextUnavailable");
                         var future = instrument.FutureDefinition;
-                        if (future is null || future.ContractId != instrument.ContractId || future.Root != "ES"
-                            || future.Dataset != "GLBX.MDP3" || future.Currency != "USD" || string.IsNullOrWhiteSpace(future.Exchange)
+                        if (future is null || !string.Equals(future.ContractId,instrument.ContractId,StringComparison.Ordinal) || !string.Equals(future.Root,"ES",StringComparison.Ordinal)
+                            || !string.Equals(future.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !string.Equals(future.Currency,"USD",StringComparison.Ordinal) || string.IsNullOrWhiteSpace(future.Exchange)
                             || future.LastTradingUtc.Offset != TimeSpan.Zero || future.LastTradingUtc <= request.EvaluatedAtUtc
                             || future.Multiplier <= 0 || future.TickSize <= 0 || future.DefinitionDigest is not { Length: 64 })
                             return Fail("ContractMetadataUnavailable");

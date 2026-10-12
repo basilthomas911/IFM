@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 /// <summary>Identifies one established trade created from a component of a Trade Order.</summary>
 [MessagePackObject]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct TradeEntityId(
     [property: Key(0)] int PortfolioId,
     [property: Key(1)] int FundId,
@@ -32,16 +33,4 @@ public readonly record struct TradeEntityId(
             ? result
             : throw new FormatException($"Invalid TradeEntityId '{value}'. All identity values must be positive.");
     }
-}
-
-/// <summary>Intrinsic TradeEntityId validation used by command actors.</summary>
-public static class TradeEntityIdValidationExtensions
-{
-    /// <summary>Validates all four business identifiers of a Trade.</summary>
-    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateTradeEntityId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, TradeEntityId id, string commandName)
-    {
-        if (!id.IsValid) errors.Add(new($"{commandName}.EntityId requires positive Portfolio, Fund, Order and Trade IDs."));
-        return errors;
-    }
-
 }

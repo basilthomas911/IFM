@@ -19,6 +19,79 @@ public static class PortfolioOrderCompositionModel
         ArgumentNullException.ThrowIfNull(financial);
         ArgumentNullException.ThrowIfNull(identities);
         var candidate = request.Body;
+        ValidateRequest(request, book);
+
+        var decisions = new List<PortfolioFundOrderDecision>(book.Funds.Length);
+        var orders = new List<PortfolioExecutionOrderInstruction>(book.Funds.Length);
+        var effects = new List<PortfolioAcceptedCapacityEffect>(book.Funds.Length);
+        var provisional = new Dictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal>();
+        foreach (var fund in book.Funds.OrderBy(value => value.FundId))
+        {
+            if (candidate.SetupTrade is { } setupScope && setupScope.FundId != fund.FundId) continue;
+            if (!TrySelectDeployment(fund, candidate, request.RequestedAtUtc, out var deployment, out var reason))
+            {
+                decisions.Add(new(fund.FundId, false, reason, null));
+                continue;
+            }
+            var snapshot = financial.SingleOrDefault(value => value.FundId == fund.FundId);
+            if (snapshot is null)
+            {
+                decisions.Add(new(fund.FundId, false, "FinancialSnapshotUnavailable", null));
+                continue;
+            }
+            if (!TryCreateCapacityEffect(request.PortfolioId, fund, deployment!, candidate, snapshot,
+                provisional, out var effect, out var capacityReason))
+            {
+                decisions.Add(new(fund.FundId, false, capacityReason, null));
+                continue;
+            }
+            var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
+            var components = await AllocateComponentsAsync(candidate, identities, cancellationToken).ConfigureAwait(false);
+            decisions.Add(new(fund.FundId, true, "Accepted", orderId));
+            orders.Add(CreateOrder(request, fund.FundId, orderId, components));
+            effect = effect! with { OrderId = orderId };
+            effects.Add(effect);
+            foreach (var exposure in effect.Exposures)
+            {
+                var key = Key(exposure);
+                provisional[key] = provisional.GetValueOrDefault(key) + Math.Abs(exposure.Amount);
+            }
+        }
+        return new()
+        {
+            CompositionId = candidate.CompositionId,
+            WorkflowId = candidate.WorkflowId,
+            Status = orders.Count == 0 ? PortfolioOrderCompositionStatus.NoTradeOrders : PortfolioOrderCompositionStatus.ExecuteTradeOrders,
+            FundDecisions = [.. decisions],
+            TradeOrders = [.. orders],
+            FinancialRevision = nextRevision,
+            PortfolioId = request.PortfolioId,
+            CapacityEffects = [.. effects],
+            VolatilityEvidence = candidate.VolatilityEvidence
+        };
+    }
+
+    /// <summary>Allocates trade identifiers only after admission, preserving the component order and copied leg facts.</summary>
+    static async ValueTask<PortfolioExecutionComponent[]> AllocateComponentsAsync(PortfolioOrderCandidate candidate,
+        IPortfolioBusinessIdAllocator identities, CancellationToken cancellationToken)
+    {
+            var components = new PortfolioExecutionComponent[candidate.Components.Length];
+            for (var componentIndex = 0; componentIndex < candidate.Components.Length; componentIndex++)
+            {
+                var component = candidate.Components[componentIndex];
+                components[componentIndex] = component with
+                {
+                    Legs = [.. component.Legs],
+                    ReservedTradeId = await identities.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false)
+                };
+            }
+        return components;
+    }
+
+    /// <summary>Validates the complete order candidate before admitting funds or allocating business identifiers.</summary>
+    static void ValidateRequest(EvaluatePortfolioOrderCompositionCommand request, FinancialBookConfiguration book)
+    {
+        var candidate = request.Body;
         if (request.PortfolioId <= 0 || request.OperationId == Guid.Empty || candidate.CompositionId == Guid.Empty
             || candidate.WorkflowId == Guid.Empty || candidate.Components.Length == 0
             || candidate.DecisionEvidence is { IsValid: false }
@@ -39,62 +112,47 @@ public static class PortfolioOrderCompositionModel
         if (book.PortfolioId != request.PortfolioId || !book.MigrationQualified)
             throw new InvalidOperationException("Portfolio financial authority is unavailable.");
 
-        var decisions = new List<PortfolioFundOrderDecision>(book.Funds.Length);
-        var orders = new List<PortfolioExecutionOrderInstruction>(book.Funds.Length);
-        var effects = new List<PortfolioAcceptedCapacityEffect>(book.Funds.Length);
-        var provisional = new Dictionary<(CapacityScopeKind ScopeKind, string ScopeKey, CapacityMeasure Measure, CapacityUnit Unit), decimal>();
-        foreach (var fund in book.Funds.OrderBy(value => value.FundId))
-        {
-            if (candidate.SetupTrade is { } setupScope && setupScope.FundId != fund.FundId) continue;
+    }
+
+    /// <summary>Selects the exact unexpired assigned deployment after applying the existing spending and per-trade risk rules.</summary>
+    static bool TrySelectDeployment(FinancialFundAuthority fund, PortfolioOrderCandidate candidate, DateTime requestedAtUtc,
+        out FinancialDeploymentAuthority? deployment, out string reason)
+    {
+        deployment = null;
+        reason = string.Empty;
             if (!fund.CanSpend)
             {
-                decisions.Add(new(fund.FundId, false, "FundSpendingDisabled", null));
-                continue;
+                reason = "FundSpendingDisabled";
+                return false;
             }
-            var deployment = fund.Deployments.SingleOrDefault(value => value.Reference.DeploymentKey == candidate.DeploymentKey);
+            deployment = fund.Deployments.SingleOrDefault(value => value.Reference.DeploymentKey == candidate.DeploymentKey);
             if (deployment is null)
             {
-                decisions.Add(new(fund.FundId, false, "StrategyDeploymentNotAssigned", null));
-                continue;
+                reason = "StrategyDeploymentNotAssigned";
+                return false;
             }
-            if (deployment.Reference.ValidUntilUtc <= request.RequestedAtUtc)
+            if (deployment.Reference.ValidUntilUtc <= requestedAtUtc)
             {
-                decisions.Add(new(fund.FundId, false, "FinancialAuthorityExpired", null));
-                continue;
+                reason = "FinancialAuthorityExpired";
+                return false;
             }
             if (deployment.MaximumRiskPerTrade > 0
                 && Math.Max(candidate.MaximumLoss, candidate.StressLoss) > deployment.MaximumRiskPerTrade)
             {
-                decisions.Add(new(fund.FundId, false, "MaximumRiskPerTradeExceeded", null));
-                continue;
+                reason = "MaximumRiskPerTradeExceeded";
+                return false;
             }
-            var snapshot = financial.SingleOrDefault(value => value.FundId == fund.FundId);
-            if (snapshot is null)
+        return true;
+    }
+
+    /// <summary>Freezes the admitted candidate and allocated component identities into the approved broker instruction.</summary>
+    static PortfolioExecutionOrderInstruction CreateOrder(EvaluatePortfolioOrderCompositionCommand request, int fundId,
+        int orderId, PortfolioExecutionComponent[] components)
+    {
+        var candidate = request.Body;
+            return new PortfolioExecutionOrderInstruction
             {
-                decisions.Add(new(fund.FundId, false, "FinancialSnapshotUnavailable", null));
-                continue;
-            }
-            if (!TryCreateCapacityEffect(request.PortfolioId, fund, deployment, candidate, snapshot,
-                provisional, out var effect, out var capacityReason))
-            {
-                decisions.Add(new(fund.FundId, false, capacityReason, null));
-                continue;
-            }
-            var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-            var components = new PortfolioExecutionComponent[candidate.Components.Length];
-            for (var componentIndex = 0; componentIndex < candidate.Components.Length; componentIndex++)
-            {
-                var component = candidate.Components[componentIndex];
-                components[componentIndex] = component with
-                {
-                    Legs = [.. component.Legs],
-                    ReservedTradeId = await identities.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false)
-                };
-            }
-            decisions.Add(new(fund.FundId, true, "Accepted", orderId));
-            orders.Add(new PortfolioExecutionOrderInstruction
-            {
-                Id = new(request.PortfolioId, fund.FundId, orderId),
+                Id = new(request.PortfolioId, fundId, orderId),
                 Revision = 1,
                 Status = PortfolioExecutionOrderStatus.Approved,
                 ValueDate = candidate.ValueDate,
@@ -119,27 +177,7 @@ public static class PortfolioOrderCompositionModel
                 SetupTrade = candidate.SetupTrade,
                 DecisionEvidence = candidate.DecisionEvidence,
                 VolatilityEvidence = candidate.VolatilityEvidence
-            });
-            effect = effect! with { OrderId = orderId };
-            effects.Add(effect);
-            foreach (var exposure in effect.Exposures)
-            {
-                var key = Key(exposure);
-                provisional[key] = provisional.GetValueOrDefault(key) + Math.Abs(exposure.Amount);
-            }
-        }
-        return new()
-        {
-            CompositionId = candidate.CompositionId,
-            WorkflowId = candidate.WorkflowId,
-            Status = orders.Count == 0 ? PortfolioOrderCompositionStatus.NoTradeOrders : PortfolioOrderCompositionStatus.ExecuteTradeOrders,
-            FundDecisions = [.. decisions],
-            TradeOrders = [.. orders],
-            FinancialRevision = nextRevision,
-            PortfolioId = request.PortfolioId,
-            CapacityEffects = [.. effects],
-            VolatilityEvidence = candidate.VolatilityEvidence
-        };
+            };
     }
 
     static bool TryCreateCapacityEffect(int portfolioId, FinancialFundAuthority fund,
@@ -151,13 +189,7 @@ public static class PortfolioOrderCompositionModel
         effect = null;
         reason = string.Empty;
         var underlying = FinancialScopeKeys.Underlying(candidate.ProductSymbol, candidate.ProductExchange, candidate.ProductCurrency);
-        var expectedScopes = new Dictionary<CapacityScopeKind, string>
-        {
-            [CapacityScopeKind.Portfolio] = FinancialScopeKeys.Portfolio(portfolioId),
-            [CapacityScopeKind.Fund] = FinancialScopeKeys.Fund(fund.FundId),
-            [CapacityScopeKind.Deployment] = FinancialScopeKeys.Deployment(candidate.DeploymentKey),
-            [CapacityScopeKind.Underlying] = underlying
-        };
+        var expectedScopes = CreateExpectedScopes(portfolioId, fund.FundId, candidate, underlying);
         var limits = fund.Limits.Concat(deployment.Limits).ToArray();
         if (limits.Length == 0 || limits.Select(Key).Distinct().Count() != limits.Length
             || limits.Any(limit => !expectedScopes.TryGetValue(limit.ScopeKind, out var scopeKey)
@@ -167,38 +199,23 @@ public static class PortfolioOrderCompositionModel
             reason = "CapacityConfigurationInvalid";
             return false;
         }
-        var grossContracts = candidate.Components.SelectMany(component => component.Legs)
-            .Sum(leg => Math.Abs(leg.SignedQuantity));
-        decimal Amount(CapacityMeasure measure) => measure switch
-        {
-            CapacityMeasure.SettlementCash => candidate.RequiredCapital,
-            CapacityMeasure.LossCharge => Math.Max(candidate.MaximumLoss, candidate.StressLoss),
-            CapacityMeasure.Margin => candidate.RequiredCapital,
-            CapacityMeasure.GrossNotional => candidate.Notional,
-            CapacityMeasure.GrossContracts => grossContracts,
-            CapacityMeasure.PositionSlots => 1,
-            CapacityMeasure.Delta => candidate.Delta,
-            CapacityMeasure.Gamma => candidate.Gamma,
-            CapacityMeasure.Vega => candidate.Vega,
-            _ => throw new InvalidOperationException($"Unsupported accepted capacity measure {measure}.")
-        };
         var exposures = limits.Select(limit => new CapacityExposure
         {
             ScopeKind = limit.ScopeKind,
             ScopeKey = limit.ScopeKey,
             Measure = limit.Measure,
-            Amount = Amount(limit.Measure),
+            Amount = CalculateCapacityAmount(candidate, limit.Measure),
             Unit = limit.Unit,
             MethodVersion = 1
         }).ToArray();
         var persisted = snapshot.Usage.ToDictionary(Key, usage =>
             Math.Abs(usage.Held) + Math.Abs(usage.Working) + Math.Abs(usage.Position));
         var committedCash = snapshot.Usage.Where(usage => usage.ScopeKind == CapacityScopeKind.Fund
-                && usage.ScopeKey == expectedScopes[CapacityScopeKind.Fund]
+                && string.Equals(usage.ScopeKey,expectedScopes[CapacityScopeKind.Fund],StringComparison.Ordinal)
                 && usage.Measure == CapacityMeasure.SettlementCash && usage.Unit == CapacityUnit.Usd)
             .Sum(usage => Math.Abs(usage.Held) + Math.Abs(usage.Working) + Math.Abs(usage.Position));
         committedCash += provisional.Where(value => value.Key.ScopeKind == CapacityScopeKind.Fund
-                && value.Key.ScopeKey == expectedScopes[CapacityScopeKind.Fund]
+                && string.Equals(value.Key.ScopeKey,expectedScopes[CapacityScopeKind.Fund],StringComparison.Ordinal)
                 && value.Key.Measure == CapacityMeasure.SettlementCash && value.Key.Unit == CapacityUnit.Usd)
             .Sum(value => value.Value);
         if (snapshot.AvailableCash - committedCash < candidate.RequiredCapital)
@@ -225,6 +242,39 @@ public static class PortfolioOrderCompositionModel
             Exposures = exposures
         };
         return true;
+    }
+
+    /// <summary>Defines the exact portfolio, fund, deployment and underlying scope keys allowed for this candidate.</summary>
+    static Dictionary<CapacityScopeKind, string> CreateExpectedScopes(int portfolioId, int fundId,
+        PortfolioOrderCandidate candidate, string underlying)
+    {
+        return new Dictionary<CapacityScopeKind, string>
+        {
+            [CapacityScopeKind.Portfolio] = FinancialScopeKeys.Portfolio(portfolioId),
+            [CapacityScopeKind.Fund] = FinancialScopeKeys.Fund(fundId),
+            [CapacityScopeKind.Deployment] = FinancialScopeKeys.Deployment(candidate.DeploymentKey),
+            [CapacityScopeKind.Underlying] = underlying
+        };
+    }
+
+    /// <summary>Maps each accepted capacity measure to the candidate's cash, loss, notional, contract or Greek exposure.</summary>
+    static decimal CalculateCapacityAmount(PortfolioOrderCandidate candidate, CapacityMeasure measure)
+    {
+        var grossContracts = candidate.Components.SelectMany(component => component.Legs)
+            .Sum(leg => Math.Abs(leg.SignedQuantity));
+        return measure switch
+        {
+            CapacityMeasure.SettlementCash => candidate.RequiredCapital,
+            CapacityMeasure.LossCharge => Math.Max(candidate.MaximumLoss, candidate.StressLoss),
+            CapacityMeasure.Margin => candidate.RequiredCapital,
+            CapacityMeasure.GrossNotional => candidate.Notional,
+            CapacityMeasure.GrossContracts => grossContracts,
+            CapacityMeasure.PositionSlots => 1,
+            CapacityMeasure.Delta => candidate.Delta,
+            CapacityMeasure.Gamma => candidate.Gamma,
+            CapacityMeasure.Vega => candidate.Vega,
+            _ => throw new InvalidOperationException($"Unsupported accepted capacity measure {measure}.")
+        };
     }
 
     static (CapacityScopeKind, string, CapacityMeasure, CapacityUnit) Key(CapacityExposure value)

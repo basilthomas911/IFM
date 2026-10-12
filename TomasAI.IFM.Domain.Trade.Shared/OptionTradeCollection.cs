@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 {
     public class OptionTradeCollection : IOptionTradeCollection
     {
-        private List<OptionTradeReadModel> _optionTrades;
+        private readonly List<OptionTradeReadModel> _optionTrades;
         private OptionTradeReadModel _primaryTrade;
 
         public OptionTradeCollection() => _optionTrades = new List<OptionTradeReadModel>();
@@ -19,11 +19,11 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
         public int Count => _optionTrades.Count;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1043", Justification = "This existing indexer deliberately accepts the typed composite trade identity.")]
         public OptionTradeReadModel this[OptionTradeEntityId key]
             => _optionTrades
-                .Where(e => e.OrderId == key.OrderId
-                    && e.TradeId == key.TradeId)
-                .SingleOrDefault();
+                .SingleOrDefault(e => e.OrderId == key.OrderId
+                    && e.TradeId == key.TradeId);
 
         public OptionTradeReadModel PrimaryTrade => GetPrimaryTrade();
 
@@ -54,7 +54,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
         private OptionTradeReadModel GetPrimaryTrade()
         {
-            _primaryTrade = _primaryTrade ?? _optionTrades.Where(e => e.IsPrimaryTrade).SingleOrDefault();
+            _primaryTrade = _primaryTrade ?? _optionTrades.SingleOrDefault(e => e.IsPrimaryTrade);
             return _primaryTrade;
         }
     }

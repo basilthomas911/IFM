@@ -1,0 +1,59 @@
+{
+    "Version":  "2012-10-17",
+    "Statement":  [
+                      {
+                          "Sid":  "ReadAndShortenDisposableProtection",
+                          "Effect":  "Allow",
+                          "Action":  [
+                                         "s3:GetObjectLegalHold",
+                                         "s3:GetObjectRetention",
+                                         "s3:PutObjectRetention",
+                                         "s3:BypassGovernanceRetention"
+                                     ],
+                          "Resource":  [
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/catalog/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/aws-primary/catalog-entry-v1.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-858e6798dabe/base.tar",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.signature.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.signature.json"
+                                       ],
+                          "Condition":  {
+                                            "DateLessThan":  {
+                                                                 "aws:CurrentTime":  "2026-10-11T15:35:32.8931485+00:00"
+                                                             },
+                                            "ArnEquals":  {
+                                                              "aws:PrincipalArn":  "arn:aws:iam::107651266250:user/basil.thomas@live.ca"
+                                                          }
+                                        }
+                      },
+                      {
+                          "Sid":  "SetDisposableHoldOffOnly",
+                          "Effect":  "Allow",
+                          "Action":  "s3:PutObjectLegalHold",
+                          "Resource":  [
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/catalog/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/aws-primary/catalog-entry-v1.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-858e6798dabe/base.tar",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.signature.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.json",
+                                           "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.signature.json"
+                                       ],
+                          "Condition":  {
+                                            "DateLessThan":  {
+                                                                 "aws:CurrentTime":  "2026-10-11T15:35:32.8931485+00:00"
+                                                             },
+                                            "ArnEquals":  {
+                                                              "aws:PrincipalArn":  "arn:aws:iam::107651266250:user/basil.thomas@live.ca"
+                                                          },
+                                            "StringEquals":  {
+                                                                 "s3:object-lock-legal-hold":  "OFF"
+                                                             }
+                                        }
+                      }
+                  ]
+}

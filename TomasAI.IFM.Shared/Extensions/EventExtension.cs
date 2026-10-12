@@ -16,12 +16,14 @@ public static class EventExtension
 {
     public static void CheckForEmptyCommandId(this IEvent @event)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         if (@event.CommandId == Guid.Empty)
             throw new InvalidOperationException($"CheckForEmptyCommandId: {@event.GetType().Name}.CommandId is empty");
     }
 
     public static void CheckForEmptyCommandId(this ICommand cmd)
     {
+        ArgumentNullException.ThrowIfNull(cmd);
         if (cmd.CommandId == Guid.Empty)
             throw new InvalidOperationException($"CheckForEmptyCommandId: {cmd.GetType().Name}.CommandId is empty");
     }
@@ -49,10 +51,18 @@ public static class EventExtension
     }
 
     public static IEvent RoutedFrom(this IEvent @event)
-        => RoutedFrom(@event, @event.CommandId, @event.AggregateId, @event.EventSource);
+        
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return RoutedFrom(@event, @event.CommandId, @event.AggregateId, @event.EventSource);
+    }
 
     public static IEvent RoutedFrom(this IEvent @event, ICommand command)
-        => RoutedFrom(@event, command.CommandId, command.StreamId, command.EventSource);
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return RoutedFrom(@event, command.CommandId, command.StreamId, command.EventSource);
+    }
 
     public static string ToEventData(this IEvent domainEvent)
         => JsonConvert.SerializeObject(domainEvent, Formatting.Indented);

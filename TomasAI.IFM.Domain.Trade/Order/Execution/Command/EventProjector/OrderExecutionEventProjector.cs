@@ -21,28 +21,14 @@ using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Execution.Command.EventProjector;
-
-public sealed class OrderExecutionEventProjector
-    : ConventionalEventProjector<OrderExecutionCommandActor>
+public sealed class OrderExecutionEventProjector : ConventionalEventProjector<OrderExecutionCommandActor>
 {
     readonly IOrderExecutionCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-
-    public OrderExecutionEventProjector(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        EventProjectorReliabilityOptions? options = null)
-        : base(
-            Typed(actorContext).DurableReplayQueue,
-            Typed(actorContext).DbEventSource,
-            Typed(actorContext).BlackboardService,
-            Typed(actorContext).Logger,
-            options)
+    public OrderExecutionEventProjector(ICommandActorContext<OrderExecutionCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
-        descriptors =
-        [
-            DescribeNotification<OrderExecutionChangedEvent, OrderExecutionId>(ProjectAsync)
-        ];
+        descriptors = [DescribeNotification<OrderExecutionChangedEvent, OrderExecutionId>(ProjectAsync).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(((OrderExecutionChangedEvent)source).OrderExecutionDefinition, token).ConfigureAwait(false))];
     }
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
@@ -50,42 +36,35 @@ public sealed class OrderExecutionEventProjector
 
     async Task ProjectAsync(OrderExecutionChangedEvent changed)
     {
-        await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);
-
-        if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Pending &&
-            changed.OrderExecutionDefinition.Channel == ExecutionChannel.Broker)
+        if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);
+        if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Pending && changed.OrderExecutionDefinition.Channel == ExecutionChannel.Broker)
         {
             await BeginBrokerExecutionAsync(changed).ConfigureAwait(false);
             return;
         }
 
-        if (changed.OrderExecutionDefinition.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected &&
-            changed.OrderExecutionDefinition.Fills.Length == 0)
+        if (changed.OrderExecutionDefinition.Status is OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected && changed.OrderExecutionDefinition.Fills.Length == 0)
         {
             await ReleaseTradeOrderAsync(changed).ConfigureAwait(false);
             await FundExecutionLifecycle.ReleasedAsync(context.ActorService, changed.OrderExecutionDefinition).ConfigureAwait(false);
             return;
         }
 
-        if (changed.OrderExecutionDefinition.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
-            changed.OrderExecutionDefinition.Fills.Length == 0) return;
-
+        if (changed.OrderExecutionDefinition.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) || changed.OrderExecutionDefinition.Fills.Length == 0)
+            return;
         // Completion evidence also supports persisted events whose older envelope omitted ReceivedOn.
         var confirmedAt = changed.OrderExecutionDefinition.CompletedAtUtc ?? changed.ReceivedOn;
         if (confirmedAt == default)
             throw new InvalidOperationException("ORDER_EXECUTION.COMPLETION_TIME_MISSING");
-        var confirmedAtUtc = confirmedAt.Kind == DateTimeKind.Utc
-            ? confirmedAt
-            : DateTime.SpecifyKind(confirmedAt, DateTimeKind.Utc);
-        Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(
-            changed.OrderExecutionDefinition, changed.Id == Guid.Empty ? changed.CommandId : changed.Id,
-            confirmedAtUtc).ConfigureAwait(false));
-
+        var confirmedAtUtc = confirmedAt.Kind == DateTimeKind.Utc ? confirmedAt : DateTime.SpecifyKind(confirmedAt, DateTimeKind.Utc);
+        Ensure(await context.PortfolioAccounting.PostConfirmedExecutionAsync(changed.OrderExecutionDefinition, changed.Id == Guid.Empty ? changed.CommandId : changed.Id, confirmedAtUtc).ConfigureAwait(false));
         foreach (var trade in changed.CreatedTrades)
         {
             await EstablishAsync(trade).ConfigureAwait(false);
             await FundExecutionLifecycle.OpenedAsync(context.ActorService, changed.OrderExecutionDefinition.Order, trade).ConfigureAwait(false);
         }
+
         foreach (var closedPosition in changed.ClosedPositions)
         {
             await CloseAsync(closedPosition).ConfigureAwait(false);
@@ -94,20 +73,11 @@ public sealed class OrderExecutionEventProjector
 
         var complete = new CompleteTradeOrderCommand
         {
-            CommandId = TradeHandoffIdentity.Create(
-                "complete-order",
-                changed.OrderExecutionDefinition.TradeOrderId.Format(),
-                changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
-            Subject = new ActorSubject(
-                ActorType.Command,
-                TradeOrderCommandActor.ActorName,
-                CompleteTradeOrderCommand.Verb,
-                changed.OrderExecutionDefinition.TradeOrderId.Format()),
+            CommandId = TradeHandoffIdentity.Create("complete-order", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
+            Subject = new ActorSubject(ActorType.Command, TradeOrderCommandActor.ActorName, CompleteTradeOrderCommand.Verb, changed.OrderExecutionDefinition.TradeOrderId.Format()),
             EntityId = changed.OrderExecutionDefinition.TradeOrderId
         };
-        Ensure(await context.ActorService
-            .SendAsync<CompleteTradeOrderCommand, TradeOrderId>(complete, complete.EntityId)
-            .ConfigureAwait(false));
+        Ensure(await context.ActorService.SendAsync<CompleteTradeOrderCommand, TradeOrderId>(complete, complete.EntityId).ConfigureAwait(false));
     }
 
     async ValueTask BeginBrokerExecutionAsync(OrderExecutionChangedEvent changed)
@@ -119,52 +89,36 @@ public sealed class OrderExecutionEventProjector
             var create = new CreateBrokerOrderCommand
             {
                 CommandId = TradeHandoffIdentity.Create("create-broker-order", brokerOrderId.Format()),
-                Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName,
-                    CreateBrokerOrderCommand.Verb, brokerOrderId.Format()),
+                Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName, CreateBrokerOrderCommand.Verb, brokerOrderId.Format()),
                 EntityId = brokerOrderId,
                 Order = changed.OrderExecutionDefinition.Order,
                 OperationId = operationId,
-                EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
-                    ? changed.ReceivedOn
-                    : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
+                EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
             };
             Ensure(await context.ActorService.RequestAsync<CreateBrokerOrderCommand, BrokerOrderId>(create).ConfigureAwait(false));
         }
+
         var submit = new SubmitOrderExecutionCommand
         {
             CommandId = TradeHandoffIdentity.Create("submit-order-execution", changed.EntityId.Format()),
-            Subject = new(ActorType.Command, OrderExecutionCommandActor.ActorName,
-                SubmitOrderExecutionCommand.Verb, changed.EntityId.Format()),
+            Subject = new(ActorType.Command, OrderExecutionCommandActor.ActorName, SubmitOrderExecutionCommand.Verb, changed.EntityId.Format()),
             EntityId = changed.EntityId
         };
-        Ensure(await context.ActorService.SendAsync<SubmitOrderExecutionCommand, OrderExecutionId>(
-            submit, submit.EntityId).ConfigureAwait(false));
+        Ensure(await context.ActorService.SendAsync<SubmitOrderExecutionCommand, OrderExecutionId>(submit, submit.EntityId).ConfigureAwait(false));
     }
-
 
     async ValueTask ReleaseTradeOrderAsync(OrderExecutionChangedEvent changed)
     {
         var release = new ReleaseTradeOrderExecutionCommand
         {
-            CommandId = TradeHandoffIdentity.Create(
-                "release-order-execution",
-                changed.OrderExecutionDefinition.TradeOrderId.Format(),
-                changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
-            Subject = new ActorSubject(
-                ActorType.Command,
-                TradeOrderCommandActor.ActorName,
-                ReleaseTradeOrderExecutionCommand.Verb,
-                changed.OrderExecutionDefinition.TradeOrderId.Format()),
+            CommandId = TradeHandoffIdentity.Create("release-order-execution", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.OrderExecutionDefinition.ExecutionAttemptId.ToString("N")),
+            Subject = new ActorSubject(ActorType.Command, TradeOrderCommandActor.ActorName, ReleaseTradeOrderExecutionCommand.Verb, changed.OrderExecutionDefinition.TradeOrderId.Format()),
             EntityId = changed.OrderExecutionDefinition.TradeOrderId,
             ExecutionAttemptId = changed.OrderExecutionDefinition.ExecutionAttemptId,
             ZeroExposureConfirmed = true,
-            EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc
-                ? changed.ReceivedOn
-                : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
+            EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
         };
-        Ensure(await context.ActorService
-            .SendAsync<ReleaseTradeOrderExecutionCommand, TradeOrderId>(release, release.EntityId)
-            .ConfigureAwait(false));
+        Ensure(await context.ActorService.SendAsync<ReleaseTradeOrderExecutionCommand, TradeOrderId>(release, release.EntityId).ConfigureAwait(false));
     }
 
     async ValueTask EstablishAsync(EstablishedTradeDefinition trade)
@@ -174,34 +128,22 @@ public sealed class OrderExecutionEventProjector
             var command = new CreateFuturesTradeCommand
             {
                 CommandId = TradeHandoffIdentity.Create("futures-trade", trade.Id.Format()),
-                Subject = new ActorSubject(
-                    ActorType.Command,
-                    FuturesTradeCommandActor.ActorName,
-                    CreateFuturesTradeCommand.Verb,
-                    trade.Id.Format()),
+                Subject = new ActorSubject(ActorType.Command, FuturesTradeCommandActor.ActorName, CreateFuturesTradeCommand.Verb, trade.Id.Format()),
                 EntityId = trade.Id,
                 Trade = trade
             };
-            Ensure(await context.ActorService
-                .SendAsync<CreateFuturesTradeCommand, TradeEntityId>(command, command.EntityId)
-                .ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<CreateFuturesTradeCommand, TradeEntityId>(command, command.EntityId).ConfigureAwait(false));
             return;
         }
 
         var optionCommand = new CreateOptionTradeCommand
         {
             CommandId = TradeHandoffIdentity.Create("option-trade", trade.Id.Format()),
-            Subject = new ActorSubject(
-                ActorType.Command,
-                FuturesOptionTradeCommandActor.ActorName,
-                CreateOptionTradeCommand.Verb,
-                trade.Id.Format()),
+            Subject = new ActorSubject(ActorType.Command, FuturesOptionTradeCommandActor.ActorName, CreateOptionTradeCommand.Verb, trade.Id.Format()),
             EntityId = trade.Id,
             Trade = trade
         };
-        Ensure(await context.ActorService
-            .SendAsync<CreateOptionTradeCommand, TradeEntityId>(optionCommand, optionCommand.EntityId)
-            .ConfigureAwait(false));
+        Ensure(await context.ActorService.SendAsync<CreateOptionTradeCommand, TradeEntityId>(optionCommand, optionCommand.EntityId).ConfigureAwait(false));
     }
 
     async ValueTask CloseAsync(PositionCloseExecution close)
@@ -211,78 +153,59 @@ public sealed class OrderExecutionEventProjector
         {
             var begin = new BeginCloseFuturesTradeCommand
             {
-                CommandId = TradeHandoffIdentity.Create("begin-close-futures-trade", tradeId.Format(),
-                    close.ExecutionAttemptId.ToString("N")),
-                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName,
-                    BeginCloseFuturesTradeCommand.Verb, tradeId.Format()),
+                CommandId = TradeHandoffIdentity.Create("begin-close-futures-trade", tradeId.Format(), close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName, BeginCloseFuturesTradeCommand.Verb, tradeId.Format()),
                 EntityId = tradeId
             };
-            Ensure(await context.ActorService.SendAsync<BeginCloseFuturesTradeCommand, TradeEntityId>(
-                begin, begin.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<BeginCloseFuturesTradeCommand, TradeEntityId>(begin, begin.EntityId).ConfigureAwait(false));
             var closeTrade = new CloseFuturesTradeCommand
             {
-                CommandId = TradeHandoffIdentity.Create("close-futures-trade", tradeId.Format(),
-                    close.ExecutionAttemptId.ToString("N")),
-                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName,
-                    CloseFuturesTradeCommand.Verb, tradeId.Format()),
+                CommandId = TradeHandoffIdentity.Create("close-futures-trade", tradeId.Format(), close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesTradeCommandActor.ActorName, CloseFuturesTradeCommand.Verb, tradeId.Format()),
                 EntityId = tradeId,
                 ClosingFills = close.Fills,
                 ClosedAtUtc = close.CompletedAtUtc
             };
-            Ensure(await context.ActorService.SendAsync<CloseFuturesTradeCommand, TradeEntityId>(
-                closeTrade, closeTrade.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<CloseFuturesTradeCommand, TradeEntityId>(closeTrade, closeTrade.EntityId).ConfigureAwait(false));
             var closePosition = new CloseFuturesPositionCommand
             {
-                CommandId = TradeHandoffIdentity.Create("close-futures-position", close.PositionId.Format(),
-                    close.ExecutionAttemptId.ToString("N")),
-                Subject = new(ActorType.Command, FuturesPositionActorNames.Command,
-                    CloseFuturesPositionCommand.Verb, close.PositionId.Format()),
+                CommandId = TradeHandoffIdentity.Create("close-futures-position", close.PositionId.Format(), close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, FuturesPositionActorNames.Command, CloseFuturesPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
                 ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
-            Ensure(await context.ActorService.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(
-                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<CloseFuturesPositionCommand, StrategyPositionId>(closePosition, closePosition.EntityId).ConfigureAwait(false));
             return;
         }
 
         var beginOption = new BeginCloseOptionTradeCommand
         {
-            CommandId = TradeHandoffIdentity.Create("begin-close-option-trade", tradeId.Format(),
-                close.ExecutionAttemptId.ToString("N")),
-            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName,
-                BeginCloseOptionTradeCommand.Verb, tradeId.Format()),
+            CommandId = TradeHandoffIdentity.Create("begin-close-option-trade", tradeId.Format(), close.ExecutionAttemptId.ToString("N")),
+            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName, BeginCloseOptionTradeCommand.Verb, tradeId.Format()),
             EntityId = tradeId
         };
-        Ensure(await context.ActorService.SendAsync<BeginCloseOptionTradeCommand, TradeEntityId>(
-            beginOption, beginOption.EntityId).ConfigureAwait(false));
+        Ensure(await context.ActorService.SendAsync<BeginCloseOptionTradeCommand, TradeEntityId>(beginOption, beginOption.EntityId).ConfigureAwait(false));
         var closeOption = new CloseOptionTradeCommand
         {
-            CommandId = TradeHandoffIdentity.Create("close-option-trade", tradeId.Format(),
-                close.ExecutionAttemptId.ToString("N")),
-            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName,
-                CloseOptionTradeCommand.Verb, tradeId.Format()),
+            CommandId = TradeHandoffIdentity.Create("close-option-trade", tradeId.Format(), close.ExecutionAttemptId.ToString("N")),
+            Subject = new(ActorType.Command, FuturesOptionTradeCommandActor.ActorName, CloseOptionTradeCommand.Verb, tradeId.Format()),
             EntityId = tradeId,
             ClosingFills = close.Fills,
             ClosedAtUtc = close.CompletedAtUtc
         };
-        Ensure(await context.ActorService.SendAsync<CloseOptionTradeCommand, TradeEntityId>(
-            closeOption, closeOption.EntityId).ConfigureAwait(false));
-
+        Ensure(await context.ActorService.SendAsync<CloseOptionTradeCommand, TradeEntityId>(closeOption, closeOption.EntityId).ConfigureAwait(false));
         if (close.StrategyKind == TradeStrategyKind.IronCondor)
         {
             var closePosition = new CloseIronCondorPositionCommand
             {
-                CommandId = TradeHandoffIdentity.Create("close-iron-condor-position", close.PositionId.Format(),
-                    close.ExecutionAttemptId.ToString("N")),
-                Subject = new(ActorType.Command, PositionActorNames.IronCondorCommand,
-                    CloseIronCondorPositionCommand.Verb, close.PositionId.Format()),
+                CommandId = TradeHandoffIdentity.Create("close-iron-condor-position", close.PositionId.Format(), close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, PositionActorNames.IronCondorCommand, CloseIronCondorPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
                 ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
-            Ensure(await context.ActorService.SendAsync<CloseIronCondorPositionCommand, StrategyPositionId>(
-                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<CloseIronCondorPositionCommand, StrategyPositionId>(closePosition, closePosition.EntityId).ConfigureAwait(false));
             return;
         }
 
@@ -290,16 +213,13 @@ public sealed class OrderExecutionEventProjector
         {
             var closePosition = new CloseVerticalSpreadPositionCommand
             {
-                CommandId = TradeHandoffIdentity.Create("close-vertical-spread-position", close.PositionId.Format(),
-                    close.ExecutionAttemptId.ToString("N")),
-                Subject = new(ActorType.Command, PositionActorNames.VerticalSpreadCommand,
-                    CloseVerticalSpreadPositionCommand.Verb, close.PositionId.Format()),
+                CommandId = TradeHandoffIdentity.Create("close-vertical-spread-position", close.PositionId.Format(), close.ExecutionAttemptId.ToString("N")),
+                Subject = new(ActorType.Command, PositionActorNames.VerticalSpreadCommand, CloseVerticalSpreadPositionCommand.Verb, close.PositionId.Format()),
                 EntityId = close.PositionId,
                 ClosingFills = close.Fills,
                 EffectiveAtUtc = close.CompletedAtUtc
             };
-            Ensure(await context.ActorService.SendAsync<CloseVerticalSpreadPositionCommand, StrategyPositionId>(
-                closePosition, closePosition.EntityId).ConfigureAwait(false));
+            Ensure(await context.ActorService.SendAsync<CloseVerticalSpreadPositionCommand, StrategyPositionId>(closePosition, closePosition.EntityId).ConfigureAwait(false));
             return;
         }
 
@@ -309,12 +229,8 @@ public sealed class OrderExecutionEventProjector
     static void Ensure(ServiceResult<Guid> result)
     {
         if (!result.Success)
-            throw new InvalidOperationException(
-                $"ORDER_EXECUTION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
+            throw new InvalidOperationException($"ORDER_EXECUTION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
     }
 
-    static IOrderExecutionCommandContext Typed(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext) =>
-        actorContext as IOrderExecutionCommandContext ??
-        throw new ArgumentException("Typed Order Execution context required.");
+    static IOrderExecutionCommandContext Typed(ICommandActorContext<OrderExecutionCommandActor> actorContext) => actorContext as IOrderExecutionCommandContext ?? throw new ArgumentException("Typed Order Execution context required.", nameof(actorContext));
 }

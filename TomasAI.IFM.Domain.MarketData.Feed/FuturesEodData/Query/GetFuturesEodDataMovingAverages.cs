@@ -11,5 +11,5 @@ public static class GetFuturesEodDataMovingAverages
 {
     internal static async ValueTask<FuturesEodDataMovingAveragesReadModel> ExecuteAsync(
        this GetFuturesEodDataMovingAveragesQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.GetFuturesEodMovingAveragesAsync(q.ContractId, q.Symbol, q.ValueDate);
+        => await (dbFactory.GetFuturesEodMovingAveragesAsync(q.ContractId, q.Symbol, q.ValueDate)).ConfigureAwait(false);
 }

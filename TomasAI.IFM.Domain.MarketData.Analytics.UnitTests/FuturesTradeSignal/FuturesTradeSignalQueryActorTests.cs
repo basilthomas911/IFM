@@ -65,6 +65,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(db);
         var logger = Substitute.For<ILogger<FuturesTradeSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = new TestableFuturesTradeSignalQueryActor(dbFactory, logger);
         var context = Substitute.For<IQueryActorContext<FuturesTradeSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
@@ -215,12 +216,12 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
         var expected = SampleData.TradeSignalReadModelFor(timePeriod);
-        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate);
+        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate, CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTradeSignalQuery.Verb,
@@ -237,7 +238,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(null));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
@@ -257,12 +258,12 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         var scenario = CreateScenario();
         var query = SampleData.LastTradeSignalQueryFor(timePeriod);
         var expected = SampleData.TradeSignalReadModelFor(timePeriod);
-        scenario.Db.GetLastFuturesTradeSignalAsync()
+        scenario.Db.GetLastFuturesTradeSignalAsync(CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync();
+        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync(CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetLastFuturesTradeSignalQuery.Verb,
@@ -277,7 +278,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.LastTradeSignalQueryFor(TimeFrameType.Daily);
-        scenario.Db.GetLastFuturesTradeSignalAsync()
+        scenario.Db.GetLastFuturesTradeSignalAsync(CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(null));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
@@ -301,12 +302,12 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
             SampleData.TradeSignalIdFor(timePeriod, 1),
             SampleData.TradeSignalIdFor(timePeriod, 2)
         ];
-        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate)
+        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate, CancellationToken.None)
             .Returns(Task.FromResult<ICollection<FuturesTradeSignalId>>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate);
+        await scenario.Db.Received(1).GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate, CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTradeSignalIdsQuery.Verb,
@@ -322,7 +323,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalIdsQueryFor(TimeFrameType.Monthly);
-        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate)
+        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate, CancellationToken.None)
             .Returns(Task.FromResult<ICollection<FuturesTradeSignalId>>([]));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
@@ -348,12 +349,12 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
             TimeFrameType.Weekly,
             contractId,
             valueDate);
-        scenario.Db.GetLastFuturesTradeSignalAsync(contractId, valueDate)
+        scenario.Db.GetLastFuturesTradeSignalAsync(contractId, valueDate, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync(contractId, valueDate);
+        await scenario.Db.Received(1).GetLastFuturesTradeSignalAsync(contractId, valueDate, CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTradeSignalQuery.Verb,
@@ -367,7 +368,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate, CancellationToken.None)
             .Returns<Task<FuturesTradeSignalV2ReadModel?>>(_ =>
                 throw new InvalidOperationException($"{timePeriod} storage unavailable"));
 
@@ -386,7 +387,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.LastTradeSignalQueryFor(TimeFrameType.Weekly);
-        scenario.Db.GetLastFuturesTradeSignalAsync()
+        scenario.Db.GetLastFuturesTradeSignalAsync(CancellationToken.None)
             .Returns<Task<FuturesTradeSignalV2ReadModel?>>(_ =>
                 throw new TimeoutException("latest signal timed out"));
 
@@ -401,7 +402,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalIdsQueryFor(TimeFrameType.Monthly);
-        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate)
+        scenario.Db.GetFuturesTradeSignalIdByValueDateAsync(query.ValueDate, CancellationToken.None)
             .Returns<Task<ICollection<FuturesTradeSignalId>>>(_ =>
                 throw new InvalidOperationException("ids unavailable"));
 
@@ -417,7 +418,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         var scenario = CreateScenario();
         var query = SampleData.TradeSignalQueryFor(TimeFrameType.Daily);
         var expected = SampleData.TradeSignalReadModelFor(TimeFrameType.Daily);
-        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate)
+        scenario.Db.GetLastFuturesTradeSignalAsync(query.ContractId, query.ValueDate, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTradeSignalV2ReadModel?>(expected));
         scenario.Context.ReplyAsync(
                 query.Subject.ThreadId,

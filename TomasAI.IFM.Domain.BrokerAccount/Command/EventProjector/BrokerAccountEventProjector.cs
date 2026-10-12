@@ -24,7 +24,8 @@ public sealed class BrokerAccountEventProjector(IBrokerAccountProjectionWriter w
             {
                 await writer.ProjectAsync(((BrokerAccountChangedEvent)domainEvent).BrokerAccountDefinition, execution.CancellationToken).ConfigureAwait(false);
                 return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
-            }, _ => null, (_, _) => null, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: false)];
+            }, _ => null, (_, _) => null, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: false)
+            .WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((BrokerAccountChangedEvent)source).BrokerAccountDefinition, token)).ConfigureAwait(false))];
     /// <inheritdoc />
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(BrokerAccountChangedEvent)];
 }

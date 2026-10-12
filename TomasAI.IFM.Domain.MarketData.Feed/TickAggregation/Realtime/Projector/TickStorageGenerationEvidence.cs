@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Projector;
 /// or itself authorize downstream admission.</remarks>
 public sealed class TickStorageGenerationEvidence(TimeProvider? time = null)
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly TimeProvider clock = time ?? TimeProvider.System;
     TickStorageGenerationTarget? target;
     long completedWrites;
@@ -14,6 +14,7 @@ public sealed class TickStorageGenerationEvidence(TimeProvider? time = null)
     /// <summary>Arms one exact dataset and generation, discarding earlier evidence.</summary>
     public void Arm(TickStorageGenerationTarget value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         if (string.IsNullOrWhiteSpace(value.Dataset) || value.Dataset.Length > 64
             || value.GenerationId == Guid.Empty)
             throw new ArgumentException("A complete tick-storage generation is required.", nameof(value));
@@ -46,7 +47,7 @@ public sealed class TickStorageGenerationEvidence(TimeProvider? time = null)
     {
         lock (gate)
         {
-            if (target is not { } expected || expected.Dataset != dataset
+            if (target is not { } expected || !string.Equals(expected.Dataset,dataset,StringComparison.Ordinal)
                 || expected.GenerationId != generationId)
                 return;
             completedWrites++;
@@ -54,10 +55,3 @@ public sealed class TickStorageGenerationEvidence(TimeProvider? time = null)
         }
     }
 }
-
-/// <summary>Exact dataset generation observed at the tick storage boundary.</summary>
-public sealed record TickStorageGenerationTarget(string Dataset, Guid GenerationId);
-
-/// <summary>Aggregate completed-write evidence, not an admission decision.</summary>
-public sealed record TickStorageGenerationSnapshot(TickStorageGenerationTarget? Target,
-    long CompletedWrites, DateTimeOffset? LastCompletedUtc);

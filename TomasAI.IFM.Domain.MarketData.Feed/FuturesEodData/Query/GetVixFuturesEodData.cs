@@ -13,9 +13,9 @@ public static class GetVixFuturesEodData
     {
         var db = dbFactory.MarketDataDb;
         if (string.IsNullOrEmpty(q.ContractId))
-            return [.. await db.GetVixFuturesEodDataByValueDateAsync(q.ValueDate)];
+            return [.. await (db.GetVixFuturesEodDataByValueDateAsync(q.ValueDate)).ConfigureAwait(false)];
 
-        var result = await db.GetVixFuturesEodDataAsync(q.ContractId, q.ValueDate);
+        var result = await (db.GetVixFuturesEodDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
         return result is null ? [] : [result];
     }
 }

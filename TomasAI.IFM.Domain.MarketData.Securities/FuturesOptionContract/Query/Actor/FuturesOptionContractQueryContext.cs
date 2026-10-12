@@ -7,8 +7,9 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Actor;
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesOptionContractQueryActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesOptionContractQueryContext : QueryActorContext,
-    IQueryActorContext<FuturesOptionContractQueryActor>, IFuturesOptionContractQueryContext
+IFuturesOptionContractQueryContext
 {
     /// <summary>Initializes a futures-option-contract query context.</summary>
     public FuturesOptionContractQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,

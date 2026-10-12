@@ -18,5 +18,11 @@ public static class GetPortfolio
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetPortfolioQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetPortfolioAsync(query.PortfolioId, query.Version, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetPortfolioAsync(query.PortfolioId, query.Version, cancellationToken));
+    }
 }

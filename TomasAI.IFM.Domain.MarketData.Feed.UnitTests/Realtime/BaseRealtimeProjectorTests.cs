@@ -16,6 +16,18 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.Realtime;
 public sealed class BaseRealtimeProjectorTests
 {
     [Fact]
+    public void ConcurrentDescriptorTypeReads_ReturnTheSameImmutableCollection()
+    {
+        var projector = new TestRealtimeProjector((_, _) => ValueTask.CompletedTask);
+        var reads = new IReadOnlyCollection<Type>[64];
+        Parallel.For(0, reads.Length, index => reads[index] = projector.ProjectedEventTypes);
+        reads.Should().OnlyContain(value => ReferenceEquals(value, reads[0]));
+        reads[0].Should().Equal(typeof(FuturesTickTradeDataInsertedEvent));
+        var collection = (ICollection<Type>)reads[0];
+        FluentActions.Invoking(() => collection.Add(typeof(string))).Should().Throw<NotSupportedException>();
+    }
+
+    [Fact]
     public async Task Success_PublishesSource_AppliesOnce_ThenPublishesComplete()
     {
         var steps = new List<string>();
@@ -237,8 +249,6 @@ public sealed class BaseRealtimeProjectorTests
         public override string ActorName =>
             FuturesMarketPriceRealtimeActor.ActorName;
         public override string ProjectorName => nameof(TestRealtimeProjector);
-        public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-            _descriptors.Select(descriptor => descriptor.SourceEventType).ToArray();
         public override IReadOnlyCollection<RealtimeProjectionDescriptor>
             ProjectionDescriptors => _descriptors;
     }

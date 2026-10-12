@@ -14,7 +14,7 @@ public static class FuturesRsiWilderAccumulator
         int periodLength)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        if (periodLength <= 0) throw new ArgumentOutOfRangeException(nameof(periodLength));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(periodLength);
         if (checkpoint is not null && checkpoint.PeriodLength != periodLength)
             throw new InvalidOperationException("The RSI checkpoint period does not match the command period.");
         if (checkpoint?.LastObservationId.Value != Guid.Empty && checkpoint?.LastObservationId == observation.ObservationId)
@@ -27,19 +27,7 @@ public static class FuturesRsiWilderAccumulator
         checkpoint ??= new() { PeriodLength = periodLength };
         var previousRsi = checkpoint.CurrentRsi;
         if (checkpoint.PreviousClose is null)
-        {
-            var first = checkpoint with
-            {
-                PreviousClose = observation.Close,
-                LastObservationId = observation.ObservationId,
-                LastSourceSequence = observation.LastSourceSequence,
-                LastMarketEventUtc = observation.LastMarketEventUtc,
-                LastIntervalEndUtc = observation.IntervalEndUtc,
-                LastStreamEpochId = observation.StreamEpochId
-            };
-            return new(first, 0m, 0m, 0m, null, null, null, previousRsi, null, false,
-                MarketObservationApplicationDisposition.Applied);
-        }
+            return FirstObservation(checkpoint, observation, previousRsi);
 
         var change = observation.Close - checkpoint.PreviousClose.Value;
         var gain = Math.Max(change, 0m);
@@ -50,30 +38,19 @@ public static class FuturesRsiWilderAccumulator
         decimal? averageGain = checkpoint.AverageGain;
         decimal? averageLoss = checkpoint.AverageLoss;
 
-        if (averageGain is null || averageLoss is null)
-        {
-            seedGain += gain;
-            seedLoss += loss;
-            if (count == periodLength)
-            {
-                averageGain = seedGain / periodLength;
-                averageLoss = seedLoss / periodLength;
-            }
-        }
-        else
-        {
-            averageGain = ((averageGain.Value * (periodLength - 1)) + gain) / periodLength;
-            averageLoss = ((averageLoss.Value * (periodLength - 1)) + loss) / periodLength;
-        }
+        (seedGain, seedLoss, averageGain, averageLoss) = AdvanceAverages(
+            seedGain, seedLoss, averageGain, averageLoss, gain, loss, count, periodLength);
 
         double? currentRsi = averageGain is not null && averageLoss is not null
             ? CalculateRsi(averageGain.Value, averageLoss.Value)
             : null;
-        double? rs = averageGain is null || averageLoss is null
-            ? null
-            : averageLoss.Value == 0m
-                ? averageGain.Value == 0m ? 1d : double.MaxValue
-                : (double)(averageGain.Value / averageLoss.Value);
+        double? rs = (averageGain is null || averageLoss is null) switch
+{
+    true => null,
+    false => (averageLoss.Value == 0m) switch
+    {
+        true => averageGain.Value == 0m ? 1d : double.MaxValue,
+        false => (double)(averageGain.Value / averageLoss.Value)}};
         double? slope = currentRsi is not null && previousRsi is not null
             ? currentRsi.Value - previousRsi.Value
             : null;
@@ -97,33 +74,50 @@ public static class FuturesRsiWilderAccumulator
             MarketObservationApplicationDisposition.Applied);
     }
 
+    /// <summary>Records the first close as the baseline; no price change or RSI is available yet.</summary>
+    static FuturesRsiWilderResult FirstObservation(FuturesRsiAccumulatorCheckpoint checkpoint,
+        FuturesTradeSessionBarReadModel observation, double? previousRsi)
+    {
+        var first = checkpoint with
+        {
+            PreviousClose = observation.Close,
+            LastObservationId = observation.ObservationId,
+            LastSourceSequence = observation.LastSourceSequence,
+            LastMarketEventUtc = observation.LastMarketEventUtc,
+            LastIntervalEndUtc = observation.IntervalEndUtc,
+            LastStreamEpochId = observation.StreamEpochId
+        };
+        return new(first, 0m, 0m, 0m, null, null, null, previousRsi, null, false,
+            MarketObservationApplicationDisposition.Applied);
+    }
+
+    /// <summary>Seeds from N changes; afterwards each average is (previous average ? (N ? 1) + current change) / N.</summary>
+    static (decimal SeedGain, decimal SeedLoss, decimal? AverageGain, decimal? AverageLoss) AdvanceAverages(
+        decimal seedGain, decimal seedLoss, decimal? averageGain, decimal? averageLoss,
+        decimal gain, decimal loss, int count, int periodLength)
+    {
+        if (averageGain is null || averageLoss is null)
+        {
+            seedGain += gain;
+            seedLoss += loss;
+            if (count == periodLength)
+            {
+                averageGain = seedGain / periodLength;
+                averageLoss = seedLoss / periodLength;
+            }
+        }
+        else
+        {
+            averageGain = ((averageGain.Value * (periodLength - 1)) + gain) / periodLength;
+            averageLoss = ((averageLoss.Value * (periodLength - 1)) + loss) / periodLength;
+        }
+
+        return (seedGain, seedLoss, averageGain, averageLoss);
+    }
+
     static double CalculateRsi(decimal averageGain, decimal averageLoss) =>
-        averageLoss == 0m
-            ? averageGain == 0m ? 50d : 100d
-            : 100d - (100d / (1d + (double)(averageGain / averageLoss)));
-}
-
-/// <summary>Contains one Wilder RSI transition result.</summary>
-public sealed record FuturesRsiWilderResult(
-    FuturesRsiAccumulatorCheckpoint Checkpoint,
-    decimal PriceChange,
-    decimal PriceGain,
-    decimal PriceLoss,
-    decimal? AverageGain,
-    decimal? AverageLoss,
-    double? RelativeStrength,
-    double? PreviousRsi,
-    double? Slope,
-    bool IsWarm,
-    MarketObservationApplicationDisposition Disposition)
+        (averageLoss == 0m) switch
 {
-    /// <summary>Gets whether this transition advanced durable state.</summary>
-    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
-
-    /// <summary>Creates a no-op transition for a duplicate or older observation.</summary>
-    public static FuturesRsiWilderResult Ignored(
-        FuturesRsiAccumulatorCheckpoint checkpoint,
-        MarketObservationApplicationDisposition disposition) =>
-        new(checkpoint, 0m, 0m, 0m, checkpoint.AverageGain, checkpoint.AverageLoss, null,
-            checkpoint.CurrentRsi, null, false, disposition);
+    true => averageGain == 0m ? 50d : 100d,
+    false => 100d - (100d / (1d + (double)(averageGain / averageLoss)))};
 }

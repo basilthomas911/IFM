@@ -2,21 +2,16 @@ using System.Collections.Concurrent;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation;
-
 /// <summary>
 /// Tracks the stream registrations and contract state owned by one event actor instance.
 /// </summary>
 internal sealed class ActiveTickerStreamRegistry<TContract>
 {
     private readonly ConcurrentDictionary<StreamKey, TContract> _streams = [];
-
     /// <summary>
     /// Records the contract state for an idempotent workflow-owned stream registration.
     /// </summary>
-    public void Track(
-        TickerStreamOwner owner,
-        string contractId,
-        TContract contract)
+    public void Track(TickerStreamOwner owner, string contractId, TContract contract)
     {
         owner.Validate();
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
@@ -26,17 +21,12 @@ internal sealed class ActiveTickerStreamRegistry<TContract>
     /// <summary>
     /// Removes the contract state owned by the specified workflow.
     /// </summary>
-    public bool Untrack(
-        string contractId,
-        TickerStreamOwner owner) =>
-        _streams.TryRemove(new StreamKey(contractId, owner), out _);
-
+    public bool Untrack(string contractId, TickerStreamOwner owner) => _streams.TryRemove(new StreamKey(contractId, owner), out _);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "This lookup runs on the realtime tick path; use a bounded early-return scan without a LINQ iterator or capturing predicate allocation.")]
     /// <summary>
     /// Finds actor-owned contract state for the supplied contract.
     /// </summary>
-    public bool TryGetContract(
-        string contractId,
-        out TContract contract)
+    public bool TryGetContract(string contractId, out TContract contract)
     {
         foreach (var pair in _streams)
         {
@@ -46,6 +36,7 @@ internal sealed class ActiveTickerStreamRegistry<TContract>
                 return true;
             }
         }
+
         contract = default!;
         return false;
     }
@@ -55,16 +46,10 @@ internal sealed class ActiveTickerStreamRegistry<TContract>
     /// </summary>
     public KeyValuePair<(string ContractId, TickerStreamOwner Owner), TContract>[] Drain()
     {
-        var registrations = _streams
-            .Select(pair => new KeyValuePair<(string, TickerStreamOwner), TContract>(
-                (pair.Key.ContractId, pair.Key.Owner),
-                pair.Value))
-            .ToArray();
+        var registrations = _streams.Select(pair => new KeyValuePair<(string, TickerStreamOwner), TContract>((pair.Key.ContractId, pair.Key.Owner), pair.Value)).ToArray();
         _streams.Clear();
         return registrations;
     }
 
-    private readonly record struct StreamKey(
-        string ContractId,
-        TickerStreamOwner Owner);
+    private readonly record struct StreamKey(string ContractId, TickerStreamOwner Owner);
 }

@@ -9,6 +9,7 @@ public class BaseValidationDecorator<TState> : IValidationCommandDecorator<TStat
 {
     public void Validate(ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var validatorType = typeof(IValidate<>).MakeGenericType(command.GetType());
         if (validatorType != null)
         {
@@ -17,7 +18,7 @@ public class BaseValidationDecorator<TState> : IValidationCommandDecorator<TStat
         }
     }
 
-    protected void ThrowCommandValidationExceptionOnErrors(int errorCode, ICollection<ValidationError> errors)
+    protected static void ThrowCommandValidationExceptionOnErrors(int errorCode, ICollection<ValidationError> errors)
     {
         if (errors != null && errors.Count > 0)
         {
@@ -34,8 +35,11 @@ public class BaseValidationDecorator<TState> : IValidationCommandDecorator<TStat
     /// </summary>
     /// <param name="validationErrors"></param>
     /// <param name="commandId"></param>
-    protected void ValidateCommandId(List<ValidationError> validationErrors, Guid commandId, string commandName)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
+    protected static void ValidateCommandId(List<ValidationError> validationErrors, Guid commandId, string commandName)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (commandId == Guid.Empty)
             validationErrors.Add(new ValidationError($"{commandName}.CommandId is empty"));
     }

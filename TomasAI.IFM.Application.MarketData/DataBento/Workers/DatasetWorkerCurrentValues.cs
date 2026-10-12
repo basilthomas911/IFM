@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 /// </summary>
 public sealed class DatasetWorkerCurrentValues : IDisposable
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly int capacity;
     readonly IDatabentoContractRegistrationRegistry? registrations;
     readonly Dictionary<string, DatasetState> datasets = new(StringComparer.Ordinal);
@@ -32,7 +32,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     public DatasetWorkerCurrentValues(IDatabentoContractRegistrationRegistry? registrations = null,
         int capacity = 4096)
     {
-        if (capacity < 1) throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
         this.capacity = capacity;
         this.registrations = registrations;
         catalog = new CurrentCatalog(this);
@@ -97,13 +97,12 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             if (lastPrices is not null && lastPrices.ValueDate != identity.ValueDate)
                 throw new MarketDataApiValueDateMismatchException(lastPrices.ValueDate, identity.ValueDate);
             var ids = contracts.Select(contract => contract.DomainContractId).ToHashSet(StringComparer.Ordinal);
-            if (datasets.Where(pair => pair.Key != identity.Dataset)
+            if (datasets.Where(pair => !string.Equals(pair.Key,identity.Dataset,StringComparison.Ordinal))
                 .SelectMany(pair => pair.Value.Contracts.Keys).Any(ids.Contains))
                 throw new ArgumentException("A contract cannot belong to multiple datasets.", nameof(contracts));
-            var store = lastPrices ?? new DatabentoLastPriceStore(identity.ValueDate, capacity);
             // Count even retired slots: retained reader identities are never recycled.
             var allocated = datasets.Values.SelectMany(state => state.AllocatedIds).ToHashSet(StringComparer.Ordinal);
-            if (allocated.Union(ids).Count() > capacity)
+            if (allocated.Union(ids, StringComparer.Ordinal).Count() > capacity)
                 throw new InvalidOperationException("The supervised current-value reader capacity has been reached.");
             if (datasets.TryGetValue(identity.Dataset, out var previous))
             {
@@ -113,13 +112,21 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                         && contracts.All(contract => previous.Contracts[contract.DomainContractId] == contract)) return;
                     throw new ArgumentException("An admitted manifest is immutable; changing it requires a new identity or revision.", nameof(contracts));
                 }
-                ClearValues(previous.Contracts.Keys, store);
+                if (lastPrices is not null) ClearValues(previous.Contracts.Keys, lastPrices);
             }
-            foreach (var contract in contracts) store.RegisterContract(contract.DomainContractId, contract.AssetTypeId);
+            DatabentoLastPriceStore? candidate = lastPrices is null
+                ? new DatabentoLastPriceStore(identity.ValueDate, capacity) : null;
+            try
+            {
+                var store = lastPrices ?? candidate!;
+                foreach (var contract in contracts) store.RegisterContract(contract.DomainContractId, contract.AssetTypeId);
             var state = new DatasetState(identity, contracts, referenceCatalog,
                 (previous?.AllocatedIds ?? []).Concat(ids).ToHashSet(StringComparer.Ordinal));
             datasets[identity.Dataset] = state;
-            lastPrices = store;
+                lastPrices = store;
+                candidate = null; // Ownership transfers to this current-value registry.
+            }
+            finally { candidate?.Dispose(); }
         }
     }
 
@@ -149,6 +156,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     /// value date and sequence are checked again atomically with the current write.
     /// Raw batches do not overwrite normalized current values or invent option Greeks.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public bool AcceptPublication(DatasetPublicationEnvelope envelope)
     {
         ArgumentNullException.ThrowIfNull(envelope);
@@ -166,7 +174,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     {
                         var evidence = MessagePackSerializer.Deserialize<Pricing.OptionTradeEvidence>(envelope.Payload);
                         evidence.Validate();
-                        if (evidence.Source.Dataset != envelope.Dataset || evidence.Source.ValueDate != envelope.ValueDate
+                        if (!string.Equals(evidence.Source.Dataset,envelope.Dataset,StringComparison.Ordinal) || evidence.Source.ValueDate != envelope.ValueDate
                             || evidence.Source.GenerationId != envelope.GenerationId
                             || evidence.Context is { } context && !state.Contracts.ContainsKey(context.Contract.UnderlyingContractId))
                             return false;
@@ -176,10 +184,10 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     {
                         var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);
                         if (value.OptionMarketPriceObservation is not { PriceBasis: OptionMarketPriceBasis.QuoteMidpoint } observation
-                            || value.AssetTypeId != AssetTypeId.FuturesOption || value.Dataset != envelope.Dataset
+                            || value.AssetTypeId != AssetTypeId.FuturesOption || !string.Equals(value.Dataset,envelope.Dataset,StringComparison.Ordinal)
                             || !Matches(state, observation.UnderlyingContractId, value.TickDataId.ValueDate)
-                            || value.EntityId.ContractId != value.TickDataId.ContractId
-                            || observation.OptionTickData.ContractId != value.TickDataId.ContractId
+                            || !string.Equals(value.EntityId.ContractId,value.TickDataId.ContractId,StringComparison.Ordinal)
+                            || !string.Equals(observation.OptionTickData.ContractId,value.TickDataId.ContractId,StringComparison.Ordinal)
                             || observation.OptionTickData.ValueDate != envelope.ValueDate
                             || value.PublisherId == 0 || value.InstrumentId == 0 || observation.SourceSequence <= 0
                             || observation.SourceSequence != value.TickDataId.SequenceId
@@ -231,14 +239,14 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     {
                         var value = MessagePackSerializer.Deserialize<FuturesTickTradeDataChangedEvent>(envelope.Payload);
                         if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
-                            || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset) return false;
+                            || value.AssetTypeId != AssetTypeId.Futures || !string.Equals(value.Dataset,envelope.Dataset,StringComparison.Ordinal)) return false;
                         break;
                     }
                 case DatasetPublicationKind.Quote:
                     {
                         var value = MessagePackSerializer.Deserialize<FuturesTickQuoteDataChangedEvent>(envelope.Payload);
                         if (!Matches(state, value.TickDataId.ContractId, value.TickDataId.ValueDate)
-                            || value.AssetTypeId != AssetTypeId.Futures || value.Dataset != envelope.Dataset
+                            || value.AssetTypeId != AssetTypeId.Futures || !string.Equals(value.Dataset,envelope.Dataset,StringComparison.Ordinal)
                             || value.QuoteCount != value.QuoteData.Count) return false;
                         break;
                     }
@@ -271,6 +279,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
         lock (gate) return statistics.TryGetValue(contractId, out snapshot) && snapshot.IsComplete;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "This operation reads a coherent runtime snapshot under the admission lock; retain the explicit method contract.")]
     public IDatabentoMarketDataCatalog GetCatalog()
     {
         lock (gate)
@@ -331,11 +340,11 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                     var root = registration.RootSymbol;
                     if (string.IsNullOrWhiteSpace(root)) root = new FuturesContractIdParser(contractId).Symbol;
                     if (owner.registrations?.TryGetOnTheRunFuturesContract(root, out var front) == true
-                        && front.ContractId == contractId) return front;
+                        && string.Equals(front.ContractId,contractId,StringComparison.Ordinal)) return front;
                     if (owner.registrations?.TryGetFuturesTermStructureContracts(root, out var pair) == true)
                     {
-                        if (pair.Front.ContractId == contractId) return pair.Front;
-                        if (pair.Back.ContractId == contractId) return pair.Back;
+                        if (string.Equals(pair.Front.ContractId,contractId,StringComparison.Ordinal)) return pair.Front;
+                        if (string.Equals(pair.Back.ContractId,contractId,StringComparison.Ordinal)) return pair.Back;
                     }
                     throw new MarketDataContractMappingException(contractId,
                         "authoritative contract metadata is unavailable in the supervised API host");
@@ -350,12 +359,14 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                 .FirstOrDefault(value => value is not null);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
         public string? FindOptionUnderlying(string contractId)
         {
             lock (owner.gate) return owner.datasets.Values.Select(state => state.Catalog?.FindOptionUnderlying(contractId))
                 .FirstOrDefault(value => value is not null);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
         public Task<FuturesOptionContractReadModel[]> GetOptionChainAsync(string contractId, DateOnly maturityDate)
         {
             IDatabentoMarketDataCatalog? reference;

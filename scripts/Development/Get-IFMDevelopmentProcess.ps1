@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string] $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+    [string] $RepositoryRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+}
 
 $sessionPath = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) `
     "TomasAI\IFM\Development\server-manager-session.json"

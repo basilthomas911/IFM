@@ -6,18 +6,23 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function;
-
 /// <summary>Adapts the existing exact catalog/Portfolio validators into the standard ordered command-error list.</summary>
 public static class CompositionCatalogValidation
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
     public static List<ValidationError> ValidateCompositionCatalog(this List<ValidationError> errors, ExecuteOrderCompositionPipelineCommand c)
     {
-        if (errors.Count != 0) return errors;
+        ArgumentNullException.ThrowIfNull(c);
+        ArgumentNullException.ThrowIfNull(errors);
+        if (errors.Count != 0)
+            return errors;
         try
         {
             var selected = TradeSelectionContracts.ReadResult(c.AcceptedSelectionEnvelope);
             var resolved = CompositionBindingResolver.Resolve(selected, c.SelectionBinding, c.CompositionBinding.FrozenAtUtc);
-            if (resolved.BindingSha256 != c.CompositionBinding.BindingSha256) errors.Add(new("OC.CONFIG.PROFILE_MISMATCH"));
+            if (!string.Equals(resolved.BindingSha256, c.CompositionBinding.BindingSha256, StringComparison.Ordinal))
+                errors.Add(new("OC.CONFIG.PROFILE_MISMATCH"));
             if (c.SelectionBinding.SchemaVersion == 1)
             {
                 if (c.WorkflowView.CompositionHandoff is not { } handoff || c.Reservation is null)
@@ -28,10 +33,11 @@ public static class CompositionCatalogValidation
             else if (c.Reservation is not null || c.WorkflowView.CompositionHandoff is not null)
                 errors.Add(new("OC.CONTRACT.OWNERSHIP_PREMATURE"));
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
             errors.Add(new(ex is CompositionException cex ? cex.ReasonCode : "OC.CONTRACT.UPSTREAM_INVALID"));
         }
+
         return errors;
     }
 }

@@ -1,4 +1,4 @@
-﻿[*.cs]
+[*.cs]
 
 # ASP0013: Suggest switching from using Configure methods to WebApplicationBuilder.Configuration
 dotnet_diagnostic.ASP0013.severity = silent
@@ -90,3 +90,5 @@ dotnet_naming_style.pascal_case.required_prefix =
 dotnet_naming_style.pascal_case.required_suffix = 
 dotnet_naming_style.pascal_case.word_separator = 
 dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+

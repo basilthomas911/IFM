@@ -32,8 +32,8 @@ public static class TreasuryRateConversion
         ArgumentNullException.ThrowIfNull(policy);
         if (policy.Convention != TreasuryRateConvention.UsTreasuryCmtNominalSemiannual
             || string.IsNullOrWhiteSpace(policy.SourceSeriesId) || string.IsNullOrWhiteSpace(policy.Version)
-            || string.IsNullOrWhiteSpace(policy.EvidenceId) || policy.Source != snapshot.Source
-            || snapshot.CountryCode != "US" || snapshot.CurrencyCode != "USD")
+            || string.IsNullOrWhiteSpace(policy.EvidenceId) || !string.Equals(policy.Source,snapshot.Source,StringComparison.Ordinal)
+            || !string.Equals(snapshot.CountryCode,"US",StringComparison.Ordinal) || !string.Equals(snapshot.CurrencyCode,"USD",StringComparison.Ordinal))
             return TreasuryContinuousRateResult.Failed("RateConventionUnsupported");
         if (snapshot.ValueDate == default || snapshot.RetrievedAtUtc.Offset != TimeSpan.Zero
             || snapshot.Rates is null || snapshot.Rates.Count is < 1 or > 32
@@ -59,6 +59,7 @@ public static class TreasuryRateConversion
     /// <returns>The digest result.</returns>
     public static string Digest(TreasuryCurveSnapshot snapshot)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         var canonical = JsonSerializer.Serialize(new
         {
             Version = 1,

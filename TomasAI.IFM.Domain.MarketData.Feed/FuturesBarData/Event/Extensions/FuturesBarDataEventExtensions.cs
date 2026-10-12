@@ -35,7 +35,7 @@ internal static class FuturesBarDataEventExtensions
             EntityId = entityId,
             ErrorCode = GetLastFuturesTickDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesTickDataV2ReadModel, GetLastFuturesTickDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesTickDataV2ReadModel, GetLastFuturesTickDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresTickData = serviceResult.Value;
         return futuresTickData;
@@ -59,7 +59,7 @@ internal static class FuturesBarDataEventExtensions
             EntityId = entityId,
             ErrorCode = GetLastFuturesTickDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesTradeSignalV2ReadModel, GetFuturesTradeSignalBySymbolQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesTradeSignalV2ReadModel, GetFuturesTradeSignalBySymbolQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresTradeSignal = serviceResult.Value;
         return futuresTradeSignal;

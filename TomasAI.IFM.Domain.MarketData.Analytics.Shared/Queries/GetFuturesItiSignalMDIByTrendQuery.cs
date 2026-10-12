@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 /// <summary>
 /// MessagePack-serializable query to retrieve ITI MDI signal data for futures contracts by trend grouping.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public record GetFuturesItiSignalMDIByTrendQuery : IQuery<FuturesItiSignalMDIV2ReadModel[]>
 {

@@ -26,7 +26,7 @@ public static class FuturesTickDataStreamingStarted
     }
 
     static string ServiceId { get; }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Attaches the futures stream and publishes its completion or failure event.</summary>
     public static async ValueTask<bool> ExecuteAsync(
     this FuturesTickDataStreamingStartedEvent e,
@@ -34,6 +34,9 @@ public static class FuturesTickDataStreamingStarted
     IEventActorContext eventApi,
     FuturesTickDataEventParameters p, ILogger<FuturesTickDataEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";
         try
         {
@@ -46,7 +49,7 @@ public static class FuturesTickDataStreamingStarted
                 if (!p.MarketDataApi.IsTickDataStreamActive(e.Contract.ContractId))
                     throw new InvalidOperationException(
                         $"The supervised dataset worker has not admitted the futures tick route for {e.Contract.ContractId}.");
-                await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
+                await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId,
                     "{Source}: futures {ContractId} streaming is owned by the supervised dataset worker",
                     source, e.Contract.ContractId);
@@ -63,16 +66,16 @@ public static class FuturesTickDataStreamingStarted
                     e.ValueDate,
                     e.Contract.ContractId);
             }
-            await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
+            await (eventApi.FuturesTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started")).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);
             return true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: futures {e.Contract.ContractId} streaming start failed", source, e.Contract.ContractId);
-            await eventApi.FuturesTickDataStreamingStartedFailAsync(e, ex);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6003, ex.GetErrorMessage());
+            await (eventApi.FuturesTickDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, 6003, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

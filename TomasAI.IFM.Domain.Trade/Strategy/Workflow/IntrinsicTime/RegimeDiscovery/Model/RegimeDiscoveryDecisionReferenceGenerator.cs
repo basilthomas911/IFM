@@ -3,14 +3,11 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
-
 /// <summary>Generates a bounded, deterministic reference catalog by exercising the production fusion model.</summary>
 public sealed class RegimeDiscoveryDecisionReferenceGenerator(MarketRegimeFusionModel? fusionModel = null)
 {
     readonly MarketRegimeFusionModel _fusionModel = fusionModel ?? new();
-
     public RegimeDiscoveryDecisionReferenceDto[] Generate() => Cases.Select(Generate).ToArray();
-
     RegimeDiscoveryDecisionReferenceDto Generate(ReferenceCase value)
     {
         var trendScore = DirectionScore(value.TrendDirection);
@@ -41,9 +38,11 @@ public sealed class RegimeDiscoveryDecisionReferenceGenerator(MarketRegimeFusion
             IsComplete = true,
             Classification = value.StructureClassification,
             Direction = value.StructureDirection,
-            Breakout = value.StructureClassification == MarketStructureClassification.BreakingOut
-                ? value.StructureDirection == RegimeDirection.Down ? MarketBreakoutState.Down : MarketBreakoutState.Up
-                : MarketBreakoutState.None,
+            Breakout = ((value.StructureClassification == MarketStructureClassification.BreakingOut) switch
+            {
+                true => value.StructureDirection == RegimeDirection.Down ? MarketBreakoutState.Down : MarketBreakoutState.Up,
+                _ => MarketBreakoutState.None
+            }),
             Score = structureScore,
             Confidence = confidence
         };
@@ -86,7 +85,6 @@ public sealed class RegimeDiscoveryDecisionReferenceGenerator(MarketRegimeFusion
         RegimeDirection.Down => -0.8m,
         _ => 0m
     };
-
     static decimal VolatilityScore(VolatilityRegimeLevel level) => level switch
     {
         VolatilityRegimeLevel.Low => 0.15m,
@@ -95,69 +93,7 @@ public sealed class RegimeDiscoveryDecisionReferenceGenerator(MarketRegimeFusion
         VolatilityRegimeLevel.Extreme => 0.85m,
         _ => 0m
     };
-
-    static readonly ReferenceCase[] Cases =
-    [
-        Case("RD-REF-001", "Established bullish trend", ["DirectionalAlignment", "Bullish"],
-            RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango,
-            MarketStructureClassification.Trending, RegimeDirection.Up),
-        Case("RD-REF-002", "Established bearish trend", ["DirectionalAlignment", "Bearish"],
-            RegimeDirection.Down, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango,
-            MarketStructureClassification.Trending, RegimeDirection.Down),
-        Case("RD-REF-003", "Quiet range contraction", ["Neutral", "Contraction", "Range"],
-            RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Low,
-            VolatilityRegimeChange.Contracting, VxTermStructureRegime.Contango,
-            MarketStructureClassification.Ranging, RegimeDirection.Neutral),
-        Case("RD-REF-004", "Emerging bullish structure", ["Emerging", "Bullish"],
-            RegimeDirection.Up, TrendRegimePhase.Emerging, VolatilityRegimeLevel.Low,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat,
-            MarketStructureClassification.Trending, RegimeDirection.Up),
-        Case("RD-REF-005", "Exhausting trend with expansion", ["Transition", "Expansion", "Exhaustion"],
-            RegimeDirection.Up, TrendRegimePhase.Exhausting, VolatilityRegimeLevel.High,
-            VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation,
-            MarketStructureClassification.Expanding, RegimeDirection.Up),
-        Case("RD-REF-006", "Bearish reversal with expansion", ["Transition", "Expansion", "Reversal"],
-            RegimeDirection.Down, TrendRegimePhase.Reversing, VolatilityRegimeLevel.High,
-            VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation,
-            MarketStructureClassification.Trending, RegimeDirection.Down),
-        Case("RD-REF-007", "Directional specialist conflict", ["SpecialistConflict"],
-            RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat,
-            MarketStructureClassification.Trending, RegimeDirection.Down),
-        Case("RD-REF-008", "Neutral trend with bullish breakout", ["StructureLed", "Breakout"],
-            RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango,
-            MarketStructureClassification.BreakingOut, RegimeDirection.Up),
-        Case("RD-REF-009", "Directional transition", ["StructuralTransition"],
-            RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat,
-            MarketStructureClassification.Transitioning, RegimeDirection.Neutral),
-        Case("RD-REF-010", "Extreme volatility blocker", ["VolatilityBoundary", "NoNewTrade"],
-            RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Extreme,
-            VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation,
-            MarketStructureClassification.Expanding, RegimeDirection.Up),
-        Case("RD-REF-011", "Low-confidence mixed market", ["LowConfidence", "Mixed"],
-            RegimeDirection.Up, TrendRegimePhase.Emerging, VolatilityRegimeLevel.Normal,
-            VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat,
-            MarketStructureClassification.Ranging, RegimeDirection.Neutral, true),
-        Case("RD-REF-012", "Neutral compression", ["Neutral", "Compression"],
-            RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Low,
-            VolatilityRegimeChange.Contracting, VxTermStructureRegime.Contango,
-            MarketStructureClassification.Compressing, RegimeDirection.Neutral)
-    ];
-
-    static ReferenceCase Case(string code, string name, string[] tags, RegimeDirection trendDirection,
-        TrendRegimePhase trendPhase, VolatilityRegimeLevel volatilityLevel,
-        VolatilityRegimeChange volatilityChange, VxTermStructureRegime termStructure,
-        MarketStructureClassification structureClassification, RegimeDirection structureDirection,
-        bool lowConfidence = false) => new(code, name, tags, trendDirection, trendPhase, volatilityLevel,
-            volatilityChange, termStructure, structureClassification, structureDirection, lowConfidence);
-
-    sealed record ReferenceCase(string Code, string Name, string[] Tags, RegimeDirection TrendDirection,
-        TrendRegimePhase TrendPhase, VolatilityRegimeLevel VolatilityLevel,
-        VolatilityRegimeChange VolatilityChange, VxTermStructureRegime TermStructure,
-        MarketStructureClassification StructureClassification, RegimeDirection StructureDirection,
-        bool LowConfidence);
+    static readonly ReferenceCase[] Cases = [Case("RD-REF-001", "Established bullish trend", ["DirectionalAlignment", "Bullish"], RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango, MarketStructureClassification.Trending, RegimeDirection.Up), Case("RD-REF-002", "Established bearish trend", ["DirectionalAlignment", "Bearish"], RegimeDirection.Down, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango, MarketStructureClassification.Trending, RegimeDirection.Down), Case("RD-REF-003", "Quiet range contraction", ["Neutral", "Contraction", "Range"], RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Low, VolatilityRegimeChange.Contracting, VxTermStructureRegime.Contango, MarketStructureClassification.Ranging, RegimeDirection.Neutral), Case("RD-REF-004", "Emerging bullish structure", ["Emerging", "Bullish"], RegimeDirection.Up, TrendRegimePhase.Emerging, VolatilityRegimeLevel.Low, VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat, MarketStructureClassification.Trending, RegimeDirection.Up), Case("RD-REF-005", "Exhausting trend with expansion", ["Transition", "Expansion", "Exhaustion"], RegimeDirection.Up, TrendRegimePhase.Exhausting, VolatilityRegimeLevel.High, VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation, MarketStructureClassification.Expanding, RegimeDirection.Up), Case("RD-REF-006", "Bearish reversal with expansion", ["Transition", "Expansion", "Reversal"], RegimeDirection.Down, TrendRegimePhase.Reversing, VolatilityRegimeLevel.High, VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation, MarketStructureClassification.Trending, RegimeDirection.Down), Case("RD-REF-007", "Directional specialist conflict", ["SpecialistConflict"], RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat, MarketStructureClassification.Trending, RegimeDirection.Down), Case("RD-REF-008", "Neutral trend with bullish breakout", ["StructureLed", "Breakout"], RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Contango, MarketStructureClassification.BreakingOut, RegimeDirection.Up), Case("RD-REF-009", "Directional transition", ["StructuralTransition"], RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat, MarketStructureClassification.Transitioning, RegimeDirection.Neutral), Case("RD-REF-010", "Extreme volatility blocker", ["VolatilityBoundary", "NoNewTrade"], RegimeDirection.Up, TrendRegimePhase.Established, VolatilityRegimeLevel.Extreme, VolatilityRegimeChange.Expanding, VxTermStructureRegime.Backwardation, MarketStructureClassification.Expanding, RegimeDirection.Up), Case("RD-REF-011", "Low-confidence mixed market", ["LowConfidence", "Mixed"], RegimeDirection.Up, TrendRegimePhase.Emerging, VolatilityRegimeLevel.Normal, VolatilityRegimeChange.Stable, VxTermStructureRegime.Flat, MarketStructureClassification.Ranging, RegimeDirection.Neutral, true), Case("RD-REF-012", "Neutral compression", ["Neutral", "Compression"], RegimeDirection.Neutral, TrendRegimePhase.RangeBound, VolatilityRegimeLevel.Low, VolatilityRegimeChange.Contracting, VxTermStructureRegime.Contango, MarketStructureClassification.Compressing, RegimeDirection.Neutral)];
+    static ReferenceCase Case(string code, string name, string[] tags, RegimeDirection trendDirection, TrendRegimePhase trendPhase, VolatilityRegimeLevel volatilityLevel, VolatilityRegimeChange volatilityChange, VxTermStructureRegime termStructure, MarketStructureClassification structureClassification, RegimeDirection structureDirection, bool lowConfidence = false) => new(code, name, tags, trendDirection, trendPhase, volatilityLevel, volatilityChange, termStructure, structureClassification, structureDirection, lowConfidence);
+    sealed record ReferenceCase(string Code, string Name, string[] Tags, RegimeDirection TrendDirection, TrendRegimePhase TrendPhase, VolatilityRegimeLevel VolatilityLevel, VolatilityRegimeChange VolatilityChange, VxTermStructureRegime TermStructure, MarketStructureClassification StructureClassification, RegimeDirection StructureDirection, bool LowConfidence);
 }

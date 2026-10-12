@@ -17,14 +17,6 @@ internal sealed record PortfolioOperatingStateChangedCompute : IPortfolioChange
     public string RejectionReason { get; init; } = string.Empty;
     /// <summary>Creates a rejected computation without a business payload or pending event.</summary>
     internal PortfolioOperatingStateChangedCompute() { }
-
-    public Guid Id { get; init; }
-    public Guid CommandId { get; init; }
-    public long Revision { get; init; }
-    public DateTime OccurredOnUtc { get; init; }
-    public string Principal { get; init; } = string.Empty;
-    public PortfolioOperatingState OperatingState { get; init; } = default!;
-    public string Reason { get; init; } = default!;
     /// <summary>Initializes accepted immutable business values.</summary>
     /// <param name="id">The id value.</param>
     /// <param name="commandId">The commandId value.</param>
@@ -43,4 +35,12 @@ internal sealed record PortfolioOperatingStateChangedCompute : IPortfolioChange
         OperatingState = state;
         Reason = reason;
     }
+
+    public Guid Id { get; init; }
+    public Guid CommandId { get; init; }
+    public long Revision { get; init; }
+    public DateTime OccurredOnUtc { get; init; }
+    public string Principal { get; init; } = string.Empty;
+    public PortfolioOperatingState OperatingState { get; init; } = default!;
+    public string Reason { get; init; } = default!;
 }

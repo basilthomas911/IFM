@@ -1,0 +1,1 @@
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope="namespace", Target="~N:TomasAI.IFM.Shared.EventProducers", Justification="Preserve the existing shared event producer namespace identity.")]

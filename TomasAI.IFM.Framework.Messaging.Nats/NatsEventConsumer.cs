@@ -28,7 +28,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     private static readonly MethodInfo _asEventMethod = typeof(ActorExtensions)
         .GetMethods(BindingFlags.Public | BindingFlags.Static)
         .Single(method =>
-            method.Name == nameof(ActorExtensions.AsEvent) &&
+            string.Equals(method.Name,nameof(ActorExtensions.AsEvent),StringComparison.Ordinal) &&
             method.IsGenericMethodDefinition &&
             method.GetGenericArguments().Length == 1 &&
             method.GetParameters().Length == 1 &&
@@ -56,6 +56,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     /// Starts the consumer after collecting the derived consumer's event registrations.
     /// </summary>
     /// <returns>A task representing startup of the NATS subscriptions.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     public async ValueTask StartAsync()
     {
         try
@@ -66,7 +67,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
 
             if (_registrations.Count == 0)
             {
-                _logger.LogWarning("{Component}.{Method} "+"{ConsumerName} did not register any NATS events.",nameof(NatsEventConsumer),nameof(StartAsync),GetType().Name);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write36(_logger, null, nameof(NatsEventConsumer), nameof(StartAsync), GetType().Name);
                 return;
             }
 
@@ -94,6 +95,7 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     /// Stops all NATS subscriptions owned by this consumer.
     /// </summary>
     /// <returns>A task representing shutdown of the NATS listener.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     public new async ValueTask StopAsync()
     {
         try
@@ -152,13 +154,12 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
         _listenerId ??= siteName;
         if (!string.Equals(_listenerId, siteName, StringComparison.Ordinal))
         {
-            _logger.LogDebug(
-                "{Component}.{Method} "+"{ConsumerName} combines subscription site {SiteName} into listener {ListenerId}.",nameof(NatsEventConsumer),nameof(Subscribe),                GetType().Name,                siteName,                _listenerId);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write37(_logger, null, nameof(NatsEventConsumer), nameof(Subscribe), GetType().Name, siteName, _listenerId);
         }
 
         foreach (var prototype in consumeEvents)
         {
-            ArgumentNullException.ThrowIfNull(prototype);
+            if (prototype is null) throw new ArgumentException("Event registrations must not contain null prototypes.", nameof(consumeEvents));
             var route = ResolveRoute(prototype);
             if (!_registrations.TryGetValue(route, out var routeRegistrations))
             {

@@ -67,20 +67,21 @@ public static class TradeSelectionDefaultProfiles
     {
         List<SelectionVariantRule> rules = [];
         foreach (var bias in new[] { "Bullish", "Bearish" })
-            rules.Add(Rule("Future", bias == "Bullish" ? "Long" : "Short", bias, "None", 10));
+            rules.Add(Rule("Future", string.Equals(bias,"Bullish",StringComparison.Ordinal) ? "Long" : "Short", bias, "None", 10));
         rules.Add(Rule("CallVertical", "Long", "Bullish", "Debit", 20));
         rules.Add(Rule("PutVertical", "Long", "Bearish", "Debit", 20));
         rules.Add(Rule("PutVertical", "Short", "Bullish", "Credit", 30));
         rules.Add(Rule("CallVertical", "Short", "Bearish", "Credit", 30));
         foreach (var side in new[] { "Short", "Long" })
             foreach (var bias in new[] { "Balanced", "Bullish", "Bearish" })
-                rules.Add(Rule("IronCondor", side, bias, side == "Short" ? "Credit" : "Debit", side == "Short" ? 40 : 50));
+                rules.Add(Rule("IronCondor", side, bias, string.Equals(side,"Short",StringComparison.Ordinal) ? "Credit" : "Debit", string.Equals(side,"Short",StringComparison.Ordinal) ? 40 : 50));
         return [.. rules];
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The credit branch remains reachable when balanced is false and credit is true; retain the existing strategy rule truth table across the nested switch expressions.")]
     static SelectionVariantRule Rule(string builder, string side, string bias, string premium, int preference)
     {
-        var condor = builder == "IronCondor"; var balanced = bias == "Balanced"; var credit = premium == "Credit";
+        var condor = string.Equals(builder,"IronCondor",StringComparison.Ordinal); var balanced = string.Equals(bias,"Balanced",StringComparison.Ordinal); var credit = string.Equals(premium,"Credit",StringComparison.Ordinal);
         return new()
         {
             BuilderCapabilityCode = builder,
@@ -89,23 +90,12 @@ public static class TradeSelectionDefaultProfiles
             Bias = bias,
             PremiumMode = premium,
             Preference = preference,
-            AllowedRegimeDirections = [balanced ? RegimeDirection.Neutral : bias == "Bullish" ? RegimeDirection.Up : RegimeDirection.Down],
-            AllowedTrendPhases = balanced
-                ? credit ? [TrendRegimePhase.RangeBound, TrendRegimePhase.Established] : [TrendRegimePhase.RangeBound, TrendRegimePhase.Emerging, TrendRegimePhase.Established]
-                : [TrendRegimePhase.Emerging, TrendRegimePhase.Established],
-            AllowedTrendStrengths = balanced && credit ? [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate]
-                : condor ? credit ? [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong]
-                : balanced ? [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate] : [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme]
-                : [TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme],
-            AllowedStructureClassifications = balanced ? credit ? [MarketStructureClassification.Ranging, MarketStructureClassification.Compressing]
-                : [MarketStructureClassification.Ranging, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut]
-                : credit ? [MarketStructureClassification.Trending, MarketStructureClassification.Ranging, MarketStructureClassification.Compressing]
-                : [MarketStructureClassification.Trending, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut],
-            AllowedAssessmentConditions = balanced ? credit ? [AssessmentCondition.RangeBound, AssessmentCondition.VolatilityContraction] : [AssessmentCondition.VolatilityExpansion]
-                : credit ? [AssessmentCondition.Directional, AssessmentCondition.VolatilityContraction] : [AssessmentCondition.Directional, AssessmentCondition.VolatilityExpansion],
-            AllowedVolatilityBehavior = condor && !credit ? [AssessmentVolatility.Expanding]
-                : credit ? [AssessmentVolatility.Stable, AssessmentVolatility.Contracting]
-                : builder == "Future" ? [AssessmentVolatility.Stable, AssessmentVolatility.Expanding, AssessmentVolatility.Contracting] : [AssessmentVolatility.Stable, AssessmentVolatility.Expanding]
+            AllowedRegimeDirections = [(balanced) switch { true => RegimeDirection.Neutral, false => (string.Equals(bias,"Bullish",StringComparison.Ordinal)) switch { true => RegimeDirection.Up, false => RegimeDirection.Down } }],
+            AllowedTrendPhases = (balanced) switch { true => (credit) switch { true => [TrendRegimePhase.RangeBound, TrendRegimePhase.Established], false => [TrendRegimePhase.RangeBound, TrendRegimePhase.Emerging, TrendRegimePhase.Established] }, false => [TrendRegimePhase.Emerging, TrendRegimePhase.Established] },
+            AllowedTrendStrengths = (balanced && credit) switch { true => [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate], false => (condor) switch { true => (credit) switch { true => [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong], false => (balanced) switch { true => [TrendRegimeStrength.None, TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate], false => [TrendRegimeStrength.Weak, TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme] } }, false => [TrendRegimeStrength.Moderate, TrendRegimeStrength.Strong, TrendRegimeStrength.Extreme] } },
+            AllowedStructureClassifications = (balanced) switch { true => (credit) switch { true => [MarketStructureClassification.Ranging, MarketStructureClassification.Compressing], false => [MarketStructureClassification.Ranging, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut] }, false => (credit) switch { true => [MarketStructureClassification.Trending, MarketStructureClassification.Ranging, MarketStructureClassification.Compressing], false => [MarketStructureClassification.Trending, MarketStructureClassification.Expanding, MarketStructureClassification.BreakingOut] } },
+            AllowedAssessmentConditions = (balanced) switch { true => (credit) switch { true => [AssessmentCondition.RangeBound, AssessmentCondition.VolatilityContraction], false => [AssessmentCondition.VolatilityExpansion] }, false => (credit) switch { true => [AssessmentCondition.Directional, AssessmentCondition.VolatilityContraction], false => [AssessmentCondition.Directional, AssessmentCondition.VolatilityExpansion] } },
+            AllowedVolatilityBehavior = (condor && !credit) switch { true => [AssessmentVolatility.Expanding], false => (credit) switch { true => [AssessmentVolatility.Stable, AssessmentVolatility.Contracting], false => (string.Equals(builder,"Future",StringComparison.Ordinal)) switch { true => [AssessmentVolatility.Stable, AssessmentVolatility.Expanding, AssessmentVolatility.Contracting], false => [AssessmentVolatility.Stable, AssessmentVolatility.Expanding] } } }
         };
     }
 }

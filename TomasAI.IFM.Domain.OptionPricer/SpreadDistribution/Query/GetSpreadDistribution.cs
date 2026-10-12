@@ -13,18 +13,11 @@ public static class GetSpreadDistribution
         this GetSpreadDistributionQuery q, IDbContextFactory dbFactory,
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+        => new(dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
                 tradeId,
                 tradeType,
                 tradeStatus,
                 valueDate,
                 daysToExpiry,
-                cancellationToken)
-            : dbFactory.OptionPricerDb.GetSpreadDistributionAsync(
-                tradeId,
-                tradeType,
-                tradeStatus,
-                valueDate,
-                daysToExpiry));
+                cancellationToken));
 }

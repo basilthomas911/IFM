@@ -7,9 +7,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.C
 public static class PublishFuturesTradeSessionBarValidation
 {
     /// <summary>Validates the bar payload and its repeated Command routing identities.</summary>
-    public static List<ValidationError> ValidatePublishBar(
-        this List<ValidationError> errors,
+    public static TErrors ValidatePublishBar<TErrors>(
+        this TErrors errors,
         PublishFuturesTradeSessionBarCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
         ArgumentNullException.ThrowIfNull(errors);
         ArgumentNullException.ThrowIfNull(command);
@@ -37,7 +39,7 @@ public static class PublishFuturesTradeSessionBarValidation
 
         if (entityErrors.Length == 0)
         {
-            if (command.Subject.EntityId != command.EntityId.Format())
+            if (!string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
                 errors.Add(new("BAR.ROUTE", "Command routing identity must match EntityId."));
             if (command.EntityId.MarketSeriesIdentity != bar.MarketSeriesIdentity
                 || command.EntityId.TimeFrame != bar.TimeFrame)

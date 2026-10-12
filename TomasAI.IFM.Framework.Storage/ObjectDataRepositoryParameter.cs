@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Framework.Storage.SqlServer;
 
 namespace TomasAI.IFM.Framework.Storage
 {
-    public class ObjectDataRepositoryParameter
+    public static class ObjectDataRepositoryParameter
     {
         public static IObjectRepositoryParameter? Create(string providerName)
            => providerName switch

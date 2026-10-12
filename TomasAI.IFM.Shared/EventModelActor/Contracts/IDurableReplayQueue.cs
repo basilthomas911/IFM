@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Shared.EventProjector;
@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "The established public actor queue/handler contract name describes its role and must remain compatible.")]
 public interface IDurableReplayQueue
 {
     Task PrepareAsync(string eventProjectorName, TimeSpan replayInterval, CancellationToken cancellationToken = default);

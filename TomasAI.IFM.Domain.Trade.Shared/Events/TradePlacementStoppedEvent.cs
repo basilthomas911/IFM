@@ -61,8 +61,10 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             StoppedBy = stoppedBy ?? string.Empty;
         }
 
-        public ICompleteEvent ToCompletedEvent() => throw new NotImplementedException();
-        public IErrorEvent ToFailedEvent(Exception ex) => throw new NotImplementedException();
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
+        public ICompleteEvent ToCompletedEvent() => throw new NotSupportedException("This notification does not provide command completion or failure conversion.");
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
+        public IErrorEvent ToFailedEvent(Exception ex) => throw new NotSupportedException("This notification does not provide command completion or failure conversion.");
     }
 
 

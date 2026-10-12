@@ -31,7 +31,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         RealtimeTickPublisherPolicy? policy = null, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(supervisor);
-        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _supervisor = supervisor;
         _capacity = capacity;
         if (policy is not null)
@@ -71,7 +71,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             _channel = CreateChannel(_capacity);
             Interlocked.Exchange(ref _pending, 0);
             Volatile.Write(ref _running, 1);
-            _worker = Task.Run(ProcessAsync);
+            _worker = Task.Run(ProcessAsync, CancellationToken.None);
         }
         finally { _lifecycle.Release(); }
     }
@@ -175,6 +175,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         ITickQuoteBufferLease lease,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(lease);
         if (!ReferenceEquals(@event.QuoteData.Buffer, lease.Buffer) ||
@@ -198,6 +199,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     /// <summary>Closes queue admission and waits for the publication worker to stop.</summary>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Realtime supervision boundary records every transport failure and preserves lease cleanup or retirement; arbitrary provider failures must be contained.")]
     public async ValueTask StopAsync(CancellationToken cancellationToken)
     {
         if (_bounded is not null) { await _bounded.StopAsync(cancellationToken).ConfigureAwait(false); return; }

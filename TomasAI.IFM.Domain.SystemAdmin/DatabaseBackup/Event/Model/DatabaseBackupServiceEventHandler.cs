@@ -19,12 +19,17 @@ internal static class DatabaseBackupServiceEventHandler
         {
             var command = DatabaseBackupEventTranslator.Translate(eventValue);
             var result = await RequestAsync(context, command).ConfigureAwait(false);
+            if (!result.Success && command is RecordDatabaseRetentionResultCommand
+                && eventValue.Source.Source == Shared.DatabaseBackup.Contracts.BackupSource.AwsCloud
+                && eventValue.Source.Phase is Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Completed or Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Failed
+                && result.ErrorMessage?.Contains("Service observations require an existing operation.", StringComparison.Ordinal) == true)
+                result = await RequestAsync(context, DatabaseBackupEventTranslator.ReconcileTerminalRetention(eventValue)).ConfigureAwait(false);
             if (!result.Success)
                 throw new InvalidOperationException($"DatabaseBackup command rejected: {result.ErrorMessage}");
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,                "{Component}.{Method} "+"Database backup service event handoff failed for {EventType}, {EventId}, {CommandId}, {EntityId}.",nameof(DatabaseBackupServiceEventHandler),nameof(ExecuteAsync),                eventValue.GetType().Name,eventValue.Id,eventValue.CommandId,eventValue.EntityId);
+            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write11(logger, exception, nameof(DatabaseBackupServiceEventHandler), nameof(ExecuteAsync), eventValue.GetType().Name, eventValue.Id, eventValue.CommandId, eventValue.EntityId);
             exception.Data[DatabaseBackupEventActor.HandlerErrorLoggedKey] = true;
             throw;
         }

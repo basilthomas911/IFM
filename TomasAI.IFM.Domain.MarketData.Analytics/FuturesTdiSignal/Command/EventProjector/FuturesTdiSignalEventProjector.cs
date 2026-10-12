@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -16,7 +18,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Event
 public sealed class FuturesTdiSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
-    ILogger<FuturesTdiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
+    ILogger<FuturesTdiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesTdiSignalCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -26,11 +29,11 @@ public sealed class FuturesTdiSignalEventProjector(
             {
                 if (e.FuturesTdiSignal.SchemaVersion != FuturesTdiConfiguration.CurrentSchemaVersion)
                     return;
-                await dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal).ConfigureAwait(false);
+                if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal).ConfigureAwait(false);
                 RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesTdiSignal);
             }))
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

@@ -86,21 +86,10 @@ public sealed record FuturesTickTradeDataInsertedEvent : IEvent<TickDataEntityId
     public IErrorEvent<TId> ToFailEvent<TFail, TId>(Exception ex)
         where TFail : IErrorEvent<TId> where TId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TId) != typeof(TickDataEntityId) || typeof(TFail) != typeof(FuturesTickTradeDataInsertedFailEvent))
             throw new InvalidOperationException("The requested failure event type does not match the trade event family.");
         object result = TickAggregationEventFactory.Fail(this, ex, 1, FuturesTickTradeDataInsertedFailEvent.Verb, ErrorId);
         return (IErrorEvent<TId>)result;
     }
-}
-
-[MessagePackObject]
-public record FuturesTickTradeDataInsertedCompleteEvent : TickAggregationCompleteEvent
-{
-    public new const string Verb = "FuturesTickTradeDataInsertedComplete";
-}
-
-[MessagePackObject]
-public record FuturesTickTradeDataInsertedFailEvent : TickAggregationFailEvent
-{
-    public new const string Verb = "FuturesTickTradeDataInsertedFail";
 }

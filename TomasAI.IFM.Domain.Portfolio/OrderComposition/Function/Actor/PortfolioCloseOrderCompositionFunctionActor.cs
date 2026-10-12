@@ -12,12 +12,12 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor;
 
 public sealed class PortfolioCloseOrderCompositionFunctionActor(
-    IPortfolioCloseOrderCompositionFunctionContext context) :
+    IPortfolioCloseOrderCompositionFunctionContext services) :
     BaseEventSourceFunctionActor<PortfolioCloseOrderCompositionFunctionActor,
         EvaluatePortfolioCloseOrderCompositionCommand, FinancialExecutionId, FinancialExecutionId,
         PortfolioCloseOrderCompositionFunctionState, PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent>(
-            context, context.StateRepository, null, context.Logger)
+            services, services.StateRepository, null, services.Logger)
 {
     public const string ActorName = EvaluatePortfolioCloseOrderCompositionCommand.Actor;
 
@@ -35,7 +35,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
         {
             [typeof(EvaluatePortfolioCloseOrderCompositionCommand)] = static command =>
                 new List<ValidationError>().ValidateFinancialRequest<
-                    EvaluatePortfolioCloseOrderCompositionCommand, PortfolioCloseOrderCandidate>(
+                    EvaluatePortfolioCloseOrderCompositionCommand, PortfolioCloseOrderCandidate, List<ValidationError>>(
                         (EvaluatePortfolioCloseOrderCompositionCommand)command,
                         ActorType.Function, ActorName,
                         EvaluatePortfolioCloseOrderCompositionCommand.Verb)
@@ -84,11 +84,11 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
         }.ToFrozenDictionary();
 
     protected override EvaluatePortfolioCloseOrderCompositionCommand ParseMessage(
-        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> owner,
-        IActorMessage message) => ParseMappedFunction(owner, message, ParseMap);
+        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
+        IActorMessage message) => ParseMappedFunction(context, message, ParseMap);
 
     protected override ValueTask ValidateAsync(
-        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> owner,
+        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
         ActorThreadId threadId,
         EvaluatePortfolioCloseOrderCompositionCommand request,
         CancellationToken cancellationToken)
@@ -100,20 +100,20 @@ public sealed class PortfolioCloseOrderCompositionFunctionActor(
 
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(
         EvaluatePortfolioCloseOrderCompositionCommand request, FunctionFailureStage stage) =>
-        DispatchMappedExecutionPolicy(request, stage, context, PolicyMap);
+        DispatchMappedExecutionPolicy(request, stage, services, PolicyMap);
 
     protected override ValueTask<FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent>> ExecuteFunctionAsync(
-        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> owner,
+        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
         PortfolioCloseOrderCompositionFunctionState state,
         EvaluatePortfolioCloseOrderCompositionCommand request,
         CancellationToken cancellationToken) =>
-        ResolveMappedFunctionHandler(request, ReceiveMap)(request, context,
-            input => HandleFunctionEvent(owner, input), cancellationToken);
+        ResolveMappedFunctionHandler(request, ReceiveMap)(request, services,
+            input => HandleFunctionEvent(context, input), cancellationToken);
 
     protected override FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
         PortfolioCloseOrderCompositionFailedEvent> HandleFunctionEvent(
-        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> owner,
+        IFunctionActorContext<PortfolioCloseOrderCompositionFunctionActor> context,
         FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand> input) =>
-        DispatchMappedFunctionEvent(input, context.TimeProvider, EventMap);
+        DispatchMappedFunctionEvent(input, services.TimeProvider, EventMap);
 }

@@ -207,6 +207,97 @@ public sealed class DatabentoOptionChainSessionManagerTests
         Assert.All(feeds, feed => Assert.True(feed.Disposed));
     }
 
+    [Fact]
+    public async Task Cache_and_manual_owners_share_quotes_without_duplicate_publication()
+    {
+        var feed = new FakeChainFeed(Quote(1, 10_000_000_000, 12_000_000_000));
+        var factory = new FakeFactory(feed);
+        using var prices = new DatabentoLastPriceStore(ValueDate, 1);
+        var state = new OptionChainStateStore();
+        var publisher = new CapturingChainPublisher(1);
+        await using var manager = Manager(factory, prices, state, publisher);
+        await manager.StartAsync(Request());
+        await publisher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await manager.StartAsync(Request() with { ConnectionScopeId = "cache" });
+        Assert.Equal(1, factory.CreateCount);
+        Assert.Equal(2, manager.ActiveSessionCount);
+        Assert.True(state.TryGet(new("ES-202609", Maturity, "", "cache"), "ES20260918C6500", out var quote));
+        Assert.NotNull(quote.Quote);
+        Assert.Single(publisher.Quotes);
+        await manager.StopAsync("ES-202609", Maturity);
+        Assert.Equal(0, feed.StopCount);
+        feed.Push(Quote(2, 11_000_000_000, 13_000_000_000));
+        await WaitUntil(() => state.TryGet(new("ES-202609", Maturity, "", "cache"), "ES20260918C6500", out var q)
+            && q.Quote?.Tick.SourceSequence == 2);
+        await manager.StopAsync("ES-202609", Maturity, "", "cache");
+        Assert.Equal(1, feed.StopCount);
+    }
+
+    [Fact]
+    public async Task Different_expiries_replace_with_union_after_stopping_original_and_preserve_leg_feed()
+    {
+        var original = new FakeChainFeed(); var leg = new FakeChainFeed();
+        var expanded = new FakeChainFeed(Quote(2, 11_000_000_000, 13_000_000_000));
+        var factory = new FakeFactory(original, leg, expanded);
+        using var prices = new DatabentoLastPriceStore(ValueDate, 4);
+        var state = new OptionChainStateStore();
+        await using var manager = Manager(factory, prices, state, new CapturingChainPublisher(1));
+        await manager.StartAsync(Request());
+        await manager.StartAsync(Request() with { OptionContractId = "ES20260918C6500" });
+        expanded.BeforeStart = () => Assert.True(original.Disposed);
+        var next = NextExpiry(); await manager.StartAsync(next);
+        Assert.Equal(2, expanded.Subscription!.ResolvedContracts.Count);
+        Assert.True(expanded.Subscription.MultipleMaturities);
+        Assert.Equal(0, leg.StopCount);
+        await WaitUntil(() => state.TryGet(new("ES-202609", Maturity), "ES20260918C6500", out var q) && q.Quote is not null);
+        await manager.StopAsync("ES-202609", next.Subscription.MaturityDate, "", next.ConnectionScopeId);
+        Assert.Equal(0, expanded.StopCount);
+        await manager.StopAsync("ES-202609", Maturity);
+        Assert.Equal(1, expanded.StopCount);
+        Assert.Equal(0, leg.StopCount);
+    }
+
+    [Fact]
+    public async Task Failed_expansion_restores_previous_subscription_and_removes_failed_owner()
+    {
+        var original = new FakeChainFeed(); var failed = new FakeChainFeed { FailStart = true };
+        var restored = new FakeChainFeed(Quote(3, 10_000_000_000, 12_000_000_000));
+        using var prices = new DatabentoLastPriceStore(ValueDate, 4);
+        var state = new OptionChainStateStore();
+        await using var manager = Manager(new FakeFactory(original, failed, restored), prices, state, new CapturingChainPublisher(1));
+        await manager.StartAsync(Request());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.StartAsync(NextExpiry()));
+        Assert.True(original.Disposed); Assert.True(failed.Disposed);
+        Assert.Equal(1, manager.ActiveSessionCount);
+        Assert.Single(restored.Subscription!.ResolvedContracts);
+        await WaitUntil(() => state.TryGet(new("ES-202609", Maturity), "ES20260918C6500", out var q) && q.Quote is not null);
+        Assert.Empty(state.GetSession(new("ES-202609", Maturity.AddDays(7), "", "next")));
+    }
+
+    private static DatabentoOptionChainSessionManager Manager(FakeFactory factory,
+        DatabentoLastPriceStore prices, OptionChainStateStore state, CapturingChainPublisher publisher) => new(
+        factory, DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+        new FakeAggregation(), prices, new FakeEnricher(), publisher, state, pollTimeout: TimeSpan.FromMilliseconds(5));
+
+    private static DatabentoOptionChainSessionRequest NextExpiry()
+    {
+        var request = Request();
+        var route = request.Routes[0] with
+        {
+            FuturesOptionContractId = "next-option",
+            Definition = request.Routes[0].Definition with
+            { Instrument = new InstrumentKey(7, 44), RawSymbol = "next-symbol", MaturityDate = Maturity.AddDays(7) }
+        };
+        return request with { ConnectionScopeId = "next", Routes = [route],
+            Subscription = request.Subscription with { MaturityDate = Maturity.AddDays(7), ResolvedContracts = [route.Definition] } };
+    }
+
+    private static async Task WaitUntil(Func<bool> predicate)
+    {
+        var end = DateTime.UtcNow.AddSeconds(2);
+        while (!predicate()) { if (DateTime.UtcNow >= end) throw new TimeoutException(); await Task.Delay(5); }
+    }
+
     private static DatabentoOptionChainSessionRequest Request()
     {
         var definition = new OptionContractDefinition
@@ -326,16 +417,26 @@ public sealed class DatabentoOptionChainSessionManagerTests
         : IDatabentoOptionChainFeed
     {
         private readonly BoundedBatchChannel _channel = new(4, 64);
+        internal OptionChainSubscription? Subscription { get; private set; }
+        internal Action? BeforeStart { get; set; }
+        internal bool FailStart { get; set; }
         internal int StopCount { get; private set; }
         internal bool Disposed { get; private set; }
         public ISynchronousBatchReader<MarketDataBatch64> Reader => _channel;
-        public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) { }
+        public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) => Subscription = subscription;
         public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
+            BeforeStart?.Invoke();
+            if (FailStart) throw new InvalidOperationException("Injected provider failure");
             startConsumer(timeout);
             if (records.Length == 0) return;
             var batch = _channel.RentBatch(static () => false);
             foreach (var record in records) batch.Add(record);
+            Assert.True(_channel.Publish(batch, static () => false));
+        }
+        internal void Push(MarketRecord64 record)
+        {
+            var batch = _channel.RentBatch(static () => false); batch.Add(record);
             Assert.True(_channel.Publish(batch, static () => false));
         }
         public void Stop(TimeSpan timeout)

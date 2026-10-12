@@ -11,42 +11,39 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Model;
-
-/// <summary>Deterministic selection over frozen authority and accepted market evidence. Performs no I/O.</summary>
-/// <summary>Pure deterministic selector calculation contract.</summary>
-public interface ITradeSelectionCalculator
-{
-    TradeSelectionResult Calculate(ExecuteTradeSelectionPipelineCommand command);
-}
-
 /// <summary>Evaluates the frozen, fund-authorized catalog candidates for one triggering timeframe.</summary>
 public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
 {
-    static readonly JsonSerializerOptions EvidenceJson = new() { Converters = { new JsonStringEnumConverter() } };
+    static readonly JsonSerializerOptions EvidenceJson = new()
+    {
+        Converters =
+        {
+            new JsonStringEnumConverter()
+        }
+    };
     /// <summary>Calculates a selection using only the supplied frozen evidence.</summary>
     public TradeSelectionResult Calculate(ExecuteTradeSelectionPipelineCommand command) => Evaluate(command);
-
     public static TradeSelectionResult Evaluate(ExecuteTradeSelectionPipelineCommand command)
     {
-        var (policy, assessmentResult, regimeResult) = ValidateRequest(command);
+        ArgumentNullException.ThrowIfNull(command);
+        var(policy, assessmentResult, regimeResult) = ValidateRequest(command);
         var binding = command.SelectionBinding;
         var authority = binding.PortfolioSnapshot;
         var fund = authority.Fund;
         var portfolioNeutral = binding.SchemaVersion == 2;
         var regime = regimeResult.Decision;
         var assessment = assessmentResult.Assessment;
-        Require(regime.IsComplete && regime.Confidence is >= 0 and <= 1 && assessment.AssessmentConfidence is >= 0 and <= 1
-            && assessment.ConditionType.HasValue, "TS.UPSTREAM.INVALID", "Complete regime and assessment confidence are required.");
+        Require(regime.IsComplete && regime.Confidence is >= 0 and <= 1 && assessment.AssessmentConfidence is >= 0 and <= 1 && assessment.ConditionType.HasValue, "TS.UPSTREAM.INVALID", "Complete regime and assessment confidence are required.");
         var condition = assessment.ConditionType.Value;
         var directions = portfolioNeutral ? ["Bullish", "Bearish", "Neutral"] : fund.PermittedDirections.Select(NormalizeDirection).ToArray();
         if (!portfolioNeutral)
         {
             foreach (var permission in fund.PermittedConditions)
-                Require(Enum.TryParse<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.AssessmentCondition>(permission, false, out var parsed)
-                    && Enum.IsDefined(parsed) && parsed.ToString() != "Undefined", "TS.CONFIG.PERMISSION", "Unknown Fund condition permission.");
+                Require(Enum.TryParse<Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.AssessmentCondition>(permission, false, out var parsed) && Enum.IsDefined(parsed) && !string.Equals(parsed.ToString(), "Undefined", StringComparison.Ordinal), "TS.CONFIG.PERMISSION", "Unknown Fund condition permission.");
             foreach (var asset in fund.EligibleAssetTypes)
                 Require(asset is "Futures" or "FuturesOptions", "TS.CONFIG.PERMISSION", "Unsupported Fund asset permission.");
         }
+
         List<SelectionRuleEvidence> globals = [];
         if (portfolioNeutral)
         {
@@ -60,6 +57,7 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             Add(globals, "G02", "Authority.RiskEnvelope", authority.FinancialPolicy.OperatingState == PortfolioFinancialPolicyState.Active && authority.RiskEnvelope.PermitsNewExposureAt(command.EvaluatedAtUtc), authority.RiskEnvelope.CapacityState, "AvailableOrConstrained", "TS.PERMISSION.ENVELOPE");
             Add(globals, "G03", "Fund.PermittedConditions", fund.PermittedConditions.Contains(condition.ToString(), StringComparer.Ordinal), condition, fund.PermittedConditions, "TS.PERMISSION.CONDITION");
         }
+
         var restrictions = regime.Restrictions.Concat(assessment.InheritedRestrictions).Distinct().OrderBy(x => (int)x).ToArray();
         Require(restrictions.All(x => Enum.IsDefined(x)), "TS.UPSTREAM.INVALID", "Unknown numeric regime restriction.");
         Add(globals, "G04", "Regime.Restrictions", !restrictions.Intersect(policy.RejectedInheritedRestrictions).Any(), restrictions, policy.RejectedInheritedRestrictions, "TS.REGIME.RESTRICTION");
@@ -84,22 +82,9 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
         if (binding.VolatilityInput is { } volatilityInput)
         {
             volatilityGate = VolatilityWorkflowGate.Evaluate(volatilityInput);
-            Add(globals, "G22", "OptionVolatility.Dependency", volatilityGate.AllowsNewEntry,
-                new
-                {
-                    volatilityInput.FreshnessStatus,
-                    SnapshotId = volatilityInput.Snapshot?.SnapshotId,
-                    RankStatus = volatilityInput.Snapshot?.RankStatus,
-                    PercentileStatus = volatilityInput.Snapshot?.PercentileStatus
-                },
-                new
-                {
-                    Requirement = volatilityInput.Dependency.Requirement,
-                    volatilityInput.Dependency.DependencyPolicyId,
-                    volatilityInput.Dependency.DependencyPolicyVersion
-                },
-                "TS." + volatilityGate.ReasonCode);
+            Add(globals, "G22", "OptionVolatility.Dependency", volatilityGate.AllowsNewEntry, new { volatilityInput.FreshnessStatus, SnapshotId = volatilityInput.Snapshot?.SnapshotId, RankStatus = volatilityInput.Snapshot?.RankStatus, PercentileStatus = volatilityInput.Snapshot?.PercentileStatus }, new { Requirement = volatilityInput.Dependency.Requirement, volatilityInput.Dependency.DependencyPolicyId, volatilityInput.Dependency.DependencyPolicyVersion }, "TS." + volatilityGate.ReasonCode);
         }
+
         var blocker = globals.FirstOrDefault(x => x.Status == SelectionRuleStatus.Rejected)?.ReasonCode;
         var nodes = binding.CatalogDefinitions.ToDictionary(x => x.Key);
         List<SelectionCandidateDecision> decisions = [];
@@ -110,32 +95,53 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             var structure = nodes[candidate.StructureKey];
             TradeSelectionCatalogCapabilities.ValidateVariant(variant, structure);
             SelectionConstructionPolicy.Read(Policy(binding, candidate.CompositionPolicyReference).PayloadJson).ValidateCandidate(structure, variant);
-            var builder = structure.Capabilities.Single(x => x.Role == "builder");
+            var builder = structure.Capabilities.Single(x => string.Equals(x.Role, "builder", StringComparison.Ordinal));
             var rules = policy.VariantRules;
-            var specialized = candidate.SpecializedParameterBindings.Where(x => x.Role == "TradeSelectionVariants").ToArray();
+            var specialized = candidate.SpecializedParameterBindings.Where(x => string.Equals(x.Role, "TradeSelectionVariants", StringComparison.Ordinal)).ToArray();
             Require(specialized.Length <= 1, "TS.CONFIG.INVALID", "Multiple specialized selector policies.");
-            if (specialized.Length == 1) rules = TradeSelectionPolicy.ReadSpecialized(nodes[specialized[0].ParameterSet].SettingsJson, policy).Rules;
-            var rule = rules.SingleOrDefault(x => x.BuilderCapabilityCode == builder.Code && x.BuilderCapabilityVersion == builder.Version && x.Side == variant.Side && x.Bias == variant.Bias && x.PremiumMode == variant.PremiumMode)
-                ?? throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED", "No exact variant rule.");
-            var comparison = new SelectionComparisonTuple { Priority = candidate.AssignmentPriority, Preference = rule.Preference, Deployment = candidate.DeploymentKey, Strategy = candidate.StrategyKey, Structure = candidate.StructureKey, Variant = candidate.VariantKey, ProductId = candidate.Product.ProductId, AssignmentVersion = candidate.AssignmentVersion };
-            if (blocker is not null) { decisions.Add(new() { CandidateHash = candidate.CandidateHash, Status = SelectionCandidateStatus.NotEvaluated, Comparison = comparison, ReasonCodes = [blocker] }); continue; }
+            if (specialized.Length == 1)
+                rules = TradeSelectionPolicy.ReadSpecialized(nodes[specialized[0].ParameterSet].SettingsJson, policy).Rules;
+            var rule = rules.SingleOrDefault(x => string.Equals(x.BuilderCapabilityCode, builder.Code, StringComparison.Ordinal) && x.BuilderCapabilityVersion == builder.Version && string.Equals(x.Side, variant.Side, StringComparison.Ordinal) && string.Equals(x.Bias, variant.Bias, StringComparison.Ordinal) && string.Equals(x.PremiumMode, variant.PremiumMode, StringComparison.Ordinal)) ?? throw new TradeSelectionValidationException("TS.CONFIG.CAPABILITY_UNSUPPORTED", "No exact variant rule.");
+            var comparison = new SelectionComparisonTuple
+            {
+                Priority = candidate.AssignmentPriority,
+                Preference = rule.Preference,
+                Deployment = candidate.DeploymentKey,
+                Strategy = candidate.StrategyKey,
+                Structure = candidate.StructureKey,
+                Variant = candidate.VariantKey,
+                ProductId = candidate.Product.ProductId,
+                AssignmentVersion = candidate.AssignmentVersion
+            };
+            if (blocker is not null)
+            {
+                decisions.Add(new() { CandidateHash = candidate.CandidateHash, Status = SelectionCandidateStatus.NotEvaluated, Comparison = comparison, ReasonCodes = [blocker] });
+                continue;
+            }
+
             var assignment = portfolioNeutral ? null : authority.Assignments.Single(x => x.AssignmentVersion == candidate.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment == candidate.DeploymentKey);
             List<SelectionRuleEvidence> evidence = [];
-            var asset = builder.Code == "Future" ? "Futures" : "FuturesOptions";
+            var asset = string.Equals(builder.Code, "Future", StringComparison.Ordinal) ? "Futures" : "FuturesOptions";
             if (portfolioNeutral)
             {
                 Add(evidence, "C01", "Catalog.Deployment", binding.DeploymentSnapshots.Any(x => x.DeploymentKey == candidate.DeploymentKey), candidate.DeploymentKey, binding.DeploymentSnapshots.Select(x => x.DeploymentKey), "TS.CONFIG.MISSING");
-                Add(evidence, "C02", "Candidate.Product", candidate.Product.Symbol == policy.InstrumentRoot && candidate.Product.ProductId > 0, new { candidate.Product, AssetType = asset }, new { policy.InstrumentRoot }, "TS.CONFIG.PROFILE_MISMATCH");
+                Add(evidence, "C02", "Candidate.Product", string.Equals(candidate.Product.Symbol, policy.InstrumentRoot, StringComparison.Ordinal) && candidate.Product.ProductId > 0, new { candidate.Product, AssetType = asset }, new { policy.InstrumentRoot }, "TS.CONFIG.PROFILE_MISMATCH");
             }
             else
             {
                 Add(evidence, "C01", "Assignment.Deployment", assignment!.IsEffectiveAt(command.EvaluatedAtUtc) && fund.PermittedTradeStrategyFamilies.Any(x => x.CatalogDeployment == candidate.DeploymentKey), candidate.DeploymentKey, fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), "TS.PERMISSION.DEPLOYMENT");
-                Add(evidence, "C02", "Candidate.Product", fund.UnderlyingUniverse.Contains(candidate.Product.Symbol, StringComparer.Ordinal) && fund.EligibleAssetTypes.Contains(asset, StringComparer.Ordinal) && fund.PermittedTradeFamilies.Contains(assignment.TradeFamily, StringComparer.Ordinal) && assignment.AssetType == asset, new { candidate.Product, AssetType = asset, assignment.TradeFamily }, new { fund.UnderlyingUniverse, fund.EligibleAssetTypes, fund.PermittedTradeFamilies }, "TS.PERMISSION.PRODUCT");
+                Add(evidence, "C02", "Candidate.Product", fund.UnderlyingUniverse.Contains(candidate.Product.Symbol, StringComparer.Ordinal) && fund.EligibleAssetTypes.Contains(asset, StringComparer.Ordinal) && fund.PermittedTradeFamilies.Contains(assignment.TradeFamily, StringComparer.Ordinal) && string.Equals(assignment.AssetType, asset, StringComparison.Ordinal), new { candidate.Product, AssetType = asset, assignment.TradeFamily }, new { fund.UnderlyingUniverse, fund.EligibleAssetTypes, fund.PermittedTradeFamilies }, "TS.PERMISSION.PRODUCT");
             }
-            var bias = variant.Bias == "Balanced" ? "Neutral" : variant.Bias;
-            var accepted = regime.Direction.ToString() switch { "Up" => "Bullish", "Down" => "Bearish", "Neutral" => "Neutral", _ => "Unknown" };
-            Add(evidence, "C03", "Candidate.Bias", bias == accepted && directions.Contains(bias, StringComparer.Ordinal), bias, new { Accepted = accepted, Permitted = directions },
-                portfolioNeutral ? "TS.VARIANT.DIRECTION" : "TS.PERMISSION.DIRECTION");
+
+            var bias = string.Equals(variant.Bias, "Balanced", StringComparison.Ordinal) ? "Neutral" : variant.Bias;
+            var accepted = regime.Direction.ToString() switch
+            {
+                "Up" => "Bullish",
+                "Down" => "Bearish",
+                "Neutral" => "Neutral",
+                _ => "Unknown"
+            };
+            Add(evidence, "C03", "Candidate.Bias", string.Equals(bias, accepted, StringComparison.Ordinal) && directions.Contains(bias, StringComparer.Ordinal), bias, new { Accepted = accepted, Permitted = directions }, portfolioNeutral ? "TS.VARIANT.DIRECTION" : "TS.PERMISSION.DIRECTION");
             Member(evidence, "C04", "Variant.Direction", regime.Direction, rule.AllowedRegimeDirections, "TS.VARIANT.DIRECTION");
             Member(evidence, "C05", "Variant.TrendPhase", regime.TrendPhase, rule.AllowedTrendPhases, "TS.VARIANT.PHASE");
             Member(evidence, "C06", "Variant.TrendStrength", regime.TrendStrength, rule.AllowedTrendStrengths, "TS.VARIANT.STRENGTH");
@@ -143,24 +149,42 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             Member(evidence, "C08", "Variant.Condition", condition, rule.AllowedAssessmentConditions, "TS.VARIANT.CONDITION");
             Member(evidence, "C09", "Variant.Volatility", assessment.VolatilityBehavior, rule.AllowedVolatilityBehavior, "TS.VARIANT.VOLATILITY");
             var rejected = evidence.Where(x => x.Status == SelectionRuleStatus.Rejected).Select(x => x.ReasonCode).ToArray();
-            decisions.Add(new()
-            {
-                CandidateHash = candidate.CandidateHash,
-                Comparison = comparison,
-                RuleEvidence = [.. evidence],
-                ReasonCodes = rejected,
-                Status = rejected.Length == 0 ? SelectionCandidateStatus.EligibleNotSelected : SelectionCandidateStatus.Ineligible
-            });
+            decisions.Add(new() { CandidateHash = candidate.CandidateHash, Comparison = comparison, RuleEvidence = [..evidence], ReasonCodes = rejected, Status = rejected.Length == 0 ? SelectionCandidateStatus.EligibleNotSelected : SelectionCandidateStatus.Ineligible });
         }
+
         var winner = decisions.Where(x => x.Status == SelectionCandidateStatus.EligibleNotSelected).OrderBy(x => x.Comparison, ComparisonComparer.Instance).FirstOrDefault();
         SelectionCandidateIntent? intent = null;
         if (winner is not null)
         {
-            var c = candidates.Single(x => x.CandidateHash == winner.CandidateHash); var v = nodes[c.VariantKey];
-            intent = new() { CandidateHash = c.CandidateHash, AssignmentVersion = c.AssignmentVersion, DeploymentKey = c.DeploymentKey, StrategyKey = c.StrategyKey, StructureKey = c.StructureKey, VariantKey = c.VariantKey, Product = c.Product, Side = v.Side, Bias = v.Bias, PremiumMode = v.PremiumMode, SelectionPolicyReference = c.SelectionPolicyReference, CompositionPolicyReference = c.CompositionPolicyReference, SpecializedParameterBindings = c.SpecializedParameterBindings, FamilyKeys = c.FamilyKeys };
-            decisions = decisions.Select(x => x.Status != SelectionCandidateStatus.EligibleNotSelected ? x : x with { Status = x == winner ? SelectionCandidateStatus.Selected : SelectionCandidateStatus.EligibleNotSelected, ReasonCodes = [x == winner ? "TS.SELECTED" : "TS.RANK.LOWER_PREFERENCE"] }).ToList();
+            var c = candidates.Single(x => string.Equals(x.CandidateHash, winner.CandidateHash, StringComparison.Ordinal));
+            var v = nodes[c.VariantKey];
+            intent = new()
+            {
+                CandidateHash = c.CandidateHash,
+                AssignmentVersion = c.AssignmentVersion,
+                DeploymentKey = c.DeploymentKey,
+                StrategyKey = c.StrategyKey,
+                StructureKey = c.StructureKey,
+                VariantKey = c.VariantKey,
+                Product = c.Product,
+                Side = v.Side,
+                Bias = v.Bias,
+                PremiumMode = v.PremiumMode,
+                SelectionPolicyReference = c.SelectionPolicyReference,
+                CompositionPolicyReference = c.CompositionPolicyReference,
+                SpecializedParameterBindings = c.SpecializedParameterBindings,
+                FamilyKeys = c.FamilyKeys
+            };
+            decisions = decisions.Select(x => ((x.Status != SelectionCandidateStatus.EligibleNotSelected) switch
+            {
+                true => x,
+                _ => x with { Status = x == winner ? SelectionCandidateStatus.Selected : SelectionCandidateStatus.EligibleNotSelected, ReasonCodes = [x == winner ? "TS.SELECTED" : "TS.RANK.LOWER_PREFERENCE"] }})).ToList();
         }
-        var reason = winner is not null ? "TS.SELECTED" : blocker ?? (candidates.Length == 0 ? "TS.NO_AUTHORIZED_CANDIDATE" : "TS.NO_COMPATIBLE_CANDIDATE");
+
+        var reason = ((winner is not null) switch
+        {
+            true => "TS.SELECTED",
+            _ => blocker ?? (candidates.Length == 0 ? "TS.NO_AUTHORIZED_CANDIDATE" : "TS.NO_COMPATIBLE_CANDIDATE")});
         var confidence = Math.Round(Math.Min(regime.Confidence, assessment.AssessmentConfidence.Value), 6, MidpointRounding.ToEven);
         var result = new TradeSelectionResult
         {
@@ -176,46 +200,103 @@ public sealed class TradeSelectionEvaluator : ITradeSelectionCalculator
             DecisionHorizon = policy.TargetHorizon,
             Outcome = intent is null ? SelectionOutcome.NoTrade : SelectionOutcome.Selected,
             SelectedCandidate = intent,
-            DecisionContext = new() { SchemaVersion = 1, RegimeResultEnvelope = command.RegimeResultEnvelope, AssessmentResultEnvelope = command.AssessmentResultEnvelope, SelectionBinding = binding, VolatilityInput = binding.VolatilityInput },
-            GlobalEvidence = [.. globals],
-            CandidateDecisions = [.. decisions],
+            DecisionContext = new()
+            {
+                SchemaVersion = 1,
+                RegimeResultEnvelope = command.RegimeResultEnvelope,
+                AssessmentResultEnvelope = command.AssessmentResultEnvelope,
+                SelectionBinding = binding,
+                VolatilityInput = binding.VolatilityInput
+            },
+            GlobalEvidence = [..globals],
+            CandidateDecisions = [..decisions],
             SelectionConfidence = confidence,
             PrimaryReasonCode = reason,
             EvaluatedAtUtc = command.EvaluatedAtUtc,
             ProducedAtUtc = command.EvaluatedAtUtc,
-            ValidUntilUtc = new[] { command.EvaluatedAtUtc.AddSeconds(policy.ResultLifetimeSeconds), assessment.ValidUntilUtc.Value, binding.ValidUntilUtc, command.WorkflowView.ExpiresAtUtc }.Min(),
+            ValidUntilUtc = new[]
+            {
+                command.EvaluatedAtUtc.AddSeconds(policy.ResultLifetimeSeconds),
+                assessment.ValidUntilUtc.Value,
+                binding.ValidUntilUtc,
+                command.WorkflowView.ExpiresAtUtc
+            }.Min(),
             CommonPolicyReference = binding.CommonPolicy,
-            AcceptedVolatilityEvidence = volatilityGate?.AllowsNewEntry == true && binding.VolatilityInput?.AcceptedEvidence is { } acceptedVolatility
-                ? acceptedVolatility with { RuleOutcomeCode = volatilityGate.ReasonCode }
-                : null,
-            SummaryText = intent is null ? FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: NoTrade ({reason}); {candidates.Length} candidate(s) evaluated.") :
-                FormattableString.Invariant($"{policy.TargetHorizon} {policy.InstrumentRoot}: selected {nodes[intent.DeploymentKey].Code}/{nodes[intent.VariantKey].Code} ({intent.Side}, {intent.Bias}, {intent.PremiumMode}); confidence {confidence:F6}.")
+            AcceptedVolatilityEvidence = volatilityGate?.AllowsNewEntry == true && binding.VolatilityInput?.AcceptedEvidence is { } acceptedVolatility ? acceptedVolatility with
+            {
+                RuleOutcomeCode = volatilityGate.ReasonCode
+            }
+
+            : null,
+            SummaryText = intent is null ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{policy.TargetHorizon} {policy.InstrumentRoot}: NoTrade ({reason}); {candidates.Length} candidate(s) evaluated.") : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{policy.TargetHorizon} {policy.InstrumentRoot}: selected {nodes[intent.DeploymentKey].Code}/{nodes[intent.VariantKey].Code} ({intent.Side}, {intent.Bias}, {intent.PremiumMode}); confidence {confidence:F6}.")
         };
         Require(result.SummaryText.Length <= 2048 && MessagePackBinarySerializer.MeasureContent(result) <= policy.MaximumResultPayloadBytes, "TS.CONTRACT.PAYLOAD_SIZE", "Complete selector result exceeds its limit.");
         return result;
     }
-    public static string NormalizeDirection(string value) => value switch { "Up" or "Long" or "Bullish" => "Bullish", "Down" or "Short" or "Bearish" => "Bearish", "Neutral" => "Neutral", _ => throw new TradeSelectionValidationException("TS.CONFIG.PERMISSION", "Unknown Fund direction permission.") };
-    static void Member<T>(List<SelectionRuleEvidence> rows, string id, string path, T actual, T[] allowed, string reason) where T : struct, Enum
+
+    public static string NormalizeDirection(string value) => value switch
+    {
+        "Up" or "Long" or "Bullish" => "Bullish",
+        "Down" or "Short" or "Bearish" => "Bearish",
+        "Neutral" => "Neutral",
+        _ => throw new TradeSelectionValidationException("TS.CONFIG.PERMISSION", "Unknown Fund direction permission.")};
+    static void Member<T>(List<SelectionRuleEvidence> rows, string id, string path, T actual, T[] allowed, string reason)
+        where T : struct, Enum
     {
         Require(Enum.IsDefined(actual), "TS.UPSTREAM.INVALID", "Unknown numeric value for " + path);
-        var unknown = actual.ToString() is "Unknown" or "Undefined";
+        var unknown = actual.ToString()is "Unknown" or "Undefined";
         Add(rows, id, path, !unknown && allowed.Contains(actual), actual, allowed, unknown ? "TS.EVIDENCE.UNKNOWN" : reason);
     }
+
     static void Add<TActual, TExpected>(List<SelectionRuleEvidence> rows, string id, string path, bool passed, TActual actual, TExpected expected, string reason)
     {
-        var row = new SelectionRuleEvidence { RuleId = id, FieldPath = path, Status = passed ? SelectionRuleStatus.Passed : SelectionRuleStatus.Rejected, ActualJson = JsonSerializer.Serialize(actual, EvidenceJson), ExpectedJson = JsonSerializer.Serialize(expected, EvidenceJson), ReasonCode = passed ? string.Empty : reason };
-        Require(System.Text.Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(row)) <= 4096, "TS.CONTRACT.PAYLOAD_SIZE", "Evidence row exceeds its limit."); rows.Add(row);
+        var row = new SelectionRuleEvidence
+        {
+            RuleId = id,
+            FieldPath = path,
+            Status = passed ? SelectionRuleStatus.Passed : SelectionRuleStatus.Rejected,
+            ActualJson = JsonSerializer.Serialize(actual, EvidenceJson),
+            ExpectedJson = JsonSerializer.Serialize(expected, EvidenceJson),
+            ReasonCode = passed ? string.Empty : reason
+        };
+        Require(System.Text.Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(row)) <= 4096, "TS.CONTRACT.PAYLOAD_SIZE", "Evidence row exceeds its limit.");
+        rows.Add(row);
     }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Retain the published comparison type used by trade-selection callers and parity tests.")]
     public sealed class ComparisonComparer : IComparer<SelectionComparisonTuple>
     {
         public static readonly ComparisonComparer Instance = new();
         public int Compare(SelectionComparisonTuple? a, SelectionComparisonTuple? b)
         {
-            ArgumentNullException.ThrowIfNull(a); ArgumentNullException.ThrowIfNull(b);
-            var n = a.Priority.CompareTo(b.Priority); if (n != 0) return n; n = a.Preference.CompareTo(b.Preference); if (n != 0) return n;
-            foreach (var pair in new[] { (a.Deployment, b.Deployment), (a.Strategy, b.Strategy), (a.Structure, b.Structure), (a.Variant, b.Variant) })
-            { n = StringComparer.Ordinal.Compare(pair.Item1.Id.ToString("D"), pair.Item2.Id.ToString("D")); if (n != 0) return n; n = pair.Item1.Version.CompareTo(pair.Item2.Version); if (n != 0) return n; }
-            n = a.ProductId.CompareTo(b.ProductId); return n != 0 ? n : a.AssignmentVersion.CompareTo(b.AssignmentVersion);
+            ArgumentNullException.ThrowIfNull(a);
+            ArgumentNullException.ThrowIfNull(b);
+            var n = a.Priority.CompareTo(b.Priority);
+            if (n != 0)
+                return n;
+            n = a.Preference.CompareTo(b.Preference);
+            if (n != 0)
+                return n;
+            foreach (var pair in new[]
+            {
+                (a.Deployment, b.Deployment),
+                (a.Strategy, b.Strategy),
+                (a.Structure, b.Structure),
+                (a.Variant, b.Variant)
+            }
+
+            )
+            {
+                n = StringComparer.Ordinal.Compare(pair.Item1.Id.ToString("D"), pair.Item2.Id.ToString("D"));
+                if (n != 0)
+                    return n;
+                n = pair.Item1.Version.CompareTo(pair.Item2.Version);
+                if (n != 0)
+                    return n;
+            }
+
+            n = a.ProductId.CompareTo(b.ProductId);
+            return n != 0 ? n : a.AssignmentVersion.CompareTo(b.AssignmentVersion);
         }
     }
 }

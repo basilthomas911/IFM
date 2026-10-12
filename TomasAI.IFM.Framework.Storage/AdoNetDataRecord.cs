@@ -30,6 +30,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     public bool IsNull(int index) => _reader.IsDBNull(index);
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public bool IsCollectionEmpty(int index)
     {
         if (_reader.IsDBNull(index)) return true;
@@ -50,6 +51,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public short GetShort(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -57,6 +59,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public int GetInt(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -64,6 +67,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public float GetFloat(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -71,6 +75,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public double GetDouble(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -78,6 +83,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public decimal GetDecimal(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -85,6 +91,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public bool GetBool(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -92,6 +99,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public long GetLong(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -99,6 +107,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public DateTime GetDateTime(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -110,7 +119,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
                 DateTime dateTime => dateTime,
                 DateOnly date => date.ToDateTime(TimeOnly.MinValue),
                 DateTimeOffset dateTimeOffset => dateTimeOffset.DateTime,
-                long ticks when ticks >= DateTime.MinValue.Ticks && ticks <= DateTime.MaxValue.Ticks => new DateTime(ticks),
+                long ticks when ticks >= DateTime.MinValue.Ticks && ticks <= DateTime.MaxValue.Ticks => new DateTime(ticks, DateTimeKind.Unspecified),
                 string text when DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
                 _ => default
             };
@@ -119,6 +128,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public DateOnly GetDateOnly(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -138,6 +148,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public TimeOnly GetTimeOnly(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -158,6 +169,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public TimeSpan GetTimeSpan(int index)
     {
         if (_reader.IsDBNull(index)) return default;
@@ -177,6 +189,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public T GetEnum<T>(int index) where T : struct, Enum
     {
         if (_reader.IsDBNull(index)) return default;
@@ -201,13 +214,15 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public Guid GetGuid(int index)
     {
-        if (_reader.IsDBNull(index)) return default;
-        try { return _reader.GetGuid(index); } catch { return default; }
+        if (_reader.IsDBNull(index)) return Guid.Empty;
+        try { return _reader.GetGuid(index); } catch { return Guid.Empty; }
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public string GetString(int index)
     {
         if (_reader.IsDBNull(index)) return string.Empty;
@@ -225,6 +240,7 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public byte[] GetBytes(int index)
     {
         if (_reader.IsDBNull(index)) return [];

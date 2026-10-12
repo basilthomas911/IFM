@@ -11,6 +11,7 @@ public sealed class IronCondorPositionCommandState : BaseEventSourceActorState<I
     public StrategyPositionSnapshot? PositionSnapshot { get; private set; }
     public StrategyPositionSnapshot? Current => PositionSnapshot;
     public TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel? TradeLimits { get; private set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the limit snapshot array populated from accepted source events.")]
     public TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel[] SpreadLimits { get; private set; } = [];
 
     /// <summary>Applies supported source events to the authoritative business snapshot.</summary>

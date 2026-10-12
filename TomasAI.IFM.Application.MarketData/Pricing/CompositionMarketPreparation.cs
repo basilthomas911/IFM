@@ -7,26 +7,6 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-/// <summary>
-/// Reviewed bounded market universe embedded in the exact published composition policy. Option definitions
-/// reference immutable ReferenceDb mappings; these are neither guessed from ES nor selected by workflow horizon.
-/// </summary>
-public sealed record CompositionMarketDataPlan
-{
-    [JsonRequired] public int SchemaVersion { get; init; } = 1;
-    [JsonRequired] public string Dataset { get; init; } = "GLBX.MDP3";
-    [JsonRequired] public string Root { get; init; } = "ES";
-    [JsonRequired] public DateOnly ValueDate { get; init; }
-    [JsonRequired] public bool IncludeOptions { get; init; }
-    [JsonRequired] public bool ScopeComplete { get; init; }
-    [JsonRequired] public DateOnly MaturityDate { get; init; }
-    [JsonRequired] public ImmutableArray<OptionDefinitionCandidate> Options { get; init; } = [];
-    [JsonRequired] public ImmutableArray<CompositionFutureDefinition> Futures { get; init; } = [];
-    public OptionPricingCalendar? Calendar { get; init; }
-    public TreasuryPublicationPolicy? Publication { get; init; }
-    public TreasuryRateConversionPolicy? Conversion { get; init; }
-}
-
 /// <summary>Production workflow preparation path: resolve admission, qualify/allocate, await quotes and commit the first snapshot.</summary>
 public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery discovery,
     CompositionPreparationService preparations, ICompositionPreparationStore store,
@@ -40,9 +20,11 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
         Contracts.IOptionChainCache cache, Contracts.OptionChainSnapshotRequest request, CancellationToken token)
         => preparations.PrepareCachedAsync(key, cache, request, token);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<CompositionPreparationResult> PrepareAsync(CompositionPreparationKey key, CompositionMarketDataPlan plan,
         string horizon, DateTimeOffset deadline, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(plan);
         CompositionPreparationService.ValidateKey(key);
         var saved = await store.ReadAsync(key, cancellationToken).ConfigureAwait(false);
         if (saved is not null)
@@ -50,7 +32,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
             CompositionPreparationService.Validate(saved);
             return saved.Snapshot.ValidUntilUtc > clock.GetUtcNow() ? new(saved, null) : Failed("AcceptedSnapshotExpired");
         }
-        if (plan.SchemaVersion != 1 || plan.Dataset != "GLBX.MDP3" || plan.Root != "ES" || !plan.ScopeComplete
+        if (plan.SchemaVersion != 1 || !string.Equals(plan.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !string.Equals(plan.Root,"ES",StringComparison.Ordinal) || !plan.ScopeComplete
             || horizon is not ("Daily" or "Weekly" or "Monthly") || deadline <= clock.GetUtcNow()
             || plan.Options.IsDefault || plan.Futures.IsDefault || plan.Options.Length > 2048 || plan.Futures.Length > 16)
             return Failed("CompositionUniverseUnqualified");
@@ -85,7 +67,7 @@ public sealed class CompositionMarketPreparation(QualifiedCompositionDiscovery d
             }
             else
             {
-                if (!plan.Options.IsEmpty || plan.Futures.IsEmpty || plan.Futures.Any(x => x.Root != plan.Root || x.Dataset != plan.Dataset))
+                if (!plan.Options.IsEmpty || plan.Futures.IsEmpty || plan.Futures.Any(x => !string.Equals(x.Root,plan.Root,StringComparison.Ordinal) || !string.Equals(x.Dataset,plan.Dataset,StringComparison.Ordinal)))
                     return Failed("ContractMetadataUnavailable");
                 scope = PricingSemanticHash.Compute(plan.Futures);
                 if (routePlans is not null)

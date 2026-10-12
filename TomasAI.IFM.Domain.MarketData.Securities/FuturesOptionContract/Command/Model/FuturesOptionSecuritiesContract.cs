@@ -71,9 +71,10 @@ public class FuturesOptionSecuritiesContract
     }
 
     public FuturesOptionSecuritiesContract(FuturesOptionContractReadModel model)
-        : this(model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
+        : this((model ?? throw new ArgumentNullException(nameof(model))).Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.ContractMonth, model.StrikePrice, model.OptionType)
     {
+        ArgumentNullException.ThrowIfNull(model);
         _source = model;
         _contractId = model.ContractId;
     }

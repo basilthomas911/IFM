@@ -15,6 +15,8 @@ public static class StopFuturesMacdSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StopFuturesMacdSignalCommand command, FuturesMacdSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var updated = state.Update(command.CreateFuturesMacdSignalStoppedEvent(), command);
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))

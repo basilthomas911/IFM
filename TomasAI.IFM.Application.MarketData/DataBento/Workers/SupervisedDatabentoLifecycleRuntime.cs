@@ -5,53 +5,6 @@ using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
-public sealed record DatabentoSupervisedWorkerOptions
-{
-    public required string DotNetHostPath { get; init; }
-    public required string WorkerAssemblyPath { get; init; }
-    public FeedDeploymentProfile DeploymentProfile { get; init; } = FeedDeploymentProfile.Development;
-    public FeedDataSourceMode DataSource { get; init; } = FeedDataSourceMode.Synthetic;
-    public SyntheticFeedOptions Synthetic { get; init; } = new();
-    public Pricing.OptionPricingRefreshPolicy OptionPricingRefresh { get; init; } = new();
-    public TimeSpan HostPublisherStopTimeout { get; init; } = TimeSpan.FromSeconds(5);
-
-    public DatabentoSupervisedWorkerOptions Validate()
-    {
-        OptionPricingRefresh.Validate();
-        if (HostPublisherStopTimeout <= TimeSpan.Zero || HostPublisherStopTimeout > TimeSpan.FromMinutes(1))
-            throw new InvalidOperationException("The host publisher stop timeout must be positive and no greater than one minute.");
-        if (!Path.IsPathFullyQualified(DotNetHostPath) || !File.Exists(DotNetHostPath))
-            throw new InvalidOperationException("The Stage 3 dotnet host path must be an existing absolute file.");
-        if (!Path.IsPathFullyQualified(WorkerAssemblyPath) || !File.Exists(WorkerAssemblyPath))
-            throw new InvalidOperationException("The Stage 3 worker assembly path must be an existing absolute file.");
-        return this;
-    }
-
-    /// <summary>Creates one exact worker request from an already resolved in-memory manifest.</summary>
-    public DatasetWorkerStartRequest CreateStartRequest(DatasetSubscriptionManifest manifest)
-    {
-        ArgumentNullException.ThrowIfNull(manifest);
-        var launch = Validate();
-        return new DatasetWorkerStartRequest
-        {
-            ExecutablePath = launch.DotNetHostPath,
-            PrefixArguments = [launch.WorkerAssemblyPath,
-                "--deployment-profile", launch.DeploymentProfile.ToString(),
-                "--data-source", launch.DataSource.ToString(),
-                "--option-pricing-refresh", System.Text.Json.JsonSerializer.Serialize(launch.OptionPricingRefresh),
-                "--synthetic-record-count", launch.Synthetic.RecordCount.ToString(),
-                "--synthetic-records-per-second", launch.Synthetic.RecordsPerSecond.ToString(),
-                "--synthetic-start-sequence", launch.Synthetic.StartSequence.ToString()],
-            Dataset = manifest.Dataset,
-            ValueDate = manifest.ValueDate,
-            WorkerInstanceId = Guid.NewGuid(),
-            GenerationId = Guid.NewGuid(),
-            ManifestRevision = manifest.Revision,
-            Manifest = manifest
-        };
-    }
-}
-
 /// <summary>
 /// Stage 3 lifecycle adapter for the synthetic qualification profile.  It starts exactly one
 /// worker process per configured dataset and exposes process health through the existing watchdog
@@ -92,10 +45,10 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
             throw new InvalidOperationException("Recovered session ownership requires every frozen dataset worker.");
         foreach (var manifest in snapshot.Manifests)
         {
-            var worker = current.SingleOrDefault(item => item.Dataset == manifest.Dataset);
+            var worker = current.SingleOrDefault(item => string.Equals(item.Dataset,manifest.Dataset,StringComparison.Ordinal));
             if (worker is null || !worker.Running || !worker.Healthy
                 || !generations.TryGetValue(manifest.Dataset, out var generation) || worker.GenerationId != generation
-                || worker.ManifestRevision != manifest.Revision || worker.ManifestFingerprint != manifest.Fingerprint
+                || worker.ManifestRevision != manifest.Revision || !string.Equals(worker.ManifestFingerprint,manifest.Fingerprint,StringComparison.Ordinal)
                 || !workers.DesiredSubscriptions.IsCurrent(manifest)
                 || !admissions.TryGet(manifest.Dataset, out var admitted)
                 || admitted.GenerationId != generation || admitted.ValueDate != snapshot.ValueDate
@@ -116,7 +69,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
                 await workers.ApplyDesiredManifestAsync(manifest.Dataset, cancellationToken).ConfigureAwait(false);
     }
 
-    IReadOnlyList<DatasetSubscriptionManifest> RefreshDesired(DateOnly valueDate) => registrations.Snapshot()
+    DatasetSubscriptionManifest[] RefreshDesired(DateOnly valueDate) => registrations.Snapshot()
         .GroupBy(value => value.Dataset, StringComparer.Ordinal)
         .Select(dataset => workers.DesiredSubscriptions.Set(dataset.Key!, valueDate, dataset))
         .ToArray();
@@ -129,7 +82,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
             throw new InvalidOperationException("Supervised market data is already active.");
         var launch = workerOptions.Validate();
         var manifests = RefreshDesired(valueDate);
-        if (manifests.Count == 0)
+        if (manifests.Length == 0)
             throw new InvalidOperationException("No dataset contract manifest is available for Stage 3 startup.");
         try
         {
@@ -146,9 +99,9 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
                         "--deployment-profile", launch.DeploymentProfile.ToString(),
                         "--data-source", launch.DataSource.ToString(),
                         "--option-pricing-refresh", System.Text.Json.JsonSerializer.Serialize(launch.OptionPricingRefresh),
-                        "--synthetic-record-count", launch.Synthetic.RecordCount.ToString(),
-                        "--synthetic-records-per-second", launch.Synthetic.RecordsPerSecond.ToString(),
-                        "--synthetic-start-sequence", launch.Synthetic.StartSequence.ToString()],
+                        "--synthetic-record-count", launch.Synthetic.RecordCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        "--synthetic-records-per-second", launch.Synthetic.RecordsPerSecond.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        "--synthetic-start-sequence", launch.Synthetic.StartSequence.ToString(System.Globalization.CultureInfo.InvariantCulture)],
                     Dataset = manifest.Dataset,
                     ValueDate = valueDate,
                     WorkerInstanceId = Guid.NewGuid(),
@@ -178,6 +131,8 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
         await StopOwnedResourcesAsync().ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "Both awaited cleanup operations can throw; collect their failures before reporting the aggregate after all cleanup has been attempted.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     async Task StopOwnedResourcesAsync()
     {
         List<Exception>? failures = null;
@@ -214,6 +169,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
     public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
         DatabentoDatasetResetRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         RefreshDesired(request.ValueDate);
         // Transport recovery remains under the serialized lifecycle owner. A recoverable outage
         // creates a fresh bounded publisher session; the failed session's backlog is never replayed.
@@ -236,7 +192,7 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
         var expectedDatasets = contractSnapshot.Select(value => value.Dataset).Distinct(StringComparer.Ordinal).ToArray();
         var complete = valueDate is not null && snapshots.Count != 0
             && expectedDatasets.Length == snapshots.Count
-            && expectedDatasets.All(dataset => snapshots.Any(worker => worker.Dataset == dataset));
+            && expectedDatasets.All(dataset => snapshots.Any(worker => string.Equals(worker.Dataset,dataset,StringComparison.Ordinal)));
         var feeds = snapshots.Select(worker =>
         {
             var contracts = contractSnapshot.Where(value => string.Equals(

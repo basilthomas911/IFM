@@ -1,0 +1,26 @@
+namespace TomasAI.IFM.Domain.Supervisor.Shared;
+
+/// <summary>Cached structured log delegates for actor lifecycle diagnostics.</summary>
+internal static class PersistenceDiagnosticLog
+{
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, global::System.Guid, string, global::System.Exception?> Write1Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<global::System.Guid, string>(global::Microsoft.Extensions.Logging.LogLevel.Error, new global::Microsoft.Extensions.Logging.EventId(0), "Supervisor shutdown {OperationId} failed at {Stage}.");
+    internal static void Write1(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, global::System.Guid value0, string value1) => Write1Delegate(logger, value0, value1, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, global::System.Guid, string, global::System.Exception?> Write2Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<global::System.Guid, string>(global::Microsoft.Extensions.Logging.LogLevel.Error, new global::Microsoft.Extensions.Logging.EventId(0), "Supervisor startup {OperationId} failed at {Stage}.");
+    internal static void Write2(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, global::System.Guid value0, string value1) => Write2Delegate(logger, value0, value1, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, global::System.Guid, string, global::System.Exception?> Write3Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<global::System.Guid, string>(global::Microsoft.Extensions.Logging.LogLevel.Error, new global::Microsoft.Extensions.Logging.EventId(0), "Supervisor bootstrap {OperationId} failed at {Stage}.");
+    internal static void Write3(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, global::System.Guid value0, string value1) => Write3Delegate(logger, value0, value1, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, long, global::System.Exception?> Write4Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<long>(global::Microsoft.Extensions.Logging.LogLevel.Error, new global::Microsoft.Extensions.Logging.EventId(0), "Supervisor health history revision {Revision} could not be persisted.");
+    internal static void Write4(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, long value0) => Write4Delegate(logger, value0, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, global::System.Exception?> Write5Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define(global::Microsoft.Extensions.Logging.LogLevel.Error, new global::Microsoft.Extensions.Logging.EventId(0), "Supervisor health history persistence worker failed.");
+    internal static void Write5(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception) => Write5Delegate(logger, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, string, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId, long, string, global::System.TimeSpan, global::System.Exception?> Write6Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<string, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId, long, string, global::System.TimeSpan>(global::Microsoft.Extensions.Logging.LogLevel.Information, new global::Microsoft.Extensions.Logging.EventId(0), "{Method} automatic health recovery started; ActorThreadId={ActorThreadId}; ExpectedGeneration={ExpectedGeneration}; Trigger={Trigger}; DrainTimeout={DrainTimeout}");
+    internal static void Write6(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string value0, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId value1, long value2, string value3, global::System.TimeSpan value4) => Write6Delegate(logger, value0, value1, value2, value3, value4, exception);
+
+    static readonly global::System.Action<global::Microsoft.Extensions.Logging.ILogger, string, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId, long, global::TomasAI.IFM.Domain.Supervisor.Shared.Enums.SupervisorOperationOutcome, string, global::System.Exception?> Write7Delegate = global::Microsoft.Extensions.Logging.LoggerMessage.Define<string, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId, long, global::TomasAI.IFM.Domain.Supervisor.Shared.Enums.SupervisorOperationOutcome, string>(global::Microsoft.Extensions.Logging.LogLevel.Information, new global::Microsoft.Extensions.Logging.EventId(0), "{Method} automatic health recovery completed; ActorThreadId={ActorThreadId}; ExpectedGeneration={ExpectedGeneration}; Outcome={Outcome}; Reason={Reason}");
+    internal static void Write7(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string value0, global::TomasAI.IFM.Shared.EventModelActor.ActorThreadId value1, long value2, global::TomasAI.IFM.Domain.Supervisor.Shared.Enums.SupervisorOperationOutcome value3, string value4) => Write7Delegate(logger, value0, value1, value2, value3, value4, exception);
+}

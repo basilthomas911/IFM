@@ -1,48 +1,5 @@
 namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 
-/// <summary>Describes the latest bounded runtime outcome for Futures ITI processing.</summary>
-public enum FuturesItiRuntimeOutcome : byte
-{
-    Unknown = 0,
-    RouteAttached = 1,
-    Filtered = 2,
-    InputUnavailable = 3,
-    CommandRequested = 4,
-    CommandAccepted = 5,
-    CommandAcceptedNoChange = 6,
-    SignalChanged = 7,
-    EventCommitted = 8,
-    ProjectionCompleted = 9,
-    CompletionHandled = 10,
-    WorkflowRequested = 11,
-    Failed = 12,
-    RouteDetached = 13
-}
-
-/// <summary>Immutable bounded snapshot of the live Futures ITI execution path.</summary>
-public readonly record struct FuturesItiRuntimeSnapshot(
-    long MarketPriceEvents,
-    long FilteredEvents,
-    long EligibleEsTradeEvents,
-    long CommandRequests,
-    long AcceptedCommands,
-    long NoChangeCommands,
-    long ChangedSignals,
-    long CommittedEvents,
-    long ProjectionCompletions,
-    long HandledCompletions,
-    long WorkflowRequests,
-    long Failures,
-    DateTime? LastMarketPriceUtc,
-    DateTime? LastEligibleEsTradeUtc,
-    DateTime? LastCommandAcceptedUtc,
-    DateTime? LastEventCommittedUtc,
-    DateTime? LastProjectionCompletedUtc,
-    DateTime? LastCompletionHandledUtc,
-    DateTime? LastWorkflowRequestedUtc,
-    FuturesItiRuntimeOutcome LastOutcome,
-    string LastReason);
-
 /// <summary>
 /// Records fixed-cardinality, process-local Futures ITI health without retaining messages or polling storage.
 /// </summary>

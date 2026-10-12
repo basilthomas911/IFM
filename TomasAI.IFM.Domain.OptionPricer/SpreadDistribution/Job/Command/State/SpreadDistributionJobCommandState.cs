@@ -76,6 +76,7 @@ public class SpreadDistributionJobCommandState
     /// associated state is cleared after a deletion event.</remarks>
     /// <param name="e">The event data that contains information about the deleted spread distribution job.</param>
     /// <returns>Always returns <see langword="true"/>, indicating that the event was processed successfully.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(SpreadDistributionJobsInProgressDeletedEvent e)
     {
         _spreadDistributionJob = null;

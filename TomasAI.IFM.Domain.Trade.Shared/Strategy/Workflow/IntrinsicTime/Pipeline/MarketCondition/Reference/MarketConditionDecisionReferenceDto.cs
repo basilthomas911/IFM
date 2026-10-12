@@ -19,6 +19,7 @@ public sealed record MarketConditionDecisionReferenceDto
     [Key(5)] public bool IsCompleteEnumeration { get; init; }
     [Key(6)] public string CaseCode { get; init; } = string.Empty;
     [Key(7)] public string Name { get; init; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(8)] public string[] CoverageTags { get; init; } = [];
     [Key(9)] public TimeFrameType TargetHorizon { get; init; }
     [Key(10)] public RegimeDirection RegimeDirection { get; init; }
@@ -42,8 +43,11 @@ public sealed record MarketConditionDecisionReferenceDto
     [Key(28)] public MarketConditionDataQuality DataQuality { get; init; }
     [Key(29)] public MarketConditionUpstreamAlignment UpstreamAlignment { get; init; }
     [Key(30)] public string PrimaryReasonCode { get; init; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(31)] public string[] Reasons { get; init; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(32)] public string[] BlockingReasons { get; init; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(33)] public string[] EvidenceFeatures { get; init; } = [];
     [Key(34)] public MarketConditionTradeType HintTradeType { get; init; }
     [Key(35)] public TimeFrameType HintTimeFrame { get; init; }

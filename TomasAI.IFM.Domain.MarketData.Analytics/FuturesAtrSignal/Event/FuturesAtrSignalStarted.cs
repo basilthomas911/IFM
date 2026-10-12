@@ -12,10 +12,12 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 /// <summary>Handles ATR lifecycle start events.</summary>
 public static class FuturesAtrSignalStarted
 {
-    /// <summary>Attaches the ATR identity to shared closed observations.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Attaches the ATR identity to shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalStartedEvent @event,
         IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Attach(@event.EntityId);
@@ -26,9 +28,9 @@ public static class FuturesAtrSignalStarted
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to attach ATR observation identity {EntityId}", @event.EntityId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
-                FuturesAtrSignalStartedEvent.ErrorCode, exception.GetErrorMessage());
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write9(logger, exception, @event.EntityId);
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
+                FuturesAtrSignalStartedEvent.ErrorCode, exception.GetErrorMessage())).ConfigureAwait(false);
             return false;
         }
     }

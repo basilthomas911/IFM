@@ -42,7 +42,7 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
             .ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesBbSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

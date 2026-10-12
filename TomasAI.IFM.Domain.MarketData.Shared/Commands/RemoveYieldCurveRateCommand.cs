@@ -30,7 +30,9 @@ public record RemoveYieldCurveRateCommand : ICommand<YieldCurveRateEntityId>
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the established instance event, read-model or validation API used by existing consumers.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the established instance event, read-model or validation API used by existing consumers.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>The value (trading) date of the yield curve rate to remove.</summary>

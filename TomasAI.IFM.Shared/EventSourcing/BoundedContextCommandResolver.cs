@@ -20,10 +20,10 @@ public class BoundedContextCommandResolver(Func<Type, object>? resolverFunction)
     /// </summary>
     /// <remarks>If a handler of the specified type already exists in the resolver map, this method does not
     /// overwrite it.</remarks>
-    /// <param name="cmdHandlerType">The type of the command handler to add. This cannot be <see langword="null"/>.</param>
-    /// <param name="cmdHandler">The instance of the command handler to associate with the specified type. This cannot be <see langword="null"/>.</param>
-    public void Add(Type cmdHandlerType, object cmdHandler)
-        => _resolverMap.TryAdd(cmdHandlerType, cmdHandler);
+    /// <param name="cmdHndlrType">The type of the command handler to add. This cannot be <see langword="null"/>.</param>
+    /// <param name="cmdHndlr">The instance of the command handler to associate with the specified type. This cannot be <see langword="null"/>.</param>
+    public void Add(Type cmdHndlrType, object cmdHndlr)
+        => _resolverMap.TryAdd(cmdHndlrType, cmdHndlr);
 
     /// <summary>
     /// Resolves an instance of the specified command handler type.
@@ -31,25 +31,24 @@ public class BoundedContextCommandResolver(Func<Type, object>? resolverFunction)
     /// <remarks>This method attempts to resolve the requested command handler type using an internal resolver
     /// map.  If the type is not found in the map and a resolver function is provided, the function is invoked to 
     /// create the instance, which is then cached for future resolutions.</remarks>
-    /// <param name="commandHandlerType">The <see cref="Type"/> of the command handler to resolve.</param>
+    /// <param name="cmdHndlrType">The <see cref="Type"/> of the command handler to resolve.</param>
     /// <returns>An instance of the specified command handler type if it can be resolved; otherwise, <see langword="null"/>.</returns>
-    public object? Resolve(Type commandHandlerType)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A resolver miss or activation failure is returned to the caller as no matching handler.")]
+    public object? Resolve(Type cmdHndlrType)
     {
         try
         {
-            if (_resolverMap.TryGetValue(commandHandlerType, out object? value))
+            if (_resolverMap.TryGetValue(cmdHndlrType, out object? value))
                 return value;
             if (_resolverFunction is not null)
             {
-                var commandHandler = _resolverFunction(commandHandlerType);
+                var commandHandler = _resolverFunction(cmdHndlrType);
                 if (commandHandler is not null)
-                    _resolverMap.TryAdd(commandHandlerType, commandHandler);
+                    _resolverMap.TryAdd(cmdHndlrType, commandHandler);
                 return commandHandler;
             }
         }
-        catch { }
-        {
-        }
+        catch { /* Resolution failure returns no matching instance to the caller. */ }
         return default;
     }
 }

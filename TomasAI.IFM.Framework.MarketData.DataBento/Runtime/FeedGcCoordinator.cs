@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal static class FeedGcCoordinator
 {
-    private static readonly object Gate = new();
+    private static readonly System.Threading.Lock Gate = new();
     private static int _leases;
     private static GCLatencyMode _priorMode;
     private static bool _changedMode;
@@ -32,6 +32,7 @@ internal static class FeedGcCoordinator
                     }
                     catch (InvalidOperationException) when (!options.RequireGcConfiguration)
                     {
+                        // Optional latency configuration retains the existing GC mode.
                     }
                     if (options.RequireGcConfiguration && !_changedMode)
                     {
@@ -45,6 +46,20 @@ internal static class FeedGcCoordinator
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "Keep provider decoding and shared process configuration helpers with the component that owns their state.")]
+    private static void Release()
+    {
+            lock (Gate)
+            {
+                _leases--;
+                if (_leases == 0 && _changedMode
+                    && GCSettings.LatencyMode == GCLatencyMode.SustainedLowLatency)
+                {
+                    GCSettings.LatencyMode = _priorMode;
+                }
+            }
+    }
+
     private sealed class Lease : IDisposable
     {
         private int _disposed;
@@ -56,15 +71,7 @@ internal static class FeedGcCoordinator
             {
                 return;
             }
-            lock (Gate)
-            {
-                _leases--;
-                if (_leases == 0 && _changedMode
-                    && GCSettings.LatencyMode == GCLatencyMode.SustainedLowLatency)
-                {
-                    GCSettings.LatencyMode = _priorMode;
-                }
-            }
+            Release();
         }
     }
 }

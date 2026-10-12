@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <summary>Calculates missing quote Greeks before persistence, using the quote's recorded pricing inputs.</summary>
 internal static class OptionQuoteGreekEnrichment
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Zero is the explicit missing-value sentinel in the persisted pricing contract; approximate comparison would classify valid nonzero values as missing.")]
     internal static FuturesOptionTickDataV2ReadModel Calculate(FuturesOptionContractReadModel definition,
         FuturesOptionTickDataV2ReadModel quote)
     {
@@ -18,7 +19,7 @@ internal static class OptionQuoteGreekEnrichment
         var request = new OptionPricingRequest(UnderlyingKind.Futures,
             definition.ExerciseStyle == ReferenceExerciseStyle.American ? ExerciseKind.American : ExerciseKind.European,
             definition.PremiumStyle == ReferencePremiumStyle.FuturesStyleVariation ? PremiumKind.FuturesStyle : PremiumKind.PaidUpfront,
-            definition.OptionType.StartsWith("C", StringComparison.OrdinalIgnoreCase) ? OptionSide.Call : OptionSide.Put,
+            definition.OptionType.Length > 0 && definition.OptionType[0] is 'C' or 'c' ? OptionSide.Call : OptionSide.Put,
             quote.UnderlyingPrice, (double)definition.GetExactStrikePrice(), years, 0);
         var result = quote.ImpliedVolatility is > 0 and < 4
             ? calculator.Price(request, quote.ImpliedVolatility)

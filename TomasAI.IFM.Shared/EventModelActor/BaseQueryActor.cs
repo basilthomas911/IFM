@@ -38,7 +38,6 @@ public abstract class BaseQueryActor<TActor>(
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     string _serviceId = string.Empty;
 
-    IActorSupervisor _supervisor;
     IActorProducer? _startedProducer;
     int _lifecycle;
 
@@ -72,6 +71,8 @@ public abstract class BaseQueryActor<TActor>(
     public async ValueTask StartAsync(IActorSupervisor supervisor)
         => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(supervisor);
@@ -81,7 +82,6 @@ public abstract class BaseQueryActor<TActor>(
         IActorProducer? producer = null;
         try
         {
-            _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(_actorId);
             producer = supervisor.GetProducer(_actorId);
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
@@ -109,7 +109,7 @@ public abstract class BaseQueryActor<TActor>(
                         ActorFailureStage.Cleanup, cleanupException,
                         primaryFailureId == Guid.Empty ? null : primaryFailureId,
                         ActorMessageOutcomeType.HandledFailure);
-                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                    SharedActorDiagnosticLog.Write37(_logger, cleanupException, _actorId);
                 }
             }
             Volatile.Write(ref _lifecycle, 0);
@@ -164,7 +164,11 @@ public abstract class BaseQueryActor<TActor>(
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+    }
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -175,8 +179,12 @@ public abstract class BaseQueryActor<TActor>(
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(message);
         IQuery? query = null;
         var verb = message.Subject.Verb;
         var activeStage = ActorRuntimeMetrics.ParsingStage;
@@ -250,9 +258,7 @@ public abstract class BaseQueryActor<TActor>(
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, verb, ActorFailureStage.ExceptionHandling,
                     exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(exceptionHandlerFailure,
-                    "Query exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
-                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                SharedActorDiagnosticLog.Write43(_logger, exceptionHandlerFailure, Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
                 if (message.CanReply)
                 {
                     try
@@ -266,9 +272,7 @@ public abstract class BaseQueryActor<TActor>(
                         _context.SupervisorRuntime?.RecordFailure(
                             Id, threadId, verb, ActorFailureStage.Reply, fallbackReplyFailure,
                             primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                        _logger.LogError(fallbackReplyFailure,
-                            "Fallback query reply failed for {ActorId} {ThreadId} at {FailureStage}.",
-                            Id, threadId, activeStage);
+                        SharedActorDiagnosticLog.Write38(_logger, fallbackReplyFailure, Id, threadId, activeStage);
                     }
                 }
             }
@@ -286,9 +290,7 @@ public abstract class BaseQueryActor<TActor>(
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, verb, ActorFailureStage.Cleanup, cleanupFailure,
                     primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(cleanupFailure,
-                    "Query correlation cleanup failed for {ActorId} {ThreadId} {Verb}.",
-                    Id, threadId, verb);
+                SharedActorDiagnosticLog.Write36(_logger, cleanupFailure, Id, threadId, verb);
             }
         }
     }
@@ -296,9 +298,9 @@ public abstract class BaseQueryActor<TActor>(
     // Explicit interface implementations forwarding to protected hooks
     ValueTask IQueryActor<TActor>.OnStartup(IQueryActorContext<TActor> context) => OnStartup(context);
     ValueTask IQueryActor<TActor>.OnShutdown(IQueryActorContext<TActor> context) => OnShutdown(context);
-    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext<TActor> context, IQuery query) => ReceiveAsync(context, query);
-    ValueTask IQueryActor<TActor>.OnValidateAsync(IQueryActorContext<TActor> context, IQuery query) => OnValidateAsync(context, query);
-    ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => OnExceptionAsync(context, threadId, query, verb, ex);
+    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext<TActor> context, IQuery qry) => ReceiveAsync(context, qry);
+    ValueTask IQueryActor<TActor>.OnValidateAsync(IQueryActorContext<TActor> context, IQuery qry) => OnValidateAsync(context, qry);
+    ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery qry, string verb, Exception ex) => OnExceptionAsync(context, threadId, qry, verb, ex);
 
     // Protected hooks for derived classes
     protected abstract IQuery ParseMessage(IQueryActorContext<TActor> context, IActorMessage message);
@@ -391,6 +393,7 @@ public abstract class BaseQueryActor<TActor>(
         => CreateQueryExceptionMap(queryTypes, static (query, _) => query.ErrorCode);
 
     /// <summary>Builds an exact-type exception map with actor-specific error-code selection.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3011", Justification = "Reflection resolves the exact registered actor/state type and its established private dispatch hooks; no untrusted member name is used.")]
     protected static IReadOnlyDictionary<Type, QueryExceptionHandler> CreateQueryExceptionMap(
         IEnumerable<Type> queryTypes,
         Func<IQuery, Exception, int> errorCodeSelector)
@@ -398,9 +401,8 @@ public abstract class BaseQueryActor<TActor>(
         ArgumentNullException.ThrowIfNull(queryTypes);
         ArgumentNullException.ThrowIfNull(errorCodeSelector);
         var factory = typeof(BaseQueryActor<TActor>).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
-            .SingleOrDefault(method =>
-                method.Name == nameof(CreateQueryExceptionHandler)
-                && method.IsGenericMethodDefinition
+            .SingleOrDefault(method => string.Equals(method.Name, nameof(CreateQueryExceptionHandler)
+, StringComparison.Ordinal) && method.IsGenericMethodDefinition
                 && method.GetParameters().Length == 1)
             ?? throw new InvalidOperationException("Unable to resolve the query exception-handler factory.");
         var result = new Dictionary<Type, QueryExceptionHandler>();
@@ -424,6 +426,7 @@ public abstract class BaseQueryActor<TActor>(
         => QueryException<TResult>(errorCodeSelector);
 
     /// <summary>Dispatches execution failures through an actor-owned exact-type exception map.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     protected async ValueTask ExceptionMappedQueryAsync(
         IQueryActorContext<TActor> context,
         ActorThreadId threadId,
@@ -441,11 +444,7 @@ public abstract class BaseQueryActor<TActor>(
 
         if (!exceptionMap.TryGetValue(query.GetType(), out var handler))
         {
-            _logger.LogError(
-                exception,
-                "No query exception handler is registered for {ActorId}.{QueryType}.",
-                Id,
-                query.GetType().FullName);
+            SharedActorDiagnosticLog.Write40(_logger, exception, Id, query.GetType().FullName);
             try
             {
                 await context.ReplyAsync(
@@ -455,11 +454,7 @@ public abstract class BaseQueryActor<TActor>(
             }
             catch (Exception replyException)
             {
-                _logger.LogError(
-                    replyException,
-                    "Unable to return fallback query failure for {ActorId}.{QueryType}.",
-                    Id,
-                    query.GetType().FullName);
+                SharedActorDiagnosticLog.Write35(_logger, replyException, Id, query.GetType().FullName);
             }
             return;
         }
@@ -470,23 +465,14 @@ public abstract class BaseQueryActor<TActor>(
         }
         catch (Exception replyException)
         {
-            _logger.LogError(
-                replyException,
-                "Failed to return query failure for {ActorId}, thread {ThreadId}, verb {Verb}. Original failure: {OriginalFailure}",
-                Id,
-                threadId,
-                verb,
-                exception.Message);
+            SharedActorDiagnosticLog.Write39(_logger, replyException, Id, threadId, verb, exception.Message);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
     async ValueTask HandleQueryParseFailureAsync(IActorMessage message, Exception exception)
     {
-        _logger.LogError(
-            exception,
-            "Unable to parse query message for {ActorId}: {Subject}.",
-            Id,
-            message.Subject);
+        SharedActorDiagnosticLog.Write41(_logger, exception, Id, message.Subject);
         if (!message.CanReply)
             return;
         try
@@ -498,10 +484,7 @@ public abstract class BaseQueryActor<TActor>(
         }
         catch (Exception replyException)
         {
-            _logger.LogError(
-                replyException,
-                "Unable to return query parsing failure for {Subject}.",
-                message.Subject);
+            SharedActorDiagnosticLog.Write42(_logger, replyException, message.Subject);
         }
     }
 
@@ -510,7 +493,10 @@ public abstract class BaseQueryActor<TActor>(
     /// Runtime query ingress uses <see cref="IActorMessage"/> directly.
     /// </summary>
     protected IQuery ParseMessage(IQueryActorContext<TActor> context, in NatsMsg<byte[]> message)
-        => ParseMessage(context, new LegacyNatsActorMessage(message));
+    {
+        using var adapter = new LegacyNatsActorMessage(message);
+        return ParseMessage(context, adapter);
+    }
     protected virtual ValueTask OnStartup(IQueryActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
         IQueryActorContext<TActor> context,

@@ -258,6 +258,7 @@ public sealed class AwsProcessorStateMachineIntegrationTests
         public async IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(
             int maximumCount, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         { await Task.CompletedTask; yield break; }
+        public ValueTask<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(DatabaseRecoveryOperationId id, CancellationToken ct) => ValueTask.FromResult<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?>(null);
         public ValueTask MarkServiceEventPublishedAsync(
             Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public async IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync(

@@ -12,8 +12,12 @@ public sealed class CapacityReservationFunctionState : BaseEventSourceActorState
     public override ActorThreadId Id { get; set; } = default!;
     public CapacityReservationCompletedEvent? CompletedEvent { get; private set; }
     public bool IsCompleted => CompletedEvent is not null;
-    public bool Matches(ReservePortfolioTradeRiskCommand request) => CompletedEvent is { } completed && completed.OperationId == request.OperationId &&
-        completed.PortfolioId == request.PortfolioId && completed.InputHash == request.InputSha256;
+    public bool Matches(ReservePortfolioTradeRiskCommand request) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return CompletedEvent is { } completed && completed.OperationId == request.OperationId &&
+        completed.PortfolioId == request.PortfolioId && string.Equals(completed.InputHash,request.InputSha256,StringComparison.Ordinal);
+    }
     public bool TryComplete(CapacityReservationCompletedEvent completed, ReservePortfolioTradeRiskCommand request) => !IsCompleted && Apply(completed, false);
     protected override bool Apply(IEvent domainEvent)
     {

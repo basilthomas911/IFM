@@ -4,10 +4,12 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal static class FeedOptionsValidator
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     internal static DatabentoFeedOptions ValidateAndSnapshot(DatabentoFeedOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset, nameof(options));
         if (!Enum.IsDefined(options.DeploymentProfile)
             || !Enum.IsDefined(options.DataSource)
             || !Enum.IsDefined(options.CpuAffinity.Mode)
@@ -16,7 +18,7 @@ internal static class FeedOptionsValidator
             || !Enum.IsDefined(options.Numa.Mode)
             || !Enum.IsDefined(options.CoreIsolation.Mode))
         {
-            throw new ArgumentException("A feed configuration enum value is invalid.");
+            throw new ArgumentException("A feed configuration enum value is invalid.",nameof(options));
         }
         if (options.DeploymentProfile == FeedDeploymentProfile.SyntheticCi
             && options.DataSource != FeedDataSourceMode.Synthetic)
@@ -35,8 +37,7 @@ internal static class FeedOptionsValidator
             || options.RingMemoryBytes % 64 != 0
             || !BitOperations.IsPow2(options.RingMemoryBytes / 64))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(options.RingMemoryBytes),
+            throw new ArgumentOutOfRangeException(nameof(options),
                 "The native ring must contain a power-of-two number of 64-byte records.");
         }
         if (options.ManagedChannelRecordCapacity <= 0
@@ -44,22 +45,20 @@ internal static class FeedOptionsValidator
             || options.ManagedBatchRecordCapacity > options.ManagedChannelRecordCapacity
             || options.ManagedChannelRecordCapacity % options.ManagedBatchRecordCapacity != 0)
         {
-            throw new ArgumentException(
-                "Managed channel capacity must be a positive integral number of managed batches.");
+            throw new ArgumentException(                "Managed channel capacity must be a positive integral number of managed batches.",nameof(options));
         }
         if (options.Drain.NativeReadRecordCapacity <= 0
             || options.Drain.MaxRecordsPerDrainPass < options.Drain.NativeReadRecordCapacity
             || options.Drain.MaxRecordsPerDrainPass % options.Drain.NativeReadRecordCapacity != 0
             || options.Drain.NativeReadRecordCapacity > options.RingMemoryBytes / 64)
         {
-            throw new ArgumentException(
-                "The drain pass must be a positive integral number of native reads.");
+            throw new ArgumentException(                "The drain pass must be a positive integral number of native reads.",nameof(options));
         }
         if (options.RingBackpressure.SpinIterations < 0
             || options.RingBackpressure.RingFullTimeout <= TimeSpan.Zero
             || options.RingBackpressure.RingFullTimeout.TotalMicroseconds > uint.MaxValue)
         {
-            throw new ArgumentException("Native ring backpressure values must be positive.");
+            throw new ArgumentException("Native ring backpressure values must be positive.",nameof(options));
         }
         if (options.TransportHealth.HeartbeatInterval < TimeSpan.FromSeconds(5)
             || options.TransportHealth.HeartbeatInterval.TotalMilliseconds > uint.MaxValue
@@ -69,52 +68,49 @@ internal static class FeedOptionsValidator
             || options.TransportHealth.MetricsExportInterval.Ticks
                % options.TransportHealth.HealthPollInterval.Ticks != 0)
         {
-            throw new ArgumentException("Transport health intervals are invalid.");
+            throw new ArgumentException("Transport health intervals are invalid.",nameof(options));
         }
         if (options.Numa.Mode == NumaLocalityMode.ExplicitNode && options.Numa.Node is null
             || options.Numa.Mode != NumaLocalityMode.ExplicitNode && options.Numa.Node is not null)
         {
-            throw new ArgumentException("Explicit NUMA mode and node must be configured together.");
+            throw new ArgumentException("Explicit NUMA mode and node must be configured together.",nameof(options));
         }
         if (options.CpuAffinity.Mode == CpuAffinityMode.Explicit
             && (options.CpuAffinity.NativeProducer is null
                 || options.CpuAffinity.ManagedDrain is null))
         {
-            throw new ArgumentException("Explicit affinity requires producer and drain locations.");
+            throw new ArgumentException("Explicit affinity requires producer and drain locations.",nameof(options));
         }
         if (options.CpuAffinity.Mode != CpuAffinityMode.Explicit
             && (options.CpuAffinity.NativeProducer is not null
                 || options.CpuAffinity.ManagedDrain is not null))
         {
-            throw new ArgumentException(
-                "Explicit processor locations require explicit affinity mode.");
+            throw new ArgumentException(                "Explicit processor locations require explicit affinity mode.",nameof(options));
         }
         if (options.CpuAffinity.Mode == CpuAffinityMode.Explicit
             && options.CpuAffinity.NativeProducer == options.CpuAffinity.ManagedDrain)
         {
-            throw new ArgumentException("Producer and drain processors must be distinct.");
+            throw new ArgumentException("Producer and drain processors must be distinct.",nameof(options));
         }
         if (options.CpuAffinity.Mode == CpuAffinityMode.Unpinned
             && (options.CpuAffinity.RequirePerformanceCore
                 || options.CoreIsolation.RequireCoreIsolation))
         {
-            throw new ArgumentException(
-                "Unpinned mode cannot require performance-core placement or core isolation.");
+            throw new ArgumentException(                "Unpinned mode cannot require performance-core placement or core isolation.",nameof(options));
         }
         if (options.Numa.Mode == NumaLocalityMode.Disabled
             && options.Numa.RequireNumaLocality)
         {
-            throw new ArgumentException("Disabled NUMA placement cannot require locality.");
+            throw new ArgumentException("Disabled NUMA placement cannot require locality.",nameof(options));
         }
         if (options.Memory.RequireLockedMemory && !options.Memory.LockRingMemory)
         {
-            throw new ArgumentException("Required memory locking cannot be disabled.");
+            throw new ArgumentException("Required memory locking cannot be disabled.",nameof(options));
         }
         if (options.CoreIsolation.RequireCoreIsolation
             && options.CoreIsolation.Mode != FeedCoreIsolationMode.ExcludeFromProcessWorkers)
         {
-            throw new ArgumentException(
-                "Strict core isolation requires worker CPU-set exclusion.");
+            throw new ArgumentException(                "Strict core isolation requires worker CPU-set exclusion.",nameof(options));
         }
         if (options.ProcessorResidency.ForcedMigrationIntervalRecords < 0
             || options.ProcessorResidency.ForcedMigrationIntervalRecords > 0
@@ -123,8 +119,7 @@ internal static class FeedOptionsValidator
                 || !options.CpuAffinity.PinFeedThreads
                 || options.CpuAffinity.Mode != CpuAffinityMode.AutoPerformanceCores))
         {
-            throw new ArgumentException(
-                "Forced processor migration requires tracked synthetic data and automatic affinity.");
+            throw new ArgumentException(                "Forced processor migration requires tracked synthetic data and automatic affinity.",nameof(options));
         }
         if (options.DataSource == FeedDataSourceMode.Synthetic
             && (options.Synthetic.RecordCount <= 0
@@ -134,7 +129,7 @@ internal static class FeedOptionsValidator
                 || options.Synthetic.StartSequence
                    + checked((ulong)options.Synthetic.RecordCount - 1) > uint.MaxValue))
         {
-            throw new ArgumentException("Synthetic producer settings are invalid.");
+            throw new ArgumentException("Synthetic producer settings are invalid.",nameof(options));
         }
 
         return options with

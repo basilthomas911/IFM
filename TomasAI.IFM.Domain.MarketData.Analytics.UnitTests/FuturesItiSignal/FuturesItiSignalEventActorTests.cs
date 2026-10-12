@@ -276,7 +276,9 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger1 = Substitute.For<ILogger<FuturesItiSignalEventActor>>();
+        mockLogger1.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var mockLogger2 = Substitute.For<ILogger<FuturesItiSignalEventActor>>();
+        mockLogger2.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
         var actor1 = _fixture.CreateActor(mockSupervisor, mockLogger1);
         var actor2 = _fixture.CreateActor(mockSupervisor, mockLogger2);

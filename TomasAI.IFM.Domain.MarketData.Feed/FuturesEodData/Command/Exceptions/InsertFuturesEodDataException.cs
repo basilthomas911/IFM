@@ -1,7 +1,9 @@
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Exceptions;
 
-public class InsertFuturesEodDataException : ApplicationException
+public class InsertFuturesEodDataException : Exception
 {
+    public InsertFuturesEodDataException() { }
+
     public InsertFuturesEodDataException(string errorMessage) : base(errorMessage)
     {
     }

@@ -5,15 +5,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 
-/// <summary>Authoritative inputs for translating confirmed emulator fills into Fund postings.</summary>
-public sealed record BrokerExecutionAccountingInput(
-    FinancialPostingConfiguration Configuration,
-    TradeOrderDefinition Order,
-    ExecutionFillEvidence[] Fills,
-    string MovementReference,
-    DateTime ConfirmedAtUtc,
-    IReadOnlyDictionary<Guid, decimal>? OpeningSignedSettlementByLeg = null);
-
 /// <summary>Builds idempotent Fund settlement, commission and closing realized-P&amp;L requests.</summary>
 public static class BrokerExecutionAccountingModel
 {
@@ -26,10 +17,7 @@ public static class BrokerExecutionAccountingModel
         ArgumentNullException.ThrowIfNull(input);
         var configuration = input.Configuration ?? throw new ArgumentException("Financial posting configuration is required.", nameof(input));
         var order = input.Order ?? throw new ArgumentException("Trade Order is required.", nameof(input));
-        if (configuration.BookId <= 0 || configuration.FundId != order.Id.FundId || !order.Id.IsValid ||
-            input.Fills.Length == 0 || string.IsNullOrWhiteSpace(input.MovementReference) ||
-            input.ConfirmedAtUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("Confirmed broker accounting identity and evidence are incomplete.", nameof(input));
+        ValidateConfirmation(input, configuration, order);
         var settlementRule = RequireRule(configuration, LedgerTransactionKind.TradeSettlement, true);
         var commissionRule = RequireRule(configuration, LedgerTransactionKind.Commission, true);
         var realizedRule = order.PositionType == TradeOrderPositionType.Closing
@@ -45,14 +33,14 @@ public static class BrokerExecutionAccountingModel
             if (fill.ExecutionFillId == Guid.Empty || fill.ExecutionAttemptId == Guid.Empty ||
                 fill.SignedQuantity == 0 || fill.Price <= 0 || fill.Commission < 0 ||
                 fill.FilledAtUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(fill.ExternalExecutionId) ||
-                !legs.TryGetValue(fill.TradeLegId, out var leg) || leg.ContractId != fill.ContractId ||
+                !legs.TryGetValue(fill.TradeLegId, out var leg) || !string.Equals(leg.ContractId,fill.ContractId,StringComparison.Ordinal) ||
                 leg.CashMultiplier <= 0 || Math.Sign(leg.SignedQuantity) != Math.Sign(fill.SignedQuantity) ||
                 Math.Abs(fill.SignedQuantity) > Math.Abs(leg.SignedQuantity))
                 throw new ArgumentException($"Fill {fill.ExecutionFillId} does not match the approved order leg.", nameof(input));
 
             var signedSettlement = Money(fill.Price * fill.SignedQuantity * leg.CashMultiplier);
             closingSignedSettlement += signedSettlement;
-            var source = Source(order, fill, input.ConfirmedAtUtc);
+            var source = Source(order, fill);
             var movement = Movement(input.MovementReference, fill, input.ConfirmedAtUtc);
             items.Add(Request(configuration, order, fill, LedgerTransactionKind.TradeSettlement,
                 signedSettlement, settlementRule, source, movement, "Confirmed emulator trade settlement"));
@@ -74,15 +62,7 @@ public static class BrokerExecutionAccountingModel
             }
         }
         if (order.PositionType == TradeOrderPositionType.Closing)
-        {
-            var realized = Money(-(openingSignedSettlement + closingSignedSettlement));
-            // Even a break-even close must clear any previously recognized unrealized P&L.
-            var first = input.Fills.OrderBy(x => x.ExecutionFillId).First();
-            items.Add(Request(configuration, order, first, LedgerTransactionKind.RealizedPnl,
-                realized, realizedRule!, Source(order, first, input.ConfirmedAtUtc) with { FillId = $"{first.ExecutionAttemptId:N}:realized" },
-                Movement(input.MovementReference, first, input.ConfirmedAtUtc) with { SourceReference = $"{input.MovementReference}:realized" },
-                "Realized P&L from confirmed closing fills"));
-        }
+            AddRealizedPnl(input, configuration, order, items, realizedRule!, openingSignedSettlement, closingSignedSettlement);
         var reference = $"BrokerExecution:{order.Id.Format()}:{input.Fills[0].ExecutionAttemptId:N}";
         return new LedgerPostingBatchRequest
         {
@@ -91,6 +71,29 @@ public static class BrokerExecutionAccountingModel
             BatchSourceReference = reference,
             ManifestHash = FinancialCanonicalHash.Compute(items)
         };
+    }
+
+    /// <summary>Requires a matching approved fund/order and confirmed nonempty UTC fill evidence.</summary>
+    static void ValidateConfirmation(BrokerExecutionAccountingInput input,
+        FinancialPostingConfiguration configuration, TradeOrderDefinition order)
+    {
+        if (configuration.BookId <= 0 || configuration.FundId != order.Id.FundId || !order.Id.IsValid ||
+            input.Fills.Length == 0 || string.IsNullOrWhiteSpace(input.MovementReference) ||
+            input.ConfirmedAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Confirmed broker accounting identity and evidence are incomplete.", nameof(input));
+    }
+
+    /// <summary>Realized PnL is ?(opening signed settlement + closing signed settlement), rounded to currency precision; a zero amount still clears unrealized PnL.</summary>
+    private static void AddRealizedPnl(BrokerExecutionAccountingInput input,
+        FinancialPostingConfiguration configuration, TradeOrderDefinition order, List<LedgerPostingRequest> items,
+        LedgerPostingRule realizedRule, decimal openingSignedSettlement, decimal closingSignedSettlement)
+    {
+        var realized = Money(-(openingSignedSettlement + closingSignedSettlement));
+        var first = input.Fills.OrderBy(x => x.ExecutionFillId).First();
+        items.Add(Request(configuration, order, first, LedgerTransactionKind.RealizedPnl,
+            realized, realizedRule, Source(order, first) with { FillId = $"{first.ExecutionAttemptId:N}:realized" },
+            Movement(input.MovementReference, first, input.ConfirmedAtUtc) with { SourceReference = $"{input.MovementReference}:realized" },
+            "Realized P&L from confirmed closing fills"));
     }
 
     private static LedgerPostingRule RequireRule(FinancialPostingConfiguration configuration,
@@ -121,13 +124,13 @@ public static class BrokerExecutionAccountingModel
             MovementEvidence = movement
         };
 
-    private static LedgerSourceReference Source(TradeOrderDefinition order, ExecutionFillEvidence fill, DateTime confirmedAtUtc) => new()
+    private static LedgerSourceReference Source(TradeOrderDefinition order, ExecutionFillEvidence fill) => new()
     {
         System = "IBKR-Emulator",
         SourceEntityId = new OrderExecutionId(order.Id, fill.ExecutionAttemptId).Format(),
         SourceEventId = fill.ExecutionFillId,
         SourceSequence = 1,
-        SourceContentHash = Hash(fill.ExternalExecutionId, fill.ContractId, fill.SignedQuantity.ToString(), fill.Price.ToString(), fill.Commission.ToString()),
+        SourceContentHash = Hash(fill.ExternalExecutionId, fill.ContractId, fill.SignedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.Commission.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         OccurredAtUtc = fill.FilledAtUtc,
         OrderId = order.Id.OrderId,
         TradeId = order.Components.Single(x => x.ComponentId == fill.ComponentId).ReservedTradeId,
@@ -141,16 +144,16 @@ public static class BrokerExecutionAccountingModel
         ObservedAtUtc = fill.FilledAtUtc,
         ReceivedAtUtc = confirmedAtUtc,
         ValidUntilUtc = confirmedAtUtc.AddDays(1),
-        ContentHash = Hash(reference, fill.ExternalExecutionId, fill.Price.ToString(), fill.SignedQuantity.ToString())
+        ContentHash = Hash(reference, fill.ExternalExecutionId, fill.Price.ToString(System.Globalization.CultureInfo.InvariantCulture), fill.SignedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture))
     };
 
     private static decimal Money(decimal value)
     {
         var rounded = decimal.Round(value, 2, MidpointRounding.ToEven);
-        if (rounded != value) throw new ArgumentException("Emulator financial amounts must resolve exactly to USD cents.");
+        if (rounded != value) throw new ArgumentException("Emulator financial amounts must resolve exactly to USD cents.",nameof(value));
         return rounded;
     }
 
     private static string Hash(params string[] fields) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', fields)))).ToLowerInvariant();
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', fields))));
 }

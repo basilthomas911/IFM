@@ -7,13 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor;
 
-public interface IPortfolioOrderCompositionFunctionContext : IFunctionActorContext<PortfolioOrderCompositionFunctionActor>
-{
-    IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand> StateRepository { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<PortfolioOrderCompositionFunctionActor> Logger { get; }
-}
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class PortfolioOrderCompositionFunctionContext : FunctionActorContext, IPortfolioOrderCompositionFunctionContext
 {
     readonly Lazy<IEventSourceFunctionStateRepository<PortfolioOrderCompositionFunctionState, EvaluatePortfolioOrderCompositionCommand>> repository;

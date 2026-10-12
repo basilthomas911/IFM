@@ -31,7 +31,7 @@ internal static class FundActivationQualification
             foreach (var assignment in currentAssignments.Where(x => x.Enabled))
             {
                 var deployment = assignment.TradeStrategyFamily?.CatalogDeployment ?? throw new InvalidOperationException("Legacy assignments must be replaced before activating a Fund.");
-                await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, deployment, true, cancellationToken);
+                await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(referenceQueries, deployment, true, cancellationToken)).ConfigureAwait(false);
             }
 
         var portfolio = await events.LoadPortfolioAsync(new PortfolioId(id.PortfolioId), cancellationToken).ConfigureAwait(false);

@@ -19,9 +19,12 @@ public static class ApplySignalStartupPlan
     /// <returns>The command acceptance or failure.</returns>
     public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this ApplySignalStartupPlanCommand command, IParameterStartupCommandContext context, ParameterStartupCommandState state, ILogger<ParameterStartupCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         context.AccessPolicy.Demand(ParameterCapability.Assign);
         if (state.ActiveRuns.ContainsKey(command.RunId)) return new ServiceOk<GuidResult>(new(command.CommandId));
-        var snapshot = await ParameterStartupReader.ReadUnderLeaseAsync(command.RunId, context.Assignments, context.ParameterSets, CancellationToken.None);
+        var snapshot = await (ParameterStartupReader.ReadUnderLeaseAsync(command.RunId, context.Assignments, context.ParameterSets, CancellationToken.None)).ConfigureAwait(false);
         var errorMsg = "ParameterStartup.STATE.APPLY_FAILED: unable to apply ApplySignalStartupPlan event";
         var updated = command.Compute(state, snapshot, out var startupChange) switch
         {
@@ -49,7 +52,7 @@ public static class ApplySignalStartupPlan
             // Regime Discovery derive their own startup requirements when their actor workflow starts.
             var plan = new ParameterSignalStartupPlan(command.RunId, snapshot.Fingerprint,
                 snapshot.Fingerprint, [], null);
-            if (command.ExpectedFingerprint.Length != 0 && command.ExpectedFingerprint != plan.Fingerprint) throw new InvalidOperationException("PARAM.STARTUP_PLAN_CHANGED");
+            if (command.ExpectedFingerprint.Length != 0 && !string.Equals(command.ExpectedFingerprint,plan.Fingerprint,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.STARTUP_PLAN_CHANGED");
             var run = new ParameterStartupRun(command.RunId, snapshot.Scopes.ToArray(), snapshot.Assignments.Select(x => x.Version).DistinctBy(x => x.Reference).ToArray(), plan, DateTime.UtcNow, command.OriginatedBy);
             startupChange = new(state.Revision + 1, StartupRun: run);
             return true;

@@ -45,6 +45,7 @@ public class YieldCurveRateCommandActor(
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override ValueTask OnStartup(ICommandActorContext<YieldCurveRateCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<YieldCurveRateCommandState>>());
         return ValueTask.CompletedTask;
@@ -66,7 +67,7 @@ public class YieldCurveRateCommandActor(
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [AddYieldCurveRateCommand.Verb] = static message => message.AsCommand<AddYieldCurveRateCommand>()!,
         [ChangeYieldCurveRateCommand.Verb] = static message => message.AsCommand<ChangeYieldCurveRateCommand>()!,
@@ -84,14 +85,14 @@ public class YieldCurveRateCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<YieldCurveRateCommandActor> context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<YieldCurveRateCommandActor> context, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
-        var receiveCommand = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return ValueTask.FromResult(receiveCommand.Invoke(cmd, context, yieldCurveRateState));
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receiveCommand.Invoke(command, context, yieldCurveRateState));
     }
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
@@ -118,15 +119,15 @@ public class YieldCurveRateCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override ValueTask OnValidateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand cmd)
-        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand command)
+        => OnValidateAsync(context, threadId, command, CancellationToken.None);
 
-    protected override ValueTask OnValidateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+    protected override ValueTask OnValidateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -177,35 +178,12 @@ public class YieldCurveRateCommandActor(
     /// <param name="cmd">The command for which state is being loaded.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
-    }
-
-    /// <summary>
-    /// Asynchronously saves the current state of the yield curve rate actor in response to a command.
-    /// </summary>
-    /// <remarks>This method overrides the base implementation to persist the state specific to yield curve rate
-    /// actors. The state must be of type <see cref="YieldCurveRateCommandState"/>; otherwise, an exception will be
-    /// thrown. All parameters are required and must not be null.</remarks>
-    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
-    /// null.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
-    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
-    /// cref="YieldCurveRateCommandState"/>.</param>
-    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override ValueTask OnSaveStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
-        return _repo.SaveStateAsync(context, yieldCurveRateState, cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -224,14 +202,38 @@ public class YieldCurveRateCommandActor(
     /// <param name="ex">The exception that was thrown during command processing. Determines the type of error event to generate.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure. The result
     /// reflects the nature of the exception and the associated command context.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (YieldCurveRateCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Asynchronously saves the current state of the yield curve rate actor in response to a command.
+    /// </summary>
+    /// <remarks>This method overrides the base implementation to persist the state specific to yield curve rate
+    /// actors. The state must be of type <see cref="YieldCurveRateCommandState"/>; otherwise, an exception will be
+    /// thrown. All parameters are required and must not be null.</remarks>
+    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
+    /// null.</param>
+    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
+    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
+    /// cref="YieldCurveRateCommandState"/>.</param>
+    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
+    protected override ValueTask OnSaveStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(command);
+        var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
+        return _repo.SaveStateAsync(context, yieldCurveRateState, command);
+    }
 
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (YieldCurveRateCommandState)state, command, cancellationToken).ConfigureAwait(false);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<YieldCurveRateCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
@@ -240,26 +242,26 @@ public class YieldCurveRateCommandActor(
             IErrorEvent<YieldCurveRateEntityId> errorEvent = ex switch
             {
                 AddYieldCurveRateException
-                    => await ex.SendErrorEventAsync<YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(context, (command as AddYieldCurveRateCommand)!, YieldCurveRateAddedEvent.Actor, YieldCurveRateAddedEvent.Verb),
+                    => await (ex.SendErrorEventAsync<YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(context, (command as AddYieldCurveRateCommand)!, YieldCurveRateAddedEvent.Actor, YieldCurveRateAddedEvent.Verb)).ConfigureAwait(false),
                 ChangeYieldCurveRateException
-                    => await ex.SendErrorEventAsync<YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(context, (command as ChangeYieldCurveRateCommand)!, YieldCurveRateChangedEvent.Actor, YieldCurveRateChangedEvent.Verb),
+                    => await (ex.SendErrorEventAsync<YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(context, (command as ChangeYieldCurveRateCommand)!, YieldCurveRateChangedEvent.Actor, YieldCurveRateChangedEvent.Verb)).ConfigureAwait(false),
                 RemoveYieldCurveRateException
-                    => await ex.SendErrorEventAsync<YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(context, (command as RemoveYieldCurveRateCommand)!, YieldCurveRateRemovedEvent.Actor, YieldCurveRateRemovedEvent.Verb),
+                    => await (ex.SendErrorEventAsync<YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(context, (command as RemoveYieldCurveRateCommand)!, YieldCurveRateRemovedEvent.Actor, YieldCurveRateRemovedEvent.Verb)).ConfigureAwait(false),
                 _ => default!,
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex, command);
         }
         catch (Exception innerEx)
         {
-            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.MarketData.ActorLifecycleDiagnosticLog.Write14(_logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

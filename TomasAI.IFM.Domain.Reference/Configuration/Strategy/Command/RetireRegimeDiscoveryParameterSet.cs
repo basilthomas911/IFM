@@ -16,7 +16,9 @@ public static class RetireRegimeDiscoveryParameterSet
     /// <returns>The command acceptance or business failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this RetireRegimeDiscoveryParameterSetCommand command, ICommandActorContext context, RegimeDiscoveryConfigurationCommandState state)
     {
-        if (state.Status == "Retired") return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.Equals(state.Status,"Retired",StringComparison.Ordinal)) return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
         var errorMsg = "RegimeDiscoveryConfiguration.STATE.APPLY_FAILED: unable to apply retired event";
         var updated = command.Compute(state, out var configurationChange) switch
         {
@@ -35,7 +37,7 @@ public static class RetireRegimeDiscoveryParameterSet
     /// <returns>True when the transition is valid.</returns>
     internal static bool Compute(this RetireRegimeDiscoveryParameterSetCommand command, RegimeDiscoveryConfigurationCommandState state, out RegimeDiscoveryConfigurationChange configurationChange)
     {
-        configurationChange = state.Status != "Published"
+        configurationChange = !string.Equals(state.Status,"Published",StringComparison.Ordinal)
             ? new(RejectionReason: "RegimeDiscoveryConfiguration: only a Published version can be retired.")
             : new(RetiredAtUtc: command.RetiredAtUtc);
         return configurationChange.RejectionReason is null;

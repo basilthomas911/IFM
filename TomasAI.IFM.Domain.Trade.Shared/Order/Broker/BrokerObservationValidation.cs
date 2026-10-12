@@ -9,8 +9,11 @@ public static class BrokerObservationValidation
     private static readonly ObservationRules Rules = new();
 
     /// <summary>Appends every sourced observation failure without throwing on missing payloads.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateBrokerObservation(this List<ValidationError> errors, BrokerOrderObservationEvidence? observation)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (observation is null) errors.Add(new("BrokerOrder.Observation is required."));
         else errors.AddRange(Rules.Validate(observation).Errors.Select(static failure => new ValidationError(failure.ErrorMessage)));
         return errors;

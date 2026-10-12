@@ -29,6 +29,7 @@ public static class TradeSelectionPolicy
     }
     public static TradeSelectionSpecializedRules ReadSpecialized(string json, TradeSelectionParameterSet common)
     {
+        ArgumentNullException.ThrowIfNull(common);
         CheckJson(json);
         var value = JsonSerializer.Deserialize<TradeSelectionSpecializedRules>(json, Options) ?? throw Invalid("Null specialized rules.");
         Require(value.SchemaVersion == 1, "Unknown specialized schema.");
@@ -48,10 +49,10 @@ public static class TradeSelectionPolicy
     {
         ArgumentNullException.ThrowIfNull(p);
         Require(p.SchemaVersion == 1 && p.ParameterSetId != Guid.Empty && p.Version > 0, "Invalid policy identity/schema.");
-        Require(p.InstrumentRoot == "ES" && IsHorizon(p.TargetHorizon) && !string.IsNullOrWhiteSpace(p.ProfileCode) && p.ProfileCode.Length <= 100, "Invalid root/horizon/profile.");
+        Require(string.Equals(p.InstrumentRoot,"ES",StringComparison.Ordinal) && IsHorizon(p.TargetHorizon) && !string.IsNullOrWhiteSpace(p.ProfileCode) && p.ProfileCode.Length <= 100, "Invalid root/horizon/profile.");
         Require(p.MinimumRegimeConfidence is >= 0 and <= 1 && p.MinimumAssessmentConfidence is >= 0 and <= 1, "Confidence must be in [0,1].");
         Require(p.UnknownEvidencePolicy == UnknownEvidencePolicy.NoTrade, "Unsupported Unknown policy.");
-        Require(p.RankingPolicyVersion == "ts-rank-v1" && p.ReasonCodeCatalogVersion == "ts-reasons-v1" && p.SummaryTemplateVersion == "ts-summary-v1" && p.DirectionMappingVersion == "ts-direction-v1", "Unsupported semantic version.");
+        Require(string.Equals(p.RankingPolicyVersion,"ts-rank-v1",StringComparison.Ordinal) && string.Equals(p.ReasonCodeCatalogVersion,"ts-reasons-v1",StringComparison.Ordinal) && string.Equals(p.SummaryTemplateVersion,"ts-summary-v1",StringComparison.Ordinal) && string.Equals(p.DirectionMappingVersion,"ts-direction-v1",StringComparison.Ordinal), "Unsupported semantic version.");
         Require(p.MaximumAssignments is >= 1 and <= 16 && p.MaximumCandidates is >= 1 and <= 64 && p.MaximumCatalogDefinitions is >= 1 and <= 256, "Invalid cardinality limits.");
         Require(p.MaximumBindingPayloadBytes is >= 65536 and <= 262144 && p.MaximumResultPayloadBytes is >= 65536 and <= 524288, "Invalid payload limits.");
         Require(p.MaximumExecutionMilliseconds is >= 1 and <= 60000 && p.ResultLifetimeSeconds is >= 1 and <= 300 && p.FutureClockSkewSeconds is >= 0 and <= 60, "Invalid time limits.");
@@ -62,9 +63,14 @@ public static class TradeSelectionPolicy
         Require(p.RejectedInheritedRestrictions.Contains(RegimeRestriction.NoNewTrade), "NoNewTrade must be rejected.");
         ValidateRules(p.VariantRules);
     }
-    public static string Signature(SelectionVariantRule r) => $"{r.BuilderCapabilityCode}:{r.BuilderCapabilityVersion}:{r.Side}:{r.Bias}:{r.PremiumMode}";
+    public static string Signature(SelectionVariantRule r) 
+    {
+        ArgumentNullException.ThrowIfNull(r);
+        return $"{r.BuilderCapabilityCode}:{r.BuilderCapabilityVersion}:{r.Side}:{r.Bias}:{r.PremiumMode}";
+    }
     public static void ValidateRules(SelectionVariantRule[] rules)
     {
+        ArgumentNullException.ThrowIfNull(rules);
         Require(rules.Length == 12 && rules.All(x => x is not null) && rules.Select(Signature).Distinct(StringComparer.Ordinal).Count() == 12, "Exactly twelve unique variant signatures are required.");
         foreach (var r in rules)
         {
@@ -79,7 +85,7 @@ public static class TradeSelectionPolicy
             };
             Require(valid, "Unsupported variant signature.");
             Set(r.AllowedRegimeDirections); Set(r.AllowedTrendPhases); Set(r.AllowedTrendStrengths); Set(r.AllowedStructureClassifications); Set(r.AllowedAssessmentConditions); Set(r.AllowedVolatilityBehavior);
-            var direction = r.Bias == "Balanced" ? RegimeDirection.Neutral : r.Bias == "Bullish" ? RegimeDirection.Up : RegimeDirection.Down;
+            var direction = (string.Equals(r.Bias,"Balanced",StringComparison.Ordinal)) switch { true => RegimeDirection.Neutral, false => (string.Equals(r.Bias,"Bullish",StringComparison.Ordinal)) switch { true => RegimeDirection.Up, false => RegimeDirection.Down } };
             Require(r.AllowedRegimeDirections.All(x => x == direction), "Variant direction cannot invert its declared bias.");
         }
     }
@@ -103,11 +109,12 @@ public static class TradeSelectionPolicy
         Require(values.Length is > 0 and <= 64 && values.Distinct().Count() == values.Length && values.All(x => Enum.IsDefined(x) && x.ToString() is not ("Unknown" or "Undefined")), "Invalid observation set.");
     }
     static void Subset<T>(T[] values, T[] allowed) => Require(values.All(x => allowed.Contains(x)), "Specialized rules cannot broaden common constraints.");
-    static ArgumentException Invalid(string message) => new("TS.CONFIG.INVALID: " + message);
+    static ArgumentException Invalid(string message) => new("TS.CONFIG.INVALID: " + message,nameof(message));
     static void Require(bool condition, string message) { if (!condition) throw Invalid(message); }
     internal sealed class CanonicalDecimalConverter : JsonConverter<decimal>
     {
-        public override decimal Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => reader.GetDecimal();
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3218", Justification = "Preserve the existing public nested validation contract or required JsonConverter override member name.")]
+        public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetDecimal();
         public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) => writer.WriteRawValue(value.ToString("G29", CultureInfo.InvariantCulture));
     }
 }

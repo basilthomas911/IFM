@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -14,13 +14,18 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         public double RateOfReturn { get; }
         public double ShortStrikePrice { get; }
         public double ShortImpliedVolatility { get; set; }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
         public List<double[]> ShortValues { get; }
         public double LongStrikePrice { get; }
         public double LongImpliedVolatility { get; set; }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
         public List<double[]> LongValues { get; }
         public TimeSpan TaskDuration { get; set; }
         public bool ShortComplete { get; set; }
         public bool LongComplete { get; set; }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
         public double[] AssetPrices { get; set; }
         public Exception Error { get; set; }
 

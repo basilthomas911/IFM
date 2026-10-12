@@ -91,7 +91,10 @@ public sealed record DatasetWorkerDiagnostics
     }
 
     public static DatasetWorkerDiagnostics Unavailable(string dataset, Guid generation, string detail,
-        DateTime observedOnUtc) => new()
+        DateTime observedOnUtc) 
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return new()
         {
             Dataset = dataset,
             GenerationId = generation,
@@ -100,16 +103,19 @@ public sealed record DatasetWorkerDiagnostics
             LastProviderMessageAgeTicks = long.MaxValue,
             FailureDetail = Bound(detail, 4096)
         };
+    }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public static DatasetWorkerDiagnostics Capture(DatasetSubscriptionManifest manifest,
         DatabentoMarketDataEpochHealth epoch, DatabentoNativeWatchdogSnapshot? native,
         string failureDetail, DateTime observedOnUtc)
     {
-        var managed = epoch.DatasetFeedStatuses?.Where(value => value.Dataset == manifest.Dataset).ToArray() ?? [];
+        ArgumentNullException.ThrowIfNull(manifest);
+        var managed = epoch.DatasetFeedStatuses?.Where(value => string.Equals(value.Dataset,manifest.Dataset,StringComparison.Ordinal)).ToArray() ?? [];
         if (managed.Length != 1 || managed[0].GenerationId == Guid.Empty)
             throw new InvalidOperationException("The worker has no unique managed dataset generation.");
         var generation = managed[0].GenerationId;
-        var feeds = native?.Feeds.Where(value => value.Dataset == manifest.Dataset && value.FeedKind == 1).ToArray() ?? [];
+        var feeds = native?.Feeds.Where(value => string.Equals(value.Dataset,manifest.Dataset,StringComparison.Ordinal) && value.FeedKind == 1).ToArray() ?? [];
         if (feeds.Length != 1 || managed[0].Health.DrainDiagnostics is null)
             return Unavailable(manifest.Dataset, generation,
                 string.IsNullOrEmpty(failureDetail) ? "Native or managed dataset diagnostics are incomplete." : failureDetail,
@@ -118,7 +124,7 @@ public sealed record DatasetWorkerDiagnostics
         var health = managed[0].Health;
         var statuses = epoch.ContractStatuses ?? [];
         var managedReady = epoch.Running && epoch.LastPriceStoreActive
-            && manifest.Contracts.All(contract => statuses.Any(status => status.ContractId == contract.DomainContractId
+            && manifest.Contracts.All(contract => statuses.Any(status => string.Equals(status.ContractId,contract.DomainContractId,StringComparison.Ordinal)
                 && status.ServiceRunning && status.ContractConfigured && status.ContractRunning));
         return new()
         {
@@ -159,10 +165,10 @@ public sealed record DatasetWorkerDiagnostics
             Gen1Collections = GC.CollectionCount(1),
             Gen2Collections = GC.CollectionCount(2),
             GcPauseTicks = GC.GetTotalPauseDuration().Ticks,
-            OptionRecordsProduced = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsProduced),
-            OptionRecordsConsumed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsConsumed),
-            OptionRingUsed = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingUsedRecords),
-            OptionRingOverruns = native.Feeds.Where(x => x.Dataset == manifest.Dataset && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingOverruns)
+            OptionRecordsProduced = native.Feeds.Where(x => string.Equals(x.Dataset,manifest.Dataset,StringComparison.Ordinal) && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsProduced),
+            OptionRecordsConsumed = native.Feeds.Where(x => string.Equals(x.Dataset,manifest.Dataset,StringComparison.Ordinal) && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RecordsConsumed),
+            OptionRingUsed = native.Feeds.Where(x => string.Equals(x.Dataset,manifest.Dataset,StringComparison.Ordinal) && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingUsedRecords),
+            OptionRingOverruns = native.Feeds.Where(x => string.Equals(x.Dataset,manifest.Dataset,StringComparison.Ordinal) && x.FeedKind == 2).Aggregate(0UL, (sum, x) => sum + x.RingOverruns)
         };
     }
 
@@ -217,138 +223,10 @@ public sealed record DatasetWorkerDiagnostics
     static long Age(ulong observed, ulong last) => last == 0 ? long.MaxValue
         : checked((long)Math.Min((observed - Math.Min(observed, last)) / 100, (ulong)long.MaxValue));
     internal static string Bound(string value, int maximum) => value.Length <= maximum ? value : value[..maximum];
-    static DatabentoContractRole? Role(DatabentoContractRegistration value) => !value.Rollover ? null
-        : value.RootSymbol?.ToUpperInvariant() switch
+    static DatabentoContractRole? Role(DatabentoContractRegistration value) => (!value.Rollover) switch { true => null, false => value.RootSymbol?.ToUpperInvariant() switch
         {
             "ES" => DatabentoContractRole.EsQuarterly,
             "VX" => value.OnTheRun ? DatabentoContractRole.VxFrontMonth : DatabentoContractRole.VxSecondMonth,
             _ => null
-        };
-}
-
-[MessagePackObject]
-public sealed record DatasetWorkerDrainDiagnostics(
-    [property: Key(0)] FeedDrainStage Stage,
-    [property: Key(1)] long NativeReadCallCount,
-    [property: Key(2)] uint LastNativeReadRecordCount,
-    [property: Key(3)] ulong LastNativeReadFirstSequence,
-    [property: Key(4)] ulong LastNativeReadLastSequence,
-    [property: Key(5)] uint LastNativeReadRecordsRouted,
-    [property: Key(6)] int CurrentNativeReadRecordIndex,
-    [property: Key(7)] string CurrentRecordKind,
-    [property: Key(8)] ushort CurrentPublisherId,
-    [property: Key(9)] uint CurrentInstrumentId,
-    [property: Key(10)] uint CurrentSourceSequence,
-    [property: Key(11)] bool ManagedBatchPublishActive,
-    [property: Key(12)] int ManagedBatchPublishRecordCount,
-    [property: Key(13)] ushort ManagedBatchPublisherId,
-    [property: Key(14)] uint ManagedBatchInstrumentId)
-{
-    public void Validate()
-    {
-        if (!Enum.IsDefined(Stage) || CurrentRecordKind is null || CurrentRecordKind.Length > 64)
-            throw new InvalidDataException("Worker drain diagnostic bounds are invalid.");
-    }
-    public static DatasetWorkerDrainDiagnostics From(FeedDrainDiagnostics value) => new(value.Stage,
-        value.NativeReadCallCount, value.LastNativeReadRecordCount, value.LastNativeReadFirstSequence,
-        value.LastNativeReadLastSequence, value.LastNativeReadRecordsRouted, value.CurrentNativeReadRecordIndex,
-        DatasetWorkerDiagnostics.Bound(value.CurrentRecordKind, 64), value.CurrentPublisherId,
-        value.CurrentInstrumentId, value.CurrentSourceSequence, value.ManagedBatchPublishActive,
-        value.ManagedBatchPublishRecordCount, value.ManagedBatchPublisherId, value.ManagedBatchInstrumentId);
-    public FeedDrainDiagnostics ToDiagnostics() => new()
-    {
-        Stage = Stage,
-        NativeReadCallCount = NativeReadCallCount,
-        LastNativeReadRecordCount = LastNativeReadRecordCount,
-        LastNativeReadFirstSequence = LastNativeReadFirstSequence,
-        LastNativeReadLastSequence = LastNativeReadLastSequence,
-        LastNativeReadRecordsRouted = LastNativeReadRecordsRouted,
-        CurrentNativeReadRecordIndex = CurrentNativeReadRecordIndex,
-        CurrentRecordKind = CurrentRecordKind,
-        CurrentPublisherId = CurrentPublisherId,
-        CurrentInstrumentId = CurrentInstrumentId,
-        CurrentSourceSequence = CurrentSourceSequence,
-        ManagedBatchPublishActive = ManagedBatchPublishActive,
-        ManagedBatchPublishRecordCount = ManagedBatchPublishRecordCount,
-        ManagedBatchPublisherId = ManagedBatchPublisherId,
-        ManagedBatchInstrumentId = ManagedBatchInstrumentId
-    };
-}
-
-/// <summary>Explicit wire representation of aggregation counters and its causal in-flight record.</summary>
-[MessagePackObject]
-public sealed record DatasetWorkerAggregationDiagnostics(
-    [property: Key(0)] long SourceQuoteRecords, [property: Key(1)] long SourceTradeRecords,
-    [property: Key(2)] long EmittedQuoteBatches, [property: Key(3)] long EmittedQuoteItems,
-    [property: Key(4)] long EmittedTradeEvents, [property: Key(5)] long BufferFullFlushes,
-    [property: Key(6)] long PartialQuoteFlushes, [property: Key(7)] long DuplicateSourceSequences,
-    [property: Key(8)] long OutOfOrderSourceSequences, [property: Key(9)] long SourceSequenceGaps,
-    [property: Key(10)] long PublicationFailures, [property: Key(11)] long ProcessingFailures,
-    [property: Key(12)] int ActiveTickers, [property: Key(13)] int ServiceOwnedQuoteBuffers,
-    [property: Key(14)] long RecordsStarted, [property: Key(15)] long RecordsCompleted,
-    [property: Key(16)] long SourceMboRecords, [property: Key(17)] long SourceStatisticsRecords,
-    [property: Key(18)] long StatisticsReplayCompleteRecords, [property: Key(19)] long TradeReplayCompleteRecords,
-    [property: Key(20)] long UnsupportedRecords, [property: Key(21)] long CurrentProcessingDurationTicks,
-    [property: Key(22)] long TotalProcessingDurationTicks, [property: Key(23)] long MaximumProcessingDurationTicks,
-    [property: Key(24)] DateTimeOffset? LastRecordStartedAtUtc, [property: Key(25)] DateTimeOffset? LastRecordCompletedAtUtc,
-    [property: Key(26)] DateTimeOffset? LastRecordFailedAtUtc, [property: Key(27)] TickAggregationProcessingStage CurrentStage,
-    [property: Key(28)] DatasetWorkerRecordProgress? InFlightRecord)
-{
-    public void Validate()
-    {
-        if (!Enum.IsDefined(CurrentStage) || CurrentProcessingDurationTicks < 0)
-            throw new InvalidDataException("Worker aggregation diagnostic bounds are invalid.");
-        InFlightRecord?.Validate();
-    }
-    public static DatasetWorkerAggregationDiagnostics From(TickAggregationMetricsSnapshot value) => new(
-        value.SourceQuoteRecords, value.SourceTradeRecords, value.EmittedQuoteBatches, value.EmittedQuoteItems,
-        value.EmittedTradeEvents, value.BufferFullFlushes, value.PartialQuoteFlushes, value.DuplicateSourceSequences,
-        value.OutOfOrderSourceSequences, value.SourceSequenceGaps, value.PublicationFailures, value.ProcessingFailures,
-        value.ActiveTickers, value.ServiceOwnedQuoteBuffers, value.RecordsStarted, value.RecordsCompleted,
-        value.SourceMboRecords, value.SourceStatisticsRecords, value.StatisticsReplayCompleteRecords,
-        value.TradeReplayCompleteRecords, value.UnsupportedRecords, value.CurrentProcessingDurationTicks,
-        value.TotalProcessingDurationTicks, value.MaximumProcessingDurationTicks, value.LastRecordStartedAtUtc,
-        value.LastRecordCompletedAtUtc, value.LastRecordFailedAtUtc, value.CurrentStage,
-        value.InFlightRecord is { } record ? DatasetWorkerRecordProgress.From(record) : null);
-    public TickAggregationMetricsSnapshot ToMetrics() => new(SourceQuoteRecords, SourceTradeRecords,
-        EmittedQuoteBatches, EmittedQuoteItems, EmittedTradeEvents, BufferFullFlushes, PartialQuoteFlushes,
-        DuplicateSourceSequences, OutOfOrderSourceSequences, SourceSequenceGaps, PublicationFailures,
-        ProcessingFailures, ActiveTickers, ServiceOwnedQuoteBuffers)
-    {
-        RecordsStarted = RecordsStarted,
-        RecordsCompleted = RecordsCompleted,
-        SourceMboRecords = SourceMboRecords,
-        SourceStatisticsRecords = SourceStatisticsRecords,
-        StatisticsReplayCompleteRecords = StatisticsReplayCompleteRecords,
-        TradeReplayCompleteRecords = TradeReplayCompleteRecords,
-        UnsupportedRecords = UnsupportedRecords,
-        CurrentProcessingDurationTicks = CurrentProcessingDurationTicks,
-        TotalProcessingDurationTicks = TotalProcessingDurationTicks,
-        MaximumProcessingDurationTicks = MaximumProcessingDurationTicks,
-        LastRecordStartedAtUtc = LastRecordStartedAtUtc,
-        LastRecordCompletedAtUtc = LastRecordCompletedAtUtc,
-        LastRecordFailedAtUtc = LastRecordFailedAtUtc,
-        CurrentStage = CurrentStage,
-        InFlightRecord = InFlightRecord?.ToProgress()
-    };
-}
-
-[MessagePackObject]
-public sealed record DatasetWorkerRecordProgress(
-    [property: Key(0)] string Dataset, [property: Key(1)] string ContractId, [property: Key(2)] string RecordKind,
-    [property: Key(3)] ushort PublisherId, [property: Key(4)] uint InstrumentId,
-    [property: Key(5)] uint SourceSequence, [property: Key(6)] DateTimeOffset StartedAtUtc)
-{
-    public void Validate()
-    {
-        if (Dataset is null || Dataset.Length > 64 || ContractId is null || ContractId.Length > 256
-            || RecordKind is null || RecordKind.Length > 64)
-            throw new InvalidDataException("Worker in-flight record diagnostic bounds are invalid.");
-    }
-    public static DatasetWorkerRecordProgress From(TickAggregationRecordProgress value) => new(
-        DatasetWorkerDiagnostics.Bound(value.Dataset, 64), DatasetWorkerDiagnostics.Bound(value.ContractId, 256),
-        DatasetWorkerDiagnostics.Bound(value.RecordKind, 64), value.PublisherId, value.InstrumentId,
-        value.SourceSequence, value.StartedAtUtc);
-    public TickAggregationRecordProgress ToProgress() => new(Dataset, ContractId, RecordKind,
-        PublisherId, InstrumentId, SourceSequence, StartedAtUtc);
+        } };
 }

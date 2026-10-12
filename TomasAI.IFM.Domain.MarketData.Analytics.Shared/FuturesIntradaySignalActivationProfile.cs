@@ -41,11 +41,3 @@ public static class FuturesIntradaySignalActivationProfile
             .ToArray();
     }
 }
-
-/// <summary>Contains the four signal actor identities for one intraday timeframe.</summary>
-public sealed record FuturesIntradaySignalActivation(
-    TimeFrameType TimeFrame,
-    FuturesRsiSignalEntityId Rsi,
-    FuturesAtrSignalEntityId Atr,
-    FuturesAdxSignalEntityId Adx,
-    FuturesMacdSignalEntityId Macd);

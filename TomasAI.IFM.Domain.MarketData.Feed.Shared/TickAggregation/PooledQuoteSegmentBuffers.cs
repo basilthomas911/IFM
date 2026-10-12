@@ -8,7 +8,7 @@ public static class PooledQuoteSegmentBuffers
 {
     private const int SlotLength = 512;
     private const int SlotCount = 128;
-    private static readonly object Gate = new();
+    private static readonly System.Threading.Lock Gate = new();
     private static readonly Stack<FuturesTickQuoteData[]> Available = new(SlotCount);
     private static long _overflowAllocations;
 
@@ -19,7 +19,7 @@ public static class PooledQuoteSegmentBuffers
     }
 
     /// <summary>Forces pool allocation during actor startup rather than on the first quote.</summary>
-    public static void Warmup() { }
+    public static void Warmup() { /* Calling this method forces the static constructor to preallocate the pool. */ }
 
     /// <summary>Counts allocation fallbacks when all decoder slots were in flight.</summary>
     public static long OverflowAllocations => Interlocked.Read(ref _overflowAllocations);

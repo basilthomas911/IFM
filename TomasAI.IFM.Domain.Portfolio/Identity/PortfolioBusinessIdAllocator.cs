@@ -3,22 +3,6 @@ using TomasAI.IFM.Framework.SequenceId;
 
 namespace TomasAI.IFM.Domain.Portfolio.Identity;
 
-public interface IPortfolioBusinessIdHighWatermark
-{
-    /// <summary>Returns the highest Portfolio ID reserved by the authoritative PostgreSQL sequence without allocating an ID.</summary>
-    ValueTask<int> GetPortfolioHighWatermarkAsync(CancellationToken cancellationToken = default);
-}
-
-public interface IPortfolioBusinessIdAllocator : IPortfolioBusinessIdHighWatermark
-{
-    ValueTask<PortfolioId> AllocatePortfolioIdAsync(CancellationToken cancellationToken = default);
-    ValueTask<int> AllocateFundIdAsync(CancellationToken cancellationToken = default);
-    ValueTask<int> AllocateOrderIdAsync(CancellationToken cancellationToken = default);
-    ValueTask<int> AllocateTradeIdAsync(CancellationToken cancellationToken = default);
-    ValueTask<int> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    ValueTask<int> IPortfolioBusinessIdHighWatermark.GetPortfolioHighWatermarkAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-}
-
 /// <summary>Allocates operator-facing business identities from their PostgreSQL-backed named sequences.</summary>
 public sealed class PortfolioBusinessIdAllocator(ISequenceIdGenerator sequenceIdGenerator)
     : IPortfolioBusinessIdAllocator
@@ -27,7 +11,7 @@ public sealed class PortfolioBusinessIdAllocator(ISequenceIdGenerator sequenceId
         sequenceIdGenerator ?? throw new ArgumentNullException(nameof(sequenceIdGenerator));
 
     public async ValueTask<PortfolioId> AllocatePortfolioIdAsync(CancellationToken cancellationToken = default) =>
-        new(await AllocatePositiveInt32Async(SequenceName.Portfolio_PortfolioId, cancellationToken));
+        new(await (AllocatePositiveInt32Async(SequenceName.Portfolio_PortfolioId, cancellationToken)).ConfigureAwait(false));
 
     public async ValueTask<int> GetPortfolioHighWatermarkAsync(CancellationToken cancellationToken = default)
     {

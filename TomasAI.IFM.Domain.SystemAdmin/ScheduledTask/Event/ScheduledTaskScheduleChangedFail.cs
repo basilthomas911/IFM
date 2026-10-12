@@ -11,7 +11,9 @@ public static class ScheduledTaskScheduleChangedFail
     /// <returns>The bounded notification dispatch operation.</returns>
     public static ValueTask ExecuteAsync(this ScheduledTaskScheduleChangedFailEvent source, ScheduledTaskEventContext context)
     {
-        context.Logger.LogError("{Component}.{Method} Projection failed for {EventName} {AggregateId} {CommandId}: {ErrorMessage}", nameof(ScheduledTaskScheduleChangedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
+        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write1(context.Logger, null, nameof(ScheduledTaskScheduleChangedFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
         return ValueTask.CompletedTask;
     }
 }

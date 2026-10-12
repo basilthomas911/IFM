@@ -11,16 +11,18 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 /// <summary>Handles ATR lifecycle stop events.</summary>
 public static class FuturesAtrSignalStopped
 {
-    /// <summary>Detaches the ATR identity from shared closed observations.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Detaches the ATR identity from shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalStoppedEvent @event,
         IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(context);
         try { FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Detach(@event.EntityId); return true; }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to detach ATR observation identity {EntityId}", @event.EntityId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
-                FuturesAtrSignalStoppedEvent.ErrorCode, exception.GetErrorMessage());
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write8(logger, exception, @event.EntityId);
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent,
+                FuturesAtrSignalStoppedEvent.ErrorCode, exception.GetErrorMessage())).ConfigureAwait(false);
             return false;
         }
     }

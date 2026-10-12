@@ -18,6 +18,8 @@ public static class RecordScheduledTaskInstallationFailure
     public static ServiceResult<GuidResult> Execute(this RecordScheduledTaskInstallationFailureCommand command,
         ScheduledTaskCommandState state, DateTimeOffset now, ScheduledTaskCatalog? catalog)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply RecordScheduledTaskInstallationFailure event";
         var updated = command.Compute(state.ScheduledTaskDefinition, now, catalog, out var model) switch
         {

@@ -32,7 +32,9 @@ public record AddLogEventsCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member is part of the established command/event/validation contract consumed through instances.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member is part of the established command/event/validation contract consumed through instances.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Telemetry log events payload.</summary>

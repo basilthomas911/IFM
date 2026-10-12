@@ -27,13 +27,20 @@ public sealed record GetReconciliationQuery : IFinancialQueryMessage<GetReconcil
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetReconciliationQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetReconciliationQuery(GetReconciliationRequest parameters) => Parameters = parameters;
     public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "GetReconciliation";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public LedgerPortfolioId EntityId { get; init; } = new(0);
-    [Key(2)] public Guid ReconciliationId { get; init; } = default!;
+    [Key(2)] public Guid ReconciliationId { get; init; } = Guid.Empty;
     [Key(3)] public FinancialReadScope Scope { get; init; } = new();
     [Key(4)] public Guid CorrelationId { get; init; }
     [Key(5)] public DateTime RequestedAtUtc { get; init; }
@@ -53,11 +60,4 @@ public sealed record GetReconciliationQuery : IFinancialQueryMessage<GetReconcil
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetReconciliationQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetReconciliationQuery(GetReconciliationRequest parameters) => Parameters = parameters;
 }

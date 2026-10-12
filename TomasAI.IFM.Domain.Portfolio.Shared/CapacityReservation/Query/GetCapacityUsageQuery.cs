@@ -25,6 +25,13 @@ public sealed record GetCapacityUsageQuery : IFinancialQueryMessage<GetCapacityU
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetCapacityUsageQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetCapacityUsageQuery(GetCapacityUsageRequest parameters) => Parameters = parameters;
     public const string Actor = "CapacityReservationQuery";
     public const string Verb = "GetCapacityUsage";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -49,11 +56,4 @@ public sealed record GetCapacityUsageQuery : IFinancialQueryMessage<GetCapacityU
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetCapacityUsageQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetCapacityUsageQuery(GetCapacityUsageRequest parameters) => Parameters = parameters;
 }

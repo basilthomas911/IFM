@@ -9,9 +9,12 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
     : ObjectUriContext(commandName, uri, dataReaderOptions), IObjectFileUriContext
 {
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     public void Read<TResult>(Func<string, TResult> mapper, Action<IEnumerable<TResult>> reducer)
     {
-
+        ArgumentNullException.ThrowIfNull(mapper);
+        ArgumentNullException.ThrowIfNull(reducer);
+        reducer(File.ReadLines(Uri.LocalPath).Select(mapper));
     }
 
     /// <summary>
@@ -20,11 +23,13 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
     /// <typeparam name="TResult"></typeparam>
     /// <param name="dataReaderMapper"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Per-row import boundary logs malformed row failures and continues existing import behavior.")]
     public async Task<ICollection<TResult>> ReadAsync<TResult>(Func<string, TResult> dataReaderMapper)
     {
+        ArgumentNullException.ThrowIfNull(dataReaderMapper);
         ICollection<TResult> resultSet = [];
         var stringReader = new FileStringReader(Uri);
-        await foreach (var line in stringReader.ReadLinesAsync())
+        await foreach (var line in stringReader.ReadLinesAsync().ConfigureAwait(false))
         {
             try
             {
@@ -58,9 +63,9 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
     {
         return DataReaderOptions.DataReaderType switch
         {
-            DataReaderType.Csv => await GetCsvDataAsync(),
-            DataReaderType.JSON => await GetJsonDataAsync(),
-            _ => throw new NotImplementedException()
+            DataReaderType.Csv => await (GetCsvDataAsync()).ConfigureAwait(false),
+            DataReaderType.JSON => await (GetJsonDataAsync()).ConfigureAwait(false),
+            _ => throw new NotSupportedException()
         };
 
         async ValueTask<ICollection<TResult>> GetCsvDataAsync()
@@ -79,6 +84,7 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
             return resultSet;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Per-row import boundary logs malformed row failures and continues existing import behavior.")]
         ICollection<TResult> ReadAll(IDataReader dataReader)
         {
             var resultSet = new List<TResult>();
@@ -101,55 +107,5 @@ public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOption
             return resultSet;
         }
 
-    }
-}
-
-public static class ObjectFileUriContextExtensions
-{
-    /// <summary>
-    /// Asynchronously reads data from the specified <see cref="IObjectUriContext"/> and maps it to a collection of
-    /// results.
-    /// </summary>
-    /// <typeparam name="TResult">The type of the objects to be read and mapped.</typeparam>
-    /// <param name="uriCtx">The context representing the source of the data to be read. Must be an instance of <see
-    /// cref="ObjectFileUriContext"/>.</param>
-    /// <param name="dataReaderMapper">A function that maps an <see cref="IObjectDataRecord"/> to an instance of <typeparamref
-    /// name="TResult"/>.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a collection of <typeparamref
-    /// name="TResult"/> objects mapped from the data source.</returns>
-    /// <exception cref="ArgumentException">Thrown if <paramref name="uriCtx"/> is not an instance of <see cref="ObjectFileUriContext"/>.</exception>
-    public static async Task<ICollection<TResult>> ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<IObjectDataRecord, TResult> dataReaderMapper)
-    {
-        if (uriCtx is not ObjectFileUriContext objectFileUriContext)
-        {
-            throw new ArgumentException("The provided context is not an instance of ObjectFileUriContext.", nameof(uriCtx));
-        }
-        return await objectFileUriContext.ReadAsync(dataReaderMapper);
-    }
-
-    public static async Task<ICollection<TResult>> ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<string, TResult> dataReaderMapper)
-    {
-        if (uriCtx is not ObjectFileUriContext objectFileUriContext)
-        {
-            throw new ArgumentException("The provided context is not an instance of ObjectFileUriContext.", nameof(uriCtx));
-        }
-        return await objectFileUriContext.ReadAsync(dataReaderMapper);
-    }
-
-    public static async Task ReadAsync<TResult>(this IObjectUriContext uriCtx, Func<string, int, TResult> mapper, Func<IEnumerable<TResult>, Task> reducer)
-    {
-        if (uriCtx is not ObjectFileUriContext objectFileUriContext)
-        {
-            throw new ArgumentException("The provided context is not an instance of ObjectFileUriContext.", nameof(uriCtx));
-        }
-        var stringReader = new FileStringReader(uriCtx.Uri);
-        var resultSet = new List<TResult>();
-        await foreach (var row in stringReader.ReadLinesAsync().ConfigureAwait(false))
-        {
-            var result = mapper(row, 0);
-            if (result is not null)
-                resultSet.Add(result);
-        }
-        await reducer(resultSet).ConfigureAwait(false);
     }
 }

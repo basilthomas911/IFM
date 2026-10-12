@@ -34,8 +34,8 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
                 GetMarketOutlookSnapshotQuery.Verb,
                 entityId.Format())
         };
-        return await RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>(
-            query.Subject, query);
+        return await (RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>(
+            query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>Gets the bounded daily Bollinger history for one roll-aware futures root.</summary>
@@ -53,8 +53,8 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
                 GetFuturesBollingerBandHistoryQuery.Verb,
                 entityId.Format())
         };
-        return await RequestAsync<GetFuturesBollingerBandHistoryQuery, FuturesBbSignalReadModel[]>(
-            query.Subject, query);
+        return await (RequestAsync<GetFuturesBollingerBandHistoryQuery, FuturesBbSignalReadModel[]>(
+            query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -67,7 +67,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTradeSignalQuery.Actor, GetFuturesTradeSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -80,7 +80,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLastFuturesTradeSignalQuery.Actor, GetLastFuturesTradeSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLastFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetLastFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTradeSignalBySymbolQuery.Actor, GetFuturesTradeSignalBySymbolQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesTradeSignalBySymbolQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesTradeSignalBySymbolQuery, FuturesTradeSignalV2ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTradeSignalIdsQuery.Actor, GetFuturesTradeSignalIdsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesTradeSignalIdsQuery, FuturesTradeSignalId[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesTradeSignalIdsQuery, FuturesTradeSignalId[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesRsiSignalQuery.Actor, GetFuturesRsiSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesRsiSignalQuery, FuturesRsiSignalReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesRsiSignalQuery, FuturesRsiSignalReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
 
@@ -137,7 +137,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTrendDirectionFromRSISignalQuery.Actor, GetFuturesTrendDirectionFromRSISignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesTrendDirectionFromRSISignalQuery, FuturesTrendDirectionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesTrendDirectionFromRSISignalQuery, FuturesTrendDirectionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -154,7 +154,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesTdiSignalQuery.Actor, GetFuturesTdiSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesTdiSignalQuery, FuturesTdiSignalReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesTdiSignalQuery, FuturesTdiSignalReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -167,7 +167,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalQuery.Actor, GetFuturesItiSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiSignalQuery, FuturesItiSignalV2ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiSignalQuery, FuturesItiSignalV2ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -187,9 +187,9 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
                 GetFuturesItiSignalHistoryQuery.Verb,
                 entityId.Format())
         };
-        return await RequestAsync<GetFuturesItiSignalHistoryQuery, FuturesItiSignalV2ReadModel[]>(
+        return await (RequestAsync<GetFuturesItiSignalHistoryQuery, FuturesItiSignalV2ReadModel[]>(
             query.Subject,
-            query);
+            query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -202,7 +202,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiTrendDirectionChangedSignalsQuery.Actor, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiTrendDirectionChangedSignalsQuery, FuturesItiSignalV2ReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiTrendDirectionChangedSignalsQuery, FuturesItiSignalV2ReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -215,7 +215,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalDataQuery.Actor, GetFuturesItiSignalDataQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiSignalDataQuery, FuturesItiSignalDataReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiSignalDataQuery, FuturesItiSignalDataReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiMDIDistributionQuery.Actor, GetFuturesItiMDIDistributionQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiMDIDistributionQuery, FuturesItiMDIDistributionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiMDIDistributionQuery, FuturesItiMDIDistributionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -241,7 +241,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiMDIDistributionByTrendQuery.Actor, GetFuturesItiMDIDistributionByTrendQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiMDIDistributionByTrendQuery, FuturesItiMDIDistributionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiMDIDistributionByTrendQuery, FuturesItiMDIDistributionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -254,7 +254,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalMDIQuery.Actor, GetFuturesItiSignalMDIQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiSignalMDIQuery, FuturesItiSignalMDIV2ReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiSignalMDIQuery, FuturesItiSignalMDIV2ReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -267,7 +267,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalMDIByTrendQuery.Actor, GetFuturesItiSignalMDIByTrendQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesItiSignalMDIByTrendQuery, FuturesItiSignalMDIV2ReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesItiSignalMDIByTrendQuery, FuturesItiSignalMDIV2ReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -280,7 +280,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesAtrSignalQuery.Actor, GetFuturesAtrSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesAtrSignalQuery, FuturesAtrSignalReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesAtrSignalQuery, FuturesAtrSignalReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -293,7 +293,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesAdxSignalQuery.Actor, GetFuturesAdxSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesAdxSignalQuery, FuturesAdxSignalReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesAdxSignalQuery, FuturesAdxSignalReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -324,6 +324,6 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesMacdSignalQuery.Actor, GetFuturesMacdSignalQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesMacdSignalQuery, FuturesMacdSignalReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesMacdSignalQuery, FuturesMacdSignalReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 }

@@ -8,6 +8,29 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.Financial;
 public sealed class BrokerExecutionAccountingModelTests
 {
     [Fact]
+    public void Accepted_fill_hashes_are_independent_of_process_culture()
+    {
+        var fixture = Fixture(TradeOrderPositionType.Opening, 1, 100.25m, 2.50m);
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+            var first = BrokerExecutionAccountingModel.Create(fixture.Input);
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+            var second = BrokerExecutionAccountingModel.Create(fixture.Input);
+            second.ManifestHash.Should().Be(first.ManifestHash);
+            second.Items.Select(x => x.Source.SourceContentHash)
+                .Should().Equal(first.Items.Select(x => x.Source.SourceContentHash));
+            second.Items.Select(x => x.MovementEvidence.ContentHash)
+                .Should().Equal(first.Items.Select(x => x.MovementEvidence.ContentHash));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Fact]
     public void Opening_fill_creates_confirmed_settlement_and_separate_commission()
     {
         var fixture = Fixture(TradeOrderPositionType.Opening, 1, 100m, 2.50m);

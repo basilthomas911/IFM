@@ -9,14 +9,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Open,
         Close,
     }
-
-    public static class OrderActionTypeExtensions
-    {
-        public static string ToStringFast(this OrderActionType value) => value switch
-        {
-            OrderActionType.Open => nameof(OrderActionType.Open),
-            OrderActionType.Close => nameof(OrderActionType.Close),
-            _ => value.ToString()
-        };
-    }
 }

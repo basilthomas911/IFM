@@ -16,12 +16,13 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Projection;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
 public sealed class CapacityLifecycleProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<CapacityLifecycleProjector> logger, EventProjectorReliabilityOptions? options = null)
+    IFinancialHistoryProjection history, ILogger<CapacityLifecycleProjector> logger, EventProjectorReliabilityOptions? options = null, CapacityFinancialProjection? financial = null)
     : ConventionalEventProjector<CapacityReservationCommandActor>(queue, eventSource, blackboard, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(CapacityLifecycleCompletedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [
         DescribeNotification<CapacityLifecycleCompletedEvent,CapacityReservationEntityId>(value=>history.ApplyAsync(value))
+            .WithReadModelRebuild(async (source,ct)=> { await ((financial ?? throw new InvalidOperationException("Financial rebuild service is not registered.")).ReplayAsync((CapacityLifecycleCompletedEvent)source,ct)).ConfigureAwait(false); await (history.ApplyAsync((CapacityLifecycleCompletedEvent)source,ct)).ConfigureAwait(false); })
     ];
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

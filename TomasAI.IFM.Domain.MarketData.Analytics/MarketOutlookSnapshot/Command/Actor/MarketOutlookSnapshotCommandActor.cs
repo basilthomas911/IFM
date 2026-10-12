@@ -32,7 +32,7 @@ public sealed class MarketOutlookSnapshotCommandActor(
         IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, ICommand>>
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [InsertMarketOutlookSnapshotCommand.Verb] = message =>
                 message.AsCommand<InsertMarketOutlookSnapshotCommand>()
@@ -109,13 +109,12 @@ public sealed class MarketOutlookSnapshotCommandActor(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        Exception exception)
+        Exception ex)
     {
-        DomainContext.Logger.LogError(exception,
-            "Market Outlook snapshot command failed for {ActorThreadId} and {CommandId}",
-            threadId, command?.CommandId);
+        ArgumentNullException.ThrowIfNull(ex);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write24(DomainContext.Logger, ex, threadId, command?.CommandId);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? InsertMarketOutlookSnapshotCommand.ErrorId,
-                exception.Message));
+                ex.Message));
     }
 }

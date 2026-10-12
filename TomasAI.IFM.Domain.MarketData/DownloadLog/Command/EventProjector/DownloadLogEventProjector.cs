@@ -25,12 +25,18 @@ public sealed class DownloadLogEventProjector(ICommandActorContext<DownloadLogCo
             async (domainEvent, execution) =>
             {
                 var inserted = (MarketDataDownloadLogInsertedEvent)domainEvent;
-                await actorContext.DbFactory.MarketDataDb.InsertMarketDataDownloadLogAsync(
-                    inserted.Outcome, inserted.CommandId, inserted.PayloadSha256, execution.CancellationToken);
+                if (!string.Equals(actorContext.DbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+                    await (actorContext.DbFactory.MarketDataDb.InsertMarketDataDownloadLogAsync(
+                    inserted.Outcome, inserted.CommandId, inserted.PayloadSha256, execution.CancellationToken)).ConfigureAwait(false);
                 return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
             },
             e => ((MarketDataDownloadLogInsertedEvent)e).ToCompleteEvent<MarketDataDownloadLogInsertedCompleteEvent, DownloadLogId>(),
             (e, ex) => ((MarketDataDownloadLogInsertedEvent)e).ToFailEvent<MarketDataDownloadLogInsertedFailEvent, DownloadLogId>(ex),
-            useDurableReplay: true)
+            useDurableReplay: true).WithReadModelRebuild((domainEvent, token) =>
+            {
+                var inserted = (MarketDataDownloadLogInsertedEvent)domainEvent;
+                return actorContext.DbFactory.MarketDataDb.InsertMarketDataDownloadLogAsync(
+                    inserted.Outcome,inserted.CommandId,inserted.PayloadSha256,token);
+            })
     );
 }

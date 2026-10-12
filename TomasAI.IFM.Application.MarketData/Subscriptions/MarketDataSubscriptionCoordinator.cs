@@ -122,6 +122,9 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
         if (!commands.Writer.TryWrite(new(Kind.TimerSweep, null))) Volatile.Write(ref sweepQueued, 0);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1849", Justification = "The pump must apply its local state mutation inline; awaiting its public queued API would deadlock the pump.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6966", Justification = "The pump must apply its local state mutation inline; awaiting its public queued API would deadlock the pump.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     async Task RunAsync()
     {
         await foreach (var work in commands.Reader.ReadAllAsync().ConfigureAwait(false))
@@ -149,7 +152,7 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
                         continue;
                     }
                     var query = (SubscriptionOwnerQuery)work.Payload!;
-                    var valid = query.Owner is not null && query.Owner.Scope == scope
+                    var valid = query.Owner is not null && string.Equals(query.Owner.Scope,scope,StringComparison.Ordinal)
                         && query.PageSize is >= 1 and <= 128 && query.Offset >= 0 && query.Offset <= policy.MaximumLeases;
                     work.Completion.TrySetResult(valid
                         ? Result(work, SubscriptionResultCode.DesiredAccepted, reason: "Current desired intent only; no route/pricing readiness is implied.") with
@@ -180,7 +183,7 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
     SubscriptionLeaseResult Execute(Work work)
     {
         if (work.OperationId == Guid.Empty || work.CorrelationId == Guid.Empty || work.Owner is null
-            || work.Owner.Scope != scope)
+            || !string.Equals(work.Owner.Scope,scope,StringComparison.Ordinal))
             return Result(work, SubscriptionResultCode.OwnershipUnverified, reason: "A scoped authorized owner and operation identity are required.");
         if (operations.TryGetValue(work.OperationId, out var remembered))
             return remembered.Kind == work.Kind && Equals(remembered.Payload, work.Payload)
@@ -213,9 +216,9 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
 
     bool ApplyDurable(DurableSubscriptionSnapshot snapshot)
     {
-        if (snapshot.Scope != scope || snapshot.Dataset != dataset || snapshot.Revision < durableRevision) return false;
+        if (!string.Equals(snapshot.Scope,scope,StringComparison.Ordinal) || !string.Equals(snapshot.Dataset,dataset,StringComparison.Ordinal) || snapshot.Revision < durableRevision) return false;
         var digest = DurableSubscriptionContract.Digest(snapshot);
-        if (snapshot.Revision == durableRevision) return digest == durableDigest;
+        if (snapshot.Revision == durableRevision) return string.Equals(digest,durableDigest,StringComparison.Ordinal);
         var durable = snapshot.Authorities.SelectMany(authority => authority.Leases.Select(lease =>
         {
             var ticker = lease.Ticker;
@@ -257,7 +260,7 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
             return Result(work, SubscriptionResultCode.NotOwned, reason: "Reacquire with the current host epoch.");
         if (!Enum.IsDefined(purpose) || selections.Any(selection => selection.Owner is null
                 || !SameWorkflow(selection.Owner, work.Owner!) || selection.Target is null
-                || selection.Target.Dataset != dataset
+                || !string.Equals(selection.Target.Dataset,dataset,StringComparison.Ordinal)
                 || selection.Target.Chain is { } chain && chain.ValueDate != valueDate))
             return Result(work, SubscriptionResultCode.InvalidContract);
 
@@ -307,8 +310,8 @@ public sealed class MarketDataSubscriptionCoordinator : IAsyncDisposable
         return SelectionResult(work, SubscriptionResultCode.DesiredAccepted, selected);
     }
 
-    static bool SameWorkflow(SubscriptionOwnerKey first, SubscriptionOwnerKey second) => first.Scope == second.Scope
-        && first.Owner.WorkflowType == second.Owner.WorkflowType && first.Owner.WorkflowId == second.Owner.WorkflowId;
+    static bool SameWorkflow(SubscriptionOwnerKey first, SubscriptionOwnerKey second) => string.Equals(first.Scope,second.Scope,StringComparison.Ordinal)
+        && string.Equals(first.Owner.WorkflowType,second.Owner.WorkflowType,StringComparison.Ordinal) && string.Equals(first.Owner.WorkflowId,second.Owner.WorkflowId,StringComparison.Ordinal);
 
     SubscriptionLeaseResult SelectionResult(Work work, SubscriptionResultCode code, List<SubscriptionLeaseView> selected)
         => Result(work, code, selected.Count == 1 ? selected[0] : null) with { SelectedLeases = Array.AsReadOnly(selected.ToArray()) };

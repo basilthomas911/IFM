@@ -78,6 +78,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the returned reader/batch; failed native results are scoped with using before error propagation.")]
     public unsafe ValueTask<HistoricalProviderJob> SubmitBatchAsync(
         HistoricalProviderRequest request,
         CancellationToken cancellationToken)
@@ -185,6 +186,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the returned reader/batch; failed native results are scoped with using before error propagation.")]
     public unsafe ValueTask<IHistoricalRecordReader> OpenRangeAsync(
         HistoricalProviderRequest request,
         int maximumBatchRecords,
@@ -204,6 +206,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the returned reader/batch; failed native results are scoped with using before error propagation.")]
     public unsafe ValueTask<IHistoricalRecordReader> OpenFileAsync(
         string path,
         HistoricalDataSchema schema,
@@ -219,7 +222,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         if (options.UseSyntheticProvider)
         {
             return ValueTask.FromResult<IHistoricalRecordReader>(
-                new CsvHistoricalRecordReader(path, schema, maximumBatchRecords));
+                new CsvHistoricalRecordReader(path, maximumBatchRecords));
         }
         var filePath = RequiredUtf8(Path.GetFullPath(path), nameof(path));
         fixed (byte* pointer = filePath)
@@ -241,6 +244,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     private static byte[] RequiredUtf8(string value, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
@@ -325,12 +329,13 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         internal NativeUtf8Slice* SymbolsPointer =>
             (NativeUtf8Slice*)symbolsHandle.AddrOfPinnedObject();
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
         internal static NativeHistoricalInput Create(
             HistoricalProviderRequest request,
             DatabentoHistoricalProviderOptions options)
         {
             ArgumentNullException.ThrowIfNull(request);
-            ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset);
+            ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset, nameof(request));
             if (request.Symbols is not { Length: > 0 }
                 || request.Symbols.Any(string.IsNullOrWhiteSpace)
                 || request.StartUtc >= request.EndUtc)
@@ -439,19 +444,16 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     private sealed class CsvHistoricalRecordReader : IHistoricalRecordReader
     {
         private readonly StreamReader reader;
-        private readonly HistoricalDataSchema schema;
         private readonly int maximumBatchRecords;
         private long batchOrdinal;
         private string? pendingLine;
 
         /// <summary>Initializes a new CsvHistoricalRecordReader instance.</summary>
         /// <param name="path">The path of the historical CSV file to read.</param>
-        /// <param name="schema">The provider schema or recovery baseline required for the operation.</param>
         /// <param name="maximumBatchRecords">The maximum number of records returned per historical batch.</param>
-        internal CsvHistoricalRecordReader(string path, HistoricalDataSchema schema, int maximumBatchRecords)
+        internal CsvHistoricalRecordReader(string path, int maximumBatchRecords)
         {
             reader = new StreamReader(path, Encoding.UTF8, true);
-            this.schema = schema;
             this.maximumBatchRecords = maximumBatchRecords;
         }
 
@@ -463,17 +465,17 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             var records = new List<HistoricalProviderRecord>(maximumBatchRecords);
             if (pendingLine is not null)
             {
-                records.Add(ParseCsv(pendingLine, schema));
+                records.Add(ParseCsv(pendingLine));
                 pendingLine = null;
             }
             while (records.Count < maximumBatchRecords)
             {
-                var line = await reader.ReadLineAsync(cancellationToken);
+                var line = await (reader.ReadLineAsync(cancellationToken)).ConfigureAwait(false);
                 if (line is null) break;
-                if (!string.IsNullOrWhiteSpace(line)) records.Add(ParseCsv(line, schema));
+                if (!string.IsNullOrWhiteSpace(line)) records.Add(ParseCsv(line));
             }
             if (records.Count == 0) return null;
-            pendingLine = await reader.ReadLineAsync(cancellationToken);
+            pendingLine = await (reader.ReadLineAsync(cancellationToken)).ConfigureAwait(false);
             var final = pendingLine is null;
             return new(records, batchOrdinal, (batchOrdinal++).ToString(CultureInfo.InvariantCulture), final);
         }
@@ -487,6 +489,7 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "Keep provider decoding and shared process configuration helpers with the component that owns their state.")]
     private static unsafe HistoricalProviderRecord Convert(NativeHistoricalRecord value)
     {
         string symbol;
@@ -508,13 +511,13 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             CloseOrPrice = value.CloseOrTradePrice / FixedPriceScale,
             VolumeOrSize = checked((long)value.VolumeOrSize),
             Action = value.Action == (byte)'T' ? NormalizedTradeAction.New : NormalizedTradeAction.Unknown,
-            Side = value.Side == (byte)'B' ? NormalizedTradeSide.Buy
-                : value.Side == (byte)'A' ? NormalizedTradeSide.Sell : NormalizedTradeSide.Unknown,
+            Side = (value.Side == (byte)'B') switch { true => NormalizedTradeSide.Buy, false => (value.Side == (byte)'A') switch { true => NormalizedTradeSide.Sell, false => NormalizedTradeSide.Unknown } },
             Conditions = (NormalizedTradeConditionFlags)value.ConditionFlags
         };
     }
 
-    private static HistoricalProviderRecord ParseCsv(string line, HistoricalDataSchema schema)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "Keep provider decoding and shared process configuration helpers with the component that owns their state.")]
+    private static HistoricalProviderRecord ParseCsv(string line)
     {
         var values = line.Split(',');
         if (values.Length != 14) throw new InvalidDataException("Historical CSV record has an invalid field count.");
@@ -531,15 +534,17 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             Low = long.Parse(values[8], CultureInfo.InvariantCulture) / FixedPriceScale,
             CloseOrPrice = long.Parse(values[9], CultureInfo.InvariantCulture) / FixedPriceScale,
             VolumeOrSize = long.Parse(values[10], CultureInfo.InvariantCulture),
-            Action = values[11] == "T" ? NormalizedTradeAction.New : NormalizedTradeAction.Unknown,
-            Side = values[12] == "B" ? NormalizedTradeSide.Buy : values[12] == "A" ? NormalizedTradeSide.Sell : NormalizedTradeSide.Unknown,
+            Action = string.Equals(values[11],"T",StringComparison.Ordinal) ? NormalizedTradeAction.New : NormalizedTradeAction.Unknown,
+            Side = (string.Equals(values[12],"B",StringComparison.Ordinal)) switch { true => NormalizedTradeSide.Buy, false => (string.Equals(values[12],"A",StringComparison.Ordinal)) switch { true => NormalizedTradeSide.Sell, false => NormalizedTradeSide.Unknown } },
             Conditions = (NormalizedTradeConditionFlags)ushort.Parse(values[13], CultureInfo.InvariantCulture)
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "Keep provider serialization helpers with the provider component that owns the native contract.")]
     private static long ToUnixNanoseconds(DateTimeOffset value) =>
         checked((value.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100L);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "Keep provider decoding and shared process configuration helpers with the component that owns their state.")]
     private static DateTimeOffset FromUnixNanoseconds(long value) =>
         DateTimeOffset.UnixEpoch.AddTicks(value / 100L);
 }

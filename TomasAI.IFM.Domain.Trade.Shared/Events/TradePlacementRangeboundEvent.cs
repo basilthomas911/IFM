@@ -71,24 +71,15 @@ public record TradePlacementRangeboundEvent : IEvent
         CreatedOn = this.CreatedOn,
         CreatedBy = this.CreatedBy,
     };
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementRangeboundFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradePlacementRangeboundFailEvent
     {
         CommandId = this.CommandId,
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     };
-}
-
-
-public record TradePlacementRangeboundCompleteEvent : CompleteEvent
-{
-    public TradePlacementId TradePlacementId { get; init; }
-    public FuturesTradeSignalV2ReadModel FuturesTradeSignal { get; init; }
-    public DateTime CreatedOn { get; init; }
-    public string CreatedBy { get; init; }
-}
-
-public record TradePlacementRangeboundFailEvent : ErrorEvent
-{
+    }
 }

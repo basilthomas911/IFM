@@ -17,13 +17,6 @@ internal sealed record FundRiskEnvelopeDelegatedCompute : IPortfolioChange
     public string RejectionReason { get; init; } = string.Empty;
     /// <summary>Creates a rejected computation without a business payload or pending event.</summary>
     internal FundRiskEnvelopeDelegatedCompute() { }
-
-    public Guid Id { get; init; }
-    public Guid CommandId { get; init; }
-    public long Revision { get; init; }
-    public DateTime OccurredOnUtc { get; init; }
-    public string Principal { get; init; } = string.Empty;
-    public FundRiskEnvelopeReadModel FundRiskEnvelope { get; init; } = default!;
     /// <summary>Initializes accepted immutable business values.</summary>
     /// <param name="id">The id value.</param>
     /// <param name="commandId">The commandId value.</param>
@@ -40,4 +33,11 @@ internal sealed record FundRiskEnvelopeDelegatedCompute : IPortfolioChange
         Principal = principal;
         FundRiskEnvelope = envelope;
     }
+
+    public Guid Id { get; init; }
+    public Guid CommandId { get; init; }
+    public long Revision { get; init; }
+    public DateTime OccurredOnUtc { get; init; }
+    public string Principal { get; init; } = string.Empty;
+    public FundRiskEnvelopeReadModel FundRiskEnvelope { get; init; } = default!;
 }

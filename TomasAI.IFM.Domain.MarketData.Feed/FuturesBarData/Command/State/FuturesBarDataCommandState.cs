@@ -23,34 +23,10 @@ public class FuturesBarDataCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        FuturesBarDataInsertedEvent e => On(e),
-        FuturesBarDataDeletedEvent e => On(e),
-        FuturesBarDataStreamingStartedEvent e => On(e),
-        FuturesBarDataStreamingStoppedEvent e => On(e),
+        FuturesBarDataInsertedEvent => true,
+        FuturesBarDataDeletedEvent => true,
+        FuturesBarDataStreamingStartedEvent => true,
+        FuturesBarDataStreamingStoppedEvent => true,
         _ => false
     };
-
-    /// <summary>
-    /// futures bar data inserted
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesBarDataInsertedEvent e) => true;
-
-    /// <summary>
-    /// futures bar data deleted
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesBarDataDeletedEvent e) => true;
-
-    /// <summary>
-    /// futures bar data streaming started
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesBarDataStreamingStartedEvent e) => true;
-
-    /// <summary>
-    /// futures bar data streaming stopped
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesBarDataStreamingStoppedEvent e) => true;
 }

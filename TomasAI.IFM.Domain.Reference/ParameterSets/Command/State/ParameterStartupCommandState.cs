@@ -11,11 +11,13 @@ public sealed class ParameterStartupCommandState : BaseEventSourceActorState<Par
     public long Revision { get; private set; }
     // Recent inspection cache only; immutable events and SQL retain the full startup history.
     // Cache eviction never releases a runtime snapshot or changes an assignment.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, ParameterStartupRun> ActiveRuns { get; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, ParameterSignalStartupReport> Reports { get; } = [];
-    protected override bool Apply(IEvent e)
+    protected override bool Apply(IEvent domainEvent)
     {
-        if (e is not ParameterStartupChangedEvent fact || fact.Revision != Revision + 1 || fact.RunId == Guid.Empty) return false;
+        if (domainEvent is not ParameterStartupChangedEvent fact || fact.Revision != Revision + 1 || fact.RunId == Guid.Empty) return false;
         if (!string.IsNullOrEmpty(fact.ReportJson))
         {
             var report = JsonSerializer.Deserialize<ParameterSignalStartupReport>(fact.ReportJson) ?? throw new InvalidDataException("PARAM.STARTUP_REPORT_INVALID");

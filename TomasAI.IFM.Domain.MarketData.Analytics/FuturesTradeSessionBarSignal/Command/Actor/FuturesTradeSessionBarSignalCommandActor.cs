@@ -22,12 +22,20 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
     /// <inheritdoc />
     protected override async ValueTask OnStartup(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context)
-        => await context.BarSignalProjector.StartAsync(context).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        await context.BarSignalProjector.StartAsync(context).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnShutdown(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context)
-        => context.BarSignalProjector.StopAsync();
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.BarSignalProjector.StopAsync();
+    }
 
     /// <inheritdoc />
     protected override ICommand ParseMessage(
@@ -97,23 +105,35 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context,
         ActorThreadId threadId,
-        ICommand command) => await context.BarSignalRepository.LoadStateAsync(command).ConfigureAwait(false);
+        ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return await context.BarSignalRepository.LoadStateAsync(command).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        CancellationToken cancellationToken) => await context.BarSignalRepository
+        CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return await context.BarSignalRepository
             .LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context,
         ActorThreadId threadId,
         IActorState state,
-        ICommand command) => context.BarSignalRepository.SaveStateAsync(
+        ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.BarSignalRepository.SaveStateAsync(
             context, (FuturesTradeSessionBarSignalCommandState)state, command);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnSaveStateAsync(
@@ -121,21 +141,25 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         ActorThreadId threadId,
         IActorState state,
         ICommand command,
-        CancellationToken cancellationToken) => context.BarSignalRepository.SaveStateAsync(
+        CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.BarSignalRepository.SaveStateAsync(
             context, (FuturesTradeSessionBarSignalCommandState)state, command, cancellationToken);
+    }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesTradeSessionBarSignalCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        Exception exception)
+        Exception ex)
     {
-        context.Logger.LogError(exception,
-            "Trade-session bar command failed. ThreadId={ThreadId} CommandId={CommandId} ExceptionType={ExceptionType}",
-            threadId, command?.CommandId, exception.GetType().Name);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(ex);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write48(context.Logger, ex, threadId, command?.CommandId, ex.GetType().Name);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? PublishFuturesTradeSessionBarCommand.ErrorId,
-                $"BAR.EXCEPTION;ExceptionType={exception.GetType().Name};{exception.Message}"));
+                $"BAR.EXCEPTION;ExceptionType={ex.GetType().Name};{ex.Message}"));
     }
 }

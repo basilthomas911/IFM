@@ -60,6 +60,8 @@ public interface IDatabaseBackupExecutionJournal
     IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(
         int maximumCount,
         CancellationToken cancellationToken);
+    ValueTask<DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(
+        DatabaseRecoveryOperationId operationId, CancellationToken cancellationToken);
     ValueTask MarkServiceEventPublishedAsync(
         Guid eventId,
         DateTimeOffset publishedUtc,

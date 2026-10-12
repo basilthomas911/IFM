@@ -39,6 +39,16 @@ public sealed record RecordFundTradeClosingCommand : ICommand<PortfolioFundId>, 
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public RecordFundTradeClosingCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="executionEvidence">The ExecutionEvidence command value.</param>
+    public RecordFundTradeClosingCommand(FundTradeExecutionEvidence executionEvidence)
+    {
+        ExecutionEvidence = executionEvidence;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "RecordFundTradeClosing";
     public const int ErrorId = 34000;
@@ -57,16 +67,6 @@ public sealed record RecordFundTradeClosingCommand : ICommand<PortfolioFundId>, 
     [IgnoreMember] public string CommandName => nameof(RecordFundTradeClosingCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public RecordFundTradeClosingCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="executionEvidence">The ExecutionEvidence command value.</param>
-    public RecordFundTradeClosingCommand(FundTradeExecutionEvidence executionEvidence)
-    {
-        ExecutionEvidence = executionEvidence;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

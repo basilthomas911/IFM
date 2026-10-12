@@ -257,14 +257,14 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var context = Substitute.For<IQueryActorContext<FuturesMacdSignalQueryActor>>();
         var query = CreateMacdSignalQuery(timePeriod);
 
-        db.GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26)
+        db.GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None)
             .Returns((FuturesMacdSignalReadModel?)null);
 
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26);
+        await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesMacdSignalQuery.Verb,
@@ -284,14 +284,14 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var query = CreateMacdSignalQuery(timePeriod);
         var expected = CreateReadModel(timePeriod);
 
-        db.GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26)
+        db.GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None)
             .Returns(expected);
 
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26);
+        await db.Received(1).GetLastFuturesMacdSignalAsync(SampleData.ContractId, SampleData.ValueDate, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesMacdSignalQuery.Verb,
@@ -310,14 +310,14 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var context = Substitute.For<IQueryActorContext<FuturesMacdSignalQueryActor>>();
         var query = CreateMacdDailySignalQuery(timePeriod);
 
-        db.GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26)
+        db.GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None)
             .Returns((FuturesMacdSignalReadModel?)null);
 
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26);
+        await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesMacdDailySignalQuery.Verb,
@@ -337,14 +337,14 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
         var query = CreateMacdDailySignalQuery(timePeriod);
         var expected = CreateReadModel(timePeriod);
 
-        db.GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26)
+        db.GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None)
             .Returns(expected);
 
         // Act
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26);
+        await db.Received(1).GetLastFuturesMacdDailySignalAsync(SampleData.ContractId, timePeriod, SampleData.PeriodLength, 12, 26, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesMacdDailySignalQuery.Verb,
@@ -507,6 +507,7 @@ public class FuturesMacdSignalQueryActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesMacdSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateMacdQueryActor(logger: logger);
         var context = Substitute.For<IQueryActorContext<FuturesMacdSignalQueryActor>>();
         var query = CreateMacdSignalQuery(TimeFrameType.Daily);

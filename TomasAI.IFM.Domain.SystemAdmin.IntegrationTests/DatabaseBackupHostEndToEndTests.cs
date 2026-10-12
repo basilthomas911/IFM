@@ -133,7 +133,7 @@ public sealed class DatabaseBackupHostEndToEndTests
             var inbound = new DatabaseBackupInboundListener(
                 executionListener,
                 new DatabaseRecoveryProcessorRegistry([firstProcessor]),
-                new DatabaseBackupHostHealthState());
+                new DatabaseBackupHostHealthState(), hostOptions);
             var executionProducer = new NatsJetStreamActorProducer(
                 new NatsJetStreamProducerOptions { Url = natsUrl },
                 NullLogger<NatsJetStreamActorProducer>.Instance,

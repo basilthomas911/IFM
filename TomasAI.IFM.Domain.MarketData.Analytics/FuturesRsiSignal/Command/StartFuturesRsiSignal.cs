@@ -21,6 +21,8 @@ public static class StartFuturesRsiSignal
     public static ServiceResult<GuidResult> Execute(this StartFuturesRsiSignalCommand command,
         FuturesRsiSignalCommandState state, IMarketSessionCalendar? calendar = null)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply RSI initialization events";
         var updated = command.Compute(state.FuturesRsiCheckpoint, state.FuturesRsiSignals, calendar,
             out var futuresRsiInitialization) switch

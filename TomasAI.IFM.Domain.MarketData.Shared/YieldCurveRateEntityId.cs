@@ -23,5 +23,5 @@ public record YieldCurveRateEntityId(
     /// <summary>
     /// Formats the identifier as a dot-separated key.
     /// </summary>
-    public string Format() => Year.ToString();
+    public string Format() => Year.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }

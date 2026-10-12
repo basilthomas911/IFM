@@ -38,7 +38,7 @@ public class FuturesAdxSignalCompute
         AdxValue = adx;
         IsWarm = _adxSignal?.IsWarm == true || signals.Count >= _adxPeriod;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")] 
     /// <summary>
     /// Computes the ADX, +DI, and -DI from an array of price values.
     /// </summary>
@@ -99,6 +99,14 @@ public class FuturesAdxSignalCompute
 
         if (smoothedTr == 0) return (0, 0, 0);
 
+        return CalculateDirectionalValues(smoothedTr, smoothedPlusDm, smoothedMinusDm);
+    }
+
+    /// <summary>Calculates each DI as 100 ? smoothed directional movement / true range, and DX as 100 ? |+DI ? ?DI| / (+DI + ?DI).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S1244", Justification = "Exact zero identifies an absent directional denominator; a tolerance would change accepted ADX calculation facts.")]
+    static (double PlusDI, double MinusDI, double Adx) CalculateDirectionalValues(
+        double smoothedTr, double smoothedPlusDm, double smoothedMinusDm)
+    {
         var currentPlusDI = (smoothedPlusDm / smoothedTr) * 100;
         var currentMinusDI = (smoothedMinusDm / smoothedTr) * 100;
 

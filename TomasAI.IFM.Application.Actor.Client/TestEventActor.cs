@@ -20,7 +20,7 @@ public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestEventContext ActorContext =>
-        IsArgumentNull.Set(Context as ITestEventContext, nameof(Context))!;
+        IsArgumentNull.Set(Context as ITestEventContext)!;
 
     /// <summary>Gets the event name parsed by this actor.</summary>
     public const string ActorName = "TestEvent";
@@ -28,29 +28,30 @@ public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
     /// <summary>Gets the actor mailbox name retained for compatibility with the existing sample protocol.</summary>
     public const string MailboxName = "Test";
 
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new(StringComparer.Ordinal)
     {
         ["TestEvent"] = msg => msg.AsEvent<TestEvent>()!
     };
 
     protected override IEvent ParseMessage(IEventActorContext<TestEventActor> context, IActorMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
         if (msgSubject is not { ActorType: ActorType.Event, Name: ActorName }
-            || !_parseMap.ContainsKey(msgSubject.Verb))
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var parse))
             return default!;
-        var @event = _parseMap[msgSubject.Verb](message);
+        var @event = parse(message);
         IsArgumentNull.Check(@event);
         @event.CheckForEmptyCommandId();
         return @event;
     }
     protected override async ValueTask ReceiveAsync(IEventActorContext<TestEventActor> context, IEvent @event)
     {
-        await Task.CompletedTask;
+        await (Task.CompletedTask).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnExceptionAsync(IEventActorContext<TestEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
-        => await ValueTask.CompletedTask;
+        => await (ValueTask.CompletedTask).ConfigureAwait(false);
 
 }

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
+using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -8,16 +8,6 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 
 namespace TomasAI.IFM.Domain.Portfolio.Command.State;
-
-public readonly record struct FundActivationContext(
-    bool ParentPortfolioIsActive,
-    int EnabledCompatibleAssignmentCount,
-    bool HasSelectionHintProfile,
-    bool HasCompositionProfile)
-{
-    public bool IsValid => ParentPortfolioIsActive && EnabledCompatibleAssignmentCount > 0 &&
-                           HasSelectionHintProfile && HasCompositionProfile;
-}
 
 /// <summary>Pure state machine for one Portfolio-owned Fund mandate.</summary>
 public sealed class PortfolioFundAggregate
@@ -35,8 +25,11 @@ public sealed class PortfolioFundAggregate
     public IReadOnlyList<FundTradeTemplateAssignmentReadModel> Assignments => _tradeTemplateAssignments;
     public IReadOnlyCollection<FundOrderProjectionReadModel> Orders => _fundOrderCompositions.Orders;
 
-    public IPortfolioFundDomainEvent Create(Guid commandId, FundMandateReadModel mandate, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreate(commandId, mandate, nowUtc, principal)));
+    public IPortfolioFundDomainEvent Create(Guid commandId, FundMandateReadModel mandate, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(mandate);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreate(commandId, mandate, nowUtc, principal)));
+    }
 
     /// <summary>Computes Create without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeCreate(Guid commandId, FundMandateReadModel mandate, DateTime nowUtc, string principal) {
@@ -54,8 +47,11 @@ public sealed class PortfolioFundAggregate
         FundMandateReadModel replacement,
         FundActivationContext activation,
         DateTime nowUtc,
-        string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAddVersion(commandId, expectedRevision, replacement, activation, nowUtc, principal)));
+        string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAddVersion(commandId, expectedRevision, replacement, activation, nowUtc, principal)));
+    }
 
     /// <summary>Computes AddVersion without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeAddVersion(
@@ -70,7 +66,7 @@ public sealed class PortfolioFundAggregate
         if (FundMandate!.OperatingState == FundOperatingState.Retired) throw new InvalidOperationException("A retired Fund cannot be versioned.");
         if (replacement.PortfolioId != FundMandate.PortfolioId || replacement.FundId != FundMandate.FundId)
             throw new ArgumentException("Portfolio/Fund parent identity cannot change.", nameof(replacement));
-        if (replacement.FundCode != FundMandate.FundCode) throw new ArgumentException("FundCode cannot change.", nameof(replacement));
+        if (!string.Equals(replacement.FundCode,FundMandate.FundCode,StringComparison.Ordinal)) throw new ArgumentException("FundCode cannot change.", nameof(replacement));
         var unassignedInactive = replacement.SchemaVersion >= 3 && replacement.OperatingState is FundOperatingState.Draft or FundOperatingState.Disabled or FundOperatingState.Retired
             && replacement.PermittedTradeFamilies is { Length: 0 } && replacement.PermittedTradeStrategyFamilies is { Length: 0 };
         if (FundMandate.PermittedTradeStrategyFamilies.Length > 0 && (replacement.SchemaVersion < 2 || (replacement.PermittedTradeStrategyFamilies.Length == 0 && !unassignedInactive)))
@@ -152,8 +148,11 @@ public sealed class PortfolioFundAggregate
         long expectedRevision,
         FundTradeTemplateAssignmentReadModel assignment,
         DateTime nowUtc,
-        string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAssignTradeTemplate(commandId, expectedRevision, assignment, nowUtc, principal)));
+        string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(assignment);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAssignTradeTemplate(commandId, expectedRevision, assignment, nowUtc, principal)));
+    }
 
     /// <summary>Computes AssignTradeTemplate without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeAssignTradeTemplate(
@@ -169,7 +168,7 @@ public sealed class PortfolioFundAggregate
             throw new ArgumentException("Assignment parent identity does not match the Fund.", nameof(assignment));
         if (assignment.FundMandateVersion != FundMandate.FundMandateVersion)
             throw new ArgumentException("Assignment mandate version is not current.", nameof(assignment));
-        if (assignment.DecisionHorizon != FundMandate.DecisionHorizon)
+        if (!string.Equals(assignment.DecisionHorizon,FundMandate.DecisionHorizon,StringComparison.Ordinal))
             throw new ArgumentException("Assignment horizon is incompatible with the Fund mandate.", nameof(assignment));
         if (!assignment.UnderlyingUniverse.All(x => FundMandate.UnderlyingUniverse.Contains(x, StringComparer.Ordinal)))
             throw new ArgumentException("Assignment underlying is incompatible with the Fund mandate.", nameof(assignment));
@@ -196,8 +195,11 @@ public sealed class PortfolioFundAggregate
     public IPortfolioFundDomainEvent ReserveComposition(
         Guid commandId, long expectedRevision, ReserveFundOrderCompositionRequest request,
         PortfolioFundStrategySnapshot snapshot, int orderId, IReadOnlyList<int> tradeIds,
-        DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeReserveComposition(commandId, expectedRevision, request, snapshot, orderId, tradeIds, nowUtc, principal)));
+        DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeReserveComposition(commandId, expectedRevision, request, snapshot, orderId, tradeIds, nowUtc, principal)));
+    }
 
     /// <summary>Computes ReserveComposition without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeReserveComposition(
@@ -218,8 +220,11 @@ public sealed class PortfolioFundAggregate
     }
 
     public IPortfolioFundDomainEvent CreateManualOrder(
-        Guid commandId, CreateManualFundOrderRequest request, int orderId, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreateManualOrder(commandId, request, orderId, nowUtc, principal)));
+        Guid commandId, CreateManualFundOrderRequest request, int orderId, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreateManualOrder(commandId, request, orderId, nowUtc, principal)));
+    }
 
     /// <summary>Computes CreateManualOrder without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeCreateManualOrder(
@@ -264,8 +269,11 @@ public sealed class PortfolioFundAggregate
     /// <param name="principal">The authenticated operator principal.</param>
     /// <returns>The event containing the complete updated canonical order state.</returns>
     public IPortfolioFundDomainEvent RemoveManualTrade(
-        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeRemoveManualTrade(commandId, request, nowUtc, principal)));
+        Guid commandId, ManualFundOrderTradeMutationRequest request, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeRemoveManualTrade(commandId, request, nowUtc, principal)));
+    }
 
     /// <summary>Computes RemoveManualTrade without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeRemoveManualTrade(
@@ -279,8 +287,11 @@ public sealed class PortfolioFundAggregate
     /// <param name="principal">The authenticated operator principal.</param>
     /// <returns>The committed deletion event.</returns>
     public IPortfolioFundDomainEvent DeleteManualOrder(
-        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeDeleteManualOrder(commandId, request, nowUtc, principal)));
+        Guid commandId, ManualFundOrderMutationRequest request, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeDeleteManualOrder(commandId, request, nowUtc, principal)));
+    }
 
     /// <summary>Computes DeleteManualOrder without changing authoritative state.</summary>
     internal IPortfolioFundChange ComputeDeleteManualOrder(
@@ -422,7 +433,7 @@ public sealed class PortfolioFundAggregate
         return composition;
     }
 
-    IPortfolioFundChange ComputeCompositionChange(Guid commandId, long expectedRevision, DateTime nowUtc, string principal,
+    FundCompositionStateChangedCompute ComputeCompositionChange(Guid commandId, long expectedRevision, DateTime nowUtc, string principal,
         Func<FundOrderProjectionReadModel> change)
     {
         RequireCurrent(expectedRevision);
@@ -431,7 +442,7 @@ public sealed class PortfolioFundAggregate
         return new FundCompositionStateChangedCompute(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, order);
     }
 
-    IPortfolioFundChange ComputeManualCompositionChange(
+    FundManualOrderChangedCompute ComputeManualCompositionChange(
         Guid commandId,
         DateTime nowUtc,
         string principal,
@@ -513,7 +524,7 @@ public sealed class PortfolioFundAggregate
 
     static void ThrowIfInvalid(IReadOnlyList<string> errors)
     {
-        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors));
+        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors),nameof(errors));
     }
 
     static bool WindowsOverlap(DateTime leftStart, DateTime? leftEnd, DateTime rightStart, DateTime? rightEnd) =>

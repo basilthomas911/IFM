@@ -10,16 +10,16 @@ public static class ApplicationShutdown
 {
     /// <summary>Gets the shared log source for this lifecycle family.</summary>
     public static string ServiceId { get; } = nameof(TomasAI.IFM.Shared.StatusConsole.LogSourceType.ApplicationShutdown);
-    /// <summary>Processes a shutdown event using the current placeholder lifecycle behavior.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Processes a shutdown event using the current placeholder lifecycle behavior.</summary>
     public static async ValueTask ExecuteAsync(
         this ApplicationShutdownEvent @event,
         IApplicationEventContext context,
         ILogger<ApplicationEventActor> logger, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
-        logger.LogInformation(
-            "Application shutdown command {CommandId} was observed; production shutdown orchestration remains deferred.",
-            @event.CommandId);
+        global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write9(logger, null, @event.CommandId);
         try
         {
             await context.StatusConsoleWriter.WriteConsoleAsync(
@@ -29,7 +29,7 @@ public static class ApplicationShutdown
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to publish deferred shutdown status to the System Console.");
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write10(logger, exception);
         }
     }
 }

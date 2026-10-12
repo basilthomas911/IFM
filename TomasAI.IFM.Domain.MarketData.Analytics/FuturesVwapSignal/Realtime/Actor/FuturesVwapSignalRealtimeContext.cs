@@ -7,18 +7,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 
-/// <summary>Defines readonly services required by the stateless VWAP Realtime actor.</summary>
-public interface IFuturesVwapSignalRealtimeContext
-    : IRealtimeActorContext<FuturesVwapSignalRealtimeActor>
-{
-    IMarketDataApi MarketDataApi { get; }
-    IMarketSessionCalendar SessionCalendar { get; }
-    ILogger<FuturesVwapSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the closed generic VWAP Realtime context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVwapSignalRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesVwapSignalRealtimeActor>, IFuturesVwapSignalRealtimeContext
+IFuturesVwapSignalRealtimeContext
 {
     /// <summary>Initializes the readonly Realtime context.</summary>
     public FuturesVwapSignalRealtimeContext(

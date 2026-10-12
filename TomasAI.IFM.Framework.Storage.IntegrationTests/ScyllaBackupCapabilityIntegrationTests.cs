@@ -13,6 +13,27 @@ public sealed class ScyllaBackupCapabilityIntegrationTests : IDisposable
     readonly string _root = Path.Combine(Path.GetTempPath(), "ifm-gate7", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Restore_bucket_override_preserves_source_endpoints_for_fresh_target_safety()
+    {
+        var source = new ScyllaProtectionSetOptions
+        {
+            ManagerCluster = "source", BackupLocation = "s3:backup", RestoreLocation = "s3:restore",
+            CqlContactPoints = ["172.30.20.10"], Keyspaces = ["trade_test_db"], RequiredLiveNodes = 1
+        };
+        var relocated = ScyllaBackupCapability.RestoreProtectionSet(source);
+        relocated.BackupLocation.Should().Be("s3:restore");
+        relocated.CqlContactPoints.Should().Equal(source.CqlContactPoints);
+        relocated.ManagerCluster.Should().Be(source.ManagerCluster);
+        var fresh = new ScyllaFreshTargetProfileOptions
+        {
+            ManagerCluster = "target", CqlContactPoints = ["172.30.20.11"], DiscardExistingApplicationData = true
+        };
+        ScyllaFreshTargetDataPreparation.ValidateTarget(relocated, fresh).Should().ContainSingle();
+        fresh.CqlContactPoints = ["172.30.20.10"];
+        var unsafeTarget = () => ScyllaFreshTargetDataPreparation.ValidateTarget(relocated, fresh);
+        unsafeTarget.Should().Throw<InvalidOperationException>().WithMessage("*overlaps*");
+    }
+    [Fact]
     [Trait("Category", "Gate7Integration")]
     public async Task Backup_restart_native_verification_and_fresh_target_restore_preserve_synthetic_data()
     {

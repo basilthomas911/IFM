@@ -4,28 +4,6 @@ using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-/// <summary>Exact workflow revision and hash of its accepted selection, catalog binding and reservation.</summary>
-[MessagePackObject]
-public sealed record CompositionPreparationKey([property: Key(0)] Guid WorkflowId,
-    [property: Key(1)] long InputRevision, [property: Key(2)] string InputSha256);
-
-/// <summary>Immutable market request and its accepted evidence; never refreshed on replay.</summary>
-[MessagePackObject]
-public sealed record CompositionPreparation([property: Key(0)] int SchemaVersion,
-    [property: Key(1)] CompositionPreparationKey Key, [property: Key(2)] string Dataset,
-    [property: Key(3)] CompositionSnapshotRequest Request, [property: Key(4)] MarketCompositionSnapshot Snapshot,
-    [property: Key(5)] DateTimeOffset PreparedAtUtc, [property: Key(6)] string Digest,
-    [property: Key(7)] WorkerOptionChainRelease? DiscoveryLease = null);
-
-public interface ICompositionPreparationStore
-{
-    Task<CompositionPreparation?> ReadAsync(CompositionPreparationKey key, CancellationToken cancellationToken);
-    /// <summary>Atomically saves the first capture. A racing caller receives that winner; conflicting workflow inputs fail.</summary>
-    Task<CompositionPreparation> CommitAsync(CompositionPreparation proposed, CancellationToken cancellationToken);
-}
-
-public sealed record CompositionPreparationResult(CompositionPreparation? Preparation, OptionPricingFailure? Failure);
-
 /// <summary>Freezes market evidence before workflow acceptance/dispatch. Storage faults never dispatch an uncommitted capture.</summary>
 public sealed class CompositionPreparationService(ICompositionMarketDataApi market, ICompositionPreparationStore store, TimeProvider? time = null)
 {
@@ -40,7 +18,7 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
         if (existing is not null) return Replay(existing);
         var at = clock.GetUtcNow();
         if (generation == Guid.Empty || horizon is not ("Daily" or "Weekly" or "Monthly") || deadline <= at
-            || string.IsNullOrWhiteSpace(scope) || scope.Length > 128) throw new ArgumentException("Invalid complete-empty preparation scope.");
+            || string.IsNullOrWhiteSpace(scope) || scope.Length > 128) throw new ArgumentException("Invalid complete-empty preparation scope.",nameof(key));
         var request = new CompositionSnapshotRequest(Guid.NewGuid(), scope, horizon, generation, at, deadline, true);
         var snapshot = new MarketCompositionSnapshot(1, request.SnapshotId, scope, scope, horizon, generation, at,
             deadline < at.AddSeconds(5) ? deadline : at.AddSeconds(5), [], "");
@@ -54,6 +32,7 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
     public async Task<CompositionPreparationResult> PrepareAsync(CompositionPreparationKey key, string dataset,
         CompositionSnapshotRequest request, CancellationToken cancellationToken, WorkerOptionChainRelease? discoveryLease = null)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ValidateKey(key);
         var existing = await store.ReadAsync(key, cancellationToken).ConfigureAwait(false);
         if (existing is not null) return Replay(existing);
@@ -77,6 +56,7 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
         TomasAI.IFM.Application.MarketData.Contracts.IOptionChainCache cache,
         TomasAI.IFM.Application.MarketData.Contracts.OptionChainSnapshotRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ValidateKey(key);
         ArgumentNullException.ThrowIfNull(cache);
         var existing = await store.ReadAsync(key, cancellationToken).ConfigureAwait(false);
@@ -110,34 +90,36 @@ public sealed class CompositionPreparationService(ICompositionMarketDataApi mark
     {
         ArgumentNullException.ThrowIfNull(key);
         if (key.WorkflowId == Guid.Empty || key.InputRevision < 1 || key.InputSha256 is not { Length: 64 }
-            || !key.InputSha256.All(Uri.IsHexDigit)) throw new ArgumentException("Exact workflow preparation identity is required.");
+            || !key.InputSha256.All(Uri.IsHexDigit)) throw new ArgumentException("Exact workflow preparation identity is required.",nameof(key));
     }
 
     public static void Validate(CompositionPreparation value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         ValidateKey(value.Key);
         var request = value.Request; var snapshot = value.Snapshot;
-        if (value.SchemaVersion is not (1 or 2) || value.Dataset != "GLBX.MDP3" || snapshot.SchemaVersion != 1
+        if (value.SchemaVersion is not (1 or 2) || !string.Equals(value.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || snapshot.SchemaVersion != 1
             || value.PreparedAtUtc.Offset != TimeSpan.Zero || value.PreparedAtUtc < snapshot.EvaluatedAtUtc
             || value.PreparedAtUtc >= snapshot.ValidUntilUtc || request.SnapshotId != snapshot.SnapshotId
-            || request.ScopeId != snapshot.ScopeId || request.GenerationId != snapshot.GenerationId
-            || request.Horizon != snapshot.Horizon || request.EvaluatedAtUtc != snapshot.EvaluatedAtUtc
+            || !string.Equals(request.ScopeId,snapshot.ScopeId,StringComparison.Ordinal) || request.GenerationId != snapshot.GenerationId
+            || !string.Equals(request.Horizon,snapshot.Horizon,StringComparison.Ordinal) || request.EvaluatedAtUtc != snapshot.EvaluatedAtUtc
             || snapshot.ValidUntilUtc > request.DeadlineUtc
-            || value.DiscoveryLease is { } lease && (lease.ScopeId != request.ScopeId || lease.GenerationId != request.GenerationId
+            || value.DiscoveryLease is { } lease && (!string.Equals(lease.ScopeId,request.ScopeId,StringComparison.Ordinal) || lease.GenerationId != request.GenerationId
                 || lease.LeaseId == Guid.Empty || lease.Ownership is not null || !request.IncludeOptions)
-            || snapshot.Digest != PricingSemanticHash.Compute(snapshot with { Digest = "" })
+            || !string.Equals(snapshot.Digest,PricingSemanticHash.Compute(snapshot with { Digest = "" }),StringComparison.Ordinal)
             || !ValidDigest(value)
             || MessagePackBinarySerializer.MeasureContent(value) > 600 * 1024)
             throw new InvalidDataException("Composition preparation identity, hash or bounds are invalid.");
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S125", Justification = "This comment documents the persisted schema-one hash compatibility contract; it is not disabled code.")]
     static bool ValidDigest(CompositionPreparation value)
     {
-        if (value.Digest == PricingSemanticHash.Compute(value with { Digest = "" })) return true;
+        if (string.Equals(value.Digest,PricingSemanticHash.Compute(value with { Digest = "" }),StringComparison.Ordinal)) return true;
         // Schema 1 preceded DiscoveryLease. Retain the original hash on historical evidence;
         // appending a null property must not invalidate a previously committed capture.
         return value.SchemaVersion == 1 && value.DiscoveryLease is null
-            && value.Digest == PricingSemanticHash.Compute(new
-            { value.SchemaVersion, value.Key, value.Dataset, value.Request, value.Snapshot, value.PreparedAtUtc, Digest = "" });
+            && string.Equals(value.Digest,PricingSemanticHash.Compute(new
+            { value.SchemaVersion, value.Key, value.Dataset, value.Request, value.Snapshot, value.PreparedAtUtc, Digest = "" }),StringComparison.Ordinal);
     }
 }

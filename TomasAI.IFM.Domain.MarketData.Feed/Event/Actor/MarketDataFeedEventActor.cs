@@ -22,9 +22,9 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     public const string Actor = "MarketDataFeedEvent";
 
     /// <summary>Gets the typed event context supplied at construction.</summary>
-    protected IMarketDataFeedEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IMarketDataFeedEventContext, nameof(actorContext))!;
+    protected IMarketDataFeedEventContext EventContext { get; } = IsArgumentNull.Named(actorContext as IMarketDataFeedEventContext, nameof(actorContext))!;
     readonly ILogger<MarketDataFeedEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    MarketDataFeedEventParameters _eventParameters = new(
+    readonly MarketDataFeedEventParameters _eventParameters = new(
         ((IMarketDataFeedEventContext)actorContext).MarketDataLifecycle,
         ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
         ((IMarketDataFeedEventContext)actorContext).BlackboardService,
@@ -34,32 +34,32 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         [typeof(MarketDataFeedStartedEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStartedEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, eventApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(MarketDataFeedStartedCompleteEvent)] = async (evt, ctx, commandApi, _, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStartedCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, commandApi, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, commandApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(MarketDataFeedStoppedEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStoppedEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, eventApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(MarketDataFeedStoppedCompleteEvent)] = async (evt, ctx, _, _, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedStoppedCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(MarketDataFeedResetEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedResetEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, eventApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, _, eventApi, eventParams, logger) =>
         {
             var e = (evt as MarketDataFeedResetCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(ctx, eventApi, eventParams, logger)).ConfigureAwait(false);
         }
     };
 
@@ -87,7 +87,7 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [MarketDataFeedStartedEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedEvent>()!,
         [MarketDataFeedStartedCompleteEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedCompleteEvent>()!,
@@ -110,9 +110,9 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters, _logger);
+        _ = await (receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters, _logger)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
@@ -131,12 +131,12 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write17(_logger, innerEx, Actor);
         }
     }
 

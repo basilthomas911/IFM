@@ -28,7 +28,10 @@ public sealed record FundRiskAuthorizationReference
     [Key(18)] public string RequirementsHash { get; init; } = "";
     [Key(19)] public Guid ReservationOperationId { get; init; }
 
-    public static FundRiskAuthorizationReference From(Guid riskInvocationId, Guid workflowId, CapacityReservationReceipt receipt) => new()
+    public static FundRiskAuthorizationReference From(Guid riskInvocationId, Guid workflowId, CapacityReservationReceipt receipt) 
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return new()
     {
         RiskInvocationId = riskInvocationId,
         WorkflowId = workflowId,
@@ -50,29 +53,19 @@ public sealed record FundRiskAuthorizationReference
         RequirementsHash = receipt.Requirements.ContentHash,
         ReservationOperationId = receipt.OperationId
     };
+    }
 
     /// <summary>Checks the immutable contract; current reservation and authority checks occur under the database fence.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports the malformed instance contract, not a caller argument.")]
     public void Validate()
     {
         if (SchemaVersion != 1 || RiskInvocationId == Guid.Empty || RiskResultId == Guid.Empty ||
             ReservationId == Guid.Empty || ReservationCompletedEventId == Guid.Empty || ReservationOperationId == Guid.Empty ||
             WorkflowId == Guid.Empty || PortfolioId <= 0 || FundId <= 0 || OrderId <= 0 || StrategyUnits <= 0 ||
             FinancialRevision <= 0 || AuthorityEpoch <= 0 || ValidUntilUtc.Kind != DateTimeKind.Utc ||
-            ValidUntilUtc == default || ExecutionEnvironment != "Emulator" ||
+            ValidUntilUtc == default || !string.Equals(ExecutionEnvironment,"Emulator",StringComparison.Ordinal) ||
             new[] { CompositionResultHash, UnitCandidateHash, RiskAssessmentHash, SizedOrderHash, RequirementsHash }
                 .Any(x => x is null || x.Length != 64 || !x.All(Uri.IsHexDigit)))
             throw new ArgumentException("Exact versioned Fund financial authorization is required.");
     }
 }
-
-/// <summary>Storage validates a new Fund authorization in the same transaction as its Fund event.</summary>
-public interface IFundRiskAuthorizedEvent : IEvent
-{
-    FundRiskAuthorizationReference? FinancialAuthorization { get; }
-}
-
-[MessagePackObject]
-public sealed record GetFundRiskAuthorizationRequest([property: Key(0)] Guid CommandId);
-[MessagePackObject]
-public sealed record FundRiskAuthorizationEvidence([property: Key(0)] Guid CommandId, [property: Key(1)] Guid EventId,
-    [property: Key(2)] FundRiskAuthorizationReference Authorization);

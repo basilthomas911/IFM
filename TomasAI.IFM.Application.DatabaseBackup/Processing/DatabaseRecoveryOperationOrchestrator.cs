@@ -6,6 +6,9 @@ namespace TomasAI.IFM.Application.DatabaseBackup.Processing;
 
 public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOperationExecutor
 {
+    readonly IDatabaseCutoverCapability? _cutover;
+    readonly IDatabaseRetentionCapability? _retention;
+    readonly string _automaticRetentionApprovalReference;
     readonly BackupSource _source;
     readonly IDatabaseBackupExecutionJournal _journal;
     readonly IPostgreSqlBackupCapability _postgreSql;
@@ -28,10 +31,16 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         IDatabaseBackupPublicationCapability publication,
         IDatabaseRestoreSourceCapability restoreSources,
         IDatabaseRecoveryEvidenceStore evidence,
-        IDatabaseBackupChainPlanner chainPlanner)
+        IDatabaseBackupChainPlanner chainPlanner,
+        IDatabaseRetentionCapability? retention = null,
+        string automaticRetentionApprovalReference = "",
+        IDatabaseCutoverCapability? cutover = null)
     {
         DatabaseBackupEnumValidation.RequireConcrete(source);
         _source = source;
+        _cutover = cutover;
+        _retention = retention;
+        _automaticRetentionApprovalReference = automaticRetentionApprovalReference;
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
         _postgreSql = postgreSql ?? throw new ArgumentNullException(nameof(postgreSql));
         _scylla = scylla ?? throw new ArgumentNullException(nameof(scylla));
@@ -77,7 +86,17 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         if (lease is null) return;
 
         var lastSequence = operation.LastServiceSequence;
+        if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Retention)
+        {
+            await ExecuteRetentionAsync(intent, lease, lastSequence, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         var engine = _engineSelector.Select(intent.ExecutionEvent.Source.ProtectionSetId);
+        if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Cutover)
+        {
+            await ExecuteCutoverAsync(intent, lease, lastSequence, engine, cancellationToken).ConfigureAwait(false);
+            return;
+        }
         if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Backup)
             await _publication.ValidateAsync(
                 new DatabaseBackupPublicationPreflightRequest(
@@ -104,6 +123,128 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         }
     }
 
+    async ValueTask ExecuteCutoverAsync(DatabaseExecutionIntent intent, JournalLease lease,
+        long lastSequence, DatabaseEngine engine, CancellationToken token)
+    {
+        var execution = intent.ExecutionEvent;
+        var latest = await _journal.ReadLatestServiceEventAsync(intent.OperationId, token).ConfigureAwait(false);
+        if (latest is Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceCompletedEvent
+            && latest.Source.OperationKind == DatabaseRecoveryOperationKind.Cutover
+            && latest.Source.SourceRevisionOrSequence == lastSequence)
+        {
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, true,
+                "database-recovery-application-healthy", token).ConfigureAwait(false);
+            return;
+        }
+        var sequence = lastSequence + 1;
+        var completionEnqueued = false;
+        try
+        {
+            var capability = _cutover ?? throw new NotSupportedException(
+                "Database replacement requires a configured recovery controller outside the API.");
+            if (execution.ValidationRevision <= 0 || execution.RestorePointId is null || execution.FreshTarget is null)
+                throw new InvalidDataException("Cutover requires the validated restore identity and revision.");
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.CuttingOver, false,
+                "database-data-replacement-started", token).ConfigureAwait(false);
+            var result = await WithLeaseHeartbeatAsync(lease, ct => capability.RecoverAsync(
+                new DatabaseCutoverRequest(intent.OperationId, execution.Source.ProtectionSetId,
+                    engine, execution.RestorePointId.Value, execution.FreshTarget,
+                    execution.ValidationRevision, lease.FencingToken),
+                new Progress<DatabaseNativeProgress>(), ct), token).ConfigureAwait(false);
+            if (!result.Succeeded)
+                throw new InvalidOperationException("Replacement did not restore database health, application health and admission.");
+            await EnqueueAsync(DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceCompletedEvent>(
+                intent, _hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded,
+                result.SafeEvidenceReference, validationRevision: execution.ValidationRevision) with
+                { CutoverState = DatabaseCutoverState.Completed }, token).ConfigureAwait(false);
+            completionEnqueued = true;
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, true,
+                "database-recovery-application-healthy", token).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A durable completion must not be replaced with a conflicting failure at the same sequence.
+            if (completionEnqueued) throw;
+            // The external controller owns rollback/reconciliation. Never blindly repeat replacement.
+            await EnqueueAsync(DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceFailedEvent>(
+                intent, _hostId, sequence, DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed,
+                "database-cutover-failed-controller-reconciliation-required"), CancellationToken.None).ConfigureAwait(false);
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Failed, true,
+                "database-cutover-failed-controller-reconciliation-required", CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    async ValueTask ExecuteRetentionAsync(DatabaseExecutionIntent intent, JournalLease lease, long lastSequence, CancellationToken token)
+    {
+        var execution = intent.ExecutionEvent;
+        var retention = _retention ?? throw new NotSupportedException("Retention capability is not configured for this source.");
+        var planId = execution.RetentionPlanId ?? throw new InvalidDataException("Retention requires a plan ID.");
+        var replicas = execution.RequiredDestinations.Select(value => new DatabaseArtifactReplicaId(value.Name)).Distinct().ToArray();
+        if (replicas.Length != 1)
+            throw new InvalidDataException("Each revision-bound retention operation must target exactly one replica.");
+        var isEvaluation = execution.Verb == "RetentionEvaluationRequested";
+        if (lastSequence > 1)
+        {
+            await EnqueueAsync(DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionFailedEvent>(
+                intent, _hostId, lastSequence + 1, DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed,
+                "retention-interrupted-reconciliation-required"), token).ConfigureAwait(false);
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Failed, true, "retention-interrupted-reconciliation-required", token).ConfigureAwait(false);
+            return;
+        }
+        await EnqueueAsync(DatabaseBackupServiceEventFactory.Started(intent, _hostId, 2), token).ConfigureAwait(false);
+        await CheckpointAsync(lease, DatabaseRecoveryPhase.Started, false, "retention-started", token).ConfigureAwait(false);
+        var sequence = 3L;
+        var automatic = isEvaluation && execution.Request?.Origin == DatabaseRequestOrigin.ScheduledTask
+            && !string.IsNullOrWhiteSpace(_automaticRetentionApprovalReference)
+            && execution.Request.AuthorizationReference == _automaticRetentionApprovalReference;
+        try
+        {
+            string diagnostic;
+            if (isEvaluation)
+            {
+                var plan = await WithLeaseHeartbeatAsync(lease, ct => retention.CreatePlanAsync(
+                    new DatabaseRetentionEvaluationRequest(planId, execution.RetentionPlanRevision,
+                        execution.EvaluationBoundaryUtc, replicas[0], [], [], [],
+                        execution.Source.PolicyRevision, execution.Source.ProtectionSetId), ct), token).ConfigureAwait(false);
+                diagnostic = $"retention-plan-created-{plan.Entries.Length}-restore-points";
+            }
+            else if (execution.Verb == "RetentionExecutionRequested")
+            {
+                var result = await WithLeaseHeartbeatAsync(lease, ct => retention.ExecuteAsync(
+                    new DatabaseRetentionExecutionRequest(planId, execution.RetentionPlanRevision,
+                        replicas[0], execution.Request?.AuthorizationReference ?? ""), ct), token).ConfigureAwait(false);
+                diagnostic = $"retention-deleted-{result.DeletedFileCount}-objects-{result.DeletedBytes}-bytes";
+            }
+            else throw new InvalidDataException("Unknown retention execution verb.");
+            var serviceEvent = isEvaluation
+                ? DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionPlanCreatedEvent>(
+                    intent, _hostId, sequence, automatic ? DatabaseRecoveryPhase.Validating : DatabaseRecoveryPhase.Completed, automatic ? DatabaseRecoveryOutcome.None : DatabaseRecoveryOutcome.Succeeded, diagnostic)
+                : (Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract)
+                    DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionCompletedEvent>(
+                    intent, _hostId, sequence, automatic ? DatabaseRecoveryPhase.Validating : DatabaseRecoveryPhase.Completed, automatic ? DatabaseRecoveryOutcome.None : DatabaseRecoveryOutcome.Succeeded, diagnostic);
+            await EnqueueAsync(serviceEvent, token).ConfigureAwait(false);
+            sequence++;
+            if (automatic)
+            {
+                var result = await WithLeaseHeartbeatAsync(lease, ct => retention.ExecuteAsync(
+                    new DatabaseRetentionExecutionRequest(planId, execution.RetentionPlanRevision,
+                        replicas[0], _automaticRetentionApprovalReference), ct), token).ConfigureAwait(false);
+                diagnostic = $"automatic-retention-deleted-{result.DeletedFileCount}-objects-{result.DeletedBytes}-bytes";
+                await EnqueueAsync(DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionCompletedEvent>(
+                    intent, _hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, diagnostic), token).ConfigureAwait(false);
+            }
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Completed, true, diagnostic, token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException and not DatabaseLeaseLostException)
+        {
+            await EnqueueAsync(DatabaseBackupServiceEventFactory.Create<Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionFailedEvent>(
+                intent, _hostId, sequence, DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed,
+                $"retention-failed-{exception.GetType().Name}"), token).ConfigureAwait(false);
+            await CheckpointAsync(lease, DatabaseRecoveryPhase.Failed, true, $"retention-failed-{exception.GetType().Name}", token).ConfigureAwait(false);
+            throw;
+        }
+    }
     async ValueTask ExecuteBackupAsync(
         DatabaseExecutionIntent intent,
         JournalLease lease,

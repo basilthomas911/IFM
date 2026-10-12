@@ -27,7 +27,7 @@ public sealed record FuturesTradePlanUpdatedEvent : ICompleteEvent<FuturesTradeP
     [IgnoreMember] public string UserName => "TradePlan";
     [IgnoreMember] public string EventName => nameof(FuturesTradePlanUpdatedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
-    [IgnoreMember] public bool RequiresDurableProjection => Plan.MaterialChange;
+    [IgnoreMember] public bool RequiresDurableProjection => false;
     [IgnoreMember]
     public DurableProjectionRequirement RequiredProjection => new(
         "FuturesTradePositionCommandActor",

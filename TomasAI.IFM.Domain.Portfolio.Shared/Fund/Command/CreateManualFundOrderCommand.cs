@@ -39,6 +39,16 @@ public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, I
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public CreateManualFundOrderCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="request">The Request command value.</param>
+    public CreateManualFundOrderCommand(CreateManualFundOrderRequest request)
+    {
+        Request = request;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "CreateManualFundOrder";
     public const int ErrorId = 34000;
@@ -57,16 +67,6 @@ public sealed record CreateManualFundOrderCommand : ICommand<PortfolioFundId>, I
     [IgnoreMember] public string CommandName => nameof(CreateManualFundOrderCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public CreateManualFundOrderCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="request">The Request command value.</param>
-    public CreateManualFundOrderCommand(CreateManualFundOrderRequest request)
-    {
-        Request = request;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

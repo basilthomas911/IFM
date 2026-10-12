@@ -24,9 +24,9 @@ public sealed class SharedPolicyTests
                 || typeof(IDatabaseBackupQuery).IsAssignableFrom(type))
             .OrderBy(static type => type.FullName)
             .ToArray();
-        contracts.Should().HaveCount(122);
-        // Logs/Setup added two query contracts; keep the original 120-contract compatibility gate unchanged.
-        var addedQueries = new[] { typeof(GetDatabaseBackupLogQuery), typeof(GetDatabaseBackupSetupQuery) };
+        contracts.Should().HaveCount(123);
+        // Two Logs/Setup queries and the additive retention-result event preserve the original 120-contract compatibility gate.
+        var addedQueries = new[] { typeof(GetDatabaseBackupLogQuery), typeof(GetDatabaseBackupSetupQuery), typeof(TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRetentionResultRecordedDomainEvent) };
         contracts.Should().Contain(addedQueries);
         contracts = contracts.Except(addedQueries).ToArray();
         contracts.Should().HaveCount(120);

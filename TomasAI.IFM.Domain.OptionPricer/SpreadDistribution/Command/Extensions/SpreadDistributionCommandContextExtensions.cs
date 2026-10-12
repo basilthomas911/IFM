@@ -18,13 +18,15 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Extensions;
 
 /// <summary>Exposes readonly SpreadDistributionCommand Command context properties.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class SpreadDistributionCommandContextExtensions
 {
     extension(ICommandActorContext<SpreadDistributionCommandActor> context)
     {
         /// <summary>Gets the domain-specific typed context.</summary>
         public ISpreadDistributionCommandContext DomainContext =>
-            IsArgumentNull.Set(context as ISpreadDistributionCommandContext, nameof(context))!;
+            IsArgumentNull.Named(context as ISpreadDistributionCommandContext, nameof(context))!;
         /// <summary>Gets the Supervisor service retained by the typed context.</summary>
         public IActorSupervisor Supervisor => context.DomainContext.Supervisor;
         /// <summary>Gets the DbEventSource service retained by the typed context.</summary>

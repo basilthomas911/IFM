@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Data;
@@ -12,7 +12,9 @@ namespace TomasAI.IFM.Framework.Storage.SqlServer
     {
         public TConnection As<TConnection>(string connectionString) where TConnection : class, IDbConnection
         {
-            return new SqlConnection(connectionString) as TConnection;
+            if (typeof(TConnection) != typeof(SqlConnection))
+                throw new NotSupportedException("SQL Server connections require SqlConnection.");
+            return (TConnection)(IDbConnection)new SqlConnection(connectionString);
         }
     }
 }

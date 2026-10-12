@@ -13,6 +13,7 @@ public interface IReferenceDbWriteContext
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <param name="staleOperationCutoffUtc">The optional stale-operation cutoff.</param>
     /// <returns>The backfill result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<ReferenceProjectionBackfillResult> BackfillQueryProjectionsV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default,

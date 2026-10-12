@@ -7,26 +7,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
 
-/// <summary>Defines readonly services required by the trade-session bar signal Realtime actor.</summary>
-public interface IFuturesTradeSessionBarSignalRealtimeContext
-    : IRealtimeActorContext<FuturesTradeSessionBarSignalRealtimeActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor-centric model that builds ephemeral open bars.</summary>
-    FuturesTradeSessionBarAccumulatorRegistry Accumulators { get; }
-    /// <summary>Gets the authoritative futures session calendar.</summary>
-    IMarketSessionCalendar Calendar { get; }
-    /// <summary>Gets the server clock.</summary>
-    TimeProvider TimeProvider { get; }
-    /// <summary>Gets the typed logger.</summary>
-    ILogger<FuturesTradeSessionBarSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the closed generic context used by the trade-session bar signal Realtime actor.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesTradeSessionBarSignalRealtimeContext
     : EventActorContext,
-      IRealtimeActorContext<FuturesTradeSessionBarSignalRealtimeActor>,
       IFuturesTradeSessionBarSignalRealtimeContext
 {
     /// <summary>Initializes the readonly context.</summary>

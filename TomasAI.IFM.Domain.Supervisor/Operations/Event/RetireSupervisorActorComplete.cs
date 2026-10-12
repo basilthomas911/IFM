@@ -11,7 +11,12 @@ public static class RetireSupervisorActorComplete
     /// <summary>Records the Retire complete outcome in Supervisor operation history.</summary>
     public static ValueTask ExecuteAsync(this RetireSupervisorActorCompleteEvent value,
         ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        => SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(value);
+        return SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
             value.ExpectedGeneration, SupervisorActorOperationKind.Retire, value.Requester,
             value.Reason, value.TimeoutTicks, value.Stage);
+    }
 }

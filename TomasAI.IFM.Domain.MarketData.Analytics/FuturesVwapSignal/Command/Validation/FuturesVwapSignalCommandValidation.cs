@@ -8,9 +8,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Vali
 public static class FuturesVwapSignalCommandValidation
 {
     /// <summary>Checks a live trade against its VWAP stream.</summary>
-    public static List<ValidationError> ValidateLiveInputs(
-        this List<ValidationError> errors, UpdateFuturesVwapSignalCommand command)
+    public static TErrors ValidateLiveInputs<TErrors>(
+        this TErrors errors, UpdateFuturesVwapSignalCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
         if (command.SourceCheckpoint is { } source)
         {
@@ -29,9 +33,13 @@ public static class FuturesVwapSignalCommandValidation
     }
 
     /// <summary>Checks bounded recovery identity, order, and trade payloads.</summary>
-    public static List<ValidationError> ValidateRecoveryInputs(
-        this List<ValidationError> errors, RecoverFuturesVwapSignalCommand command)
+    public static TErrors ValidateRecoveryInputs<TErrors>(
+        this TErrors errors, RecoverFuturesVwapSignalCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         ValidateConfiguration(errors, command.EntityId, command.Subject.EntityId, command.Configuration);
         if (command.RecoveryGenerationId == Guid.Empty || command.BatchOrdinal < 0
             || (command.IsFirstBatch && command.BatchOrdinal != 0))
@@ -50,25 +58,23 @@ public static class FuturesVwapSignalCommandValidation
         return errors;
     }
 
-    static void ValidateConfiguration(List<ValidationError> errors,
-        FuturesVwapSignalEntityId entityId, string routedId, FuturesVwapConfiguration? configuration)
+    static void ValidateConfiguration(ICollection<ValidationError> errors,        FuturesVwapSignalEntityId entityId,string routedId,FuturesVwapConfiguration? configuration)
     {
         if (configuration is null || string.IsNullOrWhiteSpace(configuration.ConfigurationId)
-            || entityId.ConfigurationId != configuration.ConfigurationId)
+            || !string.Equals(entityId.ConfigurationId,configuration.ConfigurationId,StringComparison.Ordinal))
             errors.Add(new("VWAP.CONFIG", "Configuration must match the VWAP stream."));
-        if (routedId != entityId.Format())
+        if (!string.Equals(routedId,entityId.Format(),StringComparison.Ordinal))
             errors.Add(new("VWAP.ROUTE", "Command routing identity must match the VWAP stream."));
     }
 
-    static void ValidateTrade(List<ValidationError> errors, FuturesVwapSignalEntityId entityId,
-        FuturesVwapTradeObservation? trade, bool live)
+    static void ValidateTrade(ICollection<ValidationError> errors,FuturesVwapSignalEntityId entityId,        FuturesVwapTradeObservation? trade,bool live)
     {
         if (trade is null)
         {
             errors.Add(new("VWAP.TRADE.NULL", "A futures trade observation is required."));
             return;
         }
-        if (trade.ContractId != entityId.ContractId || trade.ValueDate != entityId.ValueDate)
+        if (!string.Equals(trade.ContractId,entityId.ContractId,StringComparison.Ordinal) || trade.ValueDate != entityId.ValueDate)
             errors.Add(new("VWAP.TRADE.IDENTITY", "Trade contract and value date must match the VWAP stream."));
         if (trade.EventTimestampUtc.Offset != TimeSpan.Zero
             || trade.SessionStartUtc.Offset != TimeSpan.Zero

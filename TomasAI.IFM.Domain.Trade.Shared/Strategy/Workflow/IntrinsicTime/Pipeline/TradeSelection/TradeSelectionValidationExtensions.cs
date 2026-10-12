@@ -10,8 +10,11 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 public static class TradeSelectionValidationExtensions
 {
     /// <summary>Aggregates independent required-field errors before inspecting nested frozen evidence.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateSelectionFields(this List<ValidationError> errors, ExecuteTradeSelectionPipelineCommand request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(errors);
         errors.AddRange(new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(request.WorkflowEntityId));
         errors.AddRange(new CommandRules().Execute(request));
@@ -19,8 +22,11 @@ public static class TradeSelectionValidationExtensions
     }
 
     /// <summary>Validates relationships and deterministic evidence after required fields have passed.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateSelectionConsistency(this List<ValidationError> errors, ExecuteTradeSelectionPipelineCommand request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(errors);
         if (errors.Count != 0) return errors;
         try { TradeSelectionContracts.ValidateRequestEvidence(request, errors); }
@@ -30,9 +36,14 @@ public static class TradeSelectionValidationExtensions
     }
 
     /// <summary>Validates registered implementations for every pinned capability and parameter validator.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Preserve the established ordered catalog provenance validation loop without restructuring trading validation behavior.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateSelectionCapabilities(this List<ValidationError> errors,
         ExecuteTradeSelectionPipelineCommand request, IStrategyCatalogCapabilities capabilities)
     {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(errors);
         if (errors.Count != 0) return errors;
         var graph = request.SelectionBinding.CatalogDefinitions.ToDictionary(x => x.Key, SelectionCatalogTransport.ToSource);
@@ -42,7 +53,7 @@ public static class TradeSelectionValidationExtensions
             {
                 foreach (var capability in node.Definition.Capabilities) capabilities.Validate(capability, node.Definition, graph);
                 if (node.Definition.Key.Kind == StrategyCatalogKind.ParameterSet)
-                    foreach (var validator in graph[node.Definition.Parent!].Definition.Capabilities.Where(x => x.Role == "validator"))
+                    foreach (var validator in graph[node.Definition.Parent!].Definition.Capabilities.Where(x => string.Equals(x.Role,"validator",StringComparison.Ordinal)))
                         capabilities.Validate(validator, node.Definition, graph);
             }
         }

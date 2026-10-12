@@ -101,6 +101,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         return await pending.Completion.Task.ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     async Task ConsumeAsync(CancellationToken cancellationToken)
     {
         PendingAppend? carry = null;
@@ -140,7 +141,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
                     if (completed == delay) break;
                     if (!await data.ConfigureAwait(false)) break;
                 }
-                flushDelay.Cancel();
+await                flushDelay.CancelAsync().ConfigureAwait(false);
                 await PersistBatchAsync(batch, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -157,6 +158,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     async Task PersistBatchAsync(IReadOnlyList<PendingAppend> batch, CancellationToken cancellationToken,
         bool alreadyDequeued = false)
     {
@@ -166,7 +169,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         try
         {
             var connection = await GetOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+            var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+        await using var transactionDisposal = transaction.ConfigureAwait(false);
             try
             {
                 var audited = batch.Where(static item => item.Request.CommandAudit is not null)
@@ -228,7 +232,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
             }
             catch
             {
-                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 throw;
             }
         }
@@ -262,6 +266,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         return _connection;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     static async Task<Dictionary<long, long>> LockStreamsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -269,18 +274,20 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         CancellationToken cancellationToken)
     {
         var ids = batch.Select(static request => request.Request.EventStreamId).Distinct().Order().ToArray();
-        await using var command = EventLogAppenderSupport.Command(connection, transaction, """
+        var command = EventLogAppenderSupport.Command(connection, transaction, """
             SELECT EventStreamId, CurrentVersion
             FROM event_stream_id
             WHERE EventStreamId = ANY($1)
             ORDER BY EventStreamId
             FOR UPDATE;
             """);
+        await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ids, NpgsqlDbType.Array | NpgsqlDbType.Bigint);
         var current = new Dictionary<long, long>(ids.Length);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            current[Convert.ToInt64(reader.GetValue(0))] = reader.GetInt64(1);
+            current[Convert.ToInt64(reader.GetValue(0),System.Globalization.CultureInfo.InvariantCulture)] = reader.GetInt64(1);
         if (current.Count != ids.Length) throw new InvalidOperationException("An event stream disappeared before persistence.");
         return current;
     }
@@ -309,6 +316,7 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         return planned;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     static async Task UpdateStreamVersionsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -316,12 +324,13 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         CancellationToken cancellationToken)
     {
         var ordered = finalVersions.OrderBy(static pair => pair.Key).ToArray();
-        await using var command = EventLogAppenderSupport.Command(connection, transaction, """
+        var command = EventLogAppenderSupport.Command(connection, transaction, """
             UPDATE event_stream_id AS stream
             SET CurrentVersion = updates.FinalVersion
             FROM unnest($1::bigint[], $2::bigint[]) AS updates(EventStreamId, FinalVersion)
             WHERE stream.EventStreamId = updates.EventStreamId;
             """);
+        await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Key).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bigint);
         EventLogAppenderSupport.Add(command, ordered.Select(static pair => pair.Value).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bigint);
         if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != ordered.Length)
@@ -335,10 +344,12 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         CancellationToken cancellationToken)
     {
         var count = planned.Sum(static request => request.Assignments.Length);
-        await using var command = EventLogAppenderSupport.Command(connection, transaction,
+        var command = EventLogAppenderSupport.Command(connection, transaction,
             "SELECT nextval('public.event_log_eventversion_seq') FROM generate_series(1, $1);");
+        await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, count, NpgsqlDbType.Integer);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
         foreach (var request in planned)
         {
             for (var index = 0; index < request.Assignments.Length; index++)
@@ -357,7 +368,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         IReadOnlyList<PlannedAppend> planned,
         CancellationToken cancellationToken)
     {
-        await using var importer = await connection.BeginBinaryImportAsync(_copySql, cancellationToken).ConfigureAwait(false);
+        var importer = await connection.BeginBinaryImportAsync(_copySql, cancellationToken).ConfigureAwait(false);
+        await using var importerDisposal = importer.ConfigureAwait(false);
         foreach (var request in planned)
         {
             for (var index = 0; index < request.Pending.Request.Events.Count; index++)
@@ -383,8 +395,8 @@ public sealed class BinaryCopyEventLogAppender : IEventLogAppender
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _queue.Writer.TryComplete();
         var timeout = Task.Delay(_options.ShutdownDrainTimeout);
-        if (await Task.WhenAny(_consumer, timeout).ConfigureAwait(false) != _consumer) _lifetime.Cancel();
-        try { await _consumer.ConfigureAwait(false); } catch (OperationCanceledException) { }
+        if (await Task.WhenAny(_consumer, timeout).ConfigureAwait(false) != _consumer) await _lifetime.CancelAsync().ConfigureAwait(false);
+        try { await _consumer.ConfigureAwait(false); } catch (OperationCanceledException) { /* Cancellation is the expected shutdown outcome. */ }
         if (_connection is not null) await _connection.DisposeAsync().ConfigureAwait(false);
         _lifetime.Dispose();
     }

@@ -6,17 +6,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Query.Actor;
 
-/// <summary>Defines readonly services required by the VX term-structure Query actor.</summary>
-public interface IFuturesVxTermStructureSignalQueryContext
-    : IQueryActorContext<FuturesVxTermStructureSignalQueryActor>
-{
-    IDbContextFactory DbFactory { get; }
-    ILogger<FuturesVxTermStructureSignalQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed VX term-structure Query context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVxTermStructureSignalQueryContext : QueryActorContext,
-    IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
     IFuturesVxTermStructureSignalQueryContext
 {
     /// <summary>Initializes the typed context.</summary>

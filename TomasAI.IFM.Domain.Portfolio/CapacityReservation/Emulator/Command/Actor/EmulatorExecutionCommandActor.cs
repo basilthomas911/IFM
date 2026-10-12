@@ -36,26 +36,23 @@ public sealed class EmulatorExecutionCommandActor(ICommandActorContext<EmulatorE
         {
             [typeof(SubmitEmulatorOrderCommand)] = (command, owner, token) => ((SubmitEmulatorOrderCommand)command).ExecuteAsync(owner, token),
         }.ToFrozenDictionary();
-    protected override ICommand ParseMessage(ICommandActorContext<EmulatorExecutionCommandActor> owner, IActorMessage message) => ParseMappedCommand(owner, message, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ICommand ParseMessage(ICommandActorContext<EmulatorExecutionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
-    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, ActorThreadId threadId, ICommand command)
         => command.LoadFinancialStateAsync();
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, ICommand command, CancellationToken token)
-        => command.ReconcileFinancialDuplicateAsync(token);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, IActorState state, ICommand command)
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, ICommand command, CancellationToken cancellationToken)
+        => command.ReconcileFinancialDuplicateAsync(cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, IActorState state, ICommand command)
         => ResolveMappedCommandHandler(command, _receiveMap)(command, services, CancellationToken.None);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, IActorState state, ICommand command, CancellationToken token)
-        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, token);
-    protected override ValueTask OnStartup(ICommandActorContext<EmulatorExecutionCommandActor> owner, CancellationToken token) => services.Projector.StartAsync(owner, token);
-    protected override ValueTask OnShutdown(ICommandActorContext<EmulatorExecutionCommandActor> owner) => services.Projector.StopAsync();
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<EmulatorExecutionCommandActor> owner, ActorThreadId threadId, ICommand command, Exception exception)
-        => exception.FinancialCommandFailure(services.Logger);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, cancellationToken);
+    protected override ValueTask OnStartup(ICommandActorContext<EmulatorExecutionCommandActor> context, CancellationToken cancellationToken) => services.Projector.StartAsync(context, cancellationToken);
+    protected override ValueTask OnShutdown(ICommandActorContext<EmulatorExecutionCommandActor> context) => services.Projector.StopAsync();
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<EmulatorExecutionCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        => ex.FinancialCommandFailure(services.Logger);
 }
-
-public sealed class EmulatorExecutionCommandContext(IActorSupervisor supervisor)
-    : CommandActorContext(supervisor, new ActorMailboxId(ActorType.Command, EmulatorExecutionCommandActor.ActorName)), ICommandActorContext<EmulatorExecutionCommandActor>;
 

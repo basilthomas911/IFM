@@ -17,7 +17,6 @@ namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Actor;
 /// </remarks>
 public sealed class DownloadLogCommandContext :
     CommandActorContext,
-    ICommandActorContext<DownloadLogCommandActor>,
     IDownloadLogCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;

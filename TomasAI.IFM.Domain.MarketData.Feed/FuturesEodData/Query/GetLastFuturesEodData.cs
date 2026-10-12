@@ -5,7 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query;
@@ -16,11 +15,11 @@ public static class GetLastFuturesEodData
        this GetLastFuturesEodDataQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;
-        var futuresEodData = await db.GetLastFuturesEodDataAsync(q.ContractId, q.ValueDate);
+        var futuresEodData = await (db.GetLastFuturesEodDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
         if (futuresEodData is not null)
         {
             var contractIdInfo = futuresEodData.GetContractId();
-            var movingAverages = await dbFactory.GetFuturesEodMovingAveragesAsync(contractIdInfo.ContractId, contractIdInfo.Symbol, futuresEodData.ValueDate);
+            var movingAverages = await (dbFactory.GetFuturesEodMovingAveragesAsync(contractIdInfo.ContractId, contractIdInfo.Symbol, futuresEodData.ValueDate)).ConfigureAwait(false);
             futuresEodData = futuresEodData with { FiftyDMA = movingAverages.FiftyDMA, TwoHundredDMA = movingAverages.TwoHundredDMA };
         }
         return futuresEodData!;

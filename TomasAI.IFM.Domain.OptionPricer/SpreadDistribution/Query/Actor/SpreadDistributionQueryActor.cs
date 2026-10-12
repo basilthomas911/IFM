@@ -20,7 +20,7 @@ public class SpreadDistributionQueryActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected ISpreadDistributionQueryContext ActorContext =>
-        IsArgumentNull.Set(Context as ISpreadDistributionQueryContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as ISpreadDistributionQueryContext, nameof(Context))!;
 
     public const string ActorName = "SpreadDistributionQuery";
 
@@ -38,7 +38,7 @@ public class SpreadDistributionQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetSpreadDistributionQuery.Verb] = msg => msg.AsQuery<GetSpreadDistributionQuery, SpreadDistributionReadModel>()!
     };
@@ -62,7 +62,7 @@ public class SpreadDistributionQueryActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
-        await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken);
+        await (receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -74,17 +74,17 @@ public class SpreadDistributionQueryActor(
         [typeof(GetSpreadDistributionQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetSpreadDistributionQuery)!;
-            var result = await query.ExecuteAsync(
+            var result = await (query.ExecuteAsync(
                 dbFactory,
                 query.TradeId,
                 query.TradeType,
                 query.TradeStatus,
                 query.ValueDate,
                 query.DaysToExpiry,
-                cancellationToken);
+                cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetSpreadDistributionQuery.Verb,
-                new ServiceResult<SpreadDistributionReadModel?>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetSpreadDistributionQuery.Verb,
+                new ServiceResult<SpreadDistributionReadModel?>(result))).ConfigureAwait(false);
         }
     };
 
@@ -104,7 +104,7 @@ public class SpreadDistributionQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
 }

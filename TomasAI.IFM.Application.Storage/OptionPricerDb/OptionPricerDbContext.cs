@@ -25,8 +25,12 @@ public class OptionPricerDbContext(
     : ObjectDataRepository<OptionPricerDbContext>(connectionSettings[ConnectionName], logger),
       IOptionPricerDbContext
 {
-    private readonly IDbContextFactory _dbFactory = dbFactory;
-    private readonly ISequenceIdGenerator _sequenceIdGenerator = sequenceIdGenerator;
+    /// <inheritdoc />
+    public Task ProjectAcceptedEventAsync(EventSourceDb.IEnlistedPostgresTransaction transaction,
+        TomasAI.IFM.Shared.EventSourcing.IEvent source, CancellationToken cancellationToken = default)
+=>this.ProjectAcceptedEventAsyncCoreBinding(transaction, source, cancellationToken);
+    internal readonly IDbContextFactory _dbFactory = dbFactory;
+    internal readonly ISequenceIdGenerator _sequenceIdGenerator = sequenceIdGenerator;
 
     /// <summary>Gets the option-pricer database connection-setting name.</summary>
     public const string ConnectionName = "OptionPricerDbConnection";
@@ -88,15 +92,8 @@ public class OptionPricerDbContext(
     /// <summary>Deletes an option-pricer device.</summary>
     /// <param name="deviceId">The device identity to delete.</param>
     /// <returns>A task representing the asynchronous delete operation.</returns>
-    public async Task DeleteOptionPricerDeviceAsync(OptionPricerDeviceEntityId deviceId)
-    {
-        var parameters = new DeleteOptionPricerDevice(deviceId.DeviceId, deviceId.DeviceName);
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteOptionPricerDevice)}", OptionPricerDbCql.DeleteOptionPricerDevice)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
-    }
-
+    public Task DeleteOptionPricerDeviceAsync(OptionPricerDeviceEntityId deviceId)
+=>this.DeleteOptionPricerDeviceAsyncCoreBinding(deviceId);
     /// <summary>Deletes spread distributions for a trade and value date.</summary>
     /// <param name="tradeId">The trade identifier.</param>
     /// <param name="valueDate">The distribution value date.</param>
@@ -104,10 +101,11 @@ public class OptionPricerDbContext(
     public async Task DeleteSpreadDistributionAsync(int tradeId, DateOnly valueDate)
     {
         var parameters = new DeleteSpreadDistribution(tradeId, valueDate);
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistribution)}", OptionPricerDbCql.DeleteSpreadDistribution)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
+        await (_dbFactory.OptionPricerDb
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistribution)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.DeleteSpreadDistribution : OptionPricerDbCql.DeleteSpreadDistribution)
+            .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .ExecuteCommandAsync())
+                .ConfigureAwait(false);
     }
 
     /// <summary>Deletes every spread-distribution job currently marked as in progress.</summary>
@@ -115,14 +113,16 @@ public class OptionPricerDbContext(
     public async Task DeleteSpreadDistributionJobsInProgressAsync()
     {
         var db = _dbFactory.OptionPricerDb;
-        var jobIds = await this.GetSpreadDistributionJobsInProgressAsync();
+        var jobIds = await (this.GetSpreadDistributionJobsInProgressAsync())
+                .ConfigureAwait(false);
         foreach (var jobId in jobIds)
         {
             var parameters = new DeleteSpreadDistributionJob(jobId.OrderId, jobId.TradeId, jobId.ValueDate);
-            await db
-                .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJob)}", OptionPricerDbCql.DeleteSpreadDistributionJob)
-                .SetParameters(parameters)
-                .ExecuteCommandAsync();
+            await (db
+                .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJob)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.DeleteSpreadDistributionJob : OptionPricerDbCql.DeleteSpreadDistributionJob)
+                .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteCommandAsync())
+                .ConfigureAwait(false);
         }
     }
 
@@ -133,17 +133,18 @@ public class OptionPricerDbContext(
     public async Task DeleteSpreadDistributionJobsAsync(int orderId, int tradeId)
     {
         var parameters = new DeleteSpreadDistributionJobs(orderId, tradeId);
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJobs)}", OptionPricerDbCql.DeleteSpreadDistributionJobs)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
+        await (_dbFactory.OptionPricerDb
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJobs)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.DeleteSpreadDistributionJobs : OptionPricerDbCql.DeleteSpreadDistributionJobs)
+            .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .ExecuteCommandAsync())
+                .ConfigureAwait(false);
     }
 
     /// <summary>Gets all configured option-pricer devices.</summary>
     /// <returns>The configured option-pricer devices.</returns>
     public Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync()
         => _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", OptionPricerDbCql.GetOptionPricerDevices)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.GetOptionPricerDevices : OptionPricerDbCql.GetOptionPricerDevices)
             .ExecuteQueryAsync<OptionPricerDeviceReadModel>(MapToOptionPricerDevice);
 
     /// <summary>Gets all configured option-pricer devices.</summary>
@@ -151,7 +152,7 @@ public class OptionPricerDbContext(
     /// <returns>The configured option-pricer devices.</returns>
     public Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync(CancellationToken cancellationToken)
         => _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", OptionPricerDbCql.GetOptionPricerDevices)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.GetOptionPricerDevices : OptionPricerDbCql.GetOptionPricerDevices)
             .ExecuteQueryAsync<OptionPricerDeviceReadModel>(MapToOptionPricerDevice, cancellationToken);
 
     /// <summary>Gets the number of in-progress spread-distribution jobs for an order and trade.</summary>
@@ -172,10 +173,11 @@ public class OptionPricerDbContext(
         CancellationToken cancellationToken)
     {
         var parameters = new GetSpreadDistributionJobs(orderId, tradeId);
-        var jobs = await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionJobs)}", OptionPricerDbCql.GetSpreadDistributionJobs)
-            .SetParameters(parameters)
-            .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob, cancellationToken);
+        var jobs = await (_dbFactory.OptionPricerDb
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionJobs)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.GetSpreadDistributionJobs : OptionPricerDbCql.GetSpreadDistributionJobs)
+            .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob, cancellationToken))
+                .ConfigureAwait(false);
         return jobs.Count(job => job.JobStatus == SpreadDistributionJobStatus.InProgress || job.InProgress);
     }
 
@@ -217,70 +219,29 @@ public class OptionPricerDbContext(
             valueDate,
             daysToExpiry);
         return _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistribution)}", OptionPricerDbCql.GetSpreadDistribution)
-            .SetParameters(parameters)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistribution)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.GetSpreadDistribution : OptionPricerDbCql.GetSpreadDistribution)
+            .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
             .ExecuteSingleAsync<SpreadDistributionReadModel>(MapToSpreadDistribution, cancellationToken);
     }
 
     /// <summary>Inserts an option-pricer device configuration.</summary>
     /// <param name="device">The device configuration to insert.</param>
     /// <returns>A task representing the asynchronous insert operation.</returns>
-    public async Task InsertOptionPricerDeviceAsync(OptionPricerDeviceReadModel device)
-    {
-        var parameters = new InsertOptionPricerDevice(
-            device.DeviceId,
-            device.DeviceName,
-            device.SpreadPaths,
-            device.VolatilityPaths,
-            device.MaxBatchSize,
-            device.OptionType.ToStringFast(),
-            device.Enabled);
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertOptionPricerDevice)}", OptionPricerDbCql.InsertOptionPricerDevice)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
-    }
-
+    public Task InsertOptionPricerDeviceAsync(OptionPricerDeviceReadModel device)
+=>this.InsertOptionPricerDeviceAsyncCoreBinding(device);
     /// <summary>Inserts the put-side and call-side spread distributions as one queued operation.</summary>
     /// <param name="putSpreadDistribution">The put-side spread distribution.</param>
     /// <param name="callSpreadDistribution">The call-side spread distribution.</param>
     /// <returns>A task representing the asynchronous insert operation.</returns>
-    public async Task InsertSpreadDistributionsAsync(
+    public Task InsertSpreadDistributionsAsync(
         SpreadDistributionReadModel putSpreadDistribution,
         SpreadDistributionReadModel callSpreadDistribution)
-    {
-        var putId = putSpreadDistribution.Id != 0
-            ? putSpreadDistribution.Id
-            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
-        var callId = callSpreadDistribution.Id != 0
-            ? callSpreadDistribution.Id
-            : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
-        var putParameters = putSpreadDistribution.ToInsertSpreadDistribution(putId);
-        var callParameters = callSpreadDistribution.ToInsertSpreadDistribution(callId);
-        var db = _dbFactory.OptionPricerDb;
-        var putCommand = db
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", OptionPricerDbCql.InsertSpreadDistribution)
-            .SetParameters(putParameters)
-            .QueueCommand();
-        var callCommand = db
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", OptionPricerDbCql.InsertSpreadDistribution)
-            .SetParameters(callParameters)
-            .QueueCommand();
-        await db.ExecuteQueuedCommandsAsync([putCommand, callCommand]);
-    }
-
+=>this.InsertSpreadDistributionsAsyncCoreBinding(putSpreadDistribution, callSpreadDistribution);
     /// <summary>Inserts a spread-distribution job.</summary>
     /// <param name="job">The spread-distribution job to insert.</param>
     /// <returns>A task representing the asynchronous insert operation.</returns>
-    public async Task InsertSpreadDistributionJobAsync(SpreadDistributionJobReadModel job)
-    {
-        var parameters = job.ToInsertSpreadDistributionJob();
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistributionJob)}", OptionPricerDbCql.InsertSpreadDistributionJob)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
-    }
-
+    public Task InsertSpreadDistributionJobAsync(SpreadDistributionJobReadModel job)
+=>this.InsertSpreadDistributionJobAsyncCoreBinding(job);
     /// <summary>Updates the persisted status of a spread-distribution job.</summary>
     /// <param name="orderId">The order identifier.</param>
     /// <param name="tradeId">The trade identifier.</param>
@@ -289,13 +250,14 @@ public class OptionPricerDbContext(
     /// <param name="jobCompleted">The job completion timestamp.</param>
     /// <param name="jobFailed">The optional job failure timestamp.</param>
     /// <returns>A task representing the asynchronous update operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1006", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task UpdateSpreadDistributionJobStatusAsync(
         int orderId,
         int tradeId,
         DateOnly valueDate,
         SpreadDistributionJobStatus jobStatus,
         DateTime jobCompleted,
-        DateTime? jobFailed)
+        DateTime? jobFailed = null)
     {
         var parameters = new UpdateSpreadDistributionJobStatus(
             orderId,
@@ -305,9 +267,10 @@ public class OptionPricerDbContext(
             jobCompleted,
             jobFailed,
             jobStatus == SpreadDistributionJobStatus.InProgress);
-        await _dbFactory.OptionPricerDb
-            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.UpdateSpreadDistributionJobStatus)}", OptionPricerDbCql.UpdateSpreadDistributionJobStatus)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync();
+        await (_dbFactory.OptionPricerDb
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.UpdateSpreadDistributionJobStatus)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.UpdateSpreadDistributionJobStatus : OptionPricerDbCql.UpdateSpreadDistributionJobStatus)
+            .SetParameters(parameters with { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+            .ExecuteCommandAsync())
+                .ConfigureAwait(false);
     }
 }

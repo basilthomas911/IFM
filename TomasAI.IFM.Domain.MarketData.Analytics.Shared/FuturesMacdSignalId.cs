@@ -26,6 +26,7 @@ public record FuturesMacdSignalId : IActorEntityId
     [Key(5)] public int FastEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalFastEmaPeriod;
     [Key(6)] public int SlowEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSlowEmaPeriod;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Retain this historical serialized event type for existing event-log deserialization.")]
     [IgnoreMember]
     [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]
     public int PeriodLength => SignalEmaPeriod;
@@ -128,55 +129,6 @@ public record FuturesMacdSignalId : IActorEntityId
 
     public FuturesMacdDailySignalEntityId ToDailyEntityId()
         => new(ContractId, TimePeriod, SignalEmaPeriod, FastEmaPeriod, SlowEmaPeriod);
-}
-
-/// <summary>
-/// Validation rules for <see cref="FuturesMacdSignalId"/>.
-/// </summary>
-public class FuturesMacdSignalIdValidationRules : BaseValidationRules, IValidationRules<FuturesMacdSignalId>
-{
-    public const string InstanceErrorMessage = "FuturesMacdSignalId instance is null";
-    public const string ContractIdErrorMessage = "FuturesMacdSignalId: ContractId is required";
-    public const string ValueDateMinErrorMessage = "FuturesMacdSignalId: ValueDate must be greater than DateOnly.MinValue";
-    public const string ValueDateMaxErrorMessage = "FuturesMacdSignalId: ValueDate must be less than DateOnly.MaxValue";
-    public const string TimestampMinErrorMessage = "FuturesMacdSignalId: Timestamp must be greater than TimeOnly.MinValue";
-    public const string TimestampMaxErrorMessage = "FuturesMacdSignalId: Timestamp must be less than TimeOnly.MaxValue";
-
-    static readonly FuturesMacdSignalIdValidator Validator = new();
-
-    public ValidationError[] Execute(FuturesMacdSignalId macdSignalId) => Validate(macdSignalId, Validator);
-
-    class FuturesMacdSignalIdValidator : AbstractValidator<FuturesMacdSignalId>
-    {
-        public FuturesMacdSignalIdValidator()
-        {
-            RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
-            RuleFor(x => x.ValueDate).NotEqual(DateOnly.MinValue).WithMessage(ValueDateMinErrorMessage);
-            RuleFor(x => x.ValueDate).NotEqual(DateOnly.MaxValue).WithMessage(ValueDateMaxErrorMessage);
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MinValue).WithMessage(TimestampMinErrorMessage);
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MaxValue).WithMessage(TimestampMaxErrorMessage);
-            RuleFor(x => x.SignalEmaPeriod).GreaterThan(0);
-            RuleFor(x => x.FastEmaPeriod).GreaterThan(0);
-            RuleFor(x => x.SlowEmaPeriod).GreaterThan(0);
-            RuleFor(x => x).Must(x => x.FastEmaPeriod < x.SlowEmaPeriod)
-                .WithMessage("FuturesMacdSignalId: FastEmaPeriod must be less than SlowEmaPeriod");
-        }
-
-        public override ValidationResult Validate(ValidationContext<FuturesMacdSignalId> context)
-        {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
-            {
-                var validationResult = new ValidationResult();
-                validationResult.Errors.Add(new ValidationFailure("FuturesMacdSignalId", InstanceErrorMessage));
-                return validationResult;
-            }
-            return base.Validate(context);
-        }
-    }
 }
 
 

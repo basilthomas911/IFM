@@ -11,6 +11,8 @@ public static class FuturesTickTradeDataChanged
     /// <summary>Converts and submits the normalized observation.</summary>
     public static async ValueTask ExecuteAsync(this FuturesTickTradeDataChangedEvent domainEvent, ITickAggregationRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         if (domainEvent.OptionMarketPriceObservation is { } observation)
         {
             await context.SendOptionTradeTickPriceDataUpdatedEventAsync(domainEvent, observation.OptionTickData).ConfigureAwait(false);

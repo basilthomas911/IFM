@@ -7,33 +7,38 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime;
-
 /// <summary>Handles one committed strategy-workflow snapshot.</summary>
 public static class WorkflowStrategyStateUpdated
 {
     /// <summary>Records observability and dispatches only work authorized by the committed state.</summary>
-    public static async ValueTask ExecuteAsync(
-        this WorkflowStrategyStateUpdatedEvent snapshot,
-        IntrinsicTimeStrategyWorkflowRealtimeActor actor,
-        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
+    public static async ValueTask ExecuteAsync(this WorkflowStrategyStateUpdatedEvent snapshot, IntrinsicTimeStrategyWorkflowRealtimeActor actor, IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         var logger = IntrinsicTimeStrategyWorkflowRealtimeActor.RequireEventContext(context).Logger;
-        IntrinsicTimeStrategyWorkflowLogging.RealtimeStateReceived(
-            logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
-            snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString());
+        if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Trace))
+        {
+            var loggingArgument1 = snapshot.WorkflowId.ToString();
+            var loggingArgument2 = snapshot.EntityId.Format();
+            var loggingArgument3 = snapshot.State.CurrentStage.ToString();
+            var loggingArgument4 = snapshot.State.Status.ToString();
+            IntrinsicTimeStrategyWorkflowLogging.RealtimeStateReceived(logger, snapshot.Id, loggingArgument1, loggingArgument2, snapshot.WorkflowRevision, loggingArgument3, loggingArgument4);
+        }
 
         if (snapshot.State.RiskExecution is not null && snapshot.State.TerminalAtUtc is not null)
             _ = RiskManager.Model.RiskLatency.RecordWorkflow(snapshot.State);
-
         if (snapshot.State.TerminalAtUtc is not null)
         {
             var stage = IntrinsicTimeStrategyWorkflowRealtimeActor.CurrentStageState(snapshot.State);
-            IntrinsicTimeStrategyWorkflowLogging.TerminalResult(
-                logger, snapshot.Id, snapshot.WorkflowId.ToString(), snapshot.EntityId.Format(),
-                snapshot.WorkflowRevision, snapshot.State.CurrentStage.ToString(), snapshot.State.Status.ToString(),
-                snapshot.State.Outcome.ToString(), stage.ContinuationDecision.ToString(), stage.ParameterSetId,
-                stage.ParameterSetVersion,
-                (snapshot.State.TerminalAtUtc.Value - snapshot.State.StartedAtUtc).TotalMilliseconds);
+            if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                var loggingArgument1 = snapshot.WorkflowId.ToString();
+                var loggingArgument2 = snapshot.EntityId.Format();
+                var loggingArgument3 = snapshot.State.CurrentStage.ToString();
+                var loggingArgument4 = snapshot.State.Status.ToString();
+                var loggingArgument5 = snapshot.State.Outcome.ToString();
+                var loggingArgument6 = stage.ContinuationDecision.ToString();
+                IntrinsicTimeStrategyWorkflowLogging.TerminalResult(logger, snapshot.Id, loggingArgument1, loggingArgument2, snapshot.WorkflowRevision, loggingArgument3, loggingArgument4, loggingArgument5, loggingArgument6, stage.ParameterSetId, stage.ParameterSetVersion, (snapshot.State.TerminalAtUtc.Value - snapshot.State.StartedAtUtc).TotalMilliseconds);
+            }
         }
 
         if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })

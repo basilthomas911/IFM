@@ -13,7 +13,7 @@ internal sealed class TickQuoteScyllaBindValue(FuturesTickQuoteDataSegment segme
 {
     PooledTickQuoteBuffer? _owner;
     int _resolved;
-    static readonly object Gate = new();
+    static readonly System.Threading.Lock Gate = new();
     static readonly object ValidatedMarker = new();
     static readonly ConditionalWeakTable<PreparedStatement, object> ValidatedStatements = new();
     static readonly (string Name, ColumnTypeCode Type)[] ExpectedFields =
@@ -65,12 +65,12 @@ internal sealed class TickQuoteScyllaBindValue(FuturesTickQuoteDataSegment segme
     static void Validate(ISession session, PreparedStatement statement)
     {
         var columns = statement.Variables.Columns;
-        if (columns.Length != 21 || columns[20].Name != "quote_data"
+        if (columns.Length != 21 || !string.Equals(columns[20].Name,"quote_data",StringComparison.Ordinal)
             || columns[20].TypeCode != ColumnTypeCode.List
             || columns[20].TypeInfo is not ListColumnInfo list
             || list.ValueTypeCode != ColumnTypeCode.Udt
             || list.ValueTypeInfo is not UdtColumnInfo udt
-            || udt.Name != session.Keyspace + ".tick_quote_item"
+            || !string.Equals(udt.Name,session.Keyspace + ".tick_quote_item",StringComparison.Ordinal)
             || udt.Fields.Count != ExpectedFields.Length)
             throw new InvalidOperationException("Prepared quote_data marker is not the expected frozen list of tick_quote_item UDT values.");
 
@@ -78,7 +78,7 @@ internal sealed class TickQuoteScyllaBindValue(FuturesTickQuoteDataSegment segme
         {
             var field = udt.Fields[index];
             var expected = ExpectedFields[index];
-            if (field.Name != expected.Name || field.TypeCode != expected.Type)
+            if (!string.Equals(field.Name,expected.Name,StringComparison.Ordinal) || field.TypeCode != expected.Type)
                 throw new InvalidOperationException(
                     $"tick_quote_item field {index} is {field.Name}/{field.TypeCode}; expected {expected.Name}/{expected.Type}.");
         }

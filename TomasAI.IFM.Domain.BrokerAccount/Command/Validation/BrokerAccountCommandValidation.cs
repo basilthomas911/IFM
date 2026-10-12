@@ -9,11 +9,15 @@ namespace TomasAI.IFM.Domain.BrokerAccount.Command.Validation;
 public static class BrokerAccountCommandValidation
 {
     /// <summary>Checks the command payload and its routing identity without throwing.</summary>
-    public static List<ValidationError> ValidateBrokerAccountCommand(this List<ValidationError> errors, ICommand<BrokerAccountId> command)
+    public static TErrors ValidateBrokerAccountCommand<TErrors>(this TErrors errors, ICommand<BrokerAccountId> command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
 
         if (command is RecordBrokerAccountSnapshotCommand snapshot && (snapshot.Snapshot is null || snapshot.Environment == Application.TradeBroker.Contracts.BrokerEnvironment.Unknown ||
-            snapshot.Snapshot.AccountAlias != command.EntityId.AccountAlias ||
+            !string.Equals(snapshot.Snapshot.AccountAlias,command.EntityId.AccountAlias,StringComparison.Ordinal) ||
             snapshot.Snapshot.Generation <= 0 || snapshot.Snapshot.AsOfUtc.Kind != DateTimeKind.Utc))
             errors.Add(new("A sourced UTC snapshot for the exact account is required."));
         if (command is SubmitAccountQualificationEvidenceCommand evidence && (string.IsNullOrWhiteSpace(evidence.ManifestHash) ||
@@ -42,7 +46,7 @@ public static class BrokerAccountCommandValidation
             if (!Enum.IsDefined(accountSnapshot.Environment)) errors.Add(new("BrokerAccount.Environment is invalid."));
         }
 
-        if (command.Subject.EntityId != command.EntityId.Format()) errors.Add(new("Subject.EntityId must match EntityId."));
+        if (!string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal)) errors.Add(new("Subject.EntityId must match EntityId."));
         return errors;
     }
 }

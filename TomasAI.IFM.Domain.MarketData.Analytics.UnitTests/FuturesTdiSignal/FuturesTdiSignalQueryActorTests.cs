@@ -63,6 +63,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(db);
         var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateActor(dbFactory, logger);
         var context = Substitute.For<IQueryActorContext<FuturesTdiSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
@@ -198,13 +199,13 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
         var expected = SampleData.TdiReadModelFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
         await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(
-            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId);
+            query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -221,7 +222,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(null));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
@@ -248,13 +249,13 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             contractId,
             valueDate,
             direction: FuturesTrendDirectionType.DownTrending);
-        scenario.Db.GetLastFuturesTdiSignalAsync(contractId, valueDate, query.TimePeriod, query.ConfigurationId)
+        scenario.Db.GetLastFuturesTdiSignalAsync(contractId, valueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns(Task.FromResult<FuturesTdiSignalReadModel?>(expected));
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
         await scenario.Db.Received(1).GetLastFuturesTdiSignalAsync(
-            contractId, valueDate, query.TimePeriod, query.ConfigurationId);
+            contractId, valueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesTdiSignalQuery.Verb,
@@ -268,7 +269,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     {
         var scenario = CreateScenario();
         var query = SampleData.TdiQueryFor(timePeriod);
-        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId)
+        scenario.Db.GetLastFuturesTdiSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.ConfigurationId, CancellationToken.None)
             .Returns<Task<FuturesTdiSignalReadModel?>>(_ =>
                 throw new InvalidOperationException($"{timePeriod} storage unavailable"));
 

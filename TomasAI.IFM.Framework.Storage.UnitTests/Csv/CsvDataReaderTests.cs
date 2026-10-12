@@ -663,7 +663,7 @@ public class CsvDataReaderTests
     // --- NextResult ---
 
     [Fact]
-    public void NextResult_ThrowsNotImplementedException()
+    public void NextResult_ThrowsNotSupportedException()
     {
         // Arrange
         var reader = CreateReaderWithData();
@@ -672,54 +672,54 @@ public class CsvDataReaderTests
         Action act = () => reader.NextResult();
 
         // Assert
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     // --- GetByte / GetBytes / GetChar / GetChars / GetData ---
 
     [Fact]
-    public void GetByte_ThrowsNotImplementedException()
+    public void GetByte_ThrowsNotSupportedException()
     {
         var reader = CreateReaderWithData();
         reader.Read();
         Action act = () => reader.GetByte(0);
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     [Fact]
-    public void GetBytes_ThrowsNotImplementedException()
+    public void GetBytes_ThrowsNotSupportedException()
     {
         var reader = CreateReaderWithData();
         reader.Read();
         Action act = () => reader.GetBytes(0, 0, null, 0, 0);
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     [Fact]
-    public void GetChar_ThrowsNotImplementedException()
+    public void GetChar_ThrowsNotSupportedException()
     {
         var reader = CreateReaderWithData();
         reader.Read();
         Action act = () => reader.GetChar(0);
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     [Fact]
-    public void GetChars_ThrowsNotImplementedException()
+    public void GetChars_ThrowsNotSupportedException()
     {
         var reader = CreateReaderWithData();
         reader.Read();
         Action act = () => reader.GetChars(0, 0, null, 0, 0);
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     [Fact]
-    public void GetData_ThrowsNotImplementedException()
+    public void GetData_ThrowsNotSupportedException()
     {
         var reader = CreateReaderWithData();
         reader.Read();
         Action act = () => reader.GetData(0);
-        act.Should().Throw<NotImplementedException>();
+        act.Should().Throw<NotSupportedException>();
     }
 
     // --- Quoted CSV values ---

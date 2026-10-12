@@ -29,5 +29,4 @@ public sealed class FuturesTickDataEventProjector(
                 }))
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

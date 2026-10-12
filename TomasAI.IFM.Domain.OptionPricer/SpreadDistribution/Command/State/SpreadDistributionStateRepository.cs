@@ -31,7 +31,8 @@ public class SpreadDistributionStateRepository(
     IDbContextFactory dbFactory,
     IActorService actorService,
     IEventProjector<SpreadDistributionCommandActor> eventProjector,
-    ILogger<SpreadDistributionStateRepository> logger)
+    ILogger<SpreadDistributionStateRepository> logger,
+    IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<SpreadDistributionCommandState>
 {
     /// <summary>
@@ -56,7 +57,33 @@ public class SpreadDistributionStateRepository(
        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, SpreadDistributionCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var database = dbFactory.OptionPricerDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Option-pricer sources and projections must share one PostgreSQL database/security identity.");
+        var owner = transactions ?? throw new InvalidOperationException("Option-pricer persistence requires the PostgreSQL event transaction service.");
+        var pending = new DomainEventCollection(state.Events);
+        await owner.ExecuteAsync(async (transaction,token) =>
+        {
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                await database.ProjectAcceptedEventAsync(transaction,source,token).ConfigureAwait(false);
+            }
+            return true;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the spread distribution query state

@@ -1,38 +1,19 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
-
-/// <summary>Calculates one pure Regime Discovery outcome from an immutable input.</summary>
-public interface IRegimeDiscoveryCalculationModel
-{
-    /// <summary>Calculates a result without owning or mutating durable actor state.</summary>
-    Task<RegimeDiscoveryResult> CalculateAsync(
-        RegimeDiscoveryCalculationInput input,
-        RegimeDiscoveryExecutionMode mode = RegimeDiscoveryExecutionMode.Sequential,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>Coordinates the three independent specialists and deterministic Fusion.</summary>
-public sealed class RegimeDiscoveryCalculationModel(
-    TrendRegimeCalculationModel? trendModel = null,
-    VolatilityRegimeCalculationModel? volatilityModel = null,
-    MarketStructureRegimeCalculationModel? marketStructureModel = null,
-    MarketRegimeFusionModel? fusionModel = null) : IRegimeDiscoveryCalculationModel
+public sealed class RegimeDiscoveryCalculationModel(TrendRegimeCalculationModel? trendModel = null, VolatilityRegimeCalculationModel? volatilityModel = null, MarketStructureRegimeCalculationModel? marketStructureModel = null, MarketRegimeFusionModel? fusionModel = null) : IRegimeDiscoveryCalculationModel
 {
     readonly TrendRegimeCalculationModel trend = trendModel ?? new();
     readonly VolatilityRegimeCalculationModel volatility = volatilityModel ?? new();
     readonly MarketStructureRegimeCalculationModel marketStructure = marketStructureModel ?? new();
     readonly MarketRegimeFusionModel fusion = fusionModel ?? new();
-
     /// <summary>Calculates one complete typed Regime Discovery result.</summary>
-    /// <param name="input">Complete immutable calculation input.</param>
-    /// <param name="mode">Specialist scheduling mode.</param>
-    /// <param name="cancellationToken">Signals cancellation before a terminal calculation is created.</param>
+    /// <param name = "input">Complete immutable calculation input.</param>
+    /// <param name = "mode">Specialist scheduling mode.</param>
+    /// <param name = "cancellationToken">Signals cancellation before a terminal calculation is created.</param>
     /// <returns>The complete typed result. Incomplete specialists produce an incomplete Fusion result.</returns>
-    public async Task<RegimeDiscoveryResult> CalculateAsync(
-        RegimeDiscoveryCalculationInput input,
-        RegimeDiscoveryExecutionMode mode = RegimeDiscoveryExecutionMode.Sequential,
-        CancellationToken cancellationToken = default)
+    public async Task<RegimeDiscoveryResult> CalculateAsync(RegimeDiscoveryCalculationInput input, RegimeDiscoveryExecutionMode mode = RegimeDiscoveryExecutionMode.Sequential, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         cancellationToken.ThrowIfCancellationRequested();
@@ -55,14 +36,11 @@ public sealed class RegimeDiscoveryCalculationModel(
             volatilityResult = volatility.Calculate(input);
             structureResult = marketStructure.Calculate(input);
         }
+
         cancellationToken.ThrowIfCancellationRequested();
-        var fusionResult = fusion.Calculate(trendResult, volatilityResult, structureResult,
-            input.ParameterSet.Fusion);
-        var evidence = RegimeDiscoveryMath.OrderEvidence(
-            trendResult.Evidence.Concat(volatilityResult.Evidence).Concat(structureResult.Evidence));
-        var reasons = RegimeDiscoveryMath.OrderReasons(
-            trendResult.Reasons.Concat(volatilityResult.Reasons)
-                .Concat(structureResult.Reasons).Concat(fusionResult.Reasons));
+        var fusionResult = fusion.Calculate(trendResult, volatilityResult, structureResult, input.ParameterSet.Fusion);
+        var evidence = RegimeDiscoveryMath.OrderEvidence(trendResult.Evidence.Concat(volatilityResult.Evidence).Concat(structureResult.Evidence));
+        var reasons = RegimeDiscoveryMath.OrderReasons(trendResult.Reasons.Concat(volatilityResult.Reasons).Concat(structureResult.Reasons).Concat(fusionResult.Reasons));
         return new RegimeDiscoveryResult
         {
             ResultId = input.ResultId,
@@ -89,15 +67,5 @@ public sealed class RegimeDiscoveryCalculationModel(
         };
     }
 
-    static string Summary(
-        RegimeDiscoveryCalculationInput input,
-        TrendRegimeResult trend,
-        VolatilityRegimeResult volatility,
-        MarketStructureRegimeResult structure,
-        RegimeDiscoveryDecision fusion) =>
-        fusion.IsComplete
-            ? $"{input.ParameterSet.TargetHorizon}: {fusion.Direction}; Trend={trend.Direction}/{trend.Phase}; " +
-              $"Volatility={volatility.Level}/{volatility.Change}; Structure={structure.Classification}; " +
-              $"Confidence={fusion.Confidence:F6}; Quality={fusion.Quality}"
-            : $"{input.ParameterSet.TargetHorizon}: Regime Discovery failed because one or more specialists were incomplete.";
+    static string Summary(RegimeDiscoveryCalculationInput input, TrendRegimeResult trend, VolatilityRegimeResult volatility, MarketStructureRegimeResult structure, RegimeDiscoveryDecision fusion) => fusion.IsComplete ? $"{input.ParameterSet.TargetHorizon}: {fusion.Direction}; Trend={trend.Direction}/{trend.Phase}; " + $"Volatility={volatility.Level}/{volatility.Change}; Structure={structure.Classification}; " + $"Confidence={fusion.Confidence:F6}; Quality={fusion.Quality}" : $"{input.ParameterSet.TargetHorizon}: Regime Discovery failed because one or more specialists were incomplete.";
 }

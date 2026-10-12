@@ -26,19 +26,16 @@ public sealed class ApplicationStartupStatusStore : IApplicationStartupStatusSto
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observed);
-        while (true)
-        {
-            var current = Current;
-            if (!ReferenceEquals(current, observed))
-                return current;
+        var current = Current;
+        if (!ReferenceEquals(current, observed))
+            return current;
 
-            var changed = Volatile.Read(ref _changed).Task;
-            current = Current;
-            if (!ReferenceEquals(current, observed))
-                return current;
+        var changed = Volatile.Read(ref _changed).Task;
+        current = Current;
+        if (!ReferenceEquals(current, observed))
+            return current;
 
-            return await changed.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
+        return await changed.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     static TaskCompletionSource<ApplicationStartupStatus> CreateChangeSignal() =>

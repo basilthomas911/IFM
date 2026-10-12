@@ -33,7 +33,9 @@ public record StopFuturesOptionTickDataStreamingCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>The futures option contract identifier associated with the streaming session.</summary>

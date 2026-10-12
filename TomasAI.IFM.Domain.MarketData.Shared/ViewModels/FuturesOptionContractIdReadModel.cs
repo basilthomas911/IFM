@@ -35,10 +35,11 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels
         /// <param name="contractId"></param>
         public FuturesOptionContractIdReadModel(string contractId)
         {
+            ArgumentNullException.ThrowIfNull(contractId);
             Symbol = contractId.Substring(0, 2);
-            ContractMonth = new DateOnly(int.Parse(contractId.Substring(2, 4)), int.Parse(contractId.Substring(6, 2)), int.Parse(contractId.Substring(8, 2)));
-            OptionType = contractId.Substring(10, 1) == "P" ? OptionType.Put : OptionType.Call;
-            StrikePrice = Double.Parse(contractId.Substring(11, 4));
+            ContractMonth = new DateOnly(int.Parse(contractId.AsSpan(2, 4), System.Globalization.CultureInfo.InvariantCulture), int.Parse(contractId.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture), int.Parse(contractId.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture));
+            OptionType = string.Equals(contractId.Substring(10, 1),"P",StringComparison.Ordinal) ? OptionType.Put : OptionType.Call;
+            StrikePrice = double.Parse(contractId.AsSpan(11, 4), System.Globalization.CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -61,7 +62,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels
         /// </summary>
         public double StrikePrice { get; }
 
-        public override string ToString() => $"{Symbol}{ContractMonth:yyyyMMdd}{OptionType.ToString().ToUpper().Substring(0, 1)}{StrikePrice:F0}";
+        public override string ToString() => $"{Symbol}{ContractMonth:yyyyMMdd}{OptionType.ToString().ToUpperInvariant().Substring(0, 1)}{StrikePrice:F0}";
 
     }
 }

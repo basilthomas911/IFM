@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 /// <summary>Authors explicit engineering hypotheses for reviewed publication; never runs as a startup seed or fallback.</summary>
 public static class CompositionDefaultProfiles
 {
+    static readonly decimal[] DefaultWingWidths = [5m, 10m, 15m, 20m, 50m];
     public static OrderCompositionRules Create(IEnumerable<StrategyCatalogDefinition> variants, TimeFrameType horizon, string pricerVersion)
     {
         var rules = new OrderCompositionRules
@@ -26,7 +27,7 @@ public static class CompositionDefaultProfiles
                 BaseParameters = Parameters(horizon) with
                 { TargetNetDelta = v.Settings.GetProperty("TargetNetDelta").GetDecimal(), BalanceTolerance = v.Settings.GetProperty("BalanceTolerance").GetDecimal() },
                 AllowedWidths = v.Settings.GetProperty("MaximumWingWidth").GetDecimal() == 0 ? [] :
-                    new[] { 5m, 10m, 15m, 20m, 50m }.Where(w => w >= v.Settings.GetProperty("MinimumWingWidth").GetDecimal()
+                    DefaultWingWidths.Where(w => w >= v.Settings.GetProperty("MinimumWingWidth").GetDecimal()
                         && w <= v.Settings.GetProperty("MaximumWingWidth").GetDecimal()).ToImmutableArray(),
                 RequireSymmetricWings = v.Settings.GetProperty("SymmetricWings").GetBoolean(),
                 DeltaUnits = "UnderlyingEquivalent",
@@ -50,7 +51,7 @@ public static class CompositionDefaultProfiles
         MaximumUnderlyingSpreadTicks = 4,
         MaximumLegSpreadTicks = 8,
         MaximumComboSpreadTicks = 16,
-        TargetDaysToExpiry = horizon switch { TimeFrameType.Daily => 30, TimeFrameType.Weekly => 45, TimeFrameType.Monthly => 60, _ => throw new ArgumentException("Unsupported horizon.") },
+        TargetDaysToExpiry = horizon switch { TimeFrameType.Daily => 30, TimeFrameType.Weekly => 45, TimeFrameType.Monthly => 60, _ => throw new ArgumentException("Unsupported horizon.",nameof(horizon)) },
         MinimumDaysToExpiry = horizon switch { TimeFrameType.Daily => 7, TimeFrameType.Weekly => 14, _ => 21 },
         MaximumDaysToExpiry = horizon switch { TimeFrameType.Daily => 60, TimeFrameType.Weekly => 90, _ => 120 },
         TargetLegDelta = .35m,

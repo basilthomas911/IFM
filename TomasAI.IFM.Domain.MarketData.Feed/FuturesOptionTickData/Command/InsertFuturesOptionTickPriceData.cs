@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
@@ -16,6 +16,8 @@ public static class InsertFuturesOptionTickPriceData
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this InsertFuturesOptionTickPriceDataCommand command, FuturesOptionTickDataCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FuturesOptionTickPriceDataInsertedEvent";
         var updated = command.Compute(out var futuresOptionTickPriceDataInsertion) switch
         {

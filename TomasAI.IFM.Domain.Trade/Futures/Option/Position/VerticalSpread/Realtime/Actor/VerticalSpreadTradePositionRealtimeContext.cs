@@ -5,21 +5,10 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Realtime.Actor;
-
-public interface IVerticalSpreadTradePositionRealtimeContext : IRealtimeActorContext<VerticalSpreadTradePositionRealtimeActor>
+public sealed class VerticalSpreadTradePositionRealtimeContext : EventActorContext, IVerticalSpreadTradePositionRealtimeContext
 {
-    TimeProvider TimeProvider { get; }
-    TradePlanParameters Parameters { get; }
-    ILogger<VerticalSpreadTradePositionRealtimeActor> Logger { get; }
-}
-
-public sealed class VerticalSpreadTradePositionRealtimeContext : EventActorContext,
-    IRealtimeActorContext<VerticalSpreadTradePositionRealtimeActor>, IVerticalSpreadTradePositionRealtimeContext
-{
-    public VerticalSpreadTradePositionRealtimeContext(IActorSupervisor supervisor,
-        ILogger<VerticalSpreadTradePositionRealtimeActor> logger)
-        : base(supervisor, new(ActorType.Realtime, VerticalSpreadTradePositionRealtimeActor.ActorName)) => Logger = logger;
-
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public VerticalSpreadTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePositionRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, VerticalSpreadTradePositionRealtimeActor.ActorName)) => Logger = logger;
     public TimeProvider TimeProvider { get; } = TimeProvider.System;
     public TradePlanParameters Parameters { get; } = new();
     public ILogger<VerticalSpreadTradePositionRealtimeActor> Logger { get; }

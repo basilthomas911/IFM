@@ -28,8 +28,8 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBytes);
-        if (maximumAge <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(maximumAge));
-        if (shutdownTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(shutdownTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maximumAge, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(shutdownTimeout, TimeSpan.Zero);
         _commit = commit ?? throw new ArgumentNullException(nameof(commit));
         _maximumItems = maximumItems;
         _maximumBytes = maximumBytes;
@@ -65,6 +65,7 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
         await barrier.Completion.Task.ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async Task ConsumeAsync(CancellationToken cancellationToken)
     {
         Submission? carry = null;
@@ -102,7 +103,7 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
                     var completed = await Task.WhenAny(available, deadline).ConfigureAwait(false);
                     if (completed == deadline || !await available.ConfigureAwait(false)) break;
                 }
-                stopDeadline.Cancel();
+                await stopDeadline.CancelAsync().ConfigureAwait(false);
                 await CommitAsync(batch, cancellationToken).ConfigureAwait(false);
                 if (carry is { IsBarrier: true })
                 {
@@ -121,6 +122,7 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async ValueTask CommitAsync(IReadOnlyList<Submission> submissions, CancellationToken cancellationToken)
     {
         try
@@ -147,8 +149,8 @@ public sealed class DurableWindowBuffer<T> : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _channel.Writer.TryComplete();
         if (await Task.WhenAny(_consumer, Task.Delay(_shutdownTimeout)).ConfigureAwait(false) != _consumer)
-            _lifetime.Cancel();
-        try { await _consumer.ConfigureAwait(false); } catch (OperationCanceledException) { }
+            await _lifetime.CancelAsync().ConfigureAwait(false);
+        try { await _consumer.ConfigureAwait(false); } catch (OperationCanceledException) { /* Cancellation is the expected shutdown/retirement outcome. */  }
         _lifetime.Dispose();
     }
 

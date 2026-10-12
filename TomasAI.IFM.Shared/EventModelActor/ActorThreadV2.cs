@@ -70,9 +70,12 @@ sealed class ActorThreadV2(
 
         var pending = actor.Mailbox.ThreadQueues.TryAdmitAsync(message, subject, cancellationToken);
         if (pending.IsCompletedSuccessfully)
-            return pending.Result.Accepted
+        {
+            var result = pending.Result;
+            return result.Accepted
                 ? ValueTask.CompletedTask
-                : ValueTask.FromException(CreateAdmissionException(pending.Result));
+                : ValueTask.FromException(CreateAdmissionException(result));
+        }
         return AwaitWrite(pending);
     }
 
@@ -138,6 +141,7 @@ sealed class ActorThreadV2(
             exception?.Message ?? string.Empty);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async Task ProcessReadyMailboxesAsync()
     {
         var cancellationToken = _cts.Token;
@@ -169,7 +173,7 @@ sealed class ActorThreadV2(
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
         catch (Exception exception)
         {
@@ -184,6 +188,10 @@ sealed class ActorThreadV2(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "The mailbox worker disposes messages and admission/cancellation resources on completion, or transfers them to the detached-handler observer, verified by retirement tests.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2025", Justification = "Detached work explicitly transfers cancellation and admission resource ownership to an observer that disposes them after task completion; recovery does not wait for a handler.")]
     async ValueTask ProcessMailboxAsync(ActorThreadId threadId, CancellationToken cancellationToken)
     {
         if (!_supervisor.Children.TryGetValue(threadId.MailboxId, out var actor)
@@ -203,9 +211,10 @@ sealed class ActorThreadV2(
         }
         var generation = RealtimeActorResetPolicy.CanReplace(actor.GetType(), threadId.ActorType)
             ? (actor as IReplaceableRealtimeActor)?.RealtimeGeneration : null;
-        using var executionCancellation = generation is null ? null
+        var executionCancellation = generation is null ? null
             : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Token);
         var handlerToken = executionCancellation?.Token ?? cancellationToken;
+        var cancellationTransferred = false;
         Id = threadId;
         try
         {
@@ -242,7 +251,7 @@ sealed class ActorThreadV2(
                             || _realtimeSourceAdmission?.TryEnter(message!.SourceSubject,
                                 message.SourceDataset, message.SourceGenerationId,
                                 out generationLease) != false;
-                        using (generationLease)
+                        try
                         {
                             if (admitted)
                             {
@@ -255,7 +264,9 @@ sealed class ActorThreadV2(
                                 catch (OperationCanceledException) when (generation is not null && handlerToken.IsCancellationRequested && !handling.IsCompleted)
                                 {
                                     deferredCleanup = true;
-                                    _ = ObserveRetiredHandlerAsync(handling, message!);
+                                    // The detached handler owns its resources until it actually finishes.
+                                    cancellationTransferred = true;
+                                    _ = ObserveRetiredHandlerAsync(handling, message!, executionCancellation, generationLease);
                                     throw;
                                 }
                                 ActorRuntimeMetrics.RecordProcessed(threadId.ActorType);
@@ -267,6 +278,10 @@ sealed class ActorThreadV2(
                                 deliverySucceeded = true;
                                 mailboxMetrics?.RecordCancelled();
                             }
+                        }
+                        finally
+                        {
+                            if (!deferredCleanup) generationLease?.Dispose();
                         }
                     }
                     catch (OperationCanceledException) when (handlerToken.IsCancellationRequested)
@@ -333,7 +348,6 @@ sealed class ActorThreadV2(
                             if (!informationEntryLogged)
                             {
                                 ActorMessageProcessingLog.Entry(_logger, threadId, verb, message!.Subject, nameof(ProcessMailboxAsync));
-                                informationEntryLogged = true;
                             }
                             _supervisor.RuntimeContext?.RecordFailure(
                                 threadId.MailboxId, threadId, message?.Subject.Verb ?? string.Empty,
@@ -343,12 +357,12 @@ sealed class ActorThreadV2(
                                 "Actor message disposal failed after processing completed.");
                         }
                         // Observe only after handler, delivery acknowledgement, and cleanup have succeeded.
-                        if (outcome == "Succeeded" && threadId.ActorType == ActorType.Realtime)
+                        if (string.Equals(outcome, "Succeeded", StringComparison.Ordinal) && threadId.ActorType == ActorType.Realtime)
                             _realtimeCompletionEvidence?.Record(message?.SourceDataset,
                                 message?.SourceGenerationId ?? Guid.Empty, message!.Subject);
                         _metricsState.RecordMessageCompleted();
                         ActorRuntimeMetrics.RecordHandler(handlerStarted, threadId.ActorType);
-                        if (!suppressRoutineInformation || outcome != "Succeeded")
+                        if (!suppressRoutineInformation || !string.Equals(outcome, "Succeeded", StringComparison.Ordinal))
                             ActorMessageProcessingLog.Exit(_logger, threadId, verb, outcome, loggingStarted, message!.Subject, nameof(ProcessMailboxAsync));
                     }
 
@@ -370,7 +384,7 @@ sealed class ActorThreadV2(
 
                 if (!_readyQueue.IsCompleted || cancellationToken.IsCancellationRequested)
                 {
-                    _logger.LogError("Unable to reschedule actor mailbox {ThreadId}.", threadId);
+                    SharedActorDiagnosticLog.Write26(_logger, null, threadId);
                     return;
                 }
 
@@ -392,22 +406,32 @@ sealed class ActorThreadV2(
                 actor.Mailbox.ThreadQueues.ReleaseThreadQueue(threadId);
             throw;
         }
-        finally { ReleaseOwnership(); }
+        finally
+        {
+            ReleaseOwnership();
+            if (!cancellationTransferred) executionCancellation?.Dispose();
+        }
     }
 
-    async Task ObserveRetiredHandlerAsync(Task handler, IActorMessage message)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    async Task ObserveRetiredHandlerAsync(Task handler, IActorMessage message,
+        CancellationTokenSource? executionCancellation, IDisposable? generationLease)
     {
         try { await handler.ConfigureAwait(false); }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { /* Cancellation is the expected shutdown/retirement outcome. */  }
         catch (Exception error)
         {
-            _logger.LogWarning(error, "Retired realtime handler completed with an error; Method={Method}; Subject={Subject}",
-                nameof(ObserveRetiredHandlerAsync), message.Subject);
+            SharedActorDiagnosticLog.Write25(_logger, error, nameof(ObserveRetiredHandlerAsync), message.Subject);
         }
         finally
         {
             try { message.Dispose(); }
-            catch (Exception error) { _logger.LogWarning(error, "Retired realtime payload cleanup failed."); }
+            catch (Exception error) { SharedActorDiagnosticLog.Write24(_logger, error); }
+            finally
+            {
+                try { generationLease?.Dispose(); }
+                finally { executionCancellation?.Dispose(); }
+            }
         }
     }
 
@@ -424,7 +448,7 @@ sealed class ActorThreadV2(
                 await _processingTask.ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (_cts.IsCancellationRequested)
-            {
+            { /* Cancellation is the expected shutdown/retirement outcome. */ 
             }
         }
         _cts.Dispose();

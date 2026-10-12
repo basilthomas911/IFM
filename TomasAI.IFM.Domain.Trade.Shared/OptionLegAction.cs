@@ -4,19 +4,10 @@ using System.Text;
 
 namespace TomasAI.IFM.Domain.Trade.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1720", Justification = "Preserve the existing serialized contract name describing the model value type.")]
     public enum OptionLegAction
     {
         Short,
         Long
-    }
-
-    public static class OptionLegActionExtensions
-    {
-        public static string ToStringFast(this OptionLegAction value) => value switch
-        {
-            OptionLegAction.Short => nameof(OptionLegAction.Short),
-            OptionLegAction.Long => nameof(OptionLegAction.Long),
-            _ => value.ToString()
-        };
     }
 }

@@ -17,6 +17,8 @@ public static class AddYieldCurveRate
     /// <returns>The command ID on success, or the guarded/application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this AddYieldCurveRateCommand command, YieldCurveRateCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "YieldCurveRate.STATE.APPLY_FAILED";
         var computed = command.Compute(out var yieldCurveRate);
         var updated = computed switch

@@ -20,7 +20,9 @@ public sealed class OrderCompositionFunctionActor(IOrderCompositionFunctionConte
         OrderCompositionExecutionId, IntrinsicTimeStrategyWorkflowEntityId, OrderCompositionFunctionState,
         OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>(
             actorContext ?? throw new ArgumentNullException(nameof(actorContext)),
-            actorContext.StateRepository, actorContext.FunctionProjector, actorContext.Logger)
+            actorContext.StateRepository,
+            actorContext.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+                ? null : actorContext.FunctionProjector, actorContext.Logger)
 {
     readonly IOrderCompositionFunctionContext _context = actorContext;
 
@@ -67,7 +69,11 @@ public sealed class OrderCompositionFunctionActor(IOrderCompositionFunctionConte
 
     /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteOrderCompositionPipelineCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+    {
+        var policy=DispatchMappedExecutionPolicy(request,stage,_context,_executionPolicyMap);
+        return _context.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+            ? new FunctionExecutionPolicy(policy.Clock,policy.DeadlineUtc,FunctionCompletionMode.AtomicBusinessAndEvent) : policy;
+    }
 
     protected override ExecuteOrderCompositionPipelineCommand ParseMessage(
         IFunctionActorContext<OrderCompositionFunctionActor> context, IActorMessage message)

@@ -8,21 +8,6 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 
-/// <summary>Published global scope, resolved outside workflow handling. Identity pins the complete reviewed universe.</summary>
-public sealed record PreparedOptionUniverse(string ScopeId, string ConfigurationDigest,
-    CompositionMarketDataPlan MarketData, ImmutableArray<string> Horizons)
-{
-    /// <summary>Exact published global policy; null is reserved for explicit reviewed legacy universes.</summary>
-    public StrategyOptionChainParameterSet? Parameters { get; init; }
-}
-
-/// <summary>Loads published strategy universes from persisted projections on the background path only.</summary>
-public interface IOptionUniverseSource
-{
-    /// <summary>Returns the bounded published union for the admitted operational value date.</summary>
-    Task<ImmutableArray<PreparedOptionUniverse>> LoadAsync(DateOnly valueDate, CancellationToken cancellationToken);
-}
-
 /// <summary>Maintains independent strategy leases and prepared valuations. Consumers never call this service.</summary>
 public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes, QualifiedCompositionDiscovery discovery,
     ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, IOptionChainSnapshotPublisher publisher,
@@ -42,6 +27,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
     public static string ScopeId(CompositionMarketDataPlan plan, string horizon) => PricingSemanticHash.Compute(new { Plan = plan, Horizon = horizon });
 
     /// <summary>Runs one bounded maintenance cycle. This entry point also supports integration verification.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task MaintainAsync(CancellationToken token)
     {
         if (!admissions.TryGet("GLBX.MDP3", out var admission))
@@ -64,7 +50,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
             nextPolicyRead = clock.GetUtcNow().AddSeconds(30);
             publishedPlans = await universes.LoadAsync(admission.ValueDate, token).ConfigureAwait(false);
         }
-        var plans = publishedPlans;
+        var plans = CoalesceCoverage(publishedPlans);
         if (plans.IsDefault || plans.Length > 128) throw new InvalidDataException("Global option universe exceeds the configured scope capacity.");
         var desiredLookups = plans.SelectMany(u => u.Horizons.SelectMany(h => u.Parameters is null ? new[] { ScopeId(u.MarketData, h) }
             : u.Parameters.BiasRows.Where(b => b.Enabled).Select(b => StrategyOptionChainScope.Key(u.Parameters.ParameterSetId,
@@ -78,7 +64,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
         {
             token.ThrowIfCancellationRequested();
             var plan = universe.MarketData;
-            if (plan.Dataset != "GLBX.MDP3" || !plan.IncludeOptions || !plan.ScopeComplete || plan.ValueDate != admission.ValueDate
+            if (!string.Equals(plan.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !plan.IncludeOptions || !plan.ScopeComplete || plan.ValueDate != admission.ValueDate
                 || plan.Calendar is null || plan.Publication is null || plan.Conversion is null || !plan.Futures.IsEmpty
                 || universe.Horizons.IsDefaultOrEmpty || universe.Horizons.Length > 3 || plan.Options.IsDefault || plan.Options.Length > 2048
                 || universe.Horizons.Any(x => x is not ("Daily" or "Weekly" or "Monthly")))
@@ -154,6 +140,26 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
         }
     }
 
+    /// <summary>Batches overlapping policies for the same exact expiry and pricing context into one discovery scope.</summary>
+    public static ImmutableArray<PreparedOptionUniverse> CoalesceCoverage(ImmutableArray<PreparedOptionUniverse> plans)
+    {
+        if (plans.IsDefault) return plans;
+        var result = ImmutableArray.CreateBuilder<PreparedOptionUniverse>();
+        foreach (var group in plans.GroupBy(x => PricingSemanticHash.Compute(new { Plan = x.MarketData with { Options = [] },
+            Underlyings = x.MarketData.Options.Select(option => option.Definition.Underlying).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() })))
+        {
+            // Historical unparameterized lookups use the original plan digest as their public key.
+            if (group.Any(x => x.Parameters is null)) { result.AddRange(group); continue; }
+            var options = group.SelectMany(x => x.MarketData.Options).GroupBy(x => x.ContractId)
+                .Select(x => x.Distinct().Count() == 1 ? x.First() : throw new InvalidDataException("Conflicting option definitions in background coverage batch."))
+                .OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray();
+            if (options.Length > 2048) throw new InvalidDataException("Batched option coverage exceeds the worker capacity.");
+            foreach (var universe in group)
+                result.Add(universe with { MarketData = universe.MarketData with { Options = options } });
+        }
+        return result.ToImmutable();
+    }
+
     static DateTimeOffset MinimumExpiry(CompositionMarketInstrument row)
     {
         var context = row.Pricing!;
@@ -170,10 +176,10 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
 
     void Report(string scope, string reason)
     {
-        if (lastFailures.GetValueOrDefault(scope) == reason) return;
+        if (string.Equals(lastFailures.GetValueOrDefault(scope),reason,StringComparison.Ordinal)) return;
         if (lastFailures.Count >= 512) lastFailures.Clear();
         lastFailures[scope] = reason;
-        logger.LogInformation("Strategy option cache unavailable: ScopeId={ScopeId}, GenerationId={GenerationId}, Reason={Reason}", scope, generation, reason);
+        ApplicationDiagnosticLog.Write15(logger, null, scope, generation, reason);
     }
 
     async Task ReleaseAllAsync(CancellationToken token)
@@ -187,6 +193,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
     }
 
     /// <summary>Publishes every 250 ms; all provider waits occur on this hosted background task.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250), clock);
@@ -198,18 +205,18 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Strategy option cache maintenance failed; GenerationId={GenerationId}", generation);
+                    ApplicationDiagnosticLog.Write16(logger, ex, generation);
                     await Task.Delay(TimeSpan.FromSeconds(5), clock, stoppingToken).ConfigureAwait(false);
                 }
             } while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         finally
         {
             publisher.Fence(generation);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             try { await ReleaseAllAsync(timeout.Token).ConfigureAwait(false); }
-            catch (Exception ex) { logger.LogWarning(ex, "Strategy option cache lease release failed during shutdown"); }
+            catch (Exception ex) { ApplicationDiagnosticLog.Write17(logger, ex); }
         }
     }
 }

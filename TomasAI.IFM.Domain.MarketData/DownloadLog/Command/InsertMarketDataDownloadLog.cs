@@ -16,6 +16,8 @@ public static class InsertMarketDataDownloadLog
     /// <exception cref="ArgumentException">The command identity, route or hash does not match its outcome.</exception>
     public static ServiceResult<GuidResult> Execute(this InsertMarketDataDownloadLogCommand command, DownloadLogCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "DownloadLog.STATE.APPLY_FAILED";
         var computed = command.Compute(out var downloadLogEntry);
         if (computed && downloadLogEntry.Matches(state.Outcome, state.PayloadSha256))

@@ -5,24 +5,10 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
-
-public interface IFuturesOptionRealtimeContext : IRealtimeActorContext<FuturesOptionRealtimeActor>
+public sealed class FuturesOptionRealtimeContext : EventActorContext, IFuturesOptionRealtimeContext
 {
-    IDbContextFactory DbFactory { get; }
-    IActorService ActorService { get; }
-    ContractIdRouteIndex RouteIndex { get; }
-    ILogger<FuturesOptionRealtimeActor> Logger { get; }
-}
-
-public sealed class FuturesOptionRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesOptionRealtimeActor>, IFuturesOptionRealtimeContext
-{
-    public FuturesOptionRealtimeContext(
-        IActorSupervisor supervisor,
-        IDbContextFactory dbFactory,
-        IActorService actorService,
-        ILogger<FuturesOptionRealtimeActor> logger)
-        : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesOptionRealtimeActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public FuturesOptionRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IActorService actorService, ILogger<FuturesOptionRealtimeActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesOptionRealtimeActor.ActorName))
     {
         DbFactory = dbFactory;
         ActorService = actorService;

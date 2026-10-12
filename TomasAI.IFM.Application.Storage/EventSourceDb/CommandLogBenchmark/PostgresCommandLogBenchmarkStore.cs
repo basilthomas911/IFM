@@ -59,7 +59,8 @@ public sealed class PostgresCommandLogBenchmarkStore(
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
 
-    readonly record struct InsertParameters(CommandLogBenchmarkEntry Entry) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct InsertParameters(CommandLogBenchmarkEntry Entry) : IBindValue
     {
         public object Bind() => Values(
             Uuid(Entry.CommandId),
@@ -71,7 +72,8 @@ public sealed class PostgresCommandLogBenchmarkStore(
             Text(Entry.JsonCommandData));
     }
 
-    readonly record struct CommandIdParameter(Guid CommandId) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct CommandIdParameter(Guid CommandId) : IBindValue
     {
         public object Bind() => Values(Uuid(CommandId));
     }

@@ -26,7 +26,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeHistoryQuery.Actor, GetTradeHistoryQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradeHistoryQuery, TradeHistoryReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetTradeHistoryQuery, TradeHistoryReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -39,7 +39,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionLegContractIdsQuery.Actor, GetOptionLegContractIdsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionLegContractIdsQuery, string[]>(query.Subject, query);
+        return await (RequestAsync<GetOptionLegContractIdsQuery, string[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeLimitQuery.Actor, GetTradeLimitQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradeLimitQuery, TradeLimitReadModel>(query.Subject, query);
+        return await (RequestAsync<GetTradeLimitQuery, TradeLimitReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeTypeLimitQuery.Actor, GetTradeTypeLimitQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradeTypeLimitQuery, TradeTypeLimitReadModel>(query.Subject, query);
+        return await (RequestAsync<GetTradeTypeLimitQuery, TradeTypeLimitReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -78,7 +78,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeQuantityQuery.Actor, GetTradeQuantityQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradeQuantityQuery, ScalarReadModel<int>>(query.Subject, query);
+        return await (RequestAsync<GetTradeQuantityQuery, ScalarReadModel<int>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionTradeQuery.Actor, GetOptionTradeQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionTradeQuery, OptionTradeReadModel>(query.Subject, query);
+        return await (RequestAsync<GetOptionTradeQuery, OptionTradeReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionTradeSpreadDataQuery.Actor, GetOptionTradeSpreadDataQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionTradeSpreadDataQuery, OptionTradeSpreadsDataModel>(query.Subject, query);
+        return await (RequestAsync<GetOptionTradeSpreadDataQuery, OptionTradeSpreadsDataModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionTradeSpreadBarDataQuery.Actor, GetOptionTradeSpreadBarDataQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionTradeSpreadBarDataQuery, OptionTradeSpreadBarsDataModel[]>(query.Subject, query);
+        return await (RequestAsync<GetOptionTradeSpreadBarDataQuery, OptionTradeSpreadBarsDataModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -130,7 +130,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionTradesQuery.Actor, GetOptionTradesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionTradesQuery, OptionTradeReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetOptionTradesQuery, OptionTradeReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePositionsQuery.Actor, GetTradePositionsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePositionsQuery, TradePositionReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetTradePositionsQuery, TradePositionReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -156,7 +156,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePositionQuery.Actor, GetTradePositionQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePositionQuery, TradePositionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetTradePositionQuery, TradePositionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -169,7 +169,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetIronCondorTradePriceQuery.Actor, GetIronCondorTradePriceQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetIronCondorTradePriceQuery, TradePriceReadModel>(query.Subject, query);
+        return await (RequestAsync<GetIronCondorTradePriceQuery, TradePriceReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -182,7 +182,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlanActionQuery.Actor, GetTradePlanActionQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePlanActionQuery, TradePlanActionReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetTradePlanActionQuery, TradePlanActionReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePositionTradeTypesQuery.Actor, GetTradePositionTradeTypesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePositionTradeTypesQuery, string[]>(query.Subject, query);
+        return await (RequestAsync<GetTradePositionTradeTypesQuery, string[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -208,6 +208,6 @@ public class OptionTradeQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetIronCondorMDILimitQuery.Actor, GetIronCondorMDILimitQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>(query.Subject, query);
+        return await (RequestAsync<GetIronCondorMDILimitQuery, IronCondorMDILimitDataModel>(query.Subject, query)).ConfigureAwait(false);
     }
 }

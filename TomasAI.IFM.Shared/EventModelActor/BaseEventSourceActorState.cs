@@ -23,6 +23,14 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     public bool Updated { get; private set; }
     public long CommittedStreamVersion { get; private set; }
 
+    /// <summary>Retains committed stream metadata independently of the filtered business-state window.</summary>
+    public void RestoreCommittedStreamVersion(long version)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(version);
+        if (_domainEvents.Count != 0) throw new InvalidOperationException("Cannot restore stream metadata with pending changes.");
+        CommittedStreamVersion = Math.Max(CommittedStreamVersion, version);
+    }
+
     /// <summary>Clears events already applied to this live state after their durable commit succeeds.</summary>
     public void AcceptChanges()
     {
@@ -84,16 +92,16 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// <summary>
     /// Replays a sequence of domain events to reconstruct the current state.
     /// </summary>
-    /// <remarks>If <paramref name="eventStream"/> is <see langword="null"/>, the method returns without
+    /// <remarks>If <paramref name="domainEvents"/> is <see langword="null"/>, the method returns without
     /// making any changes. The method initializes the state before processing the events and resets the domain events
     /// and update status after replaying.</remarks>
-    /// <param name="eventStream">The sequence of events to replay. Each event in the sequence is converted to a domain event and applied to the
+    /// <param name="domainEvents">The sequence of events to replay. Each event in the sequence is converted to a domain event and applied to the
     /// current state.</param>
-    public void ReplayEvents(IEnumerable<EventStreamReadModel> eventStream)
+    public void ReplayEvents(IEnumerable<EventStreamReadModel> domainEvents)
     {
-        if (eventStream is null)
+        if (domainEvents is null)
             return;
-        foreach (var e in eventStream)
+        foreach (var e in domainEvents)
         {
             if (e is not null && e.ToDomainEvent() is IEvent @event)
             {
@@ -111,17 +119,14 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// <remarks>This method processes each event in the provided sequence to rebuild the state of the domain.
     /// Events that are <see langword="null"/> are ignored. After replaying the events, the state is marked as not
     /// updated.</remarks>
-    /// <param name="eventStream">The sequence of events to replay. If <see langword="null"/>, no action is taken.</param>
+    /// <param name="domainEvents">The sequence of events to replay. If <see langword="null"/>, no action is taken.</param>
     public void ReplayEvents(IEnumerable<IEvent> eventStream)
     {
         _domainEvents = [];
         if (eventStream is null)
             return;
-        foreach (var @event in eventStream)
-        {
-            if (@event is not null)
-                Apply(@event, false);
-        }
+        foreach (var @event in eventStream.Where(@event => @event is not null))
+            Apply(@event, false);
         Updated = false;
     }
 
@@ -139,7 +144,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     public bool Apply<TEvent>(TEvent? domainEvent, bool addEvent = true) where TEvent : IEvent
     {
         var eventApplied = false;
-        if (domainEvent is not null and IEvent @event)
+        if (domainEvent is IEvent @event)
         {
             eventApplied = Apply(@event);
             if (eventApplied && addEvent)
@@ -163,6 +168,7 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     public bool Update(IEvent domainEvent, ICommand command, bool addEvent = true)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (domainEvent is not null)
         {
             EventInitHelper.SetProperty(domainEvent, nameof(IEvent.CommandId), command.CommandId);
@@ -178,8 +184,6 @@ public abstract class BaseEventSourceActorState<TState> : IEventSourceActorState
     /// <param name="addEvent">true to add the event to the event history; otherwise, false. The default is true.</param>
     /// <returns>true if the event was successfully applied; otherwise, false.</returns>
     public bool Update(IEvent domainEvent, bool addEvent = true)
-        => domainEvent is not null
-            ? Apply(domainEvent, addEvent)
-            : false;
+        => domainEvent is not null && Apply(domainEvent, addEvent);
 
 }

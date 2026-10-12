@@ -23,8 +23,7 @@ public static class SpreadDistributionJobSubmitted
     {
         ServiceId = LogSourceType.SpreadDistributionJobEvent.ToStringFast();
     }
-    static string ServiceId { get; } = default!;
-
+    static string ServiceId { get; } 
     /// <summary>
     /// Executes the logic for handling a spread distribution job submission event asynchronously and writes status
     /// </summary>
@@ -41,6 +40,8 @@ public static class SpreadDistributionJobSubmitted
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<SpreadDistributionJobEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
         var jobService = e.GetSpreadDistributionJobService(context, tradeCommandApi);
         var serviceResult = await jobService.ExecuteAsync().ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)

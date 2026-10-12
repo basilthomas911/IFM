@@ -10,21 +10,6 @@ using Npgsql;
 
 namespace TomasAI.IFM.Framework.Storage;
 
-internal enum DatabaseProvider
-{
-    Postgres,
-    ScyllaDb
-}
-internal enum DatabaseRuntimeEnvironment
-{
-    Development,
-    Test,
-    Staging,
-    Production
-}
-
-internal readonly record struct DatabaseCredentials(string UserId, string Password);
-
 internal static class DatabaseCredentialResolver
 {
     const string DotNetEnvironment = "DOTNET_ENVIRONMENT";
@@ -56,10 +41,10 @@ internal static class DatabaseCredentialResolver
 
         var cached = CredentialCache.AddOrUpdate(
             variableName,
-            _ => new CachedCredential(json, Parse(variableName, json)),
-            (_, existing) => string.Equals(existing.Json, json, StringComparison.Ordinal)
+            key => new CachedCredential(json, Parse(key, json)),
+            (key, existing) => string.Equals(existing.Json, json, StringComparison.Ordinal)
                 ? existing
-                : new CachedCredential(json, Parse(variableName, json)));
+                : new CachedCredential(json, Parse(key, json)));
 
         return cached.Credentials;
     }

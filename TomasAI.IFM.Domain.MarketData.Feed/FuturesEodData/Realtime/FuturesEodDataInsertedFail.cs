@@ -10,6 +10,8 @@ public static class FuturesEodDataInsertedFail
     /// <summary>Logs the classified projection failure without retrying it.</summary>
     public static ValueTask ExecuteAsync(this FuturesEodDataInsertedFailEvent domainEvent, IFuturesEodDataRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         context.Logger.LogErrorEvent(FuturesEodDataRealtimeActor.ActorName,
             "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
             domainEvent.EventName, domainEvent.Subject.EntityId, domainEvent.ErrorMessage);

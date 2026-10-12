@@ -1,28 +1,10 @@
-﻿using System.Collections;
+using System.Collections;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
-
-public interface IDatabentoContractRegistrationRegistry :
-    IReadOnlyList<DatabentoContractRegistration>
-{
-    IReadOnlyList<DatabentoContractRegistration> Snapshot();
-
-    bool TryGetOnTheRunFuturesContract(
-        string symbol,
-        out FuturesContractV3ReadModel contract);
-
-    bool TryGetFuturesTermStructureContracts(
-        string symbol,
-        out FuturesTermStructureContracts contracts);
-
-    void ReplaceFuturesRolloverSet(
-        string symbol,
-        IReadOnlyCollection<FuturesContractV3ReadModel> contracts);
-}
 
 /// <summary>
 /// Publishes immutable contract-registration snapshots to newly created
@@ -140,7 +122,7 @@ public sealed class DatabentoContractRegistrationRegistry(
         IReadOnlyDictionary<string, FuturesContractV3ReadModel> OnTheRunFuturesContracts,
         IReadOnlyDictionary<string, FuturesTermStructureContracts> TermStructures);
 
-    private static IEnumerable<DatabentoContractRegistration> Validate(
+    private static DatabentoContractRegistration[] Validate(
         IEnumerable<DatabentoContractRegistration> registrations)
     {
         ArgumentNullException.ThrowIfNull(registrations);
@@ -148,13 +130,14 @@ public sealed class DatabentoContractRegistrationRegistry(
         if (snapshot.Any(static registration =>
             string.IsNullOrWhiteSpace(registration.DomainContractId)
             || string.IsNullOrWhiteSpace(registration.ProviderContractName)))
-            throw new ArgumentException("Contract registrations require domain and provider identifiers.");
+            throw new ArgumentException("Contract registrations require domain and provider identifiers.",nameof(registrations));
         if (snapshot.Select(static registration => registration.DomainContractId)
             .Distinct(StringComparer.Ordinal).Count() != snapshot.Length)
-            throw new ArgumentException("Domain contract IDs must be unique.");
+            throw new ArgumentException("Domain contract IDs must be unique.",nameof(registrations));
         return snapshot;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This health or identity probe returns its documented unavailable result rather than failing the caller.")]
     private static string GetRootSymbol(DatabentoContractRegistration registration)
     {
         if (!string.IsNullOrWhiteSpace(registration.RootSymbol))
@@ -162,34 +145,4 @@ public sealed class DatabentoContractRegistrationRegistry(
         try { return new FuturesContractIdParser(registration.DomainContractId).Symbol; }
         catch { return string.Empty; }
     }
-}
-
-internal static class DatabentoDatasetSelection
-{
-    // XCBF must establish its live session before GLBX. The Databento gateway can
-    // leave an XCBF subscription waiting for symbol mappings/acknowledgements when
-    // it is opened after an already-running GLBX session in the same process.
-    internal static int StartupPriority(string dataset) =>
-        string.Equals(dataset, "XCBF.PITCH", StringComparison.Ordinal)
-            ? 0
-            : 1;
-
-    internal static string Resolve(
-        DatabentoMarketDataRuntimeOptions options,
-        string symbol)
-    {
-        if (options.FuturesContractDatasets.TryGetValue(symbol, out var configured)
-            && !string.IsNullOrWhiteSpace(configured))
-            return configured;
-        return string.Equals(symbol, "VX", StringComparison.OrdinalIgnoreCase)
-            ? "XCBF.PITCH"
-            : options.FeedOptions.Dataset;
-    }
-
-    internal static string Resolve(
-        DatabentoMarketDataRuntimeOptions options,
-        DatabentoContractRegistration registration) =>
-        !string.IsNullOrWhiteSpace(registration.Dataset)
-            ? registration.Dataset
-            : options.FeedOptions.Dataset;
 }

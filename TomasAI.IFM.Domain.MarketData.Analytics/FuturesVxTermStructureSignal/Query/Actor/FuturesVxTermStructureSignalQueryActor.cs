@@ -19,7 +19,7 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLatestFuturesVxTermStructureSignalQuery.Verb] = message =>
             message.AsQuery<GetLatestFuturesVxTermStructureSignalQuery,
@@ -54,6 +54,6 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

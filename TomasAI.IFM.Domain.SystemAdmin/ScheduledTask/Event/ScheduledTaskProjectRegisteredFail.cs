@@ -11,7 +11,9 @@ public static class ScheduledTaskProjectRegisteredFail
     /// <returns>The bounded notification dispatch operation.</returns>
     public static ValueTask ExecuteAsync(this ScheduledTaskProjectRegisteredFailEvent source, ScheduledTaskEventContext context)
     {
-        context.Logger.LogError("{Component}.{Method} Projection failed for {EventName} {AggregateId} {CommandId}: {ErrorMessage}", nameof(ScheduledTaskProjectRegisteredFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
+        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write18(context.Logger, null, nameof(ScheduledTaskProjectRegisteredFail), nameof(ExecuteAsync), source.EventName, source.EntityId.Format(), source.CommandId, source.ErrorMessage);
         return ValueTask.CompletedTask;
     }
 }

@@ -18,6 +18,8 @@ public static class DeleteSpreadDistributionJobsInProgress
     /// <returns>The command identity on success, otherwise the business or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this DeleteSpreadDistributionJobsInProgressCommand command, SpreadDistributionJobCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionJobsInProgressDeletedEvent";
         var updated = command.Compute(state.IsJobStatusInProgress, out var spreadDistributionChange) switch
         {

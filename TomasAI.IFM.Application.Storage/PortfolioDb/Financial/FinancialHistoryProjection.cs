@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
@@ -7,11 +8,6 @@ using Npgsql;
 using NpgsqlTypes;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
-
-public interface IFinancialHistoryProjection
-{
-    Task ApplyAsync(IFinancialCompletedEvent completed, CancellationToken token = default);
-}
 
 /// <summary>Rebuildable monthly history. It never supplies financial spending authority.</summary>
 public sealed class FinancialHistoryProjection(IDbContextFactory factory) : IFinancialHistoryProjection
@@ -23,6 +19,8 @@ public sealed class FinancialHistoryProjection(IDbContextFactory factory) : IFin
     {
         var revision = completed switch
         {
+            PortfolioOrderCompositionCompletedEvent x => x.Receipt.FinancialRevision,
+            PortfolioCloseOrderCompositionCompletedEvent x => x.Receipt.FinancialRevision,
             EmulatorOrderSubmittedEvent x => x.Receipt.FinancialRevision,
             LedgerPostingCompletedEvent x => x.Receipt.FinancialRevision,
             LedgerPostingBatchCompletedEvent x => x.Receipt.FinancialRevision,

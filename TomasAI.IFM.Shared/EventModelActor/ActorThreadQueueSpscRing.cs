@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
-    readonly object retirementGate = new();
+    readonly System.Threading.Lock retirementGate = new();
     int processingOwner;
     bool IScheduledActorThreadQueue.TryClaimProcessing()
     {
@@ -27,13 +27,14 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
     void IScheduledActorThreadQueue.ReleaseProcessing() => Volatile.Write(ref processingOwner, 0);
 
     const int DefaultCapacity = 8192;
-    const int Created = 0;
     const int Active = 1;
     const int Retiring = 2;
     const int Retired = 3;
 
-    readonly object _startLock = new();
+    readonly System.Threading.Lock _startLock = new();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Immediate mailbox retirement leaves the semaphore reachable by outstanding waiters until they finish; disposing it synchronously would race them.")]
     readonly SemaphoreSlim _slotAvailable;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Immediate mailbox retirement leaves the semaphore reachable by outstanding waiters until they finish; disposing it synchronously would race them.")]
     readonly SemaphoreSlim _itemAvailable;
     readonly ActorAdmissionController _admissionController;
     readonly BoundedSpscRingBuffer<QueuedActorMessage> _ring;
@@ -306,8 +307,7 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
 
     static async ValueTask AwaitAccepted(ValueTask<bool> pending)
     {
-        if (!await pending.ConfigureAwait(false))
-            throw new ObjectDisposedException(nameof(ActorThreadQueueSpscRing));
+        ObjectDisposedException.ThrowIf(!await pending.ConfigureAwait(false), typeof(ActorThreadQueueSpscRing));
     }
 
     async ValueTask<bool> AwaitCompatibilityWrite(
@@ -484,8 +484,7 @@ public sealed class ActorThreadQueueSpscRing : IActorThreadQueue, IScheduledActo
         {
             if (_lifecycle == Active)
                 return;
-            if (_lifecycle == Retired)
-                throw new ObjectDisposedException(nameof(ActorThreadQueueSpscRing));
+            ObjectDisposedException.ThrowIf(_lifecycle == Retired, typeof(ActorThreadQueueSpscRing));
 
             Volatile.Write(ref _lifecycle, Active);
             if (Interlocked.Exchange(ref _mailboxMetricActive, 1) == 0)

@@ -31,8 +31,4 @@ public sealed class SupervisorEventProjector(
 
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-
-    /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        _descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

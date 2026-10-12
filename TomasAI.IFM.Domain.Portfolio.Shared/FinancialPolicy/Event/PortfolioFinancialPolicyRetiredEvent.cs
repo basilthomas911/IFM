@@ -32,6 +32,9 @@ public sealed record PortfolioFinancialPolicyRetiredEvent : IPortfolioFinancialP
     [Key(14)] public long PolicyVersion { get; init; } = default!;
     [Key(15)] public string Reason { get; init; } = default!;
 
+    /// <summary>Full accepted projection values; populated before durable append for event-only materialization.</summary>
+    [Key(16)] public TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? ProjectionFacts { get; init; }
+
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(PortfolioFinancialPolicyRetiredEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

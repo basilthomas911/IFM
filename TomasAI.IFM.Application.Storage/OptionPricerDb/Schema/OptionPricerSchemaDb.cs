@@ -15,5 +15,9 @@ public sealed class OptionPricerSchemaDb(IDbConnectionSettings connectionSetting
         new("spread_distribution", OptionPricerSchemaCql.CreateSpreadDistributionTable, "DROP TABLE IF EXISTS spread_distribution;")
     ];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    static readonly SchemaObjectDefinition[] PostgresObjects =
+    [new("option_pricer", OptionPricerSchemaSql.Create, "DROP SCHEMA IF EXISTS option_pricer CASCADE;")];
+
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
+        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
 }

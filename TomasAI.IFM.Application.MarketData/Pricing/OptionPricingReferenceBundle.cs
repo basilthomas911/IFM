@@ -13,11 +13,11 @@ public sealed record OptionPricingReferenceBundle(int SchemaVersion, string Bund
     public OptionPricingReferenceBundle Seal() => this with { BundleId = PricingSemanticHash.Compute(this with { BundleId = "" }) };
     public void Validate()
     {
-        if (SchemaVersion != 1 || BundleId != Seal().BundleId || string.IsNullOrWhiteSpace(ProfileVersion)
+        if (SchemaVersion != 1 || !string.Equals(BundleId,Seal().BundleId,StringComparison.Ordinal) || string.IsNullOrWhiteSpace(ProfileVersion)
             || Definitions.IsDefaultOrEmpty || Definitions.Length > 10000 || Underlying.AssetTypeId != Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId.Futures
-            || Underlying.OnTheRun || Underlying.Rollover || Definitions.Select(x => x.ContractId).Distinct().Count() != Definitions.Length
-            || Definitions.Any(x => x.MappingVersion != ProfileVersion || x.Definition.MaturityDate != MaturityDate
-                || x.Definition.Underlying != Underlying.DomainContractId || x.Definition.Dataset != Underlying.Dataset)
+            || Underlying.OnTheRun || Underlying.Rollover || Definitions.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != Definitions.Length
+            || Definitions.Any(x => !string.Equals(x.MappingVersion,ProfileVersion,StringComparison.Ordinal) || x.Definition.MaturityDate != MaturityDate
+                || !string.Equals(x.Definition.Underlying,Underlying.DomainContractId,StringComparison.Ordinal) || !string.Equals(x.Definition.Dataset,Underlying.Dataset,StringComparison.Ordinal))
             || Calendar.CoverageFrom > MaturityDate || Calendar.CoverageUntil < MaturityDate)
             throw new InvalidDataException("Invalid complete option reference bundle.");
     }

@@ -112,7 +112,7 @@ public static class TickQuoteBufferEncoder
         var numberLength = WriteUnscaled(value.Value, unscaled);
         WriteInt32(output, ref offset, sizeof(int) + numberLength);
         Span<int> bits = stackalloc int[4];
-        decimal.GetBits(value.Value, bits);
+        _ = decimal.GetBits(value.Value, bits);
         WriteInt32(output, ref offset, (bits[3] >> 16) & 0xff);
         unscaled[..numberLength].CopyTo(output[offset..]);
         offset += numberLength;
@@ -121,7 +121,7 @@ public static class TickQuoteBufferEncoder
     static int WriteUnscaled(decimal value, Span<byte> destination)
     {
         Span<int> bits = stackalloc int[4];
-        decimal.GetBits(value, bits);
+        _ = decimal.GetBits(value, bits);
 
         Span<byte> number = stackalloc byte[13];
         BinaryPrimitives.WriteUInt32BigEndian(number.Slice(1, 4), (uint)bits[2]);

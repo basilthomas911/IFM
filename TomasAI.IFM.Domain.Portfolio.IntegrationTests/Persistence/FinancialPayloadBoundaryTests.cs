@@ -99,7 +99,7 @@ public sealed class FinancialPayloadBoundaryTests(PortfolioEventStoreFixture fix
             Body = new() { Items = Enumerable.Repeat(body, 100).ToArray() }
         };
         command = command with { InputSha256 = FinancialCanonicalHash.Request(command) };
-        var errors = new List<ValidationError>().ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest>(command,
+        var errors = new List<ValidationError>().ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest, List<ValidationError>>(command,
             ActorType.Command, PostFundTransactionsCommand.Actor, PostFundTransactionsCommand.Verb);
         errors.Should().ContainSingle(x => x.ErrorMessage == "Financial request exceeds 1 MiB.");
     }

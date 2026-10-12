@@ -23,18 +23,16 @@ public class DatabaseBackupCommandActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupCommandContext ActorContext =>
-        IsArgumentNull.Set(Context as IDatabaseBackupCommandContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IDatabaseBackupCommandContext, nameof(Context))!;
 
     public const string Actor = DatabaseBackupCommandRoute.Actor;
     IEventSourceActorStateRepository<DatabaseBackupCommandState> _repository = default!;
     readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = actorContext.EventProjector;
 
     /// <summary>Gets the SupportedCommandTypes value.</summary>
-    public static IReadOnlyCollection<Type> SupportedCommandTypes =>
-        _receiveMap.Keys as IReadOnlyCollection<Type> ?? _receiveMap.Keys.ToArray();
+    public static IReadOnlyCollection<Type> SupportedCommandTypes =>CachedSupportedCommandTypes.Value;
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs =>
-        _parseMap.Keys as IReadOnlyCollection<string> ?? _parseMap.Keys.ToArray();
+    public static IReadOnlyCollection<string> SupportedVerbs =>CachedSupportedVerbs.Value;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
@@ -330,10 +328,18 @@ public class DatabaseBackupCommandActor(
         };
 
     protected override ValueTask OnStartup(ICommandActorContext<DatabaseBackupCommandActor> context)
-        => StartAsync(context, CancellationToken.None);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return StartAsync(context, CancellationToken.None);
+    }
 
     protected override ValueTask OnStartup(ICommandActorContext<DatabaseBackupCommandActor> context, CancellationToken cancellationToken)
-        => StartAsync(context, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return StartAsync(context, cancellationToken);
+    }
 
     async ValueTask StartAsync(ICommandActorContext<DatabaseBackupCommandActor> context, CancellationToken cancellationToken)
     {
@@ -382,6 +388,12 @@ public class DatabaseBackupCommandActor(
     protected override ValueTask OnSaveStateAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
         => _repository.SaveStateAsync(context, (DatabaseBackupCommandState)state, command, cancellationToken);
 
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
-        => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command?.ErrorCode ?? 9199, exception.Message));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command?.ErrorCode ?? 9199, ex.Message));
+    }
+private static readonly System.Lazy<IReadOnlyCollection<Type>> CachedSupportedCommandTypes = new(() => _receiveMap.Keys as IReadOnlyCollection<Type> ?? _receiveMap.Keys.ToArray(), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+private static readonly System.Lazy<IReadOnlyCollection<string>> CachedSupportedVerbs = new(() => _parseMap.Keys as IReadOnlyCollection<string> ?? _parseMap.Keys.ToArray(), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 }

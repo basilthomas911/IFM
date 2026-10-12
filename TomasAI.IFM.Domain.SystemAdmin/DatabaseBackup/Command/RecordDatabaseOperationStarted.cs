@@ -14,6 +14,8 @@ public static class RecordDatabaseOperationStarted
     /// <returns>The command acceptance or business rejection.</returns>
     public static ServiceResult<GuidResult> Execute(this RecordDatabaseOperationStartedCommand command, DatabaseBackupCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "DatabaseBackup.STATE.APPLY_FAILED: unable to apply RecordDatabaseOperationStarted lifecycle events";
         var updated = command.Compute(state, out var recoveryTransition) switch
         {

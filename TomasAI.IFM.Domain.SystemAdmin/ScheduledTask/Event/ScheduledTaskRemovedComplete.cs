@@ -11,6 +11,7 @@ public static class ScheduledTaskRemovedComplete
     /// <returns>The bounded notification dispatch operation.</returns>
     public static ValueTask ExecuteAsync(this ScheduledTaskRemovedCompleteEvent source, ScheduledTaskEventContext context)
     {
+        ArgumentNullException.ThrowIfNull(source);
         return ScheduledTaskRuntimeDispatch.ApplyAsync(source, source.ScheduledTaskDefinition!, source.OperationCommandId, context);
     }
 }

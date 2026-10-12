@@ -3,29 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
-
-public class TradePosition(
-    int orderId,
-    int tradeId,
-    TradeType tradeType,
-    DateOnly valueDate,
-    int daysToExpiry,
-    TradeStatus tradeStatus,
-    decimal commission,
-    int deltaHedge,
-    decimal netSpread,
-    decimal tradeValue,
-    decimal tradePnl,
-    decimal assetPrice,
-    double otmProbability,
-    decimal forwardPrice,
-    double forwardLossRatio,
-    double lossProbability,
-    double riskFreeRate,
-    DateTime createdOn,
-    string createdBy,
-    DateTime updatedOn,
-    string updatedBy) : ITradePosition
+public class TradePosition(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus, decimal commission, int deltaHedge, decimal netSpread, decimal tradeValue, decimal tradePnl, decimal assetPrice, double otmProbability, decimal forwardPrice, double forwardLossRatio, double lossProbability, double riskFreeRate, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : ITradePosition
 {
     public TradePositionEntityId Id => new(OrderId, TradeId, ValueDate, TradeType, TradeStatus, DaysToExpiry);
     public int OrderId { get; private set; } = orderId;
@@ -49,44 +27,13 @@ public class TradePosition(
     public string CreatedBy { get; private set; } = createdBy;
     public DateTime UpdatedOn { get; private set; } = updatedOn;
     public string UpdatedBy { get; private set; } = updatedBy;
-    public IOptionLegDataCollection OptionLegData { get; private set; } = new OptionLegDataCollection(
-            tradeId, tradeType, valueDate, daysToExpiry, tradeStatus, assetPrice);
+    public IOptionLegDataCollection OptionLegData { get; private set; } = new OptionLegDataCollection(tradeId, tradeType, valueDate, daysToExpiry, tradeStatus, assetPrice);
 
-    public TradePosition(
-       int orderId,
-       int tradeId,
-       TradeType tradeType,
-       DateOnly valueDate,
-       int daysToExpiry,
-       TradeStatus tradeStatus,
-       DateTime createdOn,
-       string createdBy) : this(orderId, tradeId, tradeType, valueDate, daysToExpiry, tradeStatus,
-           0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, createdOn, createdBy, createdOn, createdBy)
+    public TradePosition(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus, DateTime createdOn, string createdBy) : this(orderId, tradeId, tradeType, valueDate, daysToExpiry, tradeStatus, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, createdOn, createdBy, createdOn, createdBy)
     {
     }
 
-    public TradePosition(TradePositionReadModel e, DateTime createdOn, string createdBy) : this(
-        orderId: e.EntityId.OrderId,
-        tradeId: e.EntityId.TradeId,
-        tradeType: e.EntityId.TradeType,
-        valueDate: e.EntityId.ValueDate,
-        daysToExpiry: e.EntityId.DaysToExpiry,
-        tradeStatus: e.EntityId.TradeStatus,
-        commission: e.Commission,
-        deltaHedge: e.DeltaHedge,
-        netSpread: e.NetSpread,
-        tradeValue: e.TradeValue,
-        tradePnl: e.TradePnl,
-        assetPrice: e.AssetPrice,
-        otmProbability: e.OTMProbability,
-        forwardPrice: e.ForwardPrice,
-        forwardLossRatio: e.ForwardLossRatio,
-        lossProbability: e.LossProbability,
-        riskFreeRate: e.RiskFreeRate,
-        createdOn: createdOn,
-        createdBy: createdBy,
-        updatedOn: createdOn,
-        updatedBy: createdBy)
+    public TradePosition(TradePositionReadModel e, DateTime createdOn, string createdBy) : this(orderId: (e ?? throw new ArgumentNullException(nameof(e))).EntityId.OrderId, tradeId: e.EntityId.TradeId, tradeType: e.EntityId.TradeType, valueDate: e.EntityId.ValueDate, daysToExpiry: e.EntityId.DaysToExpiry, tradeStatus: e.EntityId.TradeStatus, commission: e.Commission, deltaHedge: e.DeltaHedge, netSpread: e.NetSpread, tradeValue: e.TradeValue, tradePnl: e.TradePnl, assetPrice: e.AssetPrice, otmProbability: e.OTMProbability, forwardPrice: e.ForwardPrice, forwardLossRatio: e.ForwardLossRatio, lossProbability: e.LossProbability, riskFreeRate: e.RiskFreeRate, createdOn: createdOn, createdBy: createdBy, updatedOn: createdOn, updatedBy: createdBy)
     {
         foreach (var o in e.OptionLegData)
             OptionLegData.Add(o.ToOptionLegData(e.EntityId, createdOn, createdBy, createdOn, createdBy));
@@ -95,24 +42,25 @@ public class TradePosition(
     /// <summary>
     /// add option leg data
     /// </summary>
-    /// <param name="optionLegData"></param>
+    /// <param name = "optionLegData"></param>
     public ITradePosition AddOptionLegData(ICollection<IOptionLegData> optionLegData)
     {
         if (optionLegData is null)
-            throw new ArgumentNullException("optionLegData", $"SpreadTradeData.AddOptionLegData: optionLegData argument is null");
+            throw new ArgumentNullException(nameof(optionLegData), $"SpreadTradeData.AddOptionLegData: optionLegData argument is null");
         foreach (var e in optionLegData)
         {
             if (OptionLegData.Exists(e.OptionLegId))
                 OptionLegData.Remove(e.OptionLegId);
             OptionLegData.Add(e);
         }
+
         return this;
     }
 
     /// <summary>
     /// set trade status
     /// </summary>
-    /// <param name="tradeStatus"></param>
+    /// <param name = "tradeStatus"></param>
     /// <returns></returns>
     public ITradePosition SetTradeStatus(TradeStatus tradeStatus)
     {
@@ -123,7 +71,7 @@ public class TradePosition(
     /// <summary>
     /// set trade pnl
     /// </summary>
-    /// <param name="tradePnl"></param>
+    /// <param name = "tradePnl"></param>
     /// <returns></returns>
     public ITradePosition SetTradePnl(decimal tradePnl)
     {
@@ -134,7 +82,7 @@ public class TradePosition(
     /// <summary>
     /// set trade commission
     /// </summary>
-    /// <param name="commission"></param>
+    /// <param name = "commission"></param>
     /// <returns></returns>
     public ITradePosition SetCommission(decimal commission)
     {
@@ -145,7 +93,7 @@ public class TradePosition(
     /// <summary>
     /// set asset price
     /// </summary>
-    /// <param name="assetPrice"></param>
+    /// <param name = "assetPrice"></param>
     /// <returns></returns>
     public ITradePosition SetAssetPrice(decimal assetPrice)
     {
@@ -156,7 +104,7 @@ public class TradePosition(
     /// <summary>
     /// set no touch probability
     /// </summary>
-    /// <param name="noTouchProbability"></param>
+    /// <param name = "noTouchProbability"></param>
     /// <returns></returns>
     public ITradePosition SetOTMProbability(double otmProbability)
     {
@@ -172,14 +120,12 @@ public class TradePosition(
 
     public ITradePosition SetForwardLossRatio(double forwardLossRatio)
     {
-
         ForwardLossRatio = forwardLossRatio;
         return this;
     }
 
     public ITradePosition SetLossProbability(double lossProbability)
     {
-
         LossProbability = lossProbability;
         return this;
     }
@@ -199,6 +145,7 @@ public class TradePosition(
 
     public ITradePosition ReplaceOptionLegData(IOptionLegData optionLegData)
     {
+        ArgumentNullException.ThrowIfNull(optionLegData);
         OptionLegData.Remove(optionLegData.OptionLegId);
         OptionLegData.Add(optionLegData);
         return this;
@@ -210,51 +157,5 @@ public class TradePosition(
         return this;
     }
 
-    public TradePositionReadModel ToViewModel()
-        => new TradePositionReadModel(
-            orderId: Id.OrderId,
-            tradeId: Id.TradeId,
-            tradeType: Id.TradeType,
-            valueDate: ValueDate,
-            daysToExpiry: DaysToExpiry,
-            tradeStatus: TradeStatus,
-            commission: Commission,
-            deltaHedge: DeltaHedge,
-            netSpread: NetSpread,
-            tradeValue: TradeValue,
-            tradePnl: TradePnl,
-            assetPrice: AssetPrice,
-            otmProbability: OTMProbability,
-            forwardPrice: ForwardPrice,
-            forwardLossRatio: ForwardLossRatio,
-            lossProbability: LossProbability,
-            riskFreeRate: RiskFreeRate,
-            createdOn: CreatedOn,
-            createdBy: CreatedBy,
-            updatedOn: UpdatedOn,
-            updatedBy: UpdatedBy
-       ).AddOptionLegData(OptionLegData.Select(e => e.ToDataModel()).ToList());
-}
-
-public static class SpreadTradeDataViewModelExtension
-{
-    public static ITradePosition ToSpreadTradeData(this TradePositionReadModel e, DateTime createdOn, string createdBy)
-        => new TradePosition(
-            orderId: e.EntityId.OrderId,
-            tradeId: e.EntityId.TradeId,
-            tradeType: e.EntityId.TradeType,
-            valueDate: e.EntityId.ValueDate,
-            daysToExpiry: e.EntityId.DaysToExpiry,
-            tradeStatus: e.EntityId.TradeStatus,
-            createdOn: createdOn,
-            createdBy: createdBy)
-                .SetCommission(e.Commission)
-                .SetAssetPrice(e.AssetPrice)
-                .SetOTMProbability(e.OTMProbability)
-                .SetForwardPrice(e.ForwardPrice)
-                .SetForwardLossRatio(e.ForwardLossRatio)
-                .SetLossProbability(e.LossProbability)
-                .SetRiskFreeRate(e.RiskFreeRate)
-            .AddOptionLegData(e.OptionLegData
-                    .Select(o => o.ToOptionLegData(e.EntityId, createdOn, createdBy, createdOn, createdBy)).ToArray());
+    public TradePositionReadModel ToViewModel() => new TradePositionReadModel(orderId: Id.OrderId, tradeId: Id.TradeId, tradeType: Id.TradeType, valueDate: ValueDate, daysToExpiry: DaysToExpiry, tradeStatus: TradeStatus, commission: Commission, deltaHedge: DeltaHedge, netSpread: NetSpread, tradeValue: TradeValue, tradePnl: TradePnl, assetPrice: AssetPrice, otmProbability: OTMProbability, forwardPrice: ForwardPrice, forwardLossRatio: ForwardLossRatio, lossProbability: LossProbability, riskFreeRate: RiskFreeRate, createdOn: CreatedOn, createdBy: CreatedBy, updatedOn: UpdatedOn, updatedBy: UpdatedBy).AddOptionLegData(OptionLegData.Select(e => e.ToDataModel()).ToList());
 }

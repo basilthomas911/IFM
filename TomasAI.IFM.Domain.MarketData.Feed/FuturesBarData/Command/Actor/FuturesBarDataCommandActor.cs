@@ -43,6 +43,7 @@ public class FuturesBarDataCommandActor(
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesBarDataCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesBarDataCommandState>>());
         await _eventProjector.StartAsync(context).ConfigureAwait(false);
@@ -66,7 +67,7 @@ public class FuturesBarDataCommandActor(
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [InsertFuturesBarDataCommand.Verb] = msg => msg.AsCommand<InsertFuturesBarDataCommand>()!,
         [DeleteFuturesBarDataCommand.Verb] = msg => msg.AsCommand<DeleteFuturesBarDataCommand>()!,
@@ -83,14 +84,14 @@ public class FuturesBarDataCommandActor(
     /// <param name="cmd">The command to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesBarDataCommandActor> context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesBarDataCommandActor> context, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var futuresBarDataState = IsArgumentNull.Set((state as FuturesBarDataCommandState)!);
-        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresBarDataState));
+        var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receiveFunc.Invoke(command, context, futuresBarDataState));
     }
 
     /// <summary>
@@ -114,13 +115,14 @@ public class FuturesBarDataCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType();
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        _=command.GetType();
+        ValidateMappedCommand(command, _validationMap);
     }
 
     /// <summary>
@@ -171,12 +173,12 @@ public class FuturesBarDataCommandActor(
     /// <param name="threadId">The identifier of the actor thread on which the state is being loaded.</param>
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -188,16 +190,16 @@ public class FuturesBarDataCommandActor(
     /// cref="FuturesBarDataCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var futuresBarDataState = IsArgumentNull.Set((state as FuturesBarDataCommandState)!);
-        await _repo.SaveStateAsync(context, futuresBarDataState, cmd);
+        await (_repo.SaveStateAsync(context, futuresBarDataState, command)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     /// <summary>
     /// Handles exceptions that occur during command execution and returns a failed service result containing error
     /// event information.
@@ -209,20 +211,21 @@ public class FuturesBarDataCommandActor(
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context, command, ActorEntityId.Default, ActorName, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+            var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context, command, ActorEntityId.Default, ActorName, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail)).ConfigureAwait(false);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
         {
-            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write12(_logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context, command, ActorEntityId.Default, ActorName, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context, command, ActorEntityId.Default, ActorName, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

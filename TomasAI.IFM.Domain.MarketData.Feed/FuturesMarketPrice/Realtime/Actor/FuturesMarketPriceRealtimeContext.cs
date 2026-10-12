@@ -10,17 +10,9 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesMarketPriceRealtimeActor"/>.</summary>
-public interface IFuturesMarketPriceRealtimeContext : IRealtimeActorContext<FuturesMarketPriceRealtimeActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesMarketPriceRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesMarketPriceRealtimeActor"/>.</summary>
-public sealed class FuturesMarketPriceRealtimeContext : EventActorContext, IRealtimeActorContext<FuturesMarketPriceRealtimeActor>, IFuturesMarketPriceRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesMarketPriceRealtimeContext : EventActorContext, IFuturesMarketPriceRealtimeContext
 {
     /// <summary>Initializes the typed realtime context.</summary>
     public FuturesMarketPriceRealtimeContext(

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Api.DatabaseBackup.Host.Services;
 public sealed class DatabaseBackupInboundListener(
     IJSActorEventListener listener,
     IDatabaseRecoveryProcessorRegistry processors,
-    DatabaseBackupHostHealthState health) : IHostedService
+    DatabaseBackupHostHealthState health, DatabaseBackupHostOptions options) : IHostedService
 {
     static readonly ActorMailboxId Mailbox = new(ActorType.Event, "DatabaseBackupExecution");
     static readonly string[] Verbs =
@@ -25,8 +25,11 @@ public sealed class DatabaseBackupInboundListener(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await listener.StartAsync(
-            "database-backup-host",
-            new Dictionary<ActorMailboxId, List<string>> { [Mailbox] = [.. Verbs] },
+            options.CutoverWorkerOnly ? "database-cutover-host" : "database-backup-host",
+            new Dictionary<ActorMailboxId, List<string>>
+            {
+                [Mailbox] = options.CutoverWorkerOnly ? ["CutoverExecutionRequested"] : [.. Verbs]
+            },
             AdmitAsync).ConfigureAwait(false);
         health.MarkReady();
     }

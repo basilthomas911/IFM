@@ -9,6 +9,7 @@ public static class OptionChainCandidatePreparation
     public static ImmutableArray<CompositionInstrumentSnapshot> Select(ImmutableArray<CompositionInstrumentSnapshot> source,
         OptionStrategyBiasParameters policy, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(policy);
         policy.Validate();
         bool Usable(CompositionInstrumentSnapshot row) => row.Valuation is not null && row.Instrument.Pricing is { } context
             && context.ValidUntilUtc > now && row.Instrument.Quote is { } quote && row.Instrument.Underlying is { } underlying

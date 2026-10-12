@@ -1,4 +1,4 @@
-﻿using System.IO.Pipes;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,11 +9,19 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 
 using Serilog;
 
+namespace TomasAI.IFM.Application.MarketData.Worker;
+internal static class Program
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Process entry point reports a redacted fatal exception and returns a failure exit code.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6667", Justification = "All worker exception text is explicitly redacted before it reaches file or collector logs.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Entry point includes local worker orchestration functions with one process-wide logging lifetime.")]
+    public static async Task<int> Main(string[] args)
+    {
 Log.Logger = DatasetWorkerLogging.CreateLogger();
 using var loggerFactory = new Serilog.Extensions.Logging.SerilogLoggerFactory(Log.Logger, dispose: false);
 try
 {
-    var exitCode = await RunWorkerAsync();
+    var exitCode = await (RunWorkerAsync()).ConfigureAwait(false);
     Log.Information("{Component}.{Method} exited with {ExitCode}", "DatasetWorker", "RunWorkerAsync", exitCode);
     return exitCode;
 }
@@ -24,9 +32,11 @@ catch (Exception exception)
 }
 finally
 {
-    await Log.CloseAndFlushAsync();
+    await (Log.CloseAndFlushAsync()).ConfigureAwait(false);
 }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6667", Justification = "Worker errors are redacted before logging; raw exceptions could expose inherited credentials.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Owns the ordered control loop and associated local pipe/runtime cleanup functions.")]
 async Task<int> RunWorkerAsync()
 {
     if (!DatasetWorkerArguments.TryParse(args, out var worker, out var error))
@@ -37,7 +47,7 @@ async Task<int> RunWorkerAsync()
     using var datasetContext = Serilog.Context.LogContext.PushProperty("Dataset", worker.Dataset);
     using var workerContext = Serilog.Context.LogContext.PushProperty("WorkerInstanceId", worker.WorkerInstanceId);
     using var generationContext = Serilog.Context.LogContext.PushProperty("BootstrapGenerationId", worker.GenerationId);
-    using var valueDateContext = Serilog.Context.LogContext.PushProperty("ValueDate", worker.ValueDate.ToString());
+    using var valueDateContext = Serilog.Context.LogContext.PushProperty("ValueDate", worker.ValueDate.ToString(System.Globalization.CultureInfo.InvariantCulture));
     Log.Information("{Component}.{Method} starting with {DeploymentProfile} and {DataSource}",
         "DatasetWorker", "RunWorkerAsync", worker.DeploymentProfile, worker.DataSource);
     var bootstrapToken = Environment.GetEnvironmentVariable("IFM_DATASET_WORKER_BOOTSTRAP");
@@ -62,19 +72,19 @@ async Task<int> RunWorkerAsync()
     PipeDatasetWorkerPublisher? pipePublisher = null;
     using var stopping = new CancellationTokenSource();
 
-    await WriteAsync(DatasetWorkerMessageKind.WorkerHello, healthy: false,
-        "Dataset worker control host started.", Guid.NewGuid());
-    var supervisor = await DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token);
+    await (WriteAsync(DatasetWorkerMessageKind.WorkerHello, healthy: false,
+        "Dataset worker control host started.", Guid.NewGuid())).ConfigureAwait(false);
+    var supervisor = await (DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token)).ConfigureAwait(false);
     if (supervisor.Kind != DatasetWorkerMessageKind.SupervisorHello
         || supervisor.WorkerInstanceId != worker.WorkerInstanceId
-        || supervisor.Dataset != worker.Dataset
+        || !string.Equals(supervisor.Dataset,worker.Dataset,StringComparison.Ordinal)
         || supervisor.ValueDate != worker.ValueDate
         || supervisor.GenerationId != generation
         || !ValidSupervisorFrame(supervisor))
     {
         Log.Error("{Component}.{Method} supervisor handshake rejected; Kind={Kind}; WorkerMatches={WorkerMatches}; DatasetMatches={DatasetMatches}; ValueDateMatches={ValueDateMatches}; GenerationMatches={GenerationMatches}; Sequence={Sequence}; PreviousSequence={PreviousSequence}; TokenMatches={TokenMatches}",
             "DatasetWorker", "RunWorkerAsync", supervisor.Kind,
-            supervisor.WorkerInstanceId == worker.WorkerInstanceId, supervisor.Dataset == worker.Dataset,
+            supervisor.WorkerInstanceId == worker.WorkerInstanceId, string.Equals(supervisor.Dataset,worker.Dataset,StringComparison.Ordinal),
             supervisor.ValueDate == worker.ValueDate, supervisor.GenerationId == generation,
             supervisor.Sequence, supervisorSequence,
             CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(supervisor.BootstrapToken), Encoding.ASCII.GetBytes(bootstrapToken)));
@@ -95,9 +105,9 @@ async Task<int> RunWorkerAsync()
     {
         while (!stopping.IsCancellationRequested)
         {
-            var command = await commands.Reader.ReadAsync(stopping.Token);
+            var command = await (commands.Reader.ReadAsync(stopping.Token)).ConfigureAwait(false);
             if (command.WorkerInstanceId != worker.WorkerInstanceId
-                || command.Dataset != worker.Dataset
+                || !string.Equals(command.Dataset,worker.Dataset,StringComparison.Ordinal)
                 || command.ValueDate != worker.ValueDate
                 || command.GenerationId != generation
                 || !ValidSupervisorFrame(command))
@@ -106,8 +116,8 @@ async Task<int> RunWorkerAsync()
             if (currentManifest is null && command.Kind != DatasetWorkerMessageKind.StartManifest
                 && command.Kind != DatasetWorkerMessageKind.GracefulStop)
             {
-                await WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
-                    "StartManifest must be accepted before dataset commands.", command.CorrelationId);
+                await (WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
+                    "StartManifest must be accepted before dataset commands.", command.CorrelationId)).ConfigureAwait(false);
                 return 6;
             }
 
@@ -121,17 +131,17 @@ async Task<int> RunWorkerAsync()
                     {
                         if (command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot)
                         {
-                            var captured = await datasetRuntime!.CaptureCompositionSnapshotAsync(command.CompositionRequest!, stopping.Token);
-                            await WriteAsync(DatasetWorkerMessageKind.CompositionSnapshotResult, datasetRuntime.IsHealthy,
-                                "Composition snapshot evaluated.", command.CorrelationId, compositionResult: captured);
+                            var captured = await (datasetRuntime!.CaptureCompositionSnapshotAsync(command.CompositionRequest!, stopping.Token)).ConfigureAwait(false);
+                            await (WriteAsync(DatasetWorkerMessageKind.CompositionSnapshotResult, datasetRuntime.IsHealthy,
+                                "Composition snapshot evaluated.", command.CorrelationId, compositionResult: captured)).ConfigureAwait(false);
                         }
                         else
                         {
                             var result = command.Kind == DatasetWorkerMessageKind.AcquireOptionChain
-                                ? await datasetRuntime!.AcquireOptionChainAsync(command.OptionChain!, stopping.Token)
-                                : await datasetRuntime!.ReleaseOptionChainAsync(command.OptionChainRelease!, stopping.Token);
-                            await WriteAsync(DatasetWorkerMessageKind.OptionChainResult, datasetRuntime.IsHealthy,
-                                "Option chain operation evaluated.", command.CorrelationId, chainResult: result);
+                                ? await (datasetRuntime!.AcquireOptionChainAsync(command.OptionChain!, stopping.Token)).ConfigureAwait(false)
+                                : await (datasetRuntime!.ReleaseOptionChainAsync(command.OptionChainRelease!, stopping.Token)).ConfigureAwait(false);
+                            await (WriteAsync(DatasetWorkerMessageKind.OptionChainResult, datasetRuntime.IsHealthy,
+                                "Option chain operation evaluated.", command.CorrelationId, chainResult: result)).ConfigureAwait(false);
                         }
                     }
                     catch (Exception exception) when (!stopping.IsCancellationRequested)
@@ -143,11 +153,11 @@ async Task<int> RunWorkerAsync()
                         if (!string.IsNullOrEmpty(apiKey)) detail = detail.Replace(apiKey, "[redacted]", StringComparison.Ordinal);
                         var failure = new TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure(
                             "WorkerOperationFailed", "Chain", "", detail[..Math.Min(detail.Length, 512)]);
-                        await WriteAsync(command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot
+                        await (WriteAsync(command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot
                             ? DatasetWorkerMessageKind.CompositionSnapshotResult : DatasetWorkerMessageKind.OptionChainResult,
                             datasetRuntime?.IsHealthy == true, "Option operation failed.", command.CorrelationId,
                             chainResult: command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot ? null : new(false, failure),
-                            compositionResult: command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot ? new(null, failure) : null);
+                            compositionResult: command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot ? new(null, failure) : null)).ConfigureAwait(false);
                     }
                     break;
                 case DatasetWorkerMessageKind.StartManifest:
@@ -155,8 +165,8 @@ async Task<int> RunWorkerAsync()
                 case DatasetWorkerMessageKind.CooperativeReset:
                     if (!TryValidateManifest(command, out var manifestError))
                     {
-                        await WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
-                            manifestError, command.CorrelationId);
+                        await (WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
+                            manifestError, command.CorrelationId)).ConfigureAwait(false);
                         break;
                     }
                     var manifest = command.Manifest!;
@@ -172,51 +182,51 @@ async Task<int> RunWorkerAsync()
                         // must reconstruct even if the desired revision is unchanged.
                         if (currentManifest?.Revision != manifest.Revision
                             || command.Kind == DatasetWorkerMessageKind.CooperativeReset)
-                            await InstallManifestAsync(manifest);
+                            await (InstallManifestAsync(manifest)).ConfigureAwait(false);
                         var healthy = datasetRuntime?.IsHealthy == true;
-                        await WriteAsync(healthy ? acknowledgement : DatasetWorkerMessageKind.ManifestRejected,
+                        await (WriteAsync(healthy ? acknowledgement : DatasetWorkerMessageKind.ManifestRejected,
                             healthy, datasetRuntime?.Detail ?? "Dataset runtime is unavailable.",
-                            command.CorrelationId);
+                            command.CorrelationId)).ConfigureAwait(false);
                     }
                     catch (Exception exception) when (!stopping.IsCancellationRequested)
                     {
                         Log.Error("{Component}.{Method} control {CommandKind} failed for {CorrelationId}: {Failure}",
                             "DatasetWorker", "RunWorkerAsync", command.Kind, command.CorrelationId, DatasetWorkerLogging.Redact(exception.ToString()));
-                        await WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
+                        await (WriteAsync(DatasetWorkerMessageKind.ManifestRejected, false,
                             $"Dataset reconstruction failed: {exception.GetType().Name}: {exception.Message}",
-                            command.CorrelationId);
+                            command.CorrelationId)).ConfigureAwait(false);
                         // Do not serve a partially rebuilt generation. The supervisor
                         // owns the decision to replace this failed dataset process.
                         return 8;
                     }
                     break;
                 case DatasetWorkerMessageKind.HealthSnapshot:
-                    await WriteAsync(DatasetWorkerMessageKind.HealthSnapshot,
+                    await (WriteAsync(DatasetWorkerMessageKind.HealthSnapshot,
                         datasetRuntime?.IsHealthy == true,
-                        datasetRuntime?.Detail ?? "Dataset runtime is unavailable.", command.CorrelationId);
+                        datasetRuntime?.Detail ?? "Dataset runtime is unavailable.", command.CorrelationId)).ConfigureAwait(false);
                     break;
                 case DatasetWorkerMessageKind.GracefulStop:
-                    await StopRuntimeAsync();
-                    await WriteAsync(DatasetWorkerMessageKind.Stopped, false,
-                        "Dataset worker stopped gracefully.", command.CorrelationId);
+                    await (StopRuntimeAsync()).ConfigureAwait(false);
+                    await (WriteAsync(DatasetWorkerMessageKind.Stopped, false,
+                        "Dataset worker stopped gracefully.", command.CorrelationId)).ConfigureAwait(false);
                     return 0;
                 case DatasetWorkerMessageKind.Hang:
-                    await Task.Delay(Timeout.InfiniteTimeSpan, stopping.Token);
+                    await (Task.Delay(Timeout.InfiniteTimeSpan, stopping.Token)).ConfigureAwait(false);
                     return 5;
                 default:
-                    await WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
-                        $"Unsupported command {command.Kind}.", command.CorrelationId);
+                    await (WriteAsync(DatasetWorkerMessageKind.ProtocolError, false,
+                        $"Unsupported command {command.Kind}.", command.CorrelationId)).ConfigureAwait(false);
                     return 6;
             }
         }
     }
-    catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
-    catch (ChannelClosedException) { }
+    catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Normal worker stop. */ }
+    catch (ChannelClosedException) { /* Control input ended; runtime shutdown follows in finally. */ }
     finally
     {
-        await stopping.CancelAsync();
-        try { await commandReader; }
-        finally { await StopRuntimeAsync(); }
+        await (stopping.CancelAsync()).ConfigureAwait(false);
+        try { await (commandReader).ConfigureAwait(false); }
+        finally { await (StopRuntimeAsync()).ConfigureAwait(false); }
     }
 
     return 0;
@@ -227,8 +237,8 @@ async Task<int> RunWorkerAsync()
         {
             while (!stopping.IsCancellationRequested)
             {
-                var command = await DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token);
-                await commands.Writer.WriteAsync(command, stopping.Token);
+                var command = await (DatasetWorkerFrameCodec.ReadAsync(input, 4 * 1024 * 1024, stopping.Token)).ConfigureAwait(false);
+                await (commands.Writer.WriteAsync(command, stopping.Token)).ConfigureAwait(false);
             }
         }
         catch (Exception exception) when (exception is IOException or OperationCanceledException
@@ -242,7 +252,7 @@ async Task<int> RunWorkerAsync()
         finally
         {
             commands.Writer.TryComplete();
-            await stopping.CancelAsync();
+            await (stopping.CancelAsync()).ConfigureAwait(false);
         }
     }
 
@@ -253,14 +263,14 @@ async Task<int> RunWorkerAsync()
             var manifest = command.Manifest
                 ?? throw new InvalidDataException("A complete dataset subscription manifest is required.");
             manifest.Validate();
-            if (manifest.Dataset != worker.Dataset || manifest.ValueDate != worker.ValueDate
+            if (!string.Equals(manifest.Dataset,worker.Dataset,StringComparison.Ordinal) || manifest.ValueDate != worker.ValueDate
                 || manifest.Revision != command.ManifestRevision
-                || manifest.Fingerprint != command.ManifestFingerprint)
+                || !string.Equals(manifest.Fingerprint,command.ManifestFingerprint,StringComparison.Ordinal))
                 throw new InvalidDataException("Manifest identity, revision or fingerprint does not match the command.");
             if (currentManifest is not null
                 && (manifest.Revision < currentManifest.Revision
                     || manifest.Revision == currentManifest.Revision
-                        && manifest.Fingerprint != currentManifest.Fingerprint))
+                        && !string.Equals(manifest.Fingerprint,currentManifest.Fingerprint,StringComparison.Ordinal)))
                 throw new InvalidDataException("Manifest revision is stale or conflicts with its accepted contents.");
             if (currentManifest is not null && command.Kind == DatasetWorkerMessageKind.StartManifest
                 && manifest.Revision != currentManifest.Revision)
@@ -276,19 +286,29 @@ async Task<int> RunWorkerAsync()
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Publisher ownership remains with worker orchestration: failed start disposes it; runtime stop and outer shutdown close dispose it.")]
     async Task InstallManifestAsync(DatasetSubscriptionManifest manifest)
     {
         Log.Information("{Component}.{Method} installing manifest {ManifestRevision} for {Dataset}",
             "DatasetWorker", "InstallManifestAsync", manifest.Revision, manifest.Dataset);
-        await StopRuntimeAsync();
+        await (StopRuntimeAsync()).ConfigureAwait(false);
         pipePublisher = new PipeDatasetWorkerPublisher(publications, worker.Dataset,
             worker.ValueDate, worker.WorkerInstanceId, manifest.Revision, retentionAcknowledgments);
-        datasetRuntime = await DatasetWorkerRuntime.StartAsync(manifest, worker.DeploymentProfile,
-            worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token, worker.OptionPricingRefresh, loggerFactory);
+        try
+        {
+            datasetRuntime = await (DatasetWorkerRuntime.StartAsync(manifest, worker.DeploymentProfile,
+                worker.DataSource, worker.Synthetic, pipePublisher, stopping.Token, worker.OptionPricingRefresh, loggerFactory)).ConfigureAwait(false);
+        }
+        catch
+        {
+            await pipePublisher.DisposeAsync().ConfigureAwait(false);
+            pipePublisher = null;
+            throw;
+        }
         if (!datasetRuntime.IsHealthy || datasetRuntime.GenerationId == Guid.Empty)
             throw new InvalidOperationException("The replacement dataset generation is not healthy.");
         generation = datasetRuntime.GenerationId;
-        await pipePublisher.BindGenerationAsync(generation, stopping.Token);
+        await (pipePublisher.BindGenerationAsync(generation, stopping.Token)).ConfigureAwait(false);
         currentManifest = manifest;
         Log.Information("{Component}.{Method} runtime ready with {GenerationId} and {ManifestRevision}",
             "DatasetWorker", "InstallManifestAsync", generation, manifest.Revision);
@@ -297,15 +317,15 @@ async Task<int> RunWorkerAsync()
     async Task StopRuntimeAsync()
     {
         if (pipePublisher is not null)
-            await pipePublisher.CloseAsync(CancellationToken.None);
+            await (pipePublisher.CloseAsync(CancellationToken.None)).ConfigureAwait(false);
         if (datasetRuntime is not null)
         {
-            await datasetRuntime.DisposeAsync();
+            await (datasetRuntime.DisposeAsync()).ConfigureAwait(false);
             datasetRuntime = null;
         }
         if (pipePublisher is not null)
         {
-            await pipePublisher.DisposeAsync();
+            await (pipePublisher.DisposeAsync()).ConfigureAwait(false);
             pipePublisher = null;
         }
     }
@@ -322,7 +342,7 @@ async Task<int> RunWorkerAsync()
         // still names its predecessor. Do not attach cross-generation diagnostics.
         var diagnostics = datasetRuntime is { } activeRuntime && activeRuntime.GenerationId == generation
             ? activeRuntime.GetDiagnostics() : null;
-        await DatasetWorkerFrameCodec.WriteAsync(output, new()
+        await (DatasetWorkerFrameCodec.WriteAsync(output, new()
         {
             Kind = kind,
             WorkerInstanceId = worker.WorkerInstanceId,
@@ -340,7 +360,7 @@ async Task<int> RunWorkerAsync()
             OptionChainResult = chainResult,
             CompositionResult = compositionResult,
             BootstrapToken = bootstrapToken
-        }, 4 * 1024 * 1024, stopping.Token);
+        }, 4 * 1024 * 1024, stopping.Token)).ConfigureAwait(false);
     }
 
     bool ValidSupervisorFrame(DatasetWorkerControlFrame frame)
@@ -357,91 +377,6 @@ async Task<int> RunWorkerAsync()
 
 }
 
-file sealed record DatasetWorkerArguments(
-    string ControlIn,
-    string ControlOut,
-    string PublicationOut,
-    string RetentionAckIn,
-    string Dataset,
-    DateOnly ValueDate,
-    Guid WorkerInstanceId,
-    Guid GenerationId,
-    TomasAI.IFM.Framework.MarketData.DataBento.FeedDeploymentProfile DeploymentProfile,
-    TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode DataSource,
-    TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions Synthetic,
-    TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy OptionPricingRefresh)
-{
-    public static bool TryParse(string[] values, out DatasetWorkerArguments result, out string error)
-    {
-        var map = new Dictionary<string, string>(StringComparer.Ordinal);
-        for (var index = 0; index + 1 < values.Length; index += 2)
-            map[values[index]] = values[index + 1];
-        string? input = null, output = null, publication = null, dataset = null, retentionAck = null;
-        var valueDate = default(DateOnly);
-        var workerId = Guid.Empty;
-        var generationId = Guid.Empty;
-        var valid = map.TryGetValue("--control-in", out input)
-            && map.TryGetValue("--control-out", out output)
-            && map.TryGetValue("--publication-out", out publication)
-            && map.TryGetValue("--retention-ack-in", out retentionAck)
-            && map.TryGetValue("--dataset", out dataset)
-            && map.TryGetValue("--value-date", out var valueDateText)
-            && DateOnly.TryParseExact(valueDateText, "yyyy-MM-dd", out valueDate)
-            && map.TryGetValue("--worker-id", out var workerText)
-            && Guid.TryParse(workerText, out workerId)
-            && map.TryGetValue("--generation-id", out var generationText)
-            && Guid.TryParse(generationText, out generationId)
-            && !string.IsNullOrWhiteSpace(dataset)
-            && workerId != Guid.Empty
-            && generationId != Guid.Empty;
-        if (!valid)
-        {
-            result = null!;
-            error = "Dataset worker bootstrap arguments are invalid.";
-            return false;
-        }
-        var profile = ParseEnum(map, "--deployment-profile",
-            TomasAI.IFM.Framework.MarketData.DataBento.FeedDeploymentProfile.SyntheticCi);
-        var dataSource = ParseEnum(map, "--data-source",
-            TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode.Synthetic);
-        var synthetic = new TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions
-        {
-            RecordCount = ParseInt(map, "--synthetic-record-count", 1_000_000),
-            RecordsPerSecond = ParseInt(map, "--synthetic-records-per-second", 100),
-            StartSequence = ParseUlong(map, "--synthetic-start-sequence", 1)
-        };
-        TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy refresh;
-        try
-        {
-            refresh = map.TryGetValue("--option-pricing-refresh", out var json)
-                ? System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.Application.MarketData.Pricing.OptionPricingRefreshPolicy>(json)
-                    ?? throw new ArgumentException("Missing option refresh policy.")
-                : new();
-            refresh.Validate();
-        }
-        catch (Exception exception) when (exception is System.Text.Json.JsonException or ArgumentException)
-        {
-            result = null!;
-            error = "Invalid option pricing refresh policy.";
-            return false;
-        }
-        result = new(input!, output!, publication!, retentionAck!, dataset!, valueDate, workerId, generationId,
-            profile, dataSource, synthetic, refresh);
-        error = string.Empty;
-        return true;
+
     }
-
-    static T ParseEnum<T>(IReadOnlyDictionary<string, string> values, string key, T fallback)
-        where T : struct, Enum => values.TryGetValue(key, out var text)
-            && Enum.TryParse<T>(text, true, out var value) ? value : fallback;
-    static int ParseInt(IReadOnlyDictionary<string, string> values, string key, int fallback) =>
-        values.TryGetValue(key, out var text) && int.TryParse(text, out var value) ? value : fallback;
-    static ulong ParseUlong(IReadOnlyDictionary<string, string> values, string key, ulong fallback) =>
-        values.TryGetValue(key, out var text) && ulong.TryParse(text, out var value) ? value : fallback;
-}
-
-file static class NativeMethods
-{
-    [DllImport("libc", EntryPoint = "setpgid")]
-    internal static extern int setpgid(int processId, int processGroupId);
 }

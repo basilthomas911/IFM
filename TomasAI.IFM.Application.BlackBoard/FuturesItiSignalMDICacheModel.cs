@@ -5,6 +5,7 @@ using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Blackboard;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the published domain and protocol type name.")]
 public class FuturesItiSignalMDICacheModel
 {
     readonly string CacheName = $"{DataCacheName.FuturesItiSignalMDI}";
@@ -39,16 +40,17 @@ public class FuturesItiSignalMDICacheModel
     public virtual async ValueTask<FuturesItiSignalMDIV2ReadModel[]> GetAsync(string contractId, DateOnly valueDate,
         Func<string, DateOnly, Task<FuturesItiSignalMDIV2ReadModel[]>> getFuturesItiSignalMDI)
     {
+        ArgumentNullException.ThrowIfNull(getFuturesItiSignalMDI);
         var key = $"{CacheName}:{contractId}. {valueDate:yyyyMMdd}";
-        var value = _redisCache.Get(key);
+        var value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         if (string.IsNullOrEmpty(value))
         {
-            var futuresItiMDIDistribution = await getFuturesItiSignalMDI(contractId, valueDate);
+            var futuresItiMDIDistribution = await (getFuturesItiSignalMDI(contractId, valueDate)).ConfigureAwait(false);
             if (futuresItiMDIDistribution is null)
                 return [];
             value = _jsonSerializer.Serialize(futuresItiMDIDistribution);
             TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
-        _redisCache.Set(key, value);
+        await _redisCache.SetAsync(key, value).ConfigureAwait(false);
         }
         return _jsonSerializer.Deserialize<FuturesItiSignalMDIV2ReadModel[]>(value) ?? [];
     }

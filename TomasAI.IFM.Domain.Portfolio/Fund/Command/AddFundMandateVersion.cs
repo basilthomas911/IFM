@@ -36,6 +36,10 @@ public static class AddFundMandateVersion
         string principal,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(state);
         var activation = await FundActivationQualification.EvaluateAsync(id, state, events, referenceQueries,
                 command.Mandate.OperatingState == FundOperatingState.Active, cancellationToken).ConfigureAwait(false);
         var errorMsg = $"{command.CommandName}: unable to apply FundMandateVersionAdded event";

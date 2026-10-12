@@ -33,7 +33,7 @@ public sealed class ApplicationCommandActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     private IApplicationCommandContext ActorContext =>
-        IsArgumentNull.Set(Context as IApplicationCommandContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IApplicationCommandContext, nameof(Context))!;
 
     public const string ActorName = "ApplicationCommand";
     IEventSourceActorStateRepository<ApplicationCommandState> _repo = default!;
@@ -45,6 +45,7 @@ public sealed class ApplicationCommandActor(
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<ApplicationCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<ApplicationCommandState>>());
         await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
@@ -62,7 +63,7 @@ public sealed class ApplicationCommandActor(
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [StartApplicationCommand.Verb] = static message => message.AsCommand<StartApplicationCommand>()!,
         [ShutdownApplicationCommand.Verb] = static message => message.AsCommand<ShutdownApplicationCommand>()!
@@ -78,17 +79,17 @@ public sealed class ApplicationCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ApplicationCommandActor> context, IActorState state, ICommand cmd)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ApplicationCommandActor> context, IActorState state, ICommand command)
     {
-        var dispatchContext = context;
+        _=context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
 
 
-        var receiveCommand = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return receiveCommand.Invoke(cmd, context, applicationState);
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
+        return receiveCommand.Invoke(command, context, applicationState);
     }
 
     static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
@@ -108,13 +109,13 @@ public sealed class ApplicationCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override ValueTask OnValidateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override ValueTask OnValidateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
 
-        ValidateMappedCommand(cmd, _validationMap);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -152,30 +153,12 @@ public sealed class ApplicationCommandActor(
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// Asynchronously saves the current state of the application actor in response to a command.
-    /// </summary>
-    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be null.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
-    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see cref="ApplicationCommandState"/>.</param>
-    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
-        await _repo.SaveStateAsync(context, applicationState, cmd).ConfigureAwait(false);
+        IsArgumentNull.Check(command);
+        return await _repo.LoadStateAsync(command).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -187,14 +170,33 @@ public sealed class ApplicationCommandActor(
     /// <param name="command">The command that encountered the exception.</param>
     /// <param name="ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (ApplicationCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Asynchronously saves the current state of the application actor in response to a command.
+    /// </summary>
+    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be null.</param>
+    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
+    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see cref="ApplicationCommandState"/>.</param>
+    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(command);
+        var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
+        await _repo.SaveStateAsync(context, applicationState, command).ConfigureAwait(false);
+    }
 
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (ApplicationCommandState)state, command, cancellationToken).ConfigureAwait(false);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ApplicationCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
@@ -205,7 +207,7 @@ public sealed class ApplicationCommandActor(
         }
         catch (Exception innerEx)
         {
-            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write12(Context.Logger, innerEx, ActorName, threadId, ex.Message);
             return CommandFailed(innerEx, command);
         }
     }

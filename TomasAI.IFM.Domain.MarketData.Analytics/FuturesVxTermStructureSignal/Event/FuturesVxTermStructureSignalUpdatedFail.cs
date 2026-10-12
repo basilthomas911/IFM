@@ -16,8 +16,7 @@ public static class FuturesVxTermStructureSignalUpdatedFail
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
-        logger.LogError("VX term-structure projection failed for {EntityId}: {ErrorMessage}",
-            @event.EntityId, @event.ErrorMessage);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write32(logger, null, @event.EntityId, @event.ErrorMessage);
         return ValueTask.FromResult(true);
     }
 }

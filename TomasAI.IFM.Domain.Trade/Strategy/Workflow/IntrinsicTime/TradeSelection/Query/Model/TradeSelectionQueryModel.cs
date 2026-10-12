@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Qu
 using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query.Model;
-
 /// <summary>Provides shared authorization and exact-read calculations for Trade Selection queries.</summary>
 internal static class TradeSelectionQueryModel
 {
@@ -18,7 +17,7 @@ internal static class TradeSelectionQueryModel
         if (access is null || string.IsNullOrWhiteSpace(access.Principal) || access.Roles.Length == 0)
             throw new UnauthorizedAccessException("Portfolio read authority is required.");
         using var scope = PortfolioAccessScope.Push(new() { Principal = access.Principal, Roles = access.Roles });
-        var result = await services.PortfolioQueries.GetFundAsync(portfolioId, fundId, cancellationToken: cancellationToken);
+        var result = await (services.PortfolioQueries.GetFundAsync(portfolioId, fundId, cancellationToken: cancellationToken)).ConfigureAwait(false);
         if (!result.Success || result.Value is null || result.Value.PortfolioId != portfolioId || result.Value.FundId != fundId)
             throw new UnauthorizedAccessException("Portfolio/Fund access was denied.");
     }
@@ -26,13 +25,12 @@ internal static class TradeSelectionQueryModel
     /// <summary>Reads an exact invocation and determines whether the workflow accepted it.</summary>
     internal static async Task<TradeSelectionProjection> ExactAsync(ITradeSelectionQueryContext services, SelectionQueryAccess access, StrategyWorkflowId workflowId, Guid invocationId, CancellationToken cancellationToken)
     {
-        var completed = await services.DbFactory.TradeDb.GetTradeSelectionInvocationAsync(workflowId, invocationId, cancellationToken)
-            ?? throw new KeyNotFoundException("Exact selector invocation not found.");
+        var completed = await (services.DbFactory.TradeDb.GetTradeSelectionInvocationAsync(workflowId, invocationId, cancellationToken)).ConfigureAwait(false) ?? throw new KeyNotFoundException("Exact selector invocation not found.");
         var result = TradeSelectionContracts.ReadResult(completed.Result);
-        await AuthorizeAsync(services, access, result.PortfolioId, result.FundId, cancellationToken);
-        var workflow = await services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(workflowId, cancellationToken);
+        await (AuthorizeAsync(services, access, result.PortfolioId, result.FundId, cancellationToken)).ConfigureAwait(false);
+        var workflow = await (services.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(workflowId, cancellationToken)).ConfigureAwait(false);
         var view = workflow is null ? null : MessagePackBinarySerializer.Shared.Deserialize<IntrinsicTimeStrategyWorkflowView>(workflow.StatePayload);
-        var accepted = view?.TradeSelection.Result?.PayloadSha256 == completed.Result.PayloadSha256 && view.TradeSelection.SourceEventId == completed.Id;
+        var accepted = string.Equals(view?.TradeSelection.Result?.PayloadSha256, completed.Result.PayloadSha256, StringComparison.Ordinal) && view.TradeSelection.SourceEventId == completed.Id;
         return new(completed, accepted, view is null, !accepted && view is { Status: not WorkflowStrategyMachineStatus.Started });
     }
 }

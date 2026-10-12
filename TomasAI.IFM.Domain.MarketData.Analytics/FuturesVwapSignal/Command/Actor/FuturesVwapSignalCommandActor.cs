@@ -18,16 +18,15 @@ public sealed class FuturesVwapSignalCommandActor(
 {
     /// <summary>Identifies the VWAP Command mailbox.</summary>
     public const string ActorName = UpdateFuturesVwapSignalCommand.Actor;
-    readonly IFuturesVwapSignalCommandContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesVwapSignalCommandContext, nameof(actorContext))!;
+    readonly IFuturesVwapSignalCommandContext typedContext = IsArgumentNull.Named(actorContext as IFuturesVwapSignalCommandContext, nameof(actorContext))!;
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesVwapSignalCommandActor> context)
-        => await typedContext.EventProjector.StartAsync(context);
+        => await (typedContext.EventProjector.StartAsync(context)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesVwapSignalCommandActor> context) =>
-        await typedContext.EventProjector.StopAsync();
+        await (typedContext.EventProjector.StopAsync()).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override ICommand ParseMessage(
@@ -35,7 +34,7 @@ public sealed class FuturesVwapSignalCommandActor(
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [UpdateFuturesVwapSignalCommand.Verb] = message =>
             message.AsCommand<UpdateFuturesVwapSignalCommand>(),
@@ -101,37 +100,37 @@ public sealed class FuturesVwapSignalCommandActor(
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
-        ActorThreadId threadId, ICommand command) => await typedContext.StateRepository.LoadStateAsync(command);
+        ActorThreadId threadId, ICommand command) => await (typedContext.StateRepository.LoadStateAsync(command)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) =>
-        await typedContext.StateRepository.LoadStateAsync(command, cancellationToken);
+        await (typedContext.StateRepository.LoadStateAsync(command, cancellationToken)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command) =>
-        await typedContext.StateRepository.SaveStateAsync(
-            context, (FuturesVwapSignalCommandState)state, command);
+        await (typedContext.StateRepository.SaveStateAsync(
+            context, (FuturesVwapSignalCommandState)state, command)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command,
         CancellationToken cancellationToken) =>
-        await typedContext.StateRepository.SaveStateAsync(context, (FuturesVwapSignalCommandState)state,
-            command, cancellationToken);
+        await (typedContext.StateRepository.SaveStateAsync(context, (FuturesVwapSignalCommandState)state,
+            command, cancellationToken)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
-        ActorThreadId threadId, ICommand command, Exception exception)
+        ActorThreadId threadId, ICommand command, Exception ex)
     {
-        var error = await exception.SendErrorEventAsync<
+        var error = await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent,
-            ActorEntityId>(ErrorType.Command, context);
+            ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
         return new ServiceFailed<GuidResult>(error);
     }
 }

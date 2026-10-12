@@ -6,17 +6,8 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="DownloadLogQueryActor"/>.</summary>
-public interface IDownloadLogQueryContext : IQueryActorContext<DownloadLogQueryActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<DownloadLogQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="DownloadLogQueryActor"/>.</summary>
-public sealed class DownloadLogQueryContext : QueryActorContext, IQueryActorContext<DownloadLogQueryActor>, IDownloadLogQueryContext
+public sealed class DownloadLogQueryContext : QueryActorContext, IDownloadLogQueryContext
 {
     /// <summary>Initializes the context.</summary>
     public DownloadLogQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<DownloadLogQueryActor> logger)

@@ -1,0 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.State", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.OrderComposition.Function", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]
+[assembly: SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.State", Justification = "Event namespaces follow the established C# actor/event modeling convention and retain published type identities.")]

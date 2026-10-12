@@ -21,6 +21,7 @@ public sealed class DatabaseBackupExecutionDispatcher(
         var count = 0;
         foreach (var operation in recoverable)
         {
+            if (options.CutoverWorkerOnly) continue;
             if (_deferredUntil.TryGetValue(operation.Intent.OperationId, out var deferredUntil)
                 && deferredUntil > DateTimeOffset.UtcNow)
                 continue;

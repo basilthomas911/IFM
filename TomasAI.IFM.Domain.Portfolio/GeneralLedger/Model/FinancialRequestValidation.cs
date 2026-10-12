@@ -9,14 +9,17 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 /// <summary>Ordered List validation extensions shared by financial actor maps.</summary>
 public static class FinancialRequestValidation
 {
-    public static List<ValidationError> ValidateFinancialRequest<TRequest, TBody>(this List<ValidationError> errors,
+    public static TErrors ValidateFinancialRequest<TRequest, TBody, TErrors>(this TErrors errors,
         TRequest request, ActorType actorType, string actorName, string verb)
         where TRequest : class, IFinancialRequest<TBody>
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(request);
         Add(request.SchemaVersion == 1, "SchemaVersion must be 1.");
         Add(request.CommandId != Guid.Empty && request.OperationId != Guid.Empty && request.PortfolioId > 0, "Financial identities are required.");
         Add(request.CorrelationId != Guid.Empty && request.CausationId != Guid.Empty, "Correlation and causation are required.");
-        Add(request.Subject.ActorType == actorType && request.Subject.Name == actorName && request.Subject.Verb == verb,
+        Add(request.Subject.ActorType == actorType && string.Equals(request.Subject.Name,actorName,StringComparison.Ordinal) && string.Equals(request.Subject.Verb,verb,StringComparison.Ordinal),
             "Financial request actor/verb is incorrect.");
         Add(request.ExpiresAtUtc.Kind == DateTimeKind.Utc && request.RequestedAtUtc.Kind == DateTimeKind.Utc &&
             request.ExpiresAtUtc > request.RequestedAtUtc, "Fixed UTC request/expiry times are required.");
@@ -37,7 +40,7 @@ public static class FinancialRequestValidation
             ChangeCapacityReservationCommand { EntityId: not null } x when x.Body is not null && x.EntityId.PortfolioId == x.PortfolioId && x.EntityId.ReservationId == x.Body.ReservationId => x.EntityId.Format(),
             _ => null
         };
-        Add(identity is not null && request.Subject.EntityId == identity, "Subject, aggregate and business identities must agree.");
+        Add(identity is not null && string.Equals(request.Subject.EntityId,identity,StringComparison.Ordinal), "Subject, aggregate and business identities must agree.");
         Add(request.PostEvents == (actorType == ActorType.Command), "Only financial Commands publish durable notifications.");
         var permission = request switch
         {
@@ -56,7 +59,7 @@ public static class FinancialRequestValidation
             request.Access?.PortfolioIds?.Contains(request.PortfolioId) == true, "Caller is not authorized for this Portfolio.");
         if (errors.Count == 0)
         {
-            Add(request.InputSha256 == FinancialCanonicalHash.Request(request), "Input fingerprint does not match the canonical request.");
+            Add(string.Equals(request.InputSha256,FinancialCanonicalHash.Request(request),StringComparison.Ordinal), "Input fingerprint does not match the canonical request.");
             Add(MessagePackBinarySerializer.MeasureContent(request) <= 1048576 && MessagePackBinarySerializer.MeasureEncoded(request) <= 1048576,
                 "Financial request exceeds 1 MiB.");
         }
@@ -67,6 +70,7 @@ public static class FinancialRequestValidation
 
     public static void Demand(IFinancialRequest request, string permission, DateTime nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (request.Access is null || string.IsNullOrWhiteSpace(request.Access.Principal) ||
             !(request.Access.Roles.Contains("PortfolioAdministrator", StringComparer.Ordinal) || request.Access.Roles.Contains(permission, StringComparer.Ordinal)))
             throw new FinancialOperationException(FinancialReasons.AuthorityDenied, "Caller lacks financial operation permission.");
@@ -76,6 +80,7 @@ public static class FinancialRequestValidation
 
     public static bool DemandPosting(IFinancialRequest request, LedgerPostingRequest body, DateTime nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(body);
         Demand(request, "LedgerPost", nowUtc);
         var permission = body.TransactionKind switch
         {

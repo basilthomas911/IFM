@@ -31,12 +31,13 @@ public class EventStreamIdCacheModel(IRedisCache redisCache, IJsonSerializer jso
     /// <returns></returns>
     public async ValueTask<EventStreamIdReadModel> GetAsync(string eventStream, Func<string, Task<EventStreamIdReadModel>> getEventStreamId)
     {
+        ArgumentNullException.ThrowIfNull(getEventStreamId);
         var key = $"{cacheName}:{eventStream}";
         if (!redisCache.TryGet(key, out string? value))
         {
-            var eventStreamId = await getEventStreamId(eventStream);
+            var eventStreamId = await (getEventStreamId(eventStream)).ConfigureAwait(false);
             value = jsonSerializer.Serialize(eventStreamId);
-            redisCache.Set(key, value);
+            await redisCache.SetAsync(key, value).ConfigureAwait(false);
         }
         return jsonSerializer.Deserialize<EventStreamIdReadModel>(value!) ?? new EventStreamIdReadModel(0, string.Empty);
     }

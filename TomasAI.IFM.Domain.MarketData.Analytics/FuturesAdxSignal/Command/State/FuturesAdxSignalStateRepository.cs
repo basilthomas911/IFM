@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -34,14 +34,14 @@ public class FuturesAdxSignalStateRepository(
         => command switch
         {
             ICommand<FuturesAdxDailySignalEntityId> dailyCommand
-                => await LoadStateAsync<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
+                => await (LoadStateAsync<FuturesAdxSignalCommandState, FuturesAdxDailySignalGeneratedEvent>(
                     command,
-                    dailyCommand.EntityId.PeriodLength, cancellationToken),
+                    dailyCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
             ICommand<FuturesAdxSignalEntityId> adxCommand
-                => await LoadStateFromSnapshotLastNRangeAsync<
+                => await (LoadStateFromSnapshotLastNRangeAsync<
                     FuturesAdxSignalCommandState,
                     FuturesAdxSignalStartedEvent,
-                    FuturesAdxSignalGeneratedEvent>(command, adxCommand.EntityId.PeriodLength, cancellationToken),
+                    FuturesAdxSignalGeneratedEvent>(command, adxCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
             _ => throw new ArgumentException($"Unsupported command type: {command.GetType().Name}", nameof(command))
         };
 
@@ -56,7 +56,34 @@ public class FuturesAdxSignalStateRepository(
        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesAdxSignalCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+       {
+           ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        var database = dbFactory.MarketDataDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
+        var owner = context.Container.Resolve<IPostgresEventTransaction>();
+        var pending = new DomainEventCollection(state.Events);
+        await owner.ExecuteAsync(async (transaction,token) =>
+        {
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
+            }
+            return true;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures ADX signal

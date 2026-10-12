@@ -17,6 +17,8 @@ public static class SetFuturesItiSignalHoldTrade
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this SetFuturesItiSignalHoldTradeCommand command, FuturesItiSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to set ITI hold-trade state";
         var updated = command.Compute(state.FuturesItiSignal, out var futuresItiSignal) switch
         {

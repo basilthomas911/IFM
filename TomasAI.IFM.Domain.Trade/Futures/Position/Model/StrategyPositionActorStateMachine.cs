@@ -4,7 +4,6 @@ using TomasAI.IFM.Domain.Trade.Order.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Model;
-
 /// <summary>Resident whole-strategy state used by concrete strategy position command actors.</summary>
 public sealed class StrategyPositionActorStateMachine
 {
@@ -12,65 +11,41 @@ public sealed class StrategyPositionActorStateMachine
     Guid[] _orderedLegIds = [];
     public StrategyPositionSnapshot? Current { get; private set; }
 
-    public TradeDecision<StrategyPositionSnapshot> Open(
-        EstablishedTradeDefinition trade,
-        Guid positionId,
-        DateTime openedAtUtc)
+    public TradeDecision<StrategyPositionSnapshot> Open(EstablishedTradeDefinition trade, Guid positionId, DateTime openedAtUtc)
     {
+        ArgumentNullException.ThrowIfNull(trade);
         if (Current is not null)
         {
-            if (Current.Id.Trade == trade.Id) return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
+            if (Current.Id.Trade == trade.Id)
+                return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
             return Reject("POSITION.ALREADY_EXISTS", "A different Trade already owns this position stream.");
         }
+
         if (positionId == Guid.Empty || openedAtUtc.Kind != DateTimeKind.Utc || trade.Status is EstablishedTradeStatus.Closed)
             return Reject("POSITION.INVALID_OPEN", "Open position requires a valid identity, UTC time, and open Trade.");
-
         foreach (var leg in trade.Legs)
         {
             var fills = trade.OriginalFills.Where(value => value.TradeLegId == leg.TradeLegId).ToArray();
             var absoluteQuantity = fills.Sum(static value => Math.Abs(value.SignedQuantity));
-            if (absoluteQuantity == 0) return Reject("POSITION.MISSING_FILL", $"Leg {leg.TradeLegId} has no opening fill.");
+            if (absoluteQuantity == 0)
+                return Reject("POSITION.MISSING_FILL", $"Leg {leg.TradeLegId} has no opening fill.");
             var openingPrice = fills.Sum(value => value.Price * Math.Abs(value.SignedQuantity)) / absoluteQuantity;
             var filledQuantity = fills.Sum(static value => value.SignedQuantity);
-            _legs.Add(leg.TradeLegId, new StrategyPositionLeg
-            {
-                TradeLegId = leg.TradeLegId,
-                ContractId = leg.ContractId,
-                SignedQuantity = filledQuantity,
-                OpeningPrice = openingPrice,
-                CurrentPrice = openingPrice,
-                LastPriceAtUtc = openedAtUtc,
-                AssetFamily = leg.AssetFamily,
-                ContractKey = leg.ContractKey,
-                Expiry = leg.Expiry,
-                Strike = leg.Strike,
-                PutCall = leg.PutCall
-            });
+            _legs.Add(leg.TradeLegId, new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = filledQuantity, OpeningPrice = openingPrice, CurrentPrice = openingPrice, LastPriceAtUtc = openedAtUtc, AssetFamily = leg.AssetFamily, ContractKey = leg.ContractKey, Expiry = leg.Expiry, Strike = leg.Strike, PutCall = leg.PutCall });
         }
+
         _orderedLegIds = _legs.Keys.Order().ToArray();
-        Current = Build(new StrategyPositionId(trade.Id, positionId), trade.StrategyKind,
-            StrategyPositionPhase.Open, 1, 1, openedAtUtc, true, 0);
+        Current = Build(new StrategyPositionId(trade.Id, positionId), trade.StrategyKind, StrategyPositionPhase.Open, 1, 1, openedAtUtc, true, 0);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
-    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(
-        Guid tradeLegId,
-        decimal price,
-        long sourceSequence,
-        DateTime occurredAtUtc,
-        long routeGeneration)
-        => UpdateLeg(tradeLegId, null, price, sourceSequence, occurredAtUtc, routeGeneration);
-
-    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(
-        Guid tradeLegId,
-        string? contractId,
-        decimal price,
-        long sourceSequence,
-        DateTime occurredAtUtc,
-        long routeGeneration)
+    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(Guid tradeLegId, decimal price, long sourceSequence, DateTime occurredAtUtc, long routeGeneration) => UpdateLeg(tradeLegId, null, price, sourceSequence, occurredAtUtc, routeGeneration);
+    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(Guid tradeLegId, string? contractId, decimal price, long sourceSequence, DateTime occurredAtUtc, long routeGeneration)
     {
-        if (Current is null) return Reject("POSITION.NOT_FOUND", "Position does not exist.");
-        if (!Current.IsOpen) return Reject("POSITION.CLOSED", "Position is closed.");
+        if (Current is null)
+            return Reject("POSITION.NOT_FOUND", "Position does not exist.");
+        if (!Current.IsOpen)
+            return Reject("POSITION.CLOSED", "Position is closed.");
         if (routeGeneration != Current.RouteGeneration)
             return Reject("POSITION.STALE_ROUTE", "Route generation is stale.");
         if (!_legs.TryGetValue(tradeLegId, out var leg))
@@ -89,131 +64,131 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("StrategyPosition.MARKET.STALE", "Market observation time is older than the current leg.");
         if (sourceSequence <= leg.LastSourceSequence)
             return Reject("POSITION.DUPLICATE_OR_OUT_OF_ORDER", "Tick sequence is not newer than the current leg sequence.");
-
         _legs[tradeLegId] = leg with
         {
             CurrentPrice = price,
             LastSourceSequence = sourceSequence,
             LastPriceAtUtc = occurredAtUtc
         };
-        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.MarkToMarket,
-            checked(Current.PositionSequence + 1), Current.RouteGeneration, occurredAtUtc, true, Current.RealizedPnl);
+        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.MarkToMarket, checked(Current.PositionSequence + 1), Current.RouteGeneration, occurredAtUtc, true, Current.RealizedPnl);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
-    public TradeDecision<StrategyPositionSnapshot> EndOfDay(DateTime asOfUtc)
-        => asOfUtc.Kind != DateTimeKind.Utc
-            ? Reject("StrategyPosition.TIME.INVALID", "EOD boundary must be UTC.")
-            : EndOfDay(DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)), asOfUtc);
-
+    public TradeDecision<StrategyPositionSnapshot> EndOfDay(DateTime asOfUtc) => asOfUtc.Kind != DateTimeKind.Utc ? Reject("StrategyPosition.TIME.INVALID", "EOD boundary must be UTC.") : EndOfDay(DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)), asOfUtc);
     /// <summary>Seals one dated daily position after its feed has stopped; duplicate sealing is idempotent.</summary>
-    /// <param name="valueDate">The exchange value date ending at the supplied boundary.</param>
-    /// <param name="asOfUtc">The actual session-close boundary in UTC.</param>
+    /// <param name = "valueDate">The exchange value date ending at the supplied boundary.</param>
+    /// <param name = "asOfUtc">The actual session-close boundary in UTC.</param>
     /// <returns>The immutable finalized position or a business rejection.</returns>
     public TradeDecision<StrategyPositionSnapshot> EndOfDay(DateOnly valueDate, DateTime asOfUtc)
     {
-        if (Current is null || !Current.IsOpen) return Reject("POSITION.NOT_OPEN", "An open position is required.");
-        if (asOfUtc.Kind != DateTimeKind.Utc || valueDate == default) return Reject("POSITION.INVALID_TIME", "EOD requires a value date and UTC boundary.");
+        if (Current is null || !Current.IsOpen)
+            return Reject("POSITION.NOT_OPEN", "An open position is required.");
+        if (asOfUtc.Kind != DateTimeKind.Utc || valueDate == default)
+            return Reject("POSITION.INVALID_TIME", "EOD requires a value date and UTC boundary.");
         if (valueDate != DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)))
             return Reject("StrategyPosition.SESSION.INVALID_CLOSE", "EOD value date must match the exchange date of its close boundary.");
         if (valueDate <= Current.LatestSealedValueDate)
-            return valueDate == Current.LatestSealedValueDate && Current.Phase == StrategyPositionPhase.EndOfDay
-                ? TradeDecision<StrategyPositionSnapshot>.Accept(Current)
-                : Reject("StrategyPosition.SESSION.SEALED", "This value date is already finalized.");
+            return valueDate == Current.LatestSealedValueDate && Current.Phase == StrategyPositionPhase.EndOfDay ? TradeDecision<StrategyPositionSnapshot>.Accept(Current) : Reject("StrategyPosition.SESSION.SEALED", "This value date is already finalized.");
         if (valueDate < Current.ValueDate || asOfUtc < Current.AsOfUtc)
             return Reject("StrategyPosition.SESSION.INVALID_CLOSE", "Close boundary cannot precede the current position.");
-        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.EndOfDay,
-            checked(Current.PositionSequence + 1), Current.RouteGeneration, asOfUtc, true, Current.RealizedPnl) with
-        { ValueDate = valueDate, LatestSealedValueDate = valueDate, CloseBoundaryUtc = asOfUtc };
+        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.EndOfDay, checked(Current.PositionSequence + 1), Current.RouteGeneration, asOfUtc, true, Current.RealizedPnl)with
+        {
+            ValueDate = valueDate,
+            LatestSealedValueDate = valueDate,
+            CloseBoundaryUtc = asOfUtc
+        };
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
     /// <summary>Applies broker fills, retaining the remaining position and durable replay evidence.</summary>
     public TradeDecision<StrategyPositionSnapshot> Close(ExecutionFillEvidence[] fills, DateTime closedAtUtc)
     {
-        if (Current is null) return Reject("POSITION.NOT_FOUND", "Position does not exist.");
-        var originalLegs = _legs.Values.Select(leg => new TradeLegDefinition
-        {
-            TradeLegId = leg.TradeLegId,
-            ContractId = leg.ContractId,
-            SignedQuantity = checked(leg.SignedQuantity - Current.ClosingFills.Where(x => x.TradeLegId == leg.TradeLegId).Sum(x => x.SignedQuantity))
-        }).ToArray();
+        if (Current is null)
+            return Reject("POSITION.NOT_FOUND", "Position does not exist.");
+        var originalLegs = _legs.Values.Select(leg => new TradeLegDefinition { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = checked(leg.SignedQuantity - Current.ClosingFills.Where(x => x.TradeLegId == leg.TradeLegId).Sum(x => x.SignedQuantity)) }).ToArray();
         var evidence = new EstablishedTradeDefinition
         {
             Legs = originalLegs,
             ClosingFills = Current.ClosingFills,
-            OriginalFills = originalLegs.Select(x => new ExecutionFillEvidence
-            { TradeLegId = x.TradeLegId, ContractId = x.ContractId, SignedQuantity = x.SignedQuantity }).ToArray()
+            OriginalFills = originalLegs.Select(x => new ExecutionFillEvidence { TradeLegId = x.TradeLegId, ContractId = x.ContractId, SignedQuantity = x.SignedQuantity }).ToArray()
         };
         if (!TradeCloseEvidence.TryApply(evidence, fills, closedAtUtc, out var accepted))
             return Reject("POSITION.INVALID_CLOSE_EVIDENCE", "Closing fills conflict with the remaining position.");
         var existing = Current.ClosingFills.Select(x => x.ExecutionFillId).ToHashSet();
         var added = accepted.ClosingFills.Where(x => !existing.Contains(x.ExecutionFillId)).ToArray();
-        if (added.Length == 0) return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
-        if (!Current.IsOpen) return Reject("POSITION.CLOSED", "Position is closed.");
+        if (added.Length == 0)
+            return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
+        if (!Current.IsOpen)
+            return Reject("POSITION.CLOSED", "Position is closed.");
         var realized = Current.RealizedPnl;
         foreach (var fill in added)
         {
             var leg = _legs[fill.TradeLegId];
             realized += (fill.Price - leg.OpeningPrice) * -fill.SignedQuantity;
-            _legs[fill.TradeLegId] = leg with { SignedQuantity = checked(leg.SignedQuantity + fill.SignedQuantity) };
+            _legs[fill.TradeLegId] = leg with
+            {
+                SignedQuantity = checked(leg.SignedQuantity + fill.SignedQuantity)
+            };
         }
+
         var isOpen = _legs.Values.Any(x => x.SignedQuantity != 0);
-        Current = Build(Current.Id, Current.StrategyKind, isOpen ? StrategyPositionPhase.MarkToMarket : StrategyPositionPhase.Close,
-            checked(Current.PositionSequence + 1), isOpen ? Current.RouteGeneration : checked(Current.RouteGeneration + 1),
-            closedAtUtc > Current.AsOfUtc ? closedAtUtc : Current.AsOfUtc, isOpen, realized) with
-        { ClosingFills = accepted.ClosingFills };
+        Current = Build(Current.Id, Current.StrategyKind, isOpen ? StrategyPositionPhase.MarkToMarket : StrategyPositionPhase.Close, checked(Current.PositionSequence + 1), isOpen ? Current.RouteGeneration : checked(Current.RouteGeneration + 1), closedAtUtc > Current.AsOfUtc ? closedAtUtc : Current.AsOfUtc, isOpen, realized)with
+        {
+            ClosingFills = accepted.ClosingFills
+        };
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
     public TradeDecision<StrategyPositionSnapshot> Close(DateTime closedAtUtc)
     {
-        if (Current is null || !Current.IsOpen) return Reject("POSITION.NOT_OPEN", "An open position is required.");
-        if (closedAtUtc.Kind != DateTimeKind.Utc) return Reject("POSITION.INVALID_TIME", "Close time must be UTC.");
+        if (Current is null || !Current.IsOpen)
+            return Reject("POSITION.NOT_OPEN", "An open position is required.");
+        if (closedAtUtc.Kind != DateTimeKind.Utc)
+            return Reject("POSITION.INVALID_TIME", "Close time must be UTC.");
         var realized = Current.RealizedPnl + CalculatePnl();
-        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.Close,
-            checked(Current.PositionSequence + 1), checked(Current.RouteGeneration + 1), closedAtUtc, false, realized);
+        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.Close, checked(Current.PositionSequence + 1), checked(Current.RouteGeneration + 1), closedAtUtc, false, realized);
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
     public TradeDecision<StrategyPositionSnapshot> CorrectBasis(Guid tradeLegId, decimal openingPrice, DateTime correctedAtUtc)
     {
-        if (Current is null) return Reject("POSITION.NOT_FOUND", "Position does not exist.");
+        if (Current is null)
+            return Reject("POSITION.NOT_FOUND", "Position does not exist.");
         if (FuturesTradingValueDate.GetOperational(new DateTimeOffset(correctedAtUtc)) <= Current.LatestSealedValueDate)
             return Reject("StrategyPosition.SESSION.SEALED", "A basis correction cannot mutate a finalized daily position.");
         if (!_legs.TryGetValue(tradeLegId, out var leg) || openingPrice <= 0 || correctedAtUtc.Kind != DateTimeKind.Utc)
             return Reject("POSITION.INVALID_CORRECTION", "Correction requires an existing leg, positive basis, and UTC time.");
-        _legs[tradeLegId] = leg with { OpeningPrice = openingPrice };
-        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.Correction,
-            checked(Current.PositionSequence + 1), checked(Current.RouteGeneration + 1), correctedAtUtc,
-            Current.IsOpen, Current.IsOpen ? Current.RealizedPnl : CalculatePnl());
+        _legs[tradeLegId] = leg with
+        {
+            OpeningPrice = openingPrice
+        };
+        Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.Correction, checked(Current.PositionSequence + 1), checked(Current.RouteGeneration + 1), correctedAtUtc, Current.IsOpen, Current.IsOpen ? Current.RealizedPnl : CalculatePnl());
         return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
     }
 
     public void Replay(StrategyPositionSnapshot snapshot)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         // Legacy payloads use the existing exchange value-date policy, never UTC.Date.
-        Current = snapshot.ValueDate == default && snapshot.AsOfUtc != default ? snapshot with
+        Current = ((snapshot.ValueDate == default && snapshot.AsOfUtc != default) switch
         {
-            ValueDate = FuturesTradingValueDate.GetOperational(new DateTimeOffset(snapshot.AsOfUtc)),
-            LatestSealedValueDate = snapshot.Phase == StrategyPositionPhase.EndOfDay ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(snapshot.AsOfUtc, FuturesTradingValueDate.MarketTimeZone)) : default,
-            HistoryAsOfUtc = snapshot.AsOfUtc, HistoryPositionSequence = snapshot.PositionSequence,
-            LastMarketObservationUtc = snapshot.Legs.Select(leg => leg.LastPriceAtUtc).DefaultIfEmpty(snapshot.AsOfUtc).Max()
-        } : snapshot;
+            true => snapshot with
+            {
+                ValueDate = FuturesTradingValueDate.GetOperational(new DateTimeOffset(snapshot.AsOfUtc)),
+                LatestSealedValueDate = snapshot.Phase == StrategyPositionPhase.EndOfDay ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(snapshot.AsOfUtc, FuturesTradingValueDate.MarketTimeZone)) : default,
+                HistoryAsOfUtc = snapshot.AsOfUtc,
+                HistoryPositionSequence = snapshot.PositionSequence,
+                LastMarketObservationUtc = snapshot.Legs.Select(leg => leg.LastPriceAtUtc).DefaultIfEmpty(snapshot.AsOfUtc).Max()
+            },
+            _ => snapshot
+        });
         _legs.Clear();
-        foreach (var leg in snapshot.Legs) _legs.Add(leg.TradeLegId, leg);
+        foreach (var leg in snapshot.Legs)
+            _legs.Add(leg.TradeLegId, leg);
         _orderedLegIds = snapshot.Legs.Select(static leg => leg.TradeLegId).ToArray();
     }
 
-    StrategyPositionSnapshot Build(
-        StrategyPositionId id,
-        TradeStrategyKind strategy,
-        StrategyPositionPhase phase,
-        long sequence,
-        long generation,
-        DateTime asOfUtc,
-        bool isOpen,
-        decimal realizedPnl)
+    StrategyPositionSnapshot Build(StrategyPositionId id, TradeStrategyKind strategy, StrategyPositionPhase phase, long sequence, long generation, DateTime asOfUtc, bool isOpen, decimal realizedPnl)
     {
         var legs = new StrategyPositionLeg[_orderedLegIds.Length];
         decimal value = 0;
@@ -225,13 +200,16 @@ public sealed class StrategyPositionActorStateMachine
             value += leg.CurrentPrice * leg.SignedQuantity;
             pnl += (leg.CurrentPrice - leg.OpeningPrice) * leg.SignedQuantity;
         }
-        var valueDate = phase == StrategyPositionPhase.EndOfDay
-            ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone))
-            : FuturesTradingValueDate.GetOperational(new DateTimeOffset(asOfUtc));
+
+        var valueDate = phase == StrategyPositionPhase.EndOfDay ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)) : FuturesTradingValueDate.GetOperational(new DateTimeOffset(asOfUtc));
         var sameDate = Current?.ValueDate == valueDate;
         var dailyRow = phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay;
         var reuseDailyRow = dailyRow && sameDate && Current!.Phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay;
-        var openingPnl = sameDate ? Current!.DailyOpeningPnl : Current is null ? 0 : Current.RealizedPnl + Current.UnrealizedPnl;
+        var openingPnl = ((sameDate) switch
+        {
+            true => Current!.DailyOpeningPnl,
+            _ => Current is null ? 0 : Current.RealizedPnl + Current.UnrealizedPnl
+        });
         return new StrategyPositionSnapshot
         {
             Id = id,
@@ -257,9 +235,6 @@ public sealed class StrategyPositionActorStateMachine
         };
     }
 
-    decimal CalculatePnl() => _legs.Values.Sum(static leg =>
-        (leg.CurrentPrice - leg.OpeningPrice) * leg.SignedQuantity);
-
-    static TradeDecision<StrategyPositionSnapshot> Reject(string code, string detail) =>
-        TradeDecision<StrategyPositionSnapshot>.Reject(code, detail);
+    decimal CalculatePnl() => _legs.Values.Sum(static leg => (leg.CurrentPrice - leg.OpeningPrice) * leg.SignedQuantity);
+    static TradeDecision<StrategyPositionSnapshot> Reject(string code, string detail) => TradeDecision<StrategyPositionSnapshot>.Reject(code, detail);
 }

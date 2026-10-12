@@ -29,6 +29,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Valid
 public static class FuturesContractReferenceValidation
 {
     /// <summary>Validates fields against the resolved reference lookup service.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "The existing fluent validation pipeline consumes this mutable error list through ThrowCommandValidationExceptionOnAnyError.")]
     public static List<ValidationError> ValidateReferenceData(
         this ICommand command,
         IReferenceLookupService referenceLookupService)

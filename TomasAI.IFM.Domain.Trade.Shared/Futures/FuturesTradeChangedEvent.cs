@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -7,7 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures;
 
 [MessagePackObject]
-public sealed record FuturesTradeChangedEvent : IEvent<TradeEntityId>
+public sealed record FuturesTradeChangedEvent : IEvent<TradeEntityId>, IRequireDurableProjection
 {
     public const string Verb = "FuturesTradeChanged";
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -24,6 +25,8 @@ public sealed record FuturesTradeChangedEvent : IEvent<TradeEntityId>
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]
     public EstablishedTradeDefinition State { get => EstablishedTradeDefinition; init => EstablishedTradeDefinition = value; }
     [Key(9)] public bool IsInitialEstablishment { get; init; }
+    [IgnoreMember] public bool RequiresDurableProjection => true;
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("FuturesTradeCommandActor","FuturesTradeEventProjector",EventProjectorStageType.ApplyProjection);
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesTradeChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

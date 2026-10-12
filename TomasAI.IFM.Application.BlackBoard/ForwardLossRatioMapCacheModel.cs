@@ -19,6 +19,7 @@ public class ForwardLossRatioMapCacheModel(IRedisCache redisCache, IJsonSerializ
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published concrete collection contract used by callers.")]
     public Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>> Get(DateOnly valueDate)
     {
         var id = $"{valueDate:yyyyMMdd}";
@@ -46,6 +47,7 @@ public class ForwardLossRatioMapCacheModel(IRedisCache redisCache, IJsonSerializ
     /// </summary>
     /// <param name="valueDate"></param>
     /// <param name="forwardLossRatioMap"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published concrete collection contract used by callers.")]
     public void Set(DateOnly valueDate, Dictionary<DateOnly, ICollection<TradePlanForwardLossRatioReadModel>> forwardLossRatioMap)
     {
         var id = $"{valueDate:yyyyMMdd}";

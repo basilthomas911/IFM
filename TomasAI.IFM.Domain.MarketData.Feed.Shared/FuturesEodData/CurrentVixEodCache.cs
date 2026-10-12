@@ -8,7 +8,7 @@ public sealed class CurrentVixEodCache
     /// <summary>Gets the cache shared by current-session readers.</summary>
     public static CurrentVixEodCache Shared { get; } = new();
     readonly ConcurrentDictionary<(string, DateOnly), VixFuturesEodDataReadModel> entries = new();
-    readonly ConcurrentDictionary<string, DateOnly> latestDates = new();
+    readonly ConcurrentDictionary<string, DateOnly> latestDates = new(StringComparer.Ordinal);
     /// <summary>Reads an immutable current VX snapshot.</summary>
     public bool TryGet(string contract, DateOnly date, out VixFuturesEodDataReadModel? value)
         {
@@ -19,17 +19,20 @@ public sealed class CurrentVixEodCache
     /// <summary>Publishes one snapshot from the ordered contract worker.</summary>
     public void Publish(VixFuturesEodDataReadModel snapshot)
         {
+            ArgumentNullException.ThrowIfNull(snapshot);
         latestDates.TryGetValue(snapshot.ContractId, out var previous);
         var latest = latestDates.AddOrUpdate(snapshot.ContractId, snapshot.ValueDate, (_, old) => snapshot.ValueDate > old ? snapshot.ValueDate : old);
         if (latest > previous)
-            foreach (var key in entries.Keys.Where(key => key.Item1 == snapshot.ContractId && key.Item2 < latest.AddDays(-1)))
+            foreach (var key in entries.Keys.Where(key => string.Equals(key.Item1,snapshot.ContractId,StringComparison.Ordinal) && key.Item2 < latest.AddDays(-1)))
                 entries.TryRemove(key, out _);
         entries[(snapshot.ContractId, snapshot.ValueDate)] = snapshot;
     }
     /// <summary>Loads persisted state on a miss without overwriting a concurrent live observation.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Filtered fallback failure is ignored only when a current ordered live observation is available.")]
     public async Task<VixFuturesEodDataReadModel?> ReadAsync(string contract, DateOnly date,
         Func<Task<VixFuturesEodDataReadModel?>> fallback)
     {
+        ArgumentNullException.ThrowIfNull(fallback);
         if (TryGet(contract, date, out var current)) return current;
         VixFuturesEodDataReadModel? stored;
         try { stored = await fallback().ConfigureAwait(false); }

@@ -29,7 +29,7 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetStopLossLimitQuery.Actor, GetStopLossLimitQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetStopLossLimitQuery, TradePlanStopLossLimitReadModel>(query.Subject, query);
+        return await (RequestAsync<GetStopLossLimitQuery, TradePlanStopLossLimitReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlanForwardLossRatiosQuery.Actor, GetTradePlanForwardLossRatiosQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePlanForwardLossRatiosQuery, TradePlanForwardLossRatioReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetTradePlanForwardLossRatiosQuery, TradePlanForwardLossRatioReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -55,22 +55,15 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlanForwardLossRatioQuery.Actor, GetTradePlanForwardLossRatioQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePlanForwardLossRatioQuery, TradePlanForwardLossRatioReadModel>(query.Subject, query);
+        return await (RequestAsync<GetTradePlanForwardLossRatioQuery, TradePlanForwardLossRatioReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Return iron condor trade plans for the specified order/trade and value date.
     /// Map returned TradePlanReadModel objects to IronCondorTradePlanReadModel.
     /// </summary>
-    public async Task<ServiceResult<TradePlanReadModel[]>> GetIronCondorTradePlansAsync(int orderId, int tradeId, DateOnly valueDate)
-    {
-        var entityId = new GetTradePlansParameter(orderId, tradeId, valueDate);
-        GetTradePlansQuery query = new(orderId, tradeId, valueDate)
-        {
-            Subject = new ActorSubject(ActorType.Query, GetTradePlansQuery.Actor, GetTradePlansQuery.Verb, entityId.Format()),
-        };
-        return await RequestAsync<GetTradePlansQuery, TradePlanReadModel[]>(query.Subject, query);
-    }
+    public Task<ServiceResult<TradePlanReadModel[]>> GetIronCondorTradePlansAsync(int orderId, int tradeId, DateOnly valueDate)
+        => GetTradePlansAsync(orderId, tradeId, valueDate);
 
     /// <summary>
     /// Return iron condor forward delta for the specified value date and trade type.
@@ -82,7 +75,7 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetIronCondorForwardDeltaQuery.Actor, GetIronCondorForwardDeltaQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetIronCondorForwardDeltaQuery, IronCondorForwardDeltaDataModel>(query.Subject, query);
+        return await (RequestAsync<GetIronCondorForwardDeltaQuery, IronCondorForwardDeltaDataModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -97,14 +90,14 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
     /// <param name="tradeType">The type of trade for which the forward loss limit type is being queried.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing a <see cref="TradePlanForwardLossLimitReadModel"/> that represents
     /// the forward loss limit type for the specified trade plan.</returns>
-    public async Task<ServiceResult<TradePlanForwardLossLimitReadModel>> GetForwardLossLimitTypeAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType)
+    public async Task<ServiceResult<TradePlanForwardLossLimitReadModel>> GetForwardLossLimitTypeAsync(int OrderId, int TradeId, DateOnly ValueDate, TradeType TradeType)
     {
-        var entityId = new GetTradePlanForwardLossLimitParameter(orderId, tradeId, tradeType, valueDate);
-        GetTradePlanForwardLossLimitQuery query = new(orderId, tradeId, tradeType, valueDate)
+        var entityId = new GetTradePlanForwardLossLimitParameter(OrderId, TradeId, TradeType, ValueDate);
+        GetTradePlanForwardLossLimitQuery query = new(OrderId, TradeId, TradeType, ValueDate)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlanForwardLossLimitQuery.Actor, GetTradePlanForwardLossLimitQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePlanForwardLossLimitQuery, TradePlanForwardLossLimitReadModel>(query.Subject, query);
+        return await (RequestAsync<GetTradePlanForwardLossLimitQuery, TradePlanForwardLossLimitReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -125,6 +118,6 @@ public class TradePlanQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradePlansQuery.Actor, GetTradePlansQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradePlansQuery, TradePlanReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetTradePlansQuery, TradePlanReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 }

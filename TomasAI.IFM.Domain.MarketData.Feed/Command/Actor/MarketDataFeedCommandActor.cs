@@ -13,7 +13,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
-using TomasAI.IFM.Domain.MarketData.Feed.Command.Validation;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
@@ -51,6 +50,7 @@ public class MarketDataFeedCommandActor(
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<MarketDataFeedCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<MarketDataFeedCommandState>>());
         await _eventProjector.StartAsync(context).ConfigureAwait(false);
@@ -78,7 +78,7 @@ public class MarketDataFeedCommandActor(
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [StartMarketDataFeedCommand.Verb] = msg => msg.AsCommand<StartMarketDataFeedCommand>()!,
         [StopMarketDataFeedCommand.Verb] = msg => msg.AsCommand<StopMarketDataFeedCommand>()!,
@@ -101,14 +101,14 @@ public class MarketDataFeedCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var marketDataFeedState = IsArgumentNull.Set((state as MarketDataFeedCommandState)!);
-        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, marketDataFeedState));
+        var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receiveFunc.Invoke(command, context, marketDataFeedState));
     }
 
     /// <summary>
@@ -140,13 +140,14 @@ public class MarketDataFeedCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType();
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        _=command.GetType();
+        ValidateMappedCommand(command, _validationMap);
     }
 
     /// <summary>
@@ -235,12 +236,12 @@ public class MarketDataFeedCommandActor(
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -253,16 +254,16 @@ public class MarketDataFeedCommandActor(
     /// cref="MarketDataFeedCommandState"/>.</param>
     /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var marketDataFeedState = IsArgumentNull.Set((state as MarketDataFeedCommandState)!);
-        await _repo.SaveStateAsync(context, marketDataFeedState, cmd);
+        await (_repo.SaveStateAsync(context, marketDataFeedState, command)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     /// <summary>
     /// Handles exceptions that occur during command execution and returns a failed service result containing error
     /// event information.
@@ -274,6 +275,7 @@ public class MarketDataFeedCommandActor(
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
@@ -282,32 +284,32 @@ public class MarketDataFeedCommandActor(
             IErrorEvent<TradeLiveFeedId> errorEvent = ex switch
             {
                 AddTradeLiveFeedException
-                    => await ex.SendErrorEventAsync<TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedAddedFailEvent.Actor, TradeLiveFeedAddedFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedAddedFailEvent.Actor, TradeLiveFeedAddedFailEvent.Verb)).ConfigureAwait(false),
                 RemoveTradeLiveFeedException
-                    => await ex.SendErrorEventAsync<TradeLiveFeedRemovedFailEvent, TradeLiveFeedId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedRemovedFailEvent.Actor, TradeLiveFeedRemovedFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<TradeLiveFeedRemovedFailEvent, TradeLiveFeedId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedRemovedFailEvent.Actor, TradeLiveFeedRemovedFailEvent.Verb)).ConfigureAwait(false),
                 TurnTradeLiveFeedOnException
-                    => await ex.SendErrorEventAsync<TradeLiveFeedTurnedOnFailEvent, TradeLiveFeedId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOnFailEvent.Actor, TradeLiveFeedTurnedOnFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<TradeLiveFeedTurnedOnFailEvent, TradeLiveFeedId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOnFailEvent.Actor, TradeLiveFeedTurnedOnFailEvent.Verb)).ConfigureAwait(false),
                 TurnTradeLiveFeedOffException
-                    => await ex.SendErrorEventAsync<TradeLiveFeedTurnedOffFailEvent, TradeLiveFeedId>(
-                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOffFailEvent.Actor, TradeLiveFeedTurnedOffFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<TradeLiveFeedTurnedOffFailEvent, TradeLiveFeedId>(
+                        ErrorType.Command, context, command, ActorEntityId.Default, TradeLiveFeedTurnedOffFailEvent.Actor, TradeLiveFeedTurnedOffFailEvent.Verb)).ConfigureAwait(false),
                 _ => default!
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex);
         }
         catch (Exception innerEx)
         {
-            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write21(_logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

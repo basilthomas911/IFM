@@ -19,7 +19,10 @@ public static class GetRolloverFuturesContracts
         this GetRolloverFuturesContractsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(q.Symbol, cancellationToken)
-            : dbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(q.Symbol))];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return [.. await (dbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(q.Symbol, cancellationToken)).ConfigureAwait(false)];
+    }
 }

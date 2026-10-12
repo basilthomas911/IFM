@@ -45,7 +45,7 @@ public class FuturesOptionContractId : IActorEntityId
     {
         _contractId = contractId;
         if (string.IsNullOrWhiteSpace(contractId))
-            throw new ArgumentException("FuturesOptionContractId: contractId is empty");
+            throw new ArgumentException("FuturesOptionContractId: contractId is empty", nameof(contractId));
         if (contractId.Length < 11)
             throw new InvalidOperationException($"FuturesOptionContractId: '{contractId}' is incomplete");
         try
@@ -78,10 +78,12 @@ public class FuturesOptionContractId : IActorEntityId
     /// <summary>Canonical IDs for new contracts. Existing saved identifiers are never regenerated.</summary>
     public static string Create(string symbol, DateOnly expiry, OptionType right, decimal strike)
     {
-        if (string.IsNullOrWhiteSpace(symbol) || symbol.Any(c => !char.IsAsciiLetterOrDigit(c))
-            || expiry == DateOnly.MinValue || expiry == DateOnly.MaxValue
-            || right is not (OptionType.Call or OptionType.Put) || strike <= 0)
-            throw new ArgumentException("A symbol, expiry, right and positive decimal strike are required.");
+        const string invalid = "A symbol, expiry, right and positive decimal strike are required.";
+        if (string.IsNullOrWhiteSpace(symbol) || symbol.Any(c => !char.IsAsciiLetterOrDigit(c)))
+            throw new ArgumentException(invalid, nameof(symbol));
+        if (expiry == DateOnly.MinValue || expiry == DateOnly.MaxValue) throw new ArgumentException(invalid, nameof(expiry));
+        if (right is not (OptionType.Call or OptionType.Put)) throw new ArgumentException(invalid, nameof(right));
+        if (strike <= 0) throw new ArgumentException(invalid, nameof(strike));
         return string.Create(CultureInfo.InvariantCulture,
             $"{symbol}{expiry:yyyyMMdd}{(right == OptionType.Call ? 'C' : 'P')}{strike:0.############################}");
     }
@@ -113,8 +115,8 @@ public class FuturesOptionContractId : IActorEntityId
         // Decimal.TryParse can round an over-precision input. Never silently change a contract's strike.
         var normalized = token.ToString().TrimStart('0');
         if (normalized.StartsWith('.')) normalized = "0" + normalized;
-        if (normalized.Contains('.')) normalized = normalized.TrimEnd('0').TrimEnd('.');
-        return normalized == strike.ToString("0.############################", CultureInfo.InvariantCulture);
+        if (normalized.Contains('.', StringComparison.Ordinal)) normalized = normalized.TrimEnd('0').TrimEnd('.');
+        return (string.Equals((normalized),(strike.ToString("0.############################", CultureInfo.InvariantCulture)),StringComparison.Ordinal));
     }
     public bool IsEmpty => string.IsNullOrEmpty(_contractId);
     public bool IsValid => !IsEmpty && MaturityDate > DateTime.MinValue && StrikePrice > 0;

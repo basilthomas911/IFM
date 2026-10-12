@@ -15,6 +15,8 @@ public static class ReleaseManualTradingHold
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this ReleaseManualTradingHoldCommand command, BrokerAccountCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "BrokerAccount.STATE.APPLY_FAILED;unable to apply broker account change event";
         var updated = command.Compute(state.BrokerAccountDefinition, out var brokerAccountChange) switch
         {

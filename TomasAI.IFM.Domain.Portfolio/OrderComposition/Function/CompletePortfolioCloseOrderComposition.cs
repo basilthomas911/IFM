@@ -11,6 +11,8 @@ public static class CompletePortfolioCloseOrderComposition
         this FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand> input,
         TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         if (input.Outcome is PortfolioCloseOrderCompositionCompletedEvent committed)
             return FunctionResult<PortfolioCloseOrderCompositionCompletedEvent,
                 PortfolioCloseOrderCompositionFailedEvent>.Complete(committed);

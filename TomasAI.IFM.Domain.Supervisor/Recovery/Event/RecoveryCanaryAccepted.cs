@@ -11,6 +11,7 @@ public static class RecoveryCanaryAccepted
     public static ValueTask ExecuteAsync(this RecoveryCanaryAcceptedEvent value,
         IRecoveryCanaryEventContext context, ILogger<RecoveryCanaryProjectorActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.Projection.Project(value);
         return ValueTask.CompletedTask;
     }

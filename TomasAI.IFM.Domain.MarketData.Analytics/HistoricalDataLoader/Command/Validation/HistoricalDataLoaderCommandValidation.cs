@@ -14,15 +14,22 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.V
 public static class HistoricalDataLoaderCommandValidation
 {
     /// <summary>Validates the intrinsic data-load attempt identity.</summary>
-    public static List<ValidationError> ValidateDataLoadAttemptId(this List<ValidationError> errors, FuturesAnalyticsHistoricalDataLoaderEntityId id)
+    public static TErrors ValidateDataLoadAttemptId<TErrors>(this TErrors errors, FuturesAnalyticsHistoricalDataLoaderEntityId id)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (id.Value == Guid.Empty) errors.Add(new("DataLoadAttemptId is required."));
         return errors;
     }
 
     /// <summary>Validates all inclusive date, budget, version and series requirements without throwing.</summary>
-    public static List<ValidationError> ValidateHistoricalLoad(this List<ValidationError> errors, LoadFuturesAnalyticsHistoricalDataCommand value)
+    public static TErrors ValidateHistoricalLoad<TErrors>(this TErrors errors, LoadFuturesAnalyticsHistoricalDataCommand value)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(value);
 
         if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
             || value.CommandId != value.EntityId.Value)

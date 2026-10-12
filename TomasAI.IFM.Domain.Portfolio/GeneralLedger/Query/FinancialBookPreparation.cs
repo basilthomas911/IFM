@@ -11,18 +11,20 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPort
 {
     public async Task<FinancialRead<FinancialBookSetup>> PrepareAsync(FinancialReadScope scope, PrepareFinancialBookRequest request, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(scope);
         var admin = scope.Access?.Roles?.Contains("PortfolioAdministrator") == true;
         Require(scope.PortfolioId > 0 && scope.FundId is null && !string.IsNullOrWhiteSpace(scope.Access?.Principal) &&
             (admin || scope.Access?.Roles?.Contains("LedgerConfigure") == true && scope.Access.PortfolioIds?.Contains(scope.PortfolioId) == true), "Portfolio ledger configuration permission is required.");
         Require(development.IsDevelopmentEnvironment, "Development book preparation requires the Development host environment.");
-        Require(await database.ReadBookAsync(scope.PortfolioId, token) is null, "A ledger book already exists for this Portfolio.");
-        var portfolio = await sources.LoadPortfolioAsync(new(scope.PortfolioId), token);
-        Require(portfolio.Current is not null && !portfolio.IsDeleted && portfolio.Current.BaseCurrency == "USD", "An existing USD Portfolio is required.");
+        Require(await (database.ReadBookAsync(scope.PortfolioId, token)).ConfigureAwait(false) is null, "A ledger book already exists for this Portfolio.");
+        var portfolio = await (sources.LoadPortfolioAsync(new(scope.PortfolioId), token)).ConfigureAwait(false);
+        Require(portfolio.Current is not null && !portfolio.IsDeleted && string.Equals(portfolio.Current.BaseCurrency,"USD",StringComparison.Ordinal), "An existing USD Portfolio is required.");
         var fundAuthorities = new List<FinancialFundAuthority>(); var names = new List<string>();
         Require(portfolio.FundIds.Count is > 0 and <= 128, "A book requires between one and 128 current Funds.");
         foreach (var id in portfolio.FundIds.Order())
         {
-            var fund = await sources.LoadFundAsync(new(scope.PortfolioId, id), token);
+            var fund = await (sources.LoadFundAsync(new(scope.PortfolioId, id), token)).ConfigureAwait(false);
             if (fund.Current is null) continue;
             fundAuthorities.Add(new() { FundId = id, CanSpend = false, PortfolioStreamVersion = portfolio.Revision, FundStreamVersion = fund.Revision });
             names.Add(fund.Current.Name);
@@ -32,36 +34,15 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPort
         if (string.IsNullOrEmpty(request.ExecutionAccountReference)) return Result(new(accounts, names.ToArray(), null));
         Require(accounts.Contains(request.ExecutionAccountReference, StringComparer.Ordinal), "Select an execution account configured on this Portfolio.");
         Require(request.PeriodStart != default && request.PeriodEnd >= request.PeriodStart, "Valid initial accounting period dates are required.");
-        var bookId = await identities.BookAsync(token);
+        var bookId = await (identities.BookAsync(token)).ConfigureAwait(false);
         var chart = new List<LedgerAccountDefinition>();
         foreach (var (category, side) in new[] { ("Cash",PostingSide.Debit),("Equity",PostingSide.Credit),("Expense",PostingSide.Debit),
             ("Asset",PostingSide.Debit),("UnrealizedPnl",PostingSide.Credit),("RealizedPnl",PostingSide.Credit) })
         {
-            var account = new LedgerAccountDefinition(await identities.AccountAsync(token), 1, category, side, true, "");
+            var account = new LedgerAccountDefinition(await (identities.AccountAsync(token)).ConfigureAwait(false), 1, category, side, true, "");
             chart.Add(account with { ContentHash = FinancialCanonicalHash.Compute(account) });
         }
-        LedgerAccountBinding Account(string category) => new(chart.Single(x => x.Category == category).AccountId, 1);
-        var rules = new List<LedgerPostingRule>();
-        void Rule(LedgerTransactionKind kind, string debit, string credit, bool movement = false, bool clearValuation = false)
-        {
-            var rule = new LedgerPostingRule(Guid.NewGuid(), 1, "", kind, Account(debit), Account(credit), movement,
-                clearValuation ? Account("Asset") : null, clearValuation ? Account("UnrealizedPnl") : null);
-            rules.Add(rule with { ContentHash = FinancialCanonicalHash.Compute(rule) });
-        }
-        Rule(LedgerTransactionKind.OpeningBalance, "Cash", "Equity");
-        Rule(LedgerTransactionKind.DepositConfirmed, "Cash", "Equity", true);
-        Rule(LedgerTransactionKind.WithdrawalRequested, "Equity", "Cash");
-        Rule(LedgerTransactionKind.WithdrawalCancelled, "Equity", "Cash");
-        Rule(LedgerTransactionKind.WithdrawalSettled, "Equity", "Cash", true);
-        Rule(LedgerTransactionKind.FundTransfer, "Cash", "Cash");
-        // A confirmed signed net debit increases Asset and reduces Cash. A signed credit
-        // reverses those sides. Commission and closing realized P&L remain separate facts.
-        Rule(LedgerTransactionKind.TradeSettlement, "Asset", "Cash", true);
-        Rule(LedgerTransactionKind.Commission, "Expense", "Cash", true);
-        Rule(LedgerTransactionKind.Valuation, "Asset", "UnrealizedPnl");
-        Rule(LedgerTransactionKind.RealizedPnl, "Cash", "RealizedPnl", true, true);
-        Rule(LedgerTransactionKind.Reversal, "Cash", "Equity");
-        // Arbitrary adjustment remains excluded; it requires an explicit privileged mapping.
+        var rules = CreateDefaultPostingRules(chart);
         var draft = new LedgerConfigurationRequest
         {
             Action = LedgerConfigurationAction.CreateBook,
@@ -85,6 +66,34 @@ public sealed class FinancialBookPreparation(IPortfolioEventStore sources, IPort
         return Result(new(accounts, names.ToArray(), draft));
         static FinancialRead<FinancialBookSetup> Result(FinancialBookSetup setup) => new(FinancialReadStatus.Found, setup, 0, DateTime.UtcNow);
     }
+    /// <summary>Builds explicit Development posting rules from exact chart versions; each rule retains its canonical content hash.</summary>
+    static List<LedgerPostingRule> CreateDefaultPostingRules(List<LedgerAccountDefinition> chart)
+    {
+        LedgerAccountBinding Account(string category) => new(chart.Single(x => string.Equals(x.Category,category,StringComparison.Ordinal)).AccountId, 1);
+        var rules = new List<LedgerPostingRule>();
+        void Rule(LedgerTransactionKind kind, string debit, string credit, bool movement = false, bool clearValuation = false)
+        {
+            var rule = new LedgerPostingRule(Guid.NewGuid(), 1, "", kind, Account(debit), Account(credit), movement,
+                clearValuation ? Account("Asset") : null, clearValuation ? Account("UnrealizedPnl") : null);
+            rules.Add(rule with { ContentHash = FinancialCanonicalHash.Compute(rule) });
+        }
+        Rule(LedgerTransactionKind.OpeningBalance, "Cash", "Equity");
+        Rule(LedgerTransactionKind.DepositConfirmed, "Cash", "Equity", true);
+        Rule(LedgerTransactionKind.WithdrawalRequested, "Equity", "Cash");
+        Rule(LedgerTransactionKind.WithdrawalCancelled, "Equity", "Cash");
+        Rule(LedgerTransactionKind.WithdrawalSettled, "Equity", "Cash", true);
+        Rule(LedgerTransactionKind.FundTransfer, "Cash", "Cash");
+        // A confirmed signed net debit increases Asset and reduces Cash. A signed credit
+        // reverses those sides. Commission and closing realized P&L remain separate facts.
+        Rule(LedgerTransactionKind.TradeSettlement, "Asset", "Cash", true);
+        Rule(LedgerTransactionKind.Commission, "Expense", "Cash", true);
+        Rule(LedgerTransactionKind.Valuation, "Asset", "UnrealizedPnl");
+        Rule(LedgerTransactionKind.RealizedPnl, "Cash", "RealizedPnl", true, true);
+        Rule(LedgerTransactionKind.Reversal, "Cash", "Equity");
+        // Arbitrary adjustment remains excluded; it requires an explicit privileged mapping.
+        return rules;
+    }
+
     static void Require(bool condition, string message)
     { if (!condition) throw new FinancialOperationException(FinancialReasons.AuthorityDenied, message); }
 }

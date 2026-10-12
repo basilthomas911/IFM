@@ -2,17 +2,6 @@ using MessagePack;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
-/// <summary>
-/// Provider-neutral price and volume snapshot for one futures trading session.
-/// </summary>
-public enum FuturesSessionVolumeQuality : byte
-{
-    Unknown = 0,
-    Bootstrapping = 1,
-    ObservedComplete = 2,
-    OfficialFinal = 3
-}
-
 [MessagePackObject]
 public readonly record struct FuturesSessionStatisticsSnapshot(
     [property: Key(0)] string ContractId,

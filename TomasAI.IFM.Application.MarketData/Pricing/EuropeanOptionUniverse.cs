@@ -6,19 +6,6 @@ using TomasAI.IFM.Framework.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-/// <summary>Exact normalized provider record and its independently requested reviewed mapping.</summary>
-public sealed record OptionDefinitionCandidate(string ContractId, string MappingVersion,
-    string DefinitionDigest, OptionContractDefinition Definition);
-
-[MessagePackObject]
-public sealed record QualifiedOptionDefinition(
-    [property: Key(0)] OptionPricingConvention Convention,
-    [property: Key(1)] decimal Strike,
-    [property: Key(2)] bool IsCall);
-
-public sealed record EuropeanOptionUniverseResult(ImmutableArray<QualifiedOptionDefinition> Definitions,
-    ImmutableArray<OptionPricingFailure> Exclusions, OptionPricingFailure? Failure);
-
 /// <summary>Qualifies a complete bounded scope before subscriptions. Raw definitions remain untouched.</summary>
 public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore conventions)
 {
@@ -51,13 +38,13 @@ public sealed class EuropeanOptionUniverse(IOptionPricingConventionStore convent
             var candidate = ordered[index];
             var definition = candidate.Definition;
             var mapping = mappings[index];
-            if (mapping is null || mapping.ContractId != candidate.ContractId || mapping.MappingVersion != candidate.MappingVersion
-                || mapping.DefinitionDigest != candidate.DefinitionDigest || mapping.Dataset != definition.Dataset
+            if (mapping is null || !string.Equals(mapping.ContractId,candidate.ContractId,StringComparison.Ordinal) || !string.Equals(mapping.MappingVersion,candidate.MappingVersion,StringComparison.Ordinal)
+                || !string.Equals(mapping.DefinitionDigest,candidate.DefinitionDigest,StringComparison.Ordinal) || !string.Equals(mapping.Dataset,definition.Dataset,StringComparison.Ordinal)
                 || mapping.InstrumentId != definition.Instrument.InstrumentId
                 || mapping.PublisherId != definition.Instrument.PublisherId
                 || mapping.SchemaVersion == 3 && (mapping.Strike != definition.StrikePrice
                     || mapping.Right != (definition.Right == OptionRightSelection.Call ? PricingOptionRight.Call : PricingOptionRight.Put))
-                || mapping.RawSymbol != definition.RawSymbol || mapping.UnderlyingContractId != definition.Underlying || definition.StrikePrice <= 0
+                || !string.Equals(mapping.RawSymbol,definition.RawSymbol,StringComparison.Ordinal) || !string.Equals(mapping.UnderlyingContractId,definition.Underlying,StringComparison.Ordinal) || definition.StrikePrice <= 0
                 || definition.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)
                 || definition.ExpirationTimestampNanoseconds is not { } ns || ns == ulong.MaxValue || ns % 100 != 0
                 || DateTimeOffset.UnixEpoch.AddTicks((long)(ns / 100)) != mapping.ExpirationUtc)

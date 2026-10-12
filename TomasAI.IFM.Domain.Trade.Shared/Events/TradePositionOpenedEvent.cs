@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.Trade.Shared.Events
 {
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1939", Justification = "Retain the existing explicit interface declaration; the inherited interface contract is unchanged.")]
     [MessagePackObject(AllowPrivate = true)]
     public record TradePositionOpenedEvent : IEvent, ITradeDiaryEvent
     {
@@ -73,26 +74,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradePositionOpenedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradePositionOpenedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record TradePositionOpenedCompleteEvent : CompleteEvent
-    {
-        public TradePositionEntityId TradePositionId { get; init; }
-        public TradePositionActionReadModel TradePositionAction { get; init; }
-        public DateTime CreatedOn { get; init; }
-        public string CreatedBy { get; init; }
-    }
-
-    public record TradePositionOpenedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

@@ -44,7 +44,7 @@ public class OptionPricerFixture : IDisposable
     void SetDevDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("OptionPricerDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=option_pricer_test_db", "System.Data.ScyllaDb");
+            .Add("OptionPricerDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_pricer"), "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, Storage.OptionPricerDb.OptionPricerDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var redisCache = Substitute.For<IRedisCache>();
@@ -65,7 +65,7 @@ public class OptionPricerFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", LegacyStorageFixtureIsolation.Postgres("ifm_storage_legacy_sequence_option_pricer"), "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();

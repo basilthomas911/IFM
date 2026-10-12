@@ -205,7 +205,7 @@ public sealed class EventProjectorDescriptorTests
 
         await marketDataDb.Received(2).InsertFuturesItiSignalAsync(
             Arg.Is<FuturesItiSignalV2ReadModel>(signal => signal.SequenceId == persistedEventId));
-        await marketDataDb.DidNotReceiveWithAnyArgs().GetLastFuturesItiSignalAsync(default!, default);
+        await marketDataDb.DidNotReceiveWithAnyArgs().GetLastFuturesItiSignalAsync(default!, default, CancellationToken.None);
         source.FuturesItiSignal!.SequenceId.Should().Be(0,
             "a projector must not mutate the event-log source payload after persistence");
     }

@@ -1,8 +1,5 @@
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 
-/// <summary>Absolute quantities immediately before and during this close, for one position leg.</summary>
-public readonly record struct PositionLegCloseQuantity(decimal RemainingBeforeClose, decimal ClosingQuantity);
-
 /// <summary>Allocates aggregate MTM only when every remaining leg closes in the same proportion.</summary>
 public static class ProportionalCloseValuation
 {
@@ -12,10 +9,10 @@ public static class ProportionalCloseValuation
         LedgerPostingModel.Money(previousUnrealized);
         if (legs.Count == 0 || legs.Any(x => x.RemainingBeforeClose < 0 || x.ClosingQuantity < 0 ||
                 x.ClosingQuantity > x.RemainingBeforeClose))
-            throw new ArgumentException("Invalid position-leg closing quantities.");
+            throw new ArgumentException("Invalid position-leg closing quantities.",nameof(legs));
         var active = legs.Where(x => x.RemainingBeforeClose > 0).ToArray();
         if (active.Length == 0 || active.All(x => x.ClosingQuantity == 0))
-            throw new ArgumentException("A close must consume remaining position quantity.");
+            throw new ArgumentException("A close must consume remaining position quantity.", nameof(legs));
         var first = active[0];
         // Cross multiplication avoids comparing rounded ratios.
         if (active.Any(x => x.ClosingQuantity * first.RemainingBeforeClose !=

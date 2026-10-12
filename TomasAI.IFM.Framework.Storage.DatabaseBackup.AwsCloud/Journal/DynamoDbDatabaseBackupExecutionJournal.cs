@@ -68,6 +68,12 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
 
         var existingOperation = await GetAsync(Key(operationKey, "OP"), cancellationToken).ConfigureAwait(false);
         var definitionHash = DatabaseBackupContractSerializer.DefinitionHash(intent.ExecutionEvent);
+        if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Cutover)
+        {
+            if (existingOperation.Count == 0)
+                throw new DatabaseExecutionConflictException("Cutover requires the original restore in this journal.");
+            return await AdmitCutoverAsync(intent, existingOperation, serialized, cancellationToken).ConfigureAwait(false);
+        }
         if (existingOperation.Count > 0)
         {
             EnsureDefinition(existingOperation, definitionHash);
@@ -120,6 +126,65 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
         {
             return await ResolveAdmissionAfterFailureAsync(intent, serialized.Hash, definitionHash, cancellationToken)
                 .ConfigureAwait(false);
+        }
+    }
+
+    async ValueTask<JournalAdmissionResult> AdmitCutoverAsync(DatabaseExecutionIntent intent,
+        Dictionary<string, AttributeValue> originalOperation,
+        (string TypeName, string Payload, string Hash) serialized, CancellationToken token)
+    {
+        var pk = OperationKey(intent.OperationId);
+        var original = DatabaseBackupContractSerializer.Deserialize(
+            originalOperation["intent_type"].S, originalOperation["intent_payload"].S);
+        var priorPhase = (DatabaseRecoveryPhase)ReadLong(originalOperation, "phase");
+        var terminal = ReadBool(originalOperation, "terminal");
+        if (original is Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseCutoverExecutionRequestedEvent)
+            DatabaseCutoverAdmission.ValidateRetry(original, intent.ExecutionEvent, priorPhase, terminal);
+        else
+        {
+            var lastEvent = await GetAsync(Key(pk, OutboxSort(ReadLong(originalOperation, "last_service_sequence"))), token).ConfigureAwait(false);
+            if (lastEvent.Count == 0)
+                throw new DatabaseExecutionConflictException("Cutover requires durable restore validation evidence.");
+            var validation = DatabaseBackupContractSerializer.Deserialize(lastEvent["event_type"].S, lastEvent["event_payload"].S);
+            if (validation is not Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreReadyForCutoverEvent)
+                throw new DatabaseExecutionConflictException("Cutover requires a persisted ReadyForCutover event.");
+            DatabaseCutoverAdmission.Validate(original, intent.ExecutionEvent, priorPhase, terminal, validation.ValidationRevision);
+        }
+        var now = timeProvider.GetUtcNow();
+        var replacement = new Dictionary<string, AttributeValue>(originalOperation);
+        Add(replacement,
+            ("operation_kind", Number((short)DatabaseRecoveryOperationKind.Cutover)),
+            ("definition_hash", Text(DatabaseBackupContractSerializer.DefinitionHash(intent.ExecutionEvent))),
+            ("intent_event_id", Text(intent.ExecutionEvent.Id.ToString("D"))),
+            ("intent_type", Text(serialized.TypeName)), ("intent_payload", Text(serialized.Payload)),
+            ("phase", Number((short)DatabaseRecoveryPhase.CuttingOver)), ("terminal", Flag(false)),
+            ("fencing_token", Number(ReadLong(originalOperation, "fencing_token") + 1)),
+            ("state_version", Number(ReadLong(originalOperation, "state_version") + 1)),
+            ("updated_utc", Text(Format(now))), ("GSI1PK", Text(RecoverablePartition)),
+            ("GSI1SK", Text($"{now.UtcTicks:D20}#{intent.OperationId.Value:N}")));
+        replacement.Remove("lease_host_id");
+        replacement.Remove("lease_expires_ms");
+        var replace = Put(replacement, "state_version=:version AND terminal=:terminal AND phase=:phase");
+        replace.Put.ExpressionAttributeValues = new()
+        {
+            [":version"] = Number(ReadLong(originalOperation, "state_version")),
+            [":terminal"] = Flag(true), [":phase"] = Number((short)priorPhase)
+        };
+        try
+        {
+            await dynamoDb.TransactWriteItemsAsync(new TransactWriteItemsRequest
+            {
+                TransactItems = [replace, Put(CreateInbox(Key(pk, "INBOX#" + intent.ExecutionEvent.Id.ToString("D")),
+                    intent, serialized.Hash, now), "attribute_not_exists(PK) AND attribute_not_exists(SK)")],
+                ClientRequestToken = intent.ExecutionEvent.Id.ToString("N")
+            }, token).ConfigureAwait(false);
+            return new JournalAdmissionResult(intent.OperationId, JournalAdmissionOutcome.Admitted);
+        }
+        catch (AmazonDynamoDBException exception) when (exception is TransactionCanceledException || IsAmbiguous(exception))
+        {
+            var inbox = await GetAsync(Key(pk, "INBOX#" + intent.ExecutionEvent.Id.ToString("D")), token).ConfigureAwait(false);
+            if (inbox.Count > 0) return ResolveInbox(inbox, serialized.Hash, intent.OperationId);
+            throw;
         }
     }
 
@@ -309,6 +374,17 @@ public sealed class DynamoDbDatabaseBackupExecutionJournal(
                 (DatabaseBackupServiceEventContract)@event,
                 checked((int)ReadLong(item, "publish_attempts")));
         }
+    }
+
+    public async ValueTask<DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(
+        DatabaseRecoveryOperationId operationId, CancellationToken cancellationToken)
+    {
+        var pk = OperationKey(operationId);
+        var operation = await GetAsync(Key(pk, "OP"), cancellationToken).ConfigureAwait(false);
+        if (operation.Count == 0) return null;
+        var latest = await GetAsync(Key(pk, OutboxSort(ReadLong(operation, "last_service_sequence"))), cancellationToken).ConfigureAwait(false);
+        return latest.Count == 0 ? null : (DatabaseBackupServiceEventContract)
+            DatabaseBackupContractSerializer.Deserialize(latest["event_type"].S, latest["event_payload"].S);
     }
 
     public async ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken)

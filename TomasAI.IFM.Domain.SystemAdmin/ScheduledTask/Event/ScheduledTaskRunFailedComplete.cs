@@ -11,6 +11,8 @@ public static class ScheduledTaskRunFailedComplete
     /// <returns>The bounded notification dispatch operation.</returns>
     public static async ValueTask ExecuteAsync(this ScheduledTaskRunFailedCompleteEvent source, ScheduledTaskEventContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
         if (source.ScheduledTaskRun is not { Stage: "OperatorResolved" } run) return;
         var command = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand
         {
@@ -20,8 +22,7 @@ public static class ScheduledTaskRunFailedComplete
                 TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand.Actor,
                 TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand.Verb, run.ScheduleId.Format())
         };
-        var result = await context.RequestAsync<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand, TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId>(command);
-        if (!result.Success) context.Logger.LogWarning("{Component}.{Method} Resolved run reservation release awaits reconciliation {RunId} {Reason}",
-            nameof(ScheduledTaskRunFailedComplete), nameof(ExecuteAsync), run.Id.Format(), result.ErrorMessage);
+        var result = await (context.RequestAsync<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Commands.RecordScheduledTaskRunCompletionCommand, TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.ScheduledTaskId>(command)).ConfigureAwait(false);
+        if (!result.Success) global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write12(context.Logger, null, nameof(ScheduledTaskRunFailedComplete), nameof(ExecuteAsync), run.Id.Format(), result.ErrorMessage);
     }
 }

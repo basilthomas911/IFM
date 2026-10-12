@@ -68,6 +68,29 @@ public sealed class FuturesBarDataTimerTests
         calls.Should().Be(callsAfterStop);
     }
 
+    [Fact]
+    public async Task ConcurrentStopRequests_ShareCleanup_AndAllowFreshRegistration()
+    {
+        var timer = new FuturesBarDataTimer(TimeSpan.FromMilliseconds(5));
+        var id = new FuturesBarDataStreamingId(new DateOnly(2026, 10, 12));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        timer.Start(id, async () =>
+        {
+            entered.TrySetResult();
+            await release.Task;
+        }).Should().BeTrue();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var stops = Enumerable.Range(0, 16).Select(_ => timer.StopAsync(id).AsTask()).ToArray();
+        stops.Should().OnlyContain(task => !task.IsCompleted);
+        release.TrySetResult();
+        (await Task.WhenAll(stops).WaitAsync(TimeSpan.FromSeconds(2))).Should().OnlyContain(value => value);
+        (await timer.StopAsync(id)).Should().BeFalse();
+        timer.Start(id, () => ValueTask.CompletedTask).Should().BeTrue();
+        await timer.StopAllAsync();
+        (await timer.StopAsync(id)).Should().BeFalse();
+    }
+
     static class InterlockedExtensions
     {
         public static void Max(ref int location, int value)

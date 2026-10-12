@@ -18,21 +18,21 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
 {
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = GenerateFuturesEmaSignalCommand.Actor;
-    readonly IFuturesEmaSignalCommandContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesEmaSignalCommandContext, nameof(actorContext))!;
+    readonly IFuturesEmaSignalCommandContext typedContext = IsArgumentNull.Named(actorContext as IFuturesEmaSignalCommandContext, nameof(actorContext))!;
     IEventSourceActorStateRepository<FuturesEmaSignalCommandState> repository = default!;
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesEmaSignalCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         repository = IsArgumentNull.Set(context.Container.Resolve<
             IEventSourceActorStateRepository<FuturesEmaSignalCommandState>>());
-        await typedContext.EventProjector.StartAsync(context);
+        await (typedContext.EventProjector.StartAsync(context)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesEmaSignalCommandActor> context) =>
-        await typedContext.EventProjector.StopAsync();
+        await (typedContext.EventProjector.StopAsync()).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override ICommand ParseMessage(
@@ -40,7 +40,7 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [GenerateFuturesEmaSignalCommand.Verb] = message =>
             message.AsCommand<GenerateFuturesEmaSignalCommand>()
@@ -93,27 +93,27 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesEmaSignalCommandActor> context, ActorThreadId threadId, ICommand command) =>
-        await repository.LoadStateAsync(command);
+        await (repository.LoadStateAsync(command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesEmaSignalCommandActor> context, ActorThreadId threadId, ICommand command,
-        CancellationToken cancellationToken) => await repository.LoadStateAsync(command, cancellationToken);
+        CancellationToken cancellationToken) => await (repository.LoadStateAsync(command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesEmaSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command) =>
-        await repository.SaveStateAsync(context, (FuturesEmaSignalCommandState)state, command);
+        await (repository.SaveStateAsync(context, (FuturesEmaSignalCommandState)state, command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesEmaSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken) =>
-        await repository.SaveStateAsync(context, (FuturesEmaSignalCommandState)state, command, cancellationToken);
+        await (repository.SaveStateAsync(context, (FuturesEmaSignalCommandState)state, command, cancellationToken)).ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesEmaSignalCommandActor> context, ActorThreadId threadId,
-        ICommand command, Exception exception)
+        ICommand command, Exception ex)
     {
-        var error = await exception.SendErrorEventAsync<
-            TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+        var error = await (ex.SendErrorEventAsync<
+            TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
         return new ServiceFailed<GuidResult>(error);
     }
 }

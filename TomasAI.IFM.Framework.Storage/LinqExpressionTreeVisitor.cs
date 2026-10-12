@@ -8,9 +8,10 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Framework.Storage
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "Preserves the existing externally referenced type identity.")]
     public abstract class LinqExpressionTreeVisitor
     {
-        private Dictionary<ExpressionType, Func<Expression, Expression>> _exprNodeMap;
+        private readonly Dictionary<ExpressionType, Func<Expression, Expression>> _exprNodeMap;
 
         protected LinqExpressionTreeVisitor()
         {
@@ -90,6 +91,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// <returns></returns>
         protected virtual Expression VisitUnary(UnaryExpression u)
         {
+            ArgumentNullException.ThrowIfNull(u);
             Expression operand = this.Visit(u.Operand);
             if (operand != u.Operand)
             {
@@ -105,6 +107,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// <returns></returns>
         protected virtual Expression VisitBinary(BinaryExpression b)
         {
+            ArgumentNullException.ThrowIfNull(b);
             Expression left = this.Visit(b.Left);
             Expression right = this.Visit(b.Right);
             Expression conversion = this.Visit(b.Conversion);
@@ -120,6 +123,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitTypeIs(TypeBinaryExpression b)
         {
+            ArgumentNullException.ThrowIfNull(b);
             Expression expr = this.Visit(b.Expression);
             if (expr != b.Expression)
             {
@@ -135,6 +139,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitConditional(ConditionalExpression c)
         {
+            ArgumentNullException.ThrowIfNull(c);
             Expression test = this.Visit(c.Test);
             Expression ifTrue = this.Visit(c.IfTrue);
             Expression ifFalse = this.Visit(c.IfFalse);
@@ -152,6 +157,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitMemberAccess(MemberExpression m)
         {
+            ArgumentNullException.ThrowIfNull(m);
             Expression exp = this.Visit(m.Expression);
             if (exp != m.Expression)
             {
@@ -162,6 +168,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitMethodCall(MethodCallExpression m)
         {
+            ArgumentNullException.ThrowIfNull(m);
             Expression obj = this.Visit(m.Object);
             IEnumerable<Expression> args = this.VisitExpressionList(m.Arguments);
             if (obj != m.Object || args != m.Arguments)
@@ -173,6 +180,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitLambda(LambdaExpression lambda)
         {
+            ArgumentNullException.ThrowIfNull(lambda);
             Expression body = this.Visit(lambda.Body);
             if (body != lambda.Body)
             {
@@ -183,6 +191,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitMemberInit(MemberInitExpression init)
         {
+            ArgumentNullException.ThrowIfNull(init);
             NewExpression n = this.VisitNew(init.NewExpression);
             IEnumerable<MemberBinding> bindings = this.VisitBindingList(init.Bindings);
             if (n != init.NewExpression || bindings != init.Bindings)
@@ -194,6 +203,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitListInit(ListInitExpression init)
         {
+            ArgumentNullException.ThrowIfNull(init);
             NewExpression n = this.VisitNew(init.NewExpression);
             IEnumerable<ElementInit> initializers = this.VisitElementInitializerList(init.Initializers);
             if (n != init.NewExpression || initializers != init.Initializers)
@@ -205,6 +215,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitNewArray(NewArrayExpression na)
         {
+            ArgumentNullException.ThrowIfNull(na);
             IEnumerable<Expression> exprs = this.VisitExpressionList(na.Expressions);
             if (exprs != na.Expressions)
             {
@@ -222,6 +233,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual Expression VisitInvocation(InvocationExpression iv)
         {
+            ArgumentNullException.ThrowIfNull(iv);
             IEnumerable<Expression> args = this.VisitExpressionList(iv.Arguments);
             Expression expr = this.Visit(iv.Expression);
             if (args != iv.Arguments || expr != iv.Expression)
@@ -233,6 +245,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual NewExpression VisitNew(NewExpression nex)
         {
+            ArgumentNullException.ThrowIfNull(nex);
             IEnumerable<Expression> args = this.VisitExpressionList(nex.Arguments);
             if (args != nex.Arguments)
             {
@@ -247,6 +260,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual MemberBinding VisitBinding(MemberBinding binding)
         {
+            ArgumentNullException.ThrowIfNull(binding);
             switch (binding.BindingType)
             {
                 case MemberBindingType.Assignment:
@@ -256,12 +270,13 @@ namespace TomasAI.IFM.Framework.Storage
                 case MemberBindingType.ListBinding:
                     return this.VisitMemberListBinding((MemberListBinding)binding);
                 default:
-                    throw new Exception(string.Format("Unhandled binding type '{0}'", binding.BindingType));
+                    throw new NotSupportedException(string.Format(System.Globalization.CultureInfo.InvariantCulture, "Unhandled binding type '{0}'", binding.BindingType));
             }
         }
 
         protected virtual ElementInit VisitElementInitializer(ElementInit initializer)
         {
+            ArgumentNullException.ThrowIfNull(initializer);
             ReadOnlyCollection<Expression> arguments = this.VisitExpressionList(initializer.Arguments);
             if (arguments != initializer.Arguments)
             {
@@ -272,6 +287,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual MemberAssignment VisitMemberAssignment(MemberAssignment assignment)
         {
+            ArgumentNullException.ThrowIfNull(assignment);
             Expression e = this.Visit(assignment.Expression);
             if (e != assignment.Expression)
             {
@@ -282,6 +298,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual MemberMemberBinding VisitMemberMemberBinding(MemberMemberBinding binding)
         {
+            ArgumentNullException.ThrowIfNull(binding);
             IEnumerable<MemberBinding> bindings = this.VisitBindingList(binding.Bindings);
             if (bindings != binding.Bindings)
             {
@@ -292,6 +309,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual MemberListBinding VisitMemberListBinding(MemberListBinding binding)
         {
+            ArgumentNullException.ThrowIfNull(binding);
             IEnumerable<ElementInit> initializers = this.VisitElementInitializerList(binding.Initializers);
             if (initializers != binding.Initializers)
             {
@@ -302,6 +320,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual IEnumerable<MemberBinding> VisitBindingList(ReadOnlyCollection<MemberBinding> original)
         {
+            ArgumentNullException.ThrowIfNull(original);
             List<MemberBinding> list = null;
             for (int i = 0, n = original.Count; i < n; i++)
             {
@@ -327,6 +346,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual IEnumerable<ElementInit> VisitElementInitializerList(ReadOnlyCollection<ElementInit> original)
         {
+            ArgumentNullException.ThrowIfNull(original);
             List<ElementInit> list = null;
             for (int i = 0, n = original.Count; i < n; i++)
             {
@@ -352,6 +372,7 @@ namespace TomasAI.IFM.Framework.Storage
 
         protected virtual ReadOnlyCollection<Expression> VisitExpressionList(ReadOnlyCollection<Expression> original)
         {
+            ArgumentNullException.ThrowIfNull(original);
             List<Expression> list = null;
             for (int i = 0, n = original.Count; i < n; i++)
             {

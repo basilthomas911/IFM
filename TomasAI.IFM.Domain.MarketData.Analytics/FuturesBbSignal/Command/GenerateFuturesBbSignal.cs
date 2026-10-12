@@ -20,13 +20,13 @@ public static class GenerateFuturesBbSignal
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(state);
         command.Compute(state.FuturesBbCheckpoint, out var futuresBbTransition);
-        if (futuresBbTransition is { IsApplied: false })
+        if (futuresBbTransition is null)
+            return command.UpdateFailed($"{command.CommandName}: Bollinger EMA and bar observation identities must match.");
+        if (!futuresBbTransition.IsApplied)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
         var errorMsg = "unable to apply FuturesBbSignal event";
         var updated = futuresBbTransition switch
         {
-            _ when futuresBbTransition is null
-                => command.UpdateFailed(ref errorMsg, "Bollinger EMA and bar observation identities must match."),
             _ when futuresBbTransition.FuturesBbSignal is null
                 => command.UpdateFailed(ref errorMsg, "computed FuturesBbSignal is missing"),
             _ => state.Update(command.CreateFuturesBbSignalGeneratedEvent(futuresBbTransition), command)

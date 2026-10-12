@@ -31,7 +31,7 @@ internal sealed class CommandDuplicateCoordinator
         var configured = Environment.GetEnvironmentVariable(CapacityEnvironmentVariable);
         if (string.IsNullOrWhiteSpace(configured))
             return DefaultCompletedCapacity;
-        if (int.TryParse(configured, out var capacity) && capacity > 0)
+        if (int.TryParse(configured,System.Globalization.CultureInfo.InvariantCulture, out var capacity) && capacity > 0)
             return capacity;
         throw new InvalidOperationException(
             $"{CapacityEnvironmentVariable} must be a positive integer when configured.");

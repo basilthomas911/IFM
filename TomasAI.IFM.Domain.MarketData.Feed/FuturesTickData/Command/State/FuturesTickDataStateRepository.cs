@@ -33,10 +33,10 @@ public class FuturesTickDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesTickDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotLastNRangeAsync<
+        => await (LoadStateFromSnapshotLastNRangeAsync<
             FuturesTickDataCommandState,
             FuturesTickDataStreamingStartedEvent,
-            FuturesTickDataInsertedEvent>(command, 0);
+            FuturesTickDataInsertedEvent>(command, 0)).ConfigureAwait(false);
 
     /// <summary>
     /// save futures tick data state changes
@@ -46,7 +46,7 @@ public class FuturesTickDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesTickDataCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await (SaveStateAndDenormalizeEventsAsync(context, state, command)).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures tick data state

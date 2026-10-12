@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 public interface IOptionTradeCollection : IEnumerable<OptionTradeReadModel>
 {
     int Count { get; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1043", Justification = "This existing indexer deliberately accepts the typed composite trade identity.")]
     OptionTradeReadModel this[OptionTradeEntityId key] { get; }
     OptionTradeReadModel PrimaryTrade { get; }
 

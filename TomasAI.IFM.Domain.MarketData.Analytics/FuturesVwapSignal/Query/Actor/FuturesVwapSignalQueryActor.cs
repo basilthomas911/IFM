@@ -17,15 +17,14 @@ public sealed class FuturesVwapSignalQueryActor(
 {
     /// <summary>Identifies the VWAP Query mailbox.</summary>
     public const string ActorName = GetLatestFuturesVwapSignalQuery.Actor;
-    IFuturesVwapSignalQueryContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesVwapSignalQueryContext, nameof(actorContext))!;
+    IFuturesVwapSignalQueryContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesVwapSignalQueryContext, nameof(actorContext))!;
 
     /// <inheritdoc />
     protected override IQuery ParseMessage(IQueryActorContext<FuturesVwapSignalQueryActor> context,
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLatestFuturesVwapSignalQuery.Verb] = message =>
             message.AsQuery<GetLatestFuturesVwapSignalQuery, FuturesVwapSignalReadModel?>()!,
@@ -66,6 +65,6 @@ public sealed class FuturesVwapSignalQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

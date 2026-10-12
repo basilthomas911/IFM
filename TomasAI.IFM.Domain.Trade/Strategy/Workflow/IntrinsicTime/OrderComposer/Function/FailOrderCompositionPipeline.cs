@@ -10,29 +10,36 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function;
-
 /// <summary>Maps contract, calculation, transport and lifecycle failures to non-durable terminal events.</summary>
 public static class FailOrderCompositionPipeline
 {
     /// <summary>Classifies a failure and builds its event without persisting incomplete state.</summary>
-    public static FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent> Fail(
-        this FunctionEventContext<ExecuteOrderCompositionPipelineCommand> input, TimeProvider clock)
+    public static FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent> Fail(this FunctionEventContext<ExecuteOrderCompositionPipelineCommand> input, TimeProvider clock)
     {
-        if (!input.IsConflict && input.Exception is null) throw new ArgumentException("Failure requires a conflict or exception.");
-        var reason = input.IsConflict ? "OC.CONTRACT.CONFLICTING_DUPLICATE"
-            : input.Exception is CompositionException validation ? validation.ReasonCode
-            : input.Exception is TimeoutException ? "OC.TIME.EXPIRED" : input.Stage switch
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
+        if (!input.IsConflict && input.Exception is null)
+            throw new ArgumentException("Failure requires a conflict or exception.",nameof(input));
+        var reason = ((input.IsConflict) switch
+        {
+            true => "OC.CONTRACT.CONFLICTING_DUPLICATE",
+            _ => (input.Exception switch
             {
-                FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "OC.PERSISTENCE.FAILED",
-                FunctionFailureStage.Projection => "OC.PROJECTION.FAILED",
-                FunctionFailureStage.Execution => "OC.CALCULATION.FAILED",
-                _ => "OC.CONTRACT.INVALID"
-            };
+CompositionException validation=> validation.ReasonCode,
+                _ => input.Exception is TimeoutException ? "OC.TIME.EXPIRED" : input.Stage switch
+                {
+                    FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "OC.PERSISTENCE.FAILED",
+                    FunctionFailureStage.Projection => "OC.PROJECTION.FAILED",
+                    FunctionFailureStage.Execution => "OC.CALCULATION.FAILED",
+                    _ => "OC.CONTRACT.INVALID"
+                }})});
         if (!input.IsConflict && input.Exception is TomasAI.IFM.Shared.Exceptions.CommandValidationException mapped)
         {
-            var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"OC\.[A-Z_]+\.[A-Z_]+");
-            if (code.Success) reason = code.Value;
+            var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"OC\.[A-Z_]+\.[A-Z_]+", System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+            if (code.Success)
+                reason = code.Value;
         }
+
         OrderCompositionTelemetry.Failure(reason);
         return FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>.Fail(CreateFailedEvent(input.Request, reason, clock));
     }

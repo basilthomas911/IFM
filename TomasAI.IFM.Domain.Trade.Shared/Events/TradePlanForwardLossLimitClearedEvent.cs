@@ -69,25 +69,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             ClearedOn = this.ClearedOn,
             ClearedBy = this.ClearedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradePlanForwardLossLimitClearedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradePlanForwardLossLimitClearedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record TradePlanForwardLossLimitClearedCompleteEvent : CompleteEvent
-    {
-        public TradePlanForwardLossLimitEntityId ForwardLossLimitId { get; init; }
-        public DateTime ClearedOn { get; init; }
-        public string ClearedBy { get; init; }
-
-    }
-
-    public record TradePlanForwardLossLimitClearedFailEvent : ErrorEvent
-    {
+        }
     }
 }

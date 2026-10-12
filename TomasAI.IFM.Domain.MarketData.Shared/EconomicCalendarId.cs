@@ -29,7 +29,7 @@ public record EconomicCalendarId(
     /// </summary>
     /// <returns>Formatted string with EventDate in yyyyMMddHHmmss format.</returns>
     public string Format()
-        => $"{EventDate:yyyyMMddHHmmss}.{CountryCode}.{EventName?.Replace(" ", "-")}";
+        => $"{EventDate:yyyyMMddHHmmss}.{CountryCode}.{EventName?.Replace(" ", "-", StringComparison.Ordinal)}";
 
     /// <summary>
     /// Returns a human-readable string representation of the identifier.

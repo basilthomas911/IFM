@@ -47,6 +47,7 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
         return await pending.Completion.Task.ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     async Task ConsumeAsync(CancellationToken cancellationToken)
     {
         PendingAudit? carry = null;
@@ -86,7 +87,7 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
                         if (completed == deadline) break;
                         if (!await available.ConfigureAwait(false)) break;
                     }
-                    deadlineCancellation.Cancel();
+await                    deadlineCancellation.CancelAsync().ConfigureAwait(false);
                 }
 
                 await PersistAsync(batch, cancellationToken).ConfigureAwait(false);
@@ -105,13 +106,15 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     async Task PersistAsync(IReadOnlyList<PendingAudit> batch, CancellationToken cancellationToken)
     {
         try
         {
             var connection = await GetOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-            await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
+            var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
                 .ConfigureAwait(false);
+        await using var transactionDisposal = transaction.ConfigureAwait(false);
             try
             {
                 var results = await CommandAuditPostgres.ReserveAsync(
@@ -132,7 +135,7 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
             }
             catch
             {
-                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 throw;
             }
         }
@@ -163,7 +166,7 @@ internal sealed class PostgresCommandAuditWriter : ICommandAuditWriter
         var completed = await Task.WhenAny(_consumer, Task.Delay(_options.ShutdownDrainTimeout)).ConfigureAwait(false);
         if (completed != _consumer)
         {
-            _lifetime.Cancel();
+await            _lifetime.CancelAsync().ConfigureAwait(false);
             await _consumer.ConfigureAwait(false);
         }
         else

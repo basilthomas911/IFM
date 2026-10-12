@@ -16,6 +16,8 @@ public static class ImportEconomicCalendars
     /// <returns>The command ID on success, or the request/application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this ImportEconomicCalendarsCommand command, EconomicCalendarCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "EconomicCalendar.IMPORT.STATE.APPLY_FAILED";
         var computed = command.Compute(out var economicCalendarImport);
         var updated = computed switch

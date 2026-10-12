@@ -42,6 +42,7 @@ public sealed record StrategyWorkflowStageState
     public int ContinuationRuleSetVersion { get; init; }
 
     /// <summary>Gets a defensive copy of the reason codes supporting the continuation decision.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(8)]
     public string[] ContinuationReasonCodes
     {

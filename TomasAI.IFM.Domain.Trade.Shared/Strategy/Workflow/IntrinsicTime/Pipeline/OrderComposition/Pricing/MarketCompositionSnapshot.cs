@@ -3,42 +3,6 @@ using System.Collections.Immutable;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
 
 [MessagePackObject]
-public sealed record CompositionFutureDefinition(
-    [property: Key(0)] string ContractId, [property: Key(1)] string Root,
-    [property: Key(2)] string Dataset, [property: Key(3)] string Exchange,
-    [property: Key(4)] string Currency, [property: Key(5)] DateTimeOffset LastTradingUtc,
-    [property: Key(6)] decimal Multiplier, [property: Key(7)] decimal TickSize,
-    [property: Key(8)] string DefinitionDigest);
-
-[MessagePackObject]
-public sealed record CompositionMarketInstrument(
-    [property: Key(0)] string ContractId,
-    [property: Key(1)] OptionPricingQuote Quote,
-    [property: Key(2)] OptionPricingContext? Pricing,
-    [property: Key(3)] decimal? Strike,
-    [property: Key(4)] bool? IsCall,
-    [property: Key(5)] OptionPricingQuote? Underlying,
-    [property: Key(6)] CompositionFutureDefinition? FutureDefinition = null)
-{
-    [Key(7)]
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public OptionSelectionValue? Selection { get; init; }
-}
-
-[MessagePackObject]
-public sealed record OptionSelectionValue(
-    [property: Key(0)] double Price, [property: Key(1)] double Delta, [property: Key(2)] double ImpliedVolatility,
-    [property: Key(3)] OptionPricingQuote IvUnderlying, [property: Key(4)] OptionPricingQuote IvOption,
-    [property: Key(5)] DateTimeOffset IvCalculatedAtUtc, [property: Key(6)] DateTimeOffset CalculatedAtUtc,
-    [property: Key(7)] DateTimeOffset ValidUntilUtc, [property: Key(8)] string PolicyVersion,
-    [property: Key(9)] string ContextDigest);
-
-[MessagePackObject]
-public sealed record CompositionInstrumentSnapshot(
-    [property: Key(0)] CompositionMarketInstrument Instrument,
-    [property: Key(1)] OptionPricingValue? Valuation);
-
-[MessagePackObject]
 public sealed record MarketCompositionSnapshot(
     [property: Key(0)] int SchemaVersion,
     [property: Key(1)] Guid SnapshotId,
@@ -61,15 +25,3 @@ public sealed record MarketCompositionSnapshot(
     [Key(12), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DateOnly? StrategyOptionChainValueDate { get; init; }
 }
-
-[MessagePackObject]
-public sealed record OptionPricingValue(
-    [property: Key(0)] double ImpliedVolatility,
-    [property: Key(1)] double Delta,
-    [property: Key(2)] double Gamma,
-    [property: Key(3)] double Theta,
-    [property: Key(4)] double Vega,
-    [property: Key(5)] double Rho,
-    [property: Key(6)] double TheoreticalPrice,
-    [property: Key(7)] double TimeToExpiry,
-    [property: Key(8)] string ContextDigest);

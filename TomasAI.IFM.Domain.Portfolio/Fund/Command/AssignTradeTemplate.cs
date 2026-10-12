@@ -23,6 +23,8 @@ public static class AssignTradeTemplate
         DateTime now,
         string principal)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FundTradeTemplateAssigned event";
         var updated = command.Compute(state, now, principal, out var fundChange) switch
         {

@@ -18,6 +18,8 @@ public static class StopFuturesRsiSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StopFuturesRsiSignalCommand command, FuturesRsiSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var updated = state.Update(command.CreateFuturesRsiSignalStoppedEvent(), command);
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))

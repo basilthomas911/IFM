@@ -9,21 +9,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 
-/// <summary>Describes an absolute end-of-day valuation observed for one canonical Portfolio trade.</summary>
-public sealed record PortfolioTradeValuationRequest(int FundId, int OrderId, int TradeId, DateOnly ValueDate,
-    decimal AbsoluteUnrealizedPnl, string Description, Guid SourceEventId, long SourceSequence, DateTime ObservedAtUtc);
-
-/// <summary>Defines the Portfolio-owned boundary for posting trade valuations.</summary>
-public interface IPortfolioTradeValuationApi
-{
-    /// <summary>Posts an absolute unrealized trade valuation through the Portfolio General Ledger.</summary>
-    /// <param name="request">The canonical trade valuation and its source evidence.</param>
-    /// <param name="cancellationToken">A token that can cancel the operation.</param>
-    /// <returns>The completed ledger event identifier.</returns>
-    ValueTask<ServiceResult<Guid>> PostAsync(PortfolioTradeValuationRequest request,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>Builds canonical valuation postings from trade end-of-day evidence.</summary>
 public sealed class PortfolioTradeValuationApi : IPortfolioTradeValuationApi
 {
@@ -51,7 +36,7 @@ public sealed class PortfolioTradeValuationApi : IPortfolioTradeValuationApi
         if (request.FundId <= 0 || request.OrderId <= 0 || request.TradeId <= 0 ||
             request.SourceEventId == Guid.Empty || request.SourceSequence < 0 ||
             request.ObservedAtUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("Canonical trade identity, source evidence, and UTC observation time are required.");
+            throw new ArgumentException("Canonical trade identity, source evidence, and UTC observation time are required.",nameof(request));
 
         var order = await _databases.PortfolioDb.GetOrderAsync(request.OrderId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("PORTFOLIO_VALUATION.ORDER_NOT_FOUND");
@@ -76,30 +61,7 @@ public sealed class PortfolioTradeValuationApi : IPortfolioTradeValuationApi
         var rule = rules[0];
 
         var operationId = DeterministicId("portfolio-trade-valuation", request.SourceEventId.ToString("N"));
-        var body = new LedgerPostingRequest
-        {
-            BookId = selected.Value.BookId,
-            FundId = request.FundId,
-            TransactionKind = LedgerTransactionKind.Valuation,
-            AccountingDate = request.ValueDate,
-            ValueDate = request.ValueDate,
-            Currency = "USD",
-            Amount = request.AbsoluteUnrealizedPnl,
-            Description = request.Description,
-            Source = new()
-            {
-                System = "TradeEndOfDay",
-                SourceEntityId = $"{request.OrderId}:{request.TradeId}",
-                SourceEventId = request.SourceEventId,
-                SourceSequence = request.SourceSequence,
-                SourceContentHash = FinancialCanonicalHash.Compute(request),
-                OccurredAtUtc = request.ObservedAtUtc,
-                OrderId = request.OrderId,
-                TradeId = request.TradeId
-            },
-            PostingRule = new() { RuleId = rule.RuleId, Version = rule.Version, ContentHash = rule.ContentHash },
-            Authority = selected.Value.Authority
-        };
+        var body = CreatePostingRequest(request, selected.Value, rule);
         var command = new PostFundTransactionCommand
         {
             CommandId = DeterministicId("post-portfolio-trade-valuation", request.SourceEventId.ToString("N")),
@@ -119,6 +81,35 @@ public sealed class PortfolioTradeValuationApi : IPortfolioTradeValuationApi
         command = command with { InputSha256 = FinancialCanonicalHash.Request(command) };
         return await _actors.SendAsync<PostFundTransactionCommand, LedgerPortfolioId>(
             command, command.EntityId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Captures absolute unrealized PnL and its source fingerprint under the exact selected book, rule and authority for deterministic ledger posting.</summary>
+    static LedgerPostingRequest CreatePostingRequest(PortfolioTradeValuationRequest request, FinancialPostingConfiguration configuration, LedgerPostingRule rule)
+    {
+        return new LedgerPostingRequest
+        {
+            BookId = configuration.BookId,
+            FundId = request.FundId,
+            TransactionKind = LedgerTransactionKind.Valuation,
+            AccountingDate = request.ValueDate,
+            ValueDate = request.ValueDate,
+            Currency = "USD",
+            Amount = request.AbsoluteUnrealizedPnl,
+            Description = request.Description,
+            Source = new()
+            {
+                System = "TradeEndOfDay",
+                SourceEntityId = $"{request.OrderId}:{request.TradeId}",
+                SourceEventId = request.SourceEventId,
+                SourceSequence = request.SourceSequence,
+                SourceContentHash = FinancialCanonicalHash.Compute(request),
+                OccurredAtUtc = request.ObservedAtUtc,
+                OrderId = request.OrderId,
+                TradeId = request.TradeId
+            },
+            PostingRule = new() { RuleId = rule.RuleId, Version = rule.Version, ContentHash = rule.ContentHash },
+            Authority = configuration.Authority
+        };
     }
 
     static Guid DeterministicId(string purpose, string identity) =>

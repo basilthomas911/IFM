@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -6,11 +6,12 @@ using System.Threading;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "Preserves the existing externally referenced type identity.")]
     public class SpreadPricerCollection : ISpreadPricerCollection
     {
-        private static AutoResetEvent _resetEvent = new AutoResetEvent(true);
-        private static object _resetLock = new object();
-        private ConcurrentQueue<ISpreadPricer> _spreadPricers;
+        private static readonly AutoResetEvent _resetEvent = new AutoResetEvent(true);
+
+        private readonly ConcurrentQueue<ISpreadPricer> _spreadPricers;
 
         public int Count => _spreadPricers.Count;
 
@@ -31,7 +32,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                     _spreadPricers.Enqueue(optionPricer);
         }
 
-        public ISpreadPricer? this[int optionPricerId] => _spreadPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
+        public ISpreadPricer? this[int optionPricerId] => _spreadPricers.SingleOrDefault(e => e.Id == optionPricerId);
 
         public List<ISpreadPricer> ToList()
             => _spreadPricers.ToList();
@@ -40,8 +41,11 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// add spread pricer to collection
         /// </summary>
         /// <param name="spreadPricer"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
         public void Add(ISpreadPricer spreadPricer)
         {
+            ArgumentNullException.ThrowIfNull(spreadPricer);
             if (_spreadPricers.Any(e => e.Id == spreadPricer.Id))
                 throw new InvalidOperationException($"SpreadPricerCollection.Add: device id {spreadPricer.DeviceId} already exists in this collection");
             _spreadPricers.Enqueue(spreadPricer);
@@ -51,9 +55,11 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// remove spread pricer by option pricer id
         /// </summary>
         /// <param name="optionPricerId"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
         public void Remove(int optionPricerId)
         {
-            var spreadPricer = _spreadPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
+            var spreadPricer = _spreadPricers.SingleOrDefault(e => e.Id == optionPricerId);
             if (spreadPricer == null)
                 throw new InvalidOperationException($"SpreadPricerCollection.Add: spread pricer - {optionPricerId} does not exist in this collection");
             if (_spreadPricers.TryDequeue(out spreadPricer))
@@ -79,8 +85,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             var spreadPricer = default(ISpreadPricer);
             do
             {
-                if (!_spreadPricers.IsEmpty)
-                    if (_spreadPricers.TryDequeue(out spreadPricer))
+                if (_spreadPricers.TryDequeue(out spreadPricer))
                         break;
                 _resetEvent.WaitOne();
             } while (spreadPricer == null);
@@ -91,6 +96,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// reset option pricer busy flag
         /// </summary>
         /// <param name="spreadPricer"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
         public void Release(ISpreadPricer spreadPricer)
         {
             _spreadPricers.Enqueue(spreadPricer);
@@ -98,7 +105,15 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         }
 
         public void Dispose()
-            => Clear();
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing) Clear();
+        }
 
         public bool Exists(OptionPricerId optionPricerId)
             => _spreadPricers.Any(e => e.OptionPricerId == optionPricerId);

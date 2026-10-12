@@ -15,16 +15,28 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
-
 /// <summary>Representative, explicitly non-authoritative examples calculated by the production evaluator.</summary>
 public sealed class MarketConditionAssessmentReferenceGenerator
 {
-    public MarketConditionAssessmentReferenceRow[] Generate() =>
-        (from horizon in new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly }
-         from scenario in new[] { "directional", "range", "transition", "expansion", "contraction", "dislocated", "unclassified", "poor", "unavailable", "restricted" }
-         let sample = CreateScenario(horizon, scenario)
-         select new MarketConditionAssessmentReferenceRow { CaseCode = $"{horizon}.{scenario}", Result = new MarketConditionAssessmentCalculator().Calculate(sample.Command, sample.Snapshot, sample.Command.CommandId) }).ToArray();
+    static readonly string[] Scenarios = ["directional", "range", "transition", "expansion", "contraction", "dislocated", "unclassified", "poor", "unavailable", "restricted"];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep the existing instance calculator contract used by dependency injection and its callers; calculation results do not depend on mutable service state.")]
+    public MarketConditionAssessmentReferenceRow[] Generate() => (
+        from horizon in new[]
+        {
+            TimeFrameType.Daily,
+            TimeFrameType.Weekly,
+            TimeFrameType.Monthly
+        }
 
+        from scenario in Scenarios
+
+        let sample = CreateScenario(horizon, scenario)select new MarketConditionAssessmentReferenceRow
+        {
+            CaseCode = $"{horizon}.{scenario}",
+            Result = new MarketConditionAssessmentCalculator().Calculate(sample.Command, sample.Snapshot, sample.Command.CommandId)
+        }
+
+    ).ToArray();
     public static (ExecuteMarketConditionAssessmentCommand Command, MarketConditionAssessmentSnapshot Snapshot) CreateScenario(TimeFrameType horizon, string scenario)
     {
         var at = new DateTime(2026, 8, 28, 14, 0, 0, DateTimeKind.Utc);
@@ -39,7 +51,16 @@ public sealed class MarketConditionAssessmentReferenceGenerator
             EntityId = signalId,
             CreatedOn = at.AddSeconds(-1),
             ReceivedOn = at,
-            FuturesItiSignal = new FuturesItiSignalV2ReadModel { ContractId = "ESZ6", ValueDate = signalId.ValueDate, TimeFrameStartValueDate = signalId.ValueDate, TimePeriod = horizon, SequenceId = 1, IntrinsicTime = at, IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend }
+            FuturesItiSignal = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = "ESZ6",
+                ValueDate = signalId.ValueDate,
+                TimeFrameStartValueDate = signalId.ValueDate,
+                TimePeriod = horizon,
+                SequenceId = 1,
+                IntrinsicTime = at,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend
+            }
         };
         var rp = RegimeDiscoveryParameterSet.CreateDefault(Id("regime-profile"), Id("strategy"), horizon);
         var p = MarketConditionAssessmentParameterSet.CreateDefault("ES.Reference", horizon, Id("profile"), rp.ParameterSetId, rp.Version);
@@ -48,9 +69,17 @@ public sealed class MarketConditionAssessmentReferenceGenerator
             IsComplete = true,
             Direction = scenario is "range" or "unclassified" ? RegimeDirection.Neutral : RegimeDirection.Up,
             Confidence = .9m,
-            StructureClassification = scenario == "range" ? MarketStructureClassification.Ranging : scenario == "transition" ? MarketStructureClassification.Transitioning : MarketStructureClassification.Trending,
-            VolatilityChange = scenario == "expansion" ? VolatilityRegimeChange.Expanding : scenario == "contraction" ? VolatilityRegimeChange.Contracting : VolatilityRegimeChange.Stable,
-            Restrictions = scenario == "restricted" ? [RegimeRestriction.NoNewTrade] : []
+            StructureClassification = ((string.Equals(scenario, "range", StringComparison.Ordinal)) switch
+            {
+                true => MarketStructureClassification.Ranging,
+                _ => string.Equals(scenario, "transition", StringComparison.Ordinal) ? MarketStructureClassification.Transitioning : MarketStructureClassification.Trending
+            }),
+            VolatilityChange = ((string.Equals(scenario, "expansion", StringComparison.Ordinal)) switch
+            {
+                true => VolatilityRegimeChange.Expanding,
+                _ => string.Equals(scenario, "contraction", StringComparison.Ordinal) ? VolatilityRegimeChange.Contracting : VolatilityRegimeChange.Stable
+            }),
+            Restrictions = string.Equals(scenario, "restricted", StringComparison.Ordinal) ? [RegimeRestriction.NoNewTrade] : []
         };
         var regime = new RegimeDiscoveryResult
         {
@@ -66,7 +95,11 @@ public sealed class MarketConditionAssessmentReferenceGenerator
             Decision = decision
         };
         var envelope = StrategyStageResultEnvelope.CreateRegime(regime);
-        var binding = new MarketConditionAssessmentBinding { Parameters = p, PayloadSha256 = MarketConditionAssessmentHash.Parameters(p) };
+        var binding = new MarketConditionAssessmentBinding
+        {
+            Parameters = p,
+            PayloadSha256 = MarketConditionAssessmentHash.Parameters(p)
+        };
         var view = new IntrinsicTimeStrategyWorkflowView
         {
             WorkflowId = workflow,
@@ -82,7 +115,12 @@ public sealed class MarketConditionAssessmentReferenceGenerator
             RegimeDiscoveryParameterSet = rp,
             RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(rp),
             AssessmentBinding = binding,
-            RegimeDiscovery = new() { ProcessingStatus = StrategyActorProcessingStatus.Completed, CompletedAtUtc = regime.ProducedAtUtc, Result = envelope }
+            RegimeDiscovery = new()
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Completed,
+                CompletedAtUtc = regime.ProducedAtUtc,
+                Result = envelope
+            }
         };
         var id = new MarketConditionAssessmentExecutionId(entity, workflow);
         var command = new ExecuteMarketConditionAssessmentCommand
@@ -113,21 +151,17 @@ public sealed class MarketConditionAssessmentReferenceGenerator
             TargetHorizon = horizon,
             ReferenceInstrumentId = "ESZ6",
             EvaluatedAtUtc = at,
-            Quote = scenario == "poor" ? new(5000, 5002, 1, 1) : new(5000, 5000.25m, 10, 10),
+            Quote = string.Equals(scenario, "poor", StringComparison.Ordinal) ? new(5000, 5002, 1, 1) : new(5000, 5000.25m, 10, 10),
             SessionState = MarketSessionStatus.Open,
             EventContext = AssessmentEventContext.Clear,
-            Observations = p.Sources.Select(x => new AssessmentObservation
+            Observations = p.Sources.Select(x => new AssessmentObservation { SourceId = x.SourceId, ObservedAtUtc = at.AddMilliseconds(-500), ReceivedAtUtc = at, Sequence = 1, Availability = string.Equals(scenario, "unavailable", StringComparison.Ordinal) && string.Equals(x.SourceId, "FeedHealth", StringComparison.Ordinal) ? MarketSourceAvailability.Unavailable : MarketSourceAvailability.Available, Validity = MarketSourceValidity.Valid, Value = string.Equals(scenario, "dislocated", StringComparison.Ordinal) && string.Equals(x.SourceId, "NormalizedMovement", StringComparison.Ordinal) ? 2m : 0m, Unit = "ratio" }).ToArray(),
+            CalendarEvidence = new()
             {
-                SourceId = x.SourceId,
-                ObservedAtUtc = at.AddMilliseconds(-500),
-                ReceivedAtUtc = at,
-                Sequence = 1,
-                Availability = scenario == "unavailable" && x.SourceId == "FeedHealth" ? MarketSourceAvailability.Unavailable : MarketSourceAvailability.Available,
-                Validity = MarketSourceValidity.Valid,
-                Value = scenario == "dislocated" && x.SourceId == "NormalizedMovement" ? 2m : 0m,
-                Unit = "ratio"
-            }).ToArray(),
-            CalendarEvidence = new() { CheckedAtUtc = at, CoverageConfirmed = true, ValidUntilUtc = at.AddHours(1), Reason = "Representative reference fixture; not downloaded market data" }
+                CheckedAtUtc = at,
+                CoverageConfirmed = true,
+                ValidUntilUtc = at.AddHours(1),
+                Reason = "Representative reference fixture; not downloaded market data"
+            }
         }.Seal();
         return (command, snapshot);
     }

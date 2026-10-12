@@ -24,11 +24,8 @@ public static class GetFuturesRsiDailySignal
         this GetFuturesRsiDailySignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+        => await dbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Reads and replies to the GetFuturesRsiDailySignalQuery message.</summary>
     public static async ValueTask ExecuteAsync(
@@ -37,7 +34,10 @@ public static class GetFuturesRsiDailySignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesRsiDailySignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);

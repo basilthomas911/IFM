@@ -17,7 +17,7 @@ public sealed record PostgresBulkWriteOptions
         if (string.IsNullOrWhiteSpace(value))
             return new PostgresBulkWriteOptions();
 
-        if (!int.TryParse(value, out var batchSize) || batchSize is < 1 or > 4096)
+        if (!int.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var batchSize) || batchSize is < 1 or > 4096)
         {
             throw new StorageException(
                 $"{BatchSizeVariable} must be an integer between 1 and 4096.");

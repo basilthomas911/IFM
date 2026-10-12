@@ -71,6 +71,7 @@ public class MarketOutlookSnapshotRealtimeActor(
 
     protected override ValueTask OnStartup(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
         context.AddRealtimeRouter(SessionStatisticsRoute, Id);
         return ValueTask.CompletedTask;
@@ -78,6 +79,7 @@ public class MarketOutlookSnapshotRealtimeActor(
 
     protected override ValueTask OnShutdown(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
         return ValueTask.CompletedTask;
@@ -99,11 +101,12 @@ public class MarketOutlookSnapshotRealtimeActor(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception)
+        Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         actorContext.Logger.LogErrorEvent(
             ActorName,
-            exception,
+            ex,
             "Market Outlook local update submission failed for {EntityId}",
             @event.Subject.EntityId);
         return ValueTask.CompletedTask;

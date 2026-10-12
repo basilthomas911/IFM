@@ -16,10 +16,7 @@ public static class FuturesTradeSessionBarPublishedFail
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
-        logger.LogError(
-            "Trade-session bar projection failed for {EntityId}: {ErrorMessage}",
-            @event.EntityId,
-            @event.ErrorMessage);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write49(logger, null, @event.EntityId, @event.ErrorMessage);
         return ValueTask.FromResult(false);
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage;
@@ -15,23 +15,9 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesOptionTickDataEventActor"/>.</summary>
-public interface IFuturesOptionTickDataEventContext : IEventActorContext<FuturesOptionTickDataEventActor>
-{
-    /// <summary>Gets supported supervised individual-option ownership when configured.</summary>
-    QualifiedIndividualOptionFeeds? QualifiedFeeds { get; }
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesOptionTickDataEventActor> Logger { get; }
-    /// <summary>Gets the MarketDataApi service.</summary>
-    ApplicationMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the StatusConsoleWriter service.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesOptionTickDataEventActor"/>.</summary>
-public sealed class FuturesOptionTickDataEventContext : EventActorContext, IEventActorContext<FuturesOptionTickDataEventActor>, IFuturesOptionTickDataEventContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesOptionTickDataEventContext : EventActorContext, IFuturesOptionTickDataEventContext
 {
     /// <summary>Initializes the typed event context.</summary>
     public FuturesOptionTickDataEventContext(

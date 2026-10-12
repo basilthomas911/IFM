@@ -1,14 +1,19 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace TomasAI.IFM.Shared.Exceptions;
 
-public class CommandValidationException : ApplicationException
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0013", Justification = "Preserve the existing public exception inheritance contract; CA1058 documents the same compatibility exception.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4052", Justification = "Preserve the existing public exception inheritance contract; CA1058 documents the same compatibility exception.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1058", Justification = "Preserve the existing public exception inheritance contract.")]
+    public class CommandValidationException : ApplicationException
 {
-    private readonly int _errorCode;
+        public CommandValidationException() : this(0, "CommandValidationException") { }
 
-    public int ErrorCode => _errorCode;
+        public CommandValidationException(string message) : this(0, message) { }
+
+        public CommandValidationException(string message, Exception innerException) : this(0, message, innerException) { }
 
     public CommandValidationException(int errorCode, string errorMessage)
         : base(errorMessage)
@@ -21,4 +26,8 @@ public class CommandValidationException : ApplicationException
     {
         _errorCode = errorCode;
     }
+
+    private readonly int _errorCode;
+
+    public int ErrorCode => _errorCode;
 }

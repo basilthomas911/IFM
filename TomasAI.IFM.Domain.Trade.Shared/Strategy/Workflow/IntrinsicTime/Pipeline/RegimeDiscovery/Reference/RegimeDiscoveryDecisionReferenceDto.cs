@@ -17,6 +17,7 @@ public sealed record RegimeDiscoveryDecisionReferenceDto
     [Key(5)] public bool IsCompleteEnumeration { get; init; }
     [Key(6)] public string CaseCode { get; init; } = string.Empty;
     [Key(7)] public string Name { get; init; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(8)] public string[] CoverageTags { get; init; } = [];
     [Key(9)] public RegimeDirection TrendDirection { get; init; }
     [Key(10)] public TrendRegimePhase TrendPhase { get; init; }
@@ -40,6 +41,8 @@ public sealed record RegimeDiscoveryDecisionReferenceDto
     [Key(28)] public decimal DecisionConfidence { get; init; }
     [Key(29)] public RegimeConfidenceBand ConfidenceBand { get; init; }
     [Key(30)] public RegimeOverallQuality Quality { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(31)] public RegimeRestriction[] Restrictions { get; init; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(32)] public string[] Reasons { get; init; } = [];
 }

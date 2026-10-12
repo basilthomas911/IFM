@@ -12,12 +12,20 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// specific actor. It provides methods to start, stop, and post messages to the actor's thread channel, as well as
 /// manage the thread's state. The thread operates asynchronously and ensures proper handling of timeouts, faults, and
 /// other operational states.</remarks>
-sealed class ActorThread : IActorThread
+sealed class ActorThread : IActorThread, IDisposable
 {
+    /// <summary>Releases the resources owned by the scheduler lifecycle.</summary>
+    public void Dispose()
+    {
+        Stop();
+        _threadScheduler.Dispose();
+        _timer?.Dispose();
+    }
+
     readonly ILogger? _logger;
     readonly IActorThreadPool _threadPool;
     ActorThreadId _threadId;
-    ActorThreadScheduler _threadScheduler;
+    readonly ActorThreadScheduler _threadScheduler;
     TimeSpan _timeout;
     IActor? _actor;
     Timer? _timer;
@@ -112,6 +120,7 @@ sealed class ActorThread : IActorThread
     /// the thread is released back to the thread pool. If the thread is already stopped,  the method has no
     /// effect.</remarks>
     /// <returns><see langword="true"/> to indicate that the stop operation was completed successfully.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     public bool Stop()
     {
         if (!IsStopped)
@@ -123,7 +132,7 @@ sealed class ActorThread : IActorThread
                 _actor?.Mailbox.ThreadQueues.ReleaseThreadQueue(_threadId);
                 _timer?.Dispose();
             }
-            catch { }
+            catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
             finally
             {
                 _state = ActorThreadState.Stopped;
@@ -151,6 +160,7 @@ sealed class ActorThread : IActorThread
     /// state.</remarks>
     /// <param name="message">The message to be processed by the actor. Cannot be <see langword="null"/>.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async ValueTask OnMessageAsync(IActorMessage message)
     {
         using var trace = ActorTrace.Start(message);
@@ -163,7 +173,7 @@ sealed class ActorThread : IActorThread
 
         try
         {
-            await _actor!.HandleMessageAsync(message);
+            await _actor!.HandleMessageAsync(message).ConfigureAwait(false);
             _state = ActorThreadState.WaitingForMessage;
             ResetTimer();
         }
@@ -187,11 +197,12 @@ sealed class ActorThread : IActorThread
     /// associated channel.  If an error occurs while stopping the channel, it is suppressed.  The provided
     /// exception is stored for later retrieval or diagnostic purposes.</remarks>
     /// <param name="ex">The exception that caused the fault. This parameter cannot be <see langword="null"/>.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     void SetFaulted(Exception ex)
     {
         _exception = ex;
         try { _threadScheduler.Stop(); }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
         finally
         {
             _state = ActorThreadState.Faulted;
@@ -219,6 +230,7 @@ sealed class ActorThread : IActorThread
     /// configured timeout duration. It stops the associated channel, updates the actor's state to indicate a
     /// timeout, and disposes of the timer.</remarks>
     /// <param name="state">An optional state object passed to the timeout callback. This parameter is not used in the method.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     void OnTimeout(object? state)
     {
         try
@@ -226,12 +238,12 @@ sealed class ActorThread : IActorThread
             var ex = new TimeoutException($"Actor mailbox processing timed out after {_timeout} for mailbox {_actor!.Id}");
             _exception = ex;
             try { Stop(); }
-            catch { }
+            catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
             finally { _state = ActorThreadState.TimedOut; }
             // Attempt to stop reading
             _reading = false;
             _timer?.Dispose();
         }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
     }
 }

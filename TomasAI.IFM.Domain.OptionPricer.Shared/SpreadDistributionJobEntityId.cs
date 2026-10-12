@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared;
@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 /// Implements <see cref="IActorEntityId"/>. Uses dot-separated format "OrderId.TradeId".
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public record struct SpreadDistributionJobEntityId(
     /// <summary>The order identifier.</summary>
     [property: Key(0)] int OrderId,

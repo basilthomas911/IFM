@@ -90,6 +90,7 @@ public record OptionTradeSpreadBarDataInsertedEvent : IEvent<OptionTradeEntityId
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TEntityId) != typeof(OptionTradeEntityId))
             throw new InvalidOperationException($"{EventName}.ToFailEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(OptionTradeEntityId).FullName}.");
 
@@ -111,125 +112,5 @@ public record OptionTradeSpreadBarDataInsertedEvent : IEvent<OptionTradeEntityId
         };
 
         return (IErrorEvent<TEntityId>)failed;
-    }
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public record OptionTradeSpreadBarDataInsertedCompleteEvent : ICompleteEvent<OptionTradeEntityId>
-{
-    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
-    [IgnoreMember] public const string Verb = "SpreadBarDataInsertedComplete";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public OptionTradeEntityId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [Key(8)] public OptionTradeSpreadBarsDataModel OptionTradeSpreadBarData { get; init; }
-    [Key(9)] public DateTime InsertedOn { get; init; }
-    [Key(10)] public string InsertedBy { get; init; }
-
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
-
-    public OptionTradeSpreadBarDataInsertedCompleteEvent() { }
-
-    [SerializationConstructor]
-    public OptionTradeSpreadBarDataInsertedCompleteEvent(
-        ActorSubject subject,
-        OptionTradeEntityId entityId,
-        Guid id,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        string eventSource,
-        DateTime receivedOn,
-        OptionTradeSpreadBarsDataModel optionTradeSpreadBarData,
-        DateTime insertedOn,
-        string insertedBy)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-        OptionTradeSpreadBarData = optionTradeSpreadBarData;
-        InsertedOn = insertedOn;
-        InsertedBy = insertedBy ?? string.Empty;
-    }
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public record OptionTradeSpreadBarDataInsertedFailEvent : IErrorEvent<OptionTradeEntityId>
-{
-    [IgnoreMember] public const string Actor = "FuturesOptionTradeEvent";
-    [IgnoreMember] public const string Verb = "SpreadBarDataInsertedFail";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public OptionTradeEntityId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public DateTime ErrorDate { get; init; }
-    [Key(4)] public long EventId { get; init; }
-    [Key(5)] public Guid CommandId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public string ErrorMessage { get; init; }
-    [Key(8)] public int ErrorCode { get; init; }
-    [Key(9)] public ErrorType ErrorType { get; init; }
-    [Key(10)] public string ErrorData { get; init; }
-    [Key(11)] public DateTime ReceivedOn { get; init; }
-    [Key(12)] public string AggregateId { get; init; }
-    [Key(13)] public string CommandName { get; init; }
-    [Key(14)] public string CommandData { get; init; }
-    [Key(15)] public string RouteTo { get; init; }
-
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public EventType EventType => EventType.ErrorEvent;
-
-    public OptionTradeSpreadBarDataInsertedFailEvent() { }
-
-    [SerializationConstructor]
-    public OptionTradeSpreadBarDataInsertedFailEvent(
-        ActorSubject subject,
-        OptionTradeEntityId entityId,
-        Guid id,
-        DateTime errorDate,
-        long eventId,
-        Guid commandId,
-        string eventSource,
-        string errorMessage,
-        int errorCode,
-        ErrorType errorType,
-        string errorData,
-        DateTime receivedOn,
-        string aggregateId,
-        string commandName,
-        string commandData,
-        string routeTo)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        ErrorDate = errorDate;
-        EventId = eventId;
-        CommandId = commandId;
-        EventSource = eventSource ?? string.Empty;
-        ErrorMessage = errorMessage ?? string.Empty;
-        ErrorCode = errorCode;
-        ErrorType = errorType;
-        ErrorData = errorData ?? string.Empty;
-        ReceivedOn = receivedOn;
-        AggregateId = aggregateId ?? string.Empty;
-        CommandName = commandName ?? string.Empty;
-        CommandData = commandData ?? string.Empty;
-        RouteTo = routeTo ?? string.Empty;
     }
 }

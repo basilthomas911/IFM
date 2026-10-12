@@ -16,9 +16,8 @@ public static class FuturesTdiSignalGeneratedComplete
     {
         ServiceId = $"{LogSourceType.FuturesTdiSignalEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// 
     /// </summary>
     /// <param name="e"></param>
@@ -32,6 +31,8 @@ public static class FuturesTdiSignalGeneratedComplete
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesTdiSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
         var source = $"FuturesTdiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
@@ -41,7 +42,7 @@ public static class FuturesTdiSignalGeneratedComplete
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTdiSignalEvent, FuturesTdiSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
+            await (statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTdiSignalEvent, FuturesTdiSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

@@ -20,17 +20,7 @@ public interface IQuery
 /// Represents a query that returns a result of the specified type.
 /// </summary>
 /// <typeparam name="TResult">The type of the result produced by the query.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface IQuery<TResult> : IQuery
 {
-}
-
-/// <summary>
-/// Represents a parameter used to define or modify the behavior of a query operation.
-/// </summary>
-/// <remarks>Implement this interface to provide custom query parameters for query-building APIs. Query parameters
-/// typically specify filtering, sorting, paging, or other options that affect the results returned by a
-/// query.</remarks>
-public interface IQueryParameter
-{
-    public string? QueryParams { get; }
 }

@@ -15,15 +15,27 @@ public static class GetDefaultFuturesContractDefinitions
     /// </summary>
     public static ValueTask<DefaultFuturesContractDefinitionsReadModel> ExecuteAsync(
         this GetDefaultFuturesContractDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return GetDefaultFuturesContractDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+    }
+
+    /// <summary>Reads and replies with the requested Reference result.</summary>
+    public static async ValueTask ExecuteAsync(this GetDefaultFuturesContractDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
+    }
 
     internal static async ValueTask<DefaultFuturesContractDefinitionsReadModel> GetDefaultFuturesContractDefinitionsAsync(
         IReferenceDbContext db,
         CancellationToken cancellationToken = default)
     {
-        Task<ICollection<LookupTypeReadModel>> ReadAsync(string name) => cancellationToken.CanBeCanceled
-            ? db.GetLookupTypeAsync(name, cancellationToken)
-            : db.GetLookupTypeAsync(name);
+        Task<ICollection<LookupTypeReadModel>> ReadAsync(string name) => db.GetLookupTypeAsync(name, cancellationToken);
         var currency = ReadAsync("DefaultFuturesContractCurrency");
         var exchange = ReadAsync("DefaultFuturesContractExchange");
         var multiplier = ReadAsync("DefaultFuturesContractMultiplier");
@@ -43,13 +55,5 @@ public static class GetDefaultFuturesContractDefinitions
             OptionSecurityType = values[4].FirstOrDefault()?.ShortCode ?? string.Empty,
             Symbol = values[5].FirstOrDefault()?.ShortCode ?? string.Empty
         };
-    }
-
-    /// <summary>Reads and replies with the requested Reference result.</summary>
-    public static async ValueTask ExecuteAsync(this GetDefaultFuturesContractDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
-    {
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result)).ConfigureAwait(false);
     }
 }

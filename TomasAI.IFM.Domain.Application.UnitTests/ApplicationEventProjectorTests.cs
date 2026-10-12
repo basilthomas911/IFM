@@ -41,6 +41,21 @@ public sealed class ApplicationEventProjectorTests
             projector.ProjectedEventTypes.OrderBy(type => type.Name));
     }
 
+    [Fact]
+    public void Concurrent_descriptor_type_reads_share_one_immutable_collection()
+    {
+        var projector = new ApplicationEventProjector(
+            Stub<IDurableReplayQueue>(), Stub<IEventSourceActorDbContext>(),
+            Stub<IBlackboardService>(), Stub<ILogger<ApplicationEventProjector>>());
+        var reads = new IReadOnlyCollection<Type>[32];
+        Parallel.For(0, reads.Length, index => reads[index] = projector.ProjectedEventTypes);
+        Assert.All(reads, types => Assert.Same(reads[0], types));
+        Assert.Equal(projector.ProjectionDescriptors.Select(item => item.SourceEventType), reads[0]);
+        var collection = Assert.IsAssignableFrom<ICollection<Type>>(reads[0]);
+        Assert.True(collection.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => collection.Add(typeof(string)));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

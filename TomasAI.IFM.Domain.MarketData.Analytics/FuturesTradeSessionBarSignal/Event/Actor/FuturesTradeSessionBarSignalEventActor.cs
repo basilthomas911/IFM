@@ -16,12 +16,10 @@ public sealed class FuturesTradeSessionBarSignalEventActor(
     /// <summary>Gets the Event actor mailbox name.</summary>
     public const string ActorName = FuturesTradeSessionBarPublishedEvent.Actor;
 
-    readonly IFuturesTradeSessionBarSignalEventContext context = IsArgumentNull.Set(
-        actorContext as IFuturesTradeSessionBarSignalEventContext,
-        nameof(actorContext))!;
+    readonly IFuturesTradeSessionBarSignalEventContext context = IsArgumentNull.Named(actorContext as IFuturesTradeSessionBarSignalEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesTradeSessionBarSignalEventActor> logger = IsArgumentNull.Set(actorContext.Logger);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesTradeSessionBarPublishedEvent.Verb] =
             message => message.AsEvent<FuturesTradeSessionBarPublishedEvent>()!,
@@ -44,25 +42,25 @@ public sealed class FuturesTradeSessionBarSignalEventActor(
 
     /// <inheritdoc />
     protected override IEvent ParseMessage(
-        IEventActorContext<FuturesTradeSessionBarSignalEventActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalEventActor> context,
         IActorMessage message)
-        => ParseMappedEvent(actorContext, message, _parseMap);
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext<FuturesTradeSessionBarSignalEventActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalEventActor> context,
         IEvent @event)
     {
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, context, logger).ConfigureAwait(false);
+        _ = await handler(@event, this.context, logger).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext<FuturesTradeSessionBarSignalEventActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalEventActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) => await exception.SendErrorEventAsync<
+        Exception ex) => await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, actorContext).ConfigureAwait(false);
+            ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

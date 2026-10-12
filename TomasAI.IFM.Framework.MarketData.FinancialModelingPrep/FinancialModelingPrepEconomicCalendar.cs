@@ -2,11 +2,15 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 
-public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
+public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar, IDisposable
 {
     private const string ProviderSource = "FinancialModelingPrep";
     private readonly FinancialModelingPrepOptions _options;
     private readonly FinancialModelingPrepHttpClient _client;
+    private readonly FinancialModelingPrepRequestGate? _ownedRequestGate;
+
+    /// <summary>Releases only the limiter created by the public constructor; injected limiters and HTTP clients remain borrowed.</summary>
+    public void Dispose() => _ownedRequestGate?.Dispose();
     private readonly TimeProvider _timeProvider;
 
     /// <summary>Initializes a new FinancialModelingPrepEconomicCalendar instance.</summary>
@@ -21,7 +25,7 @@ public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
             httpClient,
             options,
             new FinancialModelingPrepRequestGate(options),
-            timeProvider ?? TimeProvider.System)
+            timeProvider ?? TimeProvider.System, ownsRequestGate: true)
     {
     }
 
@@ -34,8 +38,9 @@ public sealed class FinancialModelingPrepEconomicCalendar : IEconomicCalendar
         HttpClient httpClient,
         FinancialModelingPrepOptions options,
         FinancialModelingPrepRequestGate requestGate,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider, bool ownsRequestGate = false)
     {
+        _ownedRequestGate = ownsRequestGate ? requestGate : null;
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _client = new FinancialModelingPrepHttpClient(httpClient, options, requestGate, timeProvider);

@@ -19,9 +19,8 @@ public static class FuturesRsiSignalStopped
         ServiceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Executes the stop operation for a Futures RSI signal timer, halting the generation of RSI signals for the specified contract and value date.
     /// </summary>
     /// <param name="e">The event containing details about the stopped Futures RSI signal.</param>
@@ -32,6 +31,8 @@ public static class FuturesRsiSignalStopped
     /// succeeded; otherwise, <see langword="false"/>.</returns>
     public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
         {
@@ -41,7 +42,7 @@ public static class FuturesRsiSignalStopped
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage());
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

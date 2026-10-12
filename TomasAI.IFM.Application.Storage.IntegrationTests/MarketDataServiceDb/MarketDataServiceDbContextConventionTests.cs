@@ -107,15 +107,8 @@ public sealed class MarketDataServiceDbContextConventionTests
         Assert.NotEmpty(declarations);
         Assert.All(declarations, declaration =>
         {
-            var documentation = lines
-                .Take(declaration.Index)
-                .Reverse()
-                .TakeWhile(line => line.TrimStart().StartsWith("///", StringComparison.Ordinal))
-                .ToArray();
-            Assert.Contains(documentation, line =>
-                line.Contains("<summary>", StringComparison.Ordinal));
-            Assert.Contains(documentation, line =>
-                line.Contains("</summary>", StringComparison.Ordinal));
+            Assert.True(DbContextConventionSource.HasXmlSummary(lines, declaration.Index),
+                $"Missing XML summary for {declaration.Text.Trim()}");
         });
     }
 

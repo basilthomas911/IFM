@@ -6,9 +6,12 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public sealed class ActorInformationLoggingOptions
 {
     public const string SectionName = "ActorRuntime:InformationLogging";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized/configuration array contract and consumer bindings; changing collection types is a separate API migration.")]
     public ActorType[] SuppressedActorTypes { get; set; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized/configuration array contract and consumer bindings; changing collection types is a separate API migration.")]
     public ActorInformationLogSuppressionRoute[] SuppressedRoutes { get; set; } = [];
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless configuration validation deliberately identifies the invalid bound configuration property in the exception.")]
     public ActorInformationLoggingPolicy Compile()
     {
         var configuredActorTypes = SuppressedActorTypes.Length == 0
@@ -38,32 +41,4 @@ public sealed class ActorInformationLoggingOptions
         }
         return new ActorInformationLoggingPolicy(actorTypes.ToFrozenSet(), routes.ToFrozenSet());
     }
-}
-
-/// <summary>Identifies one exact actor type, actor name, and message verb whose routine Information logs are suppressed.</summary>
-public sealed class ActorInformationLogSuppressionRoute
-{
-    public ActorType ActorType { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Verb { get; set; } = string.Empty;
-}
-
-readonly record struct ActorInformationLogRoute(ActorType ActorType, string Name, string Verb);
-
-/// <summary>Immutable, allocation-free lookup policy compiled before any actor is constructed.</summary>
-public sealed class ActorInformationLoggingPolicy
-{
-    readonly FrozenSet<ActorType> _suppressedActorTypes;
-    readonly FrozenSet<ActorInformationLogRoute> _suppressedRoutes;
-    internal ActorInformationLoggingPolicy(
-        FrozenSet<ActorType> suppressedActorTypes,
-        FrozenSet<ActorInformationLogRoute> suppressedRoutes)
-    {
-        _suppressedActorTypes = suppressedActorTypes;
-        _suppressedRoutes = suppressedRoutes;
-    }
-    public static ActorInformationLoggingPolicy Default { get; } = new ActorInformationLoggingOptions().Compile();
-    public bool SuppressesRoutineInformation(ActorThreadId actorThreadId, string verb)
-        => _suppressedActorTypes.Contains(actorThreadId.ActorType)
-           || _suppressedRoutes.Contains(new(actorThreadId.ActorType, actorThreadId.Name, verb));
 }

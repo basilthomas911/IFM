@@ -17,7 +17,7 @@ public sealed class SupervisorManagedActorLifecycle(
     ISupervisorBootstrap bootstrap,
     ISupervisorActorMetricsPollingService poller,
     ActorRuntimeStartupOptions options,
-    ILogger<SupervisorManagedActorLifecycle> logger) : ISupervisorManagedActorLifecycle
+    ILogger<SupervisorManagedActorLifecycle> logger) : ISupervisorManagedActorLifecycle, IDisposable
 {
     readonly IActorSupervisor _actorSupervisor = actorSupervisor ?? throw new ArgumentNullException(nameof(actorSupervisor));
     readonly IActorRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -26,11 +26,16 @@ public sealed class SupervisorManagedActorLifecycle(
     readonly ISupervisorActorMetricsPollingService _poller = poller ?? throw new ArgumentNullException(nameof(poller));
     readonly ActorRuntimeStartupOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
     readonly ILogger<SupervisorManagedActorLifecycle> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    /// <summary>Releases the host lifetime gate after managed actor shutdown has finished.</summary>
+    public void Dispose() => _gate.Dispose();
+
     readonly SemaphoreSlim _gate = new(1, 1);
     IActor[] _managedActors = [];
     int _running;
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One lifecycle operation owns its gate, stage diagnostics, rollback, and final release; keep this orchestration boundary together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1854", Justification = "Stage assignments preserve the operation stage used by exception diagnostics during lifecycle startup.")]
     public async ValueTask<SupervisorActorsStartupResult> StartupActorsAsync(CancellationToken cancellationToken)
     {
         var operationId = Guid.NewGuid();
@@ -177,6 +182,7 @@ public sealed class SupervisorManagedActorLifecycle(
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One lifecycle operation owns its gate, stage diagnostics, rollback, and final release; keep this orchestration boundary together.")]
     public async ValueTask<SupervisorRecoveryResult> ReconcileAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
         var operationId = Guid.NewGuid();
@@ -248,11 +254,11 @@ public sealed class SupervisorManagedActorLifecycle(
                     continue;
                 }
                 var recycledOwner = recycled.Contains(owners[0].Id)
-                    ? components.First(item => item.Component == owners[0].Id.ToString())
+                    ? components.First(item => string.Equals(item.Component,owners[0].Id.ToString(),StringComparison.Ordinal))
                     : await RecycleOwnedActorAsync(owners[0], recycled, deadline.Token).ConfigureAwait(false);
                 var after = _actorSupervisor.RuntimeContext.CaptureSnapshot().Projectors
-                    .FirstOrDefault(item => item.ActorName == projector.ActorName
-                        && item.ProjectorName == projector.ProjectorName);
+                    .FirstOrDefault(item => string.Equals(item.ActorName,projector.ActorName,StringComparison.Ordinal)
+                        && string.Equals(item.ProjectorName,projector.ProjectorName,StringComparison.Ordinal));
                 var healthy = recycledOwner.Health == SupervisorActorHealth.Healthy
                     && after is { IsReady: true, TerminalFailedCount: 0 }
                     && !(after.PendingCount > 0 && after.OldestPendingAgeSeconds >= 30
@@ -286,6 +292,7 @@ public sealed class SupervisorManagedActorLifecycle(
         finally { if (acquired) _gate.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S5034", Justification = "AsTask consumes this ValueTask exactly once; subsequent timeout waits consume the resulting Task.")]
     async ValueTask<SupervisorRecoveryComponentResult> RecycleOwnedActorAsync(
         IActor actor, HashSet<ActorMailboxId> recycled, CancellationToken cancellationToken)
     {
@@ -317,7 +324,7 @@ public sealed class SupervisorManagedActorLifecycle(
     }
 
     static SupervisorRecoveryResult RecoveryResult(Guid operationId,
-        IReadOnlyList<SupervisorRecoveryComponentResult> components, string detail)
+        List<SupervisorRecoveryComponentResult> components, string detail)
     {
         var healthy = components.Count(item => item.Health == SupervisorActorHealth.Healthy);
         var degraded = components.Count(item => item.Health == SupervisorActorHealth.Degraded);
@@ -559,14 +566,14 @@ public sealed class SupervisorManagedActorLifecycle(
 
     void TryLogStartupFailure(Guid operationId, string stage, Exception exception)
     {
-        try { _logger.LogError(exception, "Supervisor startup {OperationId} failed at {Stage}.", operationId, stage); }
-        catch (Exception loggingException) when (IsRecoverable(loggingException)) { }
+        try { global::TomasAI.IFM.Domain.Supervisor.Shared.PersistenceDiagnosticLog.Write2(_logger, exception, operationId, stage); }
+        catch (Exception loggingException) when (IsRecoverable(loggingException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     void TryLogShutdownFailure(Guid operationId, string stage, Exception exception)
     {
-        try { _logger.LogError(exception, "Supervisor shutdown {OperationId} failed at {Stage}.", operationId, stage); }
-        catch (Exception loggingException) when (IsRecoverable(loggingException)) { }
+        try { global::TomasAI.IFM.Domain.Supervisor.Shared.PersistenceDiagnosticLog.Write1(_logger, exception, operationId, stage); }
+        catch (Exception loggingException) when (IsRecoverable(loggingException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     static string Bound(string value) => value.Length <= 1024 ? value : value[..1024];

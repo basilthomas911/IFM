@@ -40,12 +40,13 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         IDatabaseBackupPublicationCapability publication,
         IDatabaseRestoreSourceCapability restoreSources,
         IDatabaseRecoveryEvidenceStore evidence,
-        IDatabaseBackupChainPlanner chainPlanner)
+        IDatabaseBackupChainPlanner chainPlanner,
+        IDatabaseCutoverCapability? cutover = null)
     {
         _selector = engineSelector ?? throw new ArgumentNullException(nameof(engineSelector));
         _orchestrator = new DatabaseRecoveryOperationOrchestrator(
             BackupSource.LocalWorkstation, journal, postgreSql, scylla, engineSelector,
-            options, publication, restoreSources, evidence, chainPlanner);
+            options, publication, restoreSources, evidence, chainPlanner, cutover: cutover);
     }
 
     public BackupSource Source => BackupSource.LocalWorkstation;

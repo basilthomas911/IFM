@@ -27,7 +27,7 @@ public class SpreadDistributionJobEventActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected ISpreadDistributionJobEventContext ActorContext =>
-        IsArgumentNull.Set(Context as ISpreadDistributionJobEventContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as ISpreadDistributionJobEventContext, nameof(Context))!;
 
     public const string Actor = "SpreadDistributionJobEvent";
     static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger<SpreadDistributionJobEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger<SpreadDistributionJobEventActor>, ValueTask<bool>>>()
@@ -35,12 +35,12 @@ public class SpreadDistributionJobEventActor(
         [typeof(SpreadDistributionJobSubmittedEvent)] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as SpreadDistributionJobSubmittedEvent)!;
-            return await e.ExecuteAsync(
+            return await (e.ExecuteAsync(
                 ctx,
                 optionPricerCommandApi,
                 tradeCommandApi,
                 statusConsoleWriter,
-                logger);
+                logger)).ConfigureAwait(false);
         },
         [typeof(SpreadDistributionJobStatusUpdatedEvent)] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
             await ((SpreadDistributionJobStatusUpdatedEvent)evt).ExecuteAsync(ctx, statusConsoleWriter, logger).ConfigureAwait(false)
@@ -66,7 +66,7 @@ public class SpreadDistributionJobEventActor(
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [SpreadDistributionJobSubmittedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobSubmittedEvent>()!,
         [SpreadDistributionJobStatusUpdatedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobStatusUpdatedEvent>()!
@@ -86,15 +86,15 @@ public class SpreadDistributionJobEventActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(
+        _ = await (receiveFunc.Invoke(
             @event,
             dispatchContext,
             dispatchContext,
             dispatchContext,
             ActorContext.StatusConsoleWriter,
-            ActorContext.Logger);
+            ActorContext.Logger)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
@@ -113,12 +113,12 @@ public class SpreadDistributionJobEventActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
+            global::TomasAI.IFM.Domain.OptionPricer.ActorLifecycleDiagnosticLog.Write1(Context.Logger, innerEx, Actor);
         }
     }
 }

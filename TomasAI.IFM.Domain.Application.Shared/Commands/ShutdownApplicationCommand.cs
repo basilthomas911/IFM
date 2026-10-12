@@ -29,7 +29,9 @@ public record ShutdownApplicationCommand : ICommand<ApplicationEntityId>
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member implements the actor command or query contract.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member implements the actor command or query contract.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Creates a shutdown command for the current value date.</summary>
@@ -51,7 +53,8 @@ public record ShutdownApplicationCommand : ICommand<ApplicationEntityId>
     /// </summary>
     /// <param name="parameter">The parameter containing the value date and error code.</param>
     public ShutdownApplicationCommand(ShutdownApplicationParameter parameter)
-        : this(parameter.ValueDate) { }
+        : this((parameter ?? throw new ArgumentNullException(nameof(parameter))).ValueDate) {
+            ArgumentNullException.ThrowIfNull(parameter); }
 
     /// <summary>
     /// MessagePack serialization constructor. Keys 0..5 correspond to metadata.

@@ -32,6 +32,7 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
     [Key(19)] public DatabaseRestorePointId? RestorePointId { get; init; }
     [Key(20)] public DatabaseFreshTargetDescriptor? FreshTarget { get; init; }
     [Key(21)] public DatabaseBackupPolicyDefinition? Policy { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     [Key(22)] public DatabaseLogicalDestination[] RequiredDestinations { get; init; } = [];
     [Key(23)] public long ExpectedStateRevision { get; init; }
     [Key(24)] public long ValidationRevision { get; init; }
@@ -48,6 +49,9 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
     [IgnoreMember] public abstract string Verb { get; }
     [IgnoreMember] public virtual EventType EventType => EventType.DomainEvent;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
     public virtual void Validate()
     {
         Source.Validate();
@@ -71,8 +75,3 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
     }
 }
 
-[MessagePackObject]
-public abstract record DatabaseBackupServiceEventContract : DatabaseBackupEventContract
-{
-    [IgnoreMember] public override EventType EventType => EventType.ServiceEvent;
-}

@@ -8,34 +8,15 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.Command.Actor;
-
-public interface IVerticalSpreadExitPositionWorkflowCommandContext :
-    ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IDurableReplayQueue DurableReplayQueue { get; }
-    IBlackboardService BlackboardService { get; }
-    IActorService ActorService { get; }
-    IEventProjector<VerticalSpreadExitPositionWorkflowCommandActor> EventProjector { get; }
-    IEventSourceActorStateRepository<VerticalSpreadExitPositionWorkflowCommandState> StateRepository { get; }
-    ILogger<VerticalSpreadExitPositionWorkflowCommandActor> Logger { get; }
-}
-
-public sealed class VerticalSpreadExitPositionWorkflowCommandContext : CommandActorContext,
-    ICommandActorContext<VerticalSpreadExitPositionWorkflowCommandActor>,
-    IVerticalSpreadExitPositionWorkflowCommandContext
+public sealed class VerticalSpreadExitPositionWorkflowCommandContext : CommandActorContext, IVerticalSpreadExitPositionWorkflowCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> eventSource;
     readonly Lazy<IDurableReplayQueue> replay;
     readonly Lazy<IActorService> actors;
     readonly Lazy<IEventProjector<VerticalSpreadExitPositionWorkflowCommandActor>> projector;
     readonly Lazy<IEventSourceActorStateRepository<VerticalSpreadExitPositionWorkflowCommandState>> repository;
-
-    public VerticalSpreadExitPositionWorkflowCommandContext(IActorSupervisor supervisor,
-        IDbContextFactory dbFactory, IBlackboardService blackboard,
-        ILogger<VerticalSpreadExitPositionWorkflowCommandActor> logger)
-        : base(supervisor, new(ActorType.Command, VerticalSpreadExitPositionWorkflowCommandActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public VerticalSpreadExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<VerticalSpreadExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, VerticalSpreadExitPositionWorkflowCommandActor.ActorName))
     {
         DbFactory = dbFactory;
         BlackboardService = blackboard;
@@ -55,5 +36,7 @@ public sealed class VerticalSpreadExitPositionWorkflowCommandContext : CommandAc
     public IActorService ActorService => actors.Value;
     public IEventProjector<VerticalSpreadExitPositionWorkflowCommandActor> EventProjector => projector.Value;
     public IEventSourceActorStateRepository<VerticalSpreadExitPositionWorkflowCommandState> StateRepository => repository.Value;
-    Lazy<T> Resolve<T>() where T : class => new(() => Container.Resolve<T>());
+
+    Lazy<T> Resolve<T>()
+        where T : class => new(() => Container.Resolve<T>());
 }

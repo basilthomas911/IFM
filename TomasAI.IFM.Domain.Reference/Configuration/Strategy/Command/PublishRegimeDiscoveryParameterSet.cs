@@ -16,7 +16,9 @@ public static class PublishRegimeDiscoveryParameterSet
     /// <returns>The command acceptance or business failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this PublishRegimeDiscoveryParameterSetCommand command, ICommandActorContext context, RegimeDiscoveryConfigurationCommandState state)
     {
-        if (state.Status == "Published") return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.Equals(state.Status,"Published",StringComparison.Ordinal)) return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
         var errorMsg = "RegimeDiscoveryConfiguration.STATE.APPLY_FAILED: unable to apply published event";
         var updated = command.Compute(state, out var configurationChange) switch
         {
@@ -35,7 +37,7 @@ public static class PublishRegimeDiscoveryParameterSet
     /// <returns>True when the transition is valid.</returns>
     internal static bool Compute(this PublishRegimeDiscoveryParameterSetCommand command, RegimeDiscoveryConfigurationCommandState state, out RegimeDiscoveryConfigurationChange configurationChange)
     {
-        configurationChange = state.Status != "Draft"
+        configurationChange = !string.Equals(state.Status,"Draft",StringComparison.Ordinal)
             ? new(RejectionReason: "RegimeDiscoveryConfiguration: only a Draft version can be published.")
             : new(EffectiveFromUtc: command.EffectiveFromUtc);
         return configurationChange.RejectionReason is null;

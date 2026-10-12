@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Shared;
 
 [MessagePackObject]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct MarketConditionAssessmentExecutionId(
     [property: Key(0)] IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId,
     [property: Key(1)] StrategyWorkflowId WorkflowId) : IActorEntityId

@@ -53,6 +53,7 @@ public sealed class RealtimeActorReplacementTests
             Assert.Equal(1, replacement.Effects);
             old.Release.SetResult();
             await active.Disposed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(await old.CancellationResourceAvailable.Task.WaitAsync(TimeSpan.FromSeconds(3)));
             Assert.Equal(0, old.Effects);
             Assert.Equal(1, active.Disposals);
         }
@@ -101,16 +102,32 @@ public sealed class RealtimeActorReplacementTests
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Effects;
+        public TaskCompletionSource<bool> CancellationResourceAvailable { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public void RetireRealtimeGeneration() { RealtimeGeneration.Retire(); IsRunning = false; }
         public ValueTask StartAsync(IActorSupervisor supervisor)
         { Mailbox = supervisor.CreateMailbox(Id); IsRunning = true; return ValueTask.CompletedTask; }
         public ValueTask StopAsync() { IsRunning = false; return ValueTask.CompletedTask; }
-        public ValueTask HandleMessageAsync(IActorMessage message) => Process();
-        async ValueTask Process()
+        public ValueTask HandleMessageAsync(IActorMessage message) => Process(CancellationToken.None);
+        public ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
+            => Process(cancellationToken);
+        async ValueTask Process(CancellationToken cancellationToken)
         {
             using var scope = RealtimeGeneration.Enter();
             Entered.TrySetResult();
-            if (blocked) await Release.Task;
+            if (blocked)
+            {
+                await Release.Task;
+                try
+                {
+                    _ = cancellationToken.WaitHandle;
+                    CancellationResourceAvailable.TrySetResult(true);
+                }
+                catch (ObjectDisposedException)
+                {
+                    CancellationResourceAvailable.TrySetResult(false);
+                    throw;
+                }
+            }
             using (RealtimeActorGeneration.EnterMutation()) Effects++;
             Completed.TrySetResult();
         }

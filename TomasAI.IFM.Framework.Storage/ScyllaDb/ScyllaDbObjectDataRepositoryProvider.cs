@@ -38,6 +38,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <returns>An <see cref="IObjectRepositoryProvider"/> instance associated with the specified context.</returns>
     public static IObjectRepositoryProvider CreateProvider(IObjectRepositoryContext ctx, ILogger<DbProvider> logger)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         var connectionSettings = DatabaseCredentialResolver
             .GetScyllaConnectionSettings(ctx.Repository.ConnectionString);
         var key = DatabaseCredentialResolver.GetCanonicalConnectionKey(connectionSettings);
@@ -63,6 +64,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     /// <param name="ctx"></param>
     /// <param name="logger">   </param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Shared DbProvider logger category is supplied by the existing repository DI contract.")]
     ScyllaDbObjectDataRepositoryProvider(IObjectRepositoryContext ctx, ILogger<DbProvider> logger)
     {
         _logger = logger;
@@ -82,8 +84,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         var prepared = _preparedStatementCache.GetOrAdd(
             cql,
-            _ => new Lazy<Task<PreparedStatement>>(
-                () => session.PrepareAsync(cql),
+            key => new Lazy<Task<PreparedStatement>>(
+                () => session.PrepareAsync(key),
                 LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
@@ -147,7 +149,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         return statement.Bind(parameterValue);
     }
 
-    Task<RowSet> ExecuteOwnedStatementAsync(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
+    static Task<RowSet> ExecuteOwnedStatementAsync(
         ISession session,
         IStatement statement,
         CancellationToken cancellationToken,
@@ -183,11 +186,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Cassandra driver 3.x requests cannot be cancelled after submission, so cancellation prevents new writes and
     /// stops awaiting in-flight requests while the driver may complete those requests in the background.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Validation and persistence orchestration remain together to preserve execution ordering.")]
     public async Task<long[]> ExecuteCommandAsync(
         IObjectRepositoryContext ctx,
         CancellationToken cancellationToken,
         Action<string> onInfoMessage = null!)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         IDisposable? unsubmittedLifetime = null;
         try
         {
@@ -200,11 +205,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             var parameterCount = ctx is ObjectDataRepositoryContext repositoryContext
                 ? repositoryContext.ParameterValueCount
                 : ctx.ParameterValues.Count;
-            _logger.LogDebug(
-                "{ClassName}.ExecuteCommandAsync: {CommandText} with {ParameterValuesCount} parameter values",
-                ClassName,
-                ctx.CommandLogText,
-                parameterCount ?? -1);
+            if (_logger.IsEnabled(LogLevel.Debug))
+                StorageLog.ExecuteCommand(_logger, ClassName, ctx.CommandLogText, parameterCount ?? -1);
 
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx is ObjectDataRepositoryContext repositoryContextWithIndex &&
@@ -314,6 +316,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             await Task.WhenAll(workers).ConfigureAwait(false);
             failure?.Throw();
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Worker boundary captures and propagates any failure through ExceptionDispatchInfo to the caller and completes the channel.")]
             async Task ExecuteWorkerAsync()
             {
                 while (Volatile.Read(ref failure) is null)
@@ -339,6 +342,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Validation and persistence orchestration remain together to preserve execution ordering.")]
         async Task ExecuteDeferredCommandsAsync(ISession session, IEnumerable<object> parameterValues, int? knownCount)
         {
             using var enumerator = parameterValues.GetEnumerator();
@@ -388,6 +392,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
             failure?.Throw();
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Worker boundary captures and propagates any failure through ExceptionDispatchInfo to the caller and completes the channel.")]
             async Task ProduceAsync()
             {
                 try
@@ -405,11 +410,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 catch (Exception ex)
                 {
                     Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(ex), null);
-                    stopSource.Cancel();
+                    await stopSource.CancelAsync().ConfigureAwait(false);
                     channel.Writer.TryComplete(ex);
                 }
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Worker boundary captures and propagates any failure through ExceptionDispatchInfo to the caller and completes the channel.")]
             async Task ExecuteWorkerAsync()
             {
                 try
@@ -424,11 +430,12 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 }
                 catch (OperationCanceledException) when (failure is not null)
                 {
+                    // Another worker captured the originating failure; this worker stops consuming.
                 }
                 catch (Exception ex)
                 {
                     Interlocked.CompareExchange(ref failure, ExceptionDispatchInfo.Capture(ex), null);
-                    stopSource.Cancel();
+                    await stopSource.CancelAsync().ConfigureAwait(false);
                     channel.Writer.TryComplete(ex);
                 }
             }
@@ -442,6 +449,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <param name="commandType"></param>
     /// <param name="bindValues"></param>
     /// <exception cref="ArgumentException"></exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public object QueueCommand(
         string commandName,
         string commandText,
@@ -468,11 +477,13 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     public async Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false)
         => await ExecuteQueuedCommandsAsync(queuedCommands, useTransaction, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Validation and persistence orchestration remain together to preserve execution ordering.")]
     public async Task ExecuteQueuedCommandsAsync(
         List<object> queuedCommands,
         bool useTransaction,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(queuedCommands);
         if (queuedCommands.Count == 0)
             throw new StorageException($"{ClassName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
@@ -481,9 +492,9 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         {
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (!useTransaction)
-                await ExecuteQueuedCommandsSequentiallyAsync(session);
+                await (ExecuteQueuedCommandsSequentiallyAsync(session)).ConfigureAwait(false);
             else
-                await ExecuteQueuedCommandsAsBatchAsync(session);
+                await (ExecuteQueuedCommandsAsBatchAsync(session)).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -502,7 +513,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (cmd is null) continue;
-                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    StorageLog.ExecuteQueuedCommand(_logger, ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
                 commandText = cmd.CommandText;
                 commandLogText = cmd.CommandLogText;
                 if (cmd.BindValues!.Count > 0)
@@ -531,7 +543,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    StorageLog.ExecuteQueuedCommand(_logger, ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
                 commandLogText = cmd.CommandLogText;
                 var ps = await GetOrPrepareAsync(session, cmd.CommandText, cancellationToken).ConfigureAwait(false);
                 if (cmd.BindValues is { Count: > 0 })
@@ -550,10 +563,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
             if (statementCount > 50)
             {
-                _logger.LogWarning(
-                    "{ClassName}.ExecuteQueuedCommandsAsync is executing an explicit logged batch containing {StatementCount} statements; keep atomic batches small and partition-local where possible",
-                    ClassName,
-                    statementCount);
+                StorageLog.LargeBatch(_logger, ClassName, statementCount);
             }
             using var rowSet = await ExecuteOwnedStatementAsync(session, batchStatement, cancellationToken).ConfigureAwait(false);
         }
@@ -564,15 +574,20 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     /// <typeparam name="TResult"></typeparam>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async ValueTask ExecuteMapReduceAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper, Action<IEnumerable<TResult>> dataReducer)
         => await ExecuteMapReduceAsync(ctx, dataMapper, dataReducer, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async ValueTask ExecuteMapReduceAsync<TResult>(
         IObjectRepositoryContext ctx,
         Func<IObjectDataRecord, TResult> dataMapper,
         Action<IEnumerable<TResult>> dataReducer,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.ExecuteMapReduceAsync: dataMapper parameter is null");
         if (dataReducer is null)
@@ -625,11 +640,16 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Asynchronously streams mapped rows and explicitly fetches ScyllaDB result pages without synchronous auto-paging.
     /// Disposing the enumerator releases the active row set, including when enumeration stops early.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4456", Justification = "Async enumeration intentionally validates at enumeration start, before opening or scheduling any provider operation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2025", Justification = "Cancelled Cassandra fetch is explicitly drained while retaining RowSet; the buffered-row enumerator has finished and is not used by the driver fetch.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
         IObjectRepositoryContext ctx,
         Func<IObjectDataRecord, TResult> dataMapper,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.StreamObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
@@ -691,9 +711,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         Func<IObjectDataRecord, TResult> mapper, int pageSize, byte[]? pagingState,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         ArgumentNullException.ThrowIfNull(mapper);
         if (pageSize is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(pageSize));
-        if (ctx.ParameterValues.Count > 1) throw new ArgumentException("Paging accepts one parameter set.");
+        if (ctx.ParameterValues.Count > 1) throw new ArgumentException("Paging accepts one parameter set.",nameof(ctx));
         cancellationToken.ThrowIfCancellationRequested();
         var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         var prepared = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
@@ -712,14 +733,19 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         return new QueryPage<TResult>([.. items], nextState);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
         => await GetObjectsAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(
         IObjectRepositoryContext ctx,
         Func<IObjectDataRecord, TResult> dataMapper,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
@@ -763,15 +789,20 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Executes a query asynchronously and maps the results to a pooled, read-only buffer of value types
     /// using <see cref="ScyllaDbResultSetMaterializer"/>, eliminating per-row heap allocations.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper) where TResult : struct
         => await GetImmutableObjectsAsync(ctx, dataMapper, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(
         IObjectRepositoryContext ctx,
         Func<IObjectDataRecord, TResult> dataMapper,
         CancellationToken cancellationToken)
         where TResult : struct
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetImmutableObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
@@ -783,12 +814,10 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ctx.ParameterValues.Count > 0)
             {
                 var ps = await GetOrPrepareAsync(session, ctx.CommandText, cancellationToken).ConfigureAwait(false);
-                foreach (var bindValues in ctx.ParameterValues)
-                {
-                    var boundStatement = Bind(session, ps, bindValues);
-                    using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
-                    return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
-                }
+                var bindValues = ctx.ParameterValues[0];
+                var boundStatement = Bind(session, ps, bindValues);
+                using var rowSet = await ExecuteOwnedStatementAsync(session, boundStatement, cancellationToken).ConfigureAwait(false);
+                return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
             }
             else
             {
@@ -796,7 +825,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
                 using var rowSet = await ExecuteOwnedStatementAsync(session, simpleStatement, cancellationToken).ConfigureAwait(false);
                 return ScyllaDbResultSetMaterializer.GetResultSet(rowSet, dataMapper);
             }
-            return new PooledReadOnlyBuffer<TResult>(System.Buffers.MemoryPool<TResult>.Shared.Rent(0), 0);
+
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -822,6 +851,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         Func<IObjectDataRecord, TResult> dataMapper,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"{ClassName}.GetObjectAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
@@ -869,6 +899,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         CancellationToken cancellationToken)
         where TScalar : struct
     {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dataMapper);
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"{ClassName}.ExecuteScalar: only single parameter value accepted");
         try
@@ -916,17 +948,15 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     static TResult? GetSingle<TResult>(RowSet rowSet, Func<IObjectDataRecord, TResult> dataMapper)
     {
         var record = rowSet.ToObjectDataRecord();
-        foreach (var row in rowSet)
-            return dataMapper(record.SetRow(row));
-        return default;
+        using var rows = rowSet.GetEnumerator();
+        return rows.MoveNext() ? dataMapper(record.SetRow(rows.Current)) : default;
     }
 
     static TScalar GetScalar<TScalar>(RowSet rowSet, Func<IObjectDataRecord, TScalar> dataMapper) where TScalar : struct
     {
         var record = rowSet.ToObjectDataRecord();
-        foreach (var row in rowSet)
-            return dataMapper(record.SetRow(row));
-        return default;
+        using var rows = rowSet.GetEnumerator();
+        return rows.MoveNext() ? dataMapper(record.SetRow(rows.Current)) : default;
     }
 
 }

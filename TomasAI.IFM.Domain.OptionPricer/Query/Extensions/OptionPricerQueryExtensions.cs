@@ -19,18 +19,19 @@ namespace TomasAI.IFM.Domain.OptionPricer.Query.Extensions;
 /// </remarks>
 public static class OptionPricerQueryExtensions
 {
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     /// <summary>
     /// Gets option pricer devices.
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
     public static async Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync(this ISpreadDistributionQueryContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             var result = new OptionPricerDevicesReadModel
             {
-                Devices = [.. await context.DbFactory.OptionPricerDb.GetOptionPricerDevicesAsync()]
+                Devices = [.. await (context.DbFactory.OptionPricerDb.GetOptionPricerDevicesAsync()).ConfigureAwait(false)]
             };
             return new ServiceOk<OptionPricerDevicesReadModel>(result);
         }
@@ -46,14 +47,12 @@ public static class OptionPricerQueryExtensions
     public static Task<ServiceResult<OptionPricerDevicesReadModel>> GetOptionPricerDevicesAsync(this ISpreadDistributionQueryContext context,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetOptionPricerDevicesQuery.ErrorId,
-            cancellationToken,
-            async () => new OptionPricerDevicesReadModel
+            GetOptionPricerDevicesQuery.ErrorId, async () => new OptionPricerDevicesReadModel
             {
-                Devices = [.. await context.DbFactory.OptionPricerDb
-                    .GetOptionPricerDevicesAsync(cancellationToken)]
-            });
-
+                Devices = [.. await (context.DbFactory.OptionPricerDb
+                    .GetOptionPricerDevicesAsync(cancellationToken)).ConfigureAwait(false)]
+            }, cancellationToken);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     /// <summary>
     /// Gets spread distribution.
     /// </summary>
@@ -66,15 +65,16 @@ public static class OptionPricerQueryExtensions
     public static async Task<ServiceResult<SpreadDistributionReadModel>> GetSpreadDistributionAsync(this ISpreadDistributionQueryContext context,
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
     {
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             SpreadDistributionReadModel result =
-                (await context.DbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+                (await (context.DbFactory.OptionPricerDb.GetSpreadDistributionAsync(
                     tradeId,
                     tradeType,
                     tradeStatus,
                     valueDate,
-                    daysToExpiry))!;
+                    daysToExpiry)).ConfigureAwait(false))!;
             return new ServiceOk<SpreadDistributionReadModel>(result);
         }
         catch (Exception ex)
@@ -94,16 +94,14 @@ public static class OptionPricerQueryExtensions
         int daysToExpiry,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetSpreadDistributionQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.OptionPricerDb.GetSpreadDistributionAsync(
+            GetSpreadDistributionQuery.ErrorId, async () => (await (context.DbFactory.OptionPricerDb.GetSpreadDistributionAsync(
                 tradeId,
                 tradeType,
                 tradeStatus,
                 valueDate,
                 daysToExpiry,
-                cancellationToken))!);
-
+                cancellationToken)).ConfigureAwait(false))!, cancellationToken);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     /// <summary>
     /// Determines whether spread distribution job in progress.
     /// </summary>
@@ -113,12 +111,13 @@ public static class OptionPricerQueryExtensions
     public static async Task<ServiceResult<ScalarReadModel<bool>>> IsSpreadDistributionJobInProgressAsync(this ISpreadDistributionQueryContext context,
         int orderId, int tradeId)
     {
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             var result = new ScalarReadModel<bool>(
-                await context.DbFactory.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(
+                await (context.DbFactory.OptionPricerDb.GetSpreadDistributionJobInProgressCountAsync(
                     orderId,
-                    tradeId) > 0);
+                    tradeId)).ConfigureAwait(false) > 0);
             return new ServiceOk<ScalarReadModel<bool>>(result);
         }
         catch (Exception ex)
@@ -135,19 +134,17 @@ public static class OptionPricerQueryExtensions
         int tradeId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetSpreadDistributionJobInProgressQuery.ErrorId,
-            cancellationToken,
-            async () => new ScalarReadModel<bool>(
-                await context.DbFactory.OptionPricerDb
+            GetSpreadDistributionJobInProgressQuery.ErrorId, async () => new ScalarReadModel<bool>(
+                await (context.DbFactory.OptionPricerDb
                     .GetSpreadDistributionJobInProgressCountAsync(
                         orderId,
                         tradeId,
-                        cancellationToken) > 0));
-
+                        cancellationToken)).ConfigureAwait(false) > 0), cancellationToken);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     static async Task<ServiceResult<T>> ExecuteAsync<T>(
         int errorId,
-        CancellationToken cancellationToken,
-        Func<Task<T>> operation)
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
     {
         try
         {

@@ -103,6 +103,19 @@ Stop the service without deleting the bind-mounted data:
 docker compose -f Docker/DatabaseBackup/docker-compose.development.yml down
 ```
 
+## Development local vault enrollment
+
+A new empty local vault must be explicitly enrolled before native local backups can publish to it. With the same Development environment variables and existing manifest keys used for the service, run:
+
+```powershell
+docker compose -f Docker/DatabaseBackup/docker-compose.development.yml run --rm --no-deps database-backup-host --enroll-development-vault
+docker compose -f Docker/DatabaseBackup/docker-compose.development.yml up --detach --no-build database-backup-host
+```
+
+The one-shot command does not start listeners or execute pending journal operations. It uses the repository's `ILocalBackupVault.EnrollAsync` contract to write the configured media/replica/environment identity, its signature and the public trust bundle, then verifies the signature. It requires `DatabaseBackup:EnvironmentId=development` and an empty configured vault. It rejects existing enrollment/artifacts and does not replace signing keys. For an existing vault, attach its original directory instead of enrolling over it.
+
+On 2026-10-12 the empty `E:\IFM\DatabaseBackup\online-vault` directory was explicitly enrolled using the existing configured keys and identity. The journal was preserved and copied to `.artifacts/backup-vault-repair/journal-pre-enrollment.sqlite`. The rebuilt host reports healthy and HTTP 200 readiness, and resumed native work. Repeated enrollment and non-Development enrollment were tested and rejected with the identity hash unchanged. This repair does not recover any previously missing backup artifacts or assert that all pending backups have completed.
+
 ## Operator console
 
 `TomasAI.IFM.Application.DatabaseBackup.Console` is a NATS client for the actor workflow; it is not a direct wrapper

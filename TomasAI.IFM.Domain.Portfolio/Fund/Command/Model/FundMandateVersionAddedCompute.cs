@@ -19,13 +19,6 @@ internal sealed record FundMandateVersionAddedCompute : IPortfolioFundChange
     public string RejectionReason { get; init; } = string.Empty;
     /// <summary>Creates a rejected computation without a business payload or pending event.</summary>
     internal FundMandateVersionAddedCompute() { }
-
-    public Guid Id { get; init; }
-    public Guid CommandId { get; init; }
-    public long Revision { get; init; }
-    public DateTime OccurredOnUtc { get; init; }
-    public string Principal { get; init; } = string.Empty;
-    public FundMandateReadModel FundMandate { get; init; } = default!;
     /// <summary>Initializes accepted immutable business values.</summary>
     /// <param name="id">The id value.</param>
     /// <param name="commandId">The commandId value.</param>
@@ -42,4 +35,11 @@ internal sealed record FundMandateVersionAddedCompute : IPortfolioFundChange
         Principal = principal;
         FundMandate = mandate;
     }
+
+    public Guid Id { get; init; }
+    public Guid CommandId { get; init; }
+    public long Revision { get; init; }
+    public DateTime OccurredOnUtc { get; init; }
+    public string Principal { get; init; } = string.Empty;
+    public FundMandateReadModel FundMandate { get; init; } = default!;
 }

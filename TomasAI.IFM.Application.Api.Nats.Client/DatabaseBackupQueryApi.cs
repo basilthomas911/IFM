@@ -33,6 +33,7 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
     public ValueTask<ServiceResult<DatabaseBackupHealthReadModel[]>> GetServiceHealthAsync(GetDatabaseBackupServiceHealthQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseBackupServiceHealthQuery, DatabaseBackupHealthReadModel[]>(query, cancellationToken);
     public ValueTask<ServiceResult<DatabaseRecoveryRunStatsReadModel>> GetRecoveryRunStatsAsync(GetDatabaseRecoveryRunStatsQuery query, CancellationToken cancellationToken = default) => SendAsync<GetDatabaseRecoveryRunStatsQuery, DatabaseRecoveryRunStatsReadModel>(query, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     async ValueTask<ServiceResult<TResult>> SendAsync<TQuery, TResult>(TQuery query, CancellationToken cancellationToken)
         where TQuery : class, IDatabaseBackupQuery, IQuery<TResult>
         where TResult : class
@@ -46,7 +47,7 @@ public sealed class DatabaseBackupQueryApi(IActorProducer actorProducer) : IData
             var subject = new ActorSubject(ActorType.Query, DatabaseBackupQueryRoute.Actor, query.Verb, entityId.Format());
             var normalized = (TQuery)Normalize(query, entityId, subject);
             normalized.Validate();
-            return await _actorProducer.RequestAsync<TResult, TQuery>(normalized.Subject, normalized, cancellationToken);
+            return await (_actorProducer.RequestAsync<TResult, TQuery>(normalized.Subject, normalized, cancellationToken)).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception) { return new ServiceFailed<TResult>(query.ErrorCode, exception.Message); }

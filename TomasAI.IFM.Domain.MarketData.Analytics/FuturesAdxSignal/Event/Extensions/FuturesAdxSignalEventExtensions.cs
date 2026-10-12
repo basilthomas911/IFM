@@ -6,7 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Extensions;
 
@@ -22,7 +21,7 @@ internal static class FuturesAdxSignalEventExtensions
     public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext commandApi, FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
     {
         var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime(DateTime.Now));
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAdxSignalAsync(commandApi, signalId, futuresPrice);
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAdxSignalAsync(commandApi, signalId, futuresPrice)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -37,7 +36,7 @@ internal static class FuturesAdxSignalEventExtensions
         this IEventActorContext<TActor> commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
         where TActor : IActor
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi, futuresTdiSignalId, futuresRsiSignals, timePeriod);
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi, futuresTdiSignalId, futuresRsiSignals, timePeriod)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -52,7 +51,7 @@ internal static class FuturesAdxSignalEventExtensions
     public static async ValueTask GenerateFuturesMacdSignalAsync(
         this IEventActorContext commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice);
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice)).ConfigureAwait(false);
     }
 
 }

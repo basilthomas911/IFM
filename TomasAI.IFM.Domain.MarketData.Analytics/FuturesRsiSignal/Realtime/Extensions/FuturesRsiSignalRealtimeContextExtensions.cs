@@ -7,13 +7,15 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
 
 /// <summary>Exposes readonly FuturesRsiSignalRealtime Realtime context properties.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class FuturesRsiSignalRealtimeContextExtensions
 {
     extension(IRealtimeActorContext<FuturesRsiSignalRealtimeActor> context)
     {
         /// <summary>Gets the domain-specific typed context.</summary>
         public IFuturesRsiSignalRealtimeContext DomainContext =>
-            IsArgumentNull.Set(context as IFuturesRsiSignalRealtimeContext, nameof(context))!;
+            IsArgumentNull.Named(context as IFuturesRsiSignalRealtimeContext, nameof(context))!;
         /// <summary>Gets the Supervisor service retained by the typed context.</summary>
         public IActorSupervisor Supervisor => context.DomainContext.Supervisor;
         /// <summary>Gets the Logger service retained by the typed context.</summary>

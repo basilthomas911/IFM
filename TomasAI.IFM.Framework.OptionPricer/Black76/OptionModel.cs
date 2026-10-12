@@ -10,102 +10,6 @@ using TomasAI.IFM.Framework.OptionPricer.Interop;
 namespace TomasAI.IFM.Framework.OptionPricer.Black76;
 
 /// <summary>
-/// Represents the complete pricing result from the Black-76 option pricing model,
-/// including the theoretical option price and first-order Greeks (sensitivities).
-/// </summary>
-/// <param name="Price">The theoretical fair value of the option, discounted to present value using the risk-free rate.</param>
-/// <param name="Delta">The first derivative of the option price with respect to the underlying futures price.
-/// Measures the rate of change of the option value per unit change in the futures price.
-/// Calls have delta in [0, 1]; puts have delta in [-1, 0].</param>
-/// <param name="Gamma">The second derivative of the option price with respect to the underlying futures price.
-/// Measures the rate of change of delta per unit change in the futures price.</param>
-/// <param name="Vega">The first derivative of the option price with respect to implied volatility.
-/// Measures the sensitivity of the option value to a one-unit change in annualised volatility.</param>
-/// <param name="Theta">The first derivative of the option price with respect to time.
-/// Measures the rate of time decay of the option value, expressed as the change in price per unit of time.
-/// A positive value here indicates the option gains value as time passes (typical when discounting dominates).</param>
-/// <param name="Rho">The first derivative of the option price with respect to the risk-free interest rate.
-/// For Black-76, rho equals <c>-T * Price</c>, reflecting the discounting effect on present value.</param>
-[StructLayout(LayoutKind.Sequential)]
-public readonly record struct Black76Result(
-    double Price,
-    double Delta,
-    double Gamma,
-    double Vega,
-    double Theta,
-    double Rho);
-
-/// <summary>
-/// Encapsulates the input parameters for the Black-76 option pricing model,
-/// grouping the forward price, strike, rate, volatility, time to expiry, and option type
-/// into a single immutable value for batch or pipeline-style pricing.
-/// </summary>
-/// <param name="ForwardPrice">The current futures (forward) price. Must be positive for meaningful results.</param>
-/// <param name="StrikePrice">The option strike price. Must be positive for meaningful results.</param>
-/// <param name="RiskFreeRate">The continuously compounded risk-free interest rate (annualised, e.g. 0.05 for 5%).</param>
-/// <param name="Volatility">The annualised implied volatility of the underlying futures price (e.g. 0.20 for 20%).</param>
-/// <param name="TimeToExpiry">Time to expiry in years (e.g. 0.25 for 3 months). Values ≤ 0 are treated as expired.</param>
-/// <param name="OptionType">Option type indicator: a value &gt; 0 denotes a call; a value ≤ 0 denotes a put.</param>
-public readonly record struct Black76PriceParameter(
-    double ForwardPrice,
-    double StrikePrice,
-    double RiskFreeRate,
-    double Volatility,
-    double TimeToExpiry,
-    int OptionType);
-
-/// <summary>
-/// Encapsulates the input parameters for the Black-76 implied volatility solver,
-/// grouping the forward price, strike, rate, market price, time to expiry, option type,
-/// and solver tuning options into a single immutable value.
-/// </summary>
-/// <param name="ForwardPrice">The current futures (forward) price. Must be strictly positive.</param>
-/// <param name="StrikePrice">The option strike price. Must be strictly positive.</param>
-/// <param name="RiskFreeRate">The continuously compounded risk-free interest rate (annualised, e.g. 0.05 for 5%).</param>
-/// <param name="MarketPrice">The observed market price of the option. Must be positive.</param>
-/// <param name="TimeToExpiry">Time to expiry in years (e.g. 0.25 for 3 months). Must be strictly positive.</param>
-/// <param name="OptionType">Option type indicator: a value &gt; 0 denotes a call; a value ≤ 0 denotes a put.</param>
-/// <param name="Tolerance">Convergence tolerance for the absolute price difference. Defaults to 1e-10.</param>
-/// <param name="MaxIterations">Maximum number of Newton-Raphson iterations. Defaults to 100.</param>
-/// <param name="InitialGuess">Starting volatility guess. Defaults to 0.20 (20%) when <c>null</c>.</param>
-public readonly record struct Black76ImpliedVolatilityParameter(
-    double ForwardPrice,
-    double StrikePrice,
-    double RiskFreeRate,
-    double MarketPrice,
-    double TimeToExpiry,
-    int OptionType,
-    double Tolerance = 1e-10,
-    int MaxIterations = 100,
-    double? InitialGuess = null);
-
-/// <summary>
-/// Encapsulates the input parameters for a batch Black-76 pricing operation,
-/// grouping the per-contract forward prices, strike prices, rates, volatilities,
-/// times to expiry, and option types into a single immutable value.
-/// </summary>
-/// <remarks>
-/// Each <see cref="ReadOnlyMemory{T}"/> member maps one-to-one to the corresponding
-/// <see cref="ReadOnlySpan{T}"/> parameter of <see cref="OptionModel.PriceBatch"/>.
-/// All arrays must have the same length; the batch method validates this at call time.
-/// </remarks>
-/// <param name="ForwardPrices">Per-contract futures (forward) prices. Must be positive for meaningful results.</param>
-/// <param name="StrikePrices">Per-contract option strike prices. Must be positive for meaningful results.</param>
-/// <param name="RiskFreeRates">Per-contract continuously compounded risk-free interest rates (annualised).</param>
-/// <param name="Volatilities">Per-contract annualised implied volatilities.</param>
-/// <param name="TimesToExpiry">Per-contract times to expiry in years. Values ≤ 0 are treated as expired.</param>
-/// <param name="OptionTypes">Per-contract option type indicators (&gt; 0 = call, ≤ 0 = put).</param>
-/// <param name="Results">Pre-allocated list to receive the pricing results. Must have the same length as the input arrays.</param>
-public readonly record struct Black76PriceBatchParameter(
-    List<double> ForwardPrices,
-    List<double> StrikePrices,
-    List<double> RiskFreeRates,
-    List<double> Volatilities,
-    List<double> TimesToExpiry,
-    List<int> OptionTypes,
-    List<Black76Result> Results);
-
-/// <summary>
 /// Provides a managed (pure C#) implementation of the Black-76 option pricing model
 /// for European-style options on futures contracts. The model assumes log-normal
 /// distribution of futures prices and is parameterised by the forward price, strike,
@@ -135,20 +39,20 @@ public static class OptionModel
     private const double InvSqrt2Pi = 0.39894228040143267793994605993438;
 
     [DoesNotReturn]
-    private static void ThrowPositiveRequired() =>
-        throw new ArgumentOutOfRangeException("F and K must be positive.");
+    private static void ThrowPositiveRequired(string parameterName) =>
+        throw new ArgumentOutOfRangeException(parameterName, "F and K must be positive.");
 
     [DoesNotReturn]
-    private static void ThrowMarketPricePositive() =>
-        throw new ArgumentOutOfRangeException(nameof(ThrowMarketPricePositive), "Market price must be positive.");
+    private static void ThrowMarketPricePositive(string parameterName) =>
+        throw new ArgumentOutOfRangeException(parameterName, "Market price must be positive.");
 
     [DoesNotReturn]
-    private static void ThrowTimeToExpiryPositive() =>
-        throw new ArgumentOutOfRangeException(nameof(ThrowTimeToExpiryPositive), "Time to expiry must be positive.");
+    private static void ThrowTimeToExpiryPositive(string parameterName) =>
+        throw new ArgumentOutOfRangeException(parameterName, "Time to expiry must be positive.");
 
     [DoesNotReturn]
-    private static void ThrowSpanLengthMismatch() =>
-        throw new ArgumentException("All input spans must have the same length as the results span.");
+    private static void ThrowSpanLengthMismatch(string parameterName) =>
+        throw new ArgumentException("All input spans must have the same length as the results span.", parameterName);
 
     /// <summary>
     /// Computes the theoretical price of a European option on a futures contract
@@ -256,7 +160,7 @@ public static class OptionModel
         int optionType)
     {
         if (forwardPrice <= 0.0 || strikePrice <= 0.0)
-            ThrowPositiveRequired();
+            ThrowPositiveRequired(forwardPrice <= 0.0 ? nameof(forwardPrice) : nameof(strikePrice));
 
         return OptionPricerBackend.UseRust
             ? RustOptionModel.PriceWithGreeks(
@@ -275,14 +179,12 @@ public static class OptionModel
         int optionType)
     {
         if (forwardPrice <= 0.0 || strikePrice <= 0.0)
-            ThrowPositiveRequired();
+            ThrowPositiveRequired(forwardPrice <= 0.0 ? nameof(forwardPrice) : nameof(strikePrice));
 
         if (timeToExpiry <= 0.0)
         {
             double p = Intrinsic(forwardPrice, strikePrice, optionType);
-            double intrinsicDelta = optionType > 0
-                ? (forwardPrice > strikePrice ? 1.0 : 0.0)
-                : (forwardPrice < strikePrice ? -1.0 : 0.0);
+            double intrinsicDelta = (optionType > 0) switch { true => (forwardPrice > strikePrice ? 1.0 : 0.0), false => (forwardPrice < strikePrice ? -1.0 : 0.0) };
 
             return new Black76Result(p, intrinsicDelta, 0.0, 0.0, 0.0, 0.0);
         }
@@ -433,13 +335,13 @@ public static class OptionModel
         double? initialGuess = null)
     {
         if (forwardPrice <= 0.0 || strikePrice <= 0.0)
-            ThrowPositiveRequired();
+            ThrowPositiveRequired(forwardPrice <= 0.0 ? nameof(forwardPrice) : nameof(strikePrice));
 
         if (marketPrice <= 0.0)
-            ThrowMarketPricePositive();
+            ThrowMarketPricePositive(nameof(marketPrice));
 
         if (timeToExpiry <= 0.0)
-            ThrowTimeToExpiryPositive();
+            ThrowTimeToExpiryPositive(nameof(timeToExpiry));
 
         return OptionPricerBackend.UseRust
             ? RustOptionModel.ImpliedVolatility(
@@ -552,7 +454,7 @@ public static class OptionModel
         if (forwardPrices.Length != n || strikePrices.Length != n ||
             riskFreeRates.Length != n || volatilities.Length != n ||
             timesToExpiry.Length != n || optionTypes.Length != n)
-            ThrowSpanLengthMismatch();
+            ThrowSpanLengthMismatch(nameof(results));
 
         if (OptionPricerBackend.UseRust)
         {
@@ -618,7 +520,7 @@ public static class OptionModel
         if (forwardPrices.Length != n || strikePrices.Length != n ||
             riskFreeRates.Length != n || volatilities.Length != n ||
             timesToExpiry.Length != n || optionTypes.Length != n)
-            ThrowSpanLengthMismatch();
+            ThrowSpanLengthMismatch(nameof(results));
 
         if (OptionPricerBackend.UseRust)
         {

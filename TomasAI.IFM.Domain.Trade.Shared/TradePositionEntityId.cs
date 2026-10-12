@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 /// "OrderId.TradeId.ValueDate.TradeType.TradeStatus.DaysToExpiry".
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public record struct TradePositionEntityId(
     /// <summary>Order identifier.</summary>
     [property: Key(0)] int OrderId,
@@ -38,7 +39,7 @@ public record struct TradePositionEntityId(
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 
     /// <summary>Hashes the dot-formatted identifier string.</summary>
-    public override int GetHashCode() => $"{this}".GetHashCode();
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode($"{this}");
 
     /// <summary>
     /// Creates a copy of this identifier with a different trade type.

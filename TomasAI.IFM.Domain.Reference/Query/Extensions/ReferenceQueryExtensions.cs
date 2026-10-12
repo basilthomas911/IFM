@@ -1,3 +1,4 @@
+#pragma warning disable CA1034 // C# 14 extension blocks generate nested metadata types; no public nested type is declared here.
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -7,6 +8,8 @@ using TomasAI.IFM.Domain.Reference.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Reference.Query.Extensions;
 
@@ -18,11 +21,12 @@ namespace TomasAI.IFM.Domain.Reference.Query.Extensions;
 /// optional external calendar reader. Every public method owns its typed success/failure mapping. The
 /// implementation does not capture actor context and may be registered as a singleton.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
 public static partial class ReferenceQueryExtensions
 {
     extension(IReferenceQueryContext context)
     {
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets market data definition types.
         /// </summary>
@@ -31,7 +35,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "MarketDataDefinitionType");
+                LookupTypeCollection result = await (GetLookupTypesCoreAsync(context, "MarketDataDefinitionType")).ConfigureAwait(false);
                 return new ServiceOk<LookupTypeCollection>(result);
             }
             catch (Exception ex)
@@ -39,7 +43,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets reference data definition types.
         /// </summary>
@@ -48,7 +52,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "ReferenceDataDefinitionType");
+                LookupTypeCollection result = await (GetLookupTypesCoreAsync(context, "ReferenceDataDefinitionType")).ConfigureAwait(false);
                 return new ServiceOk<LookupTypeCollection>(result);
             }
             catch (Exception ex)
@@ -56,7 +60,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets system admin function types.
         /// </summary>
@@ -65,7 +69,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, "SystemAdminFunctionType");
+                LookupTypeCollection result = await (GetLookupTypesCoreAsync(context, "SystemAdminFunctionType")).ConfigureAwait(false);
                 return new ServiceOk<LookupTypeCollection>(result);
             }
             catch (Exception ex)
@@ -73,7 +77,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets lookup types.
         /// </summary>
@@ -82,7 +86,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = new LookupTypeCollection([.. await context.DbFactory.ReferenceDb.GetLookupTypesAsync()]);
+                var result = new LookupTypeCollection([.. await (context.DbFactory.ReferenceDb.GetLookupTypesAsync()).ConfigureAwait(false)]);
                 return new ServiceOk<LookupTypeCollection>(result);
             }
             catch (Exception ex)
@@ -90,7 +94,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<LookupTypeCollection>(GetLookupTypesQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets lookup types.
         /// </summary>
@@ -100,7 +104,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                LookupTypeCollection result = await GetLookupTypesCoreAsync(context, lookupTypeName);
+                LookupTypeCollection result = await (GetLookupTypesCoreAsync(context, lookupTypeName)).ConfigureAwait(false);
                 return new ServiceOk<LookupTypeCollection>(result);
             }
             catch (Exception ex)
@@ -108,7 +112,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<LookupTypeCollection>(GetLookupTypeQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets lookup type names.
         /// </summary>
@@ -117,7 +121,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                string[] result = [.. await context.DbFactory.ReferenceDb.GetLookupTypeNamesAsync()];
+                string[] result = [.. await (context.DbFactory.ReferenceDb.GetLookupTypeNamesAsync()).ConfigureAwait(false)];
                 return new ServiceOk<string[]>(result);
             }
             catch (Exception ex)
@@ -125,7 +129,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<string[]>(GetLookupTypeNamesQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets lookup type short codes.
         /// </summary>
@@ -137,7 +141,7 @@ public static partial class ReferenceQueryExtensions
             try
             {
                 LookupTypeShortCodeReadModel[] result =
-                    [.. await context.DbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(lookupTypeName)];
+                    [.. await (context.DbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(lookupTypeName)).ConfigureAwait(false)];
                 return new ServiceOk<LookupTypeShortCodeReadModel[]>(result);
             }
             catch (Exception ex)
@@ -147,7 +151,7 @@ public static partial class ReferenceQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets next seed ID.
         /// </summary>
@@ -157,7 +161,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetNextSeedIdAsync(seedType));
+                var result = new ScalarReadModel<int>(await (context.DbFactory.ReferenceDb.GetNextSeedIdAsync(seedType)).ConfigureAwait(false));
                 return new ServiceOk<ScalarReadModel<int>>(result);
             }
             catch (Exception ex)
@@ -165,7 +169,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<ScalarReadModel<int>>(GetNextSeedIdQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets the highest seed ID currently reserved by PostgreSQL.
         /// </summary>
@@ -175,7 +179,7 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = new ScalarReadModel<int>(await context.DbFactory.ReferenceDb.GetCurrentSeedIdAsync(seedType));
+                var result = new ScalarReadModel<int>(await (context.DbFactory.ReferenceDb.GetCurrentSeedIdAsync(seedType)).ConfigureAwait(false));
                 return new ServiceOk<ScalarReadModel<int>>(result);
             }
             catch (Exception ex)
@@ -183,7 +187,7 @@ public static partial class ReferenceQueryExtensions
                 return new ServiceFailed<ScalarReadModel<int>>(GetCurrentSeedIdQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets default futures contract definitions.
         /// </summary>
@@ -193,8 +197,8 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = await GetDefaultFuturesContractDefinitions
-                    .GetDefaultFuturesContractDefinitionsAsync(context.DbFactory.ReferenceDb);
+                var result = await (GetDefaultFuturesContractDefinitions
+                    .GetDefaultFuturesContractDefinitionsAsync(context.DbFactory.ReferenceDb)).ConfigureAwait(false);
                 return new ServiceOk<DefaultFuturesContractDefinitionsReadModel>(result);
             }
             catch (Exception ex)
@@ -204,7 +208,7 @@ public static partial class ReferenceQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option strike price definitions.
         /// </summary>
@@ -214,8 +218,8 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = await GetFuturesOptionStrikePriceDefinitions
-                    .GetFuturesOptionStrikePriceDefinitionsAsync(context.DbFactory.ReferenceDb);
+                var result = await (GetFuturesOptionStrikePriceDefinitions
+                    .GetFuturesOptionStrikePriceDefinitionsAsync(context.DbFactory.ReferenceDb)).ConfigureAwait(false);
                 return new ServiceOk<FuturesOptionStrikePriceReadModel>(result);
             }
             catch (Exception ex)
@@ -225,7 +229,7 @@ public static partial class ReferenceQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Determines whether lookup type short code exists.
         /// </summary>
@@ -237,8 +241,8 @@ public static partial class ReferenceQueryExtensions
         {
             try
             {
-                var result = new ScalarReadModel<bool>(await context.DbFactory.ReferenceDb
-                    .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode));
+                var result = new ScalarReadModel<bool>(await (context.DbFactory.ReferenceDb
+                    .LookupTypeShortCodeExistsAsync(lookupTypeName, shortCode)).ConfigureAwait(false));
                 return new ServiceOk<ScalarReadModel<bool>>(result);
             }
             catch (Exception ex)
@@ -248,7 +252,7 @@ public static partial class ReferenceQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
 
         /// <summary>
         /// Gets MDI forward loss ratios.
@@ -262,7 +266,7 @@ public static partial class ReferenceQueryExtensions
             try
             {
                 MDIForwardLossRatioReadModel[] result =
-                    [.. await context.DbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(trendDirection, tradeType)];
+                    [.. await (context.DbFactory.ReferenceDb.GetMDIForwardLossRatiosAsync(trendDirection, tradeType)).ConfigureAwait(false)];
                 return new ServiceOk<MDIForwardLossRatioReadModel[]>(result);
             }
             catch (Exception ex)
@@ -278,5 +282,21 @@ public static partial class ReferenceQueryExtensions
     static async Task<LookupTypeCollection> GetLookupTypesCoreAsync(
         IReferenceQueryContext context,
         string lookupTypeName)
-        => new([.. await context.DbFactory.ReferenceDb.GetLookupTypeAsync(lookupTypeName)]);
+        => new([.. await (context.DbFactory.ReferenceDb.GetLookupTypeAsync(lookupTypeName)).ConfigureAwait(false)]);
 }
+
+/// <summary>Provides readonly Reference services on the typed query context.</summary>
+public static partial class ReferenceQueryExtensions
+{
+    extension(IQueryActorContext<ReferenceQueryActor> context)
+    {
+        /// <summary>Gets the database-context factory.</summary>
+        public IDbContextFactory DbFactory => Typed(context).DbFactory;
+        /// <summary>Gets the query actor logger.</summary>
+        public ILogger<ReferenceQueryActor> Logger => Typed(context).Logger;
+    }
+    static IReferenceQueryContext Typed(IQueryActorContext<ReferenceQueryActor> context)
+        => IsArgumentNull.Named(context as IReferenceQueryContext, nameof(context))!;
+}
+
+#pragma warning restore CA1034

@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 public record YieldCurveRateYearsReadModel
 {
     /// <summary>Array of years that have yield curve rate data.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(0)]
     public int[] Years { get; init; }
 

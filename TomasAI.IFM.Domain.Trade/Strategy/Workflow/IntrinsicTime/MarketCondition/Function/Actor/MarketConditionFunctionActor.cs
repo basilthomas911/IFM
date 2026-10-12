@@ -20,7 +20,9 @@ public sealed class MarketConditionFunctionActor(IMarketConditionFunctionContext
         MarketConditionAssessmentExecutionId, IntrinsicTimeStrategyWorkflowEntityId, MarketConditionAssessmentState,
         MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>(
             actorContext ?? throw new ArgumentNullException(nameof(actorContext)),
-            actorContext.StateRepository, actorContext.FunctionProjector, actorContext.Logger)
+            actorContext.StateRepository,
+            actorContext.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+                ? null : actorContext.FunctionProjector, actorContext.Logger)
 {
     readonly IMarketConditionFunctionContext _context = actorContext;
 
@@ -78,7 +80,11 @@ public sealed class MarketConditionFunctionActor(IMarketConditionFunctionContext
 
     /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteMarketConditionAssessmentCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+    {
+        var policy=DispatchMappedExecutionPolicy(request,stage,_context,_executionPolicyMap);
+        return _context.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+            ? new FunctionExecutionPolicy(policy.Clock,policy.DeadlineUtc,FunctionCompletionMode.AtomicBusinessAndEvent) : policy;
+    }
 
     protected override ExecuteMarketConditionAssessmentCommand ParseMessage(
         IFunctionActorContext<MarketConditionFunctionActor> context, IActorMessage message)

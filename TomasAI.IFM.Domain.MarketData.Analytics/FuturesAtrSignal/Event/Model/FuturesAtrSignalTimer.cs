@@ -7,12 +7,24 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Model;
 public static class FuturesAtrSignalTimer
 {
     public static bool StartTimer(this FuturesAtrSignalStartedEvent e, Func<FuturesAtrSignalEntityId, ValueTask> callback)
-        => PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.Start(e.EntityId, callback, PeriodSignalTimerPeriod.Get(e.EntityId.TimePeriod));
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.Start(e.EntityId, callback, PeriodSignalTimerPeriod.Get(e.EntityId.TimePeriod));
+    }
     internal static bool StartTimer(this FuturesAtrSignalStartedEvent e, Func<FuturesAtrSignalEntityId, ValueTask> callback, TimeSpan period)
         => PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.Start(e.EntityId, callback, period);
     public static bool TryAcceptSourceSequence(this FuturesAtrSignalStartedEvent e, long sourceSequence)
-        => PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.TryAcceptSourceSequence(e.EntityId, sourceSequence);
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.TryAcceptSourceSequence(e.EntityId, sourceSequence);
+    }
     public static ValueTask<bool> StopTimerAsync(this FuturesAtrSignalStoppedEvent e)
-        => PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.StopAsync(e.EntityId);
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.StopAsync(e.EntityId);
+    }
     public static ValueTask StopAllAsync() => PeriodSignalTimerRegistry<FuturesAtrSignalEntityId>.StopAllAsync();
 }

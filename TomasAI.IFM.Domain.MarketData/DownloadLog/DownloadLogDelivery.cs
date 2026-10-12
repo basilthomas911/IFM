@@ -6,22 +6,17 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.DownloadLog;
 
-/// <summary>Carries the original immutable outcome for redelivery without rerunning acquisition.</summary>
-public sealed class DownloadLogDeliveryException(MarketDataDownloadOutcome outcome, Exception inner)
-    : Exception($"DownloadLog delivery failed for import {outcome.ImportCommandId}; redeliver its terminal outcome, not the import.", inner)
-{
-    public MarketDataDownloadOutcome Outcome { get; } = outcome;
-}
-
 public static class DownloadLogDelivery
 {
     public static async ValueTask<bool> ForwardAsync(MarketDataDownloadOutcome? outcome,
         IEvent terminal, MarketDataDownloadDataset dataset, MarketDataDownloadStatus status,
         IEventActorContext context, ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(terminal);
         if (outcome is null)
         {
-            logger.LogWarning("Legacy import terminal {EventId} has no download outcome; completion remains unconfirmed.", terminal.Id);
+            global::TomasAI.IFM.Domain.MarketData.ActorLifecycleDiagnosticLog.Write1(logger, null, terminal.Id);
             return true;
         }
         try
@@ -32,25 +27,19 @@ public static class DownloadLogDelivery
                 EconomicCalendarsImportedFailEvent e => (DateOnly.FromDateTime(e.ImportedDate), MarketDataDownloadOutcome.CanonicalScope(e.CountryCodes)),
                 YieldCurveRatesImportedCompleteEvent e => (DateOnly.FromDateTime(e.ImportDate), "US"),
                 YieldCurveRatesImportedFailEvent e => (DateOnly.FromDateTime(e.ImportDate), "US"),
-                _ => throw new ArgumentException("Unsupported import terminal event.")
+                _ => throw new ArgumentException("Unsupported import terminal event.",nameof(terminal))
             };
             if (outcome.ImportCommandId != terminal.CommandId || outcome.SourceTerminalEventId != terminal.Id
                 || outcome.Dataset != dataset || outcome.Status != status
-                || outcome.ValueDate != sourceDate || outcome.Scope != sourceScope)
-                throw new ArgumentException("Import terminal and download outcome disagree.");
+                || outcome.ValueDate != sourceDate || !string.Equals(outcome.Scope,sourceScope,StringComparison.Ordinal))
+                throw new ArgumentException("Import terminal and download outcome disagree.", nameof(outcome));
             var command = new InsertMarketDataDownloadLogCommand(outcome);
-            var result = await context.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId>(command);
+            var result = await (context.RequestAsync<InsertMarketDataDownloadLogCommand, DownloadLogId>(command)).ConfigureAwait(false);
             if (!result.Success)
             {
                 if (IsCommittedOutcomeConflict(result))
                 {
-                    logger.LogError(
-                        "DownloadLog rejected a conflicting terminal outcome for import {ImportCommandId}; " +
-                        "the first immutable outcome remains committed and this terminal delivery will not be retried. " +
-                        "ErrorCode={ErrorCode}; Error={ErrorMessage}",
-                        outcome.ImportCommandId,
-                        result.ErrorCode,
-                        result.ErrorMessage);
+                    global::TomasAI.IFM.Domain.MarketData.ActorLifecycleDiagnosticLog.Write2(logger, null, outcome.ImportCommandId, result.ErrorCode, result.ErrorMessage);
                     return true;
                 }
 
@@ -64,8 +53,7 @@ public static class DownloadLogDelivery
             // Event transport acknowledges mailbox admission, not command completion.
             // Preserve the exact safe payload for operator redelivery; do not claim
             // that throwing here causes JetStream to redeliver actor processing.
-            logger.LogError(exception, "DownloadLog handoff failed for import {ImportCommandId}, terminal {TerminalEventId}. Recovery outcome: {DownloadOutcome}",
-                outcome.ImportCommandId, terminal.Id, System.Text.Json.JsonSerializer.Serialize(outcome));
+            global::TomasAI.IFM.Domain.MarketData.ActorLifecycleDiagnosticLog.Write3(logger, exception, outcome.ImportCommandId, terminal.Id, System.Text.Json.JsonSerializer.Serialize(outcome));
             throw new DownloadLogDeliveryException(outcome, exception);
         }
     }

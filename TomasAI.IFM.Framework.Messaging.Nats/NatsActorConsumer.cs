@@ -26,7 +26,7 @@ public class NatsActorConsumer(
     ILogger logger,
     NatsConnectionManager? connectionManager = null,
     ActorAdmissionOptions? admissionOptions = null)
-    : IActorConsumer
+    : IActorConsumer, IAsyncDisposable
 {
     readonly INatsConsumerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
@@ -35,6 +35,17 @@ public class NatsActorConsumer(
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
     readonly ActorAdmissionOptions _admissionOptions = admissionOptions ?? new ActorAdmissionOptions();
+    int _disposeStarted;
+
+    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try { await StopAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
@@ -52,9 +63,13 @@ public class NatsActorConsumer(
     Channel<(IActorMessage Msg, ActorSubject Subject)>[]? _stripeChannels;
     Task[]? _dispatcherTasks;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing published actor implementation signature.")]
     public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
         => await StartAsync(supervisor, actorType, consumerName, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing published actor implementation signature.")]
     public async ValueTask StartAsync(
         IActorSupervisor supervisor,
         ActorType actorType,
@@ -100,6 +115,7 @@ public class NatsActorConsumer(
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been started.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a received message targets an actor identifier that
     /// does not exist in the supervisor's <see cref="IActorSupervisor.Children"/> collection.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask StartCoreAsync(
         IActorSupervisor supervisor,
         ActorType actorType,
@@ -115,7 +131,7 @@ public class NatsActorConsumer(
             _subscriptionSubject = string.Concat(_actorType.ToStringFast(), ".>");
             if (_nc is not null)
             {
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer already started.",nameof(NatsActorConsumer),nameof(StartCoreAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write21(_logger, null, nameof(NatsActorConsumer), nameof(StartCoreAsync), _actorType);
                 return;
             }
 
@@ -155,9 +171,9 @@ public class NatsActorConsumer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"NATS {ActorType} failed during consumer startup.",nameof(NatsActorConsumer),nameof(StartCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write22(_logger, ex, nameof(NatsActorConsumer), nameof(StartCoreAsync), _actorType);
             try { await StopCoreAsync().ConfigureAwait(false); }
-            catch (Exception cleanup) { _logger.LogError(cleanup,"{Component}.{Method} "+"NATS consumer startup cleanup failed.",nameof(NatsActorConsumer),nameof(StartCoreAsync)); }
+            catch (Exception cleanup) { global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write23(_logger, cleanup, nameof(NatsActorConsumer), nameof(StartCoreAsync)); }
             throw;
         }
     }
@@ -215,18 +231,20 @@ public class NatsActorConsumer(
     }
 
     int GetDispatcherCapacity()
-        => _options is NatsConsumerOptions concrete
-            ? concrete.DispatcherCapacity
-            : _options.DispatcherCapacity > 0
-                ? _options.DispatcherCapacity
-                : NatsConsumerOptions.ExistingDispatcherCapacity;
+        => _options switch
+        {
+            NatsConsumerOptions concrete => concrete.DispatcherCapacity,
+            { DispatcherCapacity: > 0 } => _options.DispatcherCapacity,
+            _ => NatsConsumerOptions.ExistingDispatcherCapacity
+        };
 
     int GetSubscriptionCapacity()
-        => _options is NatsConsumerOptions concrete
-            ? concrete.GetSubscriptionCapacity()
-            : _options.SubscriptionCapacity > 0
-                ? _options.SubscriptionCapacity
-                : checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount));
+        => _options switch
+        {
+            NatsConsumerOptions concrete => concrete.GetSubscriptionCapacity(),
+            { SubscriptionCapacity: > 0 } => _options.SubscriptionCapacity,
+            _ => checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount))
+        };
 
     CoreNatsTrafficClass GetFireAndForgetTrafficClass(ActorType actorType)
         => _options.FireAndForgetTraffic?.TryGetValue(actorType, out var trafficClass) == true
@@ -253,17 +271,18 @@ public class NatsActorConsumer(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask StopCoreAsync()
     {
         try
         {
             if (_nc is null)
             {
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer has not started.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write24(_logger, null, nameof(NatsActorConsumer), nameof(StopCoreAsync), _actorType);
                 return;
             }
 
-            _cts.Cancel();
+            await _cts.CancelAsync().ConfigureAwait(false);
 
             // Await the background loop so it observes cancellation before we dispose
             // the NATS client it is reading from, preventing use-after-dispose.
@@ -271,7 +290,7 @@ public class NatsActorConsumer(
             {
                 try { await _loopTask.ConfigureAwait(false); }
                 catch (OperationCanceledException) { /* expected */ }
-                catch (Exception ex) { _logger.LogError(ex,"{Component}.{Method} "+"NATS consumer loop failed before shutdown.",nameof(NatsActorConsumer),nameof(StopCoreAsync)); }
+                catch (Exception ex) { global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write25(_logger, ex, nameof(NatsActorConsumer), nameof(StopCoreAsync)); }
             }
             _loopTask = null;
 
@@ -296,11 +315,11 @@ public class NatsActorConsumer(
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
-            _logger.LogInformation("{Component}.{Method} "+"NATS {ActorType} consumer has stopped.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write26(_logger, null, nameof(NatsActorConsumer), nameof(StopCoreAsync), _actorType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS {ActorType} consumer.",nameof(NatsActorConsumer),nameof(StopCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write27(_logger, ex, nameof(NatsActorConsumer), nameof(StopCoreAsync), _actorType);
             throw;
         }
     }
@@ -328,8 +347,7 @@ public class NatsActorConsumer(
                         await RealtimeMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     else
                     {
-                        _logger.LogWarning(
-                            "{Component}.{Method} "+"NATS realtime consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
+                        global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write28(_logger, null, nameof(NatsActorConsumer), nameof(RunMessageLoopAsync));
                         await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -339,8 +357,7 @@ public class NatsActorConsumer(
                         await CommandMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     else
                     {
-                        _logger.LogWarning(
-                            "{Component}.{Method} "+"NATS command consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
+                        global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write29(_logger, null, nameof(NatsActorConsumer), nameof(RunMessageLoopAsync));
                         await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -349,8 +366,7 @@ public class NatsActorConsumer(
                         await QueryMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     else
                     {
-                        _logger.LogWarning(
-                            "{Component}.{Method} "+"NATS query consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsActorConsumer),nameof(RunMessageLoopAsync));
+                        global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write30(_logger, null, nameof(NatsActorConsumer), nameof(RunMessageLoopAsync));
                         await ReqReplMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     }
                     break;
@@ -377,8 +393,9 @@ public class NatsActorConsumer(
         string subject, INatsDeserialize<T> serializer, NatsSubOpts opts,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using var subscription = await _nc!.Connection.SubscribeCoreAsync<T>(
+        var subscription = await _nc!.Connection.SubscribeCoreAsync<T>(
             subject, serializer: serializer, opts: opts, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var subscriptionLease = subscription.ConfigureAwait(false);
         // PONG on this connection confirms the preceding SUB has reached the server.
         await _nc.Connection.PingAsync(cancellationToken).ConfigureAwait(false);
         _isRunning = true;
@@ -387,6 +404,9 @@ public class NatsActorConsumer(
             yield return message;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Pooled payload ownership is explicitly transferred on successful admission; the existing finally/catch disposes untransferred messages and their source owner. Disposing admitted messages here would invalidate worker-owned memory.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask RealtimeMessageLoopAsync(CancellationToken cancellationToken)
     {
         var stripes = _stripeChannels!;
@@ -461,6 +481,8 @@ public class NatsActorConsumer(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask PubSubMessageLoopAsync(CancellationToken ctsRequestToken)
     {
         var stripes = _stripeChannels!;
@@ -469,9 +491,9 @@ public class NatsActorConsumer(
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer waiting for messages...",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write31(_logger, null, nameof(NatsActorConsumer), nameof(PubSubMessageLoopAsync), _actorType);
             var messagesRead = 0;
-            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
+            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken).ConfigureAwait(false))
             {
                 try
                 {
@@ -482,7 +504,7 @@ public class NatsActorConsumer(
                     NatsMessagingMetrics.Received.Add(1);
                     NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer received message for subject={Subject}",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType,msg.Subject);
+                        NatsAdditionalDiagnosticLog.Received(_logger,nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
@@ -499,9 +521,17 @@ public class NatsActorConsumer(
                     foreach (var destination in destinations)
                     {
                         var stripe = (destination.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                        await stripes[stripe].Writer.WriteAsync(
-                            (new NatsActorMessage(msg, destination), destination),
-                            ctsRequestToken).ConfigureAwait(false);
+                        NatsActorMessage? pendingMessage = new(msg, destination);
+                        try
+                        {
+                            await stripes[stripe].Writer.WriteAsync(
+                                (pendingMessage, destination), ctsRequestToken).ConfigureAwait(false);
+                            pendingMessage = null; // The dispatch stripe owns the admitted message.
+                        }
+                        finally
+                        {
+                            pendingMessage?.Dispose();
+                        }
                     }
                 }
                 catch (OperationCanceledException ex)
@@ -514,7 +544,7 @@ public class NatsActorConsumer(
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer read {MessagesRead} messages.",nameof(NatsActorConsumer),nameof(PubSubMessageLoopAsync),_actorType,messagesRead);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write32(_logger, null, nameof(NatsActorConsumer), nameof(PubSubMessageLoopAsync), _actorType, messagesRead);
         }
     }
 
@@ -539,6 +569,8 @@ public class NatsActorConsumer(
             includePrimary: true);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Pooled payload ownership is explicitly transferred on successful admission; the existing finally/catch disposes untransferred messages and their source owner. Disposing admitted messages here would invalidate worker-owned memory.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask CommandMessageLoopAsync(CancellationToken cancellationToken)
     {
         var stripes = _stripeChannels!;
@@ -594,6 +626,7 @@ public class NatsActorConsumer(
     /// </summary>
     /// <param name="ctsRequestToken">The cancellation token used to signal the loop to stop.</param>
     /// <returns>A <see cref="ValueTask"/> that completes when the loop exits.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask ReqReplMessageLoopAsync(CancellationToken ctsRequestToken)
     {
         var stripes = _stripeChannels!;
@@ -602,9 +635,9 @@ public class NatsActorConsumer(
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer waiting for messages...",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write33(_logger, null, nameof(NatsActorConsumer), nameof(ReqReplMessageLoopAsync), _actorType);
             var messagesRead = 0;
-            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
+            await foreach (var msg in SubscribeReadyAsync(_subscriptionSubject, serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken).ConfigureAwait(false))
             {
                 try
                 {
@@ -615,12 +648,21 @@ public class NatsActorConsumer(
                     NatsMessagingMetrics.Received.Add(1);
                     NatsMessagingMetrics.RecordLegacyPayloadCopy(msg.Data.Length);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer received message for subject={Subject}",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType,msg.Subject);
+                        NatsAdditionalDiagnosticLog.Received(_logger,nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     var msgSubject = msg.Subject.ToSubject();
                     var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                    await stripes[stripe].Writer.WriteAsync((new NatsActorMessage(msg), msgSubject), ctsRequestToken);
+                    NatsActorMessage? pendingMessage = new(msg);
+                    try
+                    {
+                        await stripes[stripe].Writer.WriteAsync((pendingMessage, msgSubject), ctsRequestToken).ConfigureAwait(false);
+                        pendingMessage = null; // The dispatch stripe owns the admitted message.
+                    }
+                    finally
+                    {
+                        pendingMessage?.Dispose();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -628,7 +670,7 @@ public class NatsActorConsumer(
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS {ActorType} consumer read {MessagesRead} messages.",nameof(NatsActorConsumer),nameof(ReqReplMessageLoopAsync),_actorType,messagesRead);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write34(_logger, null, nameof(NatsActorConsumer), nameof(ReqReplMessageLoopAsync), _actorType, messagesRead);
         }
     }
 
@@ -639,6 +681,7 @@ public class NatsActorConsumer(
     /// </summary>
     /// <param name="reader">The channel reader for this stripe.</param>
     /// <param name="cancellationToken">The cancellation token used to signal the loop to stop.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task DispatchLoopAsync(ChannelReader<(IActorMessage Msg, ActorSubject Subject)> reader)
     {
         try
@@ -688,6 +731,8 @@ public class NatsActorConsumer(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Pooled payload ownership is explicitly transferred on successful admission; the existing finally/catch disposes untransferred messages and their source owner. Disposing admitted messages here would invalidate worker-owned memory.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask QueryMessageLoopAsync(CancellationToken cancellationToken)
     {
         var stripes = _stripeChannels!;

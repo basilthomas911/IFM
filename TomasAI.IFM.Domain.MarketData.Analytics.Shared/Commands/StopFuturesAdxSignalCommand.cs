@@ -25,6 +25,13 @@ public record StopFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityId>
         ErrorCode = errorCode;
         RouteTo = routeTo;
     }
+    public StopFuturesAdxSignalCommand() { }
+    public StopFuturesAdxSignalCommand(FuturesAdxSignalEntityId entityId)
+    {
+        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
+        ErrorCode = ErrorId;
+        RouteTo = BoundedContextName.FuturesAdxSignalBoundedContext;
+    }
     public const string Actor = "FuturesAdxSignalCommand";
     public const string Verb = "Stop";
     public const int ErrorId = 20004;
@@ -37,13 +44,8 @@ public record StopFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityId>
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    public StopFuturesAdxSignalCommand() { }
-    public StopFuturesAdxSignalCommand(FuturesAdxSignalEntityId entityId)
-    {
-        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
-        ErrorCode = ErrorId;
-        RouteTo = BoundedContextName.FuturesAdxSignalBoundedContext;
-    }
 }

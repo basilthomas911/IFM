@@ -34,9 +34,13 @@ internal static class SupervisorTerminalProjection
         var result = new SupervisorActorOperationResult(outcome, commandId, target,
             expectedGeneration, stage, failureReason);
         context.Operations.Record(request, result);
-        logger.LogError(
-            "Supervisor operation {Operation} failed for {Target} at {Stage}: {FailureReason}",
-            operation, target, stage, failureReason);
+        
+            var diagnosticLogger = logger;
+            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
+            {
+                global::TomasAI.IFM.Domain.Supervisor.StorageMigrationDiagnosticLog.Write1(diagnosticLogger, null, operation, target, stage, failureReason);
+            }
+        
         return ValueTask.CompletedTask;
     }
 }

@@ -9,11 +9,15 @@ public static class ValidateParameterCandidate
 {
     public static async ValueTask ExecuteAsync(this ValidateParameterCandidateQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
         var issues = ParameterComponentModelRegistry.Get(query.ComponentCode).Validate(query.PayloadJson, query.SchemaVersion);
-        var hash = string.Empty; try { hash = ParameterCanonicalPayloadModel.Hash(query.PayloadJson); } catch (Exception error) when (error is ArgumentException or System.Text.Json.JsonException) { }
+        var hash = string.Empty; try { hash = ParameterCanonicalPayloadModel.Hash(query.PayloadJson); } catch (Exception error) when (error is ArgumentException or System.Text.Json.JsonException)
+        {
+            // Invalid payloads return validation issues and have no canonical hash.
+        }
         var result = new ParameterValidationReport(hash, issues);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterValidationReport>(result));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterValidationReport>(result))).ConfigureAwait(false);
     }
 }

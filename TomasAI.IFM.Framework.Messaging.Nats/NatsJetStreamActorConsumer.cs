@@ -32,7 +32,7 @@ public class NatsJetStreamActorConsumer(
     ILogger logger,
     NatsConnectionManager? connectionManager = null,
     ActorAdmissionOptions? admissionOptions = null)
-    : IJSActorConsumer
+    : IJSActorConsumer, IAsyncDisposable
 {
     readonly INatsJetStreamConsumerOptions _options = IsArgumentNull.Set(options);
     readonly INatsSerializer<byte[]> _deserializer = new NatsByteArrayMessageSerializer();
@@ -42,6 +42,17 @@ public class NatsJetStreamActorConsumer(
     readonly bool _ownsConnectionManager = connectionManager is null;
     readonly TimeSpan _negativeAcknowledgeDelay = TimeSpan.FromMilliseconds(
         Math.Max(0, admissionOptions?.JetStreamNakDelayMilliseconds ?? 250));
+    int _disposeStarted;
+
+    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try { await StopAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
@@ -61,9 +72,13 @@ public class NatsJetStreamActorConsumer(
         _ownedStripeChannels;
     Task[]? _dispatcherTasks;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing published actor implementation signature.")]
     public async ValueTask StartAsync(IActorSupervisor supervisor, ActorType actorType, string consumerName = default!)
         => await StartAsync(supervisor, actorType, consumerName, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing published actor implementation signature.")]
     public async ValueTask StartAsync(
         IActorSupervisor supervisor,
         ActorType actorType,
@@ -104,6 +119,7 @@ public class NatsJetStreamActorConsumer(
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been started.</returns>
     /// <exception cref="InvalidOperationException">Thrown when a received message targets an actor identifier that
     /// does not exist in the supervisor's <see cref="IActorSupervisor.Children"/> collection.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
     async ValueTask StartCoreAsync(
         IActorSupervisor supervisor,
         ActorType actorType,
@@ -118,7 +134,7 @@ public class NatsJetStreamActorConsumer(
             _actorType = actorType;
             if (_nc is not null)
             {
-                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer already started.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write39(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(StartCoreAsync), _actorType);
                 return;
             }
 
@@ -128,11 +144,9 @@ public class NatsJetStreamActorConsumer(
                 ? $"{_actorType}Stream"
                 : _options.StreamName;
 
-            var durableName = !string.IsNullOrWhiteSpace(consumerName)
-                ? $"{_actorType}Consumer-{consumerName}"
-                : !string.IsNullOrWhiteSpace(_options.DurableConsumerName)
-                    ? _options.DurableConsumerName
-                    : $"{_actorType}Consumer";
+            var durableName = _options.DurableConsumerName;
+            if (!string.IsNullOrWhiteSpace(consumerName)) durableName = $"{_actorType}Consumer-{consumerName}";
+            else if (string.IsNullOrWhiteSpace(durableName)) durableName = $"{_actorType}Consumer";
 
             var streamSubject = $"{_actorType}.>";
             var consumerSubjectFilter = string.IsNullOrWhiteSpace(_options.FilterSubject)
@@ -162,7 +176,7 @@ public class NatsJetStreamActorConsumer(
             // beyond the rebuilt stream and JetStream silently treats retained messages as
             // already delivered. Recreate only that impossible cursor; valid consumers and
             // empty streams remain untouched.
-            var consumer = await js.CreateOrUpdateConsumerAsync(streamName, consumerConfig);
+            var consumer = await (js.CreateOrUpdateConsumerAsync(streamName, consumerConfig, cancellationToken)).ConfigureAwait(false);
             var currentStream = await js.GetStreamAsync(
                 streamName,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -224,8 +238,7 @@ public class NatsJetStreamActorConsumer(
             }
             else
             {
-                _logger.LogWarning(
-                    "{Component}.{Method} "+"NATS JetStream event consumer is using the legacy byte[] payload path for diagnostics.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync));
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write40(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(StartCoreAsync));
                 _stripeChannels =
                     new Channel<(NatsMsg<byte[]>, ActorSubject, INatsJSMsg<byte[]>?, bool)>[dispatcherCount];
                 for (var i = 0; i < dispatcherCount; i++)
@@ -251,7 +264,7 @@ public class NatsJetStreamActorConsumer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"NATS JetStream {ActorType} failed during consumer startup.",nameof(NatsJetStreamActorConsumer),nameof(StartCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write41(_logger, ex, nameof(NatsJetStreamActorConsumer), nameof(StartCoreAsync), _actorType);
             throw;
         }
     }
@@ -281,6 +294,7 @@ public class NatsJetStreamActorConsumer(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1751", Justification = "This bounded async enumeration intentionally selects only the first stream matching the exact subject filter, then disposes the enumerator.")]
     static async ValueTask<INatsJSStream> ResolveStreamAsync(
         INatsJSContext jetStream,
         string configuredStreamName,
@@ -350,40 +364,49 @@ public class NatsJetStreamActorConsumer(
             && acknowledgementFloorStreamSequence > lastStreamSequence;
 
     int GetDispatcherCapacity()
-        => _options is NatsJetStreamConsumerOptions concrete
-            ? concrete.DispatcherCapacity
-            : _options.DispatcherCapacity > 0
-                ? _options.DispatcherCapacity
-                : NatsJetStreamConsumerOptions.ExistingDispatcherCapacity;
+        => _options switch
+        {
+            NatsJetStreamConsumerOptions concrete => concrete.DispatcherCapacity,
+            { DispatcherCapacity: > 0 } => _options.DispatcherCapacity,
+            _ => NatsJetStreamConsumerOptions.ExistingDispatcherCapacity
+        };
 
     int GetOutstandingLimit()
-        => _options is NatsJetStreamConsumerOptions concrete
-            ? concrete.GetOutstandingLimit()
-            : _options.MaxAckPending > 0
-                ? _options.MaxAckPending
-                : checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount));
+        => _options switch
+        {
+            NatsJetStreamConsumerOptions concrete => concrete.GetOutstandingLimit(),
+            { MaxAckPending: > 0 } => _options.MaxAckPending,
+            _ => checked(GetDispatcherCapacity() * Math.Max(1, _options.DispatcherCount))
+        };
 
     int GetMaxMessages()
-        => _options is NatsJetStreamConsumerOptions concrete
-            ? concrete.GetMaxMessages()
-            : _options.MaxMessages > 0 ? _options.MaxMessages : GetOutstandingLimit();
+        => _options switch
+        {
+            NatsJetStreamConsumerOptions concrete => concrete.GetMaxMessages(),
+            { MaxMessages: > 0 } => _options.MaxMessages,
+            _ => GetOutstandingLimit()
+        };
 
     int GetThresholdMessages()
-        => _options is NatsJetStreamConsumerOptions concrete
-            ? concrete.GetThresholdMessages()
-            : _options.ThresholdMessages > 0 ? _options.ThresholdMessages : GetDispatcherCapacity();
+        => _options switch
+        {
+            NatsJetStreamConsumerOptions concrete => concrete.GetThresholdMessages(),
+            { ThresholdMessages: > 0 } => _options.ThresholdMessages,
+            _ => GetDispatcherCapacity()
+        };
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
     async ValueTask StopCoreAsync()
     {
         try
         {
             if (_nc is null)
             {
-                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer has not started.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write42(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(StopCoreAsync), _actorType);
                 return;
             }
 
-            _cts.Cancel();
+            await _cts.CancelAsync().ConfigureAwait(false);
 
             // Await the background loop so it observes cancellation before we dispose
             // the NATS client it is reading from, preventing use-after-dispose.
@@ -429,11 +452,11 @@ public class NatsJetStreamActorConsumer(
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = null;
             _isRunning = false;
-            _logger.LogInformation("{Component}.{Method} "+"NATS JetStream {ActorType} consumer has stopped.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write43(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(StopCoreAsync), _actorType);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS JetStream {ActorType} consumer.",nameof(NatsJetStreamActorConsumer),nameof(StopCoreAsync),_actorType);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write44(_logger, ex, nameof(NatsJetStreamActorConsumer), nameof(StopCoreAsync), _actorType);
             throw;
         }
     }
@@ -476,6 +499,8 @@ public class NatsJetStreamActorConsumer(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask JetStreamMessageLoopAsync(INatsJSConsumer consumer, CancellationToken ctsRequestToken)
     {
         var stripes = _stripeChannels!;
@@ -484,15 +509,15 @@ public class NatsJetStreamActorConsumer(
         while (!ctsRequestToken.IsCancellationRequested)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer waiting for messages...",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write46(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(JetStreamMessageLoopAsync), _actorType);
             var messagesRead = 0;
-            await foreach (var msg in consumer.ConsumeAsync(opts: _consumerOpts, serializer: _deserializer, cancellationToken: ctsRequestToken))
+            await foreach (var msg in consumer.ConsumeAsync(opts: _consumerOpts, serializer: _deserializer, cancellationToken: ctsRequestToken).ConfigureAwait(false))
             {
                 try
                 {
                     if (msg.Data is null)
                     {
-                        await msg.AckAsync(cancellationToken: ctsRequestToken);
+                        await msg.AckAsync(cancellationToken: ctsRequestToken).ConfigureAwait(false);
                         continue;
                     }
                     messagesRead++;
@@ -501,7 +526,7 @@ public class NatsJetStreamActorConsumer(
                     if (msg.Metadata?.NumDelivered > 1)
                         NatsMessagingMetrics.RecordJetStreamRedelivery(_actorType);
                     if (_logger.IsEnabled(LogLevel.Debug))
-                        _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer received message for subject={Subject}",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType,msg.Subject);
+                        NatsAdditionalDiagnosticLog.Received(_logger,nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType,msg.Subject);
 
                     // parse subject and route to a dispatch stripe by entity hash.
                     // Same entity always maps to the same stripe, preserving per-entity FIFO ordering.
@@ -539,7 +564,7 @@ public class NatsJetStreamActorConsumer(
                         continue;
                     }
                     var stripe = (msgSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % stripeCount;
-                    await stripes[stripe].Writer.WriteAsync((natsMsg, msgSubject, msg, false), ctsRequestToken);
+                    await (stripes[stripe].Writer.WriteAsync((natsMsg, msgSubject, msg, false), ctsRequestToken)).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -547,10 +572,13 @@ public class NatsJetStreamActorConsumer(
                 }
             }
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"NATS JetStream {ActorType} consumer read {MessagesRead} messages.",nameof(NatsJetStreamActorConsumer),nameof(JetStreamMessageLoopAsync),_actorType,messagesRead);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write47(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(JetStreamMessageLoopAsync), _actorType, messagesRead);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Pooled payload ownership is explicitly transferred on successful admission; the existing finally/catch disposes untransferred messages and their source owner. Disposing admitted messages here would invalidate worker-owned memory.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask OwnedJetStreamMessageLoopAsync(
         INatsJSConsumer consumer,
         CancellationToken cancellationToken)
@@ -643,11 +671,12 @@ public class NatsJetStreamActorConsumer(
             }
 
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
-                    "{Component}.{Method} "+"NATS JetStream {ActorType} owned consumer read {MessagesRead} messages.",nameof(NatsJetStreamActorConsumer),nameof(OwnedJetStreamMessageLoopAsync),                    _actorType,                    messagesRead);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write48(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(OwnedJetStreamMessageLoopAsync), _actorType, messagesRead);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Pooled payload ownership is explicitly transferred on successful admission; the existing finally/catch disposes untransferred messages and their source owner. Disposing admitted messages here would invalidate worker-owned memory.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask ScheduleOwnedBranchAsync(
         NatsSharedEventPayload payload,
         ActorSubject destination,
@@ -705,14 +734,13 @@ public class NatsJetStreamActorConsumer(
         NatsMessagingMetrics.MalformedJetStreamSubjectsTerminated.Add(
             1,
             new KeyValuePair<string, object?>("actor.type", _actorType.ToStringFast()));
-        _logger.LogWarning(
-            "{Component}.{Method} "+"NATS JetStream {ActorType} permanently terminated malformed actor subject {Subject}; " +
-            "expected ActorType.Name.Verb.EntityId.",nameof(NatsJetStreamActorConsumer),nameof(TerminateMalformedSubjectAsync),            _actorType,            subject);
+        global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write45(_logger, null, nameof(NatsJetStreamActorConsumer), nameof(TerminateMalformedSubjectAsync), _actorType, subject);
         await message.AckTerminateAsync(
             new AckOpts { TerminateReason = "invalid-actor-subject" },
             CancellationToken.None).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task OwnedDispatchLoopAsync(
         ChannelReader<(NatsOwnedEventMessage Msg, ActorSubject Subject, EventFanoutDelivery Delivery)> reader)
     {
@@ -766,6 +794,7 @@ public class NatsJetStreamActorConsumer(
     /// <param name="cancellationToken">The cancellation token used to signal the loop to stop.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task DispatchLoopAsync(ChannelReader<(NatsMsg<byte[]> Msg, ActorSubject Subject, INatsJSMsg<byte[]>? JsMsg, bool IsRoutedMessage)> reader)
     {
         await foreach (var (msg, msgSubject, jsMsg, isRoutedMessage) in reader.ReadAllAsync().ConfigureAwait(false))
@@ -774,18 +803,16 @@ public class NatsJetStreamActorConsumer(
             {
                 var actor = _supervisor.Children.GetValueOrDefault(msgSubject.ActorId)
                     ?? throw new InvalidOperationException($"Actor not found in context children for mailbox {msgSubject.ActorId}");
-                var actorMessage = new NatsActorMessage(msg);
-                var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
-                    actorMessage,
-                    msgSubject,
-                    CancellationToken.None).ConfigureAwait(false);
-                if (!admission.Accepted)
+                NatsActorMessage? actorMessage = new(msg);
+                try
                 {
-                    actorMessage.Dispose();
-                    throw new InvalidOperationException(
-                        $"Mailbox rejected JetStream message for {msgSubject.ActorId}: "
-                        + $"{admission.Reason.ToStringFast()}.");
+                    var admission = await actor.Mailbox.ThreadQueues.TryAdmitAsync(
+                        actorMessage, msgSubject, CancellationToken.None).ConfigureAwait(false);
+                    if (!admission.Accepted)
+                        throw new InvalidOperationException($"Mailbox rejected JetStream message for {msgSubject.ActorId}: {admission.Reason.ToStringFast()}.");
+                    actorMessage = null; // Mailbox admission transfers ownership.
                 }
+                finally { actorMessage?.Dispose(); }
                 if (!isRoutedMessage)
                 {
                     await _supervisor.RouteEventToAsync(msg).ConfigureAwait(false);
@@ -806,12 +833,15 @@ public class NatsJetStreamActorConsumer(
     /// <param name="routeToSubject">The subject to which the event should be routed.</param>
     /// <param name="msg">The NATS message containing the event data.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "The parameter name is part of the existing published actor API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing published actor implementation signature.")]
     public async ValueTask RouteEventToAsync(ActorSubject routeToSubject, NatsMsg<byte[]> msg)
     {
         try
         {
             var stripe = (routeToSubject.ThreadId.GetHashCode() & 0x7FFF_FFFF) % _stripeChannels.Length;
-            await _stripeChannels[stripe].Writer.WriteAsync((msg, routeToSubject, null, true), _cts.Token);
+            await (_stripeChannels[stripe].Writer.WriteAsync((msg, routeToSubject, null, true), _cts.Token)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

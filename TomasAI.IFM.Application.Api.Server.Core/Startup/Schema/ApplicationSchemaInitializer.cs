@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Actors;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -25,6 +26,9 @@ public sealed class ApplicationSchemaInitializer(
     /// <summary>Creates every canonical schema and applies idempotent catalog initialization.</summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Native domain outboxes and receipts reference the authoritative event log.
+        await services.GetRequiredService<EventSourceSchemaDb>().CreateAllAsync().ConfigureAwait(false);
         var initializers = new Func<Task>[]
         {
             services.GetRequiredService<TradeSchemaDb>().CreateAllAsync,
@@ -33,10 +37,10 @@ public sealed class ApplicationSchemaInitializer(
             services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync,
             services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync,
             services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync,
-            services.GetRequiredService<EventSourceSchemaDb>().CreateAllAsync,
             () => services.GetRequiredService<PortfolioFinancialSchema>()
                 .InitializeAsync(cancellationToken),
             services.GetRequiredService<MarketDataSchemaDb>().CreateAllAsync,
+            services.GetRequiredService<TradeTickQuoteSchemaDb>().CreateAllAsync,
             services.GetRequiredService<OptionPricerSchemaDb>().CreateAllAsync,
             services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync,
             services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync,

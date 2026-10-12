@@ -22,7 +22,9 @@ public static class GetFuturesAdxDailySignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesAdxDailySignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var queryResult = await query.GetLastFuturesAdxDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);

@@ -1127,3 +1127,120 @@ Request Backup. The UI submits one operation per protection set, using the selec
 monitor each database's outcome in Logs. Scylla uses Manager snapshots/deduplicated SSTable
 storage, rather than a PostgreSQL physical incremental chain. Scylla backup validation selected
 the configured application keyspaces on the live development node without scheduling a backup.
+
+
+## Development replacement workflow (2026-10-10)
+
+Implementation locations:
+
+- `Application.DatabaseBackup/Contracts`: cutover request/result, platform and independent recovery journal contracts.
+- `Application.DatabaseBackup/Processing/DatabaseDataReplacementRecovery.cs`: ordered preparation, writer shutdown, data replacement, native health, read-only provider validation and admission recovery; write-ahead stages and rollback.
+- `Framework.Storage.DatabaseBackup.LocalWorkstation/Recovery`: exact Docker named-volume replacement and durable external file journal.
+- `Api.DatabaseBackup.Host/Services/Recovery`: Windows Development platform and configured container/profile allowlist.
+- `scripts/AwsBackup`: independent worker startup/stop and expiration-aware session reader. Development startup launches the already-built worker outside Server Manager's job.
+
+The Linux host executes native backup/restore preparation and retention. Only the Windows
+cutover worker executes `CutoverExecutionRequested`; both use the existing actor events
+and DynamoDB journal. Native restore evidence binds operation, restore point and validation
+revision. PostgreSQL data identity is rechecked before replacing any active volume.
+Rollback volumes and controller records remain outside the replaced database data.
+
+The API validation mode builds the real provider composition and reads required tables,
+without starting hosted services, actors, schedules, feeds or HTTP listeners. After it
+passes, the controller launches normal Development startup and reconciles this approved
+cutover's state from the independent journal. Completion requires all three: native health,
+application provider validation and resumed admission. An ambiguous resume must be
+reconciled; automatically restoring old data then could discard new writes.
+
+Verified component coverage includes failure boundaries, write-ahead restart behavior,
+lease fencing, external state rehydration, exact Docker replacement and rollback on
+disposable PostgreSQL containers, and rejection of conflicting cached restore artifacts.
+Live qualification remains tracked separately in the Development qualification record.
+
+
+### Isolated Scylla restore target preparation
+
+A restored backup must replace the target contents, not overlap pre-existing rows.
+The native Manager adapter now validates disposable-target permission and distinct
+source/target CQL addresses before issuing a schema restore. After schema restore
+completes, it clears all non-system base tables on the isolated target and verifies
+that each is empty before Manager restores table data. System keyspaces and the
+active source database are not truncated.
+
+`ScyllaProtectionSetOptions.CqlContactPoints` names protected source IP addresses.
+`ScyllaFreshTargetProfileOptions.CqlContactPoints` names isolated target IP addresses;
+`DiscardExistingApplicationData` must explicitly be enabled for that disposable
+profile. IPv4-mapped aliases cannot bypass endpoint overlap checks. The CQL driver
+restricts query routing to target addresses and rejects discovered nodes outside
+that set. Missing configuration fails before schema mutation.
+
+Development uses source 172.30.20.10 and target 172.30.20.11 on the management
+network. The qualification additionally verifies that a target-only marker row
+is absent after restoration. Prior isolated volumes can be preserved by setting
+`IFM_SCYLLA_RESTORE_VALIDATION_VOLUME` to an operation-specific new volume before
+recreating the validation container. No active database volume is removed by this.
+
+Five deterministic tests passed for preparation ordering, explicit permission and
+source-address overlap rejection. Live native-path verification remains required.
+See https://manager.docs.scylladb.com/stable/restore/restore-tables.html for the
+requirement to clear existing table contents before loading restored data.
+
+### Native PostgreSQL restore prerequisites and verified full-copy reuse (2026-10-10)
+
+The Linux backup host includes the source cluster locale (`en_US.utf8`). A restored PGDATA root is created with mode 0700. Isolated validation uses TCP and disables Unix sockets (`unix_socket_directories=`), because the host root filesystem is read-only; database files remain in the dedicated writable restore mount.
+
+A retry may reuse a complete staged full backup only when both source and staged `backup_manifest` files exist and their SHA-256 digests match. Native `pg_verifybackup` then verifies the staged files and WAL before PostgreSQL starts. Different manifests, incomplete staging, incremental chains and PITR staging require explicit reconciliation. This avoids copying a verified 29 GB dataset again after a boot-environment failure without accepting corrupt or unrelated data.
+
+Verification: 12 PostgreSQL capability tests passed, including valid reuse, manifest mismatch and damaged staged data (`.artifacts/database-recovery/postgres-native-retry-current.trx`). The TCP socket configuration was parsed by the actual PostgreSQL binary. Native host image `sha256:1d5ac2d5ca1157e360fc8a6882360b1b81ee3c8b21a4c796076f9085a7da4cc9` was deployed with readiness Healthy. Live completion and data replacement are separate qualification checks and remain pending.
+
+### Native Scylla Manager artifact manifests (2026-10-10)
+
+Live host qualification exposed two adapter defects: native `sctool backup files` emits `URI | keyspace/table-id`, while the adapter assumed three delimited columns; and a 64 KB diagnostic capture limit silently truncated the machine-readable manifest. The adapter now derives native keyspace/table identity from the SSTable URI, retains bounded full manifest output up to 64 MiB, and rejects overflow instead of parsing partial evidence. Log previews remain separately bounded to 64 KB. Each fresh capture attempt uses a unique Manager task name; incomplete native staging is preserved and reconciled explicitly before retry.
+
+Seven adapter tests passed, including a 6,500-artifact real-format manifest and overflow rejection (`.artifacts/database-recovery/scylla-native-manifest-current.trx`). Host image `sha256:4ed24bd84d66444e641e6801c165cdccd31d13f045d13870c45a433b3f9bb338` is deployed and healthy. The failed native staging remains at `E:/IFM/DatabaseBackup/native/scylla/e6f717a870b140f68397a34c36508a4d.inprogress.manifest-failed-20261010`; it is not accepted as a verified backup. Current host backup/publication qualification is being retried.
+
+### Exact native capture task identity
+
+Snapshot tags are now read from `sctool progress` for the exact completed task, never selected from a global backup listing. A stale tag can otherwise describe a different capture while the task reference describes the current retry. The seven adapter tests now include an intentionally stale global-list tag. Image `sha256:04ef55efd0c145ca0f1aaa920bd970dc77087a54a986a60650eebe4e22bcd046` contains this correction. Qualification operation `e6f717a870b140f68397a34c36508a4d` is preserved but excluded from replacement proof because of that metadata mismatch; corrected full capture operation `b7b0a3ec24c14dd5a00488808042f4a6` is queued through the real host.
+
+### Retention dispatch while recovery work is queued
+
+The AWS host reads the pending execution batch before dispatching maintenance. If any backup, restore or cutover remains pending, retention requests stay admitted without a lease, a started event or a failure event. They become runnable on a later idle journal scan. Native and cutover workers continue to select only their assigned operation kinds. The retention capability's idle check remains a final guard before evaluating or deleting versions.
+
+Live qualification exposed the previous behavior: PostgreSQL retention operations `9606cf251ed9cf04b4dc2cafa7513a1c` and `03b8e8f2c9dd3745bc440b413f09e1df` failed because the corrected Scylla backup was still queued. These failed runs are preserved and excluded from completion evidence. The revised dispatch and host composition passed eight tests in `.artifacts/database-recovery/retention-idle-dispatch.trx`; fresh live retention requests must be verified after deployment and recovery completion.
+
+
+### Reused isolated Scylla target: schema preparation order
+
+A live native restore exposed an existing-keyspace collision. On an explicitly disposable target, validate distinct source and target CQL addresses, discard non-system target keyspaces and verify their absence, then run Manager schema restoration followed by table restoration. Keep the protected source endpoints in the options copy when changing restore bucket. Preserve failed staging directories and use distinct Manager task names per attempt. Fourteen native adapter/capability tests pass; live replacement and application recovery subsequently passed, as recorded in the final acceptance below.
+
+### Restored application admission (2026-10-11)
+
+Both current PostgreSQL and Scylla backups have been restored from AWS and activated in the existing Development database containers. Read-only application-provider checks passed for 12 contexts and 242 tables; normal API admission resumed with readiness HTTP 200. Original data remains in operation-specific rollback volumes.
+
+Physical PostgreSQL restoration can invalidate Redis event-stream identifiers. With application writers stopped, recovery removes only cache keys whose prefix is a registered IFM DataCacheName, before provider validation and normal application admission. Unrelated Redis keys are preserved. Reconciliation command identity includes the fencing token so a new attempt cannot reuse an ID with a different payload.
+
+If admission has already resumed, automatic rollback is prohibited. Explicit operator reconciliation may resume from the application-validation stage after verifying the active database and preserved rollback volume. This admission-only path validates current data and resumes services without replacing data again. The prior failure and conditional external-journal requeue remain recorded. Regression verification: 17 tests passed. PostgreSQL automatic retention qualification completed successfully on both vaults; see the final acceptance below.
+### Retention display recovery after PostgreSQL restore
+
+The independent AWS journal survives a PostgreSQL restore, but a scheduled retention operation created after the database backup may be missing from the restored System Admin event log. A trusted terminal observation may reconstruct only that missing AWS retention display. It requires a producing host, positive service sequence, positive plan revision, and matching terminal phase/outcome. Existing immutable identities, policy revision, host, service sequence, and plan identity must match for an explicit repair. This emits a retention-result snapshot through the normal event projector; it does not emit an execution request or rerun deletion. A deterministic repair command ID separates it from an earlier rejected observation and makes duplicate repair requests stable.
+
+Live verification recovered operation 78cbadec683da915fcab77434fe15afa using one latest independent observation. Duplicate requests succeeded; the independent execution journal did not change; the application query returned Completed. Twenty-four actor-state tests and one live integration test passed, including rejection of changed host, policy, plan, sequence and terminal outcome.
+
+Retention execution verifies its stored signed plan and identity. An empty plan returns a zero-deletion result without a second catalog download; all checks for plans that actually delete objects remain unchanged. Eleven focused tests passed, including invalid signature and wrong revision rejection.
+### Development qualification completed (2026-10-11)
+
+Development AWS backup/restore qualification is complete. The authoritative result is `deploy/aws/database-backup/environments/development/qualification-status-20261010.json`, with `fullyQualified: true` and no remaining qualification items.
+
+| Engine | Current full AWS backup | Restore and activation operation | Result |
+| --- | --- | --- | --- |
+| PostgreSQL | `6db8c6f638444ecf97b73a7d1278c03f` | `5ef071d14d424424b80d71c2d8c32ac5` | Native isolated restore verified; existing container data replaced; application admission healthy |
+| ScyllaDB | `b7b0a3ec24c14dd5a00488808042f4a6` | `c9f77b5907af4883aec093b60130e2df` | Schema, table loading, repair and materialized views verified; existing container data replaced; application admission healthy |
+
+Both full backups were published to the primary and recovery AWS vaults. Read-only application validation passed for 12 provider contexts and 242 tables. The repaired Scylla option-price fixture remained readable after restoration. Original database volumes remain available for rollback; the next isolated Scylla target has a distinct node identity and empty application schema.
+
+Automatic retention completed for both engines in both vaults. PostgreSQL operations `00c6f4736296c754dcb49fb62be8d34d` and `12dfacd9860369429066d7917e5fc87c`, and Scylla operations `78cbadec683da915fcab77434fe15afa` and `e8b40991518343d5de5e3ba6761756b9`, all show Completed at 100% through the application query. These runs retained protected backups and deleted zero objects. Actual deletion was verified separately against the 16 owner-approved disposable versions; its original evidence is preserved. Normal scheduling remains 24 hours with the 35-day age boundary.
+
+The final backup-host image is `sha256:041a3ce031813f9d180ff96f16be6c3d918c0b0a66ae7a483807a02469aad64a`. After deployment, the API, Linux backup host and Windows recovery controller returned HTTP 200; both active databases and the fresh isolated Scylla target were healthy. Evidence is under `.artifacts/database-recovery`, including `final-development-health.json`, the two PostgreSQL automatic-retention operation reports, and the successful cutover receipts. Historical failures and reconciliation receipts remain preserved.
+
+This acceptance covers Development. Staging and Production requirements are unchanged. The preexisting Local Workstation missing-media jobs are outside this AWS qualification.

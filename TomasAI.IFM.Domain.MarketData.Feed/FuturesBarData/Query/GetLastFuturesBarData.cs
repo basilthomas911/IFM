@@ -17,5 +17,5 @@ public static class GetLastFuturesBarData
     /// <returns></returns>
     internal static async ValueTask<FuturesBarDataReadModel> ExecuteAsync(
        this GetLastFuturesBarDataQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate);
+        => await (dbFactory.MarketDataDb.GetLastFuturesBarDataAsync(q.ContractId, q.Symbol, q.ValueDate)).ConfigureAwait(false);
 }

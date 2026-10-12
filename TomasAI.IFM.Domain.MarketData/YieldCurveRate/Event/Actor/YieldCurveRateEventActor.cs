@@ -30,7 +30,7 @@ public class YieldCurveRateEventActor(
             ((YieldCurveRatesImportedFailEvent)@event).ExecuteAsync(context, context.Logger)
     };
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [YieldCurveRatesImportedEvent.Verb] = message => message.AsEvent<YieldCurveRatesImportedEvent>()!,
         [YieldCurveRatesImportedCompleteEvent.Verb] = message => message.AsEvent<YieldCurveRatesImportedCompleteEvent>()!,
@@ -63,7 +63,7 @@ public class YieldCurveRateEventActor(
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, _context).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles exceptions that occur during event processing by sending an error event to the event service.
     /// </summary>
@@ -82,12 +82,12 @@ public class YieldCurveRateEventActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            _context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
+            global::TomasAI.IFM.Domain.MarketData.ActorLifecycleDiagnosticLog.Write12(_context.Logger, innerEx, Actor);
         }
     }
 }

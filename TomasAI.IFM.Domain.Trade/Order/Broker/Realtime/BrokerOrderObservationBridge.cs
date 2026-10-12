@@ -34,10 +34,16 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
         if (_stop is null || _run is null) return;
         await _stop.CancelAsync().ConfigureAwait(false);
         try { await _run.ConfigureAwait(false); }
-        catch (Exception) when (_stop.IsCancellationRequested) { }
-        _stop.Dispose();
-        _stop = null;
-        _run = null;
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+            // The observation reader completed the cancellation requested by this bridge.
+        }
+        finally
+        {
+            _stop.Dispose();
+            _stop = null;
+            _run = null;
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -116,8 +122,8 @@ public sealed class BrokerOrderObservationBridge(ITradeBroker broker, IActorSupe
     {
         id = default;
         var fields = value.Split('.');
-        if (fields.Length != 5 || !int.TryParse(fields[0], out var portfolioId) ||
-            !int.TryParse(fields[1], out var fundId) || !int.TryParse(fields[2], out var orderId) ||
+        if (fields.Length != 5 || !int.TryParse(fields[0], System.Globalization.CultureInfo.InvariantCulture, out var portfolioId) ||
+            !int.TryParse(fields[1], System.Globalization.CultureInfo.InvariantCulture, out var fundId) || !int.TryParse(fields[2], System.Globalization.CultureInfo.InvariantCulture, out var orderId) ||
             !Guid.TryParseExact(fields[3], "N", out var attempt) || !Guid.TryParseExact(fields[4], "N", out var component))
             return false;
         id = new(new(new(portfolioId, fundId, orderId), attempt), component);

@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
 public sealed class OptionChainStateStore : IOptionChainStateStore
 {
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
     private readonly Dictionary<OptionChainSessionKey,
         Dictionary<string, OptionChainContractState>> _sessions = [];
 

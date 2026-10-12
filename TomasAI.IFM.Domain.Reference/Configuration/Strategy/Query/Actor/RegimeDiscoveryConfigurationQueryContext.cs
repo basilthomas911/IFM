@@ -6,20 +6,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Query.Actor;
 
-/// <summary>Defines readonly services owned by the strategy-configuration Query actor.</summary>
-public interface IRegimeDiscoveryConfigurationQueryContext
-    : IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>
-{
-    /// <summary>Gets ConfigurationDb.</summary>
-    IConfigurationDbContext ConfigurationDb { get; }
-    /// <summary>Gets the logger.</summary>
-    ILogger<RegimeDiscoveryConfigurationQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the closed-generic strategy-configuration Query context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class RegimeDiscoveryConfigurationQueryContext
     : QueryActorContext,
-      IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>,
       IRegimeDiscoveryConfigurationQueryContext
 {
     readonly Lazy<IConfigurationDbContext> configurationDb;

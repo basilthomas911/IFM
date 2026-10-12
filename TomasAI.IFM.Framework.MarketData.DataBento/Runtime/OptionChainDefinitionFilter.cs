@@ -71,7 +71,7 @@ internal static class OptionChainDefinitionFilter
             ContractKind.PutOption => OptionRightSelection.Put,
             _ => OptionRightSelection.None
         };
-        return right != OptionRightSelection.None && (rights & right) != 0;
+        return right != OptionRightSelection.None && (rights & right) != OptionRightSelection.None;
     }
 
     private static bool MatchesRequestedUnderlying(

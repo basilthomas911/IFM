@@ -19,8 +19,7 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
     /// <summary>Identifies the RSI event mailbox.</summary>
     public const string Actor = "FuturesRsiSignalEvent";
     /// <summary>Gets the typed event context supplied to this actor.</summary>
-    protected IFuturesRsiSignalEventContext FuturesRsiSignalEventContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesRsiSignalEventContext, nameof(actorContext))!;
+    protected IFuturesRsiSignalEventContext FuturesRsiSignalEventContext { get; } = IsArgumentNull.Named(actorContext as IFuturesRsiSignalEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesRsiSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger<FuturesRsiSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger<FuturesRsiSignalEventActor>, ValueTask<bool>>>()
     {
@@ -37,7 +36,7 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
         [typeof(FuturesRsiDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiDailySignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
     };
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesRsiSignalStartedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStartedEvent>()!,
         [FuturesRsiSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStoppedEvent>()!,
@@ -66,24 +65,31 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
         FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
         return ValueTask.CompletedTask;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Publishes the standard event-actor error event.</summary>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRsiSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception)
+        ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
                 ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
         }
         catch (Exception innerException)
         {
-            await innerException.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-                ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
-            Context.Logger.LogError(innerException, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            try
+            {
+                await innerException.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+                ActorEntityId>(ErrorType.EventService, context ?? Context).ConfigureAwait(false);
+            }
+            catch (Exception publicationException)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write5(Context.Logger, publicationException, Actor);
+            }
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write47(Context.Logger, innerException, Actor);
         }
     }
 }

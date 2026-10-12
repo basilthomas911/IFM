@@ -11,12 +11,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime;
 /// <summary>Handles closed observations routed to the stateless ATR realtime actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-    /// <summary>Forwards one ATR command for every matching attached identity.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Forwards one ATR command for every matching attached identity.</summary>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesTradeSessionBarClosedRealtimeEvent @event,
         IFuturesAtrSignalRealtimeContext context,
         ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         IsArgumentNull.Check(@event);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(logger);
@@ -37,9 +38,7 @@ public static class FuturesTradeSessionBarClosed
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;
-                    logger.LogError(
-                        "ATR command rejected observation {ObservationId} for {EntityId}: {ErrorMessage}",
-                        observation.ObservationId, entityId, failed.ErrorMessage);
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write7(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
                 }
             }
             return succeeded;

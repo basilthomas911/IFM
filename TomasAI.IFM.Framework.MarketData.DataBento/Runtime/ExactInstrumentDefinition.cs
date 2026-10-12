@@ -24,6 +24,7 @@ public sealed record ExactInstrumentDefinition
     /// <param name="dataset">The Databento dataset identifier.</param>
     /// <param name="json">The provider instrument definition JSON.</param>
     /// <returns>The parse result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     public static ExactInstrumentDefinition Parse(string dataset, string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -47,8 +48,8 @@ public sealed record ExactInstrumentDefinition
         var expiry = Timestamp("expiration");
         DateOnly? maturity = expiry is { } ns && ns / 1_000_000_000UL <= 253402300799UL
             ? DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeSeconds((long)(ns / 1_000_000_000UL)).UtcDateTime) : null;
-        if (maturity is null && int.TryParse(Text("maturity_year"), out var year) &&
-            int.TryParse(Text("maturity_month"), out var month) && int.TryParse(Text("maturity_day"), out var day) &&
+        if (maturity is null && int.TryParse(Text("maturity_year"), System.Globalization.CultureInfo.InvariantCulture, out var year) &&
+            int.TryParse(Text("maturity_month"), System.Globalization.CultureInfo.InvariantCulture, out var month) && int.TryParse(Text("maturity_day"), System.Globalization.CultureInfo.InvariantCulture, out var day) &&
             year is >= 1 and <= 9999 && month is >= 1 and <= 12 && day >= 1 && day <= DateTime.DaysInMonth(year, month))
             maturity = new DateOnly(year, month, day);
         var summary = new ContractDetail
@@ -88,7 +89,7 @@ public sealed record ExactInstrumentDefinition
             Exchange = summary.Exchange,
             ReceivedNanoseconds = Number("ts_recv"),
             EventNanoseconds = ulong.Parse(header.GetProperty("ts_event").ToString(), CultureInfo.InvariantCulture),
-            Deleted = Text("security_update_action") == "D",
+            Deleted = string.Equals(Text("security_update_action"),"D",StringComparison.Ordinal),
             Summary = summary
         };
     }

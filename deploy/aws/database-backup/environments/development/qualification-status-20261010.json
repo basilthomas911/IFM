@@ -2,8 +2,8 @@
     "schemaVersion":  1,
     "environment":  "Development",
     "date":  "2026-10-10",
-    "fullyQualified":  false,
-    "awsRuntimeAcceptanceEnabled":  false,
+    "fullyQualified":  true,
+    "awsRuntimeAcceptanceEnabled":  true,
     "unitTestsPassed":  94,
     "nonLiveIntegrationTestsPassed":  11,
     "liveSdkIdentityTestsPassed":  1,
@@ -13,15 +13,13 @@
     "runningHostRestoreEvidenceRoot":  "D:\\Docker\\AwsRestoreQualification\\20261010\\958b4b31540e442ebc7892ed32928a37",
     "runningHostRestoreVerified":  true,
     "credentialRefreshPersistence":  "Current-user logon and 20-minute scheduled task installed; immediate and automatic periodic runs exit 0 with renewed STS session verified. Actual reboot not tested.",
-    "legalHoldObservation":  "Unknown: GetObjectLegalHold returned NoSuchObjectLockConfiguration for the exact running-host manifest version",
-    "deletionPerformed":  false,
-    "gate14Complete":  false,
+    "legalHoldObservation":  "Candidate exact versions explicitly set OFF and verified immediately before deletion. Preserved backup protections were unchanged. Prior read-only observations are retained as historical evidence.",
+    "deletionPerformed":  true,
+    "gate14Complete":  true,
     "remaining":  [
-                      "Verify Gate14 exact candidate legal-hold and full replica/catalog eligibility",
-                      "Sign and independently approve canonical retention plan",
-                      "Execute constrained deletion only after retention expiry"
+
                   ],
-    "updatedUtc":  "2026-10-10T14:32:45.4822505+00:00",
+    "updatedUtc":  "2026-10-11T05:19:06.4676108+00:00",
     "runningHostRestoreEvidence":  {
                                        "restorePointId":  "57e0e1e29f2a4c779ba9d8538bcec52a",
                                        "replica":  "aws-primary",
@@ -51,5 +49,363 @@
                                                          ],
                                        "verifiedUtc":  "2026-10-10T14:31:55.0189839+00:00",
                                        "applicationDatabasesModified":  false
-                                   }
+                                   },
+    "gate14ReadOnlyQualification":  {
+                                        "verifiedUtc":  "2026-10-10T14:46:00.3678399+00:00",
+                                        "liveSignedCatalogTestPassed":  true,
+                                        "restorePointsVerified":  2,
+                                        "replicasVerified":  2,
+                                        "exactVersionsVerified":  32,
+                                        "candidateRestorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                                        "preservedRestorePointId":  "b4c472227f044f419ac975f29a2463af",
+                                        "candidateRetentionExpiresUtc":  "2026-11-08T23:37:37.881+00:00",
+                                        "deterministicGateTestsPassed":  47,
+                                        "warningFreeReleaseBuildPassed":  true,
+                                        "infrastructureAndIamScanPassed":  true,
+                                        "trackedSecretScanPassed":  true,
+                                        "dependencyVulnerabilityAuditPassed":  true,
+                                        "awsObjectMutationPerformed":  false,
+                                        "evidenceDirectory":  ".artifacts/aws-qualification-20261010"
+                                    },
+    "gate14ReadinessPacket":  "deploy/aws/database-backup/environments/development/gate14-readiness-packet-20261010.json",
+    "developmentBackupRestoreAccepted":  true,
+    "retentionDeletionAccepted":  true,
+    "legalHoldChangeProposal":  "Owner-approved exception executed only for the 16 disposable candidate versions.",
+    "developmentAdmissionVerification":  {
+                                             "verifiedUtc":  "2026-10-10T15:04:44.8750336+00:00",
+                                             "health":  "Healthy",
+                                             "awsIdentityPreflightPassed":  true,
+                                             "backupRestoreAdmissionEnabled":  true,
+                                             "destructiveTestsEnabled":  false,
+                                             "image":  "sha256:323e3879f9b3700fb41556e699bb676ab76ac01b06634da6af17d023ec6cf778",
+                                             "evidence":  ".artifacts/aws-qualification-20261010/development-admission-verification.json"
+                                         },
+    "retentionDeletionQualificationAttempt":  {
+                                                  "verifiedUtc":  "2026-10-10T16:13:33.9411078+00:00",
+                                                  "requestedScope":  "Development AWS retention/deletion qualification",
+                                                  "status":  "PassedOwnerApprovedDevelopmentLiveDeletion",
+                                                  "deterministicGate14TestsPassed":  13,
+                                                  "liveReadOnlyCatalogTestsPassed":  1,
+                                                  "candidateRetentionExpiresUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                  "blockers":  [
+
+                                                               ],
+                                                  "evidence":  [
+                                                                   ".artifacts/aws-qualification-20261010/gate14-owner-deletion.trx",
+                                                                   ".artifacts/aws-qualification-20261010/gate14-owner-immutable-evidence.trx",
+                                                                   "deploy/aws/database-backup/environments/development/gate14-execution-result-20261010.json"
+                                                               ],
+                                                  "awsObjectMutationPerformed":  true,
+                                                  "deletionPerformed":  true,
+                                                  "retentionDeletionAccepted":  true,
+                                                  "exactVersionExceptionApproved":  true,
+                                                  "exceptionApprovalPacket":  "deploy/aws/database-backup/environments/development/gate14-development-exception-approval-20261010.json",
+                                                  "permissionDenials":  [
+                                                                            "iam:GetRole",
+                                                                            "iam:ListRolePolicies",
+                                                                            "access-analyzer:ValidatePolicy"
+                                                                        ],
+                                                  "ownerConsolePolicyPreparation":  {
+                                                                                        "prepared":  true,
+                                                                                        "policyCount":  4,
+                                                                                        "mfaRoleRequired":  false,
+                                                                                        "independentReviewerRequiredForThisDevelopmentException":  false,
+                                                                                        "localBoundaryChecksPassed":  true,
+                                                                                        "localEvidence":  ".artifacts/aws-qualification-20261010/owner-policy-validation.json",
+                                                                                        "consoleValidationAndInstallation":  "Owner reported installed; required permissions verified by successful exact AWS operations",
+                                                                                        "protectionPermissionsAreKeyScoped":  true,
+                                                                                        "deletionPermissionsAreVersionScoped":  true,
+                                                                                        "instructions":  "deploy/aws/database-backup/environments/development/README.md#owner-console-permissions-for-the-development-deletion-test"
+                                                                                    }
+                                              },
+    "gate14QualificationScope":  "Development signed-plan executor live qualification under the exact owner-approved exception; does not qualify Production or host retention command integration",
+    "gate14ExecutionResult":  "deploy/aws/database-backup/environments/development/gate14-execution-result-20261010.json",
+    "temporaryOwnerPoliciesRemoved":  true,
+    "automaticRetentionHostWired":  true,
+    "automaticRetentionEnabled":  true,
+    "automaticRetentionHostVerification":  {
+                                               "awsUnitTestsPassed":  101,
+                                               "domainBackupTestsPassed":  69,
+                                               "liveAdmissionTestPassed":  true,
+                                               "liveCompletionVerified":  false,
+                                               "interval":  "24 hours",
+                                               "ageBoundaryDays":  35,
+                                               "protectionSets":  [
+                                                                      "core-postgresql",
+                                                                      "read-model-scylla"
+                                                                  ],
+                                               "replicas":  [
+                                                                "aws-primary",
+                                                                "aws-recovery"
+                                                            ],
+                                               "hostImage":  "sha256:47d8fbe392a45d0d9e7aa97646e489aa06113164e04e59328d3fca55862fc828",
+                                               "hostReadiness":  "Healthy",
+                                               "iamChangeSet":  "ifm-backup-development-20261010123359",
+                                               "iamStackStatus":  "UPDATE_COMPLETE",
+                                               "sourceEventPersistenceVerified":  true,
+                                               "duplicateCommandAdmissionVerified":  true,
+                                               "systemAdminSchemaCreated":  true,
+                                               "protectionBypassEnabled":  false,
+                                               "evidence":  ".artifacts/aws-qualification-20261010/automatic-retention-host-live.json",
+                                               "nonLiveIntegrationTestsPassed":  11
+                                           },
+    "automaticRetentionScheduledCompletion":  {
+                                                  "passed":  true,
+                                                  "operationId":  "c0953c5ff534be11403ef0e14abe0def",
+                                                  "phase":  "Completed",
+                                                  "terminal":  true,
+                                                  "lastServiceSequence":  4,
+                                                  "deletedObjects":  0,
+                                                  "deletedBytes":  0,
+                                                  "evidence":  ".artifacts/aws-qualification-20261010/retention-journal-observation-current.json",
+                                                  "checkpointObservation":  "automatic-retention-deleted-0-objects-0-bytes",
+                                                  "notes":  "Both current-day Scylla retention operations completed. Prior PostgreSQL daily operations were interrupted by host restarts and correctly failed closed; fresh hourly-slot qualification commands have been admitted for both PostgreSQL replicas.",
+                                                  "secondReplicaOperationId":  "ef18f48d8fb8b44da547349ca25801a7",
+                                                  "protectionSet":  "read-model-scylla",
+                                                  "PostgreSqlQualificationOperationIds":  [
+                                                                                              "9606cf251ed9cf04b4dc2cafa7513a1c",
+                                                                                              "03b8e8f2c9dd3745bc440b413f09e1df"
+                                                                                          ]
+                                              },
+    "currentScyllaQualification":  {
+                                       "snapshotTag":  "sm_20261010180723UTC",
+                                       "nativeBackupPassed":  true,
+                                       "nativeBackupBytesApproximate":  3847758069,
+                                       "awsRoundTripPassed":  true,
+                                       "status":  "Completed: both standalone AWS vault restores and the normal native host restore passed. Existing Development Scylla container data replaced; repaired values verified; native Manager reachability, application provider health and API readiness passed.",
+                                       "nativeHostBackupOperationId":  "b7b0a3ec24c14dd5a00488808042f4a6",
+                                       "qualificationLayoutNote":  "Standalone vault test uses direct portable snapshot layout. A separate real host backup is required to qualify native source evidence and production restore layout.",
+                                       "PrimaryRestorePassed":  true,
+                                       "PrimaryRestoreEvidence":  ".artifacts/database-recovery/scylla-primary-repaired-row.txt",
+                                       "RecoverySchemaTask":  "restore/ifm-current-schema-059d41aac823",
+                                       "RecoveryIsolatedVolume":  "ifm_current_aws_recovery_c013a4d1d681447aaf539c6ece6b95bd",
+                                       "RecoveryTableTask":  "restore/ifm-current-tables-059d41aac823",
+                                       "CorrectedNativeHostBackupOperationId":  "b7b0a3ec24c14dd5a00488808042f4a6",
+                                       "RecoveryRestorePassed":  true,
+                                       "RoundTripTestEvidence":  ".artifacts/aws-qualification-20261010/current-scylla-aws-completion.trx",
+                                       "RecoveryDataEvidence":  ".artifacts/database-recovery/scylla-recovery-repaired-row.txt",
+                                       "CorrectedNativeSnapshotTag":  "sm_20261010222509UTC",
+                                       "NativeHostRestoreOperationId":  "c9f77b59-07af-4883-aec0-93b60130e2df",
+                                       "NativeHostTableRestoreTask":  "restore/ifm-tables-c9f77b5907af4883aec093b60130e2df-db10e3c6",
+                                       "TargetOnlyMarkerRemoved":  true,
+                                       "NativeHostSchemaRestoreTask":  "restore/ifm-schema-c9f77b5907af4883aec093b60130e2df-db10e3c6",
+                                       "NativeHostPreparationEvidence":  ".artifacts/database-recovery/scylla-native-fresh-target-preparation.json",
+                                       "NativeHostMarkerRemovalEvidence":  ".artifacts/database-recovery/scylla-native-target-only-marker-removed.txt"
+                                   },
+    "replacementComponentVerification":  {
+                                             "isolatedPostgreSqlReplacementAndRollbackPassed":  true,
+                                             "testsPassed":  22,
+                                             "actualDevelopmentCutoverPerformed":  true,
+                                             "fullControllerDeployed":  true,
+                                             "evidence":  ".artifacts/database-recovery/docker-data-replacement.trx",
+                                             "controllerHealth":  "Healthy: both engine replacements completed with native validation, 12 application contexts / 242 tables, and normal API readiness HTTP 200.",
+                                             "NativeScyllaClusterNameTestsPassed":  4
+                                         },
+    "currentPostgreSqlRestoreOperationId":  "5ef071d14d424424b80d71c2d8c32ac5",
+    "currentPostgreSqlBackupOperationId":  "6db8c6f638444ecf97b73a7d1278c03f",
+    "postgreSqlCutoverSelection":  "Use a new current database backup for replacement. Restore point 57e0e1e29f2a4c779ba9d8538bcec52a was verified on October 5 and is an isolated validation only.",
+    "isolatedScyllaTargetPreparation":  {
+                                            "Implemented":  true,
+                                            "DeterministicTestsPassed":  5,
+                                            "HostImageBuilt":  "sha256:6b6dce0c7a8fb91ce94a8666b32e109c0de0ec1645b809402f0a9096a866dac3",
+                                            "Deployed":  true,
+                                            "LiveVerified":  true
+                                        },
+    "postgreSqlNativeHostLocaleRepair":  {
+                                             "Cause":  "Native host lacked en_US.utf8 required by source postgresql.conf",
+                                             "Image":  "sha256:6b6dce0c7a8fb91ce94a8666b32e109c0de0ec1645b809402f0a9096a866dac3",
+                                             "LocaleVerified":  true,
+                                             "FailedIsolatedStagingPreserved":  true,
+                                             "CorrectiveRestoreInProgress":  false,
+                                             "ActiveDatabaseModified":  false
+                                         },
+    "postgreSqlNativeRetryVerification":  {
+                                              "LiveCompletionPassed":  true,
+                                              "Evidence":  ".artifacts/database-recovery/postgres-native-retry-current.trx",
+                                              "CapabilityTestsPassed":  12,
+                                              "Image":  "sha256:1d5ac2d5ca1157e360fc8a6882360b1b81ee3c8b21a4c796076f9085a7da4cc9",
+                                              "HostHealthy":  true,
+                                              "TcpSocketOptionParsed":  true,
+                                              "LiveSourceVerifyBackupPassed":  true,
+                                              "LiveMatchingManifestReuseAccepted":  true,
+                                              "OperationOutput":  ".artifacts/database-backup/output/AwsCloud/51d57d3bea91458baec4fe0e8d45758e/stdout.log",
+                                              "ReadyEvidence":  "E:/IFM/DatabaseBackup/restore/postgresql/development-on-demand/development-restore/51d57d3bea91458baec4fe0e8d45758e/ifm-postgresql-restore-evidence.json"
+                                          },
+    "scyllaNativeManifestRepair":  {
+                                       "OverflowRejected":  true,
+                                       "AdapterTestsPassed":  7,
+                                       "LiveBackupPublicationPassed":  true,
+                                       "Image":  "sha256:4ed24bd84d66444e641e6801c165cdccd31d13f045d13870c45a433b3f9bb338",
+                                       "HostHealthy":  true,
+                                       "RealFormatParsingFixed":  true,
+                                       "FullManifestCaptureLimitCharacters":  67108864,
+                                       "ExactTaskSnapshotTagFixed":  true,
+                                       "CorrectedImage":  "sha256:04ef55efd0c145ca0f1aaa920bd970dc77087a54a986a60650eebe4e22bcd046",
+                                       "ExcludedQualificationOperationId":  "e6f717a870b140f68397a34c36508a4d",
+                                       "ExclusionReason":  "Global backup-list tag did not match the retry task. Data remains preserved; a new exact-task capture is required for replacement qualification.",
+                                       "PreservedEarlierPointPublicationCompleted":  true,
+                                       "PreservedEarlierPointId":  "e6f717a870b140f68397a34c36508a4d"
+                                   },
+    "currentPostgreSqlBackupCompleted":  true,
+    "retentionIdleDispatchRepair":  {
+                                        "Implemented":  true,
+                                        "Deployed":  true,
+                                        "ExcludedFailedOperations":  [
+                                                                         "9606cf251ed9cf04b4dc2cafa7513a1c",
+                                                                         "03b8e8f2c9dd3745bc440b413f09e1df"
+                                                                     ],
+                                        "TestsPassed":  8,
+                                        "Cause":  "Retention execution was attempted while other native work remained queued; it must remain admitted until an idle journal scan.",
+                                        "Evidence":  ".artifacts/database-recovery/retention-idle-dispatch.trx",
+                                        "Image":  "sha256:4e04820df410d1b81f6789fc48e1d76d53ea3f036aa29cc48fb2ee5809ff38c5"
+                                    },
+    "currentPostgreSqlIsolatedRestorePassed":  true,
+    "currentPostgreSqlRestoreEvidence":  "E:/IFM/DatabaseBackup/restore/postgresql/development-on-demand/development-restore/5ef071d14d424424b80d71c2d8c32ac5/ifm-postgresql-restore-evidence.json",
+    "scyllaRestoreManifestRelocationRepair":  {
+                                                  "TargetDataChangedBeforeFailure":  false,
+                                                  "Deployed":  true,
+                                                  "OperationId":  "c9f77b5907af4883aec093b60130e2df",
+                                                  "TestsPassed":  10,
+                                                  "Implemented":  true,
+                                                  "Evidence":  ".artifacts/database-recovery/scylla-bucket-relocation.trx",
+                                                  "Cause":  "Unchanged Manager object keys were hashed with the restore bucket name, differing from captured source manifest identity.",
+                                                  "ObjectKeysAndMetadataStillVerified":  true,
+                                                  "Image":  "sha256:4e04820df410d1b81f6789fc48e1d76d53ea3f036aa29cc48fb2ee5809ff38c5",
+                                                  "LiveManifestVerificationPassed":  true
+                                              },
+    "scyllaRestoreSourceEndpointRepair":  {
+                                              "Implemented":  true,
+                                              "Deployed":  true,
+                                              "EmptyFailedStagingPreserved":  true,
+                                              "TestsPassed":  14,
+                                              "TargetDataChangedBeforeFailure":  false,
+                                              "Cause":  "The restore-location copy omitted source CQL contact points, so fresh-target safety validation rejected it.",
+                                              "Evidence":  ".artifacts/database-recovery/scylla-native-relocation-and-source.trx",
+                                              "Image":  "sha256:4e04820df410d1b81f6789fc48e1d76d53ea3f036aa29cc48fb2ee5809ff38c5"
+                                          },
+    "scyllaFreshSchemaPreparationRepair":  {
+                                               "Implemented":  true,
+                                               "Deployed":  true,
+                                               "TestsPassed":  14,
+                                               "Cause":  "Manager schema restoration rejects existing keyspaces; the explicitly disposable target must be cleared before schema restore.",
+                                               "Evidence":  ".artifacts/database-recovery/scylla-fresh-schema-order.trx",
+                                               "FailedStagingPreserved":  true,
+                                               "SourceDatabaseModified":  false,
+                                               "Image":  "sha256:4e04820df410d1b81f6789fc48e1d76d53ea3f036aa29cc48fb2ee5809ff38c5",
+                                               "LiveTargetPreparationPassed":  true,
+                                               "LiveSchemaRestorePassed":  true
+                                           },
+    "cutoverPermissionAndReapprovalRepair":  {
+                                                 "filter":  "Only IFM and dotnet process names are inspected before opening process handles.",
+                                                 "retry":  "Explicit same-definition reapproval after Failed, with controller Prepared stage reconciled before mutation. Ambiguous replacement stages remain blocked.",
+                                                 "testsPassed":  16,
+                                                 "originalFailureEvidence":  ".artifacts/database-recovery/scylla-cutover-prewrite-permission-failure.json",
+                                                 "reconciliationEvidence":  ".artifacts/database-recovery/scylla-cutover-prewrite-reconciliation.json",
+                                                 "tests":  [
+                                                               ".artifacts/database-recovery/cutover-reapproval-recovery.trx",
+                                                               ".artifacts/database-recovery/cutover-reapproval-domain.trx"
+                                                           ],
+                                                 "status":  "Scylla cutover completed after explicit same-definition reapproval. Corrected Windows controller and Development API deployed; Linux image built and tagged for activation after PostgreSQL cutover.",
+                                                 "linuxHostImage":  "sha256:feb55c77dd4806b9017ea64ad5cab82968ef3cb68c107703dba3b3860ffedbc9"
+                                             },
+    "scyllaDevelopmentCutover":  {
+                                     "admissionResumed":  true,
+                                     "completedUtc":  "2026-10-11T01:50:55.779127+00:00",
+                                     "repairedPricesVerified":  true,
+                                     "apiReadinessHttpStatus":  200,
+                                     "operationId":  "c9f77b5907af4883aec093b60130e2df",
+                                     "nativeManagerReachable":  true,
+                                     "rollbackVolume":  "ifm-recovery-rollback-c9f77b5907af4883aec093b60130e2df",
+                                     "restorePointId":  "b7b0a3ec24c14dd5a00488808042f4a6",
+                                     "evidence":  ".artifacts/database-recovery/scylla-cutover-completed.json",
+                                     "databaseHealthy":  true,
+                                     "applicationHealthy":  true
+                                 },
+    "postgreSqlDevelopmentCutover":  {
+                                         "admissionResumed":  true,
+                                         "providerContexts":  12,
+                                         "evidence":  ".artifacts/database-recovery/postgres-cutover-completed.json",
+                                         "providerTables":  242,
+                                         "apiReadinessHttpStatus":  200,
+                                         "operationId":  "5ef071d14d424424b80d71c2d8c32ac5",
+                                         "rollbackVolume":  "ifm-recovery-rollback-5ef071d14d424424b80d71c2d8c32ac5",
+                                         "restorePointId":  "6db8c6f638444ecf97b73a7d1278c03f",
+                                         "databaseHealthy":  true,
+                                         "applicationHealthy":  true
+                                     },
+    "restoredApplicationAdmissionRepair":  {
+                                               "tests":  ".artifacts/database-recovery/cutover-admission-reconciliation.trx",
+                                               "reconciliationCommandIdentity":  "Operation, validation revision and fencing token",
+                                               "admissionOnlyRetry":  "Validated current data without replacement or automatic rollback",
+                                               "derivedRedisKeysInvalidated":  17156,
+                                               "cachePrefixes":  "Only registered IFM DataCacheName prefixes; unrelated Redis keys preserved",
+                                               "historicalFailuresPreserved":  true,
+                                               "evidence":  ".artifacts/database-recovery/postgres-derived-cache-invalidation.json",
+                                               "testsPassed":  17
+                                           },
+    "emptyRetentionExecutionRepair":  {
+                                          "identityVerified":  true,
+                                          "signedPlanVerified":  true,
+                                          "skip":  "Second catalog download only when signed plan contains zero deletion candidates",
+                                          "historicalInterruptedOperationsPreserved":  true,
+                                          "tests":  ".artifacts/database-recovery/empty-retention-execution.trx",
+                                          "focusedTestsPassed":  11,
+                                          "destructiveExecutionChecksPreserved":  true
+                                      },
+    "nextScyllaRestoreTarget":  {
+                                    "uniqueNodeIdentity":  true,
+                                    "volume":  "ifm_next_aws_restore_validation_20261011",
+                                    "evidence":  ".artifacts/database-recovery/next-scylla-restore-target.json",
+                                    "managerHealthy":  true,
+                                    "ready":  true,
+                                    "emptyApplicationSchema":  true
+                                },
+    "restoredRetentionDisplayRepair":  {
+                                           "source":  "Single latest terminal observation from independent AWS journal",
+                                           "actorStateTestsPassed":  24,
+                                           "evidence":  ".artifacts/database-recovery/restored-retention-projection-78cbadec683da915fcab77434fe15afa.json",
+                                           "queryProjectionVerified":  true,
+                                           "executionRequestsEmitted":  false,
+                                           "executionJournalUnchanged":  true,
+                                           "scope":  "Missing terminal AWS retention operation display only",
+                                           "tests":  [
+                                                         ".artifacts/database-recovery/restored-retention-display.trx",
+                                                         ".artifacts/database-recovery/restored-retention-display-live.trx"
+                                                     ],
+                                           "liveTestsPassed":  1,
+                                           "duplicateRequestAccepted":  true
+                                       },
+    "currentScyllaAutomaticRetention":  {
+                                            "recoveryOperation":  "e8b40991518343d5de5e3ba6761756b9",
+                                            "evidence":  [
+                                                             ".artifacts/database-recovery/restored-retention-projection-78cbadec683da915fcab77434fe15afa.json",
+                                                             ".artifacts/database-recovery/scylla-current-retention-recovery-operation.json"
+                                                         ],
+                                            "retainedProtectedBackups":  true,
+                                            "recoveryQueryVerified":  true,
+                                            "bothCompleted":  true,
+                                            "primaryQueryVerified":  true,
+                                            "deletedObjects":  0,
+                                            "automaticMissingDisplayRecoveryVerified":  true,
+                                            "primaryOperation":  "78cbadec683da915fcab77434fe15afa"
+                                        },
+    "currentPostgreSqlAutomaticRetention":  {
+                                                "primaryOperation":  "00c6f4736296c754dcb49fb62be8d34d",
+                                                "primaryCompleted":  true,
+                                                "primaryQueryVerified":  true,
+                                                "primaryCompletedUtc":  "2026-10-11T04:29:16.313916+00:00",
+                                                "primaryEvidence":  ".artifacts/database-recovery/postgres-automatic-retention-primary-operation.json",
+                                                "recoveryOperation":  "12dfacd9860369429066d7917e5fc87c",
+                                                "recoveryCompleted":  true,
+                                                "deletedObjects":  0,
+                                                "retainedProtectedBackups":  true,
+                                                "recoveryQueryVerified":  true,
+                                                "bothCompleted":  true,
+                                                "recoveryCompletedUtc":  "2026-10-11T05:17:19.89689+00:00",
+                                                "recoveryEvidence":  ".artifacts/database-recovery/postgres-automatic-retention-recovery-operation.json"
+                                            },
+    "qualificationScope":  "Development AWS full backup, isolated native restore, existing-container data replacement, application recovery, retention in both vaults, and the separately approved disposable-version deletion proof. Production is not qualified by this record.",
+    "qualificationCompletedUtc":  "2026-10-11T05:19:06.4676108+00:00",
+    "finalDeployedHostImage":  "sha256:041a3ce031813f9d180ff96f16be6c3d918c0b0a66ae7a483807a02469aad64a",
+    "finalHealthEvidence":  ".artifacts/database-recovery/final-development-health.json"
 }

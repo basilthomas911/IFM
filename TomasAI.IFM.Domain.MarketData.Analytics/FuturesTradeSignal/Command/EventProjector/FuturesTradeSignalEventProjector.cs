@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -16,7 +18,8 @@ public sealed class FuturesTradeSignalEventProjector(
     IDbContextFactory dbFactory,
     IDurableReplayQueue durableReplayQueue, IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService, ILogger<FuturesTradeSignalEventProjector> logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null)
+    EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesTradeSignalCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -26,12 +29,12 @@ public sealed class FuturesTradeSignalEventProjector(
             {
                 var tradeSignal = e.FuturesTradeSignal
                     ?? throw new InvalidOperationException("FuturesTradeSignal payload is required.");
-                await dbFactory.MarketDataDb.InsertFuturesTradeSignalAsync(
+                if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await dbFactory.MarketDataDb.InsertFuturesTradeSignalAsync(
                     tradeSignal with { SequenceId = context.EventId }).ConfigureAwait(false);
-            }),
+            })
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         DescribeNotification<FuturesItiSignalHoldTradeChangedEvent, FuturesItiSignalEntityId>()
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

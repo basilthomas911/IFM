@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Shared.Storage;
 /// connection information for different databases or environments.</remarks>
 public class DbConnectionSettings : IDbConnectionSettings
 {
-    Dictionary<string, IDbConnectionSetting> _connSettings;
+    readonly Dictionary<string, IDbConnectionSetting> _connSettings;
 
     /// <summary>
     /// create connection settings 
@@ -34,10 +34,8 @@ public class DbConnectionSettings : IDbConnectionSettings
         get
         {
             if (string.IsNullOrWhiteSpace(connectionName))
-                throw new ArgumentNullException("connectionName", "DbConnectionSettings.this[]: 'connectionName' parameter is empty");
-            return (_connSettings.ContainsKey(connectionName)
-                ? _connSettings[connectionName]
-                : default)!;
+                throw new ArgumentNullException(nameof(connectionName), "DbConnectionSettings.this[]: 'connectionName' parameter is empty");
+            return _connSettings.TryGetValue(connectionName, out var setting) ? setting : null!;
         }
     }
 
@@ -46,7 +44,7 @@ public class DbConnectionSettings : IDbConnectionSettings
     public IDbConnectionSettings Add(string connectionName, string connectionString, string providerName)
     {
         if (string.IsNullOrWhiteSpace(connectionName))
-            throw new ArgumentNullException("connectionName", "DbConnectionSettings.Add: 'connectionName' parameter is empty");
+            throw new ArgumentNullException(nameof(connectionName), "DbConnectionSettings.Add: 'connectionName' parameter is empty");
         if (_connSettings.ContainsKey(connectionName))
             throw new InvalidOperationException($"DbConnectionSettings.Add: connection settings already exists for: '{connectionName}");
         if (!string.IsNullOrWhiteSpace(connectionString))

@@ -34,12 +34,12 @@ public class FuturesItiSignalRealtimeActor(
                 ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context)
         };
 
-    IFuturesItiSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
+    IFuturesItiSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
 
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
         TypedContext.Telemetry.RecordRouteAttached();
         return ValueTask.CompletedTask;
@@ -48,6 +48,7 @@ public class FuturesItiSignalRealtimeActor(
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         TypedContext.Telemetry.RecordRouteDetached();
         return ValueTask.CompletedTask;
@@ -88,10 +89,11 @@ public class FuturesItiSignalRealtimeActor(
         IEventActorContext<FuturesItiSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception)
+        Exception ex)
     {
-        TypedContext.Telemetry.RecordFailure(exception.Message);
-        await exception.SendErrorEventAsync<
+        ArgumentNullException.ThrowIfNull(ex);
+        TypedContext.Telemetry.RecordFailure(ex.Message);
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
     }

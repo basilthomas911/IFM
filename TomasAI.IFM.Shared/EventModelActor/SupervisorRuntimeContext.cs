@@ -3,143 +3,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
-public enum SupervisorActorHealthStatus
-{
-    Green = 0,
-    Yellow = 1,
-    Red = 2
-}
-
-public enum SupervisorActorLifecycleState
-{
-    Registered = 0,
-    Starting = 1,
-    Running = 2,
-    Draining = 3,
-    Stopped = 4,
-    Restarting = 5,
-    Faulted = 6,
-    TimedOut = 7,
-    Quarantined = 8
-}
-
-public sealed record SupervisorActorSnapshot(
-    ActorMailboxId ActorId,
-    string Domain,
-    string Implementation,
-    bool IsRunning,
-    SupervisorActorLifecycleState LifecycleState,
-    long Generation,
-    SupervisorActorHealthStatus Status,
-    int QueueDepth,
-    long Accepted,
-    long Dequeued,
-    long Succeeded,
-    long HandledFailures,
-    long EscapedFailures,
-    long Cancelled,
-    long Rejected,
-    IReadOnlyList<ActorMailboxMetricsSnapshot> Mailboxes);
-
-public sealed record SupervisorRuntimeSnapshot(
-    DateTime ObservedUtc,
-    SupervisorActorHealthStatus OverallStatus,
-    int ActorCount,
-    int RunningActorCount,
-    int ProcessingMailboxCount,
-    int QueuedMessageCount,
-    IReadOnlyList<SupervisorActorSnapshot> Actors,
-    IReadOnlyList<SupervisorFailureRecord> Failures,
-    IReadOnlyList<SupervisorProjectorSnapshot> Projectors,
-    IReadOnlyList<SupervisorWorkerSnapshot>? Workers = null);
-
-public sealed record SupervisorWorkerSnapshot(
-    int WorkerId,
-    ActorThreadState State,
-    bool IsStarted,
-    bool IsRunning,
-    bool IsFaulted,
-    ActorThreadId? CurrentMailbox,
-    string ExceptionType,
-    string FailureReason);
-
-public interface ISupervisorWorkerMetricsSource
-{
-    int SupervisorWorkerId { get; }
-    SupervisorWorkerSnapshot CaptureSupervisorSnapshot();
-}
-
-public sealed record SupervisorProjectorSnapshot(
-    string ActorName,
-    string ProjectorName,
-    string DurableProcessQueue,
-    string DurableReplayQueue,
-    bool IsReady,
-    long RecoveryEventsDiscovered,
-    long RecoveryEventsQueued,
-    DateTime UpdatedUtc,
-    string FailureReason,
-    long PendingCount = 0,
-    double OldestPendingAgeSeconds = 0,
-    long BlockedCount = 0,
-    long TerminalFailedCount = 0,
-    long ExpiredLeaseCount = 0,
-    long OutboxPendingCount = 0,
-    double OldestOutboxAgeSeconds = 0,
-    long OutboxRetryCount = 0,
-    int BusyWorkers = 0,
-    int WorkerCapacity = 0);
-
-public interface ISupervisorProjectorMetricsSource
-{
-    string SupervisorProjectorKey { get; }
-    SupervisorProjectorSnapshot CaptureSupervisorSnapshot();
-}
-
-/// <summary>Read-only runtime source for one actor. It exposes metrics snapshots but no lifecycle authority.</summary>
-public interface IActorRuntimeMetricsSource
-{
-    ActorMailboxId ActorId { get; }
-    SupervisorActorSnapshot CaptureSnapshot();
-}
-
-/// <summary>Publishes a stable read-only actor-source list for one collection cycle.</summary>
-public interface IActorRuntimeMetricsSourceProvider
-{
-    IReadOnlyList<IActorRuntimeMetricsSource> CaptureActorMetricsSources();
-}
-
-public interface IActorFailureSink
-{
-    Guid RecordFailure(
-        ActorMailboxId actorId,
-        ActorThreadId threadId,
-        string verb,
-        ActorFailureStage stage,
-        Exception exception,
-        Guid? primaryFailureId = null,
-        ActorMessageOutcomeType outcome = ActorMessageOutcomeType.EscapedFailure,
-        ActorDeliveryOutcomeType deliveryOutcome = ActorDeliveryOutcomeType.NotRequired);
-}
-
-public sealed record SupervisorFailureRecord(
-    Guid FailureId,
-    DateTime FailedUtc,
-    ActorMailboxId ActorId,
-    ActorThreadId ThreadId,
-    string Verb,
-    ActorFailureStage Stage,
-    string ExceptionType,
-    string Error,
-    Guid? PrimaryFailureId,
-    ActorFailureSeverity Severity = ActorFailureSeverity.Error,
-    ActorMessageOutcomeType Outcome = ActorMessageOutcomeType.EscapedFailure,
-    ActorDeliveryOutcomeType DeliveryOutcome = ActorDeliveryOutcomeType.NotRequired,
-    int HResult = 0,
-    string ExceptionDetail = "",
-    string TraceId = "",
-    string SpanId = "");
-
 /// <summary>
 /// Singleton root for actor-wide operational data. Snapshot collection reads actor-owned counters directly and never
 /// sends a message through an actor mailbox.
@@ -376,12 +239,11 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
             .Select(worker => worker.CaptureSupervisorSnapshot())
             .OrderBy(worker => worker.WorkerId)
             .ToArray();
-        var overall = actors.Any(actor => actor.Status == SupervisorActorHealthStatus.Red)
-            || workers.Any(worker => worker.IsFaulted)
-            ? SupervisorActorHealthStatus.Red
-            : actors.Any(actor => actor.Status == SupervisorActorHealthStatus.Yellow)
-                ? SupervisorActorHealthStatus.Yellow
-                : SupervisorActorHealthStatus.Green;
+        var overall = SupervisorActorHealthStatus.Green;
+        if (actors.Any(actor => actor.Status == SupervisorActorHealthStatus.Red) || workers.Any(worker => worker.IsFaulted))
+            overall = SupervisorActorHealthStatus.Red;
+        else if (actors.Any(actor => actor.Status == SupervisorActorHealthStatus.Yellow))
+            overall = SupervisorActorHealthStatus.Yellow;
         var from = (fromUtc ?? observedUtc.AddHours(-1)).ToUniversalTime();
         var to = (toUtc ?? observedUtc).ToUniversalTime();
         var failures = _failures
@@ -414,6 +276,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
             .ThenBy(static source => source.ActorId.Name, StringComparer.Ordinal)
             .ToArray();
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Diagnostic failures must not interrupt actor processing or replace the original failure.")]
     public Guid RecordFailure(
         ActorMailboxId actorId,
         ActorThreadId threadId,
@@ -424,6 +287,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         ActorMessageOutcomeType outcome = ActorMessageOutcomeType.EscapedFailure,
         ActorDeliveryOutcomeType deliveryOutcome = ActorDeliveryOutcomeType.NotRequired)
     {
+        ArgumentNullException.ThrowIfNull(exception);
         try
         {
             var failureId = Guid.NewGuid();
@@ -462,6 +326,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Diagnostic failures must not interrupt actor processing or replace the original failure.")]
     internal static void MarkRecorded(Exception exception, Guid failureId)
     {
         try
@@ -470,10 +335,11 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
                 exception.Data[FailureIdExceptionDataKey] = failureId;
         }
         catch
-        {
+        { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */ 
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Diagnostic failures must not interrupt actor processing or replace the original failure.")]
     internal static bool TryGetRecordedFailureId(Exception exception, out Guid failureId)
     {
         try
@@ -485,7 +351,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
             }
         }
         catch
-        {
+        { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */ 
         }
         failureId = Guid.Empty;
         return false;
@@ -498,12 +364,10 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         var mailboxes = metrics?.Mailboxes ?? [];
         var queueDepth = mailboxes.Sum(mailbox => mailbox.QueueDepth);
         var processing = mailboxes.Any(mailbox => mailbox.IsProcessing);
-        var status = !actor.IsRunning
-            ? SupervisorActorHealthStatus.Red
-            : processing || queueDepth > 0 || actor.Mailbox?.ThreadQueues?.IsAccepting == false
-                || mailboxes.Any(mailbox => !mailbox.IsAdmissionOpen)
-                ? SupervisorActorHealthStatus.Yellow
-                : SupervisorActorHealthStatus.Green;
+        var status = SupervisorActorHealthStatus.Green;
+        if (!actor.IsRunning) status = SupervisorActorHealthStatus.Red;
+        else if (processing || queueDepth > 0 || actor.Mailbox?.ThreadQueues?.IsAccepting == false
+            || mailboxes.Any(mailbox => !mailbox.IsAdmissionOpen)) status = SupervisorActorHealthStatus.Yellow;
         var type = actor.GetType();
         return new(
             actor.Id,
@@ -524,6 +388,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
             mailboxes);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Its lifetime follows outstanding actor operations; disposing during immediate retirement would race active waiters.")]
     sealed class ActorEntry(IActor actor)
     {
         internal IActor Actor = actor;
@@ -539,6 +404,7 @@ public sealed class SupervisorRuntimeContext : IActorFailureSink, IActorRuntimeM
         public SupervisorActorSnapshot CaptureSnapshot() => Capture(entry);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Its lifetime follows outstanding actor operations; disposing during immediate retirement would race active waiters.")]
     sealed class MailboxOperationGate
     {
         internal readonly SemaphoreSlim Semaphore = new(1, 1);

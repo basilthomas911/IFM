@@ -4,14 +4,14 @@ namespace TomasAI.IFM.Shared.Storage;
 
 public class DbCache : IDbCache
 {
-    private Dictionary<string, IDbSingleCache> _cache;
+    private readonly Dictionary<string, IDbSingleCache> _cache;
 
     /// <summary>
     /// create db cache object
     /// </summary>
     public DbCache()
     {
-        _cache = new Dictionary<string, IDbSingleCache>
+        _cache = new Dictionary<string, IDbSingleCache>(StringComparer.Ordinal)
         {
             { "EntityTypeIdMap", new DbSingleCache<string, long>() },
             { "EventTypeIdMap", new DbSingleCache<string, long>() }
@@ -23,15 +23,14 @@ public class DbCache : IDbCache
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    /// <param name="cacheNameExpr"></param>
+    /// <param name="cacheName"></param>
     /// <param name="key"></param>
     /// <returns></returns>
-    public TValue Get<TKey, TValue>(Expression<Func<IDbCacheName, string>> cacheNameExpr, TKey key, Func<TValue> getValue = null)
+    public TValue Get<TKey, TValue>(Expression<Func<IDbCacheName, string>> cacheName, TKey key, Func<TValue> getValue = null)
     {
-        var cache = _cache[GetCacheName(cacheNameExpr)];
-        if (!(cache is DbSingleCache<TKey, TValue>))
+        if (_cache[GetCacheName(cacheName)] is not DbSingleCache<TKey, TValue> cache)
             throw new InvalidOperationException("DbCache.Get: invalid cache expression");
-        return ((dynamic)cache).Get(key, getValue);
+        return cache.Get(key, getValue);
     }
 
     /// <summary>
@@ -39,33 +38,32 @@ public class DbCache : IDbCache
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    /// <param name="cacheNameExpr"></param>
-    public void Clear(Expression<Func<IDbCacheName, string>> cacheNameExpr)
-        => ((dynamic)_cache[GetCacheName(cacheNameExpr)]).Clear();
+    /// <param name="cacheName"></param>
+    public void Clear(Expression<Func<IDbCacheName, string>> cacheName)
+        => _cache[GetCacheName(cacheName)].Clear();
 
     /// <summary>
     /// return cache count
     /// </summary>
-    /// <param name="cacheNameExpr"></param>
+    /// <param name="cacheName"></param>
     /// <returns></returns>
-    public int Count(Expression<Func<IDbCacheName, string>> cacheNameExpr)
-        => ((dynamic)_cache[GetCacheName(cacheNameExpr)]).Count();
+    public int Count(Expression<Func<IDbCacheName, string>> cacheName)
+        => _cache[GetCacheName(cacheName)].Count();
 
     /// <summary>
     /// load cache with existing entries
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    /// <param name="cacheNameExpr"></param>
+    /// <param name="cacheName"></param>
     /// <param name="cacheEntries"></param>
-    public void Load<TKey, TValue>(Expression<Func<IDbCacheName, string>> cacheNameExpr, IDictionary<TKey, TValue> cacheEntries)
+    public void Load<TKey, TValue>(Expression<Func<IDbCacheName, string>> cacheName, IDictionary<TKey, TValue> cacheEntries)
     {
         if (cacheEntries == null)
-            throw new ArgumentException("DbCache.Load: empty cache entries");
-        var cache = _cache[GetCacheName(cacheNameExpr)];
-        if (!(cache is DbSingleCache<TKey, TValue>))
+            throw new ArgumentException("DbCache.Load: empty cache entries", nameof(cacheEntries));
+        if (_cache[GetCacheName(cacheName)] is not DbSingleCache<TKey, TValue> cache)
             throw new InvalidOperationException("DbCache.Load: invalid cache entries");
-        ((dynamic)cache).Load(cacheEntries);
+        cache.Load(cacheEntries);
     }
 
     /// <summary>
@@ -73,51 +71,55 @@ public class DbCache : IDbCache
     /// </summary>
     /// <typeparam name="TKey"></typeparam>
     /// <typeparam name="TValue"></typeparam>
-    /// <param name="cacheNameExpr"></param>
+    /// <param name="cacheName"></param>
     /// <returns></returns>
-    static string GetCacheName(Expression<Func<IDbCacheName, string>> cacheNameExpr)
+    static string GetCacheName(Expression<Func<IDbCacheName, string>> cacheName)
     {
-        if (cacheNameExpr == null)
-            throw new ArgumentException("DbCache.GetCacheName: cache name property expression is empty");
-        if (cacheNameExpr.Body is not MemberExpression propExpr)
+        if (cacheName == null)
+            throw new ArgumentException("DbCache.GetCacheName: cache name property expression is empty", nameof(cacheName));
+        if (cacheName.Body is not MemberExpression propExpr)
             throw new InvalidOperationException("DbCache.GetCacheName: cache name property expression does not map to a known property");
         return propExpr.Member.Name;
     }
 
-    private class DbSingleCache<TKey, TValue> : IDbSingleCache
+    private sealed class DbSingleCache<TKey, TValue> : IDbSingleCache
     {
-        Dictionary<TKey, TValue> _cache = [];
+        readonly System.Threading.Lock gate = new();
+        Dictionary<TKey, TValue> entries = [];
 
-        public void Clear() => _cache.Clear();
+        public void Clear()
+        {
+            lock (gate) entries.Clear();
+        }
 
-        public int Count() => _cache.Count;
+        public int Count()
+        {
+            lock (gate) return entries.Count;
+        }
 
-        public TValue Get(TKey key, Func<TValue> getValue = null!)
+        public TValue Get(TKey key, Func<TValue>? getValue = null)
         {
             try
             {
-                if (getValue != null)
+                lock (gate)
                 {
-                    lock (_cache)
-                    {
-                        if (!_cache.ContainsKey((dynamic)key!))
-                            _cache.Add((dynamic)key!, (dynamic)getValue()!);
-                        return _cache[(dynamic)key!];
-                    }
+                    if (entries.TryGetValue(key, out var existing)) return existing;
+                    if (getValue is null) return default!;
+                    var value = getValue();
+                    entries.Add(key, value);
+                    return value;
                 }
-                else
-                    return _cache.ContainsKey((dynamic)key!) ? _cache[(dynamic)key!] : default(TValue)!;
             }
-            catch (Exception ex)
+            catch (Exception error)
             {
-                throw new InvalidOperationException("DbCache.Get: cache key is invalid", ex);
+                throw new InvalidOperationException("DbCache.Get: cache key is invalid", error);
             }
         }
 
         public void Load(IDictionary<TKey, TValue> cacheEntries)
         {
-            _cache = new Dictionary<TKey, TValue>((dynamic)(cacheEntries as IDictionary<TKey, TValue>)!);
+            ArgumentNullException.ThrowIfNull(cacheEntries);
+            lock (gate) entries = new Dictionary<TKey, TValue>(cacheEntries);
         }
     }
-
 }

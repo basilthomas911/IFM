@@ -6,35 +6,18 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
-
-public interface IIronCondorTradePlanFunctionContext : IFunctionActorContext<IronCondorTradePlanFunctionActor>
+public sealed class IronCondorTradePlanFunctionContext : FunctionActorContext, IIronCondorTradePlanFunctionContext
 {
-    IronCondorTradePlanAlgorithm Algorithm { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<IronCondorTradePlanFunctionActor> Logger { get; }
-    IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState,
-        UpdateIronCondorTradePlanCommand> StateRepository
-    { get; }
-}
-
-public sealed class IronCondorTradePlanFunctionContext : FunctionActorContext,
-    IFunctionActorContext<IronCondorTradePlanFunctionActor>, IIronCondorTradePlanFunctionContext
-{
-    readonly Lazy<IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState,
-        UpdateIronCondorTradePlanCommand>> _repository;
-
-    public IronCondorTradePlanFunctionContext(IActorSupervisor supervisor,
-        ILogger<IronCondorTradePlanFunctionActor> logger)
-        : base(supervisor, new(ActorType.Function, IronCondorTradePlanFunctionActor.ActorName))
+    readonly Lazy<IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>> _repository;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public IronCondorTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<IronCondorTradePlanFunctionActor> logger) : base(supervisor, new(ActorType.Function, IronCondorTradePlanFunctionActor.ActorName))
     {
         Logger = logger;
-        _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<
-            IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>>());
+        _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand>>());
     }
 
     public IronCondorTradePlanAlgorithm Algorithm { get; } = new();
     public TimeProvider TimeProvider { get; } = TimeProvider.System;
     public ILogger<IronCondorTradePlanFunctionActor> Logger { get; }
-    public IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState,
-        UpdateIronCondorTradePlanCommand> StateRepository => _repository.Value;
+    public IEventSourceFunctionStateRepository<IronCondorTradePlanFunctionState, UpdateIronCondorTradePlanCommand> StateRepository => _repository.Value;
 }

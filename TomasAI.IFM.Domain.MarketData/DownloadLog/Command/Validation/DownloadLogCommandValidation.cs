@@ -9,8 +9,12 @@ namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Validation;
 public static class DownloadLogCommandValidation
 {
     /// <summary>Validates the serialized hash and cross-checks the command envelope against valid outcome evidence.</summary>
-    public static List<ValidationError> ValidateDownloadLogEnvelope(this List<ValidationError> errors, InsertMarketDataDownloadLogCommand command)
+    public static TErrors ValidateDownloadLogEnvelope<TErrors>(this TErrors errors, InsertMarketDataDownloadLogCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (string.IsNullOrWhiteSpace(command.PayloadSha256))
             errors.Add(new ValidationError("DownloadLog.PayloadSha256 is required."));
         if (command.Outcome is not { } outcome || new List<ValidationError>().ValidateDownloadOutcome(outcome).Count != 0)
@@ -19,11 +23,11 @@ public static class DownloadLogCommandValidation
             errors.Add(new ValidationError("DownloadLog.EntityId does not match Outcome.ImportCommandId."));
         if (command.CommandId != MarketDataDownloadOutcome.LoggingCommandId(outcome.ImportCommandId))
             errors.Add(new ValidationError("DownloadLog.CommandId does not match the deterministic outcome logging identity."));
-        if (command.PayloadSha256 != outcome.ComputeHash())
+        if (!string.Equals(command.PayloadSha256,outcome.ComputeHash(),StringComparison.Ordinal))
             errors.Add(new ValidationError("DownloadLog.PayloadSha256 does not match Outcome."));
         if (command.RouteTo != BoundedContextName.DownloadLogBoundedContext ||
-            command.Subject.ActorType != ActorType.Command || command.Subject.Name != InsertMarketDataDownloadLogCommand.Actor ||
-            command.Subject.Verb != InsertMarketDataDownloadLogCommand.Verb || command.Subject.EntityId != command.EntityId?.Format())
+            command.Subject.ActorType != ActorType.Command || !string.Equals(command.Subject.Name,InsertMarketDataDownloadLogCommand.Actor,StringComparison.Ordinal) ||
+            !string.Equals(command.Subject.Verb,InsertMarketDataDownloadLogCommand.Verb,StringComparison.Ordinal) || !string.Equals(command.Subject.EntityId,command.EntityId?.Format(),StringComparison.Ordinal))
             errors.Add(new ValidationError("DownloadLog route does not match its command identity."));
         return errors;
     }

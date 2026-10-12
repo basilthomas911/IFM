@@ -10,9 +10,10 @@ namespace TomasAI.IFM.Application.MarketData.Worker;
 internal static class DatasetWorkerLogging
 {
     /// <summary>Creates daily JSON files and an OTLP exporter configurable through Telemetry__Logs environment variables.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Serilog owns the supplied sink and asynchronous monitor; logger close disposes the sink and stops monitor ownership.")]
     internal static Serilog.ILogger CreateLogger()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Telemetry:Logs:OtlpEndpoint"] = "http://localhost:4318/v1/logs",
             ["Telemetry:Logs:OtlpProtocol"] = "http/protobuf"
@@ -22,8 +23,8 @@ internal static class DatasetWorkerLogging
             .MinimumLevel.Override("System", LogEventLevel.Warning)
             .Enrich.FromLogContext().Enrich.WithProperty("ProcessId", Environment.ProcessId)
             .Enrich.WithProperty("Service", "TomasAI.IFM.Application.MarketData.Worker")
-            .WriteTo.Console(standardErrorFromLevel: LogEventLevel.Verbose)
-            .WriteTo.Async(sink => sink.File(new JsonFormatter(renderMessage: true),
+            .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture, standardErrorFromLevel: LogEventLevel.Verbose)
+            .WriteTo.Async(sink => sink.File(new JsonFormatter(renderMessage: true, formatProvider: System.Globalization.CultureInfo.InvariantCulture),
                 Path.Combine(AppContext.BaseDirectory, "Logs", "ifm-dataset-worker-.log"),
                 rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7, shared: true),
                 bufferSize: 4096, blockWhenFull: false, monitor: new AsyncLogBufferMonitor());

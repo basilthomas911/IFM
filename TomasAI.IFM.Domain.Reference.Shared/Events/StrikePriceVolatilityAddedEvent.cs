@@ -70,26 +70,17 @@ namespace TomasAI.IFM.Domain.Reference.Shared.Events
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new StrikePriceVolatilityAddedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new StrikePriceVolatilityAddedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record StrikePriceVolatilityAddedCompleteEvent : CompleteEvent
-    {
-        public StrikePriceVolatilityReadModel StrikePriceVolatility { get; init; }
-        public DateTime CreatedOn { get; init; }
-        public string CreatedBy { get; init; }
-
-    }
-
-    public record StrikePriceVolatilityAddedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

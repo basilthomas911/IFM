@@ -18,35 +18,37 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
-
 /// <summary>Maps committed workflow snapshots to preparation or the exact saved Function request. It never constructs fresh retry inputs.</summary>
 public static class ExecuteRiskManagement
 {
     public static async ValueTask ExecuteAsync(this WorkflowStrategyStateUpdatedEvent snapshot, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(snapshot);
         using var trace = WorkflowTrace.Start("risk.dispatch", snapshot.State);
         var read = new RedispatchCurrentStrategyPipelineCommand
         {
             EntityId = snapshot.EntityId,
-            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor,
-                RedispatchCurrentStrategyPipelineCommand.Verb, snapshot.EntityId.Format())
+            Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, snapshot.EntityId.Format())
         };
         var loaded = await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false);
         using var currentViewTrace = WorkflowTrace.Start("risk.dispatch.current_view", snapshot.State);
         var view = loaded.CurrentView;
         currentViewTrace?.Stop();
-        if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement }
-            || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision) return;
+        if (view is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.RiskManagement } || view.WorkflowId != snapshot.WorkflowId || view.WorkflowRevision != snapshot.WorkflowRevision)
+            return;
         if (view.RiskManagement.ProcessingStatus == StrategyActorProcessingStatus.Completed)
         {
             await view.ExecuteFinancialHandoffAsync(context).ConfigureAwait(false);
             return;
         }
+
         if (view.SelectionBinding?.SchemaVersion == 2)
         {
             await EvaluatePortfolioAsync(view, context).ConfigureAwait(false);
             return;
         }
+
         if (view.RiskExecution is not { } execute)
         {
             await EnsureFundCompositionAsync(view, context).ConfigureAwait(false);
@@ -61,21 +63,17 @@ public static class ExecuteRiskManagement
             await context.SendAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(prepare, view.EntityId).ConfigureAwait(false);
             return;
         }
-        RiskUnitModel.Require(execute.InputSha256 == execute.Fingerprint() && execute.WorkflowId == view.WorkflowId
-            && execute.InputWorkflowRevision == view.WorkflowRevision, "RM.DISPATCH.INVALID");
+
+        RiskUnitModel.Require(string.Equals(execute.InputSha256, execute.Fingerprint(), StringComparison.Ordinal) && execute.WorkflowId == view.WorkflowId && execute.InputWorkflowRevision == view.WorkflowRevision, "RM.DISPATCH.INVALID");
         var remaining = execute.ExpiresAtUtc - context.TimeProvider.GetUtcNow().UtcDateTime;
         using var timeout = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
         // A lost reply is recoverable by redispatching this persisted invocation, not by inventing a failed business outcome.
-        var reply = await context.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand, RiskManagementExecutionId,
-            FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
+        var reply = await context.RequestFunctionAsync<ExecuteRiskManagementPipelineCommand, RiskManagementExecutionId, FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
         var terminal = reply.Value ?? throw new InvalidDataException("Missing Risk Function reply.");
         RiskUnitModel.Require(terminal.IsTerminal, "RM.RESULT.INVALID");
         if (terminal.Completed is { } completed)
         {
-            RiskUnitModel.Require(completed.Id == execute.CommandId && completed.CommandId == execute.CommandId
-                && completed.WorkflowId == execute.WorkflowId && completed.EntityId == execute.WorkflowEntityId
-                && completed.InputWorkflowRevision == execute.InputWorkflowRevision && completed.RequestFingerprint == execute.InputSha256,
-                "RM.RESULT.INVALID");
+            RiskUnitModel.Require(completed.Id == execute.CommandId && completed.CommandId == execute.CommandId && completed.WorkflowId == execute.WorkflowId && completed.EntityId == execute.WorkflowEntityId && completed.InputWorkflowRevision == execute.InputWorkflowRevision && string.Equals(completed.RequestFingerprint, execute.InputSha256, StringComparison.Ordinal), "RM.RESULT.INVALID");
             var command = new CompleteRiskManagementCommand
             {
                 CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, CompleteRiskManagementCommand.Verb),
@@ -94,8 +92,7 @@ public static class ExecuteRiskManagement
         else
         {
             var failed = terminal.Failed!;
-            RiskUnitModel.Require(failed.CommandId == execute.CommandId && failed.WorkflowId == execute.WorkflowId
-                && failed.EntityId == execute.WorkflowEntityId && failed.InputWorkflowRevision == execute.InputWorkflowRevision, "RM.RESULT.INVALID");
+            RiskUnitModel.Require(failed.CommandId == execute.CommandId && failed.WorkflowId == execute.WorkflowId && failed.EntityId == execute.WorkflowEntityId && failed.InputWorkflowRevision == execute.InputWorkflowRevision, "RM.RESULT.INVALID");
             var command = new FailRiskManagementCommand
             {
                 CommandId = StableId(execute.WorkflowId, execute.InputWorkflowRevision, execute.CommandId, FailRiskManagementCommand.Verb),
@@ -119,11 +116,9 @@ public static class ExecuteRiskManagement
             await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
         }
     }
-    static Guid StableId(StrategyWorkflowId workflow, long revision, Guid invocation, string verb)
-        => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{workflow}|{revision}|{invocation}|{verb}")).AsSpan(0, 16));
 
-    static async ValueTask EvaluatePortfolioAsync(IntrinsicTimeStrategyWorkflowView view,
-        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    static Guid StableId(StrategyWorkflowId workflow, long revision, Guid invocation, string verb) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{workflow}|{revision}|{invocation}|{verb}")).AsSpan(0, 16));
+    static async ValueTask EvaluatePortfolioAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
         EvaluatePortfolioOrderCompositionCommand request;
@@ -131,51 +126,49 @@ public static class ExecuteRiskManagement
         {
             request = PortfolioOrderCompositionMapper.CreateRequest(view, context.Options.PortfolioId, now);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
             await FailAsync(view, context, "RM.PORTFOLIO.MAPPING_FAILED", ex.Message, now).ConfigureAwait(false);
             return;
         }
 
-        using var timeout = new CancellationTokenSource(
-            (request.ExpiresAtUtc > now ? request.ExpiresAtUtc - now : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
+        using var timeout = new CancellationTokenSource((request.ExpiresAtUtc > now ? request.ExpiresAtUtc - now : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
         var reply = await context.PortfolioOrderComposition.EvaluateAsync(request, timeout.Token).ConfigureAwait(false);
         if (!reply.Success || reply.Value is null)
         {
-            await FailAsync(view, context, "RM.PORTFOLIO.REQUEST_FAILED",
-                $"ErrorCode={reply.ErrorCode};ErrorMessage={reply.ErrorMessage}", now).ConfigureAwait(false);
+            await FailAsync(view, context, "RM.PORTFOLIO.REQUEST_FAILED", $"ErrorCode={reply.ErrorCode};ErrorMessage={reply.ErrorMessage}", now).ConfigureAwait(false);
             return;
         }
+
         if (reply.Value.Failed is { } failed)
         {
-            await FailAsync(view, context, "RM.PORTFOLIO.DECISION_FAILED",
-                $"ErrorCode={failed.ErrorCode};ErrorType={failed.ErrorType};ErrorMessage={failed.ErrorMessage};ErrorData={failed.ErrorData}",
-                failed.ErrorDate).ConfigureAwait(false);
+            await FailAsync(view, context, "RM.PORTFOLIO.DECISION_FAILED", $"ErrorCode={failed.ErrorCode};ErrorType={failed.ErrorType};ErrorMessage={failed.ErrorMessage};ErrorData={failed.ErrorData}", failed.ErrorDate).ConfigureAwait(false);
             return;
         }
+
         var completed = reply.Value.Completed;
         if (completed is null)
         {
-            await FailAsync(view, context, "RM.PORTFOLIO.RESULT_MISSING", "Portfolio returned no terminal result.", now)
-                .ConfigureAwait(false);
+            await FailAsync(view, context, "RM.PORTFOLIO.RESULT_MISSING", "Portfolio returned no terminal result.", now).ConfigureAwait(false);
             return;
         }
+
         try
         {
             PortfolioOrderCompositionMapper.ValidateCompletion(view, request, completed);
             foreach (var order in completed.Receipt.TradeOrders.OrderBy(value => value.Id.FundId))
                 await DispatchTradeOrderAsync(order.ToTradeOrder(), completed.Id, context).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OverflowException)
+        catch (Exception ex)when (ex is ArgumentException or InvalidOperationException or OverflowException)
         {
             await FailAsync(view, context, "RM.TRADE_ORDER.DISPATCH_FAILED", ex.Message, now).ConfigureAwait(false);
             return;
         }
+
         var command = new CompleteRiskManagementCommand
         {
             CommandId = StableId(view.WorkflowId, view.WorkflowRevision, completed.Id, "CompletePortfolioRiskManagement"),
-            Subject = new(ActorType.Command, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb,
-                view.EntityId.Format()),
+            Subject = new(ActorType.Command, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb, view.EntityId.Format()),
             EntityId = view.EntityId,
             WorkflowId = view.WorkflowId,
             InputWorkflowRevision = view.WorkflowRevision,
@@ -185,48 +178,21 @@ public static class ExecuteRiskManagement
             CompletedAtUtc = completed.CommittedAtUtc,
             PortfolioDecision = PortfolioOrderCompositionMapper.ToDecision(completed.Receipt)
         };
-        await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-            command, command.EntityId).ConfigureAwait(false);
+        await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
     }
 
-    static async ValueTask DispatchTradeOrderAsync(TradeOrderDefinition order, Guid portfolioEventId,
-        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    static async ValueTask DispatchTradeOrderAsync(TradeOrderDefinition order, Guid portfolioEventId, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         var seed = PortfolioOrderCompositionMapper.StableId(portfolioEventId, order.Id.Format());
-        await RequireAsync(new CreateTradeOrderCommand
-        {
-            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "create"),
-            Subject = Subject(CreateTradeOrderCommand.Verb, order.Id),
-            EntityId = order.Id,
-            Order = order
-        }).ConfigureAwait(false);
-        await RequireAsync(new ApproveTradeOrderCommand
-        {
-            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "approve"),
-            Subject = Subject(ApproveTradeOrderCommand.Verb, order.Id),
-            EntityId = order.Id
-        }).ConfigureAwait(false);
-        await RequireAsync(new ReadyTradeOrderCommand
-        {
-            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "ready"),
-            Subject = Subject(ReadyTradeOrderCommand.Verb, order.Id),
-            EntityId = order.Id
-        }).ConfigureAwait(false);
+        await RequireAsync(new CreateTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "create"), Subject = Subject(CreateTradeOrderCommand.Verb, order.Id), EntityId = order.Id, Order = order }).ConfigureAwait(false);
+        await RequireAsync(new ApproveTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "approve"), Subject = Subject(ApproveTradeOrderCommand.Verb, order.Id), EntityId = order.Id }).ConfigureAwait(false);
+        await RequireAsync(new ReadyTradeOrderCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "ready"), Subject = Subject(ReadyTradeOrderCommand.Verb, order.Id), EntityId = order.Id }).ConfigureAwait(false);
         var executionAttemptId = PortfolioOrderCompositionMapper.StableId(seed, "execution-attempt");
-        await RequireAsync(new BindTradeOrderExecutionCommand
-        {
-            CommandId = PortfolioOrderCompositionMapper.StableId(seed, "bind"),
-            Subject = Subject(BindTradeOrderExecutionCommand.Verb, order.Id),
-            EntityId = order.Id,
-            ExecutionAttemptId = executionAttemptId,
-            ExecutionChannel = ExecutionChannel.Broker,
-            EffectiveAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
-        }).ConfigureAwait(false);
+        await RequireAsync(new BindTradeOrderExecutionCommand { CommandId = PortfolioOrderCompositionMapper.StableId(seed, "bind"), Subject = Subject(BindTradeOrderExecutionCommand.Verb, order.Id), EntityId = order.Id, ExecutionAttemptId = executionAttemptId, ExecutionChannel = ExecutionChannel.Broker, EffectiveAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime }).ConfigureAwait(false);
         return;
-
-        ActorSubject Subject(string verb, TradeOrderId id) =>
-            new(ActorType.Command, TradeOrderActorNames.Command, verb, id.Format());
-        async ValueTask RequireAsync<TCommand>(TCommand command) where TCommand : class, ICommand<TradeOrderId>
+        ActorSubject Subject(string verb, TradeOrderId id) => new(ActorType.Command, TradeOrderActorNames.Command, verb, id.Format());
+        async ValueTask RequireAsync<TCommand>(TCommand command)
+            where TCommand : class, ICommand<TradeOrderId>
         {
             try
             {
@@ -234,21 +200,18 @@ public static class ExecuteRiskManagement
             }
             catch (CommandException ex)
             {
-                throw new InvalidOperationException(
-                    $"RM.TRADE_ORDER.COMMAND_FAILED;Command={command.CommandName};ErrorCode={ex.ErrorCode};ErrorMessage={ex.Message}", ex);
+                throw new InvalidOperationException($"RM.TRADE_ORDER.COMMAND_FAILED;Command={command.CommandName};ErrorCode={ex.ErrorCode};ErrorMessage={ex.Message}", ex);
             }
         }
     }
 
-    static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view,
-        IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
+    static async ValueTask FailAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context, string reasonCode, string details, DateTime failedAtUtc)
     {
         var source = PortfolioOrderCompositionMapper.StableId(view.WorkflowId.Value, reasonCode + "/" + view.WorkflowRevision);
         var command = new FailRiskManagementCommand
         {
             CommandId = StableId(view.WorkflowId, view.WorkflowRevision, source, FailRiskManagementCommand.Verb),
-            Subject = new(ActorType.Command, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb,
-                view.EntityId.Format()),
+            Subject = new(ActorType.Command, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb, view.EntityId.Format()),
             EntityId = view.EntityId,
             WorkflowId = view.WorkflowId,
             InputWorkflowRevision = view.WorkflowRevision,
@@ -265,14 +228,12 @@ public static class ExecuteRiskManagement
                 FailedAtUtc = DateTime.SpecifyKind(failedAtUtc, DateTimeKind.Utc)
             }
         };
-        await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId)
-            .ConfigureAwait(false);
+        await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
     }
 
     // Only a workflow-accepted Composer result may advance the Fund. Read each committed
     // checkpoint first so redispatch after a lost reply never repeats a versioned mutation.
-    internal static async Task EnsureFundCompositionAsync(IntrinsicTimeStrategyWorkflowView view,
-        IIntrinsicTimeStrategyWorkflowRealtimeContext context)
+    internal static async Task EnsureFundCompositionAsync(IntrinsicTimeStrategyWorkflowView view, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
         using var trace = WorkflowTrace.Start("risk.fund_composition", view);
         var result = view.OrderComposition.Result!.ReadCompositionResult();
@@ -281,33 +242,24 @@ public static class ExecuteRiskManagement
         var read = await context.PortfolioQueries.GetOrderAsync(checked((int)candidate.OrderId)).ConfigureAwait(false);
         readTrace?.Stop();
         var order = read.Value;
-        RiskUnitModel.Require(read.Success && order is not null && order.WorkflowId == view.WorkflowId.Value
-            && order.PortfolioId == candidate.PortfolioId && order.FundId == candidate.FundId,
-            "RM.HANDOFF.FUND_NOT_READY");
+        RiskUnitModel.Require(read.Success && order is not null && order.WorkflowId == view.WorkflowId.Value && order.PortfolioId == candidate.PortfolioId && order.FundId == candidate.FundId, "RM.HANDOFF.FUND_NOT_READY");
         var id = new Domain.Portfolio.Shared.Identities.PortfolioFundOrderId(candidate.PortfolioId, candidate.FundId, checked((int)candidate.OrderId));
-        if (order!.Status == "TemplateSelected")
+        if (string.Equals(order!.Status, "TemplateSelected", StringComparison.Ordinal))
         {
             using var composingTrace = WorkflowTrace.Start("risk.fund_composition.mark_composing", view);
-            read = await context.PortfolioCommands.MarkComposingAsync(id, order.AggregateVersion,
-                view.CompositionExecution!.CommandId).ConfigureAwait(false);
+            read = await context.PortfolioCommands.MarkComposingAsync(id, order.AggregateVersion, view.CompositionExecution!.CommandId).ConfigureAwait(false);
             RiskUnitModel.Require(read.Success && read.Value is not null, "RM.HANDOFF.FUND_NOT_READY");
             order = read.Value!;
         }
-        if (order.Status == "Composing")
+
+        if (string.Equals(order.Status, "Composing", StringComparison.Ordinal))
         {
             using var composedTrace = WorkflowTrace.Start("risk.fund_composition.record_composed", view);
-            read = await context.PortfolioCommands.RecordComposedAsync(id, order.AggregateVersion, new()
-            {
-                ResultId = result.ResultId,
-                ResultSha256 = view.OrderComposition.Result.PayloadSha256,
-                InvocationId = view.CompositionExecution!.CommandId,
-                EvaluatedAtUtc = view.CompositionExecution.EvaluatedAtUtc,
-                ExpiresAtUtc = candidate.ValidUntilUtc
-            }).ConfigureAwait(false);
+            read = await context.PortfolioCommands.RecordComposedAsync(id, order.AggregateVersion, new() { ResultId = result.ResultId, ResultSha256 = view.OrderComposition.Result.PayloadSha256, InvocationId = view.CompositionExecution!.CommandId, EvaluatedAtUtc = view.CompositionExecution.EvaluatedAtUtc, ExpiresAtUtc = candidate.ValidUntilUtc }).ConfigureAwait(false);
             RiskUnitModel.Require(read.Success && read.Value is not null, "RM.HANDOFF.FUND_NOT_READY");
             order = read.Value!;
         }
-        RiskUnitModel.Require(order.Status == "RiskPending" && order.CompositionResultId == result.ResultId
-            && order.CompositionResultHash == view.OrderComposition.Result.PayloadSha256, "RM.HANDOFF.FUND_NOT_READY");
+
+        RiskUnitModel.Require(string.Equals(order.Status, "RiskPending", StringComparison.Ordinal) && order.CompositionResultId == result.ResultId && string.Equals(order.CompositionResultHash, view.OrderComposition.Result.PayloadSha256, StringComparison.Ordinal), "RM.HANDOFF.FUND_NOT_READY");
     }
 }

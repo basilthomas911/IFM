@@ -18,27 +18,27 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
         ((IFuturesVxTermStructureSignalCommandContext)actorContext).Logger)
 {
     public const string ActorName = UpdateFuturesVxTermStructureSignalCommand.Actor;
-    readonly IFuturesVxTermStructureSignalCommandContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesVxTermStructureSignalCommandContext, nameof(actorContext))!;
+    readonly IFuturesVxTermStructureSignalCommandContext typedContext = IsArgumentNull.Named(actorContext as IFuturesVxTermStructureSignalCommandContext, nameof(actorContext))!;
     IEventSourceActorStateRepository<FuturesVxTermStructureSignalCommandState> repository = default!;
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         repository = IsArgumentNull.Set(context.Container.Resolve<
             IEventSourceActorStateRepository<FuturesVxTermStructureSignalCommandState>>());
-        await typedContext.EventProjector.StartAsync(context);
+        await (typedContext.EventProjector.StartAsync(context)).ConfigureAwait(false);
     }
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context) =>
-        await typedContext.EventProjector.StopAsync();
+        await (typedContext.EventProjector.StopAsync()).ConfigureAwait(false);
     /// <inheritdoc />
     protected override ICommand ParseMessage(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [UpdateFuturesVxTermStructureSignalCommand.Verb] = message =>
             message.AsCommand<UpdateFuturesVxTermStructureSignalCommand>()
@@ -90,32 +90,32 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
-        ActorThreadId threadId, ICommand command) => await repository.LoadStateAsync(command);
+        ActorThreadId threadId, ICommand command) => await (repository.LoadStateAsync(command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) =>
-        await repository.LoadStateAsync(command, cancellationToken);
+        await (repository.LoadStateAsync(command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command) =>
-        await repository.SaveStateAsync(context, (FuturesVxTermStructureSignalCommandState)state, command);
+        await (repository.SaveStateAsync(context, (FuturesVxTermStructureSignalCommandState)state, command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command,
         CancellationToken cancellationToken) =>
-        await repository.SaveStateAsync(context, (FuturesVxTermStructureSignalCommandState)state,
-            command, cancellationToken);
+        await (repository.SaveStateAsync(context, (FuturesVxTermStructureSignalCommandState)state,
+            command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
-        ActorThreadId threadId, ICommand command, Exception exception)
+        ActorThreadId threadId, ICommand command, Exception ex)
     {
-        var error = await exception.SendErrorEventAsync<
+        var error = await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent,
-            ActorEntityId>(ErrorType.Command, context);
+            ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
         return new ServiceFailed<GuidResult>(error);
     }
 }

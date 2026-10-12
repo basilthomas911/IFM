@@ -13,11 +13,14 @@ public static class FinancialTelemetry
     static readonly Histogram<double> Locks = Meter.CreateHistogram<double>("financial.authority.lock.duration", "ms");
     static readonly Counter<long> Retries = Meter.CreateCounter<long>("financial.transaction.rollback_retries");
     static readonly Counter<long> Outcomes = Meter.CreateCounter<long>("financial.transaction.outcomes");
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional telemetry must not abort a financial transaction; this boundary intentionally contains observer failures.")]
     public static void Transaction(double milliseconds, string outcome)
     {
         // A diagnostic listener cannot change a confirmed financial outcome.
-        try { var tag = new KeyValuePair<string, object?>("outcome", outcome); Transactions.Record(milliseconds, tag); Outcomes.Add(1, tag); } catch { }
+        try { var tag = new KeyValuePair<string, object?>("outcome", outcome); Transactions.Record(milliseconds, tag); Outcomes.Add(1, tag); } catch { /* Optional observer failures cannot alter a financial transaction outcome. */ }
     }
-    public static void Lock(double milliseconds) { try { Locks.Record(milliseconds); } catch { } }
-    public static void Retry() { try { Retries.Add(1); } catch { } }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional telemetry must not abort a financial transaction; this boundary intentionally contains observer failures.")]
+    public static void Lock(double milliseconds) { try { Locks.Record(milliseconds); } catch { /* Optional observer failures cannot alter a financial transaction outcome. */ } }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional telemetry must not abort a financial transaction; this boundary intentionally contains observer failures.")]
+    public static void Retry() { try { Retries.Add(1); } catch { /* Optional observer failures cannot alter a financial transaction outcome. */ } }
 }

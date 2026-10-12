@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -36,7 +37,6 @@ public abstract class BaseEventSourceFunctionActor<
         ?? throw new ArgumentNullException(nameof(stateRepository));
     readonly IFunctionProjector<TCompletedEvent>? _functionProjector = functionProjector;
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    IActorSupervisor? _supervisor;
     IActorProducer? _startedProducer;
     int _lifecycle;
 
@@ -49,6 +49,8 @@ public abstract class BaseEventSourceFunctionActor<
     public ValueTask StartAsync(IActorSupervisor supervisor)
         => StartAsync(supervisor, CancellationToken.None);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(supervisor);
@@ -58,7 +60,6 @@ public abstract class BaseEventSourceFunctionActor<
         IActorProducer? producer = null;
         try
         {
-            _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(Id);
             producer = supervisor.GetProducer(Id);
             await producer.StartAsync(Id, cancellationToken).ConfigureAwait(false);
@@ -84,7 +85,7 @@ public abstract class BaseEventSourceFunctionActor<
                         ActorFailureStage.Cleanup, cleanupException,
                         primaryFailureId == Guid.Empty ? null : primaryFailureId,
                         ActorMessageOutcomeType.HandledFailure);
-                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", Id);
+                    SharedActorDiagnosticLog.Write27(_logger, cleanupException, Id);
                 }
             }
             Volatile.Write(ref _lifecycle, 0);
@@ -120,11 +121,17 @@ public abstract class BaseEventSourceFunctionActor<
     }
 
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+    }
 
     public ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => HandleMessageAsync(message, threadId, CancellationToken.None);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public virtual async ValueTask HandleMessageAsync(
         IActorMessage message,
         ActorThreadId threadId,
@@ -147,13 +154,8 @@ public abstract class BaseEventSourceFunctionActor<
                 message.ReleasePayload();
             }
 
-            _logger.LogInformation(
-                "Executing Function request {CommandName} CommandId={CommandId} on {ActorId}",
-                request.CommandName,
-                request.CommandId,
-                Id);
+            SharedActorDiagnosticLog.Write34(_logger, null, request.CommandName, request.CommandId, Id);
 
-            stage = FunctionFailureStage.Validation;
             await ValidateAsync(_context, threadId, request, cancellationToken).ConfigureAwait(false);
 
             stage = FunctionFailureStage.Loading;
@@ -213,7 +215,7 @@ public abstract class BaseEventSourceFunctionActor<
                             }
                             catch (Exception exception)
                             {
-                                _logger.LogError(exception, "Committed Function {CommandId} requires state reload; durable completion is unchanged.", request.CommandId);
+                                SharedActorDiagnosticLog.Write30(_logger, exception, request.CommandId);
                             }
                         }
                         else if (persistencePolicy.CompletionMode == FunctionCompletionMode.EventThenProjection)
@@ -237,9 +239,7 @@ public abstract class BaseEventSourceFunctionActor<
                             }
                             catch (Exception projectionFailure)
                             {
-                                _logger.LogError(projectionFailure,
-                                    "Committed Function {CommandId} projection failed; durable completion is unchanged.",
-                                    request.CommandId);
+                                SharedActorDiagnosticLog.Write29(_logger, projectionFailure, request.CommandId);
                             }
                         }
                         else
@@ -272,8 +272,7 @@ public abstract class BaseEventSourceFunctionActor<
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception,
-                "Function actor {ActorId} failed during {FailureStage}", Id, stage);
+            SharedActorDiagnosticLog.Write32(_logger, exception, Id, stage);
             primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
                 Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
                 MapFailureStage(stage), exception);
@@ -287,9 +286,7 @@ public abstract class BaseEventSourceFunctionActor<
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
                     exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(exceptionHandlerFailure,
-                    "Function exception handler failed for {ActorId} {ThreadId} during {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
-                    Id, threadId, stage, exception.GetType().FullName, exception.Message);
+                SharedActorDiagnosticLog.Write31(_logger, exceptionHandlerFailure, Id, threadId, stage, exception.GetType().FullName, exception.Message);
                 terminal = default!;
                 fallbackReply = new ServiceFailed<FunctionResult<TCompletedEvent, TFailedEvent>>(
                     request?.ErrorCode ?? 9998,
@@ -313,9 +310,7 @@ public abstract class BaseEventSourceFunctionActor<
             _context.SupervisorRuntime?.RecordFailure(
                 Id, threadId, message.Subject.Verb, ActorFailureStage.Reply, replyFailure,
                 primaryFailureId == Guid.Empty ? null : primaryFailureId);
-            _logger.LogError(replyFailure,
-                "Function reply failed for {ActorId} {ThreadId} during {FailureStage}.",
-                Id, threadId, FunctionFailureStage.Unknown);
+            SharedActorDiagnosticLog.Write33(_logger, replyFailure, Id, threadId, FunctionFailureStage.Unknown);
         }
     }
 
@@ -348,6 +343,7 @@ public abstract class BaseEventSourceFunctionActor<
     }
 
     /// <summary>Notifies the event map after a successful append or matching replay without changing the durable outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     void ObserveCompletedFunction(TRequest request, TCompletedEvent completed, FunctionEventPhase phase)
     {
         try
@@ -360,11 +356,13 @@ public abstract class BaseEventSourceFunctionActor<
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Function {Phase} observation failed for {CommandId}; the completed outcome is unchanged.", phase, request.CommandId);
+            SharedActorDiagnosticLog.Write28(_logger, exception, phase, request.CommandId);
         }
     }
 
     /// <summary>Enforces stage cancellation and exact-boundary expiry without allowing late work to resume the lifecycle.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the actor pool or detached observer, which releases resources after processing exits instead of waiting during recovery.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2025", Justification = "Detached work explicitly transfers cancellation and admission resource ownership to an observer that disposes them after task completion; recovery does not wait for a handler.")]
     async ValueTask<T> RunFunctionStageAsync<T>(TRequest request, FunctionFailureStage stage,
         Func<CancellationToken, ValueTask<T>> operation, CancellationToken callerToken,
         bool preserveConfirmedCommit = false)
@@ -377,7 +375,8 @@ public abstract class BaseEventSourceFunctionActor<
         var clock = policy.Clock;
         var remaining = deadline.Value - clock.GetUtcNow().UtcDateTime;
         if (remaining <= TimeSpan.Zero) throw new TimeoutException();
-        using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+        var cancellationTransferred = false;
         Task<T>? task = null;
         try
         {
@@ -392,9 +391,15 @@ public abstract class BaseEventSourceFunctionActor<
         }
         catch
         {
-            workerCancellation.Cancel();
-            if (task is not null) _ = ObserveLateFunctionStageAsync(task);
+            // CancelAsync signals cancellation now and keeps arbitrary callbacks off recovery's critical path.
+            var cancellation = workerCancellation.CancelAsync();
+            cancellationTransferred = true;
+            _ = ObserveLateFunctionStageAsync(task ?? Task.CompletedTask, cancellation, workerCancellation);
             throw;
+        }
+        finally
+        {
+            if (!cancellationTransferred) workerCancellation.Dispose();
         }
     }
 
@@ -408,10 +413,20 @@ public abstract class BaseEventSourceFunctionActor<
         }, callerToken).ConfigureAwait(false);
 
     /// <summary>Observes exceptions from a dependency that ignores cancellation after the request has ended.</summary>
-    static async Task ObserveLateFunctionStageAsync(Task task)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    async Task ObserveLateFunctionStageAsync(Task task, Task cancellation, CancellationTokenSource workerCancellation)
     {
-        try { await task.ConfigureAwait(false); }
-        catch { /* The request has already failed or propagated caller cancellation. */ }
+        try
+        {
+            try { await cancellation.ConfigureAwait(false); }
+            catch (Exception exception)
+            {
+                _logger.LogErrorEvent(Id.Name, exception, "Function stage cancellation callback failed.");
+            }
+            try { await task.ConfigureAwait(false); }
+            catch { /* The request has already failed or propagated caller cancellation. */ }
+        }
+        finally { workerCancellation.Dispose(); }
     }
 
     /// <summary>Persists the one completed Function event without invoking a denormalizer.</summary>
@@ -517,6 +532,7 @@ public abstract class BaseEventSourceFunctionActor<
     protected virtual FunctionResult<TCompletedEvent, TFailedEvent> HandleFunctionEvent(
         IFunctionActorContext<TActor> context, FunctionEventContext<TRequest> input)
     {
+        ArgumentNullException.ThrowIfNull(input);
         if (input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed && input.Outcome is TCompletedEvent completed)
             return FunctionResult<TCompletedEvent, TFailedEvent>.Complete(completed);
         if (input.EventType != typeof(TFailedEvent))

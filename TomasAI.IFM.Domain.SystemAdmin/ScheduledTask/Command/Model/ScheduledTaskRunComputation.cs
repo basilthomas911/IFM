@@ -10,6 +10,7 @@ public static class ScheduledTaskRunComputation
     /// <summary>Computes one run transition without relaunching an uncertain or terminal occurrence.</summary>
     public static ScheduledTaskRunChange Compute(ICommand<ScheduledTaskId> command, ScheduledTaskRun? run, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (!command.EntityId.IsValid || command.CommandId == Guid.Empty) return Reject("IDENTITY.INVALID", "run and command identities are required");
         if (command is RequestScheduledTaskRunCommand request)
         {
@@ -19,7 +20,7 @@ public static class ScheduledTaskRunComputation
         }
         if (run is null || run.Id != command.EntityId) return Reject("NOT_FOUND", "run has not been requested");
         if (command is FailScheduledTaskRunCommand resolution && run.Status == ScheduledTaskRunStatus.Uncertain)
-            return resolution.Stage == "OperatorResolved" && resolution.ExpectedRevision == run.Revision &&
+            return string.Equals(resolution.Stage,"OperatorResolved",StringComparison.Ordinal) && resolution.ExpectedRevision == run.Revision &&
                 !string.IsNullOrWhiteSpace(resolution.Operator) && !string.IsNullOrWhiteSpace(resolution.Reason) &&
                 ValidFinish(run, resolution.FinishedAtUtc, now)
                 ? new(run with { Revision = run.Revision + 1, Status = ScheduledTaskRunStatus.Failed,
@@ -29,17 +30,17 @@ public static class ScheduledTaskRunComputation
         var next = run with { Revision = run.Revision + 1 };
         return command switch
         {
-            RecordScheduledTaskRunAdmissionCommand c when run.Status != ScheduledTaskRunStatus.Requested => Reject("ADMISSION.OUT_OF_ORDER", "admission requires a requested run"),
+            RecordScheduledTaskRunAdmissionCommand when run.Status != ScheduledTaskRunStatus.Requested => Reject("ADMISSION.OUT_OF_ORDER", "admission requires a requested run"),
             RecordScheduledTaskRunAdmissionCommand c => new(next with { Status = c.Accepted ? ScheduledTaskRunStatus.Admitted : ScheduledTaskRunStatus.Rejected, Detail = c.Detail, FinishedAtUtc = c.Accepted ? null : now }),
             RecordScheduledTaskRunStartedCommand c when run.Status != ScheduledTaskRunStatus.Admitted || c.ProcessId <= 0 || c.StartedAtUtc < run.IntendedFireTimeUtc || c.StartedAtUtc > now => Reject("START.INVALID", "process start must follow admission with a valid process and timestamp"),
             RecordScheduledTaskRunStartedCommand c => new(next with { Status = ScheduledTaskRunStatus.Running, ProcessId = c.ProcessId, StartedAtUtc = c.StartedAtUtc }),
-            RecordScheduledTaskRunStageCommand c when c.Stage == "PositionsFinalized" &&
-                (run.TaskKey != ScheduledTaskKeys.FuturesMarketClose || run.Stage != "FeedsStopped" || c.ValueDate == default ||
+            RecordScheduledTaskRunStageCommand c when string.Equals(c.Stage,"PositionsFinalized",StringComparison.Ordinal) &&
+                (!string.Equals(run.TaskKey,ScheduledTaskKeys.FuturesMarketClose,StringComparison.Ordinal) || !string.Equals(run.Stage,"FeedsStopped",StringComparison.Ordinal) || c.ValueDate == default ||
                  c.ValueDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
                  TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetSessionEndUtc(c.ValueDate) > now)
                 => Reject("EOD.OUT_OF_ORDER", "EOD finalization requires the market-close task, confirmed feed stop and an ended weekday session"),
             RecordScheduledTaskRunStageCommand c when run.Status != ScheduledTaskRunStatus.Running || c.ValueDate == default || string.IsNullOrWhiteSpace(c.Stage) || run.ValueDate is { } establishedDate && establishedDate != c.ValueDate => Reject("STAGE.INVALID", "business stages require a running task and one consistent value date"),
-            RecordScheduledTaskRunStageCommand c => new(next with { Stage = c.Stage, ValueDate = c.ValueDate, Detail = c.Detail, CompletedEndOfDayValueDate = run.TaskKey == ScheduledTaskKeys.FuturesMarketClose && c.Stage == "PositionsFinalized" ? c.ValueDate : run.CompletedEndOfDayValueDate }),
+            RecordScheduledTaskRunStageCommand c => new(next with { Stage = c.Stage, ValueDate = c.ValueDate, Detail = c.Detail, CompletedEndOfDayValueDate = string.Equals(run.TaskKey,ScheduledTaskKeys.FuturesMarketClose,StringComparison.Ordinal) && string.Equals(c.Stage,"PositionsFinalized",StringComparison.Ordinal) ? c.ValueDate : run.CompletedEndOfDayValueDate }),
             CompleteScheduledTaskRunCommand c when run.Status != ScheduledTaskRunStatus.Running || c.ExitCode != 0 || !ValidFinish(run, c.FinishedAtUtc, now) || string.IsNullOrWhiteSpace(c.Stage) => Reject("COMPLETION.INVALID", "business completion requires a running process, successful exit and completion stage"),
             CompleteScheduledTaskRunCommand c => new(next with { Status = ScheduledTaskRunStatus.Succeeded, FinishedAtUtc = c.FinishedAtUtc, ExitCode = c.ExitCode, ValueDate = c.ValueDate ?? run.ValueDate, Stage = c.Stage, Detail = c.Detail, StandardOutputTail = Limit(c.StandardOutputTail), StandardErrorTail = Limit(c.StandardErrorTail), OutputDirectory = c.OutputDirectory }),
             FailScheduledTaskRunCommand c when !ValidFinish(run, c.FinishedAtUtc, now) => Reject("FAILURE.INVALID", "failure timestamp precedes the run or is in the future"),

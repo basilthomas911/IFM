@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Data;
+using System.Data.Common;
 using TomasAI.IFM.Framework.Storage.Postgres;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;
@@ -207,7 +208,7 @@ public class DbProviderTests
         [
             new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
-                null,
+                (DbParameter[]?)null,
                 "System.Data.ScyllaDb",
                 null)
         ];
@@ -238,7 +239,7 @@ public class DbProviderTests
         [
             new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
-                null,
+                (DbParameter[]?)null,
                 sourceRepo.ProviderName,
                 RepositoryConnectionIdentity.Get(sourceRepo))
         ];
@@ -267,7 +268,7 @@ public class DbProviderTests
         [
             new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
-                null,
+                (DbParameter[]?)null,
                 sourceRepo.ProviderName,
                 RepositoryConnectionIdentity.Get(sourceRepo))
         ];

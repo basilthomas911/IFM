@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public sealed class SupervisorCommandApi(IActorProducer actorProducer) : NatsClientApi(actorProducer), ISupervisorCommandApi
 {
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One exhaustive mapping defines the typed supervisor operation commands.")]
     public ValueTask<ServiceResult<GuidResult>> ExecuteActorOperationAsync(
         ActorThreadId target,
         long expectedGeneration,

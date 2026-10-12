@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// This avoids the classic "lose one slot" problem of masked-index ring buffers.
 /// </para>
 /// </remarks>
-public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage>
+public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage>, IDisposable
 {
     // === Cache-line isolation to avoid false sharing ===
     // Each PaddedInt occupies 128 bytes with Value centered at offset 64,
@@ -141,15 +141,18 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
     /// </summary>
     /// <remarks>This method ensures that all resources, such as buffers and synchronization primitives, are
     /// properly disposed. Once called, the instance cannot be reused.</remarks>
+    public void Dispose() => Stop();
+
     public void Stop()
     {
-        if (_disposed || _pool is null || _buffer is null)
+        if (_disposed)
             return;
 
         // A direct ring-buffer user may stop without first draining through
         // NatsActorThreadQueue. The ring owns every message still in its slots.
-        while (TryDequeue(out var pendingMessage))
-            pendingMessage.Dispose();
+        if (_started)
+            while (TryDequeue(out var pendingMessage))
+                pendingMessage.Dispose();
 
         _disposed = true;
 
@@ -157,7 +160,8 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         _producerCancel.Set();
         _consumerCancel.Set();
 
-        _pool.Return(_buffer, clearArray: true);
+        if (_pool is not null && _buffer is not null)
+            _pool.Return(_buffer, clearArray: true);
         _buffer = [];
         _itemAvailable.Dispose();
         _slotAvailable.Dispose();
@@ -229,7 +233,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryEnqueue(IActorMessage item)
     {
-        // Producer owns _head â€” plain read is safe (only this thread writes it).
+        // Producer owns _head — plain read is safe (only this thread writes it).
         int head = _head.Value;
         // Must volatile-read _tail (written by consumer on another thread).
         int tail = Volatile.Read(ref _tail.Value);
@@ -261,7 +265,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryDequeue(out IActorMessage item)
     {
-        // Consumer owns _tail â€” plain read is safe (only this thread writes it).
+        // Consumer owns _tail — plain read is safe (only this thread writes it).
         int tail = _tail.Value;
         // Must volatile-read _head (written by producer on another thread).
         int head = Volatile.Read(ref _head.Value);

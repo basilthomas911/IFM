@@ -8,6 +8,10 @@ namespace TomasAI.IFM.Application.Storage.OptionPricerDb;
 /// </summary>
 public interface IOptionPricerDbWriteContext
 {
+    /// <summary>Materializes accepted pricing facts on the caller-owned source transaction, without running calculations.</summary>
+    Task ProjectAcceptedEventAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        TomasAI.IFM.Shared.EventSourcing.IEvent source, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes an option-pricer device.</summary>
     Task DeleteOptionPricerDeviceAsync(OptionPricerDeviceEntityId deviceId);
 

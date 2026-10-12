@@ -15,11 +15,15 @@ public static class FuturesAdxSignalValidation
     /// <param name="validationErrors">The list to which any validation errors found during validation will be added. Cannot be null.</param>
     /// <param name="futuresMacdSignalId">The futures MACD signal identifier to validate.</param>
     /// <returns>The list of validation errors, including any errors found during validation of the specified signal identifier.</returns>
-    public static List<ValidationError> ValidateFuturesMacdSignalId(this List<ValidationError> validationErrors, FuturesMacdSignalId futuresMacdSignalId)
+    public static TErrors ValidateFuturesMacdSignalId<TErrors>(this TErrors validationErrors, FuturesMacdSignalId futuresMacdSignalId)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new FuturesMacdSignalIdValidationRules().Execute(futuresMacdSignalId);
         if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
+            foreach (var validationFailure in ruleErrors)
+                validationErrors.Add(validationFailure);
         return validationErrors;
     }
 }

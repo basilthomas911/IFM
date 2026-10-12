@@ -23,8 +23,8 @@ internal sealed class EventLogSqlLayout
     {
         var connection = new NpgsqlConnectionStringBuilder(connectionString);
         if (connection.Host is not ("localhost" or "127.0.0.1" or "::1") ||
-            !Regex.IsMatch(connection.Database ?? "", @"\Aifm_eventlog_bench_[a-f0-9]{12}_[a-z0-9_]+\z"))
-            throw new ArgumentException("Benchmark layouts require a loopback-only, uniquely named benchmark database.");
+            !Regex.IsMatch(connection.Database ?? "", @"\Aifm_eventlog_bench_[a-f0-9]{12}_[a-z0-9_]+\z", RegexOptions.NonBacktracking))
+            throw new ArgumentException("Benchmark layouts require a loopback-only, uniquely named benchmark database.", nameof(connectionString));
         return new EventLogSqlLayout(batchProjectionMarkers, benchmark: true);
     }
 
@@ -34,5 +34,7 @@ internal sealed class EventLogSqlLayout
         if (_benchmark) _ = ForBenchmark(connectionString, BatchProjectionMarkers);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     internal string Resolve(string sql) => sql;
 }

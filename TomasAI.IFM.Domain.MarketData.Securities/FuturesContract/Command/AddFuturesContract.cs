@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
@@ -16,6 +16,8 @@ public static class AddFuturesContract
     /// <returns>The command identity on success, or a business rejection or event-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this AddFuturesContractCommand command, FuturesContractCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FuturesContractAddedEvent";
         var updated = command.Compute(state.FuturesContractExists(command.Contract.Id, command.Overwrite), out var futuresContractAddition) switch
         {

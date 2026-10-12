@@ -7,6 +7,8 @@ public static class AccountingExportModel
 {
     public static AccountingExportPayload Create(AccountingExportRequest request, IReadOnlyList<AccountingJournalSource> sources)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(sources);
         ValidateRequest(request);
         Require(sources.Count == request.JournalIds.Length && sources.Select(x => x.Journal.JournalId).Order()
             .SequenceEqual(request.JournalIds.Order()), "Export source set differs from the requested committed cut.");
@@ -35,6 +37,7 @@ public static class AccountingExportModel
     }
     public static void ValidateRequest(AccountingExportRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         Require(request.ExportId != Guid.Empty && request.PortfolioId > 0 && request.BookId > 0 && request.SourceRevision > 0
             && request.JournalIds.Length is >= 1 and <= 100 && request.JournalIds.All(x => x > 0)
             && request.JournalIds.Distinct().Count() == request.JournalIds.Length, "Invalid bounded export request.");
@@ -45,5 +48,5 @@ public static class AccountingExportModel
                 && x.ExternalAccountReference.Length <= 128)
             && mapping.Accounts.Select(x => (x.AccountId, x.AccountVersion)).Distinct().Count() == mapping.Accounts.Length, "Invalid export mapping.");
     }
-    static void Require(bool valid, string message) { if (!valid) throw new ArgumentException(message); }
+    static void Require(bool valid, string message) { if (!valid) throw new ArgumentException(message,nameof(message)); }
 }

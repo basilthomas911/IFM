@@ -50,7 +50,7 @@ public sealed class RealOptionChainQuoteDataTests
     {
         if (Environment.GetEnvironmentVariable("IFM_REAL_SCYLLA_TEST") != "1") return;
         var connection = new DbConnectionSettings().Add("MarketDataDbConnection",
-            "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_quote"), "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
         var db = new MarketDataDbContext(connection, factory,
             Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(),
@@ -102,7 +102,7 @@ public sealed class RealOptionChainQuoteDataTests
     {
         if (Environment.GetEnvironmentVariable("IFM_REAL_SCYLLA_TEST") != "1") return;
         var connection = new DbConnectionSettings().Add("MarketDataDbConnection",
-            "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
+            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_quote"), "System.Data.ScyllaDb");
         var factory = Substitute.For<IDbContextFactory>();
         var db = new MarketDataDbContext(connection, factory,
             Substitute.For<IBlackboardService>(), Substitute.For<ISequenceIdGenerator>(),

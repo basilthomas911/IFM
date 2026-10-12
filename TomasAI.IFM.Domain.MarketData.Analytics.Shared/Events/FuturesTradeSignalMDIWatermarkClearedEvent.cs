@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesTradeSignalMDIWatermarkClearedEvent : IEvent<FuturesTradeSignalEntityId>
 {

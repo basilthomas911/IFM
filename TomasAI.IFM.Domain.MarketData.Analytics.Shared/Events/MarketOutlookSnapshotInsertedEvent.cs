@@ -66,10 +66,10 @@ public sealed record MarketOutlookSnapshotInsertedEvent : IEvent<MarketOutlookEn
         {
             var eod = MarketOutlook.FuturesEodData;
             return CommandId != Guid.Empty
-                && EntityId.ContractId == MarketOutlook.ContractId
+                && string.Equals(EntityId.ContractId,MarketOutlook.ContractId,StringComparison.Ordinal)
                 && EntityId.ValueDate == MarketOutlook.ValueDate
                 && string.Equals(eod.Symbol, "ES", StringComparison.OrdinalIgnoreCase)
-                && eod.ContractId == MarketOutlook.ContractId
+                && string.Equals(eod.ContractId,MarketOutlook.ContractId,StringComparison.Ordinal)
                 && eod.ValueDate == MarketOutlook.ValueDate
                 && eod.OpenPrice > 0m
                 && eod.HighPrice > 0m

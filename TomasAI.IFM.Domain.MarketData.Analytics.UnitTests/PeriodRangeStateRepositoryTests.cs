@@ -30,7 +30,7 @@ public class PeriodRangeStateRepositoryTests
         stateFactory.CreateState<FuturesAdxSignalCommandState>().Returns(_ => new FuturesAdxSignalCommandState());
         stateFactory.CreateState<FuturesAtrSignalCommandState>().Returns(_ => new FuturesAtrSignalCommandState());
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
-        eventDb.GetEventStreamIdAsync(Arg.Any<string>()).Returns(streamId);
+        eventDb.GetEventStreamIdAsync(Arg.Any<string>(), CancellationToken.None).Returns(streamId);
         var actorService = Substitute.For<IActorService>();
         var dbFactory = Substitute.For<IDbContextFactory>();
         var macdRepository = new FuturesMacdSignalStateRepository(
@@ -169,7 +169,7 @@ public class PeriodRangeStateRepositoryTests
         => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
             streamId,
             periodLength,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 
     static async ValueTask ReceivedSnapshot<TState, TEvent>(
         IEventSourceActorDbContext eventDb,
@@ -178,7 +178,7 @@ public class PeriodRangeStateRepositoryTests
         where TEvent : IEvent
         => await eventDb.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
             streamId,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 
     static async ValueTask ReceivedSnapshotRange<TState, TSnapshot, TEvent>(
         IEventSourceActorDbContext eventDb,
@@ -190,5 +190,5 @@ public class PeriodRangeStateRepositoryTests
         => await eventDb.Received(1).MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TEvent>(
             streamId,
             periodLength,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 }

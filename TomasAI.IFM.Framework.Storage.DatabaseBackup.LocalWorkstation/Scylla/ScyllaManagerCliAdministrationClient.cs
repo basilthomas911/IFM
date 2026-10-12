@@ -13,6 +13,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
 {
     readonly ScyllaBackupOptions _options;
     readonly IScyllaManagerProcessRunner _runner;
+    readonly IScyllaFreshTargetDataPreparation _freshTarget;
     string _managerVersion = string.Empty;
     readonly ConcurrentDictionary<string, string> _scyllaVersions = new(StringComparer.OrdinalIgnoreCase);
 
@@ -21,11 +22,13 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
 
     internal ScyllaManagerCliAdministrationClient(
         ScyllaBackupOptions options,
-        IScyllaManagerProcessRunner runner)
+        IScyllaManagerProcessRunner runner,
+        IScyllaFreshTargetDataPreparation? freshTarget = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
         _runner = runner ?? throw new ArgumentNullException(nameof(runner));
+        _freshTarget = freshTarget ?? new ScyllaFreshTargetDataPreparation();
     }
 
     public async ValueTask ValidateAsync(CancellationToken cancellationToken)
@@ -57,7 +60,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         var topology = await ReadTopologyAsync(
             protectionSet.ManagerCluster, protectionSet.RequiredLiveNodes, cancellationToken).ConfigureAwait(false);
         progress.Report(new DatabaseNativeProgress(Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Capturing, 5));
-        var taskName = "ifm-" + operationId.Format();
+        var taskName = "ifm-" + operationId.Format() + "-" + Guid.NewGuid().ToString("N")[..8];
         var arguments = new List<string>
         {
             "backup", "--cluster", protectionSet.ManagerCluster,
@@ -72,14 +75,14 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         if (string.IsNullOrEmpty(taskReference)) taskReference = "backup/" + taskName;
         await AwaitTaskAsync(protectionSet.ManagerCluster, taskReference, progress, cancellationToken).ConfigureAwait(false);
 
-        var list = await RunAsync(ScyllaManagerOperation.BackupList,
-            ["backup", "list", "--cluster", protectionSet.ManagerCluster, "--location", protectionSet.BackupLocation],
+        var list = await RunAsync(ScyllaManagerOperation.BackupProgress,
+            ["progress", "--cluster", protectionSet.ManagerCluster, taskReference],
             _options.OperationTimeout, cancellationToken).ConfigureAwait(false);
         var tags = SnapshotTagPattern().Matches(list.StandardOutput).Select(static match => match.Value)
             .Distinct(StringComparer.Ordinal).ToArray();
-        if (tags.Length == 0)
-            throw new InvalidDataException("Scylla Manager did not publish a snapshot tag for the completed backup.");
-        var snapshotTag = tags[^1];
+        if (tags.Length != 1)
+            throw new InvalidDataException("Scylla Manager did not publish one snapshot tag for the exact completed backup task.");
+        var snapshotTag = tags[0];
         var manifest = await ReadManifestAsync(protectionSet, snapshotTag, cancellationToken).ConfigureAwait(false);
         if (manifest.NodeCount != topology.LiveNodeCount)
             throw new InvalidDataException("The completed Scylla Manager snapshot does not cover every live topology node.");
@@ -107,13 +110,21 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
             Path.Combine(nativeDirectory, "manager-artifacts.txt"), cancellationToken).ConfigureAwait(false);
         var localSchema = await File.ReadAllTextAsync(
             Path.Combine(nativeDirectory, "schema.sha256"), cancellationToken).ConfigureAwait(false);
-        var succeeded = string.Equals(manifest.ManifestSha256, capture.NativeManifestSha256, StringComparison.Ordinal)
-            && string.Equals(manifest.SchemaSha256, capture.SchemaSha256, StringComparison.Ordinal)
+        // The verified portable snapshot can be imported into a different Manager bucket.
+        // Compare the complete object keys and metadata using the original bucket prefix;
+        // moving an unchanged object must not invalidate its captured manifest hash.
+        var originalUri = new Uri(capture.ArtifactReferences[0].Split('|')[0].Trim());
+        var remoteArtifacts = RebaseManifestArtifacts(manifest.Artifacts, protectionSet.BackupLocation, originalUri.Host);
+        var schemaArtifacts = remoteArtifacts.Where(static line => line.Contains("schema", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (schemaArtifacts.Length == 0) schemaArtifacts = remoteArtifacts;
+        var comparedManifestHash = Sha256(string.Join('\n', remoteArtifacts));
+        var succeeded = string.Equals(comparedManifestHash, capture.NativeManifestSha256, StringComparison.Ordinal)
+            && string.Equals(Sha256(string.Join('\n', schemaArtifacts)), capture.SchemaSha256, StringComparison.Ordinal)
             && string.Equals(Sha256(localArtifacts.Replace("\r\n", "\n", StringComparison.Ordinal)), capture.NativeManifestSha256, StringComparison.Ordinal)
             && string.Equals(localSchema, capture.SchemaSha256, StringComparison.Ordinal)
             && capture.Topology.SchemaAgreement
             && manifest.NodeCount == capture.Topology.LiveNodeCount;
-        return new ScyllaNativeVerification(succeeded, capture.Topology, manifest.ManifestSha256, 0, Stopwatch.GetElapsedTime(started));
+        return new ScyllaNativeVerification(succeeded, capture.Topology, comparedManifestHash, 0, Stopwatch.GetElapsedTime(started));
     }
 
     public async ValueTask<ScyllaNativeRestoreValidation> RestoreAsync(
@@ -127,8 +138,11 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         CancellationToken cancellationToken)
     {
         await EnsureValidatedAsync(cancellationToken).ConfigureAwait(false);
+        _freshTarget.Validate(source, target);
         Directory.CreateDirectory(restoreWorkspace);
+        await _freshTarget.PrepareAsync(source, target, restoreWorkspace, cancellationToken).ConfigureAwait(false);
         var started = Stopwatch.GetTimestamp();
+        var attempt = Guid.NewGuid().ToString("N")[..8];
         var common = new[]
         {
             "restore", "--cluster", target.ManagerCluster, "--location", source.BackupLocation,
@@ -136,18 +150,19 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         };
         progress.Report(new DatabaseNativeProgress(Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Transferring, 5));
         var schema = await RunAsync(ScyllaManagerOperation.RestoreSchema,
-            [.. common, "--restore-schema", "--name", "ifm-schema-" + operationId.Format()],
+            [.. common, "--restore-schema", "--name", "ifm-schema-" + operationId.Format() + "-" + attempt],
             _options.OperationTimeout, cancellationToken).ConfigureAwait(false);
         var schemaTask = TaskPattern().Match(schema.StandardOutput).Value;
-        if (string.IsNullOrEmpty(schemaTask)) schemaTask = "restore/ifm-schema-" + operationId.Format();
+        if (string.IsNullOrEmpty(schemaTask)) schemaTask = "restore/ifm-schema-" + operationId.Format() + "-" + attempt;
         await AwaitTaskAsync(target.ManagerCluster, schemaTask, progress, cancellationToken).ConfigureAwait(false);
+
         progress.Report(new DatabaseNativeProgress(Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseRecoveryPhase.Transferring, 45));
         var tables = await RunAsync(ScyllaManagerOperation.RestoreTables,
             [.. common, "--keyspace", string.Join(',', source.Keyspaces),
-                "--restore-tables", "--name", "ifm-tables-" + operationId.Format()],
+                "--restore-tables", "--name", "ifm-tables-" + operationId.Format() + "-" + attempt],
             _options.OperationTimeout, cancellationToken).ConfigureAwait(false);
         var tablesTask = TaskPattern().Match(tables.StandardOutput).Value;
-        if (string.IsNullOrEmpty(tablesTask)) tablesTask = "restore/ifm-tables-" + operationId.Format();
+        if (string.IsNullOrEmpty(tablesTask)) tablesTask = "restore/ifm-tables-" + operationId.Format() + "-" + attempt;
         await AwaitTaskAsync(target.ManagerCluster, tablesTask, progress, cancellationToken).ConfigureAwait(false);
         var topology = await ReadTopologyAsync(target.ManagerCluster, target.RequiredLiveNodes, cancellationToken)
             .ConfigureAwait(false);
@@ -204,7 +219,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
     }
 
     static string[] SplitTableRow(string value)
-        => value.Trim().Trim('│', '|').Split(['│', '|'], StringSplitOptions.TrimEntries);
+        => value.Trim().Trim('\u2502', '|').Split(['\u2502', '|'], StringSplitOptions.TrimEntries);
 
     async ValueTask AwaitTaskAsync(
         string cluster,
@@ -268,11 +283,31 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         CancellationToken cancellationToken)
         => _runner.RunAsync(new ScyllaManagerInvocation(operation, arguments, timeout), cancellationToken);
 
+    /// <summary>Rebases only the S3 bucket prefix for manifest comparison, preserving every object key and metadata field.</summary>
+    internal static string[] RebaseManifestArtifacts(string[] artifacts, string currentLocation, string originalBucket)
+    {
+        if (!currentLocation.StartsWith("s3:", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(originalBucket))
+            throw new InvalidDataException("Scylla manifest comparison requires explicit S3 bucket identities.");
+        var currentPrefix = "s3://" + currentLocation[3..] + "/";
+        var originalPrefix = "s3://" + originalBucket + "/";
+        return artifacts.Select(line => line.StartsWith(currentPrefix, StringComparison.Ordinal)
+                ? originalPrefix + line[currentPrefix.Length..]
+                : throw new InvalidDataException("A Scylla manifest object belongs to an unexpected bucket."))
+            .OrderBy(static line => line, StringComparer.Ordinal).ToArray();
+    }
     static (string Keyspace, string Table)? ParseUnit(string line)
     {
         var values = line.Split('|', StringSplitOptions.TrimEntries);
-        if (values.Length < 3 || string.IsNullOrWhiteSpace(values[^2]) || string.IsNullOrWhiteSpace(values[^1])) return null;
-        return (values[^2], values[^1]);
+        if (values.Length >= 3 && !string.IsNullOrWhiteSpace(values[^2]) && !string.IsNullOrWhiteSpace(values[^1]))
+            return (values[^2], values[^1]);
+        // Native sctool emits URI | keyspace/table-id, rather than three delimited columns.
+        if (values.Length != 2) return null;
+        var segments = values[0].Split('/');
+        var keyspace = Array.IndexOf(segments, "keyspace");
+        var table = Array.IndexOf(segments, "table");
+        return keyspace >= 0 && table > keyspace && table + 1 < segments.Length
+            && !string.IsNullOrWhiteSpace(segments[keyspace + 1]) && !string.IsNullOrWhiteSpace(segments[table + 1])
+            ? (segments[keyspace + 1], segments[table + 1]) : null;
     }
 
     static string? ParseNodeId(string line)
@@ -303,7 +338,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
     [GeneratedRegex(@"\bsm_\d{14}UTC\b", RegexOptions.CultureInvariant)]
     private static partial Regex SnapshotTagPattern();
 
-    [GeneratedRegex(@"(?:^|[│|+\s])UN(?:[│|+\s]|$)", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:^|[\u2502|+\s])UN(?:[\u2502|+\s]|$)", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
     private static partial Regex UpNodePattern();
 
     [GeneratedRegex(@"\b[0-9a-f]{8}-[0-9a-f-]{27}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

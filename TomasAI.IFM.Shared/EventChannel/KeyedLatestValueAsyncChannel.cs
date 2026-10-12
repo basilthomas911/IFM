@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Shared.EventChannel;
 public sealed class KeyedLatestValueAsyncChannel<TKey, TValue> : IAsyncDisposable
     where TKey : notnull
 {
-    readonly object _gate = new();
+    readonly System.Threading.Lock _gate = new();
     readonly Dictionary<TKey, LatestValueAsyncChannel<TValue>> _channels = [];
     readonly Func<TKey, TValue, CancellationToken, ValueTask> _reader;
     readonly Action<TKey, LatestValueChannelMetrics>? _metricsChanged;
@@ -25,8 +25,7 @@ public sealed class KeyedLatestValueAsyncChannel<TKey, TValue> : IAsyncDisposabl
         Action<TKey, LatestValueChannelMetrics>? metricsChanged = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
-        if (minimumInterval < TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(minimumInterval));
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumInterval, TimeSpan.Zero);
         _reader = reader;
         _minimumInterval = minimumInterval;
         _timeProvider = timeProvider ?? TimeProvider.System;

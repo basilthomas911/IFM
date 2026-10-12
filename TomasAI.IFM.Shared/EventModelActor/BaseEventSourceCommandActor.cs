@@ -30,7 +30,6 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     string _serviceId = string.Empty;
 
     ICommandAuditLogger? _commandAuditLogger;
-    IActorSupervisor _supervisor;
     IActorProducer? _startedProducer;
     int _lifecycle;
 
@@ -63,6 +62,8 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     public async ValueTask StartAsync(IActorSupervisor supervisor)
         => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(supervisor);
@@ -72,7 +73,6 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         IActorProducer? producer = null;
         try
         {
-            _supervisor = supervisor;
             Mailbox = supervisor.CreateMailbox(_actorId);
             producer = supervisor.GetProducer(_actorId);
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
@@ -104,7 +104,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         ActorFailureStage.Cleanup, cleanupException,
                         primaryFailureId == Guid.Empty ? null : primaryFailureId,
                         ActorMessageOutcomeType.HandledFailure);
-                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                    SharedActorDiagnosticLog.Write49(_logger, cleanupException, _actorId);
                 }
             }
             Volatile.Write(ref _lifecycle, 0);
@@ -159,7 +159,11 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
     public virtual ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+    }
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -170,11 +174,17 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     public virtual async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1121", Justification = "This standalone C# conditional property assignment preserves the null-state behavior and does not embed an assignment in another expression.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S907", Justification = "This jump shares the one terminal reply/cleanup path after an already-completed command without reexecuting or persisting it.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public virtual async ValueTask HandleMessageAsync(
         IActorMessage message,
         ActorThreadId threadId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(message);
         var operationStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         ICommand command = default!;
         int errorCode = 9998;
@@ -233,7 +243,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
                 // Opt-in immutable aggregates can verify duplicate payloads against committed
                 // state and resume a reservation whose first execution never committed.
-                if (!accepted && command is not ICommandRetryIdentity && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken))
+                if (!accepted && command is not ICommandRetryIdentity && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken).ConfigureAwait(false))
                 {
                     ActorRuntimeMetrics.DuplicateCommands.Add(1);
                     result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
@@ -257,9 +267,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         try
                         {
                             if (cancellationToken.CanBeCanceled)
-                                await OnValidateAsync(_context!, threadId, command, cancellationToken);
+                                await OnValidateAsync(_context!, threadId, command, cancellationToken).ConfigureAwait(false);
                             else
-                                await OnValidateAsync(_context!, threadId, command);
+                                await OnValidateAsync(_context!, threadId, command).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -274,8 +284,8 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         try
                         {
                             state = cancellationToken.CanBeCanceled
-                                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
-                                : await OnLoadStateAsync(_context!, threadId, command);
+                                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken).ConfigureAwait(false)
+                                : await OnLoadStateAsync(_context!, threadId, command).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -290,8 +300,8 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         try
                         {
                             result = cancellationToken.CanBeCanceled
-                                ? await ReceiveAsync(_context!, state!, command, cancellationToken)
-                                : await ReceiveAsync(_context!, state!, command);
+                                ? await ReceiveAsync(_context!, state!, command, cancellationToken).ConfigureAwait(false)
+                                : await ReceiveAsync(_context!, state!, command).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -304,9 +314,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                         try
                         {
                             if (cancellationToken.CanBeCanceled)
-                                await OnSaveStateAsync(_context!, threadId, state!, command, cancellationToken);
+                                await OnSaveStateAsync(_context!, threadId, state!, command, cancellationToken).ConfigureAwait(false);
                             else
-                                await OnSaveStateAsync(_context!, threadId, state!, command);
+                                await OnSaveStateAsync(_context!, threadId, state!, command).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -341,9 +351,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
                     exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(exceptionHandlerFailure,
-                    "Command exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
-                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                SharedActorDiagnosticLog.Write48(_logger, exceptionHandlerFailure, Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
                 result = new ServiceFailed<GuidResult>(
                     errorCode,
                     $"{Id.Name} command failed during {activeStage}: {ex.Message}");
@@ -360,8 +368,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, message.Subject.Verb, ActorFailureStage.Cleanup, cleanupFailure,
                     primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(cleanupFailure,
-                    "Command cleanup failed for {ActorId} {ThreadId}.", Id, threadId);
+                SharedActorDiagnosticLog.Write47(_logger, cleanupFailure, Id, threadId);
             }
         }
 
@@ -382,7 +389,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         var replyStarted = ActorRuntimeMetrics.StartStage();
         try
         {
-            await message.ReplyAsync(result);
+            await message.ReplyAsync(result).ConfigureAwait(false);
         }
         catch (Exception replyFailure)
         {
@@ -500,7 +507,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// Runtime command ingress uses <see cref="IActorMessage"/> directly.
     /// </summary>
     protected ICommand ParseMessage(ICommandActorContext<TActor> context, in NatsMsg<byte[]> message)
-        => ParseMessage(context, new LegacyNatsActorMessage(message));
+    {
+        using var adapter = new LegacyNatsActorMessage(message);
+        return ParseMessage(context, adapter);
+    }
     /// <summary>Releases per-command resources on success, failure or cancellation. Existing actors require no action.</summary>
     protected virtual ValueTask OnCommandFinishedAsync(ICommandActorContext<TActor> context, ICommand? command)
         => ValueTask.CompletedTask;
@@ -581,14 +591,17 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <param name="ex">The exception that caused the command to fail. The exception's message and details are included in the error
     /// event.</param>
     /// <returns>An instance of <typeparamref name="TFailedEvent"/> containing error information and relevant command context.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
     protected TFailedEvent GetCommandFailedEvent<TFailedEvent, TEntityId>(ICommand<TEntityId> command, string actor, string verb, Exception ex)
         where TEntityId : IActorEntityId
         where TFailedEvent : IErrorEvent<TEntityId>, new()
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
         string aggregateId = string.Empty;
-        try { aggregateId = command.StreamId; } catch { }
+        try { aggregateId = command.StreamId; } catch { /* Optional failure metadata/notification must not mask the original error. */  }
         string commandData = string.Empty;
-        try { commandData = JsonConvert.SerializeObject(command, Formatting.Indented); } catch { }
+        try { commandData = JsonConvert.SerializeObject(command, Formatting.Indented); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
 
         var e = new TFailedEvent
         {
@@ -616,7 +629,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     /// <returns>A <see cref="ServiceFailed{GuidResult}"/> instance representing the failed command, including error information
     /// derived from the provided exception.</returns>
     protected ServiceFailed<GuidResult> CommandFailed(Exception ex, ICommand? cmd = default!)
-        => new(new Events.CommandExceptionEvent
+        
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new(new Events.CommandExceptionEvent
         {
             CommandId = cmd is null ? Guid.NewGuid() : cmd.CommandId,
             EntityId = ActorEntityId.Default,
@@ -624,4 +640,5 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             ErrorType = ErrorType.Command,
             ErrorCode = cmd?.ErrorCode ?? 0
         });
+    }
 }

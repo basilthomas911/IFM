@@ -13,29 +13,12 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesItiSignalCommandActor"/>.</summary>
-public interface IFuturesItiSignalCommandContext : ICommandActorContext<FuturesItiSignalCommandActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbEventSource service supplied to the actor context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the EventProjector service supplied to the actor context.</summary>
-    IEventProjector<FuturesItiSignalCommandActor> EventProjector { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesItiSignalCommandActor> Logger { get; }
-    /// <summary>Gets bounded Futures ITI runtime telemetry.</summary>
-    FuturesItiSignalRuntimeTelemetry Telemetry { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesItiSignalCommandActor"/>.</summary>
-public sealed class FuturesItiSignalCommandContext : CommandActorContext, ICommandActorContext<FuturesItiSignalCommandActor>, IFuturesItiSignalCommandContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesItiSignalCommandContext : CommandActorContext, IFuturesItiSignalCommandContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesItiSignalCommandContext(

@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 internal sealed class SafeContractDetailsResultHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     /// <summary>Initializes a new SafeContractDetailsResultHandle instance.</summary>
-    private SafeContractDetailsResultHandle()
+    public SafeContractDetailsResultHandle()
         : base(ownsHandle: true)
     {
     }

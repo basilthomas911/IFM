@@ -5,23 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation;
 
-/// <summary>Result of one baseline actor-thread saturation evaluation.</summary>
-public sealed record SupervisorActorThreadHealthEvaluation(
-    ActorThreadId ThreadId,
-    SupervisorActorHealth Health,
-    TimeSpan ContinuousLimitDuration,
-    bool LogWarning,
-    bool RestartRequired,
-    bool Recovered,
-    SupervisorMailboxPressureState PressureState = SupervisorMailboxPressureState.Normal,
-    bool NoProgressWarning = false,
-    bool HandlerDurationWarning = false);
-
-/// <summary>One immutable entity-mailbox observation used by the baseline health policy.</summary>
-public readonly record struct SupervisorActorThreadHealthObservation(
-    int Depth, int Capacity, long Rejected, long Dequeued, long Completed, bool IsProcessing,
-    TimeSpan ProcessingDuration, long Generation, bool IsAdmissionOpen = true);
-
 /// <summary>
 /// Tracks continuous actor-thread limit incidents using monotonic time. Warnings are emitted immediately and no more
 /// than once per minute; degradation begins after five minutes and restart is requested after fifteen minutes.
@@ -46,6 +29,7 @@ public sealed class SupervisorActorThreadHealthEvaluator
             isAtLimit ? 1 : 0, 1, isAtLimit ? 1 : 0, 0, 0, false, TimeSpan.Zero, 1));
 
     /// <summary>Evaluates saturation, progress, handler duration, recovery hysteresis, and generation changes.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "The bounded actor observation and its health classification are calculated from one consistent snapshot.")]
     public SupervisorActorThreadHealthEvaluation Evaluate(
         ActorThreadId threadId,
         SupervisorActorThreadHealthObservation observation)
@@ -94,20 +78,21 @@ public sealed class SupervisorActorThreadHealthEvaluator
                 && Elapsed(state.LastProgressTimestamp, now) >= _policy.NoProgressAfter;
             var longHandler = observation.IsProcessing && observation.ProcessingDuration >= _policy.HandlerWarningAfter;
             var restart = observation.IsAdmissionOpen && state.FirstLimitTimestamp != 0 && duration >= _policy.RestartRequiredAfter;
-            var pressure = restart ? SupervisorMailboxPressureState.Restarting
-                : state.FirstLimitTimestamp != 0 && duration >= _policy.DegradedAfter ? SupervisorMailboxPressureState.Degraded
-                : atLimit ? SupervisorMailboxPressureState.AtLimit
-                : utilization >= _policy.CriticalUtilization ? ConfirmPressure(state, now, true)
-                : utilization >= _policy.ElevatedUtilization ? ConfirmPressure(state, now, false)
-                : state.RecoveringSince != 0 ? SupervisorMailboxPressureState.Recovering
-                : SupervisorMailboxPressureState.Normal;
+            SupervisorMailboxPressureState pressure;
+            if (restart) pressure = SupervisorMailboxPressureState.Restarting;
+            else if (state.FirstLimitTimestamp != 0 && duration >= _policy.DegradedAfter) pressure = SupervisorMailboxPressureState.Degraded;
+            else if (atLimit) pressure = SupervisorMailboxPressureState.AtLimit;
+            else if (utilization >= _policy.CriticalUtilization) pressure = ConfirmPressure(state, now, true);
+            else if (utilization >= _policy.ElevatedUtilization) pressure = ConfirmPressure(state, now, false);
+            else if (state.RecoveringSince != 0) pressure = SupervisorMailboxPressureState.Recovering;
+            else pressure = SupervisorMailboxPressureState.Normal;
             var recovered = state.RecoveringSince != 0
                 && utilization < _policy.ElevatedUtilization && !rejection
                 && Elapsed(state.RecoveringSince, now) >= _policy.HealthRecoveryAfter;
             if (recovered) state.ResetHealthy(observation.Generation, now);
-            state.Health = restart ? SupervisorActorHealth.Critical
-                : pressure == SupervisorMailboxPressureState.Degraded || noProgress ? SupervisorActorHealth.Degraded
-                : SupervisorActorHealth.Healthy;
+            if (restart) state.Health = SupervisorActorHealth.Critical;
+            else if (pressure == SupervisorMailboxPressureState.Degraded || noProgress) state.Health = SupervisorActorHealth.Degraded;
+            else state.Health = SupervisorActorHealth.Healthy;
             return new(threadId, state.Health, duration, warning, restart, recovered,
                 recovered ? SupervisorMailboxPressureState.Normal : pressure, noProgress, longHandler);
         }

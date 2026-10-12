@@ -1,5 +1,3 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
@@ -8,10 +6,8 @@ using System.Text;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
@@ -20,7 +16,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
@@ -40,6 +35,7 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
         var futuresEodData = default(FuturesEodDataV2ReadModel);
         if (TomasAI.IFM.Domain.MarketData.Feed.Shared.CurrentFuturesEodCache.Shared.TryGet(contractId, valueDate, out var current)) return current;
         var entityId = new GetLastFuturesEodDataParameter(contractId, valueDate);
@@ -49,7 +45,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetLastFuturesEodDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresEodData = serviceResult.Value;
         return futuresEodData;
@@ -67,6 +63,7 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
         var rsiSignal = default(FuturesRsiSignalReadModel);
         var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
         GetFuturesRsiSignalQuery query = new(contractId, valueDate, timePeriod, periodLength)
@@ -75,7 +72,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesRsiSignalQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             rsiSignal = serviceResult.Value;
         return rsiSignal;
@@ -98,6 +95,7 @@ public static class FuturesItiSignalEventExtensions
         TimeFrameType timePeriod)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
         var tdiSignal = default(FuturesTdiSignalReadModel);
         var entityId = new FuturesTdiSignalEntityId(
             contractId,
@@ -114,7 +112,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesTdiSignalQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             tdiSignal = serviceResult.Value;
         return tdiSignal;
@@ -133,6 +131,7 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
         var itiSignalData = default(FuturesItiSignalDataReadModel);
         var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
         GetFuturesItiSignalDataQuery query = new(contractId, valueDate, timePeriod)
@@ -141,7 +140,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesItiSignalDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             itiSignalData = serviceResult.Value;
         return itiSignalData;
@@ -159,6 +158,7 @@ public static class FuturesItiSignalEventExtensions
     /// or null if no data is found.</returns>
     public static async ValueTask<FuturesItiSignalV2ReadModel?> GetFuturesItiSignalAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var itiSignal = default(FuturesItiSignalV2ReadModel);
         var entityId = new GetFuturesItiSignalParameter(contractId, valueDate, timePeriod);
         GetFuturesItiSignalQuery query = new(contractId, valueDate, timePeriod)
@@ -167,7 +167,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesItiSignalQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             itiSignal = serviceResult.Value;
         return itiSignal;
@@ -186,6 +186,7 @@ public static class FuturesItiSignalEventExtensions
     /// or null if no data is found.</returns>
     public static async ValueTask<FuturesItiSignalMDIV2ReadModel[]?> GetFuturesItiSignalMDIByTrendAsync(this IEventActorContext context, string contractId, DateOnly valueDate, int groupId)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var mdiByTrend = default(FuturesItiSignalMDIV2ReadModel[]);
         var entityId = new GetFuturesItiSignalMDIByTrendParameter(contractId, valueDate, groupId);
         GetFuturesItiSignalMDIByTrendQuery query = new(contractId, valueDate, groupId)
@@ -194,7 +195,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesItiSignalMDIByTrendQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesItiSignalMDIV2ReadModel[], GetFuturesItiSignalMDIByTrendQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesItiSignalMDIV2ReadModel[], GetFuturesItiSignalMDIByTrendQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             mdiByTrend = serviceResult.Value;
         return mdiByTrend;
@@ -211,6 +212,7 @@ public static class FuturesItiSignalEventExtensions
     /// or null if no data is found.</returns>
     public static async ValueTask<string?> GetFuturesContractSymbolAsync(this IEventActorContext context, string contractId)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var symbol = default(string);
         var entityId = new GetFuturesContractSymbolParameter(contractId);
         GetFuturesContractSymbolQuery query = new(contractId)
@@ -219,7 +221,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetFuturesContractSymbolQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<string, GetFuturesContractSymbolQuery>(query);
+        var serviceResult = await (context.RequestAsync<string, GetFuturesContractSymbolQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             symbol = serviceResult.Value;
         return symbol;
@@ -253,13 +255,13 @@ public static class FuturesItiSignalEventExtensions
         TimeFrameType timePeriod)
         where TActor : IActor
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
+        _ = await (MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
             futuresEodData,
             futuresRsiSignal,
             futuresTdiSignal,
             futuresItiSignalData,
             vixFuturesPrice,
-            timePeriod);
+            timePeriod)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -284,13 +286,13 @@ public static class FuturesItiSignalEventExtensions
         double futuresPrice,
         double vixFuturesPrice)
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(commandApi,
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(commandApi,
             contractId,
             valueDate,
             timePeriod,
             timestamp,
             futuresPrice,
-            vixFuturesPrice);
+            vixFuturesPrice)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -304,13 +306,14 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<decimal> GetVixFuturesEodDataClosePriceAsync<TActor>(this IEventActorContext<TActor> context, DateOnly valueDate)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
         var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await context.GetRolloverFuturesContractsAsync("VX");
+        var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
         if (futuresContracts is not null)
         {
-            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.OnTheRun)?.ContractId;
+            var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol,"VX",StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
             if (vixContractId is not null)
-                vixFuturesEodData = await context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate);
+                vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
         }
         return vixFuturesEodData?.ClosePrice ?? 0m;
     }
@@ -327,13 +330,14 @@ public static class FuturesItiSignalEventExtensions
     /// the end-of-day data for the specified date, or null if no data is available.</returns>
     public static async ValueTask<VixFuturesEodDataReadModel> GetVixFuturesEodDataAsync(this IEventActorContext context, DateOnly valueDate)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await context.GetRolloverFuturesContractsAsync("VX");
+        var futuresContracts = await (context.GetRolloverFuturesContractsAsync("VX")).ConfigureAwait(false);
         if (futuresContracts is not null)
         {
-            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.OnTheRun)?.ContractId;
+            var vixContractId = futuresContracts.FirstOrDefault(x => string.Equals(x.Symbol,"VX",StringComparison.Ordinal) && x.OnTheRun)?.ContractId;
             if (vixContractId is not null)
-                vixFuturesEodData = await context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate);
+                vixFuturesEodData = await (context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate)).ConfigureAwait(false);
         }
         return vixFuturesEodData!;
     }
@@ -351,12 +355,12 @@ public static class FuturesItiSignalEventExtensions
     public static async Task<FuturesItiMDIDistributionReadModel?> GetFuturesItiMDIDistributionAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
         var intrinsicTimeGroupId = 0;
-        var itiSignal = await context.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod);
+        var itiSignal = await (context.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod)).ConfigureAwait(false);
         if (itiSignal is not null)
             intrinsicTimeGroupId = itiSignal.IntrinsicTimeGroupId;
 
         FuturesItiMDIDistributionReadModel mdiDistribution = default!;
-        var mdiByTrend = await context.GetFuturesItiSignalMDIByTrendAsync(contractId, valueDate, intrinsicTimeGroupId);
+        var mdiByTrend = await (context.GetFuturesItiSignalMDIByTrendAsync(contractId, valueDate, intrinsicTimeGroupId)).ConfigureAwait(false);
         if (mdiByTrend is not null)
             mdiDistribution = new FuturesItiMDIDistributionReadModel(mdiByTrend);
         return mdiDistribution;
@@ -383,7 +387,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetRolloverFuturesContractsQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresContracts = serviceResult.Value;
         return futuresContracts;
@@ -410,7 +414,7 @@ public static class FuturesItiSignalEventExtensions
             EntityId = entityId,
             ErrorCode = GetLastVixFuturesEodDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             vixFuturesEodData = serviceResult.Value;
         return vixFuturesEodData;

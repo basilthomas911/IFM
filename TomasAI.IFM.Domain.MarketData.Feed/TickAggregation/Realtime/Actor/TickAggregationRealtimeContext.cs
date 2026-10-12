@@ -10,19 +10,9 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="TickAggregationRealtimeActor"/>.</summary>
-public interface ITickAggregationRealtimeContext : IRealtimeActorContext<TickAggregationRealtimeActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<TickAggregationRealtimeActor> Logger { get; }
-    /// <summary>Gets the Projector service.</summary>
-    IRealtimeProjector<TickAggregationRealtimeActor> Projector { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="TickAggregationRealtimeActor"/>.</summary>
-public sealed class TickAggregationRealtimeContext : EventActorContext, IRealtimeActorContext<TickAggregationRealtimeActor>, ITickAggregationRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class TickAggregationRealtimeContext : EventActorContext, ITickAggregationRealtimeContext
 {
     /// <summary>Initializes the typed realtime context.</summary>
     public TickAggregationRealtimeContext(

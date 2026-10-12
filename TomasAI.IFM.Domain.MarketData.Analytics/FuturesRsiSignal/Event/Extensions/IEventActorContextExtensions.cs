@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
@@ -31,11 +30,11 @@ internal static class IEventActorContextExtensions
         long sourceSequence = 0,
         DateTime sourceEventTimestamp = default)
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesRsiSignalAsync(commandApi,
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesRsiSignalAsync(commandApi,
             futuresRsiSignalId,
             futuresPrice,
             sourceSequence,
-            sourceEventTimestamp);
+            sourceEventTimestamp)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -55,12 +54,12 @@ internal static class IEventActorContextExtensions
         Guid? commandId = null)
         where TActor : IActor
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi,
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi,
             futuresTdiSignalId,
             futuresRsiSignals,
             timePeriod,
             configuration,
-            commandId);
+            commandId)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -75,7 +74,7 @@ internal static class IEventActorContextExtensions
     public static async ValueTask GenerateFuturesMacdSignalAsync(
         this IEventActorContext commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice);
+        _ = await (MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice)).ConfigureAwait(false);
     }
 
 
@@ -98,7 +97,7 @@ internal static class IEventActorContextExtensions
             EntityId = entityId,
             ErrorCode = GetLastFuturesEodDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresEodData = serviceResult.Value;
         return futuresEodData;

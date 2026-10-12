@@ -24,5 +24,5 @@ public record OrderId(
     /// Formats the identifier as a dot-separated key.
     /// </summary>
     /// <returns>Formatted string (e.g., "12345").</returns>
-    public string Format() => Id.ToString();
+    public string Format() => Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
 }

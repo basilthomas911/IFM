@@ -78,26 +78,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
             FilledOn = FilledOn,
             FilledBy = FilledBy
         }.RoutedFrom(this);
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradeOrderFilledFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradeOrderFilledFailEvent
         {
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         }.RoutedFrom(this);
-    }
-
-
-    public record TradeOrderFilledCompleteEvent : CompleteEvent
-    {
-        public TradeOrderEntityId TradeOrderId { get; init; }
-        public TradeFillReadModel TradeFill { get; init; }
-        public TradeOrderState TradeOrderState { get; init; }
-        public DateTime FilledOn { get; init; }
-        public string FilledBy { get; init; }
-    }
-
-    public record TradeOrderFilledFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

@@ -16,12 +16,10 @@ public sealed record ProjectionExecutionContext
         long streamVersion = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-        if (eventId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(eventId));
-        if (eventStreamId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(eventStreamId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(eventStreamId);
         ArgumentNullException.ThrowIfNull(effectIdentity);
-        if (effectIdentity.ProjectorName != projectorName || effectIdentity.EventId != eventId)
+        if (!string.Equals(effectIdentity.ProjectorName, projectorName, StringComparison.Ordinal) || effectIdentity.EventId != eventId)
             throw new ArgumentException("The effect identity must belong to this projector execution.", nameof(effectIdentity));
         if (executionToken == Guid.Empty)
             throw new ArgumentException("The execution token cannot be empty.", nameof(executionToken));

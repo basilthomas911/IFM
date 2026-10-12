@@ -12,13 +12,13 @@ public sealed record RecordScheduledTaskRunUncertainCommand : ICommand<Scheduled
 {
     public const string Actor = "ScheduledTaskRunCommand";
     public const string Verb = "RecordScheduledTaskRunUncertain";
-    [Key(0)] public Guid CommandId { get; init; } = default;
+    [Key(0)] public Guid CommandId { get; init; } = Guid.Empty;
     [Key(1)] public ActorSubject Subject { get; init; } = default!;
     [Key(2)] public ScheduledTaskId EntityId { get; init; } = default;
     [Key(3)] public long ExpectedRevision { get; init; } = 0;
     [Key(4)] public string Operator { get; init; } = "";
     [Key(5)] public string Reason { get; init; } = "";
-    [Key(6)] public Guid OperationCommandId { get; init; } = default;
+    [Key(6)] public Guid OperationCommandId { get; init; } = Guid.Empty;
     [Key(7)] public DateTimeOffset FinishedAtUtc { get; init; } = default;
     [Key(8)] public string Detail { get; init; } = "";
     [Key(9)] public string StandardOutputTail { get; init; } = "";

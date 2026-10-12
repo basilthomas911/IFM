@@ -10,8 +10,11 @@ public static class CapacityExpiryModel
 {
     public static ChangeCapacityReservationCommand Create(CapacityExpiryCandidate candidate, DateTime now)
     {
-        if (now.Kind != DateTimeKind.Utc || candidate.ExpiredAtUtc > now || candidate.Units <= 0 || candidate.ReservationVersion <= 0)
-            throw new ArgumentException("Only expired unconsumed capacity is eligible for maintenance.");
+        ArgumentNullException.ThrowIfNull(candidate);
+        if (now.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Only expired unconsumed capacity is eligible for maintenance.", nameof(now));
+        if (candidate.ExpiredAtUtc > now || candidate.Units <= 0 || candidate.ReservationVersion <= 0)
+            throw new ArgumentException("Only expired unconsumed capacity is eligible for maintenance.", nameof(candidate));
         var operation = Guid.NewGuid(); var id = new CapacityReservationEntityId(candidate.PortfolioId, candidate.ReservationId);
         var source = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"CapacityExpiry:{candidate.ReservationId:N}:{candidate.ReservationVersion}")).AsSpan(0, 16));
         var request = new ChangeCapacityReservationCommand

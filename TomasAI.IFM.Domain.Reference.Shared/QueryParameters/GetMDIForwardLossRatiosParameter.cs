@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.QueryParameters;
 /// </summary>
 /// <remarks>Use this type to specify the trend direction and trade type when requesting MDI forward loss ratios.
 /// This record is typically used as a data transfer object in service or actor-based APIs.</remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the existing message and domain type names used in stored type identities.")]
 [MessagePackObject(false)]
 public record GetMDIForwardLossRatiosParameter : IActorEntityId, IQueryParameter
 {

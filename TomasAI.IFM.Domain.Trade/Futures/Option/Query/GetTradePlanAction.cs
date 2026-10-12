@@ -4,17 +4,14 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Query;
-
 public static class GetTradePlanAction
 {
     /// <summary>Returns the empty compatibility result for the retired legacy trade-plan projection.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetTradePlanActionQuery query,
-        IFuturesOptionTradeQueryContext context,
-        CancellationToken cancellationToken)
+    public static async ValueTask ExecuteAsync(this GetTradePlanActionQuery query, IFuturesOptionTradeQueryContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<TradePlanActionReadModel[]>([])).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<TradePlanActionReadModel[]>([])).ConfigureAwait(false);
     }
 }

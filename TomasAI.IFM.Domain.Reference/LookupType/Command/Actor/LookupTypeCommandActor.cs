@@ -48,10 +48,18 @@ public class LookupTypeCommandActor(
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<LookupTypeCommandActor> context)
-        => await StartProjectorAsync(context, CancellationToken.None).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        await StartProjectorAsync(context, CancellationToken.None).ConfigureAwait(false);
+    }
 
     protected override async ValueTask OnStartup(ICommandActorContext<LookupTypeCommandActor> context, CancellationToken cancellationToken)
-        => await StartProjectorAsync(context, cancellationToken).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        await StartProjectorAsync(context, cancellationToken).ConfigureAwait(false);
+    }
 
     async ValueTask StartProjectorAsync(ICommandActorContext<LookupTypeCommandActor> context, CancellationToken cancellationToken)
     {
@@ -99,7 +107,7 @@ public class LookupTypeCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [AddLookupTypeCommand.Verb] = msg => msg.AsCommand<AddLookupTypeCommand>()!,
         [ChangeLookupTypeCommand.Verb] = msg => msg.AsCommand<ChangeLookupTypeCommand>()!,
@@ -116,14 +124,14 @@ public class LookupTypeCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LookupTypeCommandActor> context, IActorState state, ICommand cmd)
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LookupTypeCommandActor> context, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var lookupTypeState = IsArgumentNull.Set((state as LookupTypeCommandState)!);
-        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, lookupTypeState));
+        var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receiveFunc.Invoke(command, context, lookupTypeState));
     }
 
     /// <summary>
@@ -152,16 +160,16 @@ public class LookupTypeCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override ValueTask OnValidateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand cmd)
-        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand command)
+        => OnValidateAsync(context, threadId, command, CancellationToken.None);
 
-    protected override ValueTask OnValidateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+    protected override ValueTask OnValidateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -218,35 +226,12 @@ public class LookupTypeCommandActor(
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
-    }
-
-    /// <summary>
-    /// Asynchronously saves the current state of the lookup type actor in response to a command.
-    /// </summary>
-    /// <remarks>This method overrides the base implementation to persist the state specific to lookup type
-    /// actors. The state must be of type <see cref="LookupTypeCommandState"/>; otherwise, an exception will be
-    /// thrown. All parameters are required and must not be null.</remarks>
-    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
-    /// null.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
-    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
-    /// cref="LookupTypeCommandState"/>.</param>
-    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var lookupTypeState = IsArgumentNull.Set((state as LookupTypeCommandState)!);
-        await _repo.SaveStateAsync(context, lookupTypeState, cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -265,14 +250,38 @@ public class LookupTypeCommandActor(
     /// <param name="ex">The exception that was thrown during command processing. Determines the type of error event to generate.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure. The result
     /// reflects the nature of the exception and the associated command context.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (LookupTypeCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Asynchronously saves the current state of the lookup type actor in response to a command.
+    /// </summary>
+    /// <remarks>This method overrides the base implementation to persist the state specific to lookup type
+    /// actors. The state must be of type <see cref="LookupTypeCommandState"/>; otherwise, an exception will be
+    /// thrown. All parameters are required and must not be null.</remarks>
+    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
+    /// null.</param>
+    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
+    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
+    /// cref="LookupTypeCommandState"/>.</param>
+    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(command);
+        var lookupTypeState = IsArgumentNull.Set((state as LookupTypeCommandState)!);
+        await (_repo.SaveStateAsync(context, lookupTypeState, command)).ConfigureAwait(false);
+    }
 
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (LookupTypeCommandState)state, command, cancellationToken).ConfigureAwait(false);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<LookupTypeCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
@@ -281,31 +290,31 @@ public class LookupTypeCommandActor(
             IErrorEvent<LookupTypeId> errorEvent = ex switch
             {
                 AddLookupTypeException
-                    => await ex.SendErrorEventAsync<LookupTypeAddedFailEvent, LookupTypeId>(
-                        context, (command as AddLookupTypeCommand)!, LookupTypeAddedFailEvent.Actor, LookupTypeAddedFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<LookupTypeAddedFailEvent, LookupTypeId>(
+                        context, (command as AddLookupTypeCommand)!, LookupTypeAddedFailEvent.Actor, LookupTypeAddedFailEvent.Verb)).ConfigureAwait(false),
                 ChangeLookupTypeException
-                    => await ex.SendErrorEventAsync<LookupTypeChangedFailEvent, LookupTypeId>(
-                        context, (command as ChangeLookupTypeCommand)!, LookupTypeChangedFailEvent.Actor, LookupTypeChangedFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<LookupTypeChangedFailEvent, LookupTypeId>(
+                        context, (command as ChangeLookupTypeCommand)!, LookupTypeChangedFailEvent.Actor, LookupTypeChangedFailEvent.Verb)).ConfigureAwait(false),
                 RemoveLookupTypeException
-                    => await ex.SendErrorEventAsync<LookupTypeRemovedFailEvent, LookupTypeId>(
-                        context, (command as RemoveLookupTypeCommand)!, LookupTypeRemovedFailEvent.Actor, LookupTypeRemovedFailEvent.Verb),
+                    => await (ex.SendErrorEventAsync<LookupTypeRemovedFailEvent, LookupTypeId>(
+                        context, (command as RemoveLookupTypeCommand)!, LookupTypeRemovedFailEvent.Actor, LookupTypeRemovedFailEvent.Verb)).ConfigureAwait(false),
                 _ => default!
             };
             if (errorEvent is null)
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             return CommandFailed(ex);
         }
         catch (Exception innerEx)
         {
-            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.Reference.ActorLifecycleDiagnosticLog.Write1(_logger, innerEx, Actor, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
-                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
+                    ErrorType.Command, context, command, ActorEntityId.Default, Actor, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

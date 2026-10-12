@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared;
 
@@ -23,16 +23,16 @@ public class FuturesContractIdParser
     public FuturesContractIdParser(string contractId)
     {
         if (string.IsNullOrWhiteSpace(contractId))
-            throw new ArgumentException("FuturesContractId: contractId is empty");
+            throw new ArgumentException("FuturesContractId: contractId is empty", nameof(contractId));
         if (contractId.Length < 9)
             throw new InvalidOperationException($"FuturesContractId: '{contractId}' length is less than 9");
         try
         {
             ContractId = contractId;
             var dateStart = contractId.Length - 8;
-            var year = Convert.ToInt32(contractId.Substring(dateStart, 4));
-            var month = Convert.ToInt32(contractId.Substring(dateStart + 4, 2));
-            var day = Convert.ToInt32(contractId.Substring(dateStart + 6, 2));
+            var year = int.Parse(contractId.AsSpan(dateStart, 4), System.Globalization.CultureInfo.InvariantCulture);
+            var month = int.Parse(contractId.AsSpan(dateStart + 4, 2), System.Globalization.CultureInfo.InvariantCulture);
+            var day = int.Parse(contractId.AsSpan(dateStart + 6, 2), System.Globalization.CultureInfo.InvariantCulture);
             MaturityDate = new DateOnly(year, month, day);
             Symbol = contractId[..dateStart];
         }

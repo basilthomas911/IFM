@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -25,6 +27,7 @@ public sealed class MarketOutlookSnapshotEventProjector
 {
     readonly IDbContextFactory dbFactory;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
+    readonly IReadOnlyCollection<Type> projectedEventTypes;
 
     public MarketOutlookSnapshotEventProjector(
         IDbContextFactory dbFactory,
@@ -32,13 +35,14 @@ public sealed class MarketOutlookSnapshotEventProjector
         IEventSourceActorDbContext eventSource,
         IBlackboardService blackboard,
         ILogger<MarketOutlookSnapshotEventProjector> logger,
-        EventProjectorReliabilityOptions? reliabilityOptions = null)
+        EventProjectorReliabilityOptions? reliabilityOptions = null,
+        IPostgresEventTransaction? transactions = null)
         : base(durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
     {
         this.dbFactory = dbFactory;
         descriptors =
         [
-            new(
+            new EventProjectionDescriptor(
             typeof(MarketOutlookSnapshotInsertedEvent),
             EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             ApplyAndPublishAsync,
@@ -47,12 +51,13 @@ public sealed class MarketOutlookSnapshotEventProjector
             publishProcessingEvent: false,
             useDurableReplay: false,
             publishTerminalEvent: false)
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token))
         ];
+        projectedEventTypes = Array.AsReadOnly(descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray());
     }
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
+    public override IReadOnlyCollection<Type> ProjectedEventTypes => projectedEventTypes;
     public override string ActorName => nameof(MarketOutlookSnapshotCommandActor);
     public override string ProjectorName => nameof(MarketOutlookSnapshotEventProjector);
     public override string DurableProcessQueueName => $"{ActorName}.{ProjectorName}.ProcessQueue";
@@ -73,7 +78,7 @@ public sealed class MarketOutlookSnapshotEventProjector
         IMarketDataDbContext marketDataDb,
         ICommandActorContext actorContext)
     {
-        await marketDataDb.UpsertMarketOutlookSnapshotAsync(
+        if (!string.Equals(marketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await marketDataDb.UpsertMarketOutlookSnapshotAsync(
             inserted.MarketOutlook, execution.EventId, execution.CancellationToken)
             .ConfigureAwait(false);
         var realtime = inserted with

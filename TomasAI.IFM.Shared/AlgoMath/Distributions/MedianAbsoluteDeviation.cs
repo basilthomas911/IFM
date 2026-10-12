@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using MathNet.Numerics.Distributions;
@@ -7,23 +7,22 @@ namespace TomasAI.IFM.Shared.AlgoMath.Distributions
 {
     public class MedianAbsoluteDeviation
     {
-        IEnumerable<double> _samples;
-        double _median;
-        double _medianAbsDev;
+        readonly double _median;
+        readonly double _medianAbsDev;
 
 
         private MedianAbsoluteDeviation(IEnumerable<double> samples)
         {
-            _samples = samples;
+            var orderedSamples = samples.OrderBy(e => e).ToArray();
 
             // get median...
-            _median = _samples.OrderBy(e => e).ToArray()[(int)(_samples.Count() / 2)];
+            _median = orderedSamples[orderedSamples.Length / 2];
 
             // get the absolute deviations from the median...
-            var absDevsFromMedian = _samples.Select(x => Math.Abs(x - _median)).ToList();
+            var absDevsFromMedian = orderedSamples.Select(x => Math.Abs(x - _median)).ToList();
 
             // get the median of the absolute deviations...
-            _medianAbsDev = absDevsFromMedian.OrderBy(e => e).ToArray()[(int)(absDevsFromMedian.Count / 2)];
+            _medianAbsDev = absDevsFromMedian.OrderBy(e => e).ToArray()[absDevsFromMedian.Count / 2];
 
             this.ScalingFactor = 3.0;
         }

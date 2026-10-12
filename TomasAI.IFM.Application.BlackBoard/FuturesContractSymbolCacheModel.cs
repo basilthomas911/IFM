@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 
@@ -22,15 +22,16 @@ public class FuturesContractSymbolCacheModel(IRedisCache redisCache, IJsonSerial
     /// <returns></returns>
     public async ValueTask<string> GetAsync(string contractId, Func<string, ValueTask<string>> getFuturesContractSymbol)
     {
+        ArgumentNullException.ThrowIfNull(getFuturesContractSymbol);
         var key = $"{CacheName}:{contractId}";
-        var value = _redisCache.Get(key);
+        var value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         if (string.IsNullOrEmpty(value))
         {
-            var symbol = await getFuturesContractSymbol(contractId);
+            var symbol = await (getFuturesContractSymbol(contractId)).ConfigureAwait(false);
             if (string.IsNullOrEmpty(symbol))
                 return string.Empty;
             value = _jsonSerializer.Serialize(symbol);
-            _redisCache.Set(key, value);
+            await _redisCache.SetAsync(key, value).ConfigureAwait(false);
         }
         return _jsonSerializer.Deserialize<string>(value) ?? string.Empty;
     }

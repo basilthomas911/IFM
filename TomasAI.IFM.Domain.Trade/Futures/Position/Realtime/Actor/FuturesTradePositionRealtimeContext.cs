@@ -5,21 +5,10 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Realtime.Actor;
-
-public interface IFuturesTradePositionRealtimeContext : IRealtimeActorContext<FuturesTradePositionRealtimeActor>
+public sealed class FuturesTradePositionRealtimeContext : EventActorContext, IFuturesTradePositionRealtimeContext
 {
-    TimeProvider TimeProvider { get; }
-    TradePlanParameters Parameters { get; }
-    ILogger<FuturesTradePositionRealtimeActor> Logger { get; }
-}
-
-public sealed class FuturesTradePositionRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesTradePositionRealtimeActor>, IFuturesTradePositionRealtimeContext
-{
-    public FuturesTradePositionRealtimeContext(IActorSupervisor supervisor,
-        ILogger<FuturesTradePositionRealtimeActor> logger)
-        : base(supervisor, new(ActorType.Realtime, FuturesTradePositionRealtimeActor.ActorName)) => Logger = logger;
-
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public FuturesTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<FuturesTradePositionRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, FuturesTradePositionRealtimeActor.ActorName)) => Logger = logger;
     public TimeProvider TimeProvider { get; } = TimeProvider.System;
     public TradePlanParameters Parameters { get; } = new();
     public ILogger<FuturesTradePositionRealtimeActor> Logger { get; }

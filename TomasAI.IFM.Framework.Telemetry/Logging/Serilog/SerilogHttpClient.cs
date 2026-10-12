@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -7,27 +7,33 @@ using Serilog.Sinks.Http;
 
 namespace TomasAI.IFM.Framework.Telemetry.Logging.Serilog
 {
-    public class SerilogHttpClient : IHttpClient
+    public sealed class SerilogHttpClient : IHttpClient
     {
         readonly HttpClient _httpClient;
-        public SerilogHttpClient() => _httpClient = new HttpClient(new HttpClientHandler { UseDefaultCredentials = true });
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000", Justification = "HttpClient owns and disposes its handler; construction uses the owning HttpClient constructor.")]
+        public SerilogHttpClient() => _httpClient = new HttpClient(new HttpClientHandler { UseDefaultCredentials = true, CheckCertificateRevocationList = true });
 
-        public void Configure(IConfiguration configuration) => _httpClient.DefaultRequestHeaders.Add("X-Api-Key", configuration["apiKey"]);
+        public void Configure(IConfiguration configuration) 
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+            _httpClient.DefaultRequestHeaders.Add("X-Api-Key", configuration["apiKey"]);
+        }
 
         public void Dispose() => _httpClient?.Dispose();
 
         public async Task<HttpResponseMessage> PostAsync(string requestUri, Stream contentStream, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(contentStream);
             try
             {
                 contentStream.Position = 0;
-                var httpContent = new StreamContent(contentStream);
+                using var httpContent = new BorrowedLogStreamContent(contentStream);
                 var response = await _httpClient
-                    .PostAsync(requestUri, httpContent, cancellationToken)
+                    .PostAsync(new Uri(requestUri, UriKind.Absolute), httpContent, cancellationToken)
                     .ConfigureAwait(false);
                 return response;
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
                 Console.WriteLine(ex);
                 return new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest);

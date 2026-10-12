@@ -26,10 +26,12 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// <param name="putSpreadDistribution"></param>
     /// <param name="callSpreadDistribution"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> InsertSpreadDistributionsAsync(
         SpreadDistributionReadModel putSpreadDistribution,
         SpreadDistributionReadModel callSpreadDistribution)
     {
+        ArgumentNullException.ThrowIfNull(putSpreadDistribution);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -43,7 +45,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, InsertSpreadDistributionCommand.Actor, InsertSpreadDistributionCommand.Verb, entityId.Format()),
                 ErrorCode = InsertSpreadDistributionCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -60,21 +62,22 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// <param name="e">The identifier of the spread distribution to delete. Must contain a valid trade ID and value date.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a ServiceResult with the unique
     /// identifier of the deleted spread distribution.</returns>
-    public async Task<ServiceResult<Guid>> DeleteSpreadDistributionAsync(SpreadDistributionEntityId e, TradeStatus tradeStatus, int daysToExpiry)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> DeleteSpreadDistributionAsync(SpreadDistributionEntityId entityId, TradeStatus tradeStatus, int daysToExpiry)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            IsArgumentNull.Check(e);
-            var entityId = e;
+            IsArgumentNull.Check(entityId);
             var cmd = new DeleteSpreadDistributionCommand(entityId.TradeId, entityId.ValueDate, tradeStatus, daysToExpiry)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionCommand.Actor, DeleteSpreadDistributionCommand.Verb, entityId.Format()),
                 ErrorCode = DeleteSpreadDistributionCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -88,6 +91,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="spreadDistributionJob"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> SubmitSpreadDistributionJobAsync(SpreadDistributionJobReadModel spreadDistributionJob)
     {
         Guid cmdId = Guid.NewGuid();
@@ -103,7 +107,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
             };
             var entityId = cmd.EntityId;
             cmd = cmd with { Subject = new ActorSubject(ActorType.Command, SubmitSpreadDistributionJobCommand.Actor, SubmitSpreadDistributionJobCommand.Verb, entityId.Format()) };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -119,6 +123,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// <param name="jobCompleted"></param>
     /// <param name="jobStatus"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> CompleteSpreadDistributionJobAsync(
         SpreadDistributionJobEntityId entityId,
         DateTime jobCompleted,
@@ -135,7 +140,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, CompleteSpreadDistributionJobCommand.Actor, CompleteSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = CompleteSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -152,6 +157,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// <param name="jobStatus"></param>
     /// <param name="errorMessage"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> FailSpreadDistributionJobAsync(
         SpreadDistributionJobEntityId entityId,
         DateTime jobFailed,
@@ -169,7 +175,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, FailSpreadDistributionJobCommand.Actor, FailSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = FailSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -183,6 +189,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="entityId"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ClearSpreadDistributionJobAsync(SpreadDistributionJobEntityId entityId)
     {
         Guid cmdId = Guid.NewGuid();
@@ -196,7 +203,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ClearSpreadDistributionJobCommand.Actor, ClearSpreadDistributionJobCommand.Verb, entityId.Format()),
                 ErrorCode = ClearSpreadDistributionJobCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -210,6 +217,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="entityId"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> DeleteSpreadDistributionJobsInProgressAsync(SpreadDistributionJobEntityId entityId)
     {
         Guid cmdId = Guid.NewGuid();
@@ -223,7 +231,7 @@ public class OptionPricerCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, DeleteSpreadDistributionJobsInProgressCommand.Actor, DeleteSpreadDistributionJobsInProgressCommand.Verb, entityId.Format()),
                 ErrorCode = DeleteSpreadDistributionJobsInProgressCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

@@ -14,19 +14,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="SpreadDistributionQueryActor"/>.</summary>
-public interface ISpreadDistributionQueryContext : IQueryActorContext<SpreadDistributionQueryActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbFactory service supplied to the actor context.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<SpreadDistributionQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="SpreadDistributionQueryActor"/>.</summary>
-public sealed class SpreadDistributionQueryContext : QueryActorContext, IQueryActorContext<SpreadDistributionQueryActor>, ISpreadDistributionQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class SpreadDistributionQueryContext : QueryActorContext, ISpreadDistributionQueryContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public SpreadDistributionQueryContext(

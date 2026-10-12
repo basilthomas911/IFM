@@ -8,9 +8,9 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Reference.LookupType.Query.Actor;
 
 /// <summary>Provides the typed runtime context used by <see cref="LookupTypeQueryActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class LookupTypeQueryContext :
     QueryActorContext,
-    IQueryActorContext<LookupTypeQueryActor>,
     ILookupTypeQueryContext
 {
     /// <summary>Initializes a lookup-type query context.</summary>

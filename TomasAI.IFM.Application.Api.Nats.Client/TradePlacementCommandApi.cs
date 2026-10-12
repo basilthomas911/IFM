@@ -26,8 +26,10 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
     /// this method.</remarks>
     /// <param name="futuresTradeSignal">The trade signal data used to initiate the trade placement. This parameter must not be null.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the placed trade if the operation succeeds.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> SignalTradePlacementAsync(FuturesTradeSignalV2ReadModel futuresTradeSignal)
     {
+        ArgumentNullException.ThrowIfNull(futuresTradeSignal);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -40,7 +42,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, SignalTradePlacementCommand.Actor, SignalTradePlacementCommand.Verb, entityId.Format()),
                 ErrorCode = SignalTradePlacementCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -56,10 +58,12 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
     /// be used to track the operation.</remarks>
     /// <param name="tradePlacementId">The identifier of the trade placement to be started.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the initiated trade placement operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> StartTradePlacementAsync(
         TradePlacementId tradePlacementId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(tradePlacementId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -71,7 +75,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StartTradePlacementCommand.Actor, StartTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StartTradePlacementCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId, cancellationToken);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId, cancellationToken)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -88,10 +92,12 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
     /// failure of the operation.</remarks>
     /// <param name="tradePlacementId">The unique identifier of the trade placement to stop.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the identifier of the stopped trade placement.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> StopTradePlacementAsync(
         TradePlacementId tradePlacementId,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(tradePlacementId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -103,7 +109,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StopTradePlacementCommand.Actor, StopTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StopTradePlacementCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId, cancellationToken);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId, cancellationToken)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

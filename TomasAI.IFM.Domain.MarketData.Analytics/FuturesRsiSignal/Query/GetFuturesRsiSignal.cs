@@ -23,11 +23,8 @@ public static class GetFuturesRsiSignal
         this GetFuturesRsiSignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+        => await dbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Reads and replies to the GetFuturesRsiSignalQuery message.</summary>
     public static async ValueTask ExecuteAsync(
@@ -36,7 +33,10 @@ public static class GetFuturesRsiSignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesRsiSignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);

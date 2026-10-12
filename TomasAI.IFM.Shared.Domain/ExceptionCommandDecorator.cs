@@ -19,20 +19,22 @@ public class ExceptionCommandDecorator<TState>(
     /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="ServiceResult{Guid}"/>
     /// which includes the unique identifier of the executed command if successful, or an error event if the execution
     /// fails.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The command boundary converts execution failures into explicit error events.")]
     public async Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(ICommand<TEntityId> command) where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(command);
         ServiceResult<Guid> serviceResult;
         try
         {
-            serviceResult = await commandContext.ExecuteAsync(command);
+            serviceResult = await (commandContext.ExecuteAsync(command)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             IErrorEvent errorEvent;
-            logger?.LogError(ex, "{CommandName}: execution failed", command.CommandName);
+            if (logger is not null) CommandFailureLog.Failed(logger, ex, command.CommandName);
             var exceptionDecorator = exceptionDecoratorFactory.GetDecorator<TState>() as IExceptionCommandDecorator<TState>;
             if (exceptionDecorator is not null)
-                errorEvent = await exceptionDecorator.ConvertExceptionToErrorEventAsync(command, ex);
+                errorEvent = await (exceptionDecorator.ConvertExceptionToErrorEventAsync(command, ex)).ConfigureAwait(false);
             else
                 errorEvent = ex is IErrorEventConverter converter
                     ? converter.ToErrorEvent(command)
@@ -52,17 +54,19 @@ public class ExceptionCommandDecorator<TState>(
     /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation, containing a <see
     /// cref="ServiceResult{Guid}"/>. The result contains the unique identifier of the executed command if successful,
     /// or an error event if the execution fails.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The command boundary converts execution failures into explicit error events.")]
     public async ValueTask<ServiceResult<Guid>> ExecuteAsync(ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         ServiceResult<Guid> serviceResult;
         try
         {
-            serviceResult = await commandContext.ExecuteAsync(command);
+            serviceResult = await (commandContext.ExecuteAsync(command)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             IErrorEvent errorEvent;
-            logger?.LogError(ex, "{CommandName}: execution failed", command.CommandName);
+            if (logger is not null) CommandFailureLog.Failed(logger, ex, command.CommandName);
             var exceptionDecorator = exceptionDecoratorFactory.GetDecorator<TState>() as IExceptionCommandDecorator<TState>;
             if (exceptionDecorator is not null)
                 errorEvent = await exceptionDecorator.ConvertExceptionToErrorEventAsync(command, ex).ConfigureAwait(false);

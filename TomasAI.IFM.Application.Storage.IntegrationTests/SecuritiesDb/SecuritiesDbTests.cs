@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System;
@@ -37,7 +37,7 @@ public class SecuritiesDatabaseFixture : IDisposable
     public SecuritiesDatabaseFixture()
     {
         var dbConn = new DbConnectionSettings()
-                         .Add("SecuritiesDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb");
+                         .Add("SecuritiesDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_securities"), "System.Data.ScyllaDb");
 
         var diContainer = new Dictionary<Type, SecuritiesDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

@@ -1,21 +1,10 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
-
-/// <summary>Identifies the first two eligible contracts in one futures term structure.</summary>
-public readonly record struct FuturesTermStructureContracts(
-    FuturesContractV3ReadModel Front,
-    FuturesContractV3ReadModel Back)
-{
-    /// <summary>Gets whether both ordered contracts form a valid term-structure pair.</summary>
-    public bool IsValid => Front.IsValid && Back.IsValid
-        && string.Equals(Front.Symbol, Back.Symbol, StringComparison.Ordinal)
-        && Front.LastTradeDate < Back.LastTradeDate;
-}
 
 /// <summary>
 /// Defines the application boundary for querying futures and futures-option
@@ -56,27 +45,61 @@ public interface IMarketDataApi
     // rather than forwarding an owner-aware request to a legacy ownerless/boolean route.
     Task<SubscriptionLeaseResult> StartStreamingFuturesTickDataAsync(
         SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
+    Task<bool> StartStreamingFuturesTickDataAsync(
+        string futuresContractId,
+        TickerStreamOwner? owner = null);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4144", Justification = "Each distinct API operation has an explicit unsupported default for providers that do not implement that capability.")]
     Task<SubscriptionLeaseResult> StartStreamingFuturesOptionTickDataAsync(
         SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
+    Task<bool> StartStreamingFuturesOptionTickDataAsync(
+        string futuresOptionContractId,
+        TickerStreamOwner? owner = null);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4144", Justification = "Each distinct API operation has an explicit unsupported default for providers that do not implement that capability.")]
     Task<SubscriptionLeaseResult> StartStreamingFuturesOptionChainDataAsync(
         SubscriptionAcquireRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
     Task<SubscriptionLeaseResult> RenewSubscriptionLeaseAsync(
         SubscriptionRenewRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
     Task<SubscriptionLeaseResult> ReleaseSubscriptionLeaseAsync(
         SubscriptionReleaseRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
     Task<SubscriptionLeaseResult> AcquireSelectedSubscriptionLeasesAsync(
         SubscriptionAcquireBatchRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(SubscriptionLeaseResult.Disabled(request.OperationId));
+    }
 
     Task<SubscriptionLeaseResult> GetSubscriptionLeasesAsync(
         SubscriptionOwnerQuery request, CancellationToken cancellationToken = default)
@@ -143,6 +166,7 @@ public interface IMarketDataApi
     /// <see langword="true"/> when the stored next-rollover date was first set
     /// or changed; otherwise <see langword="false"/>.
     /// </returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     Task<bool> UpdateOnTheRunFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
@@ -257,16 +281,8 @@ public interface IMarketDataApi
     IFuturesOptionLastPriceReader GetFuturesOptionLastPriceReader(
         string futuresOptionContractId);
 
-    Task<bool> StartStreamingFuturesTickDataAsync(
-        string futuresContractId,
-        TickerStreamOwner? owner = null);
-
     Task<bool> StopStreamingFuturesTickDataAsync(
         string futuresContractId,
-        TickerStreamOwner? owner = null);
-
-    Task<bool> StartStreamingFuturesOptionTickDataAsync(
-        string futuresOptionContractId,
         TickerStreamOwner? owner = null);
 
     Task<bool> StopStreamingFuturesOptionTickDataAsync(
@@ -274,6 +290,3 @@ public interface IMarketDataApi
         TickerStreamOwner? owner = null);
 
 }
-
-public readonly record struct FuturesMarketHealthSnapshot(bool Running, bool Healthy, string Generation,
-    DateOnly? ValueDate, DateTimeOffset ObservedAtUtc, long Sequence);

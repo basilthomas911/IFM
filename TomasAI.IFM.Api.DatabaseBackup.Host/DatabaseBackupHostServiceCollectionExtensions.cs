@@ -43,6 +43,10 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         sourceOptions.Validate();
         var awsOptions = configuration.GetSection(AwsCloudDatabaseBackupOptions.SectionName)
             .Get<AwsCloudDatabaseBackupOptions>() ?? new AwsCloudDatabaseBackupOptions();
+        var configuredPostgreSqlSets = configuration.GetSection($"{AwsCloudDatabaseBackupOptions.SectionName}:PostgreSqlProtectionSets").Get<string[]>();
+        var configuredScyllaSets = configuration.GetSection($"{AwsCloudDatabaseBackupOptions.SectionName}:ScyllaProtectionSets").Get<string[]>();
+        if (configuredPostgreSqlSets is not null) awsOptions.PostgreSqlProtectionSets = configuredPostgreSqlSets;
+        if (configuredScyllaSets is not null) awsOptions.ScyllaProtectionSets = configuredScyllaSets;
         awsOptions.Validate();
         var postgreSqlOptions = configuration.GetSection(PostgreSqlBackupOptions.SectionName)
             .Get<PostgreSqlBackupOptions>() ?? new PostgreSqlBackupOptions();
@@ -62,6 +66,23 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             publicationOptions.Validate(requirePrivateKey: true);
 
         services.AddSingleton(provider => new DatabaseBackupOperationOutput(configuration, provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DatabaseBackupOperationOutput>>()));
+        var replacementOptions = configuration.GetSection(Services.Recovery.DevelopmentDatabaseReplacementOptions.SectionName)
+            .Get<Services.Recovery.DevelopmentDatabaseReplacementOptions>() ?? new();
+        replacementOptions.Validate();
+        if (hostOptions.CutoverWorkerOnly != replacementOptions.Enabled)
+            throw new InvalidOperationException("The external cutover worker requires its Development replacement profile.");
+        if (replacementOptions.Enabled)
+        {
+            if (sourceOptions.Enabled || !awsOptions.Enabled)
+                throw new InvalidOperationException("The Development cutover worker uses the independent AWS journal only.");
+            services.AddSingleton(replacementOptions);
+            services.AddSingleton<TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Recovery.DockerNamedVolumeDataReplacement>();
+            services.AddSingleton<IDatabaseReplacementRecoveryJournal>(_ =>
+                new TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Recovery.FileDatabaseReplacementRecoveryJournal(
+                    Path.Combine(replacementOptions.PersistentRoot, "journal")));
+            services.AddSingleton<IDatabaseReplacementRecoveryPlatform, Services.Recovery.DevelopmentDatabaseReplacementPlatform>();
+            services.AddSingleton<IDatabaseCutoverCapability, TomasAI.IFM.Application.DatabaseBackup.Processing.DatabaseDataReplacementRecovery>();
+        }
         services.AddSingleton(hostOptions);
         services.AddSingleton(journalOptions);
         services.AddSingleton(sourceOptions);
@@ -87,6 +108,11 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             provider.GetRequiredService<ILogger<NatsJetStreamActorProducer>>(),
             provider.GetRequiredService<NatsConnectionManager>()));
 
+        services.AddSingleton<IActorProducer>(provider => new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorProducer(
+            new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsProducerOptions { Url = producerOptions.Url },
+            provider.GetRequiredService<ILogger<TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorProducer>>(),
+            provider.GetRequiredService<NatsConnectionManager>()));
+        services.AddSingleton<AwsAutomaticRetentionCommandSender>();
         services.AddSingleton<IDatabaseBackupExecutionJournal, SqliteDatabaseBackupExecutionJournal>();
         if (useNativePostgreSql)
         {

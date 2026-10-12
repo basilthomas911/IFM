@@ -9,32 +9,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesTickDataCommandActor"/>.</summary>
-public interface IFuturesTickDataCommandContext : ICommandActorContext<FuturesTickDataCommandActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the Market Data database.</summary>
-    IMarketDataDbContext MarketDataDb { get; }
-    /// <summary>Gets the blackboard service.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesTickDataCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the durable replay queue.</summary>
-    IDurableReplayQueue DurableReplayQueue { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets the actor service.</summary>
-    IActorService ActorService { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<FuturesTickDataCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesTickDataCommandActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesTickDataCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesTickDataCommandActor>, IFuturesTickDataCommandContext
+IFuturesTickDataCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;

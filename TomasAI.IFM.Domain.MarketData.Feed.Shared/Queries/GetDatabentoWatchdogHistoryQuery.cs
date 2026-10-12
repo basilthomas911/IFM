@@ -12,17 +12,7 @@ public sealed class GetDatabentoWatchdogHistoryQuery : IQuery<DatabentoWatchdogO
 {
     /// <summary>Creates the default watchdog-history request for serialization and callers.</summary>
     public GetDatabentoWatchdogHistoryQuery() : this(null, null, 100) { }
-
-    [IgnoreMember] public const string Actor = "MarketDataFeedQuery";
-    [IgnoreMember] public const string Verb = "GetDatabentoWatchdogHistory";
-    [IgnoreMember] public const int ErrorId = 1020;
-    [Key(0)] public ActorSubject Subject { get; set; }
-    [Key(1)] public IActorEntityId EntityId { get; set; }
-    [Key(2)] public DateOnly? ValueDate { get; set; }
-    [Key(3)] public string? MajorStatus { get; set; }
-    [Key(4)] public int PageSize { get; set; }
-    [IgnoreMember] public int ErrorCode { get; set; } = ErrorId;
-    [IgnoreMember] public string? QueryParams { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3427", Justification = "Retains the existing named-argument query API and serializer constructor.")]
     public GetDatabentoWatchdogHistoryQuery(DateOnly? valueDate = null, string? majorStatus = null, int pageSize = 100)
     {
         ValueDate = valueDate; MajorStatus = majorStatus; PageSize = pageSize;
@@ -35,4 +25,15 @@ public sealed class GetDatabentoWatchdogHistoryQuery : IQuery<DatabentoWatchdogO
         Subject = subject; ValueDate = valueDate; MajorStatus = majorStatus; PageSize = pageSize;
         EntityId = new GetDatabentoWatchdogHistoryParameter(valueDate, majorStatus, pageSize);
     }
+
+    [IgnoreMember] public const string Actor = "MarketDataFeedQuery";
+    [IgnoreMember] public const string Verb = "GetDatabentoWatchdogHistory";
+    [IgnoreMember] public const int ErrorId = 1020;
+    [Key(0)] public ActorSubject Subject { get; set; }
+    [Key(1)] public IActorEntityId EntityId { get; set; }
+    [Key(2)] public DateOnly? ValueDate { get; set; }
+    [Key(3)] public string? MajorStatus { get; set; }
+    [Key(4)] public int PageSize { get; set; }
+    [IgnoreMember] public int ErrorCode { get; set; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; set; }
 }

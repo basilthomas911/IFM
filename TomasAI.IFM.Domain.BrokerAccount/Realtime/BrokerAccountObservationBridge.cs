@@ -34,10 +34,16 @@ public sealed class BrokerAccountObservationBridge(
         if (_stop is null || _run is null) return;
         await _stop.CancelAsync().ConfigureAwait(false);
         try { await _run.ConfigureAwait(false); }
-        catch (Exception) when (_stop.IsCancellationRequested) { }
-        _stop.Dispose();
-        _stop = null;
-        _run = null;
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+        {
+            // The account reader completed in response to this stop request.
+        }
+        finally
+        {
+            _stop.Dispose();
+            _stop = null;
+            _run = null;
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)

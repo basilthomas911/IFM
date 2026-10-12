@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 /// <summary>Handles <see cref="FuturesAdxSignalStartedEvent"/> messages received by the ADX event actor.</summary>
 public static class FuturesAdxSignalStarted
 {
-    /// <summary>Attaches the ADX identity to the shared analytics observation stream.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Attaches the ADX identity to the shared analytics observation stream.</summary>
     /// <param name="e">The ADX signal-started event.</param>
     /// <param name="context">The typed ADX event context that exposes handler dependencies.</param>
     /// <param name="logger">The logger used to record handler failures.</param>
@@ -22,6 +22,8 @@ public static class FuturesAdxSignalStarted
         IFuturesAdxSignalEventContext context,
         ILogger<FuturesAdxSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Attach(e.EntityId);

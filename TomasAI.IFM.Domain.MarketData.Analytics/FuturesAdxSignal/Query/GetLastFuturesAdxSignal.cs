@@ -14,9 +14,11 @@ public static class GetLastFuturesAdxSignal
         this GetFuturesAdxSignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return await dbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
+    }
 }

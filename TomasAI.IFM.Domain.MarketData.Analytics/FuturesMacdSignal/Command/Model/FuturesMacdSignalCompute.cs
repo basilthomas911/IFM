@@ -19,6 +19,8 @@ public class FuturesMacdSignalCompute
         FuturesMacdConfiguration configuration,
         out FuturesMacdSignalCompute model)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(previousMacdSignals);
         model = new(futuresPrice, previousMacdSignals, configuration);
         return true;
     }
@@ -88,7 +90,7 @@ public class FuturesMacdSignalCompute
             _ => FuturesTrendDirectionStrengthType.Low
         };
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")] 
     void ComputeMacdComponents(double price, FuturesMacdConfiguration configuration)
     {
         if (_macdSignal is null)

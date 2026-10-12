@@ -23,6 +23,13 @@ public sealed class GetMarketDataDownloadStatusQuery : IQuery<MarketDataDownload
         RequiredImportCommandId = requiredImportCommandId;
         Cursor = cursor;
     }
+    /// <summary>Creates an empty query for deserialization.</summary>
+    public GetMarketDataDownloadStatusQuery() { }
+    /// <summary>Creates a status query for the requested partition.</summary>
+    /// <param name="request">The download partition to inspect.</param>
+    public GetMarketDataDownloadStatusQuery(MarketDataDownloadPartition request)
+    {
+        ArgumentNullException.ThrowIfNull(request); Request = request; EntityId = request; Subject = new(ActorType.Query, Actor, Verb, request.Format()); }
     public const string Actor = "DownloadLogQuery";
     public const string Verb = "GetMarketDataDownloadStatus";
     public const int ErrorId = 6051;
@@ -33,10 +40,4 @@ public sealed class GetMarketDataDownloadStatusQuery : IQuery<MarketDataDownload
     [IgnoreMember] public string? QueryParams => null;
     [Key(3)] public Guid? RequiredImportCommandId { get; init; } = null;
     [Key(4)] public MarketDataDownloadCursor? Cursor { get; init; } = null;
-    /// <summary>Creates an empty query for deserialization.</summary>
-    public GetMarketDataDownloadStatusQuery() { }
-    /// <summary>Creates a status query for the requested partition.</summary>
-    /// <param name="request">The download partition to inspect.</param>
-    public GetMarketDataDownloadStatusQuery(MarketDataDownloadPartition request)
-    { Request = request; EntityId = request; Subject = new(ActorType.Query, Actor, Verb, request.Format()); }
 }

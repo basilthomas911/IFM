@@ -18,8 +18,8 @@ public static class IronCondorLegacyValueInitializers
         ArgumentNullException.ThrowIfNull(dailyClosingPrices);
         if (dailyClosingPrices.Count < 5)
             throw new ArgumentException("IronCondorTradePlan: FiveDayXMA requires five completed daily sessions.", nameof(dailyClosingPrices));
-        foreach (var close in dailyClosingPrices)
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(close, nameof(dailyClosingPrices));
+        if (dailyClosingPrices.Any(close => close <= 0))
+            throw new ArgumentOutOfRangeException(nameof(dailyClosingPrices), "Daily closes must be positive.");
         var movingAverage = dailyClosingPrices.Take(5).Sum() / 5m;
         for (var index = 5; index < dailyClosingPrices.Count; index++)
             movingAverage = dailyClosingPrices[index] / 3m + movingAverage * 2m / 3m;
@@ -177,6 +177,7 @@ public static class IronCondorLegacyValueInitializers
     /// <summary>Calculates the next trailing-stop ratio: zero initializes to 0.20; otherwise add 0.05.</summary>
     /// <param name="currentStopLossRatio">The nonnegative currently accepted trailing-stop ratio.</param>
     /// <returns>The proposed ratio; the owning command must decide whether to apply it.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact zero is the legacy unset trailing-stop sentinel; an epsilon would change when the initial 20 percent stop is selected.")]
     public static double CalculateNextTrailingStopRatio(double currentStopLossRatio)
     {
         RequireNonnegativeFinite(currentStopLossRatio, nameof(currentStopLossRatio));

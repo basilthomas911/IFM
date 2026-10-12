@@ -8,30 +8,30 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection;
 public sealed class FinancialHistoryRecoveryService(FinancialHistoryJournal journal, IFinancialHistoryProjection projection,
     ILogger<FinancialHistoryRecoveryService> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var pending = await journal.PendingAsync(stoppingToken);
+                var pending = await (journal.PendingAsync(stoppingToken)).ConfigureAwait(false);
                 var applied = 0;
                 foreach (var completed in pending)
                 {
                     try
                     {
-                        await projection.ApplyAsync(completed, stoppingToken);
-                        await journal.AcknowledgeAsync(completed.EventId, stoppingToken);
+                        await (projection.ApplyAsync(completed, stoppingToken)).ConfigureAwait(false);
+                        await (journal.AcknowledgeAsync(completed.EventId, stoppingToken)).ConfigureAwait(false);
                         applied++;
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-                    catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial history event {EventId} remains pending.",nameof(FinancialHistoryRecoveryService),nameof(ExecuteAsync),completed.EventId); }
+                    catch (Exception error) { global::TomasAI.IFM.Domain.Portfolio.ActorLifecycleDiagnosticLog.Write1(logger, error, nameof(FinancialHistoryRecoveryService), nameof(ExecuteAsync), completed.EventId); }
                 }
                 if (pending.Count == 32 && applied == 32) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception error) { logger.LogWarning(error,"{Component}.{Method} "+"Financial history projection is pending; PostgreSQL receipts remain authoritative.",nameof(FinancialHistoryRecoveryService),nameof(ExecuteAsync)); }
-            try { await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); }
+            catch (Exception error) { global::TomasAI.IFM.Domain.Portfolio.ActorLifecycleDiagnosticLog.Write2(logger, error, nameof(FinancialHistoryRecoveryService), nameof(ExecuteAsync)); }
+            try { await (Task.Delay(TimeSpan.FromSeconds(2), stoppingToken)).ConfigureAwait(false); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }

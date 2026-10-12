@@ -9,10 +9,17 @@ public static class BrokerAccountSnapshotValidation
     private static readonly SnapshotRules Rules = new();
 
     /// <summary>Appends all snapshot failures, including missing position collections.</summary>
-    public static List<ValidationError> ValidateAccountSnapshot(this List<ValidationError> errors, BrokerAccountSnapshotEvidence? snapshot)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the published broker message storage width and collection contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published broker message storage width and collection contract.")]
+    public static TErrors ValidateAccountSnapshot<TErrors>(this TErrors errors, BrokerAccountSnapshotEvidence? snapshot)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (snapshot is null) errors.Add(new("BrokerAccount.Snapshot is required."));
-        else errors.AddRange(Rules.Validate(snapshot).Errors.Select(static failure => new ValidationError(failure.ErrorMessage)));
+        else
+            foreach (var failure in Rules.Validate(snapshot).Errors)
+                errors.Add(new ValidationError(failure.ErrorMessage));
         return errors;
     }
 

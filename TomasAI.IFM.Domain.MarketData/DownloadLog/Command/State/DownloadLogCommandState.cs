@@ -13,9 +13,10 @@ public sealed class DownloadLogCommandState : BaseEventSourceActorState<Download
 
     public bool VerifyDuplicate(InsertMarketDataDownloadLogCommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         command.Validate();
         if (Outcome is null) return false;
-        if (PayloadSha256 != command.PayloadSha256 || Outcome != command.Outcome)
+        if (!string.Equals(PayloadSha256,command.PayloadSha256,StringComparison.Ordinal) || Outcome != command.Outcome)
             throw new InvalidOperationException("A different terminal outcome is already committed for this import attempt.");
         return true;
     }
@@ -30,7 +31,7 @@ public sealed class DownloadLogCommandState : BaseEventSourceActorState<Download
         {
             case MarketDataDownloadLogInsertedEvent inserted:
                 var command = new InsertMarketDataDownloadLogCommand(inserted.Outcome);
-                if (inserted.PayloadSha256 != command.PayloadSha256) throw new InvalidOperationException("Corrupt DownloadLog event hash.");
+                if (!string.Equals(inserted.PayloadSha256,command.PayloadSha256,StringComparison.Ordinal)) throw new InvalidOperationException("Corrupt DownloadLog event hash.");
                 if (VerifyDuplicate(command)) return true;
                 Outcome = inserted.Outcome;
                 PayloadSha256 = inserted.PayloadSha256;

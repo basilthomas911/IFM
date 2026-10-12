@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Data;
 
 namespace TomasAI.IFM.Framework.Storage
@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// create object command text context
         /// </summary>
         /// <param name="db"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Shared DbProvider logger category is supplied by the existing repository DI contract.")]
         public ObjectDataCommandTextContext(
             IObjectRepository db,
             ILogger<DbProvider> logger,
@@ -27,6 +28,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// <param name="cmd"></param>
         public override void SetCommand(IDbCommand cmd)
         {
+            ArgumentNullException.ThrowIfNull(cmd);
             cmd.CommandType = CommandType.Text;
             cmd.CommandText = _cmdText;
         }
@@ -51,7 +53,7 @@ namespace TomasAI.IFM.Framework.Storage
                      "System.Data.Scylla" => parameterName,
                      "System.Data.Postgres" => $"_{parameterName}",
                      "System.Data.SqlServer" => $"@{parameterName}",
-                     _ or null => throw new ArgumentException("ObjectDataStoredProcedureContext: parameter name is empty"),
+                     _ or null => throw new ArgumentException("ObjectDataStoredProcedureContext: parameter name is empty",nameof(parameterName)),
                  };
     }
 }

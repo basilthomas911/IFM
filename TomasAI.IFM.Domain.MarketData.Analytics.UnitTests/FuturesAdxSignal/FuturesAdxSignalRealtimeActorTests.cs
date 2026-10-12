@@ -28,6 +28,7 @@ public sealed class FuturesAdxSignalRealtimeActorTests
         var @event = Closed(observation);
         var commandResult = new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()));
         var logger = Substitute.For<ILogger<FuturesAdxSignalRealtimeActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var context = Context(logger);
         GenerateFuturesAdxSignalCommand? forwarded = null;
         context.RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(
@@ -62,6 +63,7 @@ public sealed class FuturesAdxSignalRealtimeActorTests
     public async Task ReceiveAsync_WithUnmatchedClosedObservation_DoesNotSendCommand()
     {
         var logger = Substitute.For<ILogger<FuturesAdxSignalRealtimeActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var context = Context(logger);
         var actor = new TestableFuturesAdxSignalRealtimeActor(context);
         FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();

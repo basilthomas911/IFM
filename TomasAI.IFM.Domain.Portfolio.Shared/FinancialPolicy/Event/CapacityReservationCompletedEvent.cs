@@ -25,6 +25,7 @@ public sealed record CapacityReservationCompletedEvent : ICompleteEvent<Financia
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = "CapacityReservationFunction";
     [Key(15)] public DateTime ReceivedOn { get; init; }
+    [Key(16)] public CapacityReservationProjectionFacts? ProjectionFacts { get; init; }
     [IgnoreMember] public string UserName => "PortfolioFinancial";
     [IgnoreMember] public string EventName => nameof(CapacityReservationCompletedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

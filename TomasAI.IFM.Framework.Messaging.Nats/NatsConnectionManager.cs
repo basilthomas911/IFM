@@ -29,6 +29,7 @@ public sealed class NatsConnectionManager : IAsyncDisposable
         return await client.PingAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1054", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public async ValueTask<NatsClient> GetClientAsync(string url, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -77,6 +78,7 @@ public sealed class NatsConnectionManager : IAsyncDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1054", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public async ValueTask<INatsJSContext> GetJetStreamContextAsync(
         string url,
         CancellationToken cancellationToken = default)

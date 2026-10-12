@@ -66,7 +66,7 @@ public static class FuturesTradingValueDate
     /// <returns>The next weekday exchange value date.</returns>
     public static DateOnly GetNextTradingDate(DateOnly completedValueDate)
     {
-        if (completedValueDate == default) throw new ArgumentOutOfRangeException(nameof(completedValueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(completedValueDate, default);
         var next = completedValueDate.AddDays(1);
         while (next.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) next = next.AddDays(1);
         return next;
@@ -107,8 +107,7 @@ public static class FuturesTradingValueDate
     /// </summary>
     public static DateTimeOffset GetSessionStartUtc(DateOnly valueDate)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
 
         var localStart = valueDate.AddDays(-1).ToDateTime(
             new TimeOnly(18, 0),
@@ -123,8 +122,7 @@ public static class FuturesTradingValueDate
     /// </summary>
     public static DateTimeOffset GetSessionEndUtc(DateOnly valueDate)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
 
         var localEnd = valueDate.ToDateTime(
             new TimeOnly(17, 0),
@@ -142,11 +140,9 @@ public static class FuturesTradingValueDate
                 return TimeZoneInfo.FindSystemTimeZoneById(id);
             }
             catch (TimeZoneNotFoundException)
-            {
-            }
+            { /* Try the other platform's Eastern time zone identifier. */ }
             catch (InvalidTimeZoneException)
-            {
-            }
+            { /* Try the other platform's Eastern time zone definition. */ }
         }
 
         throw new TimeZoneNotFoundException(

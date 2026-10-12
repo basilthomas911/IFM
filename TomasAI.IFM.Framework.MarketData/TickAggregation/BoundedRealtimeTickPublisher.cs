@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 internal sealed class BoundedRealtimeTickPublisher(
     IActorSupervisor supervisor, RealtimeTickPublisherPolicy policy, TimeProvider time) : IAsyncDisposable
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly SemaphoreSlim lifecycle = new(1, 1);
     Session? session;
     bool faulted;
@@ -44,9 +44,12 @@ internal sealed class BoundedRealtimeTickPublisher(
             var noProgressSince = current?.InFlight?.EnqueuedUtc
                 ?? (current?.Queue.TryPeek(out var pending) == true ? pending.EnqueuedUtc : (DateTime?)null)
                 ?? (faulted ? firstFailureUtc : null);
-            var noProgressAge = noProgressSince is { } since
-                ? time.GetUtcNow().UtcDateTime - (lastPublishedUtc > since ? lastPublishedUtc.Value : since)
-                : TimeSpan.Zero;
+            var noProgressAge = TimeSpan.Zero;
+            if (noProgressSince is { } since)
+            {
+                var latestProgress = lastPublishedUtc > since ? lastPublishedUtc.Value : since;
+                noProgressAge = time.GetUtcNow().UtcDateTime - latestProgress;
+            }
             return new(true, current?.Accepting == true, faulted,
                 faulted && !nonCooperativeLatch && !uncontained && current?.Worker?.IsCompleted != false,
                 uncontained, policy.Capacity, current?.Queue.Count ?? 0, current?.InFlight is null ? 0 : 1,
@@ -111,7 +114,7 @@ internal sealed class BoundedRealtimeTickPublisher(
                 lastFailureUtc = null;
                 lastExceptionType = string.Empty;
                 lastExceptionMessage = string.Empty;
-                replacement.Worker = Task.Run(() => ProcessAsync(replacement));
+                replacement.Worker = Task.Run(() => ProcessAsync(replacement), CancellationToken.None);
             }
         }
         finally { lifecycle.Release(); }
@@ -122,6 +125,7 @@ internal sealed class BoundedRealtimeTickPublisher(
     /// <param name="lease">The buffer lease associated with the quote publication.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the event is admitted; downstream delivery and processing occur separately.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Realtime failure and resource-lifetime orchestration remains in one ordered operation.")]
     public ValueTask PublishAsync(object value, ITickQuoteBufferLease? lease, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -176,7 +180,7 @@ internal sealed class BoundedRealtimeTickPublisher(
                 else
                 {
                     current.Queue.Enqueue(new Publication(
-                        value, lease, cancellationToken, time.GetTimestamp(), time.GetUtcNow().UtcDateTime, quoteItems));
+                        value, lease, time.GetTimestamp(), time.GetUtcNow().UtcDateTime, quoteItems, cancellationToken));
                     current.RetainedQuoteItems += quoteItems;
                     accepted++;
                     lastAcceptedUtc = time.GetUtcNow().UtcDateTime;
@@ -217,6 +221,9 @@ internal sealed class BoundedRealtimeTickPublisher(
         finally { lifecycle.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Realtime supervision boundary records every transport failure and preserves lease cleanup or retirement; arbitrary provider failures must be contained.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2025", Justification = "Non-cooperative send retirement explicitly awaits the sending task before releasing its retained quote lease.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Realtime failure and resource-lifetime orchestration remains in one ordered operation.")]
     async Task ProcessAsync(Session current)
     {
         while (true)
@@ -354,6 +361,7 @@ internal sealed class BoundedRealtimeTickPublisher(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Realtime supervision boundary records every transport failure and preserves lease cleanup or retirement; arbitrary provider failures must be contained.")]
     async Task RetireUncontainedAsync(Session current, Publication item, Task sending)
     {
         try { await sending.ConfigureAwait(false); }
@@ -492,8 +500,8 @@ internal sealed class BoundedRealtimeTickPublisher(
     /// <param name="enqueuedUtc">The UTC time when the publication was admitted.</param>
     /// <param name="quoteItems">The number of quote entries charged to the admission budget.</param>
     sealed class Publication(
-        object value, ITickQuoteBufferLease? lease, CancellationToken token, long enqueuedAt,
-        DateTime enqueuedUtc, int quoteItems)
+        object value, ITickQuoteBufferLease? lease, long enqueuedAt,
+        DateTime enqueuedUtc, int quoteItems, CancellationToken token)
     {
         ITickQuoteBufferLease? ownedLease = lease;
         public object Value { get; } = value;

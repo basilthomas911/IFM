@@ -41,6 +41,18 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public ReserveFundOrderCompositionCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="request">The Request command value.</param>
+    /// <param name="snapshot">The Snapshot command value.</param>
+    public ReserveFundOrderCompositionCommand(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot)
+    {
+        Request = request;
+        Snapshot = snapshot;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "ReserveFundOrderComposition";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record ReserveFundOrderCompositionCommand : ICommand<PortfolioFund
     [IgnoreMember] public string CommandName => nameof(ReserveFundOrderCompositionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public ReserveFundOrderCompositionCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="request">The Request command value.</param>
-    /// <param name="snapshot">The Snapshot command value.</param>
-    public ReserveFundOrderCompositionCommand(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot)
-    {
-        Request = request;
-        Snapshot = snapshot;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

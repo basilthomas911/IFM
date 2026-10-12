@@ -10,21 +10,9 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesOptionTickDataRealtimeActor"/>.</summary>
-public interface IFuturesOptionTickDataRealtimeContext : IRealtimeActorContext<FuturesOptionTickDataRealtimeActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesOptionTickDataRealtimeActor> Logger { get; }
-    /// <summary>Gets the MarketDataApi service.</summary>
-    IMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the StatusConsoleWriter service.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesOptionTickDataRealtimeActor"/>.</summary>
-public sealed class FuturesOptionTickDataRealtimeContext : EventActorContext, IRealtimeActorContext<FuturesOptionTickDataRealtimeActor>, IFuturesOptionTickDataRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesOptionTickDataRealtimeContext : EventActorContext, IFuturesOptionTickDataRealtimeContext
 {
     /// <summary>Initializes the typed realtime context.</summary>
     public FuturesOptionTickDataRealtimeContext(

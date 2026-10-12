@@ -11,5 +11,11 @@ public static class GetDatabentoReadiness
 {
     /// <summary>Returns the mapped current Databento readiness snapshot.</summary>
     public static ValueTask ExecuteAsync(this GetDatabentoReadinessQuery query, IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
-        => context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DatabentoReadinessReadModel>(DatabentoQueryModel.MapReadiness(parameters.MarketDataLifecycle.Current)));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<DatabentoReadinessReadModel>(DatabentoQueryModel.MapReadiness(parameters.MarketDataLifecycle.Current)));
+    }
 }

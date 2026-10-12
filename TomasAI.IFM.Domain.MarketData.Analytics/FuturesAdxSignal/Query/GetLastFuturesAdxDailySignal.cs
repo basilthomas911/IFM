@@ -14,9 +14,11 @@ public static class GetLastFuturesAdxDailySignal
         this GetFuturesAdxDailySignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return await dbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
+    }
 }

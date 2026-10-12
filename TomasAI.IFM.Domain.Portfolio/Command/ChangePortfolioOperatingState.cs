@@ -18,6 +18,8 @@ public static class ChangePortfolioOperatingState
     /// <returns>Command acceptance or its classified failure; durable completion remains tied to commit.</returns>
     public static ServiceResult<GuidResult> Execute(this ChangePortfolioOperatingStateCommand command, PortfolioAggregate state, DateTime now, string principal)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply PortfolioOperatingStateChanged event";
         var updated = command.Compute(state, now, principal, out var portfolioChange) switch
         {

@@ -11,10 +11,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
-public sealed record LedgerConfigurationCommandServices(ILedgerConfigurationStore Store,
-    IPortfolioDbReadContext Database, IPortfolioEventStore Sources, IEventProjector<LedgerConfigurationCommandActor> Projector,
-    ILogger<LedgerConfigurationCommandActor> Logger, FinancialDevelopmentPolicy? DevelopmentPolicy = null);
-
 public static class ConfigureLedger
 {
     /// <summary>Executes a canonical ledger configuration command.</summary>
@@ -25,17 +21,19 @@ public static class ConfigureLedger
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this ConfigureLedgerCommand command, LedgerConfigurationCommandServices services, CancellationToken cancellationToken)
     {
-        var replay = await services.Database.ReadOperationAsync<LedgerConfigurationCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken);
-        if (replay is not null) return await replay.NotifyAsync(services.Projector, services.Logger);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
+        var replay = await (services.Database.ReadOperationAsync<LedgerConfigurationCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         FinancialRequestValidation.Demand(command, "LedgerConfigure", DateTime.UtcNow);
         if (command.Body.Action == LedgerConfigurationAction.ReopenPeriod)
             FinancialRequestValidation.Demand(command, "LedgerPeriodReopen", DateTime.UtcNow);
         if (command.Body.Action is LedgerConfigurationAction.CreateBook or LedgerConfigurationAction.RefreshAuthority)
-            await command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken);
+            await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken)).ConfigureAwait(false);
         if (command.Body.Action == LedgerConfigurationAction.QualifyDevelopmentBook)
-            await command.PrepareDevelopmentQualificationAsync(services, cancellationToken);
-        var result = await services.Store.ConfigureAsync(command, receipt => command.Complete(receipt), FinancialCanonicalHash.Compute, cancellationToken);
-        return await result.NotifyAsync(services.Projector, services.Logger);
+            await (command.PrepareDevelopmentQualificationAsync(services, cancellationToken)).ConfigureAwait(false);
+        var result = await (services.Store.ConfigureAsync(command, receipt => command.Complete(receipt), FinancialCanonicalHash.Compute, cancellationToken)).ConfigureAwait(false);
+        return await (result.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
     }
 
     /// <summary>Verifies that an empty development book is eligible for financial qualification.</summary>
@@ -45,14 +43,16 @@ public static class ConfigureLedger
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async Task PrepareDevelopmentQualificationAsync(this ConfigureLedgerCommand command, LedgerConfigurationCommandServices services, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
         FinancialRequestValidation.Demand(command, "LedgerImport", DateTime.UtcNow);
         if (services.DevelopmentPolicy?.IsDevelopmentEnvironment != true)
             throw new FinancialOperationException(FinancialReasons.AuthorityDenied, "Development qualification services are unavailable.");
-        var book = await services.Database.ReadBookAsync(command.PortfolioId, cancellationToken);
+        var book = await (services.Database.ReadBookAsync(command.PortfolioId, cancellationToken)).ConfigureAwait(false);
         if (book is not { Environment: "Emulator", MigrationQualified: false } || book.Funds.Any(x => x.CanSpend) ||
-            command.Body.Book is null || FinancialCanonicalHash.Compute(book) != FinancialCanonicalHash.Compute(command.Body.Book))
+            command.Body.Book is null || !string.Equals(FinancialCanonicalHash.Compute(book),FinancialCanonicalHash.Compute(command.Body.Book),StringComparison.Ordinal))
             throw new FinancialOperationException(FinancialReasons.AuthorityDenied, "Qualification requires the exact unqualified development book.");
-        await command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken);
+        await (command.ValidateAuthoritySourcesAsync(services.Sources, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>Validates financial authority against current Portfolio event streams.</summary>
@@ -62,15 +62,17 @@ public static class ConfigureLedger
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async Task ValidateAuthoritySourcesAsync(this ConfigureLedgerCommand command, IPortfolioEventStore sources, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(sources);
         var book = command.Body.Book ?? throw new FinancialOperationException(FinancialReasons.InvalidContract, "Book configuration is required.");
-        var portfolio = await sources.LoadPortfolioAsync(new(command.PortfolioId), cancellationToken);
+        var portfolio = await (sources.LoadPortfolioAsync(new(command.PortfolioId), cancellationToken)).ConfigureAwait(false);
         var funds = new Dictionary<int, TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFundAggregate>();
         var policies = new Dictionary<int, TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFinancialPolicyAggregate>();
         foreach (var fund in book.Funds)
         {
-            funds.Add(fund.FundId, await sources.LoadFundAsync(new(command.PortfolioId, fund.FundId), cancellationToken));
+            funds.Add(fund.FundId, await (sources.LoadFundAsync(new(command.PortfolioId, fund.FundId), cancellationToken)).ConfigureAwait(false));
             if (fund.CanSpend && !policies.ContainsKey(fund.Reference.PolicyId))
-                policies.Add(fund.Reference.PolicyId, await sources.LoadPolicyAsync(new(command.PortfolioId, fund.Reference.PolicyId), cancellationToken));
+                policies.Add(fund.Reference.PolicyId, await (sources.LoadPolicyAsync(new(command.PortfolioId, fund.Reference.PolicyId), cancellationToken)).ConfigureAwait(false));
         }
         FinancialAuthorityModel.Validate(book, portfolio, funds, policies, DateTime.UtcNow);
     }
@@ -79,7 +81,11 @@ public static class ConfigureLedger
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="receipt">The verified committed financial receipt.</param>
     /// <returns>The operation result.</returns>
-    public static LedgerConfigurationCompletedEvent Complete(this ConfigureLedgerCommand command, LedgerConfigurationReceipt receipt) => new()
+    public static LedgerConfigurationCompletedEvent Complete(this ConfigureLedgerCommand command, LedgerConfigurationReceipt receipt) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(receipt);
+        return new()
     {
         Id = Guid.NewGuid(),
         Subject = new(ActorType.Event, ConfigureLedgerCommand.Actor, nameof(LedgerConfigurationCompletedEvent), command.EntityId.Format()),
@@ -95,4 +101,5 @@ public static class ConfigureLedger
         AggregateId = command.EntityId.Format(),
         Receipt = receipt
     };
+    }
 }

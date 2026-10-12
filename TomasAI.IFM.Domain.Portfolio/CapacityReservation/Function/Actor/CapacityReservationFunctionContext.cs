@@ -7,14 +7,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 
-public interface ICapacityReservationFunctionContext : IFunctionActorContext<CapacityReservationFunctionActor>
-{
-    IEventSourceFunctionStateRepository<CapacityReservationFunctionState, ReservePortfolioTradeRiskCommand> StateRepository { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<CapacityReservationFunctionActor> Logger { get; }
-}
-
 /// <summary>The typed and closed-generic interfaces share one singleton registration.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class CapacityReservationFunctionContext : FunctionActorContext, ICapacityReservationFunctionContext
 {
     readonly Lazy<IEventSourceFunctionStateRepository<CapacityReservationFunctionState, ReservePortfolioTradeRiskCommand>> _repository;

@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 
 internal sealed class DatabentoOptionRouteRegistry(int maximumChains)
 {
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
     private readonly Dictionary<string, string> _owners = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Underlying, DateOnly Maturity), string[]> _chains = [];
 
@@ -17,7 +17,7 @@ internal sealed class DatabentoOptionRouteRegistry(int maximumChains)
                 _owners.Add(optionContractId, "individual");
                 return true;
             }
-            if (owner == "individual") return false;
+            if (string.Equals(owner,"individual",StringComparison.Ordinal)) return false;
             throw new MarketDataRouteConflictException(optionContractId, owner);
         }
     }
@@ -27,7 +27,7 @@ internal sealed class DatabentoOptionRouteRegistry(int maximumChains)
         lock (_sync)
         {
             return _owners.TryGetValue(optionContractId, out var owner)
-                && owner == "individual"
+                && string.Equals(owner,"individual",StringComparison.Ordinal)
                 && _owners.Remove(optionContractId);
         }
     }

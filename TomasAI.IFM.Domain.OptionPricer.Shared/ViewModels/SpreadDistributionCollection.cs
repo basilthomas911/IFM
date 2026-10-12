@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels
 {
     public class SpreadDistributionCollection : ICollection<SpreadDistributionReadModel>
     {
-        private List<SpreadDistributionReadModel> _spreadDistributions;
+        private readonly List<SpreadDistributionReadModel> _spreadDistributions;
 
         public SpreadDistributionCollection()
         {

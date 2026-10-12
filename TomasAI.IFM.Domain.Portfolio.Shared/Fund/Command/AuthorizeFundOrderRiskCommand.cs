@@ -43,6 +43,20 @@ public sealed record AuthorizeFundOrderRiskCommand : ICommand<PortfolioFundId>, 
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public AuthorizeFundOrderRiskCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="orderId">The OrderId command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    /// <param name="authorization">The Authorization command value.</param>
+    public AuthorizeFundOrderRiskCommand(PortfolioFundOrderId orderId, long expectedVersion, Financial.FundRiskAuthorizationReference authorization)
+    {
+        OrderId = orderId;
+        ExpectedVersion = expectedVersion;
+        Authorization = authorization;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "AuthorizeFundOrderRisk";
     public const int ErrorId = 34000;
@@ -63,20 +77,6 @@ public sealed record AuthorizeFundOrderRiskCommand : ICommand<PortfolioFundId>, 
     [IgnoreMember] public string CommandName => nameof(AuthorizeFundOrderRiskCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public AuthorizeFundOrderRiskCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="orderId">The OrderId command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    /// <param name="authorization">The Authorization command value.</param>
-    public AuthorizeFundOrderRiskCommand(PortfolioFundOrderId orderId, long expectedVersion, Financial.FundRiskAuthorizationReference authorization)
-    {
-        OrderId = orderId;
-        ExpectedVersion = expectedVersion;
-        Authorization = authorization;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

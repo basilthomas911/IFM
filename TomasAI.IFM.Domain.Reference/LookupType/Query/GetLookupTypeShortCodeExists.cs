@@ -18,8 +18,8 @@ public static class GetLookupTypeShortCodeExists
     public static async ValueTask<ScalarReadModel<bool>> ExecuteAsync(
         this GetLookupTypeShortCodeExistsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
     {
-        return new ScalarReadModel<bool>(await (cancellationToken.CanBeCanceled
-            ? dbFactory.ReferenceDb.LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode, cancellationToken)
-            : dbFactory.ReferenceDb.LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode)));
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return new ScalarReadModel<bool>(await (dbFactory.ReferenceDb.LookupTypeShortCodeExistsAsync(q.LookupTypeName, q.ShortCode, cancellationToken)).ConfigureAwait(false));
     }
 }

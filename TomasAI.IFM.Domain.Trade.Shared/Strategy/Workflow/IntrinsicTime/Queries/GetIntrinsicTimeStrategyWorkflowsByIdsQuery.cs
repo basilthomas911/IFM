@@ -38,6 +38,8 @@ public sealed record GetIntrinsicTimeStrategyWorkflowsByIdsQuery : IQuery<Intrin
     [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(2)] public StrategyWorkflowId[] WorkflowIds { get; init; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(3)] public long[] MinimumRevisions { get; init; } = [];
 }

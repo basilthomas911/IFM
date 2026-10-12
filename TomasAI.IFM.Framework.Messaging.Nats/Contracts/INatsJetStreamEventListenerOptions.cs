@@ -18,12 +18,3 @@ public interface INatsJetStreamEventListenerOptions : INatsEventListenerOptions
     int ThresholdMessages { get; set; }
     TimeSpan NegativeAcknowledgeDelay { get; set; }
 }
-
-/// <summary>
-/// Specifies where a newly created durable listener begins consuming its stream.
-/// </summary>
-public enum NatsJetStreamEventDeliverPolicy
-{
-    All = 0,
-    New = 1
-}

@@ -45,7 +45,7 @@ public class ActorReferenceQueryApiTests
         var (context, db) = CreateContext();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = 0;
-        db.GetLookupTypeAsync(Arg.Any<string>()).Returns(call => CompleteAsync(call.Arg<string>()));
+        db.GetLookupTypeAsync(Arg.Any<string>(), CancellationToken.None).Returns(call => CompleteAsync(call.Arg<string>()));
 
         var result = await context.GetDefaultFuturesContractDefinitionsAsync().WaitAsync(TimeSpan.FromSeconds(2));
 

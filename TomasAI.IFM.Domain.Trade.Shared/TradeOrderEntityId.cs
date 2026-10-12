@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 /// where ValueDate is yyyyMMdd.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public record struct TradeOrderEntityId(
     [property: Key(0)] int OrderId,
     [property: Key(1)] int TradeId,

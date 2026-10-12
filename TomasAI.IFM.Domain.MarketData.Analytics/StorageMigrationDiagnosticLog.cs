@@ -1,0 +1,11 @@
+namespace TomasAI.IFM.Domain.MarketData.Analytics;
+
+/// <summary>Compiled structured diagnostics for storage migration and provider boundaries.</summary>
+internal static partial class StorageMigrationDiagnosticLog
+{
+    [global::Microsoft.Extensions.Logging.LoggerMessage(SkipEnabledCheck = true, EventId = 8909, Level = global::Microsoft.Extensions.Logging.LogLevel.Error, Message = "Trade-session bar publication failed. ContractId={ContractId} TimeFrame={TimeFrame} ObservationId={ObservationId} IntervalEndUtc={IntervalEndUtc} FirstSourceSequence={FirstSourceSequence} LastSourceSequence={LastSourceSequence} LastMarketEventUtc={LastMarketEventUtc} CalculatedAtUtc={CalculatedAtUtc} StreamEpochId={StreamEpochId} ErrorCode={ErrorCode} Error={Error}")]
+    internal static partial void Write9(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string ContractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType TimeFrame, global::System.Guid ObservationId, global::System.DateTimeOffset IntervalEndUtc, long FirstSourceSequence, long LastSourceSequence, global::System.DateTimeOffset LastMarketEventUtc, global::System.DateTimeOffset CalculatedAtUtc, global::System.Guid StreamEpochId, int ErrorCode, string Error);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(SkipEnabledCheck = true, EventId = 8910, Level = global::Microsoft.Extensions.Logging.LogLevel.Error, Message = "Trade-session bar publication failed. ContractId={ContractId} TimeFrame={TimeFrame} ObservationId={ObservationId} IntervalEndUtc={IntervalEndUtc} FirstSourceSequence={FirstSourceSequence} LastSourceSequence={LastSourceSequence} LastMarketEventUtc={LastMarketEventUtc} CalculatedAtUtc={CalculatedAtUtc} StreamEpochId={StreamEpochId} ErrorCode={ErrorCode} Error={Error}")]
+    internal static partial void Write10(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string ContractId, global::TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType TimeFrame, global::System.Guid ObservationId, global::System.DateTimeOffset IntervalEndUtc, long FirstSourceSequence, long LastSourceSequence, global::System.DateTimeOffset LastMarketEventUtc, global::System.DateTimeOffset CalculatedAtUtc, global::System.Guid StreamEpochId, int ErrorCode, string Error);
+}

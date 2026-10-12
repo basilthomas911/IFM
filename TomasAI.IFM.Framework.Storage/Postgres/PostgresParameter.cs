@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Storage.Postgres;
 /// <summary>
 /// Creates strongly typed, unnamed Npgsql parameters for native PostgreSQL positional placeholders.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1720", Justification = "Preserves the existing externally referenced identity and named API contract.")]
 public static class PostgresParameter
 {
     public static NpgsqlParameter[] Values(params NpgsqlParameter[] parameters) => parameters;
@@ -44,7 +45,7 @@ public static class PostgresParameter
             ? value
             : throw new ArgumentException("A UTC DateTime is required for PostgreSQL timestamp with time zone values.", nameof(value));
 
-    static NpgsqlParameter Create<T>(T value, NpgsqlDbType type)
+    static NpgsqlParameter<T> Create<T>(T value, NpgsqlDbType type)
         => new NpgsqlParameter<T>
         {
             NpgsqlDbType = type,

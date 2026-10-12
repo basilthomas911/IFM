@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 
 [MessagePackObject]
-public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>
+public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>, IRequireDurableProjection
 {
     public const string Actor = "OrderExecutionEvent";
     public const string Verb = "OrderExecutionChanged";
@@ -19,8 +20,12 @@ public sealed record OrderExecutionChangedEvent : IEvent<OrderExecutionId>
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public OrderExecutionDefinition OrderExecutionDefinition { get; init; } = new();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(9)] public EstablishedTradeDefinition[] CreatedTrades { get; init; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(10)] public PositionCloseExecution[] ClosedPositions { get; init; } = [];
+    [IgnoreMember] public bool RequiresDurableProjection => true;
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("OrderExecutionCommandActor","OrderExecutionEventProjector",EventProjectorStageType.ApplyProjection);
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(OrderExecutionChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

@@ -33,6 +33,6 @@ namespace TomasAI.IFM.TradePlan.HostedService
                                new TradePlanForwardLossLimitWarningUpdatedEvent { }.SetEventSource($"{EventTopic.TradeEvents}"),
                                new TradePlanForwardLossLimitReachedUpdatedEvent { }.SetEventSource($"{EventTopic.TradeEvents}"),
                                new TradePlanForwardLossLimitClearedEvent { }.SetEventSource($"{EventTopic.TradeEvents}") },
-                async e => await _tradePlanService.ExecuteAsync(e));
+                async e => await (_tradePlanService.ExecuteAsync(e)).ConfigureAwait(false));
     }
 }

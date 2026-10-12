@@ -16,13 +16,15 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
 public sealed class GeneralLedgerProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<GeneralLedgerProjector> logger, EventProjectorReliabilityOptions? options = null)
+    IFinancialHistoryProjection history, ILogger<GeneralLedgerProjector> logger, EventProjectorReliabilityOptions? options = null, LedgerFinancialProjection? financial = null)
     : ConventionalEventProjector<GeneralLedgerCommandActor>(queue, eventSource, blackboard, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(LedgerPostingCompletedEvent), typeof(LedgerPostingBatchCompletedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [
-        DescribeNotification<LedgerPostingCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value)),
+        DescribeNotification<LedgerPostingCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value))
+            .WithReadModelRebuild(async (source, ct) => { await ((financial ?? throw new InvalidOperationException("Ledger rebuild service is not registered.")).ReplayAsync((LedgerPostingCompletedEvent)source, ct)).ConfigureAwait(false); await (history.ApplyAsync((LedgerPostingCompletedEvent)source, ct)).ConfigureAwait(false); }),
         DescribeNotification<LedgerPostingBatchCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value))
+            .WithReadModelRebuild(async (source, ct) => { await ((financial ?? throw new InvalidOperationException("Ledger rebuild service is not registered.")).ReplayAsync((LedgerPostingBatchCompletedEvent)source, ct)).ConfigureAwait(false); await (history.ApplyAsync((LedgerPostingBatchCompletedEvent)source, ct)).ConfigureAwait(false); })
     ];
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

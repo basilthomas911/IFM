@@ -12,13 +12,15 @@ public sealed record OptionPricingRefreshPolicy
     public bool ProductionApproved { get; init; }
     public string? ReviewEvidenceId { get; init; }
     public bool IsProductionQualified => ProductionApproved && !string.IsNullOrWhiteSpace(ReviewEvidenceId)
-        && !string.IsNullOrWhiteSpace(Version) && Version != "OptionRefresh/TestDefaults/v1";
+        && !string.IsNullOrWhiteSpace(Version) && !string.Equals(Version,"OptionRefresh/TestDefaults/v1",StringComparison.Ordinal);
     public void RequireProductionApproval()
     {
         Validate();
         if (!IsProductionQualified)
             throw new InvalidOperationException("Option pricing refresh settings require a reviewed production policy and evidence identity.");
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Instance validation reports the configuration property captured by this object.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Instance validation reports the configuration property captured by this object.")]
     public void Validate()
     {
         if (PriceDeltaMilliseconds is < 10 or > 5000 || ImpliedVolatilityMilliseconds < PriceDeltaMilliseconds

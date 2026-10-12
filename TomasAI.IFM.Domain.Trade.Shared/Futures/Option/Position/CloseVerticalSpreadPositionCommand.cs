@@ -6,4 +6,5 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
-[MessagePackObject] public sealed record CloseVerticalSpreadPositionCommand : TimedPositionCommand { public const string Verb = "CloseVerticalSpreadPosition"; private ExecutionFillEvidence[] closingFills = []; [Key(5)] public ExecutionFillEvidence[] ClosingFills { get => closingFills; init => closingFills = value ?? []; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }
+[MessagePackObject] public sealed record CloseVerticalSpreadPositionCommand : TimedPositionCommand { public const string Verb = "CloseVerticalSpreadPosition"; private ExecutionFillEvidence[] closingFills = []; [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
+[Key(5)] public ExecutionFillEvidence[] ClosingFills { get => closingFills; init => closingFills = value ?? []; } [IgnoreMember] public override BoundedContextName RouteTo => BoundedContextName.FuturesVerticalSpreadTradePositionBoundedContext; }

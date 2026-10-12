@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -63,6 +63,7 @@ public sealed class IronCondorDisposableSnapshotTests
         var source = SourceDatabase();
         var projector = Substitute.For<IEventProjector<FuturesIronCondorTradePositionCommandActor>>();
         var logger = Substitute.For<ILogger<IronCondorTradePlanFunctionStateRepository>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var repository = Repository(source, projector, logger);
         IronCondorTradePlanUpdatedEvent? lastStored = null;
         long storedVersion = 0;

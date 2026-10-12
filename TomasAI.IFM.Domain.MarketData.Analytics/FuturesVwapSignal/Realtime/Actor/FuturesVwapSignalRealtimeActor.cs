@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -25,8 +25,7 @@ public sealed class FuturesVwapSignalRealtimeActor(
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
                 message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
         };
-    IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
+    IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
         FuturesContractV3ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
@@ -65,8 +64,8 @@ public sealed class FuturesVwapSignalRealtimeActor(
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesVwapSignalRealtimeActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

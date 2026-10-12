@@ -19,15 +19,15 @@ public class DatabaseBackupQueryActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupQueryContext ActorContext =>
-        IsArgumentNull.Set(Context as IDatabaseBackupQueryContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IDatabaseBackupQueryContext, nameof(Context))!;
 
     public const string Actor = DatabaseBackupQueryRoute.Actor;
     readonly ISystemAdminDbContext _dbContext = Require(actorContext).DbContext;
 
     /// <summary>Gets the supported concrete query types.</summary>
-    public static IReadOnlyCollection<Type> SupportedQueryTypes => _receiveMap.Keys.ToArray();
+    public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
     /// <summary>Gets the supported query verbs.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys.ToArray();
+    public static IReadOnlyCollection<string> SupportedVerbs =>CachedSupportedVerbs.Value;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
@@ -59,6 +59,7 @@ public class DatabaseBackupQueryActor(
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ((IDatabaseBackupQuery)query).Validate();
         var receive = ResolveMappedQueryHandler(query, _receiveMap);
         await receive(_dbContext, context, query, cancellationToken).ConfigureAwait(false);
@@ -110,10 +111,12 @@ public class DatabaseBackupQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
     /// <summary>Requires the typed Database Backup query context.</summary>
     static IDatabaseBackupQueryContext Require(IQueryActorContext<DatabaseBackupQueryActor> context)
         => context as IDatabaseBackupQueryContext ?? throw new ArgumentException("A typed Database Backup query context is required.", nameof(context));
+private static readonly System.Lazy<IReadOnlyCollection<Type>> CachedSupportedQueryTypes = new(() => System.Array.AsReadOnly(_receiveMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+private static readonly System.Lazy<IReadOnlyCollection<string>> CachedSupportedVerbs = new(() => System.Array.AsReadOnly(_parseMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 }

@@ -41,6 +41,18 @@ public sealed record AssignTradeTemplateCommand : ICommand<PortfolioFundId>, ICo
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public AssignTradeTemplateCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="assignment">The Assignment command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    public AssignTradeTemplateCommand(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion)
+    {
+        Assignment = assignment;
+        ExpectedVersion = expectedVersion;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "AssignTradeTemplate";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record AssignTradeTemplateCommand : ICommand<PortfolioFundId>, ICo
     [IgnoreMember] public string CommandName => nameof(AssignTradeTemplateCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public AssignTradeTemplateCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="assignment">The Assignment command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    public AssignTradeTemplateCommand(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion)
-    {
-        Assignment = assignment;
-        ExpectedVersion = expectedVersion;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

@@ -15,7 +15,7 @@ public sealed class OrderCompositionEventWireContractTests
     {
         { typeof(PortfolioOrderCompositionCompletedEvent), 16 },
         { typeof(PortfolioOrderCompositionFailedEvent), 15 },
-        { typeof(PortfolioCloseOrderCompositionCompletedEvent), 16 },
+        { typeof(PortfolioCloseOrderCompositionCompletedEvent), 17 },
         { typeof(PortfolioCloseOrderCompositionFailedEvent), 15 },
     };
 
@@ -37,6 +37,19 @@ public sealed class OrderCompositionEventWireContractTests
             .GetMethod(nameof(RoundTrip), BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(type)
             .Invoke(null, [value]);
+    }
+
+    [Fact]
+    public void Previous_close_event_array_remains_readable_with_no_invented_target_facts()
+    {
+        var source=new PortfolioCloseOrderCompositionCompletedEvent { Id=Guid.NewGuid(),SchemaVersion=1 };
+        var bytes=MessagePackSerializer.Serialize(source,MessagePackBinarySerializer.ContentOptions);
+        var reader=new MessagePackReader(bytes);reader.ReadArrayHeader().Should().Be(17);
+        var start=(int)reader.Consumed;for(var i=0;i<16;i++) reader.Skip();var end=(int)reader.Consumed;
+        var buffer=new System.Buffers.ArrayBufferWriter<byte>();var writer=new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(16);writer.WriteRaw(bytes.AsSpan(start,end-start));writer.Flush();
+        var old=MessagePackBinarySerializer.Shared.Deserialize<PortfolioCloseOrderCompositionCompletedEvent>(buffer.WrittenSpan.ToArray());
+        old.Id.Should().Be(source.Id);old.SchemaVersion.Should().Be(1);old.ProjectionFacts.Should().BeNull();
     }
 
     static void RoundTrip<T>(T value)

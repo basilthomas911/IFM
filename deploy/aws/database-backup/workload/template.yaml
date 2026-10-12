@@ -27,6 +27,8 @@ Parameters:
     Type: String
     Default: https://github.com/basilthomas911/IFM/blob/main/TomasAI.IFM.Application.Storage.Backup/Docs/AWS-Cloud-Backup-Restore-Operations-Runbook.md
     AllowedPattern: '^https://github\.com/basilthomas911/IFM/blob/[A-Za-z0-9._/-]+$'
+Conditions:
+  IsDevelopment: !Equals [!Ref EnvironmentName, development]
 Resources:
   JournalKey:
     Type: AWS::KMS::Key
@@ -175,6 +177,9 @@ Resources:
                 Action: [kms:GetPublicKey, kms:Sign, kms:Verify]
                 Resource: !GetAtt SigningKey.Arn
               - Effect: Allow
+                Action: [sts:AssumeRole]
+                Resource: [!Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ifm-database-backup-retention-plan-${EnvironmentName}', !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ifm-database-backup-retention-execution-${EnvironmentName}']
+              - Effect: Allow
                 Action: [kms:Encrypt, kms:GenerateDataKey]
                 Resource: !Ref PrimaryEncryptionKeyArn
               - Effect: Allow
@@ -240,6 +245,12 @@ Resources:
             Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
             Action: [sts:AssumeRole]
             Condition: { Bool: { 'aws:MultiFactorAuthPresent': true } }
+          - !If
+            - IsDevelopment
+            - Effect: Allow
+              Principal: { AWS: !GetAtt UploadRole.Arn }
+              Action: [sts:AssumeRole]
+            - !Ref 'AWS::NoValue'
       Policies:
         - PolicyName: ExactVersionDeletionOnly
           PolicyDocument:
@@ -247,7 +258,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [s3:DeleteObjectVersion, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion]
-                Resource: !Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/*'
+                Resource: !If
+                  - IsDevelopment
+                  - [!Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/protection-set/*', !Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/catalog/restore-point/*', !Sub '${RecoveryVaultBucketArn}/v1/environment/${EnvironmentName}/protection-set/*', !Sub '${RecoveryVaultBucketArn}/v1/environment/${EnvironmentName}/catalog/restore-point/*']
+                  - !Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/*'
               - Effect: Deny
                 Action: [s3:BypassGovernanceRetention, s3:DeleteBucket, s3:PutReplicationConfiguration]
                 Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']

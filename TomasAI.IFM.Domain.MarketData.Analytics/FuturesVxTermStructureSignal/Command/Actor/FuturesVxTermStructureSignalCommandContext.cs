@@ -7,18 +7,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.Actor;
 
-/// <summary>Defines readonly services required by the VX term-structure Command actor.</summary>
-public interface IFuturesVxTermStructureSignalCommandContext
-    : ICommandActorContext<FuturesVxTermStructureSignalCommandActor>
-{
-    ILogger<FuturesVxTermStructureSignalCommandActor> Logger { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IEventProjector<FuturesVxTermStructureSignalCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the typed VX term-structure Command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVxTermStructureSignalCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesVxTermStructureSignalCommandActor>,
     IFuturesVxTermStructureSignalCommandContext
 {
     /// <summary>Initializes the typed context.</summary>

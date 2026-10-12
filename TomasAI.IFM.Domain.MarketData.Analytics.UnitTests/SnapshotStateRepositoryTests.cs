@@ -36,7 +36,7 @@ public sealed class SnapshotStateRepositoryTests
         stateFactory.CreateState<FuturesVxTermStructureSignalCommandState>()
             .Returns(new FuturesVxTermStructureSignalCommandState());
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        eventSource.GetEventStreamIdAsync(Arg.Any<string>()).Returns(streamId);
+        eventSource.GetEventStreamIdAsync(Arg.Any<string>(), CancellationToken.None).Returns(streamId);
         var actorService = Substitute.For<IActorService>();
         var command = Command();
 
@@ -75,7 +75,7 @@ public sealed class SnapshotStateRepositoryTests
             .MapReduceActorEventStreamFromSnapshotLastNRangeAsync<
                 FuturesBbSignalCommandState,
                 FuturesBbSignalGeneratedEvent,
-                FuturesBbSignalGeneratedEvent>(default, default, default!);
+                FuturesBbSignalGeneratedEvent>(default, default, default!, CancellationToken.None);
     }
 
     /// <summary>Ensures one historical-load attempt begins replay at its accepted-request event.</summary>
@@ -87,7 +87,7 @@ public sealed class SnapshotStateRepositoryTests
         stateFactory.CreateState<FuturesAnalyticsHistoricalDataLoaderCommandState>()
             .Returns(new FuturesAnalyticsHistoricalDataLoaderCommandState());
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        eventSource.GetEventStreamIdAsync(Arg.Any<string>()).Returns(streamId);
+        eventSource.GetEventStreamIdAsync(Arg.Any<string>(), CancellationToken.None).Returns(streamId);
         var repository = new FuturesAnalyticsHistoricalDataLoaderStateRepository(
             stateFactory,
             eventSource,
@@ -101,7 +101,7 @@ public sealed class SnapshotStateRepositoryTests
             FuturesAnalyticsHistoricalDataLoaderCommandState,
             FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(eventSource, streamId);
         await eventSource.DidNotReceiveWithAnyArgs()
-            .MapReduceActorEventStreamAsync<FuturesAnalyticsHistoricalDataLoaderCommandState>(default, default!);
+            .MapReduceActorEventStreamAsync<FuturesAnalyticsHistoricalDataLoaderCommandState>(default, default!, CancellationToken.None);
     }
 
     static ICommand Command()
@@ -120,5 +120,5 @@ public sealed class SnapshotStateRepositoryTests
         where TEvent : IEvent
         => await eventSource.Received(1).MapReduceActorEventStreamAsync<TState, TEvent>(
             streamId,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
 }

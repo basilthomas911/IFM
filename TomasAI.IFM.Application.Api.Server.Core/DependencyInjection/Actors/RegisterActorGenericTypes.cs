@@ -170,6 +170,8 @@ public static partial class CoreServiceRegistration
         () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
         siContainer.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskProjectionWriter>(
         () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.IScheduledTaskTransactionalProjectionWriter>(
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
         RegisterTradeBrokerEmulator(siContainer, config, logger);
         siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
         var projectorReliabilityOptions = config

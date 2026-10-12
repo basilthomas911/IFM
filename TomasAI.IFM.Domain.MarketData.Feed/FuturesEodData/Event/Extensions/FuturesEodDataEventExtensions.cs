@@ -24,7 +24,7 @@ internal static class FuturesEodDataEventExtensions
             EntityId = entityId,
             ErrorCode = GetVixFuturesEodDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(query)).ConfigureAwait(false);
         return serviceResult?.Success == true && serviceResult.Value is not null
             ? serviceResult.Value
             : [];

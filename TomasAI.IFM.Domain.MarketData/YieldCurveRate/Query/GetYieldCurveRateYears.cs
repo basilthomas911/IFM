@@ -12,12 +12,12 @@ public static class GetYieldCurveRateYears
         this GetYieldCurveRateYearsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new([.. cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return new([.. await dbFactory.MarketDataDb
                 .GetYieldCurveRateYearsAsync(cancellationToken)
-                .ConfigureAwait(false)
-            : await dbFactory.MarketDataDb
-                .GetYieldCurveRateYearsAsync()
                 .ConfigureAwait(false)]);
+    }
 
 }

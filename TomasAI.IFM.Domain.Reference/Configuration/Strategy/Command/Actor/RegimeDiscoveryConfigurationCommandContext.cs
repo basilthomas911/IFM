@@ -10,34 +10,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;
 
-/// <summary>Defines readonly dependencies owned by the strategy-configuration Command actor.</summary>
-public interface IRegimeDiscoveryConfigurationCommandContext
-    : ICommandActorContext<RegimeDiscoveryConfigurationCommandActor>
-{
-    /// <summary>Gets EventSourceDb.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets ConfigurationDb.</summary>
-    IConfigurationDbContext ConfigurationDb { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<RegimeDiscoveryConfigurationCommandActor> EventProjector { get; }
-    /// <summary>Gets the state repository.</summary>
-    IEventSourceActorStateRepository<RegimeDiscoveryConfigurationCommandState> StateRepository { get; }
-    /// <summary>Gets the projector queue dependency.</summary>
-    IDurableReplayQueue DurableReplayQueue { get; }
-    /// <summary>Gets the blackboard dependency.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets actor infrastructure.</summary>
-    IActorService ActorService { get; }
-    /// <summary>Gets the logger.</summary>
-    ILogger<RegimeDiscoveryConfigurationCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the closed-generic strategy-configuration Command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class RegimeDiscoveryConfigurationCommandContext
     : CommandActorContext,
-      ICommandActorContext<RegimeDiscoveryConfigurationCommandActor>,
       IRegimeDiscoveryConfigurationCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> dbEventSource;

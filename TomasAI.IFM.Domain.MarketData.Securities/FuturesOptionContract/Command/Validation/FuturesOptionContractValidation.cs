@@ -18,7 +18,7 @@ internal static class FuturesOptionContractValidation
         {
             _ = new FuturesOptionContractId(contractId);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
         {
             validationErrors.Add(new(exception.Message));
         }

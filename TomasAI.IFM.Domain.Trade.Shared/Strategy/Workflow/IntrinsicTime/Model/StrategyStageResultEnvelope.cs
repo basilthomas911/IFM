@@ -57,6 +57,7 @@ public sealed record StrategyStageResultEnvelope
         return envelope with { PayloadSha256 = envelope._riskFingerprint.Hash };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public RiskAssessmentResult ReadRiskResult()
     {
         if (_riskResult is null || !HasValidPayloadSha256()) throw new ArgumentException("Typed Risk assessment content is required.");
@@ -131,7 +132,7 @@ public sealed record StrategyStageResultEnvelope
     {
         ArgumentNullException.ThrowIfNull(result);
         if (result.ResultId == Guid.Empty || result.SchemaVersion != 1 || maximumPayloadBytes is <= 0 or > 524288)
-            throw new ArgumentException("A versioned composition identity and supported content budget are required.");
+            throw new ArgumentException("A versioned composition identity and supported content budget are required.",nameof(result));
         var envelope = new StrategyStageResultEnvelope
         {
             ResultId = result.ResultId,
@@ -148,9 +149,10 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Reads typed composition content or historical MessagePack bytes after integrity checks.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public OrderCompositionResult ReadCompositionResult()
     {
-        if (ResultType != nameof(OrderCompositionResult) || !HasValidPayloadSha256())
+        if (!string.Equals(ResultType,nameof(OrderCompositionResult),StringComparison.Ordinal) || !HasValidPayloadSha256())
             throw new ArgumentException("Invalid composition envelope.");
         if (_compositionResult is not null) return CompositionResult!;
         throw new ArgumentException("Typed composition content is required.");
@@ -179,7 +181,7 @@ public sealed record StrategyStageResultEnvelope
     {
         ArgumentNullException.ThrowIfNull(result);
         if (result.ResultId == Guid.Empty || result.SchemaVersion != 1 || maximumPayloadBytes is <= 0 or > 524288)
-            throw new ArgumentException("A versioned selection identity and supported content budget are required.");
+            throw new ArgumentException("A versioned selection identity and supported content budget are required.",nameof(result));
         var envelope = new StrategyStageResultEnvelope
         {
             ResultId = result.ResultId,
@@ -196,12 +198,13 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Reads typed selection content or historical MessagePack bytes after integrity checks.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public TradeSelectionResult ReadSelectionResult()
     {
-        if (ResultType != nameof(TradeSelectionResult) || !HasValidPayloadSha256())
+        if (!string.Equals(ResultType,nameof(TradeSelectionResult),StringComparison.Ordinal) || !HasValidPayloadSha256())
             throw new ArgumentException("Invalid selection envelope.");
         if (_selectionResult is not null) return SelectionResult!;
-        if (ContentType != "application/x-msgpack") throw new ArgumentException("Unsupported legacy selection encoding.");
+        if (!string.Equals(ContentType,"application/x-msgpack",StringComparison.Ordinal)) throw new ArgumentException("Unsupported legacy selection encoding.");
         return MessagePackBinarySerializer.Shared.Deserialize<TradeSelectionResult>(_payload)!;
     }
 
@@ -227,17 +230,18 @@ public sealed record StrategyStageResultEnvelope
     }
 
     /// <summary>Reads typed assessment content, decoding bytes only for legacy persisted envelopes.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public MarketConditionAssessmentResult ReadAssessmentResult()
     {
-        if (ResultType != nameof(MarketConditionAssessmentResult) || !HasValidPayloadSha256())
+        if (!string.Equals(ResultType,nameof(MarketConditionAssessmentResult),StringComparison.Ordinal) || !HasValidPayloadSha256())
             throw new ArgumentException("Invalid assessment result envelope.");
         if (_assessmentResult is not null) return AssessmentResult!;
-        if (ContentType != "application/x-msgpack") throw new ArgumentException("Unsupported legacy assessment encoding.");
+        if (!string.Equals(ContentType,"application/x-msgpack",StringComparison.Ordinal)) throw new ArgumentException("Unsupported legacy assessment encoding.");
         return MessagePackBinarySerializer.Shared.Deserialize<MarketConditionAssessmentResult>(_payload)!;
     }
 
     /// <summary>Gets the canonical typed-content size or legacy encoded payload size used by the stage budget.</summary>
-    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => _riskResult is not null ? _riskFingerprint.Size : _compositionResult is not null ? _compositionFingerprint.Size : _selectionResult is not null ? _selectionFingerprint.Size : _assessmentResult is not null ? _assessmentFingerprint.Size : _regimeResult is null ? _payload.Length : _regimeFingerprint.Size;
+    [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public int ContentSize => (_riskResult is not null) switch { true => _riskFingerprint.Size, false => (_compositionResult is not null) switch { true => _compositionFingerprint.Size, false => (_selectionResult is not null) switch { true => _selectionFingerprint.Size, false => (_assessmentResult is not null) switch { true => _assessmentFingerprint.Size, false => (_regimeResult is null) switch { true => _payload.Length, false => _regimeFingerprint.Size } } } } };
     /// <summary>Gets whether a supported result representation is populated.</summary>
     [IgnoreMember, JsonIgnore, System.Text.Json.Serialization.JsonIgnore] public bool HasContent => _riskResult is not null || _compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null || _payload.Length != 0;
 
@@ -266,12 +270,13 @@ public sealed record StrategyStageResultEnvelope
 
     /// <summary>Reads typed Regime content, decoding bytes only for persisted legacy envelopes.</summary>
     /// <returns>The typed result after envelope integrity checks.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public RegimeDiscoveryResult ReadRegimeResult()
     {
-        if (ResultType != nameof(RegimeDiscoveryResult) || !HasValidPayloadSha256())
+        if (!string.Equals(ResultType,nameof(RegimeDiscoveryResult),StringComparison.Ordinal) || !HasValidPayloadSha256())
             throw new ArgumentException("Invalid Regime Discovery result envelope.");
         if (_regimeResult is not null) return RegimeResult!;
-        if (ContentType != "application/x-msgpack")
+        if (!string.Equals(ContentType,"application/x-msgpack",StringComparison.Ordinal))
             throw new ArgumentException("Unsupported legacy Regime result encoding.");
         return MessagePackBinarySerializer.Shared.Deserialize<RegimeDiscoveryResult>(_payload)!;
     }
@@ -281,7 +286,7 @@ public sealed record StrategyStageResultEnvelope
     /// <returns>True when both envelopes identify the same complete content.</returns>
     public bool HasSameContent(StrategyStageResultEnvelope? other) => other is not null &&
         HasValidPayloadSha256() && other.HasValidPayloadSha256() && ResultId == other.ResultId &&
-        ResultType == other.ResultType && SchemaVersion == other.SchemaVersion && ContentType == other.ContentType &&
+        string.Equals(ResultType,other.ResultType,StringComparison.Ordinal) && SchemaVersion == other.SchemaVersion && string.Equals(ContentType,other.ContentType,StringComparison.Ordinal) &&
         ProducedAtUtc == other.ProducedAtUtc && MarketDataAsOfUtc == other.MarketDataAsOfUtc &&
         string.Equals(PayloadSha256, other.PayloadSha256, StringComparison.OrdinalIgnoreCase);
 
@@ -303,6 +308,7 @@ public sealed record StrategyStageResultEnvelope
     public string ContentType { get; init; } = "application/x-msgpack";
 
     /// <summary>Gets a defensive copy of the exact serialized stage payload.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "The existing serialized payload property deliberately returns a defensive copy to prevent mutation of immutable evidence.")]
     [Key(4)]
     [JsonIgnore]
     public ReadOnlyMemory<byte> Payload
@@ -391,38 +397,38 @@ public sealed record StrategyStageResultEnvelope
         if (_riskResult is not null)
         {
             if (_compositionResult is not null || _selectionResult is not null || _assessmentResult is not null || _regimeResult is not null
-                || _payload.Length != 0 || ContentType != TypedRiskContentType || ResultType != nameof(RiskAssessmentResult)
+                || _payload.Length != 0 || !string.Equals(ContentType,TypedRiskContentType,StringComparison.Ordinal) || !string.Equals(ResultType,nameof(RiskAssessmentResult),StringComparison.Ordinal)
                 || ResultId != _riskResult.ResultId || SchemaVersion != _riskResult.SchemaVersion
                 || ProducedAtUtc != _riskResult.ProducedAtUtc || MarketDataAsOfUtc != _riskResult.EvaluatedAtUtc) return false;
             return string.Equals(PayloadSha256, _riskFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_compositionResult is not null)
         {
-            if (_selectionResult is not null || _regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedCompositionContentType ||
-                ResultType != nameof(OrderCompositionResult) || ResultId != _compositionResult.ResultId || SchemaVersion != _compositionResult.SchemaVersion ||
+            if (_selectionResult is not null || _regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || !string.Equals(ContentType,TypedCompositionContentType,StringComparison.Ordinal) ||
+                !string.Equals(ResultType,nameof(OrderCompositionResult),StringComparison.Ordinal) || ResultId != _compositionResult.ResultId || SchemaVersion != _compositionResult.SchemaVersion ||
                 ProducedAtUtc != _compositionResult.ProducedAtUtc || MarketDataAsOfUtc != _compositionResult.EvaluatedAtUtc)
                 return false;
             return string.Equals(PayloadSha256, _compositionFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_selectionResult is not null)
         {
-            if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || ContentType != TypedSelectionContentType ||
-                ResultType != nameof(TradeSelectionResult) || ResultId != _selectionResult.ResultId || SchemaVersion != _selectionResult.SchemaVersion ||
+            if (_regimeResult is not null || _assessmentResult is not null || _payload.Length != 0 || !string.Equals(ContentType,TypedSelectionContentType,StringComparison.Ordinal) ||
+                !string.Equals(ResultType,nameof(TradeSelectionResult),StringComparison.Ordinal) || ResultId != _selectionResult.ResultId || SchemaVersion != _selectionResult.SchemaVersion ||
                 ProducedAtUtc != _selectionResult.ProducedAtUtc || MarketDataAsOfUtc != _selectionResult.DecisionContext.AssessmentResultEnvelope.MarketDataAsOfUtc)
                 return false;
             return string.Equals(PayloadSha256, _selectionFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_assessmentResult is not null)
         {
-            if (_regimeResult is not null || _payload.Length != 0 || ContentType != TypedAssessmentContentType ||
-                ResultType != nameof(MarketConditionAssessmentResult) || ResultId != _assessmentResult.ResultId ||
+            if (_regimeResult is not null || _payload.Length != 0 || !string.Equals(ContentType,TypedAssessmentContentType,StringComparison.Ordinal) ||
+                !string.Equals(ResultType,nameof(MarketConditionAssessmentResult),StringComparison.Ordinal) || ResultId != _assessmentResult.ResultId ||
                 SchemaVersion != _assessmentResult.SchemaVersion || ProducedAtUtc != _assessmentResult.EvaluatedAtUtc ||
                 MarketDataAsOfUtc != _assessmentResult.EvaluatedAtUtc) return false;
             return string.Equals(PayloadSha256, _assessmentFingerprint.Hash, StringComparison.OrdinalIgnoreCase);
         }
         if (_regimeResult is not null)
         {
-            if (_payload.Length != 0 || ContentType != TypedRegimeContentType || ResultType != nameof(RegimeDiscoveryResult) ||
+            if (_payload.Length != 0 || !string.Equals(ContentType,TypedRegimeContentType,StringComparison.Ordinal) || !string.Equals(ResultType,nameof(RegimeDiscoveryResult),StringComparison.Ordinal) ||
                 ResultId != _regimeResult.ResultId || SchemaVersion != _regimeResult.SchemaVersion ||
                 ProducedAtUtc != _regimeResult.ProducedAtUtc || MarketDataAsOfUtc != _regimeResult.MarketDataAsOfUtc)
                 return false;
@@ -439,79 +445,6 @@ public sealed record StrategyStageResultEnvelope
         catch (FormatException)
         {
             return false;
-        }
-    }
-}
-
-/// <summary>Validates the metadata, size, and integrity of typed or opaque stage-result content.</summary>
-public sealed class StrategyStageResultEnvelopeValidationRules
-    : BaseValidationRules, IValidationRules<StrategyStageResultEnvelope>
-{
-    /// <summary>Error returned when the result identifier is empty.</summary>
-    public const string ResultIdErrorMessage = "StrategyStageResultEnvelope: ResultId is required";
-
-    /// <summary>Error returned when the logical result contract name is empty.</summary>
-    public const string ResultTypeErrorMessage = "StrategyStageResultEnvelope: ResultType is required";
-
-    /// <summary>Error returned when the result schema version is not positive.</summary>
-    public const string SchemaVersionErrorMessage = "StrategyStageResultEnvelope: SchemaVersion must be positive";
-
-    /// <summary>Error returned when the payload media type is empty.</summary>
-    public const string ContentTypeErrorMessage = "StrategyStageResultEnvelope: ContentType is required";
-
-    /// <summary>Error returned when the opaque payload is empty.</summary>
-    public const string PayloadRequiredErrorMessage = "StrategyStageResultEnvelope: Payload is required";
-
-    /// <summary>Error returned when the opaque payload exceeds its configured stage limit.</summary>
-    public const string PayloadLimitErrorMessage = "StrategyStageResultEnvelope: Payload exceeds the configured limit";
-
-    /// <summary>Error returned when the payload digest does not match the stored bytes.</summary>
-    public const string PayloadHashErrorMessage = "StrategyStageResultEnvelope: PayloadSha256 does not match Payload";
-
-    readonly Validator _rules;
-
-    /// <summary>Initializes envelope validation with the default 64-KiB payload limit.</summary>
-    public StrategyStageResultEnvelopeValidationRules()
-        : this(StrategyStageResultEnvelope.DefaultMaximumPayloadBytes) { }
-
-    StrategyStageResultEnvelopeValidationRules(int maximumPayloadBytes)
-    {
-        if (maximumPayloadBytes <= 0)
-            throw new ArgumentOutOfRangeException(
-                nameof(maximumPayloadBytes), "The maximum payload size must be positive.");
-        _rules = new Validator(maximumPayloadBytes);
-    }
-
-    /// <summary>Creates envelope validation with a stage-specific payload limit.</summary>
-    /// <param name="maximumPayloadBytes">Maximum serialized payload size accepted for the stage.</param>
-    /// <returns>A validation rule set using the supplied limit.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the payload limit is not positive.</exception>
-    public static StrategyStageResultEnvelopeValidationRules WithMaximumPayloadBytes(int maximumPayloadBytes)
-        => new(maximumPayloadBytes);
-
-    /// <summary>Validates the supplied stage-result envelope.</summary>
-    /// <param name="envelope">Envelope to validate.</param>
-    /// <returns>All validation errors, or an empty array when valid.</returns>
-    public ValidationError[] Execute(StrategyStageResultEnvelope envelope)
-    {
-        ArgumentNullException.ThrowIfNull(envelope);
-        return Validate(envelope, _rules);
-    }
-
-    sealed class Validator : AbstractValidator<StrategyStageResultEnvelope>
-    {
-        public Validator(int maximumPayloadBytes)
-        {
-            RuleFor(x => x.ResultId).NotEmpty().WithMessage(ResultIdErrorMessage);
-            RuleFor(x => x.ResultType).NotEmpty().WithMessage(ResultTypeErrorMessage);
-            RuleFor(x => x.SchemaVersion).GreaterThan(0).WithMessage(SchemaVersionErrorMessage);
-            RuleFor(x => x.ContentType).NotEmpty().WithMessage(ContentTypeErrorMessage);
-            RuleFor(x => x).Must(static envelope => envelope.HasContent).WithMessage(PayloadRequiredErrorMessage);
-            RuleFor(x => x.ContentSize)
-                .Must(size => size <= maximumPayloadBytes)
-                .WithMessage(PayloadLimitErrorMessage);
-            RuleFor(x => x).Must(static envelope => envelope.HasValidPayloadSha256())
-                .WithMessage(PayloadHashErrorMessage);
         }
     }
 }

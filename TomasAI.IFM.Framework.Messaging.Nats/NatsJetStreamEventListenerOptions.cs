@@ -19,10 +19,13 @@ public sealed class NatsJetStreamEventListenerOptions : INatsJetStreamEventListe
     public int DispatcherCount { get; set; } = 1;
     public int DispatcherCapacity { get; set; } = 256;
     public int MaxAckPending { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int MaxMessages { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int ThresholdMessages { get; set; }
     public TimeSpan NegativeAcknowledgeDelay { get; set; } = TimeSpan.FromMilliseconds(250);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int GetOutstandingLimit() => MaxAckPending > 0
         ? MaxAckPending
         : checked(DispatcherCount * DispatcherCapacity);
@@ -88,9 +91,9 @@ public sealed class NatsJetStreamEventListenerOptions : INatsJetStreamEventListe
         for (var index = 0; index < tokens.Length; index++)
         {
             var token = tokens[index];
-            if (token.Contains('>') && (token != ">" || index != tokens.Length - 1))
+            if (token.Contains('>',System.StringComparison.Ordinal) && (!string.Equals(token,">",StringComparison.Ordinal) || index != tokens.Length - 1))
                 throw new InvalidOperationException($"{parameterName} contains an invalid '>' wildcard.");
-            if (token.Contains('*') && token != "*")
+            if (token.Contains('*',System.StringComparison.Ordinal) && !string.Equals(token,"*",StringComparison.Ordinal))
                 throw new InvalidOperationException($"{parameterName} contains an invalid '*' wildcard.");
         }
     }

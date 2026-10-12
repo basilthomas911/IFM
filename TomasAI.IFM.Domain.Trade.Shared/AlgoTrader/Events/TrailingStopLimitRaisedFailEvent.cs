@@ -1,0 +1,10 @@
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+
+namespace TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events
+{
+
+    public record TrailingStopLimitRaisedFailEvent : TradePlanUpdatedFailEvent
+    {
+    }
+}

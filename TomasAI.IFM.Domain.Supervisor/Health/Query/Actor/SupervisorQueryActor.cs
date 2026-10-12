@@ -51,8 +51,8 @@ public sealed class SupervisorQueryActor(IQueryActorContext<SupervisorQueryActor
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception) => ExceptionMappedQueryAsync(
-            context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex) => ExceptionMappedQueryAsync(
+            context, threadId, query, verb, ex, _exceptionMap);
 
     static ISupervisorQueryActorContext Require(IQueryActorContext<SupervisorQueryActor> context) =>
         context as ISupervisorQueryActorContext

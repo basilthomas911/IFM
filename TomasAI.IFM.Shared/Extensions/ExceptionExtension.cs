@@ -28,6 +28,7 @@ public static class ExceptionExtension
     /// <returns>The message of the innermost exception.</returns>
     public static string GetErrorMessage(this Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         while (ex.InnerException != null)
             ex = ex.InnerException;
         return ex.Message;
@@ -44,10 +45,13 @@ public static class ExceptionExtension
     /// <param name="actor">The actor name to use for the event subject.</param>
     /// <param name="verb">The verb (event name) to use for the event subject.</param>
     /// <returns>An instance of <typeparamref name="TFailedEvent"/> populated with metadata derived from the command and exception.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
     public static TFailedEvent GetCommandFailedEvent<TFailedEvent, TEntityId>(this Exception ex, ICommand<TEntityId> command, string actor, string verb)
         where TEntityId : IActorEntityId
         where TFailedEvent : IErrorEvent<TEntityId>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
         var e = Activator.CreateInstance<TFailedEvent>();
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, command.EntityId.Format()));
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent<TEntityId>.EntityId), command.EntityId);
@@ -57,8 +61,8 @@ public static class ExceptionExtension
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command.ErrorCode);
         EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command.StreamId); } catch { }
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { }
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command.StreamId); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
         return e;
     }
 
@@ -78,78 +82,10 @@ public static class ExceptionExtension
             where TFailedEvent : class, IErrorEvent<TEntityId>
             where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
         var errorEvent = GetCommandFailedEvent<TFailedEvent, TEntityId>(ex, command, actor, verb);
-        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent);
+        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent).ConfigureAwait(false);
         return errorEvent;
-    }
-
-    /// <summary>
-    /// Creates a generic command exception error event populated with information about the provided exception
-    /// and optional command/context metadata.
-    /// </summary>
-    /// <typeparam name="TFailedEvent">The concrete error event type to create.</typeparam>
-    /// <typeparam name="TEntityId">The actor entity id type associated with the error event.</typeparam>
-    /// <param name="ex">The exception that caused the error.</param>
-    /// <param name="errorType">The classification of the error.</param>
-    /// <param name="command">The command related to the error, if any.</param>
-    /// <param name="entityId">The actor entity id to use for the event subject.</param>
-    /// <param name="actor">The actor name to use for the event subject.</param>
-    /// <param name="verb">The verb (event name) to use for the event subject.</param>
-    /// <returns>An instance of <typeparamref name="TFailedEvent"/> populated with exception and command data.</returns>
-    public static TFailedEvent GetCommandExceptionEvent<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, ICommand command, IActorEntityId entityId, string actor, string verb)
-    where TEntityId : IActorEntityId
-    where TFailedEvent : IErrorEvent<TEntityId>
-    {
-        var e = Activator.CreateInstance<TFailedEvent>();
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
-
-        // Handle AggregateException specially to include all inner exception messages
-        if (ex is AggregateException aggEx)
-        {
-            var messages = aggEx.InnerExceptions.Select(innerEx => innerEx.Message);
-            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), string.Join("; ", messages));
-        }
-        else
-        {
-            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
-        }
-
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command?.ErrorCode ?? 9999);
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command?.StreamId ?? string.Empty); } catch { }
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), command is null ? string.Empty : JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { }
-        return e;
-    }
-
-    public static TFailedEvent GetEventExceptionEvent<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, ICommand command, IActorEntityId entityId, string actor, string verb)
-where TEntityId : IActorEntityId
-where TFailedEvent : IErrorEvent<TEntityId>
-    {
-        var e = Activator.CreateInstance<TFailedEvent>();
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
-
-        // Handle AggregateException specially to include all inner exception messages
-        if (ex is AggregateException aggEx)
-        {
-            var messages = aggEx.InnerExceptions.Select(innerEx => innerEx.Message);
-            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), string.Join("; ", messages));
-        }
-        else
-        {
-            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
-        }
-
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command?.ErrorCode ?? 9999);
-        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command?.StreamId ?? string.Empty); } catch { }
-        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), command is null ? string.Empty : JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { }
-        return e;
     }
 
 
@@ -171,8 +107,9 @@ where TFailedEvent : IErrorEvent<TEntityId>
        where TFailedEvent : class, IErrorEvent<TEntityId>
        where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
         var errorEvent = GetCommandExceptionEvent<TFailedEvent, TEntityId>(ex, errorType, command, entityId, actor, verb);
-        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent);
+        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent).ConfigureAwait(false);
         return errorEvent;
     }
 
@@ -188,10 +125,12 @@ where TFailedEvent : IErrorEvent<TEntityId>
     /// <param name="context">The command actor context to which the error event will be sent.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation. The result contains the error
     /// event that was sent.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
     public static async ValueTask<TFailedEvent> SendErrorEventAsync<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, ICommandActorContext context)
        where TFailedEvent : class, IErrorEvent<TEntityId>
        where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
         var actorName = "CommandException";
         TFailedEvent errorEvent;
         try
@@ -209,7 +148,7 @@ where TFailedEvent : IErrorEvent<TEntityId>
         {
             errorEvent = GetCommandExceptionEvent<TFailedEvent, TEntityId>(sendEx, ErrorType.Command, default!, ActorEntityId.Default, actorName, EventModelActor.Events.CommandExceptionEvent.CommandFail);
         }
-        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent);
+        await context.SendAsync<TFailedEvent, TEntityId>(errorEvent).ConfigureAwait(false);
         return errorEvent;
     }
 
@@ -226,24 +165,101 @@ where TFailedEvent : IErrorEvent<TEntityId>
     /// <param name="errorType">The classification of the error to be reported in the event.</param>
     /// <param name="context">The event actor context to which the error event will be sent. Cannot be null.</param>
     /// <returns>A <typeparamref name="TFailedEvent"/> instance representing the dispatched error event.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
     public static async ValueTask<TFailedEvent> SendErrorEventAsync<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, IEventActorContext context)
         where TFailedEvent : class, IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
         var actorName = "EventException";
         TFailedEvent errorEvent;
         try
         {
             // For event actors, we always use ErrorType.EventService regardless of the exception type
             errorEvent = GetEventExceptionEvent<TFailedEvent, TEntityId>(ex, ErrorType.EventService, default!, ActorEntityId.Default, actorName, EventExceptionEvent.Verb);
-            await context.SendAsync<TFailedEvent, TEntityId>(errorEvent);
+            await context.SendAsync<TFailedEvent, TEntityId>(errorEvent).ConfigureAwait(false);
         }
         catch (Exception sendEx)
         {
             errorEvent = GetEventExceptionEvent<TFailedEvent, TEntityId>(sendEx, ErrorType.EventService, default!, ActorEntityId.Default, actorName, EventExceptionEvent.Verb);
-            try { await context.SendAsync<TFailedEvent, TEntityId>(errorEvent); } catch { }
+            try { await context.SendAsync<TFailedEvent, TEntityId>(errorEvent).ConfigureAwait(false); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
         }
         return errorEvent;
+    }
+
+    /// <summary>
+    /// Creates a generic command exception error event populated with information about the provided exception
+    /// and optional command/context metadata.
+    /// </summary>
+    /// <typeparam name="TFailedEvent">The concrete error event type to create.</typeparam>
+    /// <typeparam name="TEntityId">The actor entity id type associated with the error event.</typeparam>
+    /// <param name="ex">The exception that caused the error.</param>
+    /// <param name="errorType">The classification of the error.</param>
+    /// <param name="command">The command related to the error, if any.</param>
+    /// <param name="entityId">The actor entity id to use for the event subject.</param>
+    /// <param name="actor">The actor name to use for the event subject.</param>
+    /// <param name="verb">The verb (event name) to use for the event subject.</param>
+    /// <returns>An instance of <typeparamref name="TFailedEvent"/> populated with exception and command data.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
+    public static TFailedEvent GetCommandExceptionEvent<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, ICommand command, IActorEntityId entityId, string actor, string verb)
+    where TEntityId : IActorEntityId
+    where TFailedEvent : IErrorEvent<TEntityId>
+    {
+        ArgumentNullException.ThrowIfNull(entityId);
+        ArgumentNullException.ThrowIfNull(ex);
+        var e = Activator.CreateInstance<TFailedEvent>();
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
+
+        // Handle AggregateException specially to include all inner exception messages
+        if (ex is AggregateException aggEx)
+        {
+            var messages = aggEx.InnerExceptions.Select(innerEx => innerEx.Message);
+            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), string.Join("; ", messages));
+        }
+        else
+        {
+            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
+        }
+
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command?.ErrorCode ?? 9999);
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command?.StreamId ?? string.Empty); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), command is null ? string.Empty : JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        return e;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
+    public static TFailedEvent GetEventExceptionEvent<TFailedEvent, TEntityId>(this Exception ex, ErrorType errorType, ICommand command, IActorEntityId entityId, string actor, string verb)
+where TEntityId : IActorEntityId
+where TFailedEvent : IErrorEvent<TEntityId>
+    {
+        ArgumentNullException.ThrowIfNull(entityId);
+        ArgumentNullException.ThrowIfNull(ex);
+        var e = Activator.CreateInstance<TFailedEvent>();
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, actor, verb, entityId.Format()));
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.CommandId), command?.CommandId ?? Guid.Empty);
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandName), command?.GetType().Name ?? $"{errorType}");
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorType), errorType);
+
+        // Handle AggregateException specially to include all inner exception messages
+        if (ex is AggregateException aggEx)
+        {
+            var messages = aggEx.InnerExceptions.Select(innerEx => innerEx.Message);
+            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), string.Join("; ", messages));
+        }
+        else
+        {
+            EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
+        }
+
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command?.ErrorCode ?? 9999);
+        EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command?.StreamId ?? string.Empty); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        try { EventModelActor.EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), command is null ? string.Empty : JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        return e;
     }
 }
 

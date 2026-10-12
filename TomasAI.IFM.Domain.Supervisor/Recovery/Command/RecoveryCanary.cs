@@ -14,6 +14,8 @@ public static class RecoveryCanary
     public static ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this RecoveryCanaryCommand command,
         RecoveryCanaryCommandState state, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         cancellationToken.ThrowIfCancellationRequested();
         var recorded = new RecoveryCanaryRecordedEvent
         {

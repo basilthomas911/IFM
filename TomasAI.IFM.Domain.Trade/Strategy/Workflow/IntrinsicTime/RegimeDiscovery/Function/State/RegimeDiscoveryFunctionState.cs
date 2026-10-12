@@ -7,14 +7,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.State;
-
 /// <summary>Completed-only event-sourced state for one Regime Discovery Function execution.</summary>
-public sealed class RegimeDiscoveryFunctionState
-    : BaseEventSourceActorState<RegimeDiscoveryFunctionState>,
-      IEventSourceFunctionState<
-          RegimeDiscoveryFunctionState,
-          ExecuteRegimeDiscoveryPipelineCommand,
-          RegimeDiscoveryPipelineCompletedEvent>
+public sealed class RegimeDiscoveryFunctionState : BaseEventSourceActorState<RegimeDiscoveryFunctionState>, IEventSourceFunctionState<RegimeDiscoveryFunctionState, ExecuteRegimeDiscoveryPipelineCommand, RegimeDiscoveryPipelineCompletedEvent>
 {
     public override ActorThreadId Id { get; set; } = default!;
     public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; private set; }
@@ -27,24 +21,16 @@ public sealed class RegimeDiscoveryFunctionState
     public long LastPersistedEventId { get; private set; }
 
     public bool Matches(ExecuteRegimeDiscoveryPipelineCommand request)
-        => IsCompleted &&
-           WorkflowId == request.WorkflowId &&
-           InputWorkflowRevision == request.InputWorkflowRevision &&
-           string.Equals(
-               ParameterPayloadSha256,
-               request.ParameterPayloadSha256,
-               StringComparison.OrdinalIgnoreCase);
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return IsCompleted && WorkflowId == request.WorkflowId && InputWorkflowRevision == request.InputWorkflowRevision && string.Equals(ParameterPayloadSha256, request.ParameterPayloadSha256, StringComparison.OrdinalIgnoreCase);
+    }
 
-    public bool TryComplete(
-        RegimeDiscoveryPipelineCompletedEvent completedEvent,
-        ExecuteRegimeDiscoveryPipelineCommand request)
-        => !IsCompleted && Update(completedEvent, request);
-
+    public bool TryComplete(RegimeDiscoveryPipelineCompletedEvent completedEvent, ExecuteRegimeDiscoveryPipelineCommand request) => !IsCompleted && Update(completedEvent, request);
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not RegimeDiscoveryPipelineCompletedEvent completed)
             return false;
-
         EntityId = completed.EntityId;
         WorkflowId = completed.WorkflowId;
         InputWorkflowRevision = completed.InputWorkflowRevision;

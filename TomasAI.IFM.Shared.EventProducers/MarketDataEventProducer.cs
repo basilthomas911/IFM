@@ -104,7 +104,7 @@ public class MarketDataEventProducer : NatsEventProducer, IMarketDataEventProduc
             StatusConsoleLoggedEvent e => SendEventAsync(e.CommandId, e),
             CommandExceptionEvent e => SendEventAsync(e.CommandId, e),
             _ => Task.CompletedTask
-        });
+        }).ConfigureAwait(false);
     }
 
 }

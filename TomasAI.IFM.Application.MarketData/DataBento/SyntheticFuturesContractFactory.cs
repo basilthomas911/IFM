@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -27,8 +27,8 @@ internal static class SyntheticFuturesContractFactory
             registration.ProviderContractName,
             "FUT",
             "USD",
-            symbol == "VX" ? "CFE" : "CME",
-            symbol == "VX" ? "1000" : "50",
+            string.Equals(symbol,"VX",StringComparison.Ordinal) ? "CFE" : "CME",
+            string.Equals(symbol,"VX",StringComparison.Ordinal) ? "1000" : "50",
             parsed.MaturityDate,
             registration.OnTheRun,
             registration.Rollover);

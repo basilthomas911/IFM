@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using FluentAssertions;
 using MessagePack;
 using Microsoft.Extensions.Logging;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
@@ -52,9 +53,9 @@ public sealed class TickAggregationRealtimeArchitectureTests
     public async Task Projector_evidence_is_recorded_only_after_expected_generation_database_write()
     {
         var generation = Guid.NewGuid();
-        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var marketDataDb = Substitute.For<ITradeTickQuoteDbContext>();
         var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(marketDataDb);
+        dbFactory.TradeTickQuoteDb.Returns(marketDataDb);
         var progress = new TickStorageGenerationEvidence();
         progress.Arm(new("GLBX.MDP3", generation));
         var projector = new TickAggregationRealtimeProjector(dbFactory,
@@ -102,9 +103,9 @@ public sealed class TickAggregationRealtimeArchitectureTests
     [Fact]
     public async Task Realtime_projector_records_ES_trade_and_VX_quote_storage_after_database_success()
     {
-        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var marketDataDb = Substitute.For<ITradeTickQuoteDbContext>();
         var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(marketDataDb);
+        dbFactory.TradeTickQuoteDb.Returns(marketDataDb);
         var evidence = new LivePipelineEvidence(TimeProvider.System);
         var projector = new TickAggregationRealtimeProjector(
             dbFactory,
@@ -144,9 +145,9 @@ public sealed class TickAggregationRealtimeArchitectureTests
     [Fact]
     public async Task Realtime_projector_records_storage_failure_and_does_not_report_success()
     {
-        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var marketDataDb = Substitute.For<ITradeTickQuoteDbContext>();
         var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(marketDataDb);
+        dbFactory.TradeTickQuoteDb.Returns(marketDataDb);
         var evidence = new LivePipelineEvidence(TimeProvider.System);
         var projector = new TickAggregationRealtimeProjector(
             dbFactory,

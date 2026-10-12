@@ -46,20 +46,24 @@ public sealed class S3DatabaseBackupPublicationCapability(
         var retention = await objects.ResolvePublicationRetentionAsync(firstKey, cancellationToken).ConfigureAwait(false);
         var retainUntil = retention.RetainUntilUtc;
         var context = EncryptionContext(request, restorePoint);
-        var uploaded = new List<AwsPublishedArtifact>(described.Count);
-        var manifestArtifacts = new List<DatabaseArtifactDigest>(described.Count);
-        foreach (var artifact in described.OrderBy(static value => value.RelativePath, StringComparer.Ordinal))
-        {
-            var fileName = Path.GetFileName(artifact.RelativePath);
-            var artifactId = new DatabaseArtifactId("artifact-" + Convert.ToHexString(
-                SHA256.HashData(Encoding.UTF8.GetBytes(artifact.RelativePath)))[..12].ToLowerInvariant());
-            var key = _keys.Artifact(request.ProtectionSetId, request.Engine, restorePoint, artifactId, fileName);
-            var version = await objects.UploadAsync(key,
-                token => nativeArtifacts.OpenReadAsync(request.Engine, request.OperationId, artifact.RelativePath, token),
-                artifact.Length, retainUntil, context, cancellationToken, retention.StartedUtc).ConfigureAwait(false);
-            uploaded.Add(new AwsPublishedArtifact(artifact.RelativePath, version));
-            manifestArtifacts.Add(new DatabaseArtifactDigest(version.ObjectKey, version.Length, version.Sha256));
-        }
+        var ordered = described.OrderBy(static value => value.RelativePath, StringComparer.Ordinal).ToArray();
+        var uploaded = new AwsPublishedArtifact[ordered.Length];
+        var manifestArtifacts = new DatabaseArtifactDigest[ordered.Length];
+        await Parallel.ForEachAsync(Enumerable.Range(0, ordered.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+            async (index, token) =>
+            {
+                var artifact = ordered[index];
+                var fileName = Path.GetFileName(artifact.RelativePath);
+                var artifactId = new DatabaseArtifactId("artifact-" + Convert.ToHexString(
+                    SHA256.HashData(Encoding.UTF8.GetBytes(artifact.RelativePath)))[..12].ToLowerInvariant());
+                var key = _keys.Artifact(request.ProtectionSetId, request.Engine, restorePoint, artifactId, fileName);
+                var version = await objects.UploadAsync(key,
+                    ct => nativeArtifacts.OpenReadAsync(request.Engine, request.OperationId, artifact.RelativePath, ct),
+                    artifact.Length, retainUntil, context, token, retention.StartedUtc).ConfigureAwait(false);
+                uploaded[index] = new AwsPublishedArtifact(artifact.RelativePath, version);
+                manifestArtifacts[index] = new DatabaseArtifactDigest(version.ObjectKey, version.Length, version.Sha256);
+            }).ConfigureAwait(false);
 
         var manifest = CreateManifest(request, restorePoint, [.. manifestArtifacts]);
         DatabaseBackupManifestPolicy.Validate(manifest);

@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Trait("Category", "PortfolioFinancial"), Trait("Gate", "PF-FIN-03")]
 [Collection("PortfolioFinancialDatabase")]
+[Trait("Infrastructure", "SelfContained")]
 public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {
     internal static PostgresEventTransaction Transactions() => new(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,
@@ -94,9 +95,9 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
         (await new PortfolioFinancialStore(Transactions()).ReadOperationAsync<LedgerPostingCompletedEvent>(book.PortfolioId, request.OperationId)).Should().BeNull();
     }
 
-    internal static async Task<FinancialBookConfiguration> CreateBook(Func<FinancialBookConfiguration, FinancialBookConfiguration>? configure = null)
+    internal static async Task<FinancialBookConfiguration> CreateBook(Func<FinancialBookConfiguration, FinancialBookConfiguration>? configure = null, IPostgresEventTransaction? owner = null)
     {
-        var transactions = Transactions(); await new PortfolioFinancialSchema(transactions).InitializeAsync();
+        var transactions = owner ?? Transactions(); await new PortfolioFinancialSchema(transactions).InitializeAsync();
         var id = Random.Shared.Next(100000, 1000000000);
         var fund = new FinancialFundAuthority
         {
@@ -124,7 +125,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
             new DateOnly(2020, 1, 1), new DateOnly(2099, 12, 31));
         return book;
     }
-    static LedgerPostingRule Rule(LedgerTransactionKind kind) => new(new Guid((int)kind, 0, 0, new byte[8]), 1, $"rule-{kind}", kind,
+    internal static LedgerPostingRule Rule(LedgerTransactionKind kind) => new(new Guid((int)kind, 0, 0, new byte[8]), 1, $"rule-{kind}", kind,
         new(kind == LedgerTransactionKind.Commission ? 103 : 101, 1), new(kind == LedgerTransactionKind.Commission ? 101 : 102, 1), kind != LedgerTransactionKind.WithdrawalRequested);
     internal static PostFundTransactionCommand Request(FinancialBookConfiguration book, LedgerTransactionKind kind, decimal amount, long revision)
     {
@@ -159,7 +160,7 @@ public sealed class GeneralLedgerPostingIntegrationTests(PortfolioEventStoreFixt
         return request with { InputSha256 = FinancialCanonicalHash.Request(request) };
     }
     static PreparedLedgerPosting[] Prepare(PostFundTransactionCommand request) => [new(Random.Shared.NextInt64(100000, long.MaxValue), Random.Shared.NextInt64(100000, long.MaxValue), request.Body)];
-    internal static Task<LedgerPostingCompletedEvent> Post(PostFundTransactionCommand request) => new GeneralLedgerStore(Transactions()).PostAsync(request, Prepare(request),
+    internal static Task<LedgerPostingCompletedEvent> Post(PostFundTransactionCommand request, IPostgresEventTransaction? owner = null) => new GeneralLedgerStore(owner ?? Transactions()).PostAsync(request, Prepare(request),
         (item, rule, prior, original, remaining) => LedgerPostingModel.Calculate(item, rule, prior, original, remaining), info => Completed(request, info));
     static LedgerPostingCompletedEvent Completed(PostFundTransactionCommand request, LedgerCommitInfo info) => new()
     {

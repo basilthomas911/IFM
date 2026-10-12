@@ -7,9 +7,11 @@ public sealed class NatsJetStreamStartupPurge
     readonly INatsJetStreamMaintenanceTransport _transport;
     readonly ILogger<NatsJetStreamStartupPurge> _logger;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1054", Justification = "This method implements the string URI contract exposed by the messaging provider.")]
     public NatsJetStreamStartupPurge(string url, NatsConnectionManager connectionManager,
         ILogger<NatsJetStreamStartupPurge> logger)
-        : this(new NatsJetStreamMaintenanceTransport(url, connectionManager), logger) { }
+        : this(new NatsJetStreamMaintenanceTransport(url, connectionManager ?? throw new ArgumentNullException(nameof(connectionManager))), logger) {
+            ArgumentNullException.ThrowIfNull(connectionManager); }
 
     internal NatsJetStreamStartupPurge(INatsJetStreamMaintenanceTransport transport,
         ILogger<NatsJetStreamStartupPurge> logger)
@@ -31,9 +33,7 @@ public sealed class NatsJetStreamStartupPurge
             var purged = await _transport.PurgeBeforeSequenceAsync(
                     name, checked(snapshot.LastSequence + 1), cancellationToken)
                 .ConfigureAwait(false);
-            _logger.LogInformation(
-                "{Component}.{Method} purged {PurgedMessages} JetStream messages from {StreamName} through sequence {LastSequence}.",
-                nameof(NatsJetStreamStartupPurge), nameof(PurgeAsync), purged, name, snapshot.LastSequence);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write35(_logger, null, nameof(NatsJetStreamStartupPurge), nameof(PurgeAsync), purged, name, snapshot.LastSequence);
         }
     }
 }

@@ -52,39 +52,42 @@ public sealed class ParameterStartupCommandActor(ICommandActorContext<ParameterS
         [typeof(ReleaseSignalStartupPlanCommand)] = (c, ctx, state) => ((ReleaseSignalStartupPlanCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(RecordSignalStartupReportCommand)] = (c, ctx, state) => ((RecordSignalStartupReportCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
     };
-    protected override async ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ICommand cmd, CancellationToken token)
+    protected override async ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterStartupCommandActor> context, ICommand command, CancellationToken cancellationToken)
     {
-        var previous = await Services.DbEventSource.GetCommandLogAsync(cmd.CommandId).WaitAsync(token)
+        ArgumentNullException.ThrowIfNull(command);
+        var previous = await (Services.DbEventSource.GetCommandLogAsync(command.CommandId).WaitAsync(cancellationToken)).ConfigureAwait(false)
           ?? throw new InvalidOperationException("PARAM.OPERATION_RESERVATION_NOT_READY");
         if (previous.CommandPayloadSha256 is { Length: > 0 })
         {
             var codec = new TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditMessagePackCodec();
-            if (previous.CommandName != cmd.CommandName || previous.StreamId != cmd.StreamId ||
+            if (!string.Equals(previous.CommandName,command.CommandName,StringComparison.Ordinal) || !string.Equals(previous.StreamId,command.StreamId,StringComparison.Ordinal) ||
                previous.CommandPayloadFormat != (short)TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPayloadFormat.MessagePack ||
                previous.CommandPayloadVersion != TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditMessagePackCodec.CurrentVersion ||
-               !codec.Matches(cmd, previous.CommandPayloadSha256))
+               !codec.Matches(command, previous.CommandPayloadSha256))
                 throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
         }
         else
-            TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterStartupOperationModel.ValidateDuplicate((IParameterStartupMutation)cmd, previous.CommandName, previous.StreamId, previous.CommandData);
+            TomasAI.IFM.Domain.Reference.ParameterSets.Model.ParameterStartupOperationModel.ValidateDuplicate((IParameterStartupMutation)command, previous.CommandName, previous.StreamId, previous.CommandData);
         // A committed Apply can never reactivate a released run. An audited but uncommitted attempt can be retried explicitly.
-        return !await Services.DbEventSource.HasEventForCommandAsync(cmd.CommandId).WaitAsync(token);
+        return !await (Services.DbEventSource.HasEventForCommandAsync(command.CommandId).WaitAsync(cancellationToken)).ConfigureAwait(false);
     }
-    protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ICommand? cmd) => cmd is null ? ValueTask.CompletedTask : ReleaseLease(cmd);
-    protected override ICommand ParseMessage(ICommandActorContext<ParameterStartupCommandActor> ctx, IActorMessage msg) => ParseMappedCommand(ctx, msg, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ActorThreadId id, ICommand cmd) { ValidateMappedCommand(cmd, _validationMap); return ValueTask.CompletedTask; }
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ActorThreadId id, ICommand cmd)
+    protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterStartupCommandActor> context, ICommand? command) => command is null ? ValueTask.CompletedTask : ReleaseLease(command);
+    protected override ICommand ParseMessage(ICommandActorContext<ParameterStartupCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<ParameterStartupCommandActor> context, ActorThreadId threadId, ICommand command) { ValidateMappedCommand(command, _validationMap); return ValueTask.CompletedTask; }
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ParameterStartupCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        var lease = await Services.ConfigurationDb.AcquireParameterWriteLeaseAsync();
-        if (!leases.TryAdd((cmd.StreamId, cmd.CommandId), lease)) { await lease.DisposeAsync(); throw new InvalidOperationException("PARAM.OPERATION_ALREADY_RUNNING"); }
-        try { return await Services.StateRepository.LoadStateAsync(cmd); }
-        catch { await ReleaseLease(cmd); throw; }
+        ArgumentNullException.ThrowIfNull(command);
+        var lease = await (Services.ConfigurationDb.AcquireParameterWriteLeaseAsync()).ConfigureAwait(false);
+        if (!leases.TryAdd((command.StreamId, command.CommandId), lease)) { await (lease.DisposeAsync()).ConfigureAwait(false); throw new InvalidOperationException("PARAM.OPERATION_ALREADY_RUNNING"); }
+        try { return await (Services.StateRepository.LoadStateAsync(command)).ConfigureAwait(false); }
+        catch { await (ReleaseLease(command)).ConfigureAwait(false); throw; }
     }
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ActorThreadId id, IActorState state, ICommand cmd)
-    { try { await Services.StateRepository.SaveStateAsync(ctx, (ParameterStartupCommandState)state, cmd); } finally { await ReleaseLease(cmd); } }
-    async ValueTask ReleaseLease(ICommand? cmd) { if (cmd is not null && leases.TryRemove((cmd.StreamId, cmd.CommandId), out var lease)) await lease.DisposeAsync(); }
-    protected override async ValueTask OnStartup(ICommandActorContext<ParameterStartupCommandActor> ctx) => await Services.EventProjector.StartAsync(ctx);
-    protected override async ValueTask OnShutdown(ICommandActorContext<ParameterStartupCommandActor> ctx) => await Services.EventProjector.StopAsync();
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, IActorState state, ICommand cmd) => await ResolveMappedCommandHandler(cmd, _receiveMap)(cmd, Services, (ParameterStartupCommandState)state);
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ParameterStartupCommandActor> ctx, ActorThreadId id, ICommand cmd, Exception ex) { await ReleaseLease(cmd); return new ServiceFailed<GuidResult>(cmd?.ErrorCode ?? 33010, ex.Message); }
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ParameterStartupCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    { try { await (Services.StateRepository.SaveStateAsync(context, (ParameterStartupCommandState)state, command)).ConfigureAwait(false); } finally { await (ReleaseLease(command)).ConfigureAwait(false); } }
+    async ValueTask ReleaseLease(ICommand? cmd) { if (cmd is not null && leases.TryRemove((cmd.StreamId, cmd.CommandId), out var lease)) await (lease.DisposeAsync()).ConfigureAwait(false); }
+    protected override async ValueTask OnStartup(ICommandActorContext<ParameterStartupCommandActor> context) => await (Services.EventProjector.StartAsync(context)).ConfigureAwait(false);
+    protected override async ValueTask OnShutdown(ICommandActorContext<ParameterStartupCommandActor> context) => await (Services.EventProjector.StopAsync()).ConfigureAwait(false);
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ParameterStartupCommandActor> context, IActorState state, ICommand command) => await (ResolveMappedCommandHandler(command, _receiveMap)(command, Services, (ParameterStartupCommandState)state)).ConfigureAwait(false);
+    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ParameterStartupCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) {
+        ArgumentNullException.ThrowIfNull(ex); await (ReleaseLease(command)).ConfigureAwait(false); return new ServiceFailed<GuidResult>(command?.ErrorCode ?? 33010, ex.Message); }
 }

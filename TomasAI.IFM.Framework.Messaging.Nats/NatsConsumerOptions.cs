@@ -34,6 +34,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
     public int DispatcherCapacity { get; set; } = ExistingDispatcherCapacity;
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int SubscriptionCapacity { get; set; }
 
     /// <inheritdoc />
@@ -48,6 +49,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
     /// <inheritdoc />
     public Dictionary<ActorType, CoreNatsTrafficClass> FireAndForgetTraffic { get; set; } = [];
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int GetSubscriptionCapacity()
         => SubscriptionCapacity > 0
             ? SubscriptionCapacity

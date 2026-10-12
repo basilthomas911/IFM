@@ -109,7 +109,7 @@ public sealed class ParameterStartupQueryTests
         var context = Substitute.For<IParameterSetQueryContext>();
         context.Logger.Returns(Substitute.For<ILogger<ParameterSetQueryActor>>());
         context.AccessPolicy.Returns(Substitute.For<IParameterAccessPolicy>());
-        context.Startups.LoadStateAsync(Arg.Any<ICommand>())
+        context.Startups.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<ParameterStartupCommandState>(state));
         return context;
     }

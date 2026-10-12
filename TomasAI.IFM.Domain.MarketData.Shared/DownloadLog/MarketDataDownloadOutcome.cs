@@ -6,15 +6,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 
-public enum MarketDataDownloadDataset { Unknown = 0, EconomicCalendar = 1, TreasuryCurve = 2 }
-public enum MarketDataDownloadStatus { Unknown = 0, Completed = 1, Failed = 2 }
-
-[MessagePackObject]
-public sealed record DownloadLogId([property: Key(0)] Guid ImportCommandId) : IActorEntityId
-{
-    public string Format() => ImportCommandId.ToString("N");
-}
-
 /// <summary>An immutable observation of one provider request, independent of log delivery or projection.</summary>
 [MessagePackObject]
 public sealed record MarketDataDownloadOutcome
@@ -38,7 +29,7 @@ public sealed record MarketDataDownloadOutcome
 
     public static DateTime MillisecondUtc(DateTime value)
     {
-        if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Download timestamps must be UTC.");
+        if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Download timestamps must be UTC.", nameof(value));
         return new DateTime(value.Ticks - value.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
     }
 
@@ -46,24 +37,25 @@ public sealed record MarketDataDownloadOutcome
     {
         var codes = countries?.Select(c => c.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal).ToArray() ?? [];
-        if (codes.Any(c => c == "ALL" || c.Length is < 2 or > 3 || c.Any(x => !char.IsAsciiLetter(x))))
-            throw new ArgumentException("Country scope must contain two- or three-letter country codes.");
+        if (codes.Any(c => (string.Equals((c),("ALL"),StringComparison.Ordinal)) || c.Length is < 2 or > 3 || c.Any(x => !char.IsAsciiLetter(x))))
+            throw new ArgumentException("Country scope must contain two- or three-letter country codes.", nameof(countries));
         return codes.Length == 0 ? "ALL" : string.Join(",", codes);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
     public void Validate()
     {
         if (SchemaVersion != 1 || Dataset is not (MarketDataDownloadDataset.EconomicCalendar or MarketDataDownloadDataset.TreasuryCurve)
             || Status is not (MarketDataDownloadStatus.Completed or MarketDataDownloadStatus.Failed))
             throw new ArgumentException("Unsupported download schema, dataset or terminal status.");
         if (!IsSupportedProvider(Dataset, Provider) || ValueDate == default || string.IsNullOrWhiteSpace(Scope)
-            || Scope != CanonicalScope(Scope == "ALL" ? [] : Scope.Split(','))
-            || Dataset == MarketDataDownloadDataset.TreasuryCurve && Scope != "US")
+            || (!string.Equals((Scope),(CanonicalScope((string.Equals((Scope),("ALL"),StringComparison.Ordinal)) ? [] : Scope.Split(','))),StringComparison.Ordinal))
+            || Dataset == MarketDataDownloadDataset.TreasuryCurve && (!string.Equals((Scope),("US"),StringComparison.Ordinal)))
             throw new ArgumentException("Invalid download partition.");
         if (ImportCommandId == Guid.Empty || SourceTerminalEventId == Guid.Empty)
             throw new ArgumentException("Import and terminal identities are required.");
-        foreach (var time in new[] { RequestedAtUtc, StartedAtUtc, FinishedAtUtc })
-            if (time == default || time != MillisecondUtc(time)) throw new ArgumentException("Timestamps require UTC millisecond precision.");
+        if (new[] { RequestedAtUtc, StartedAtUtc, FinishedAtUtc }.Any(time => time == default || time != MillisecondUtc(time)))
+            throw new ArgumentException("Timestamps require UTC millisecond precision.");
         if (RequestedAtUtc > StartedAtUtc || StartedAtUtc > FinishedAtUtc || ElapsedMilliseconds < 0
             || DownloadedRecordCount < 0 || PersistedRecordCount < 0)
             throw new ArgumentException("Invalid download timing or record counts.");
@@ -84,7 +76,7 @@ public sealed record MarketDataDownloadOutcome
     }
 
     public static bool IsSupportedProvider(MarketDataDownloadDataset dataset, string provider)
-        => provider == "FMP" || dataset == MarketDataDownloadDataset.TreasuryCurve && provider == "USTreasury";
+        => (string.Equals((provider),("FMP"),StringComparison.Ordinal)) || dataset == MarketDataDownloadDataset.TreasuryCurve && (string.Equals((provider),("USTreasury"),StringComparison.Ordinal));
 
     public static Guid LoggingCommandId(Guid importCommandId)
         => new(SHA256.HashData(Encoding.UTF8.GetBytes($"IFM.DownloadLog.v1:{importCommandId:N}")).AsSpan(0, 16));

@@ -47,11 +47,11 @@ public static class FuturesVxTermStructureAccumulator
             FrontBackSpread = back.Price - front.Price,
             FrontBackRatio = ratio,
             TermStructurePercent = percent,
-            TermStructureState = percent > configuration.FlatEpsilon
-                ? FuturesVxTermStructureState.Contango
-                : percent < -configuration.FlatEpsilon
-                    ? FuturesVxTermStructureState.Backwardation
-                    : FuturesVxTermStructureState.Flat,
+            TermStructureState = (percent > configuration.FlatEpsilon) switch
+{
+    true => FuturesVxTermStructureState.Contango,
+    false => percent < -configuration.FlatEpsilon ? FuturesVxTermStructureState.Backwardation : FuturesVxTermStructureState.Flat
+},
             PriorFrontBackRatio = checkpoint.PreviousFrontBackRatio,
             PriorTermStructurePercent = checkpoint.PreviousTermStructurePercent,
             FrontSourceTimestampUtc = front.SourceTimestampUtc,
@@ -93,9 +93,3 @@ public static class FuturesVxTermStructureAccumulator
             throw new InvalidOperationException("The VX calculation configuration is invalid or incompatible.");
     }
 }
-
-/// <summary>Contains one accepted VX state transition and optional paired signal.</summary>
-public sealed record FuturesVxTermStructureAccumulatorResult(
-    FuturesVxTermStructureCheckpoint FuturesVxTermStructureCheckpoint,
-    FuturesVxTermStructureSignalReadModel? FuturesVxTermStructureSignal,
-    bool Changed = true);

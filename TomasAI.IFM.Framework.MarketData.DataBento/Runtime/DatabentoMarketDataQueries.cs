@@ -121,6 +121,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
     /// <param name="instrumentId">The provider instrument identifier.</param>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
     /// <returns>The instrument id to contract id result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     public string InstrumentIdToContractId(
         uint instrumentId,
         TimeSpan? timeout = null)
@@ -229,11 +230,12 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
     /// <param name="contractName">The provider contract name to resolve.</param>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
     /// <returns>The contract detail result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public ContractDetail? GetContractDetail(
         string contractName,
         TimeSpan? timeout = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractName, nameof(contractName));
         return Query([contractName], NativeContractQueryKind.Exact, timeout)[0];
     }
 
@@ -249,8 +251,8 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         var normalizedTicker = ticker.Trim().ToUpperInvariant();
         var cached = _tickerDefinitions.GetOrAdd(
             normalizedTicker,
-            _ => new(
-                () => QueryTickerWithRetries(normalizedTicker, timeout),
+            key => new(
+                () => QueryTickerWithRetries(key, timeout),
                 LazyThreadSafetyMode.ExecutionAndPublication));
         try
         {
@@ -263,13 +265,31 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         }
     }
 
-    private IReadOnlyList<ContractDetail> QueryTickerWithRetries(
+    /// <summary>Retrieves reference details for the requested ticker or contracts.</summary>
+    /// <param name="contractNames">The provider contract names to resolve in request order.</param>
+    /// <param name="timeout">The maximum time allowed for the operation.</param>
+    /// <returns>The contract details result.</returns>
+    public IReadOnlyList<ContractDetail?> GetContractDetails(
+        string[] contractNames,
+        TimeSpan? timeout = null)
+    {
+        var result = TryGetContractDetails(contractNames, timeout);
+        if (!result.IsSuccess)
+        {
+            ThrowQueryFailure(result);
+        }
+        return result.Details;
+    }
+
+    private ContractDetail[] QueryTickerWithRetries(
         string ticker,
         TimeSpan? timeout)
     {
         var deadline = new MonotonicDeadline(timeout ?? DefaultTimeout);
-        for (var attempt = 1; ; attempt++)
+        var attempt = 0;
+        while (true)
         {
+            attempt++;
             var remaining = deadline.Remaining;
             if (remaining <= TimeSpan.Zero)
             {
@@ -299,26 +319,11 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         }
     }
 
-    /// <summary>Retrieves reference details for the requested ticker or contracts.</summary>
-    /// <param name="contractNames">The provider contract names to resolve in request order.</param>
-    /// <param name="timeout">The maximum time allowed for the operation.</param>
-    /// <returns>The contract details result.</returns>
-    public IReadOnlyList<ContractDetail?> GetContractDetails(
-        string[] contractNames,
-        TimeSpan? timeout = null)
-    {
-        var result = TryGetContractDetails(contractNames, timeout);
-        if (!result.IsSuccess)
-        {
-            ThrowQueryFailure(result);
-        }
-        return result.Details;
-    }
-
     /// <summary>Retrieves contract details while preserving provider failures in the query result.</summary>
     /// <param name="contractNames">The provider contract names to resolve in request order.</param>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
     /// <returns>The try get contract details result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public DatabentoContractDetailsQueryResult TryGetContractDetails(
         string[] contractNames,
         TimeSpan? timeout = null)
@@ -330,7 +335,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         }
         foreach (var contractName in contractNames)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(contractName, nameof(contractNames));
         }
         return TryQuery(contractNames, NativeContractQueryKind.Exact, timeout);
     }
@@ -348,6 +353,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return result.Details as ContractDetail?[] ?? result.Details.ToArray();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private unsafe DatabentoContractDetailsQueryResult TryQuery(
         IReadOnlyList<string> symbols,
         NativeContractQueryKind queryKind,
@@ -442,7 +448,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
 
     private ContractDetail? Convert(NativeContractDetail source, byte[] utf8Blob)
     {
-        if ((source.Flags & NativeContractDetailFlags.Found) == 0)
+        if ((source.Flags & NativeContractDetailFlags.Found) == NativeContractDetailFlags.None)
         {
             return null;
         }
@@ -493,13 +499,14 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
 
     private static bool Has(
         NativeContractDetail source,
-        NativeContractDetailFlags flag) => (source.Flags & flag) != 0;
+        NativeContractDetailFlags flag) => (source.Flags & flag) != NativeContractDetailFlags.None;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     private void ValidateChainRequest(OptionChainDefinitionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Underlying);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset, nameof(request));
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Underlying, nameof(request));
         if (!string.Equals(request.Dataset, _dataset, StringComparison.Ordinal))
         {
             throw new ArgumentException(
@@ -519,11 +526,11 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             throw new ArgumentException("The option universe policy is invalid.", nameof(request));
         }
         if (request.Rights == OptionRightSelection.None
-            || (request.Rights & ~OptionRightSelection.Both) != 0)
+            || (request.Rights & ~OptionRightSelection.Both) != OptionRightSelection.None)
         {
             throw new ArgumentException("Select Call, Put, or Both option rights.", nameof(request));
         }
-        ArgumentNullException.ThrowIfNull(request.ExplicitOptionRoots);
+        ArgumentNullException.ThrowIfNull(request.ExplicitOptionRoots, nameof(request));
         if (request.UniversePolicy == OptionUniversePolicy.ExplicitOptionRoots)
         {
             if (request.ExplicitOptionRoots.Count == 0)
@@ -534,7 +541,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             }
             foreach (var root in request.ExplicitOptionRoots)
             {
-                ArgumentException.ThrowIfNullOrWhiteSpace(root);
+                ArgumentException.ThrowIfNullOrWhiteSpace(root, nameof(request));
             }
         }
         else if (request.ExplicitOptionRoots.Count != 0)
@@ -611,6 +618,15 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         {
             return false;
         }
+    }
+
+    private static bool TryGetExpirationDate(
+        ContractDetail definition,
+        out DateOnly expiration)
+    {
+        expiration = default;
+        return definition.ExpirationTimestampNanoseconds is { } nanoseconds
+               && TryGetExpirationDate(nanoseconds, out expiration);
     }
 
     private static string Decode(byte[] blob, NativeUtf8Slice slice)
@@ -691,6 +707,7 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             || definition.StrikePrice == parsed.StrikePrice;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private static ParsedContractId ParseContractId(string contractId)
     {
         if (string.IsNullOrWhiteSpace(contractId))
@@ -751,10 +768,12 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         return new ParsedContractId(
             match.Groups["symbol"].Value,
             expiration,
-            right == "C" ? ContractKind.CallOption : ContractKind.PutOption,
+            string.Equals(right,"C",StringComparison.Ordinal) ? ContractKind.CallOption : ContractKind.PutOption,
             decimal.ToInt64(strike * PriceScale));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "This instance property implements command or exception metadata required by the published interface.")]
     private string FormatContractId(ContractDetail definition, uint instrumentId)
     {
         if (definition.ContractKind is not (
@@ -796,15 +815,6 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             .ToString("0.#########", CultureInfo.InvariantCulture);
         var right = definition.ContractKind == ContractKind.CallOption ? "C" : "P";
         return prefix + right + strike;
-    }
-
-    private static bool TryGetExpirationDate(
-        ContractDetail definition,
-        out DateOnly expiration)
-    {
-        expiration = default;
-        return definition.ExpirationTimestampNanoseconds is { } nanoseconds
-               && TryGetExpirationDate(nanoseconds, out expiration);
     }
 
     private static string Describe(IEnumerable<ContractDetail> definitions) =>

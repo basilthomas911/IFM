@@ -9,8 +9,9 @@ public sealed class ParameterRuntimeSnapshotModel(bool enabled) : IParameterRunt
     public Guid? RunId => Volatile.Read(ref current)?.StartupRunId;
     public void Apply(ParameterStartupRun run)
     {
+        ArgumentNullException.ThrowIfNull(run);
         var snapshot = new ParameterStartupSnapshotModel(run.RunId, run.Scopes, run.Versions.ToDictionary(x => x.Reference));
-        if (run.Plan.AssignmentFingerprint != snapshot.Fingerprint)
+        if (!string.Equals(run.Plan.AssignmentFingerprint,snapshot.Fingerprint,StringComparison.Ordinal))
             throw new InvalidDataException("PARAM.STARTUP_FINGERPRINT_MISMATCH");
         var previous = Interlocked.CompareExchange(ref current, snapshot, null);
         if (previous is not null && previous.StartupRunId != run.RunId)

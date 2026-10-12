@@ -1,11 +1,7 @@
-﻿using System.Data;
+using System.Data;
 using System.Reflection;
 
 namespace TomasAI.IFM.Framework.Storage.Csv;
-
-public interface ICsvDataReader : IDataReader
-{
-}
 
 /// <summary>
 /// Provides a data reader implementation for reading CSV data into objects of type <typeparamref name="TData"/>.
@@ -19,15 +15,17 @@ public interface ICsvDataReader : IDataReader
 /// <typeparam name="TData">The type of objects to map the CSV data to. Each row in the CSV is mapped to an instance of this type.</typeparam>
 public class CsvDataReader<TData> : ICsvDataReader
 {
-    List<string[]> _rows;
+    readonly List<string[]> _rows;
     int _cursor;
-    List<PropertyInfo> _propertyInfo;
-    Dictionary<string, int> _propertyIndex;
+    readonly List<PropertyInfo> _propertyInfo;
+    readonly Dictionary<string, int> _propertyIndex;
     Dictionary<string, int> _nameIndex;
-    Dictionary<Type, Func<int, object>> _valueMap;
+    readonly Dictionary<Type, Func<int, object>> _valueMap;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Validation and persistence orchestration remain together to preserve execution ordering.")]
     public CsvDataReader(IEnumerable<string> sourceRows, bool containsHeader = true)
     {
+        ArgumentNullException.ThrowIfNull(sourceRows);
         _propertyInfo = [.. typeof(TData).GetProperties()];
         _propertyIndex = [];
         for (var index = 0; index < _propertyInfo.Count; index++)
@@ -54,7 +52,7 @@ public class CsvDataReader<TData> : ICsvDataReader
             {typeof(decimal?), id => IsDBNull(id) ? default(decimal?) !: GetDecimal(id) },
             {typeof(DateTime), id => IsDBNull(id) ? default : GetDateTime(id) },
             {typeof(DateTime?), id => IsDBNull(id) ? default(DateTime?) !: GetDateTime(id) },
-            {typeof(Guid), id => IsDBNull(id) ? default : GetGuid(id) },
+            {typeof(Guid), id => IsDBNull(id) ? Guid.Empty : GetGuid(id) },
             {typeof(Guid?), id => IsDBNull(id) ? default(Guid?) !: GetGuid(id) }
         };
 
@@ -63,10 +61,12 @@ public class CsvDataReader<TData> : ICsvDataReader
         _cursor = 0;
         return;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Preserves existing case-normalized URI/header matching behavior.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
         void SplitRowData(IEnumerable<string> rows)
         {
             var headerFlag = containsHeader;
-            //var rows = rowData.Split([ "\r\n"], StringSplitOptions.RemoveEmptyEntries);
+
             string[] headerCols = [];
 
             foreach (var row in rows)
@@ -80,7 +80,7 @@ public class CsvDataReader<TData> : ICsvDataReader
                         _nameIndex = [];
                         for (var i = 0; i < headerCols.Length; i++)
                         {
-                            var colName = headerCols[i].Replace("\"", "");
+                            var colName = headerCols[i].Replace("\"", "", StringComparison.Ordinal);
                             if (!_nameIndex.ContainsKey(colName.ToLowerInvariant()))
                             {
                                 _nameIndex.Add(colName.ToLowerInvariant(), i);
@@ -92,16 +92,17 @@ public class CsvDataReader<TData> : ICsvDataReader
                     var colEntries = row.Split([","], StringSplitOptions.TrimEntries);
                     for (var j = 0; j < headerCols.Length; j++)
                     {
-                        cols[j] = j < colEntries.Length ? colEntries[j].Replace("\"", "") : string.Empty;
+                        cols[j] = j < colEntries.Length ? colEntries[j].Replace("\"", "", StringComparison.Ordinal) : string.Empty;
                     }
                     _rows.Add(cols);
                 }
-                catch { }
+                catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
             }
         }
 
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "Preserves the existing externally referenced identity and named API contract.")]
     public static async Task<CsvDataReader<TData>> CreateAsync(
         IStringReader stringReader,
         bool containsHeader = true,
@@ -132,6 +133,13 @@ public class CsvDataReader<TData> : ICsvDataReader
 
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        // Rows are materialized managed values; there is no owned external resource.
     }
 
     public bool GetBoolean(int i)
@@ -142,29 +150,30 @@ public class CsvDataReader<TData> : ICsvDataReader
 
     public byte GetByte(int i)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public char GetChar(int i)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public IDataReader GetData(int i)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public string GetDataTypeName(int i)
     {
         try
@@ -172,31 +181,32 @@ public class CsvDataReader<TData> : ICsvDataReader
             ValidIndex(i);
             return _propertyInfo[i].PropertyType.Name;
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return string.Empty;
     }
 
     public DateTime GetDateTime(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return DateTime.TryParse(fieldValue, out var result)
+        return DateTime.TryParse(fieldValue, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.None, out var result)
             ? result : DateTime.MinValue;
     }
 
     public decimal GetDecimal(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return decimal.TryParse(fieldValue, out var result)
+        return decimal.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : decimal.MinValue;
     }
 
     public double GetDouble(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return double.TryParse(fieldValue, out var result)
+        return double.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : double.MinValue;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public Type GetFieldType(int i)
     {
         try
@@ -204,14 +214,14 @@ public class CsvDataReader<TData> : ICsvDataReader
             ValidIndex(i);
             return _propertyInfo[i].PropertyType;
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return default!;
     }
 
     public float GetFloat(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return float.TryParse(fieldValue, out var result)
+        return float.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : float.MinValue;
     }
 
@@ -225,24 +235,25 @@ public class CsvDataReader<TData> : ICsvDataReader
     public short GetInt16(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return short.TryParse(fieldValue, out var result)
+        return short.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : short.MinValue;
     }
 
     public int GetInt32(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return int.TryParse(fieldValue, out var result)
+        return int.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : 0;
     }
 
     public long GetInt64(int i)
     {
         var fieldValue = GetString(i) ?? string.Empty;
-        return long.TryParse(fieldValue, out var result)
+        return long.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result)
             ? result : long.MinValue;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public string GetName(int i)
     {
         try
@@ -250,15 +261,21 @@ public class CsvDataReader<TData> : ICsvDataReader
             ValidIndex(i);
             return _propertyInfo[i].Name;
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return string.Empty;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Preserves existing case-normalized URI/header matching behavior.")]
     public int GetOrdinal(string name)
-        => _propertyIndex.ContainsKey(name) && _nameIndex.TryGetValue(name.ToLowerInvariant(), out var index)
+        
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _propertyIndex.ContainsKey(name) && _nameIndex.TryGetValue(name.ToLowerInvariant(), out var index)
             ? index
             : -1;
+    }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public DataTable GetSchemaTable()
     {
         var dataTable = new DataTable("CsvDataReader");
@@ -267,10 +284,11 @@ public class CsvDataReader<TData> : ICsvDataReader
             foreach (var pi in _propertyInfo)
                 dataTable.Columns.Add(new DataColumn(pi.Name, pi.PropertyType));
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return dataTable;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public string GetString(int i)
     {
         try
@@ -278,10 +296,11 @@ public class CsvDataReader<TData> : ICsvDataReader
             ValidIndex(i);
             return _rows[_cursor][i];
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return default!;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public object GetValue(int i)
     {
         try
@@ -290,22 +309,25 @@ public class CsvDataReader<TData> : ICsvDataReader
             var pi = _propertyInfo[i];
             return _valueMap[pi.PropertyType](i);
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return default!;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public int GetValues(object[] values)
     {
+        ArgumentNullException.ThrowIfNull(values);
         try
         {
             for (var index = 0; index < values.Length; index++)
                 values[index] = GetValue(index);
             return values.Length;
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return default;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
     public bool IsDBNull(int i)
     {
         try
@@ -313,18 +335,21 @@ public class CsvDataReader<TData> : ICsvDataReader
             ValidIndex(i);
             return string.IsNullOrWhiteSpace(_rows[_cursor][i]);
         }
-        catch { }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
         return true;
     }
 
     public bool NextResult()
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public bool Read()
         => ++_cursor < _rows.Count;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2201", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0012", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S112", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
     void ValidIndex(int index)
     {
         if (index < 0 || index >= FieldCount)

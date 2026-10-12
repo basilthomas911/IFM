@@ -11,148 +11,95 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
-
 /// <summary>Serializes the durable execution lifecycle for one accepted TradeOrder attempt.</summary>
-public sealed class OrderExecutionCommandActor(ICommandActorContext<OrderExecutionCommandActor> context)
-    : BaseEventSourceCommandActor<OrderExecutionCommandActor>(context, Typed(context).Logger)
+public sealed class OrderExecutionCommandActor(ICommandActorContext<OrderExecutionCommandActor> context) : BaseEventSourceCommandActor<OrderExecutionCommandActor>(context, Typed(context).Logger)
 {
     public const string ActorName = OrderExecutionActorNames.Command;
-
-    private static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+    {
+        [StartOrderExecutionCommand.Verb] = message => message.AsCommand<StartOrderExecutionCommand>()!,
+        [SubmitOrderExecutionCommand.Verb] = message => message.AsCommand<SubmitOrderExecutionCommand>()!,
+        [AddOrderExecutionFillCommand.Verb] = message => message.AsCommand<AddOrderExecutionFillCommand>()!,
+        [UpdateOrderExecutionFillCostCommand.Verb] = message => message.AsCommand<UpdateOrderExecutionFillCostCommand>()!,
+        [AcceptOrderExecutionCommand.Verb] = message => message.AsCommand<AcceptOrderExecutionCommand>()!,
+        [CancelOrderExecutionCommand.Verb] = message => message.AsCommand<CancelOrderExecutionCommand>()!,
+        [RejectOrderExecutionCommand.Verb] = message => message.AsCommand<RejectOrderExecutionCommand>()!
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+    {
+        [typeof(StartOrderExecutionCommand)] = static command =>
         {
-            [StartOrderExecutionCommand.Verb] = message => message.AsCommand<StartOrderExecutionCommand>()!,
-            [SubmitOrderExecutionCommand.Verb] = message => message.AsCommand<SubmitOrderExecutionCommand>()!,
-            [AddOrderExecutionFillCommand.Verb] = message => message.AsCommand<AddOrderExecutionFillCommand>()!,
-            [UpdateOrderExecutionFillCostCommand.Verb] = message => message.AsCommand<UpdateOrderExecutionFillCostCommand>()!,
-            [AcceptOrderExecutionCommand.Verb] = message => message.AsCommand<AcceptOrderExecutionCommand>()!,
-            [CancelOrderExecutionCommand.Verb] = message => message.AsCommand<CancelOrderExecutionCommand>()!,
-            [RejectOrderExecutionCommand.Verb] = message => message.AsCommand<RejectOrderExecutionCommand>()!
-        }.ToFrozenDictionary(StringComparer.Ordinal);
-
-    private static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
-        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+            var typed = (StartOrderExecutionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(SubmitOrderExecutionCommand)] = static command =>
         {
-            [typeof(StartOrderExecutionCommand)] = static command =>
-            {
-                var typed = (StartOrderExecutionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(SubmitOrderExecutionCommand)] = static command =>
-            {
-                var typed = (SubmitOrderExecutionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(AddOrderExecutionFillCommand)] = static command =>
-            {
-                var typed = (AddOrderExecutionFillCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(UpdateOrderExecutionFillCostCommand)] = static command =>
-            {
-                var typed = (UpdateOrderExecutionFillCostCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(AcceptOrderExecutionCommand)] = static command =>
-            {
-                var typed = (AcceptOrderExecutionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(CancelOrderExecutionCommand)] = static command =>
-            {
-                var typed = (CancelOrderExecutionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            },
-            [typeof(RejectOrderExecutionCommand)] = static command =>
-            {
-                var typed = (RejectOrderExecutionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateOrderExecutionId(typed.EntityId, typed.CommandName)
-                    .ValidateOrderExecutionCommand(typed);
-            }
-        }.ToFrozenDictionary();
-
-    private static readonly IReadOnlyDictionary<Type,
-        Func<ICommand, OrderExecutionCommandState, ServiceResult<GuidResult>>> _receiveMap =
-        new Dictionary<Type, Func<ICommand, OrderExecutionCommandState, ServiceResult<GuidResult>>>
+            var typed = (SubmitOrderExecutionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(AddOrderExecutionFillCommand)] = static command =>
         {
-            [typeof(StartOrderExecutionCommand)] = static (command, state) => ((StartOrderExecutionCommand)command).Execute(state),
-            [typeof(SubmitOrderExecutionCommand)] = static (command, state) => ((SubmitOrderExecutionCommand)command).Execute(state),
-            [typeof(AddOrderExecutionFillCommand)] = static (command, state) => ((AddOrderExecutionFillCommand)command).Execute(state),
-            [typeof(UpdateOrderExecutionFillCostCommand)] = static (command, state) => ((UpdateOrderExecutionFillCostCommand)command).Execute(state),
-            [typeof(AcceptOrderExecutionCommand)] = static (command, state) => ((AcceptOrderExecutionCommand)command).Execute(state),
-            [typeof(CancelOrderExecutionCommand)] = static (command, state) => ((CancelOrderExecutionCommand)command).Execute(state),
-            [typeof(RejectOrderExecutionCommand)] = static (command, state) => ((RejectOrderExecutionCommand)command).Execute(state)
-        }.ToFrozenDictionary();
-
+            var typed = (AddOrderExecutionFillCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(UpdateOrderExecutionFillCostCommand)] = static command =>
+        {
+            var typed = (UpdateOrderExecutionFillCostCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(AcceptOrderExecutionCommand)] = static command =>
+        {
+            var typed = (AcceptOrderExecutionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(CancelOrderExecutionCommand)] = static command =>
+        {
+            var typed = (CancelOrderExecutionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        },
+        [typeof(RejectOrderExecutionCommand)] = static command =>
+        {
+            var typed = (RejectOrderExecutionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateOrderExecutionId(typed.EntityId, typed.CommandName).ValidateOrderExecutionCommand(typed);
+        }
+    }.ToFrozenDictionary();
+    private static readonly IReadOnlyDictionary<Type, Func<ICommand, OrderExecutionCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, OrderExecutionCommandState, ServiceResult<GuidResult>>>
+    {
+        [typeof(StartOrderExecutionCommand)] = static (command, state) => ((StartOrderExecutionCommand)command).Execute(state),
+        [typeof(SubmitOrderExecutionCommand)] = static (command, state) => ((SubmitOrderExecutionCommand)command).Execute(state),
+        [typeof(AddOrderExecutionFillCommand)] = static (command, state) => ((AddOrderExecutionFillCommand)command).Execute(state),
+        [typeof(UpdateOrderExecutionFillCostCommand)] = static (command, state) => ((UpdateOrderExecutionFillCostCommand)command).Execute(state),
+        [typeof(AcceptOrderExecutionCommand)] = static (command, state) => ((AcceptOrderExecutionCommand)command).Execute(state),
+        [typeof(CancelOrderExecutionCommand)] = static (command, state) => ((CancelOrderExecutionCommand)command).Execute(state),
+        [typeof(RejectOrderExecutionCommand)] = static (command, state) => ((RejectOrderExecutionCommand)command).Execute(state)
+    }.ToFrozenDictionary();
     private readonly IOrderExecutionCommandContext _services = Typed(context);
-
-    /// <inheritdoc />
-    protected override ValueTask OnStartup(ICommandActorContext<OrderExecutionCommandActor> actorContext) =>
-        _services.EventProjector.StartAsync(actorContext);
-
-    /// <inheritdoc />
-    protected override ValueTask OnShutdown(ICommandActorContext<OrderExecutionCommandActor> actorContext) =>
-        _services.EventProjector.StopAsync();
-
-    /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        IActorMessage message) => ParseMappedCommand(actorContext, message, _parseMap);
-
-    /// <inheritdoc />
-    protected override ValueTask OnValidateAsync(ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        ActorThreadId actorThreadId, ICommand command)
+    /// <inheritdoc/>
+    protected override ValueTask OnStartup(ICommandActorContext<OrderExecutionCommandActor> context) => _services.EventProjector.StartAsync(context);
+    /// <inheritdoc/>
+    protected override ValueTask OnShutdown(ICommandActorContext<OrderExecutionCommandActor> context) => _services.EventProjector.StopAsync();
+    /// <inheritdoc/>
+    protected override ICommand ParseMessage(ICommandActorContext<OrderExecutionCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    /// <inheritdoc/>
+    protected override ValueTask OnValidateAsync(ICommandActorContext<OrderExecutionCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    /// <inheritdoc />
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        ActorThreadId actorThreadId, ICommand command) =>
-        await _services.StateRepository.LoadStateAsync(command).ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<OrderExecutionCommandActor> context, ActorThreadId threadId, ICommand command) => await _services.StateRepository.LoadStateAsync(command).ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<OrderExecutionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command) => await _services.StateRepository.SaveStateAsync(context, (OrderExecutionCommandState)state, command).ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<OrderExecutionCommandActor> context, IActorState state, ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (OrderExecutionCommandState)state));
+    /// <inheritdoc/>
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<OrderExecutionCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
+    }
 
-    /// <inheritdoc />
-    protected override async ValueTask OnSaveStateAsync(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        ActorThreadId actorThreadId, IActorState state, ICommand command) =>
-        await _services.StateRepository.SaveStateAsync(actorContext,
-            (OrderExecutionCommandState)state, command).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        IActorState state, ICommand command) => ValueTask.FromResult(
-        ResolveMappedCommandHandler(command, _receiveMap)(command, (OrderExecutionCommandState)state));
-
-    /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-        ICommandActorContext<OrderExecutionCommandActor> actorContext,
-        ActorThreadId actorThreadId, ICommand command, Exception exception) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
-
-    private static IOrderExecutionCommandContext Typed(ICommandActorContext<OrderExecutionCommandActor> context) =>
-        context as IOrderExecutionCommandContext ??
-        throw new ArgumentException("Typed Order Execution context required.");
+    private static IOrderExecutionCommandContext Typed(ICommandActorContext<OrderExecutionCommandActor> context) => context as IOrderExecutionCommandContext ?? throw new ArgumentException("Typed Order Execution context required.", nameof(context));
 }

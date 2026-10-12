@@ -6,16 +6,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Query.Actor;
 
-/// <summary>Defines readonly services required by the VWAP Query actor.</summary>
-public interface IFuturesVwapSignalQueryContext : IQueryActorContext<FuturesVwapSignalQueryActor>
-{
-    IDbContextFactory DbFactory { get; }
-    ILogger<FuturesVwapSignalQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the closed generic VWAP Query context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVwapSignalQueryContext : QueryActorContext,
-    IQueryActorContext<FuturesVwapSignalQueryActor>, IFuturesVwapSignalQueryContext
+IFuturesVwapSignalQueryContext
 {
     /// <summary>Initializes the readonly Query context.</summary>
     public FuturesVwapSignalQueryContext(

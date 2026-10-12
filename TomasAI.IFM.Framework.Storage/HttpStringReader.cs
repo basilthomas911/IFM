@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Framework.Storage;
+namespace TomasAI.IFM.Framework.Storage;
 
 /// <summary>
 /// Provides functionality to read string data from an HTTP or HTTPS URI.
@@ -8,14 +8,15 @@
 /// cref="ReadLinesAsync"/> method is not supported for this implementation.</remarks>
 public class HttpStringReader : IStringReader
 {
+    private static readonly string[] LineSeparators = ["\r\n", "\r", "\n"];
     static readonly HttpClient Client = new();
     readonly Uri _dataSourceUri;
 
     public HttpStringReader(Uri dataSourceUri)
     {
         if (dataSourceUri == null)
-            throw new ArgumentNullException("dataSourceUri", "StringReader constructor parameter is null");
-        if (dataSourceUri.Scheme != Uri.UriSchemeHttp && dataSourceUri.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentNullException(nameof(dataSourceUri), "StringReader constructor parameter is null");
+        if (!string.Equals(dataSourceUri.Scheme,Uri.UriSchemeHttp,StringComparison.Ordinal) && !string.Equals(dataSourceUri.Scheme,Uri.UriSchemeHttps,StringComparison.Ordinal))
             throw new ArgumentException("The URI scheme must be 'http' or 'https'.", nameof(dataSourceUri));
         _dataSourceUri = dataSourceUri;
     }
@@ -29,7 +30,7 @@ public class HttpStringReader : IStringReader
     public async Task<IEnumerable<string>> ReadLinesAsync()
     {
         var content = await ReadToEndAsync().ConfigureAwait(false);
-        return content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        return content.Split(LineSeparators, StringSplitOptions.None);
     }
 
     public async Task<string> ReadToEndAsync()
@@ -47,7 +48,7 @@ public class HttpStringReader : IStringReader
     /// <exception cref="NotImplementedException">This method is not yet implemented.</exception>
     async IAsyncEnumerable<string> IStringReader.ReadLinesAsync()
     {
-        foreach (var line in await ReadLinesAsync())
+        foreach (var line in await (ReadLinesAsync()).ConfigureAwait(false))
         {
             yield return line;
         }
@@ -57,7 +58,7 @@ public class HttpStringReader : IStringReader
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var content = await ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var line in content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None))
+        foreach (var line in content.Split(LineSeparators, StringSplitOptions.None))
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return line;

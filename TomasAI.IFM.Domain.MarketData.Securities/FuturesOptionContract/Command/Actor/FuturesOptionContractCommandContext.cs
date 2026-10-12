@@ -10,8 +10,9 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesOptionContractCommandActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesOptionContractCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesOptionContractCommandActor>, IFuturesOptionContractCommandContext
+IFuturesOptionContractCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;

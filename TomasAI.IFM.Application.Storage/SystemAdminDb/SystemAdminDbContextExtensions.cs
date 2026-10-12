@@ -12,12 +12,21 @@ namespace TomasAI.IFM.Application.Storage;
 /// <summary>Provides the internal persistence helpers used by <see cref="SystemAdminDbContext"/>.</summary>
 internal static class SystemAdminDbContextExtensions
 {
-    const string EmptyJsonArray = "[]";
     static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     extension(SystemAdminDbContext context)
     {
+        /// <summary>Validates a required query before context parameter binding.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Validation belongs to the DbContext binding receiver contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the DbContext binding receiver contract.")]
+        internal void ValidateRequiredArgument<T>([System.Diagnostics.CodeAnalysis.NotNull] T value,
+            [System.Runtime.CompilerServices.CallerArgumentExpression("value")] string? argumentName = null)
+        {
+            if (value is null) throw new ArgumentNullException(argumentName);
+        }
+
         /// <summary>Validates and atomically applies one database-backup projection event.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<EventProjectionApplyOutcome> ApplyDatabaseBackupEventCoreAsync(
             string projectorName,
             DatabaseBackupEventContract domainEvent,
@@ -70,6 +79,7 @@ internal static class SystemAdminDbContextExtensions
         }
 
         /// <summary>Reads the durable checkpoint for the specified projector.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<DatabaseBackupProjectionCheckpointReadModel?> GetDatabaseBackupProjectionCheckpointCoreAsync(
             string projectorName,
             CancellationToken cancellationToken)
@@ -83,6 +93,7 @@ internal static class SystemAdminDbContextExtensions
         }
 
         /// <summary>Clears all database-backup projections and the specified projector bookkeeping.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask ClearDatabaseBackupProjectionsCoreAsync(
             string projectorName,
             CancellationToken cancellationToken)
@@ -112,80 +123,16 @@ internal static class SystemAdminDbContextExtensions
         }
 
         /// <summary>Applies all projection rows represented by one authoritative domain event.</summary>
-        internal async Task ApplyRowsAsync(
-            DatabaseBackupEventContract domainEvent,
-            CancellationToken cancellationToken)
-        {
-            if (domainEvent.ProjectsOperation())
-            {
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertOperation)}", SystemAdminDbSql.UpsertOperation)
-                    .SetParameters(new UpsertOperationParameter(domainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertPhase)}", SystemAdminDbSql.InsertPhase)
-                    .SetParameters(new InsertPhaseParameter(domainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (domainEvent.RestorePointId is not null)
-            {
-                var release = domainEvent is DatabaseBackupLegalHoldReleasedEvent;
-                var hold = domainEvent is DatabaseBackupLegalHoldPlacedEvent;
-                var restoreTested = domainEvent.Source.OperationKind == DatabaseRecoveryOperationKind.RestoreDrill
-                    && domainEvent is DatabaseOperationCompletedEvent;
-                var eligible = domainEvent.Outcome is not DatabaseRecoveryOutcome.Failed and not DatabaseRecoveryOutcome.Rejected;
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRestorePoint)}", SystemAdminDbSql.UpsertRestorePoint)
-                    .SetParameters(new UpsertRestorePointParameter(domainEvent, eligible, hold && !release, restoreTested))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (domainEvent.ArtifactReplica is not null)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertArtifactReplica)}", SystemAdminDbSql.UpsertArtifactReplica)
-                    .SetParameters(new UpsertArtifactReplicaParameter(domainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-            if (domainEvent is DatabaseOperationErrorRecordedEvent or DatabaseOperationFailedEvent)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRecoveryError)}", SystemAdminDbSql.UpsertRecoveryError)
-                    .SetParameters(new UpsertRecoveryErrorParameter(domainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-            if (domainEvent.Policy is not null && domainEvent.PolicyId is not null)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertPolicy)}", SystemAdminDbSql.UpsertPolicy)
-                    .SetParameters(new UpsertPolicyParameter(
-                        domainEvent,
-                        JsonSerializer.Serialize(domainEvent.Policy, JsonOptions),
-                        domainEvent is DatabaseBackupPolicyEnforcedEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-            if (domainEvent.Source.ProducingHostId is not null
-                && domainEvent is DatabaseBackupServiceCapabilityRecordedEvent or DatabaseBackupServiceReconciledEvent)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertServiceHealth)}", SystemAdminDbSql.UpsertServiceHealth)
-                    .SetParameters(new UpsertServiceHealthParameter(
-                        domainEvent, domainEvent is DatabaseBackupServiceReconciledEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-            if (domainEvent.RetentionPlanId is not null)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRetention)}", SystemAdminDbSql.UpsertRetention)
-                    .SetParameters(new UpsertRetentionParameter(
-                        domainEvent, EmptyJsonArray, EmptyJsonArray,
-                        domainEvent is DatabaseRetentionAuthorizedDomainEvent or DatabaseRetentionExecutionRequestedDomainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-            if (domainEvent.Statistics is not null)
-                await context.Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertRunStatistics)}", SystemAdminDbSql.InsertRunStatistics)
-                    .SetParameters(new InsertRunStatisticsParameter(domainEvent))
-                    .ExecuteCommandAsync(cancellationToken)
-                    .ConfigureAwait(false);
-        }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        internal Task ApplyRowsAsync(DatabaseBackupEventContract domainEvent, CancellationToken cancellationToken)
+            => SystemAdminBackupSnapshotStore.WriteRowsAsync(domainEvent,
+                (sql, values, token) => context.Use("DatabaseBackupProjection", sql)
+                    .SetParameters(values.Bind())
+                    .ExecuteCommandAsync(token), cancellationToken);
 
         /// <summary>Reads one projected recovery operation by its identifier.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<DatabaseBackupOperationReadModel?> GetOperationCoreAsync(
             Guid operationId,
             CancellationToken cancellationToken)
@@ -195,6 +142,7 @@ internal static class SystemAdminDbContextExtensions
                 .ConfigureAwait(false);
 
         /// <summary>Reads the latest matching projected restore point.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async ValueTask<DatabaseRestorePointReadModel?> GetLatestRestorePointCoreAsync(
             string commandName,
             string sql,
@@ -210,12 +158,14 @@ internal static class SystemAdminDbContextExtensions
     extension(DatabaseBackupEventContract domainEvent)
     {
         /// <summary>Determines whether the event contributes to the operation projection.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal bool ProjectsOperation()
             => domainEvent is not (DatabaseBackupPolicyRevisedEvent or DatabaseBackupPolicyEnforcedEvent
                 or DatabaseBackupLegalHoldPlacedEvent or DatabaseBackupLegalHoldReleasedEvent
                 or DatabaseBackupServiceCapabilityRecordedEvent or DatabaseBackupServiceReconciledEvent);
 
         /// <summary>Calculates the deterministic receipt hash for the event.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal string ComputeEventHash()
         {
             var json = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), JsonOptions);
@@ -240,6 +190,7 @@ internal static class SystemAdminDbContextExtensions
     extension(short value)
     {
         /// <summary>Converts a persisted small integer into its declared enum value.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal TEnum ToEnum<TEnum>() where TEnum : struct, Enum
             => (TEnum)Enum.ToObject(typeof(TEnum), value);
     }
@@ -247,6 +198,7 @@ internal static class SystemAdminDbContextExtensions
     extension(DateTime value)
     {
         /// <summary>Normalizes a provider timestamp as a UTC offset value.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DateTimeOffset ToUtcOffset()
             => new(value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc));
     }
@@ -254,6 +206,7 @@ internal static class SystemAdminDbContextExtensions
     extension(string? value)
     {
         /// <summary>Returns null when a persisted or requested string is empty.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal string? NullIfEmpty()
             => string.IsNullOrWhiteSpace(value) ? null : value;
 

@@ -16,13 +16,13 @@ internal static class FinancialQueryReply
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (query.SchemaVersion != 2 || query.Parameters is null || query.Scope is null || query.Scope.Access is null || query.Scope.PortfolioId <= 0 ||
-            query.QueryEntityId.PortfolioId != query.Scope.PortfolioId || query.Subject.EntityId != query.QueryEntityId.Format() ||
+            query.QueryEntityId.PortfolioId != query.Scope.PortfolioId || !string.Equals(query.Subject.EntityId,query.QueryEntityId.Format(),StringComparison.Ordinal) ||
             !query.Subject.Is(ActorType.Query, actor, verb) || query.CorrelationId == Guid.Empty || query.RequestedAtUtc.Kind != DateTimeKind.Utc ||
             MessagePackBinarySerializer.MeasureContent(query.GetType(), query) > 1048576)
             throw new FinancialOperationException(FinancialReasons.InvalidContract, "Financial query contract/scope is invalid.");
-        var result = await read();
+        var result = await (read()).ConfigureAwait(false);
         if (MessagePackBinarySerializer.MeasureContent(result) > 524288)
             throw new FinancialOperationException(FinancialReasons.InvalidContract, "Financial result exceeds 512 KiB; use a smaller page.");
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<FinancialRead<TResult>>(result));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<FinancialRead<TResult>>(result))).ConfigureAwait(false);
     }
 }

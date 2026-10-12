@@ -33,17 +33,17 @@ public abstract class BaseEventProjector<TActor>(
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
     ILogger logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null) : IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource
+    EventProjectorReliabilityOptions? reliabilityOptions = null) : IEventProjector<TActor>, IEventProjectorReadiness, ISupervisorProjectorMetricsSource, IAsyncDisposable
     where TActor : ICommandActor<TActor>
 {
     readonly EventProjectorReliabilityOptions _reliabilityOptions =
         (reliabilityOptions ?? new EventProjectorReliabilityOptions()).Validate();
-    readonly object _descriptorLock = new();
+    readonly System.Threading.Lock _descriptorLock = new();
     FrozenDictionary<Type, EventProjectionDescriptor>? _descriptorMap;
     EventProjectorExecutionEngine? _executionEngine;
     EventProjectorOutboxDispatcher? _outboxDispatcher;
     EventProjectorMetricsObserver? _metricsObserver;
-    IEventProjectorTransientQueue? _transientQueue;
+    EventProjectorTransientQueue? _transientQueue;
     static readonly ConcurrentDictionary<Type, Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>
         EventPublishers = new();
     ICommandActorContext? _context;
@@ -53,6 +53,16 @@ public abstract class BaseEventProjector<TActor>(
         0,
         0,
         DateTimeOffset.MinValue);
+
+    /// <summary>Releases workers after their owning actor has stopped.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        if (_transientQueue is not null) await _transientQueue.DisposeAsync().ConfigureAwait(false);
+        if (_outboxDispatcher is not null) await _outboxDispatcher.DisposeAsync().ConfigureAwait(false);
+        if (_metricsObserver is not null) await _metricsObserver.DisposeAsync().ConfigureAwait(false);
+        GC.SuppressFinalize(this);
+    }
 
     public abstract string ActorName { get; }
     public abstract string ProjectorName { get; }
@@ -166,10 +176,13 @@ public abstract class BaseEventProjector<TActor>(
     /// startup lifecycle rather than once per projected event batch.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="context"/> is <see langword="null"/>.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     public async ValueTask StartAsync(
         ICommandActorContext context,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(context);
         _context = IsArgumentNull.Set(context);
         context.SupervisorRuntime?.RegisterProjector(this);
         var descriptors = GetDescriptorMap().Values;
@@ -249,7 +262,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector metrics startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write15(Logger, stopException, nameof(BaseEventProjector<TActor>), nameof(StartAsync), ProjectorName);
                 }
             }
             if (_outboxDispatcher is not null)
@@ -260,7 +273,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector outbox startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write16(Logger, stopException, nameof(BaseEventProjector<TActor>), nameof(StartAsync), ProjectorName);
                 }
             }
             if (hasTransientDescriptors && _transientQueue is not null)
@@ -271,7 +284,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector transient queue startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write17(Logger, stopException, nameof(BaseEventProjector<TActor>), nameof(StartAsync), ProjectorName);
                 }
             }
             if (hasDurableDescriptors)
@@ -282,7 +295,7 @@ public abstract class BaseEventProjector<TActor>(
                 }
                 catch (Exception stopException)
                 {
-                    Logger.LogWarning(stopException,"{Component}.{Method} "+"Unable to roll back projector queue startup for {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(StartAsync),ProjectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write18(Logger, stopException, nameof(BaseEventProjector<TActor>), nameof(StartAsync), ProjectorName);
                 }
             }
             _context = null;
@@ -331,6 +344,7 @@ public abstract class BaseEventProjector<TActor>(
     /// </remarks>
     public async ValueTask DomainEventsProjectionAsync(DomainEventCollection domainEvents)
     {
+        ArgumentNullException.ThrowIfNull(domainEvents);
         foreach (var domainEvent in domainEvents)
         {
             if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
@@ -374,7 +388,7 @@ public abstract class BaseEventProjector<TActor>(
 
             // Persist the recoverable marker before publishing. If publication fails after the event-log
             // transaction committed, startup recovery will find this state and enqueue the source event again.
-            await DbEventSource.InsertEventProjectorStateAsync(projectionState);
+            await (DbEventSource.InsertEventProjectorStateAsync(projectionState)).ConfigureAwait(false);
             BlackboardService.EventSourcing.EventProjectorState.Set(
                 domainEvent.EventId,
                 ProjectorName,
@@ -423,8 +437,7 @@ public abstract class BaseEventProjector<TActor>(
         if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
             && !descriptor.UseDurableReplay)
         {
-            Logger.LogWarning(
-                "{Component}.{Method} "+"Ignoring durable delivery for non-durable event {EventId} ({EventType}) in projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().Name,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write13(Logger, null, nameof(BaseEventProjector<TActor>), nameof(ProcessQueuedDomainEventAsync), domainEvent.EventId, domainEvent.GetType().Name, ProjectorName);
             return EventProjectorDeliveryResult.Completed;
         }
 
@@ -434,12 +447,12 @@ public abstract class BaseEventProjector<TActor>(
         var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
             domainEvent.EventId,
             ProjectorName)
-            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName);
+            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false);
 
         if (currentState is null)
         {
             currentState = CreateInitialState(domainEvent.EventId);
-            await DbEventSource.InsertEventProjectorStateAsync(currentState);
+            await (DbEventSource.InsertEventProjectorStateAsync(currentState)).ConfigureAwait(false);
         }
 
         if (IsTerminal(currentState))
@@ -449,7 +462,7 @@ public abstract class BaseEventProjector<TActor>(
             domainEvent.EventId,
             ProjectorName,
             currentState);
-        await ProcessDomainEventAsync(domainEvent);
+        await (ProcessDomainEventAsync(domainEvent)).ConfigureAwait(false);
         return EventProjectorDeliveryResult.Completed;
     }
 
@@ -460,21 +473,21 @@ public abstract class BaseEventProjector<TActor>(
         if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
         {
             EventProjectorMetrics.RecordEvent(ProjectorName, "unregistered", "transient");
-            Logger.LogError(
-                "{Component}.{Method} "+"Dropping unregistered non-durable event {EventId} ({EventType}) for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessTransientQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().FullName,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write10(Logger, null, nameof(BaseEventProjector<TActor>), nameof(ProcessTransientQueuedDomainEventAsync), domainEvent.EventId, domainEvent.GetType().FullName, ProjectorName);
             return;
         }
         if (descriptor.UseDurableReplay)
         {
             EventProjectorMetrics.RecordEvent(ProjectorName, "misrouted", "transient");
-            Logger.LogError(
-                "{Component}.{Method} "+"Dropping durable event {EventId} ({EventType}) routed to the non-durable queue for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ProcessTransientQueuedDomainEventAsync),                domainEvent.EventId,                domainEvent.GetType().FullName,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write11(Logger, null, nameof(BaseEventProjector<TActor>), nameof(ProcessTransientQueuedDomainEventAsync), domainEvent.EventId, domainEvent.GetType().FullName, ProjectorName);
             return;
         }
 
         await ExecuteTransientDescriptorAsync(domainEvent, descriptor, cancellationToken).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     async ValueTask ExecuteTransientDescriptorAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -499,8 +512,7 @@ public abstract class BaseEventProjector<TActor>(
                         ProjectorName,
                         "processing-publication-failed",
                         "transient");
-                    Logger.LogWarning(
-                        ex,                        "{Component}.{Method} "+"Non-durable processing publication failed for event {EventId} in projector {ProjectorName}; the target action will still run.",nameof(BaseEventProjector<TActor>),nameof(ExecuteTransientDescriptorAsync),                        domainEvent.EventId,                        ProjectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write19(Logger, ex, nameof(BaseEventProjector<TActor>), nameof(ExecuteTransientDescriptorAsync), domainEvent.EventId, ProjectorName);
                 }
             }
 
@@ -546,8 +558,7 @@ public abstract class BaseEventProjector<TActor>(
             catch (Exception ex)
             {
                 EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
-                Logger.LogError(
-                    ex,                    "{Component}.{Method} "+"Non-durable projection apply failed for event {EventId} ({EventType}) in projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(ExecuteTransientDescriptorAsync),                    domainEvent.EventId,                    domainEvent.GetType().FullName,                    ProjectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write20(Logger, ex, nameof(BaseEventProjector<TActor>), nameof(ExecuteTransientDescriptorAsync), domainEvent.EventId, domainEvent.GetType().FullName, ProjectorName);
                 if (descriptor.PublishTerminalEvent)
                 {
                     await PublishTransientFailureAsync(
@@ -632,6 +643,7 @@ public abstract class BaseEventProjector<TActor>(
         return eventLog?.EventStreamId ?? 0;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async ValueTask PublishTransientCompletionAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -654,11 +666,11 @@ public abstract class BaseEventProjector<TActor>(
                 ProjectorName,
                 "terminal-publication-failed",
                 "transient");
-            Logger.LogWarning(
-                ex,                "{Component}.{Method} "+"Non-durable completion publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",nameof(BaseEventProjector<TActor>),nameof(PublishTransientCompletionAsync),                domainEvent.EventId,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write12(Logger, ex, nameof(BaseEventProjector<TActor>), nameof(PublishTransientCompletionAsync), domainEvent.EventId, ProjectorName);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async ValueTask PublishTransientFailureAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -682,11 +694,11 @@ public abstract class BaseEventProjector<TActor>(
                 ProjectorName,
                 "terminal-publication-failed",
                 "transient");
-            Logger.LogWarning(
-                ex,                "{Component}.{Method} "+"Non-durable failure publication failed for event {EventId} in projector {ProjectorName}; it will not be replayed.",nameof(BaseEventProjector<TActor>),nameof(PublishTransientFailureAsync),                domainEvent.EventId,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write14(Logger, ex, nameof(BaseEventProjector<TActor>), nameof(PublishTransientFailureAsync), domainEvent.EventId, ProjectorName);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     async ValueTask ExecuteLegacyDescriptorAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor)
@@ -694,7 +706,7 @@ public abstract class BaseEventProjector<TActor>(
         var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
                 domainEvent.EventId,
                 ProjectorName)
-            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 $"Projection state was not initialized for event {domainEvent.EventId} and projector '{ProjectorName}'.");
         BlackboardService.EventSourcing.EventProjectorState.Set(
@@ -752,16 +764,8 @@ public abstract class BaseEventProjector<TActor>(
                         }
                         currentState = currentState with
                         {
-                            Stage = applyResult.Success
-                                ? descriptor.PublishTerminalEvent
-                                    ? EventProjectorStageType.PublishCompletedEvent
-                                    : EventProjectorStageType.Completed
-                                : EventProjectorStageType.PublishFailedEvent,
-                            Outcome = applyResult.Success
-                                ? descriptor.PublishTerminalEvent
-                                    ? EventProjectorOutcomeType.Processing
-                                    : EventProjectorOutcomeType.Completed
-                                : EventProjectorOutcomeType.Retrying,
+                            Stage = LegacyStageAfterApply(applyResult.Success, descriptor.PublishTerminalEvent),
+                            Outcome = LegacyOutcomeAfterApply(applyResult.Success, descriptor.PublishTerminalEvent),
                             ErrorMessage = applyResult.ErrorMessage,
                             UpdatedTimestamp = DateTime.UtcNow
                         };
@@ -841,7 +845,7 @@ public abstract class BaseEventProjector<TActor>(
     async ValueTask TerminalizeLegacyUnregisteredAsync(IEvent domainEvent)
     {
         var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
-            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? CreateInitialState(domainEvent.EventId);
         state = state with
         {
@@ -864,7 +868,7 @@ public abstract class BaseEventProjector<TActor>(
         }
 
         var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
-            ?? await DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)
+            ?? await (DbEventSource.GetEventProjectorStateAsync(domainEvent.EventId, ProjectorName)).ConfigureAwait(false)
             ?? CreateInitialState(domainEvent.EventId);
         state = state with
         {
@@ -877,6 +881,7 @@ public abstract class BaseEventProjector<TActor>(
         return EventProjectorDeliveryResult.Completed;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(
         IReadOnlyCollection<Type> durableEventTypes,
         CancellationToken cancellationToken)
@@ -885,10 +890,10 @@ public abstract class BaseEventProjector<TActor>(
             .Select(eventType => eventType.Name)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var eventLogs = await DbEventSource.GetUncompletedEventProjectorEventsAsync(
+        var eventLogs = await (DbEventSource.GetUncompletedEventProjectorEventsAsync(
             ProjectorName,
             eventNames,
-            cancellationToken) ?? [];
+            cancellationToken)).ConfigureAwait(false) ?? [];
 
         long queued = 0;
         long terminalFailures = 0;
@@ -904,31 +909,29 @@ public abstract class BaseEventProjector<TActor>(
                     Outcome = EventProjectorOutcomeType.Failed,
                     ErrorMessage = $"Unable to deserialize event '{eventLog.EventName}' from event log version {eventLog.EventVersion}."
                 };
-                await DbEventSource.InsertEventProjectorStateAsync(
+                await (DbEventSource.InsertEventProjectorStateAsync(
                     failedState,
-                    cancellationToken);
+                    cancellationToken)).ConfigureAwait(false);
                 terminalFailures++;
-                Logger.LogError(
-                    "{Component}.{Method} "+"Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                    eventLog.EventVersion,                    eventLog.EventName,                    ProjectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write21(Logger, null, nameof(BaseEventProjector<TActor>), nameof(RecoverUncompletedEventsAsync), eventLog.EventVersion, eventLog.EventName, ProjectorName);
                 continue;
             }
 
-            var currentState = await DbEventSource.GetEventProjectorStateAsync(
+            var currentState = await (DbEventSource.GetEventProjectorStateAsync(
                 eventLog.EventVersion,
                 ProjectorName,
-                cancellationToken);
+                cancellationToken)).ConfigureAwait(false);
             if (currentState is null)
             {
-                Logger.LogWarning(
-                    "{Component}.{Method} "+"Skipping event-log recovery for event {EventId} because projector {ProjectorName} has no explicit durable state.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                    eventLog.EventVersion,                    ProjectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write22(Logger, null, nameof(BaseEventProjector<TActor>), nameof(RecoverUncompletedEventsAsync), eventLog.EventVersion, ProjectorName);
                 continue;
             }
             if (IsTerminal(currentState))
                 continue;
 
-            await DbEventSource.InsertEventProjectorStateAsync(
+            await (DbEventSource.InsertEventProjectorStateAsync(
                 currentState,
-                cancellationToken);
+                cancellationToken)).ConfigureAwait(false);
             BlackboardService.EventSourcing.EventProjectorState.Set(
                 eventLog.EventVersion,
                 ProjectorName,
@@ -939,8 +942,7 @@ public abstract class BaseEventProjector<TActor>(
 
         if (eventLogs.Count > 0)
         {
-            Logger.LogInformation(
-                "{Component}.{Method} "+"Recovered {EventCount} event-log entries for projector {ProjectorName}.",nameof(BaseEventProjector<TActor>),nameof(RecoverUncompletedEventsAsync),                eventLogs.Count,                ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write23(Logger, null, nameof(BaseEventProjector<TActor>), nameof(RecoverUncompletedEventsAsync), eventLogs.Count, ProjectorName);
         }
         return new EventProjectorRecoveryResult(eventLogs.Count, queued, 0, terminalFailures);
     }
@@ -1068,6 +1070,7 @@ public abstract class BaseEventProjector<TActor>(
         await publisher(Context, domainEvent, cancellationToken).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3011", Justification = "Only a fixed private publication method on this class is reflected; the event type supplies generic arguments.")]
     static Func<ICommandActorContext, IEvent, CancellationToken, ValueTask> CreateEventPublisher(Type eventType)
     {
         var eventInterface = eventType.GetInterfaces().SingleOrDefault(type =>
@@ -1077,8 +1080,19 @@ public abstract class BaseEventProjector<TActor>(
         var method = typeof(BaseEventProjector<TActor>)
             .GetMethod(nameof(PublishTypedEventAsync), BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(eventType, entityIdType);
-        return (Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>)method.CreateDelegate(
-            typeof(Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>));
+        return method.CreateDelegate<Func<ICommandActorContext, IEvent, CancellationToken, ValueTask>>();
+    }
+
+    static EventProjectorStageType LegacyStageAfterApply(bool success, bool publishTerminal)
+    {
+        if (!success) return EventProjectorStageType.PublishFailedEvent;
+        return publishTerminal ? EventProjectorStageType.PublishCompletedEvent : EventProjectorStageType.Completed;
+    }
+
+    static EventProjectorOutcomeType LegacyOutcomeAfterApply(bool success, bool publishTerminal)
+    {
+        if (!success) return EventProjectorOutcomeType.Retrying;
+        return publishTerminal ? EventProjectorOutcomeType.Processing : EventProjectorOutcomeType.Completed;
     }
 
     static ValueTask PublishTypedEventAsync<TEvent, TEntityId>(

@@ -10,8 +10,3 @@ public sealed record EventProjectorReadinessSnapshot(
     long RecoveryEventsQueued,
     DateTimeOffset UpdatedAtUtc,
     string FailureReason = "");
-
-public interface IEventProjectorReadiness
-{
-    EventProjectorReadinessSnapshot GetSnapshot(string projectorName);
-}

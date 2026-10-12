@@ -104,13 +104,7 @@ internal sealed class FuturesEodTradeWorker
                     if (!await AwaitGenerationAsync(_process(trade).AsTask()).ConfigureAwait(false))
                         throw new InvalidOperationException(
                             $"EOD projection rejected trade {trade.Id} ({trade.TickDataId}).");
-                    var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                    var count = Interlocked.Increment(ref _processed);
-                    if (elapsed >= 250 || (count & 63) == 0)
-                        _logger.LogInformation(
-                            "{Component}.{Method} Futures EOD queued trade exit: {ContractId}; SourceId={SourceId}; TickDataId={TickDataId}; queuePending={Pending}; processedCount={ProcessedCount}; QueueWaitMilliseconds={QueueWaitMilliseconds}; elapsed {ElapsedMilliseconds:F3} ms.",
-                            nameof(FuturesEodTradeWorker), nameof(RunAsync), trade.EntityId.ContractId, trade.Id, trade.TickDataId, Pending,
-                            count, queueWaitMilliseconds, elapsed);
+                    RecordProcessed(trade, started, queueWaitMilliseconds);
                 }
                 finally
                 {
@@ -129,14 +123,29 @@ internal sealed class FuturesEodTradeWorker
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception,
-                "Futures EOD experimental worker stopped with {Pending} admitted trades still pending.",
-                Pending);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write24(_logger, exception, Pending);
             _queue.Writer.TryComplete(exception);
             while (_queue.Reader.TryRead(out var item))
                 item.Barrier?.TrySetException(exception);
             throw;
         }
+    }
+
+    /// <summary>Tracks processed observations and emits bounded queue/processing latency diagnostics.</summary>
+    void RecordProcessed(FuturesTickTradeDataInsertedEvent trade, long started, double queueWaitMilliseconds)
+    {
+                    var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    var count = Interlocked.Increment(ref _processed);
+                    if (elapsed >= 250 || (count & 63) == 0)
+                        {
+
+            var diagnosticLogger = _logger;
+            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                global::TomasAI.IFM.Domain.MarketData.Feed.StorageMigrationDiagnosticLog.Write8(diagnosticLogger, null, nameof(FuturesEodTradeWorker), nameof(RunAsync), trade.EntityId.ContractId, trade.Id, trade.TickDataId, Pending, count, queueWaitMilliseconds, elapsed);
+            }
+        
+}
     }
 
     async Task AwaitGenerationAsync(Task work)
@@ -154,12 +163,15 @@ internal sealed class FuturesEodTradeWorker
         await AwaitGenerationAsync((Task)work).ConfigureAwait(false);
         return await work.ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     async Task ObserveAbandonedAsync(Task work)
     {
         try { await work.ConfigureAwait(false); }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { _logger.LogWarning(error, "Retired EOD worker operation completed with an error."); }
+        catch (OperationCanceledException)
+        {
+            // Abandoned work was canceled when its worker generation was detached.
+        }
+        catch (Exception error) { global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write23(_logger, error); }
     }
 
     readonly record struct WorkItem(FuturesTickTradeDataInsertedEvent? Trade,

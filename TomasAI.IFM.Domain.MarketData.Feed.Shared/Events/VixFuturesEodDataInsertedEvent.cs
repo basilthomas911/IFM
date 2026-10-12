@@ -31,6 +31,8 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string CreatedBy { get; init; }
     [Key(11)] public FuturesSessionStatisticsSnapshot? SessionStatistics { get; init; }
+    /// <summary>Exact accepted OHLC/volume replacement facts; reconstruction never increments volume again.</summary>
+    [Key(12)] public VixFuturesEodDataReadModel? AcceptedSnapshot { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -54,7 +56,8 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         FuturesTickDataV2ReadModel vixFuturesTickData,
         DateTime createdOn,
         string createdBy,
-        FuturesSessionStatisticsSnapshot? sessionStatistics = null)
+        FuturesSessionStatisticsSnapshot? sessionStatistics = null,
+        VixFuturesEodDataReadModel? acceptedSnapshot = null)
     {
         Subject = subject;
         Id = id;
@@ -68,6 +71,7 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
         SessionStatistics = sessionStatistics;
+        AcceptedSnapshot = acceptedSnapshot;
     }
 
     /// <summary>
@@ -105,6 +109,7 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TEntityId) != typeof(FuturesEodDataId))
             throw new InvalidOperationException($"{EventName}.ToFailEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(FuturesEodDataId).FullName}.");
 
@@ -126,131 +131,5 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         };
 
         return (IErrorEvent<TEntityId>)failed;
-    }
-}
-
-/// <summary>
-/// Event published when VIX futures end-of-day data has been inserted successfully.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record VixFuturesEodDataInsertedCompleteEvent : ICompleteEvent<FuturesEodDataId>
-{
-    [IgnoreMember] public const string Actor = "FuturesEodDataEvent";
-    [IgnoreMember] public const string Verb = "VixInsertedComplete";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesEodDataId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [Key(8)] public FuturesTickDataV2ReadModel VixFuturesTickData { get; init; }
-    [Key(9)] public DateTime CreatedOn { get; init; }
-    [Key(10)] public string CreatedBy { get; init; }
-
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
-
-    public VixFuturesEodDataInsertedCompleteEvent() { }
-
-    [SerializationConstructor]
-    public VixFuturesEodDataInsertedCompleteEvent(
-        ActorSubject subject,
-        FuturesEodDataId entityId,
-        Guid id,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        string eventSource,
-        DateTime receivedOn,
-        FuturesTickDataV2ReadModel vixFuturesTickData,
-        DateTime createdOn,
-        string createdBy)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-        VixFuturesTickData = vixFuturesTickData;
-        CreatedOn = createdOn;
-        CreatedBy = createdBy ?? string.Empty;
-    }
-}
-
-/// <summary>
-/// Event published when inserting VIX futures end-of-day data fails.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record VixFuturesEodDataInsertedFailEvent : IErrorEvent<FuturesEodDataId>
-{
-    [IgnoreMember] public const string Actor = "FuturesEodDataEvent";
-    [IgnoreMember] public const string Verb = "VixInsertedFail";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesEodDataId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public DateTime ErrorDate { get; init; }
-    [Key(4)] public long EventId { get; init; }
-    [Key(5)] public Guid CommandId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public string ErrorMessage { get; init; }
-    [Key(8)] public int ErrorCode { get; init; }
-    [Key(9)] public ErrorType ErrorType { get; init; }
-    [Key(10)] public string ErrorData { get; init; }
-    [Key(11)] public DateTime ReceivedOn { get; init; }
-    [Key(12)] public string AggregateId { get; init; }
-    [Key(13)] public string CommandName { get; init; }
-    [Key(14)] public string CommandData { get; init; }
-    [Key(15)] public string RouteTo { get; init; }
-
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public EventType EventType => EventType.ErrorEvent;
-
-    public VixFuturesEodDataInsertedFailEvent() { }
-
-    [SerializationConstructor]
-    public VixFuturesEodDataInsertedFailEvent(
-        ActorSubject subject,
-        FuturesEodDataId entityId,
-        Guid id,
-        DateTime errorDate,
-        long eventId,
-        Guid commandId,
-        string eventSource,
-        string errorMessage,
-        int errorCode,
-        ErrorType errorType,
-        string errorData,
-        DateTime receivedOn,
-        string aggregateId,
-        string commandName,
-        string commandData,
-        string routeTo)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        ErrorDate = errorDate;
-        EventId = eventId;
-        CommandId = commandId;
-        EventSource = eventSource ?? string.Empty;
-        ErrorMessage = errorMessage ?? string.Empty;
-        ErrorCode = errorCode;
-        ErrorType = errorType;
-        ErrorData = errorData ?? string.Empty;
-        ReceivedOn = receivedOn;
-        AggregateId = aggregateId ?? string.Empty;
-        CommandName = commandName ?? string.Empty;
-        CommandData = commandData ?? string.Empty;
-        RouteTo = routeTo ?? string.Empty;
     }
 }

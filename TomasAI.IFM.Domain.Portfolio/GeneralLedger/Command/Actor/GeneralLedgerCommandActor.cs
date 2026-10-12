@@ -29,14 +29,14 @@ public sealed class GeneralLedgerCommandActor(ICommandActorContext<GeneralLedger
             return new List<ValidationError>()
                 .ValidateCommandId(typed.CommandId, typed.CommandName)
                 .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
-                .ValidateFinancialRequest<PostFundTransactionCommand, LedgerPostingRequest>(typed, ActorType.Command, ActorName, PostFundTransactionCommand.Verb);
+                .ValidateFinancialRequest<PostFundTransactionCommand, LedgerPostingRequest, List<ValidationError>>(typed, ActorType.Command, ActorName, PostFundTransactionCommand.Verb);
         },        [typeof(PostFundTransactionsCommand)] = static command =>
         {
             var typed = (PostFundTransactionsCommand)command;
             return new List<ValidationError>()
                 .ValidateCommandId(typed.CommandId, typed.CommandName)
                 .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
-                .ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest>(typed, ActorType.Command, ActorName, PostFundTransactionsCommand.Verb);
+                .ValidateFinancialRequest<PostFundTransactionsCommand, LedgerPostingBatchRequest, List<ValidationError>>(typed, ActorType.Command, ActorName, PostFundTransactionsCommand.Verb);
         },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, GeneralLedgerCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, GeneralLedgerCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
@@ -44,26 +44,23 @@ public sealed class GeneralLedgerCommandActor(ICommandActorContext<GeneralLedger
             [typeof(PostFundTransactionCommand)] = (command, owner, token) => ((PostFundTransactionCommand)command).ExecuteAsync(owner, token),
             [typeof(PostFundTransactionsCommand)] = (command, owner, token) => ((PostFundTransactionsCommand)command).ExecuteAsync(owner, token),
         }.ToFrozenDictionary();
-    protected override ICommand ParseMessage(ICommandActorContext<GeneralLedgerCommandActor> owner, IActorMessage message) => ParseMappedCommand(owner, message, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ICommand ParseMessage(ICommandActorContext<GeneralLedgerCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<GeneralLedgerCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
-    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<GeneralLedgerCommandActor> context, ActorThreadId threadId, ICommand command)
         => command.LoadFinancialStateAsync();
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, ICommand command, CancellationToken token)
-        => command.ReconcileFinancialDuplicateAsync(token);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, IActorState state, ICommand command)
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<GeneralLedgerCommandActor> context, ICommand command, CancellationToken cancellationToken)
+        => command.ReconcileFinancialDuplicateAsync(cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<GeneralLedgerCommandActor> context, IActorState state, ICommand command)
         => ResolveMappedCommandHandler(command, _receiveMap)(command, services, CancellationToken.None);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, IActorState state, ICommand command, CancellationToken token)
-        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, token);
-    protected override ValueTask OnStartup(ICommandActorContext<GeneralLedgerCommandActor> owner, CancellationToken token) => services.Projector.StartAsync(owner, token);
-    protected override ValueTask OnShutdown(ICommandActorContext<GeneralLedgerCommandActor> owner) => services.Projector.StopAsync();
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<GeneralLedgerCommandActor> owner, ActorThreadId threadId, ICommand command, Exception exception)
-        => exception.FinancialCommandFailure(services.Logger);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<GeneralLedgerCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, cancellationToken);
+    protected override ValueTask OnStartup(ICommandActorContext<GeneralLedgerCommandActor> context, CancellationToken cancellationToken) => services.Projector.StartAsync(context, cancellationToken);
+    protected override ValueTask OnShutdown(ICommandActorContext<GeneralLedgerCommandActor> context) => services.Projector.StopAsync();
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<GeneralLedgerCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        => ex.FinancialCommandFailure(services.Logger);
 }
-
-public sealed class GeneralLedgerCommandContext(IActorSupervisor supervisor)
-    : CommandActorContext(supervisor, new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName)), ICommandActorContext<GeneralLedgerCommandActor>;
 

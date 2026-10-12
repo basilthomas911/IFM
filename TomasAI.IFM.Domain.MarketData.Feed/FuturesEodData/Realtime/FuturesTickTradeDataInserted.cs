@@ -87,21 +87,7 @@ public static class FuturesTickTradeDataInserted
 
             var tickData = ToFuturesTickData(source);
             if (contract.Id.IsVxContract)
-            {
-                FuturesSessionStatisticsSnapshot? statistics =
-                    marketDataApi.TryGetFuturesSessionStatistics(
-                        source.EntityId.ContractId,
-                        out var currentStatistics)
-                    && currentStatistics.ValueDate == source.EntityId.ValueDate
-                        ? currentStatistics
-                        : null;
-                stageStarted = Stopwatch.GetTimestamp();
-                var projected = await projector.ProcessRealtimeEventAsync(
-                        VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
-                    .ConfigureAwait(false);
-                LogSlowStage(logger, source, "vx_projection", stageStarted);
-                return projected;
-            }
+                return await ProjectVxTradeAsync(source, tickData, marketDataApi, projector, logger).ConfigureAwait(false);
 
             var eodId = new FuturesEodDataId(contract.ContractId, tickData.ValueDate);
             FuturesEodDataV2ReadModel? cached = null;
@@ -110,14 +96,7 @@ public static class FuturesTickTradeDataInserted
                 return true;
             stageStarted = Stopwatch.GetTimestamp();
             var insertedEvent = await CreateFuturesInsertedEventAsync(
-                    source,
-                    context,
-                    marketDataApi,
-                    blackboardService,
-                    contract,
-                    tickData,
-                    logger,
-                    cached)
+                    source, context, marketDataApi, contract, tickData, logger, cached)
                 .ConfigureAwait(false);
             LogSlowStage(logger, source, "es_prepare", stageStarted);
             if (insertedEvent is null)
@@ -133,6 +112,15 @@ public static class FuturesTickTradeDataInserted
         }
         catch (Exception exception)
         {
+            await RecordWorkflowFailureAsync(source, statusConsoleWriter, logger, cache, exception).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>Invalidates the failed ES cache entry and reports the unchanged workflow failure to the console and structured log.</summary>
+    static async ValueTask RecordWorkflowFailureAsync(FuturesTickTradeDataInsertedEvent source,
+        IStatusConsoleWriter statusConsoleWriter, ILogger logger, FuturesEodTradeReadCache? cache, Exception exception)
+    {
             cache?.Invalidate(new FuturesEodDataId(
                 source.EntityId.ContractId, source.EntityId.ValueDate));
             await statusConsoleWriter.WriteConsoleAsync(
@@ -145,29 +133,34 @@ public static class FuturesTickTradeDataInserted
                 "{EventName} for {ContractId}: realtime futures EOD workflow failed",
                 nameof(FuturesTickTradeDataInsertedEvent),
                 source.EntityId.ContractId);
-            throw;
-        }
+    }
+
+    /// <summary>Projects a VX trade with matching official session statistics and records the projection duration.</summary>
+    static async ValueTask<bool> ProjectVxTradeAsync(FuturesTickTradeDataInsertedEvent source,
+        FuturesTickDataV2ReadModel tickData, IMarketDataApi marketDataApi,
+        IRealtimeProjector<FuturesEodDataRealtimeActor> projector, ILogger logger)
+    {
+                FuturesSessionStatisticsSnapshot? statistics =
+                    marketDataApi.TryGetFuturesSessionStatistics(
+                        source.EntityId.ContractId,
+                        out var currentStatistics)
+                    && currentStatistics.ValueDate == source.EntityId.ValueDate
+                        ? currentStatistics
+                        : null;
+                var stageStarted = Stopwatch.GetTimestamp();
+                var projected = await projector.ProcessRealtimeEventAsync(
+                        VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
+                    .ConfigureAwait(false);
+                LogSlowStage(logger, source, "vx_projection", stageStarted);
+                return projected;
     }
 
     static async ValueTask<FuturesEodDataInsertedEvent?> CreateFuturesInsertedEventAsync(
-        FuturesTickTradeDataInsertedEvent source,
-        IEventActorContext context,
-        IMarketDataApi marketDataApi,
-        IBlackboardService blackboardService,
-        FuturesContractV3ReadModel contract,
-        FuturesTickDataV2ReadModel tickData,
-        ILogger logger,
-        FuturesEodDataV2ReadModel? cachedToday)
+        FuturesTickTradeDataInsertedEvent source, IEventActorContext context, IMarketDataApi marketDataApi, FuturesContractV3ReadModel contract, FuturesTickDataV2ReadModel tickData, ILogger logger, FuturesEodDataV2ReadModel? cachedToday)
     {
         var valueDate = tickData.ValueDate;
         var eodDataToday = cachedToday;
-        if (eodDataToday is null)
-        {
-            var stageStarted = Stopwatch.GetTimestamp();
-            eodDataToday = await context.GetFuturesEodDataAsync(
-                contract.ContractId, valueDate).ConfigureAwait(false);
-            LogSlowStage(logger, source, "eod_today_query", stageStarted);
-        }
+        eodDataToday ??= await LoadCurrentEodAsync(source, context, contract.ContractId, valueDate, logger).ConfigureAwait(false);
         var hasCurrentSessionRow = eodDataToday is not null;
         var persistedVolume = eodDataToday?.Volume;
         if (eodDataToday is null)
@@ -197,13 +190,7 @@ public static class FuturesTickTradeDataInserted
             return null;
         if (hasStatistics)
         {
-            eodDataToday = eodDataToday with
-            {
-                OpenPrice = statistics.OpenPrice,
-                HighPrice = statistics.HighPrice,
-                LowPrice = statistics.LowPrice,
-                Volume = statistics.HasVolume ? statistics.Volume : eodDataToday.Volume
-            };
+            eodDataToday = ApplyCompleteStatistics(eodDataToday, statistics);
         }
         else if (marketDataApi.TryGetFuturesSessionStatistics(
                      contract.ContractId,
@@ -225,7 +212,37 @@ public static class FuturesTickTradeDataInserted
             tickData,
             contract,
             eodDataToday);
-        var entityId = new FuturesEodDataId(contract.ContractId, valueDate);
+        return CreateInsertedEvent(source, contract.ContractId, valueDate, eodData);
+    }
+
+    /// <summary>Reads the current dated EOD row and records the query duration.</summary>
+    static async ValueTask<FuturesEodDataV2ReadModel?> LoadCurrentEodAsync(FuturesTickTradeDataInsertedEvent source,
+        IEventActorContext context, string contractId, DateOnly valueDate, ILogger logger)
+    {
+        var stageStarted = Stopwatch.GetTimestamp();
+        var row = await context.GetFuturesEodDataAsync(contractId, valueDate).ConfigureAwait(false);
+        LogSlowStage(logger, source, "eod_today_query", stageStarted);
+        return row;
+    }
+
+    /// <summary>Applies complete official session prices and optional volume to the current row.</summary>
+    static FuturesEodDataV2ReadModel ApplyCompleteStatistics(FuturesEodDataV2ReadModel current,
+        FuturesSessionStatisticsSnapshot statistics)
+    {
+            return current with
+            {
+                OpenPrice = statistics.OpenPrice,
+                HighPrice = statistics.HighPrice,
+                LowPrice = statistics.LowPrice,
+                Volume = statistics.HasVolume ? statistics.Volume : current.Volume
+            };
+    }
+
+    /// <summary>Creates the EOD row observation without changing its realtime source identity.</summary>
+    static FuturesEodDataInsertedEvent CreateInsertedEvent(FuturesTickTradeDataInsertedEvent source,
+        string contractId, DateOnly valueDate, FuturesEodDataV2ReadModel eodData)
+    {
+        var entityId = new FuturesEodDataId(contractId, valueDate);
         return new FuturesEodDataInsertedEvent
         {
             Subject = new ActorSubject(
@@ -250,9 +267,7 @@ public static class FuturesTickTradeDataInserted
     {
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (elapsed >= 250)
-            logger.LogInformation(
-                "Futures EOD trade stage: {ContractId}; SourceId={SourceId}; stage={Stage}; elapsed {ElapsedMilliseconds:F3} ms.",
-                source.EntityId.ContractId, source.Id, stage, elapsed);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write22(logger, null, source.EntityId.ContractId, source.Id, stage, elapsed);
     }
 
     internal static FuturesEodDataV2ReadModel? CreateSessionBaseline(

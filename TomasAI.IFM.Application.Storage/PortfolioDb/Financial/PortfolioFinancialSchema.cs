@@ -24,5 +24,26 @@ public sealed class PortfolioFinancialSchema(IPostgresEventTransaction transacti
         return true;
     }, cancellationToken);
 
+    /// <summary>Checks financial schema version and decodes at most one complete row from each financial table without changing state.</summary>
+    public Task<int> ValidateAsync(CancellationToken cancellationToken = default)
+        => transactions.ExecuteAsync(async (db, token) =>
+        {
+            var version = await db.ScalarAsync(PortfolioDbSql.Financial.PortfolioFinancialSchema.Select01, [], token)
+                .ConfigureAwait(false);
+            if (version is not int value || value != 2)
+                throw new InvalidOperationException("Unsupported restored Portfolio financial schema version; expected version 2.");
+            foreach (var table in HealthTables)
+                _ = await db.QueryAsync("SELECT * FROM " + table + " LIMIT 1;", [],
+                    static reader => reader.GetValues(new object[reader.FieldCount]), token)
+                    .ConfigureAwait(false);
+            return HealthTables.Length;
+        }, cancellationToken);
+
+    // Names come only from the checked-in DDL; no external identifier is interpolated.
+    static readonly string[] HealthTables = System.Text.RegularExpressions.Regex.Matches(
+        Ddl, @"CREATE TABLE IF NOT EXISTS (?<table>portfolio_financial\.[a-z0-9_]+)",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))
+        .Select(static match => match.Groups["table"].Value).Distinct(StringComparer.Ordinal).ToArray();
+
     public const string Ddl = PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01;
 }

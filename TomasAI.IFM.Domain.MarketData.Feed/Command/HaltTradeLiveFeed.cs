@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -17,6 +17,8 @@ public static class HaltTradeLiveFeed
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this HaltTradeLiveFeedCommand command, MarketDataFeedCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply TradeLiveFeedHaltedEvent";
         var updated = command.Compute(state.IsTradeLiveFeedOn, out var tradeLiveFeedHalt) switch
         {

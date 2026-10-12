@@ -25,8 +25,9 @@ public abstract class BaseExceptionDecorator<TState>(IEventProducer eventProduce
     /// <returns>posted error event</returns>
     public async Task<IErrorEvent> PostErrorEventAsync(IErrorEvent errorEvent)
     {
-        logger.LogError("Execution of command '{CommandName}' failed", errorEvent.CommandName);
-        await eventProducer.PostEventAsync(errorEvent);
+        ArgumentNullException.ThrowIfNull(errorEvent);
+        global::TomasAI.IFM.Shared.Domain.PersistenceDiagnosticLog.Write1(logger, null, errorEvent.CommandName);
+        await (eventProducer.PostEventAsync(errorEvent)).ConfigureAwait(false);
         return errorEvent;
     }
 
@@ -39,11 +40,11 @@ public abstract class BaseExceptionDecorator<TState>(IEventProducer eventProduce
     protected async Task<IErrorEvent> ConvertCommandExceptionToErrorEventAsync(ICommand command, Exception e)
         => e switch
         {
-            CommandValidationException ex => await PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.CommandValidation, command, ex)),
-            StorageException ex => await PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Storage, command, ex)),
-            CommandException ex => await PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Command, command, ex)),
-            ConcurrencyException ex => await PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Concurrency, command, ex)),
-            _ => await PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Undefined, command, e))
+            CommandValidationException ex => await (PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.CommandValidation, command, ex))).ConfigureAwait(false),
+            StorageException ex => await (PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Storage, command, ex))).ConfigureAwait(false),
+            CommandException ex => await (PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Command, command, ex))).ConfigureAwait(false),
+            ConcurrencyException ex => await (PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Concurrency, command, ex))).ConfigureAwait(false),
+            _ => await (PostErrorEventAsync(GetCommandExceptionEvent(ErrorType.Undefined, command, e))).ConfigureAwait(false)
         };
 
     /// <summary>
@@ -53,8 +54,10 @@ public abstract class BaseExceptionDecorator<TState>(IEventProducer eventProduce
     /// <param name="command"></param>
     /// <param name="ex"></param>
     /// <returns>command failed event</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Best-effort diagnostic enrichment must preserve the original command failure.")]
     public TFailedEvent GetCommandFailedEvent<TFailedEvent>(ICommand command, Exception ex) where TFailedEvent : IErrorEvent
     {
+        ArgumentNullException.ThrowIfNull(ex);
         var e = Activator.CreateInstance<TFailedEvent>();
         if (command is not null)
         {
@@ -64,8 +67,8 @@ public abstract class BaseExceptionDecorator<TState>(IEventProducer eventProduce
             EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorMessage), ex.Message);
             EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorCode), command.ErrorCode);
             EventInitHelper.SetProperty(e, nameof(IErrorEvent.ErrorData), $"{ex}");
-            try { EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command.StreamId); } catch { }
-            try { EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { }
+            try { EventInitHelper.SetProperty(e, nameof(IEvent.AggregateId), command.StreamId); } catch { /* Diagnostic enrichment failure must not replace the original command exception. */ }
+            try { EventInitHelper.SetProperty(e, nameof(IErrorEvent.CommandData), JsonConvert.SerializeObject(command, Formatting.Indented)); } catch { /* Diagnostic enrichment failure must not replace the original command exception. */ }
         }
         else
         {

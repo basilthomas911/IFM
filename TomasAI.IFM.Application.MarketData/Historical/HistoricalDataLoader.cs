@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Historical;
 /// <summary>
 /// Coordinates one resumable, roll-aware historical acquisition without retaining provider records in actor state.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the published type name and its CLR identity.")]
 public sealed class HistoricalDataLoader
 {
     private readonly IMarketDataHistoricalApi historicalApi;
@@ -35,6 +36,7 @@ public sealed class HistoricalDataLoader
     }
 
     /// <summary>Executes or resumes one data load and reuses an immutable completed request.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async ValueTask<HistoricalDataLoaderState> ExecuteAsync(
         MarketDataHistoricalRequest request,
         CancellationToken cancellationToken)
@@ -163,7 +165,8 @@ public sealed class HistoricalDataLoader
                     observation.MarketSeriesIdentity, observation.ContractId, observation.ValueDate);
                 if (!sessions.TryGetValue(key, out var accumulator))
                 {
-                    sessions.Add(key, accumulator = new SessionAccumulator(key, calendar.GetSession(key.ValueDate)));
+                    accumulator = new SessionAccumulator(key, calendar.GetSession(key.ValueDate));
+                    sessions.Add(key, accumulator);
                 }
                 accumulator.Add(observation);
             }
@@ -184,6 +187,7 @@ public sealed class HistoricalDataLoader
             }, cancellationToken).ConfigureAwait(false);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
         internal async ValueTask<HistoricalDataLoaderAudit> CompleteAsync(CancellationToken cancellationToken)
         {
             foreach (var accumulator in sessions.Values)

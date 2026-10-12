@@ -81,16 +81,8 @@ public interface IActor
     bool IsRunning { get; }
 }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface IActor<TActor> : IActor where TActor : IActor
 {
-}
-
-/// <summary>
-/// Optional transport completion carried with a mailbox message. Durable transports use it to acknowledge only after
-/// the actor handler reaches its terminal outcome.
-/// </summary>
-public interface IActorDeliveryCompletion
-{
-    ValueTask CompleteDeliveryAsync(bool succeeded);
 }
 

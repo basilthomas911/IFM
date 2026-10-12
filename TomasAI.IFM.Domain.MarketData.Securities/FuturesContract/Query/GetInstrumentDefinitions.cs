@@ -18,10 +18,12 @@ public static class GetInstrumentDefinitions
         IFuturesContractQueryContext context,
         CancellationToken cancellationToken)
     {
-        var result = await context.DbFactory.ReferenceDb.InstrumentDefinitions.GetSelectionPageAsync(
-            query.Request, DateTimeOffset.UtcNow, cancellationToken);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await (context.DbFactory.ReferenceDb.InstrumentDefinitions.GetSelectionPageAsync(
+            query.Request, DateTimeOffset.UtcNow, cancellationToken)).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb,
-            new ServiceResult<InstrumentDefinitionPage>(result));
+        await (context.ReplyAsync(query.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb,
+            new ServiceResult<InstrumentDefinitionPage>(result))).ConfigureAwait(false);
     }
 }

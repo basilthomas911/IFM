@@ -3,14 +3,11 @@ using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Supervisor.Recovery.Event.Projection;
 
-public sealed record RecoveryCanaryProjection(Guid CorrelationId, Guid GenerationId,
-    DateOnly ValueDate, string Dataset, DateTime ProjectedUtc);
-
 /// <summary>Bounded, process-local projection of side-effect-free Supervisor canary events.</summary>
 public sealed class RecoveryCanaryProjectionStore : ISupervisorProjectorMetricsSource
 {
     const int Capacity = 256;
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<Guid, RecoveryCanaryProjection> values = [];
     readonly Queue<Guid> order = new();
     bool running;
@@ -26,6 +23,7 @@ public sealed class RecoveryCanaryProjectionStore : ISupervisorProjectorMetricsS
 
     public void Project(RecoveryCanaryAcceptedEvent message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         if (message.CorrelationId == Guid.Empty || message.GenerationId == Guid.Empty
             || message.ValueDate == default || string.IsNullOrWhiteSpace(message.Dataset)
             || message.Dataset.Length > 64)

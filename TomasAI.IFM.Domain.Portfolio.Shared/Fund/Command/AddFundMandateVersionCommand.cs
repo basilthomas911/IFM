@@ -41,6 +41,18 @@ public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, I
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public AddFundMandateVersionCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="mandate">The Mandate command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    public AddFundMandateVersionCommand(FundMandateReadModel mandate, long expectedVersion)
+    {
+        Mandate = mandate;
+        ExpectedVersion = expectedVersion;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "AddFundMandateVersion";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record AddFundMandateVersionCommand : ICommand<PortfolioFundId>, I
     [IgnoreMember] public string CommandName => nameof(AddFundMandateVersionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public AddFundMandateVersionCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="mandate">The Mandate command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    public AddFundMandateVersionCommand(FundMandateReadModel mandate, long expectedVersion)
-    {
-        Mandate = mandate;
-        ExpectedVersion = expectedVersion;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

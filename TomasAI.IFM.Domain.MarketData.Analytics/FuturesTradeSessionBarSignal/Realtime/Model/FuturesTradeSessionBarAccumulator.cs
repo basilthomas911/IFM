@@ -6,39 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 
-/// <summary>Resolves a routed contract to its explicit contract or continuation-series identity.</summary>
-public interface IFuturesTradeSessionBarSeriesResolver
-{
-    /// <summary>Resolves the configured market series for one live contract.</summary>
-    MarketSeriesIdentity Resolve(string contractId);
-}
-
-/// <summary>Uses exact contracts when no continuation mapping is configured.</summary>
-public sealed class ContractFuturesTradeSessionBarSeriesResolver : IFuturesTradeSessionBarSeriesResolver
-{
-    /// <inheritdoc />
-    public MarketSeriesIdentity Resolve(string contractId) => MarketSeriesIdentity.ForContract(contractId);
-}
-
-/// <summary>Maps configured contract-root prefixes to roll-aware continuation identities.</summary>
-public sealed class PrefixFuturesTradeSessionBarSeriesResolver(
-    IReadOnlyDictionary<string, MarketSeriesIdentity> mappings)
-    : IFuturesTradeSessionBarSeriesResolver
-{
-    readonly KeyValuePair<string, MarketSeriesIdentity>[] orderedMappings =
-        [.. mappings.OrderByDescending(x => x.Key.Length)];
-
-    /// <inheritdoc />
-    public MarketSeriesIdentity Resolve(string contractId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        foreach (var mapping in orderedMappings)
-            if (contractId.StartsWith(mapping.Key, StringComparison.OrdinalIgnoreCase))
-                return mapping.Value;
-        return MarketSeriesIdentity.ForContract(contractId);
-    }
-}
-
 /// <summary>
 /// Aggregates live normalized trades into session-aligned OHLCV bars without owning durable actor state.
 /// </summary>
@@ -78,29 +45,7 @@ public sealed class FuturesTradeSessionBarAccumulator(
 
         var contractId = source.Price.ContractId;
         var seriesIdentity = seriesResolver.Resolve(contractId);
-        if (invalidEpochs.TryGetValue(contractId, out var invalidEpoch))
-        {
-            if (invalidEpoch == trade.StreamEpochId)
-            {
-                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
-                return [];
-            }
-            invalidEpochs.Remove(contractId);
-        }
-        if (positions.TryGetValue(contractId, out var position))
-        {
-            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal <= position.Ordinal)
-                return [];
-            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal != position.Ordinal + 1)
-            {
-                RemoveSeries(seriesIdentity);
-                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
-                invalidEpochs[contractId] = trade.StreamEpochId;
-                return [];
-            }
-            if (position.EpochId != trade.StreamEpochId) RemoveSeries(seriesIdentity);
-        }
-        positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
+        if (!AdmitStreamPosition(contractId, seriesIdentity, trade)) return [];
 
         if (contracts.TryGetValue(seriesIdentity, out var priorContract)
             && !string.Equals(priorContract, contractId, StringComparison.Ordinal))
@@ -131,13 +76,43 @@ public sealed class FuturesTradeSessionBarAccumulator(
             }
             if (!buckets.TryGetValue(key, out bucket))
             {
-                buckets.Add(key, bucket = new ObservationBucket(
+                bucket = new ObservationBucket(
                     seriesIdentity, contractId, valueDate, timeFrame, interval.StartUtc, interval.EndUtc,
-                    trade.StreamEpochId));
+                    trade.StreamEpochId);
+                buckets.Add(key, bucket);
             }
             bucket.Add(trade);
         }
         return closed;
+    }
+
+    /// <summary>Rejects duplicate or discontinuous trade ordinals and resets buckets when a fresh stream epoch arrives.</summary>
+    bool AdmitStreamPosition(string contractId, MarketSeriesIdentity seriesIdentity, FuturesMarketTradeSnapshot trade)
+    {
+        if (invalidEpochs.TryGetValue(contractId, out var invalidEpoch))
+        {
+            if (invalidEpoch == trade.StreamEpochId)
+            {
+                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
+                return false;
+            }
+            invalidEpochs.Remove(contractId);
+        }
+        if (positions.TryGetValue(contractId, out var position))
+        {
+            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal <= position.Ordinal)
+                return false;
+            if (position.EpochId == trade.StreamEpochId && trade.TradeOrdinal != position.Ordinal + 1)
+            {
+                RemoveSeries(seriesIdentity);
+                positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
+                invalidEpochs[contractId] = trade.StreamEpochId;
+                return false;
+            }
+            if (position.EpochId != trade.StreamEpochId) RemoveSeries(seriesIdentity);
+        }
+        positions[contractId] = new(trade.StreamEpochId, trade.TradeOrdinal);
+        return true;
     }
 
     /// <summary>Closes all intervals whose exclusive end is at or before a server-owned UTC barrier.</summary>
@@ -183,8 +158,11 @@ public sealed class FuturesTradeSessionBarAccumulator(
         return new(start, end);
     }
 
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct BucketKey(MarketSeriesIdentity SeriesIdentity, TimeFrameType TimeFrame);
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct StreamPosition(Guid EpochId, long Ordinal);
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct Interval(DateTimeOffset StartUtc, DateTimeOffset EndUtc);
 
     sealed class ObservationBucket(

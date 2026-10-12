@@ -4,47 +4,42 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
-
 /// <summary>
 /// 
 /// </summary>
 public static class TradePositionCollectionExtension
 {
-
     /// <summary>
     ///  get added event
     /// </summary>
-    /// <param name="tradePositions"></param>
-    /// <param name="tradeType"></param>
-    /// <param name="commandId"></param>
-    /// <param name="key"></param>
-    /// <param name="assetPrice"></param>
-    /// <param name="riskFreeRate"></param>
-    /// <param name="updatedOn"></param>
-    /// <param name="updatedBy"></param>
+    /// <param name = "tradePositions"></param>
+    /// <param name = "tradeType"></param>
+    /// <param name = "commandId"></param>
+    /// <param name = "key"></param>
+    /// <param name = "assetPrice"></param>
+    /// <param name = "riskFreeRate"></param>
+    /// <param name = "updatedOn"></param>
+    /// <param name = "updatedBy"></param>
     /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
-    public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
-        => tradeType switch
-        {
-            TradeType.PutCreditSpread or TradeType.CallCreditSpread or
-            TradeType.PutDebitSpread or TradeType.CallDebitSpread
-                => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
-            _ => throw new NotImplementedException()
-        };
-
+    /// <exception cref = "NotSupportedException"></exception>
+    public static TradePositionAddedEvent GetTradePositionAddedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType tradeType, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy) => tradeType switch
+    {
+        TradeType.PutCreditSpread or TradeType.CallCreditSpread or TradeType.PutDebitSpread or TradeType.CallDebitSpread => CreateIronCondorTradePositionAddedEvent(tradePositions, key, assetPrice, riskFreeRate, updatedOn, updatedBy),
+        _ => throw new NotSupportedException()};
     /// <summary>
     /// get updated event
     /// </summary>
-    /// <param name="tradePositions"></param>
-    /// <param name="baseTradeType"></param>
-    /// <param name="key"></param>
-    /// <param name="optionLegId"></param>
-    /// <param name="updatedOn"></param>
-    /// <param name="updatedBy"></param>
+    /// <param name = "tradePositions"></param>
+    /// <param name = "baseTradeType"></param>
+    /// <param name = "key"></param>
+    /// <param name = "optionLegId"></param>
+    /// <param name = "updatedOn"></param>
+    /// <param name = "updatedBy"></param>
     /// <returns></returns>
     public static TradePositionUpdatedEvent GetTradePositionUpdatedEvent(this ITradePositionCollection tradePositions, TradePositionEntityId key, TradeType baseTradeType, string optionLegId, DateTime updatedOn, string updatedBy)
-        => new()
+    {
+        ArgumentNullException.ThrowIfNull(tradePositions);
+        return new()
         {
             OptionLegId = optionLegId,
             PutTradePosition = tradePositions.IntraDay(baseTradeType == TradeType.ShortIronCondor ? TradeType.PutCreditSpread : TradeType.PutDebitSpread, key.ValueDate)?.ToViewModel(),
@@ -53,29 +48,26 @@ public static class TradePositionCollectionExtension
             UpdatedOn = updatedOn,
             UpdatedBy = updatedBy
         };
+    }
 
     /// <summary>
     ///  create iron condor trade position added event
     /// </summary>
-    /// <param name="commandId"></param>
-    /// <param name="tradePositions"></param>
-    /// <param name="key"></param>
-    /// <param name="assetPrice"></param>
-    /// <param name="riskFreeRate"></param>
-    /// <param name="updatedOn"></param>
-    /// <param name="updatedBy"></param>
+    /// <param name = "commandId"></param>
+    /// <param name = "tradePositions"></param>
+    /// <param name = "key"></param>
+    /// <param name = "assetPrice"></param>
+    /// <param name = "riskFreeRate"></param>
+    /// <param name = "updatedOn"></param>
+    /// <param name = "updatedBy"></param>
     /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
+    /// <exception cref = "NotSupportedException"></exception>
     static TradePositionAddedEvent CreateIronCondorTradePositionAddedEvent(ITradePositionCollection tradePositions, TradePositionEntityId key, decimal assetPrice, double riskFreeRate, DateTime updatedOn, string updatedBy)
     {
         var tradePosition = key.TradeType switch
         {
-            TradeType.PutCreditSpread or
-            TradeType.CallCreditSpread or
-            TradeType.PutDebitSpread or
-            TradeType.CallDebitSpread => GetIronCondorTradePosition(key.TradeType),
-            _ => throw new NotImplementedException()
-        };
+            TradeType.PutCreditSpread or TradeType.CallCreditSpread or TradeType.PutDebitSpread or TradeType.CallDebitSpread => GetIronCondorTradePosition(key.TradeType),
+            _ => throw new NotSupportedException()};
         return new TradePositionAddedEvent
         {
             OrderId = key.OrderId,
@@ -85,7 +77,6 @@ public static class TradePositionCollectionExtension
             CreatedOn = updatedOn,
             CreatedBy = updatedBy
         };
-
         TradePositionReadModel GetIronCondorTradePosition(TradeType tradeType)
         {
             var id = key.FromTradeType(tradeType);
@@ -107,12 +98,12 @@ public static class TradePositionCollectionExtension
         TradePositionReadModel GetTradePosition(TradeType tradeType, ITradePositionCollection tradePositions)
         {
             var tradePosition = tradePositions.IntraDay(tradeType)?.ToViewModel();
-            if (tradePosition is not null) return tradePosition;
+            if (tradePosition is not null)
+                return tradePosition;
             tradePosition = tradePositions.EndOfDay(tradeType)?.ToViewModel();
-            if (tradePosition is not null) return tradePosition;
+            if (tradePosition is not null)
+                return tradePosition;
             return tradePositions.Opening(tradeType)!.ToViewModel();
         }
-
     }
-
 }

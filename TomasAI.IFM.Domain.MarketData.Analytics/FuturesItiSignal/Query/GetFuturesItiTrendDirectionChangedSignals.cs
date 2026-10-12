@@ -24,12 +24,8 @@ public static class GetFuturesItiTrendDirectionChangedSignals
         this GetFuturesItiTrendDirectionChangedSignalsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => [.. cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb
+        => [.. await dbFactory.MarketDataDb
                 .GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate, cancellationToken)
-                .ConfigureAwait(false)
-            : await dbFactory.MarketDataDb
-                .GetFuturesItiTrendDirectionChangedSignalsAsync(q.ContractId, q.ValueDate)
                 .ConfigureAwait(false)];
 
     /// <summary>Reads and replies to the GetFuturesItiTrendDirectionChangedSignalsQuery message.</summary>
@@ -39,7 +35,10 @@ public static class GetFuturesItiTrendDirectionChangedSignals
         IDbContextFactory db,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesItiTrendDirectionChangedSignalsQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetFuturesItiTrendDirectionChangedSignalsAsync(db, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiTrendDirectionChangedSignalsQuery.Verb,

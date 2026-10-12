@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -35,16 +35,16 @@ public class FuturesRsiSignalStateRepository(
         => command switch
         {
             ICommand<FuturesRsiDailySignalEntityId> dailyCommand
-                => await LoadStateAsync<
+                => await (LoadStateAsync<
                     FuturesRsiSignalCommandState,
-                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength, cancellationToken),
+                    FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength, cancellationToken)).ConfigureAwait(false),
             ICommand<FuturesRsiSignalEntityId> rsiCommand
-                => await LoadStateAsync<
+                => await (LoadStateAsync<
                     FuturesRsiSignalCommandState,
-                    FuturesRsiSignalGeneratedEvent>(command, StateWindow(rsiCommand.EntityId), cancellationToken),
-            _ => await LoadStateAsync<
+                    FuturesRsiSignalGeneratedEvent>(command, StateWindow(rsiCommand.EntityId), cancellationToken)).ConfigureAwait(false),
+            _ => await (LoadStateAsync<
                 FuturesRsiSignalCommandState,
-                FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)
+                FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)).ConfigureAwait(false)
         };
 
     static int StateWindow(FuturesRsiSignalEntityId entityId)
@@ -67,7 +67,34 @@ public class FuturesRsiSignalStateRepository(
        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesRsiSignalCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+       {
+           ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        var database = dbFactory.MarketDataDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
+        var owner = context.Container.Resolve<IPostgresEventTransaction>();
+        var pending = new DomainEventCollection(state.Events);
+        await owner.ExecuteAsync(async (transaction,token) =>
+        {
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
+            }
+            return true;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Denormalizes domain events related to futures RSI signals and updates the read model in the database.

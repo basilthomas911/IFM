@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -10,16 +10,4 @@ public enum RiskPositionType
     Low,
     Medium,
     High,
-}
-
-public static class RiskPositionTypeExtensions
-{
-    public static string ToStringFast(this RiskPositionType value) => value switch
-    {
-        RiskPositionType.Unknown => nameof(RiskPositionType.Unknown),
-        RiskPositionType.Low => nameof(RiskPositionType.Low),
-        RiskPositionType.Medium => nameof(RiskPositionType.Medium),
-        RiskPositionType.High => nameof(RiskPositionType.High),
-        _ => value.ToString()
-    };
 }

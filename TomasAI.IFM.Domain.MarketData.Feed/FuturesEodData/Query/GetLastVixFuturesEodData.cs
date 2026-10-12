@@ -10,5 +10,5 @@ public static class GetLastVixFuturesEodData
 {
     internal static async ValueTask<VixFuturesEodDataReadModel?> ExecuteAsync(
        this GetLastVixFuturesEodDataQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastVixFuturesEodDataAsync(q.ContractId, q.ValueDate);
+        => await (dbFactory.MarketDataDb.GetLastVixFuturesEodDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
 }

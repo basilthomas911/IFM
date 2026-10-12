@@ -25,6 +25,7 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
     public ValueTask<ServiceResult<DatabaseOperationAcceptedResult>> RequestRetentionEvaluationAsync(RequestBackupRetentionEvaluationCommand command, CancellationToken cancellationToken = default) => SendAsync(command, RequestBackupRetentionEvaluationCommand.ErrorId, cancellationToken);
     public ValueTask<ServiceResult<DatabaseOperationAcceptedResult>> ExecuteRetentionPlanAsync(ExecuteBackupRetentionPlanCommand command, CancellationToken cancellationToken = default) => SendAsync(command, ExecuteBackupRetentionPlanCommand.ErrorId, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     async ValueTask<ServiceResult<DatabaseOperationAcceptedResult>> SendAsync<TCommand>(TCommand command, int errorCode, CancellationToken cancellationToken)
         where TCommand : class, IDatabaseBackupCommand
     {
@@ -37,8 +38,8 @@ public sealed class DatabaseBackupCommandApi(IActorProducer actorProducer) : IDa
             var subject = new ActorSubject(ActorType.Command, DatabaseBackupCommandRoute.Actor, command.Verb, entityId.Format());
             var normalized = (TCommand)Normalize(command, entityId, subject, errorCode);
             normalized.Validate();
-            var actorResult = await _actorProducer.RequestAsync<TCommand, DatabaseRecoveryOperationId, GuidResult>(
-                normalized.Subject, normalized, entityId, cancellationToken);
+            var actorResult = await (_actorProducer.RequestAsync<TCommand, DatabaseRecoveryOperationId, GuidResult>(
+                normalized.Subject, normalized, entityId, cancellationToken)).ConfigureAwait(false);
             if (!actorResult.Success || actorResult.Value is null)
                 return new ServiceFailed<DatabaseOperationAcceptedResult>(actorResult.ErrorCode, actorResult.ErrorMessage);
             return new ServiceOk<DatabaseOperationAcceptedResult>(new DatabaseOperationAcceptedResult

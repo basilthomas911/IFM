@@ -11,23 +11,9 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesBarDataEventActor"/>.</summary>
-public interface IFuturesBarDataEventContext : IEventActorContext<FuturesBarDataEventActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesBarDataEventActor> Logger { get; }
-    /// <summary>Gets the FuturesBarDataTimer service.</summary>
-    IFuturesBarDataTimer FuturesBarDataTimer { get; }
-    /// <summary>Gets the MarketDataApi service.</summary>
-    ApplicationMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the StatusConsoleWriter service.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesBarDataEventActor"/>.</summary>
-public sealed class FuturesBarDataEventContext : EventActorContext, IEventActorContext<FuturesBarDataEventActor>, IFuturesBarDataEventContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesBarDataEventContext : EventActorContext, IFuturesBarDataEventContext
 {
     /// <summary>Initializes the typed event context.</summary>
     public FuturesBarDataEventContext(

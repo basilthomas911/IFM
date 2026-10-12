@@ -12,14 +12,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger;
 
-/// <summary>Typed Portfolio boundary for confirmed broker executions.</summary>
-public interface IPortfolioTradeAccountingApi
-{
-    /// <summary>Posts confirmed settlement, commission, and closing realized P&amp;L idempotently.</summary>
-    ValueTask<ServiceResult<Guid>> PostConfirmedExecutionAsync(OrderExecutionDefinition execution,
-        Guid sourceEventId, DateTime confirmedAtUtc, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Builds the authoritative Fund batch and sends it through the GeneralLedger command actor.</summary>
 public sealed class BrokerExecutionAccountingApi(IFinancialQueryStore financialQueries,
     IDbContextFactory databases, IActorService actors, IPostgresEventTransaction transactions) : IPortfolioTradeAccountingApi
@@ -32,13 +24,7 @@ public sealed class BrokerExecutionAccountingApi(IFinancialQueryStore financialQ
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(execution);
-        var cumulativeFilledQuantity = execution.CumulativeFilledQuantity > 0
-            ? execution.CumulativeFilledQuantity
-            : execution.Fills.Length > 0 ? 1 : 0;
-        if (execution.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
-            execution.CompletedAtUtc is null || cumulativeFilledQuantity <= 0 || execution.Fills.Length == 0 ||
-            !execution.Id.IsValid || sourceEventId == Guid.Empty || confirmedAtUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("A completed execution with fills, source event and UTC confirmation time is required.");
+        ValidateExecution(execution, sourceEventId, confirmedAtUtc);
 
         var operationId = DeterministicId("portfolio-accounting", execution.Id.Format());
         // Delivery metadata may differ on retry; execution evidence must not.
@@ -63,8 +49,8 @@ public sealed class BrokerExecutionAccountingApi(IFinancialQueryStore financialQ
             throw new InvalidOperationException("PORTFOLIO_ACCOUNTING.CONFIGURATION_UNAVAILABLE");
 
         if (execution.PositionType != execution.Order.PositionType || execution.TradeOrderId != execution.Order.Id ||
-            FinancialCanonicalHash.Compute(execution.Components) != FinancialCanonicalHash.Compute(execution.Order.Components))
-            throw new ArgumentException("Execution identity and approved order disagree.");
+            !string.Equals(FinancialCanonicalHash.Compute(execution.Components),FinancialCanonicalHash.Compute(execution.Order.Components),StringComparison.Ordinal))
+            throw new ArgumentException("Execution identity and approved order disagree.",nameof(execution));
         PostFundTransactionsCommand BuildCommand(IReadOnlyDictionary<Guid, decimal>? openingBasis)
         {
             var movementReference = $"BrokerExecution:{execution.Id.Format()}";
@@ -95,6 +81,25 @@ public sealed class BrokerExecutionAccountingApi(IFinancialQueryStore financialQ
             : await intents.ClaimAsync(BuildCommand(null), evidenceHash, cancellationToken).ConfigureAwait(false);
         return await actors.SendAsync<PostFundTransactionsCommand, LedgerPortfolioId>(
             command, command.EntityId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Requires a completed identified broker execution with confirmed fills and a UTC source observation before preparing financial posting facts.</summary>
+    static void ValidateExecution(OrderExecutionDefinition execution, Guid sourceEventId, DateTime confirmedAtUtc)
+    {
+        var cumulativeFilledQuantity = (execution.CumulativeFilledQuantity > 0) switch
+{
+    true => execution.CumulativeFilledQuantity,
+    false => execution.Fills.Length > 0 ? 1 : 0
+};
+        if (execution.Status is not (OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled) ||
+            execution.CompletedAtUtc is null || cumulativeFilledQuantity <= 0 || execution.Fills.Length == 0 ||
+            !execution.Id.IsValid)
+            throw new ArgumentException("A completed execution with fills, source event and UTC confirmation time is required.", nameof(execution));
+        if (sourceEventId == Guid.Empty)
+            throw new ArgumentException("A completed execution with fills, source event and UTC confirmation time is required.", nameof(sourceEventId));
+        if (confirmedAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("A completed execution with fills, source event and UTC confirmation time is required.", nameof(confirmedAtUtc));
+
     }
 
     private static Guid DeterministicId(string purpose, string identity) =>

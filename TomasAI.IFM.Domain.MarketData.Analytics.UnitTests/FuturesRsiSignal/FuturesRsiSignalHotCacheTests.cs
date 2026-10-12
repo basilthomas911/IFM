@@ -60,6 +60,7 @@ public sealed class FuturesRsiSignalHotCacheTests
             });
         var context = Substitute.For<IFuturesRsiSignalEventContext>();
         var logger = Substitute.For<ILogger<FuturesRsiSignalEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
         try
         {

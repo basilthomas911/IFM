@@ -1,5 +1,6 @@
-﻿namespace TomasAI.IFM.Framework.Caching;
+namespace TomasAI.IFM.Framework.Caching;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Justification = "Preserve the established C# cache Get/Set interface implemented by existing adapters.")]
 public interface IRedisCache
 {
     void Set(string key, string value);

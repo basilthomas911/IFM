@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared
 {
-    public class OptionTypeName
+    public static class OptionTypeName
     {
         public const string Put = "PUT";
         public const string Call = "CALL";

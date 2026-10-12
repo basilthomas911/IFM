@@ -17,5 +17,10 @@ public static class GetLastFuturesTickData
     /// <returns></returns>
     public static async ValueTask<FuturesTickDataV2ReadModel?> ExecuteAsync(
         this GetLastFuturesTickDataQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return await (dbFactory.MarketDataDb.GetLastFuturesTickDataAsync(q.ContractId, q.ValueDate)).ConfigureAwait(false);
+    }
 }

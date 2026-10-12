@@ -9,11 +9,13 @@ public static class GetParameterStartupReport
 {
     public static async ValueTask ExecuteAsync(this GetParameterStartupReportQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
         var id = ParameterStartupEntityId.Registry;
         var address = new ApplySignalStartupPlanCommand { EntityId = id, Subject = new ActorSubject(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, id.Format()) };
-        var state = await context.Startups.LoadStateAsync(address); token.ThrowIfCancellationRequested();
+        var state = await (context.Startups.LoadStateAsync(address, token)).ConfigureAwait(false); token.ThrowIfCancellationRequested();
         if (!state.Reports.TryGetValue(query.RunId, out var report)) throw new InvalidOperationException("PARAM.STARTUP_REPORT_NOT_RECORDED");
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSignalStartupReport>(report));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSignalStartupReport>(report))).ConfigureAwait(false);
     }
 }

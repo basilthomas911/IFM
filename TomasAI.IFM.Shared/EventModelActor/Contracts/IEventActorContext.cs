@@ -20,6 +20,7 @@ public interface IEventActorContext
     bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
@@ -59,6 +60,7 @@ public interface IEventActorContext
 /// Provides an event actor context associated with a specific actor type.
 /// </summary>
 /// <typeparam name="TActor">The event actor type associated with the context.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface IEventActorContext<TActor> : IEventActorContext
     where TActor : IActor
 {

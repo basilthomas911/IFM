@@ -10,6 +10,7 @@ public sealed class WorkerFuturesCompositionSource(IDatabentoLastPriceReaderProv
 {
     public Task<CompositionMarketPage> ReadAsync(CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
         if (request.IncludeOptions || request.GenerationId != generation || continuation is not null
             || request.Futures.IsDefaultOrEmpty || request.Futures.Length > request.MaximumContracts)

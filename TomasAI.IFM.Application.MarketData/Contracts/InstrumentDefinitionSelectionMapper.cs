@@ -7,8 +7,10 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 public static class InstrumentDefinitionSelectionMapper
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase digest text is a persisted content identity, not a case-insensitive comparison key.")]
     public static InstrumentDefinitionSelection Map(Guid snapshot, long index, ExactInstrumentDefinition row)
     {
+        ArgumentNullException.ThrowIfNull(row);
         DateTimeOffset? Instant(ulong? ns) => ns is { } value && value != ulong.MaxValue
             && value / 100 <= (ulong)(DateTimeOffset.MaxValue.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks)
             ? DateTimeOffset.UnixEpoch.AddTicks((long)(value / 100)) : null;
@@ -32,7 +34,7 @@ public static class InstrumentDefinitionSelectionMapper
             ActivationUtc = Instant(d.ActivationTimestampNanoseconds),
             DefinitionTimestampUtc = Instant(row.EventNanoseconds) ?? throw new InvalidDataException("Invalid definition timestamp."),
             DefinitionDigest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(row.Json))).ToLowerInvariant(),
-            RawDefinitionReference = FormattableString.Invariant($"instrument_definition:{snapshot:N}:{row.Dataset}:{index % 128}:{index}"),
+            RawDefinitionReference = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"instrument_definition:{snapshot:N}:{row.Dataset}:{index % 128}:{index}"),
             Deleted = row.Deleted
         };
     }

@@ -1,15 +1,20 @@
-﻿namespace TomasAI.IFM.Shared.EventSourcing;
+namespace TomasAI.IFM.Shared.EventSourcing;
 
 public static class CommandExtensions
 {
     public static ServiceResult<GuidResult> UpdatedOk(this ICommand e, Action updateAction)
     {
+        ArgumentNullException.ThrowIfNull(e);
         updateAction?.Invoke();
         return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
     }
 
     public static ServiceResult<GuidResult> UpdateFailed(this ICommand e, string errorMessage)
-      => new ServiceFailed<GuidResult>(e.ErrorCode, errorMessage, new GuidResult(e.CommandId));
+      
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return new ServiceFailed<GuidResult>(e.ErrorCode, errorMessage, new GuidResult(e.CommandId));
+    }
 
     public static bool UpdateFailed(this ICommand e, ref string errorMessage, string newErrorMsg)
     {
@@ -31,6 +36,8 @@ public static class CommandExtensions
         this ICommand command,
         Func<bool> updateAction)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(updateAction);
         _ = updateAction.Invoke();
         return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
     }

@@ -17,12 +17,13 @@ namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
 public sealed class EmulatorExecutionProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<EmulatorExecutionProjector> logger, EventProjectorReliabilityOptions? options = null)
+    IFinancialHistoryProjection history, ILogger<EmulatorExecutionProjector> logger, EventProjectorReliabilityOptions? options = null, EmulatorExecutionStore? financial = null)
     : ConventionalEventProjector<EmulatorExecutionCommandActor>(queue, eventSource, blackboard, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(EmulatorOrderSubmittedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [
         DescribeNotification<EmulatorOrderSubmittedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value))
+            .WithReadModelRebuild(async (source,ct)=> { await ((financial ?? throw new InvalidOperationException("Financial rebuild service is not registered.")).ReplayAsync((EmulatorOrderSubmittedEvent)source,ct)).ConfigureAwait(false); await (history.ApplyAsync((EmulatorOrderSubmittedEvent)source,ct)).ConfigureAwait(false); })
     ];
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

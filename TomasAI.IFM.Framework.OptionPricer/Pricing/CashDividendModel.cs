@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.OptionPricer.Pricing;
 /// No escrow or continuous-yield approximation is used.</summary>
 internal static class CashDividendModel
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Pricing validation and invocation remain together to preserve existing execution ordering.")]
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static (double Price, double Delta, double Gamma) Evaluate(
         in OptionPricingRequest r, double sigma, PricingSettings policy, CancellationToken token,

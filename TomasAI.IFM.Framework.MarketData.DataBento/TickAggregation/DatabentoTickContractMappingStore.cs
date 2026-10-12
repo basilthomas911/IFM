@@ -32,11 +32,9 @@ public sealed class DatabentoTickContractMappingStore : ITickContractMappingStor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
-        if (definitionDate == default)
-            throw new ArgumentOutOfRangeException(nameof(definitionDate));
-        if (instrumentId == 0)
-            throw new ArgumentOutOfRangeException(nameof(instrumentId));
-        if (assetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
+        ArgumentOutOfRangeException.ThrowIfEqual(definitionDate, default);
+        ArgumentOutOfRangeException.ThrowIfZero(instrumentId);
+if (assetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
             throw new ArgumentOutOfRangeException(nameof(assetTypeId));
 
         var key = new MappingKey(dataset, definitionDate, instrumentId);

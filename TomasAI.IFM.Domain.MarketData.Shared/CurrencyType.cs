@@ -11,14 +11,4 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
         USD,
         CAD
     }
-
-    public static class CurrencyTypeExtensions
-    {
-        public static string ToStringFast(this CurrencyType value) => value switch
-        {
-            CurrencyType.USD => nameof(CurrencyType.USD),
-            CurrencyType.CAD => nameof(CurrencyType.CAD),
-            _ => value.ToString()
-        };
-    }
 }

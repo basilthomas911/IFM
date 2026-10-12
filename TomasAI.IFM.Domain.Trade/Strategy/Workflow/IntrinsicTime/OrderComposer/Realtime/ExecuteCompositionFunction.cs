@@ -15,45 +15,42 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime;
-
 /// <summary>Calls the new Function route only for an accepted, durably frozen request and maps its reply to workflow commands.</summary>
 public static class ExecuteCompositionFunction
 {
     public static async ValueTask DispatchAsync(this ExecuteOrderCompositionPipelineCommand execute, IIntrinsicTimeStrategyWorkflowRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(execute);
         var read = new RedispatchCurrentStrategyPipelineCommand
         {
             EntityId = execute.WorkflowEntityId,
             Subject = new(ActorType.Command, RedispatchCurrentStrategyPipelineCommand.Actor, RedispatchCurrentStrategyPipelineCommand.Verb, execute.WorkflowEntityId.Format())
         };
         var current = (await context.WorkflowRepository.LoadStateAsync(read).ConfigureAwait(false)).CurrentView;
-        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition }
-            || current.WorkflowId != execute.WorkflowId || current.WorkflowRevision != execute.InputWorkflowRevision
-            || current.CompositionExecution?.InputSha256 != execute.InputSha256) return;
+        if (current is not { Status: WorkflowStrategyMachineStatus.Started, CurrentStage: StrategyWorkflowStage.OrderComposition } || current.WorkflowId != execute.WorkflowId || current.WorkflowRevision != execute.InputWorkflowRevision || !string.Equals(current.CompositionExecution?.InputSha256, execute.InputSha256, StringComparison.Ordinal))
+            return;
         var now = context.TimeProvider.GetUtcNow().UtcDateTime;
         FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent> terminal;
         try
         {
             var remaining = execute.ExpiresAtUtc - now;
             using var timeout = new CancellationTokenSource((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + TimeSpan.FromSeconds(5));
-            var reply = await context.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId,
-                FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
+            var reply = await context.RequestFunctionAsync<ExecuteOrderCompositionPipelineCommand, OrderCompositionExecutionId, FunctionResult<OrderCompositionFunctionCompletedEvent, OrderCompositionFunctionFailedEvent>>(execute, timeout.Token).ConfigureAwait(false);
             terminal = reply.Value ?? throw new InvalidDataException("Missing composition Function reply.");
             CompositionRulesContract.Require(terminal.IsTerminal, "OC.RESULT.INVALID");
             if (terminal.IsCompleted)
-                CompositionRulesContract.Require(terminal.Completed!.Id == execute.CommandId && terminal.Completed.WorkflowId == execute.WorkflowId
-                    && terminal.Completed.EntityId == execute.WorkflowEntityId && terminal.Completed.RequestFingerprint == execute.InputSha256
-                    && terminal.Completed.InputWorkflowRevision == execute.InputWorkflowRevision, "OC.RESULT.INVALID");
-            else CompositionRulesContract.Require(terminal.Failed!.CommandId == execute.CommandId && terminal.Failed.WorkflowId == execute.WorkflowId
-                && terminal.Failed.EntityId == execute.WorkflowEntityId && terminal.Failed.InputWorkflowRevision == execute.InputWorkflowRevision,
-                "OC.RESULT.INVALID");
+                CompositionRulesContract.Require(terminal.Completed!.Id == execute.CommandId && terminal.Completed.WorkflowId == execute.WorkflowId && terminal.Completed.EntityId == execute.WorkflowEntityId && string.Equals(terminal.Completed.RequestFingerprint, execute.InputSha256, StringComparison.Ordinal) && terminal.Completed.InputWorkflowRevision == execute.InputWorkflowRevision, "OC.RESULT.INVALID");
+            else
+                CompositionRulesContract.Require(terminal.Failed!.CommandId == execute.CommandId && terminal.Failed.WorkflowId == execute.WorkflowId && terminal.Failed.EntityId == execute.WorkflowEntityId && terminal.Failed.InputWorkflowRevision == execute.InputWorkflowRevision, "OC.RESULT.INVALID");
         }
         catch (Exception ex)
         {
-            if (ex is not CompositionException && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc) throw;
-            terminal = OrderCompositionFunctionActor.MapEvent(new(typeof(OrderCompositionFunctionFailedEvent), execute,
-                Exception: ex is CompositionException ? ex : new CompositionException("OC.TRANSPORT.FAILED")), context.TimeProvider);
+            if (ex is not CompositionException && context.TimeProvider.GetUtcNow().UtcDateTime < current.ExpiresAtUtc)
+                throw;
+            terminal = OrderCompositionFunctionActor.MapEvent(new(typeof(OrderCompositionFunctionFailedEvent), execute, Exception: ex is CompositionException ? ex : new CompositionException("OC.TRANSPORT.FAILED")), context.TimeProvider);
         }
+
         Guid Id(string verb) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{execute.WorkflowId}|{execute.InputWorkflowRevision}|{execute.CommandId}|{verb}")).AsSpan(0, 16));
         if (terminal.IsCompleted)
         {
@@ -62,8 +59,7 @@ public static class ExecuteCompositionFunction
             var command = new CompleteOrderCompositionCommand
             {
                 CommandId = Id(CompleteOrderCompositionCommand.Verb),
-                Subject = new(ActorType.Command, CompleteOrderCompositionCommand.Actor,
-                    CompleteOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
+                Subject = new(ActorType.Command, CompleteOrderCompositionCommand.Actor, CompleteOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
                 EntityId = execute.WorkflowEntityId,
                 WorkflowId = execute.WorkflowId,
                 InputWorkflowRevision = execute.InputWorkflowRevision,
@@ -72,15 +68,14 @@ public static class ExecuteCompositionFunction
                 CorrelationId = execute.CorrelationId,
                 CausationId = completed.Id,
                 CompletedAtUtc = completed.CompletedAtUtc,
-                SelectedContracts = result.Candidate is null ? null : new(execute.MarketSnapshot.ScopeId,
-                    result.Candidate.Legs.Select(x => x.InstrumentId).Order(StringComparer.Ordinal).ToImmutableArray())
+                SelectedContracts = result.Candidate is null ? null : new(execute.MarketSnapshot.ScopeId, result.Candidate.Legs.Select(x => x.InstrumentId).Order(StringComparer.Ordinal).ToImmutableArray())
             };
             await context.SendAsync<CompleteOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(command, command.EntityId).ConfigureAwait(false);
         }
         else
         {
             var failure = terminal.Failed!;
-            if (failure.ReasonCode == "OC.TIME.EXPIRED")
+            if (string.Equals(failure.ReasonCode, "OC.TIME.EXPIRED", StringComparison.Ordinal))
             {
                 var timeout = new TimeoutOrderCompositionCommand
                 {
@@ -96,11 +91,11 @@ public static class ExecuteCompositionFunction
                 await context.SendAsync<TimeoutOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(timeout, timeout.EntityId).ConfigureAwait(false);
                 return;
             }
+
             var command = new FailOrderCompositionCommand
             {
                 CommandId = Id(FailOrderCompositionCommand.Verb),
-                Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor,
-                    FailOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
+                Subject = new(ActorType.Command, FailOrderCompositionCommand.Actor, FailOrderCompositionCommand.Verb, execute.WorkflowEntityId.Format()),
                 EntityId = execute.WorkflowEntityId,
                 WorkflowId = execute.WorkflowId,
                 InputWorkflowRevision = execute.InputWorkflowRevision,

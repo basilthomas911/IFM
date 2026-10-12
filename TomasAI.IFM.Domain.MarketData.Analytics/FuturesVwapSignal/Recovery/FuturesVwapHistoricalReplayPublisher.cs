@@ -11,9 +11,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 /// <summary>Translates bounded normalized historical trades into private VWAP recovery commands.</summary>
 public sealed class FuturesVwapHistoricalReplayPublisher(
     IActorService actorService,
-    IMarketSessionCalendar sessionCalendar) : IHistoricalReplayPublisher
+    IMarketSessionCalendar sessionCalendar) : IHistoricalReplayPublisher, IDisposable
 {
     readonly SemaphoreSlim gate = new(1, 1);
+    int disposed;
+
+    /// <summary>Releases synchronization resources when the host has stopped recovery publishers.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0) gate.Dispose();
+    }
     readonly Dictionary<Guid, AttemptState> attempts = [];
 
     /// <inheritdoc />
@@ -25,8 +32,7 @@ public sealed class FuturesVwapHistoricalReplayPublisher(
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!attempts.TryGetValue(batch.DataLoadAttemptId, out var attempt))
-                attempts.Add(batch.DataLoadAttemptId, attempt = new());
+            var attempt = GetOrCreateAttempt(batch.DataLoadAttemptId);
             var configuration = FuturesVwapConfiguration.Standard;
             var groups = batch.Trades
                 .GroupBy(value => new FuturesVwapSignalEntityId(
@@ -77,6 +83,15 @@ public sealed class FuturesVwapHistoricalReplayPublisher(
             if (batch.IsFinal) attempts.Remove(batch.DataLoadAttemptId);
         }
         finally { gate.Release(); }
+    }
+
+    /// <summary>Returns the attempt state while the publication gate is held, admitting a new attempt only once.</summary>
+    AttemptState GetOrCreateAttempt(Guid attemptId)
+    {
+        if (attempts.TryGetValue(attemptId, out var attempt)) return attempt;
+        attempt = new();
+        attempts.Add(attemptId, attempt);
+        return attempt;
     }
 
     static FuturesVwapTradeAction MapAction(NormalizedTradeAction action) => action switch

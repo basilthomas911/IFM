@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// underlying ring buffer. The queue is intended to be used in conjunction with an <see cref="IActorSupervisor"/> to
 /// coordinate actor message processing.</remarks>
 /// <param name="actorSupervisor"></param>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "This published actor transport type is an actual queue; retain its public name.")]
 public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
     : IActorThreadQueue
 {
@@ -143,6 +144,7 @@ public class NatsActorThreadQueue(IActorSupervisor actorSupervisor)
         _buffer.Enqueue(message, cancellationToken);
         return ValueTask.CompletedTask;
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member implements the actor queue contract; enqueue already signals its consumer.")]
     public void SetMessageAvailable()
     {
         // Enqueue signals the SPSC consumer directly; no separate notification is required.

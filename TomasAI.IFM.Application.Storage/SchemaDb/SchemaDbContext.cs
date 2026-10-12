@@ -17,7 +17,35 @@ public abstract class SchemaDbContext<TSchemaDb>(
 
     public override IObjectRepository Database => this;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "IDbSchemaContext requires this metadata property; it returns a defensive name snapshot rather than exposing mutable schema definitions.")]
     public IReadOnlyList<string> ManagedObjects => Definitions.Select(definition => definition.Name).ToArray();
+
+    /// <inheritdoc/>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "Schema metadata returns a defensive snapshot of fully resolved table names, including generated definitions.")]
+    public IReadOnlyList<string> ManagedTables => Definitions.SelectMany(definition =>
+            System.Text.RegularExpressions.Regex.Matches(definition.CreateStatement,
+                @"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<table>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*\(",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.NonBacktracking)
+                .Select(match => match.Groups["table"].Value))
+            .Distinct(StringComparer.Ordinal).ToArray();
+
+    /// <summary>
+    /// Queries each checked-in table through the configured application provider. This is
+    /// read-only: no schema migrations, seed data, sequence allocations or actors are run.
+    /// Table readability is a recovery gate, not proof of restored data completeness.
+    /// </summary>
+    public virtual async Task<int> ValidateTablesAsync(CancellationToken cancellationToken = default)
+    {
+        var tables = ManagedTables;
+        if (tables.Count == 0)
+            throw new InvalidOperationException($"{GetType().Name} has no readable table validation definitions.");
+        foreach (var table in tables)
+        {
+            using var query = Use($"Recovery.Validate.{table}", $"SELECT * FROM {table} LIMIT 1;");
+            _ = await query.ExecuteQueryAsync(static _ => true, cancellationToken).ConfigureAwait(false);
+        }
+        return tables.Count;
+    }
 
     /// <summary>
     /// Creates only the named schema objects, preserving their declared dependency order.
@@ -34,7 +62,7 @@ public abstract class SchemaDbContext<TSchemaDb>(
             throw new ArgumentException("Schema object names must be unique.", nameof(objectNames));
 
         var known = Definitions.Select(static definition => definition.Name).ToHashSet(StringComparer.Ordinal);
-        var unknown = requested.Except(known).Order(StringComparer.Ordinal).ToArray();
+        var unknown = requested.Except(known, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length != 0)
         {
             throw new ArgumentException(
@@ -94,7 +122,7 @@ public abstract class SchemaDbContext<TSchemaDb>(
 
         var known = Definitions.Select(static definition => definition.Name)
             .ToHashSet(StringComparer.Ordinal);
-        var unknown = requested.Except(known).Order(StringComparer.Ordinal).ToArray();
+        var unknown = requested.Except(known, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (unknown.Length != 0)
             throw new ArgumentException(
                 $"Unknown managed schema object(s): {string.Join(", ", unknown)}.",

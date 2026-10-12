@@ -11,7 +11,13 @@ public static class StopSupervisorActorFail
     /// <summary>Records the Stop fail outcome in Supervisor operation history.</summary>
     public static ValueTask ExecuteAsync(this StopSupervisorActorFailEvent value,
         ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        => SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(value);
+        return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
             value.ExpectedGeneration, SupervisorActorOperationKind.Stop, value.Requester,
             value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+    }
 }

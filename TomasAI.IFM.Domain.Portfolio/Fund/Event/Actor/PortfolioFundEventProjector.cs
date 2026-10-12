@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -20,7 +22,7 @@ namespace TomasAI.IFM.Domain.Portfolio.Projection;
 public sealed class PortfolioFundEventProjector(
     IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
     ILogger<PortfolioFundEventProjector> logger, IPortfolioEventStore events, IPortfolioDbWriteContext projections,
-    EventProjectorReliabilityOptions? options = null)
+    EventProjectorReliabilityOptions? options = null, IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<PortfolioFundCommandActor>(replayQueue, eventSource, blackboard, logger, options)
 {
     static readonly ImmutableArray<Type> Types =
@@ -31,15 +33,24 @@ public sealed class PortfolioFundEventProjector(
     ];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
         [
-            DescribeNotification<FundMandateCreatedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundMandateVersionAddedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundOperatingStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundTradeTemplateAssignedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundCompositionReservedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundCompositionStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundManualOrderChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
-            DescribeNotification<FundManualOrderDeletedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+            DescribeNotification<FundMandateCreatedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateCreatedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundMandateVersionAddedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundMandateVersionAddedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundOperatingStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundOperatingStateChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundTradeTemplateAssignedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundTradeTemplateAssignedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundCompositionReservedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionReservedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundCompositionStateChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundCompositionStateChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundManualOrderChangedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderChangedEvent)source).ProjectionFacts, transactions,ct)),
+            DescribeNotification<FundManualOrderDeletedEvent, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)).WithReadModelRebuild((source,ct) => RebuildAsync(source, ((FundManualOrderDeletedEvent)source).ProjectionFacts, transactions,ct)),
         ];
+
+    static Task<bool> RebuildAsync(IEvent source, TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? facts,
+        IPostgresEventTransaction? owner, CancellationToken token)
+        => (owner ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (transaction,ct) =>
+        {
+            await PostgresPortfolioProjectionStore.ApplyAsync(transaction,source,
+                facts ?? throw new InvalidOperationException("Older Portfolio events require verified baseline facts."),ct).ConfigureAwait(false);
+            return true;
+        },token);
 
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

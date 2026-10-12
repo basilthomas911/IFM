@@ -18,6 +18,8 @@ public static class EnableScheduledTask
     public static ServiceResult<GuidResult> Execute(this EnableScheduledTaskCommand command,
         ScheduledTaskCommandState state, DateTimeOffset now, ScheduledTaskCatalog? catalog)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply EnableScheduledTask event";
         var updated = command.Compute(state.ScheduledTaskDefinition, now, catalog, out var model) switch
         {

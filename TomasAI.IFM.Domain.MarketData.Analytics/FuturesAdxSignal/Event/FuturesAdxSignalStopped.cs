@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 /// <summary>Handles <see cref="FuturesAdxSignalStoppedEvent"/> messages received by the ADX event actor.</summary>
 public static class FuturesAdxSignalStopped
 {
-    /// <summary>Detaches the ADX identity from the shared analytics observation stream.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Detaches the ADX identity from the shared analytics observation stream.</summary>
     /// <param name="e">The ADX signal-stopped event.</param>
     /// <param name="context">The typed ADX event context that exposes handler dependencies.</param>
     /// <param name="logger">The logger used to record handler failures.</param>
@@ -21,6 +21,8 @@ public static class FuturesAdxSignalStopped
         IFuturesAdxSignalEventContext context,
         ILogger<FuturesAdxSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Detach(e.EntityId);

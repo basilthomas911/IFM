@@ -12,6 +12,8 @@ public static class GetApplicationStartupStatus
     /// <summary>Returns the current immutable application startup status.</summary>
     public static ValueTask ExecuteAsync(this GetApplicationStartupStatusQuery query, IApplicationQueryContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ApplicationStartupStatus>(context.StatusStore.Current));
     }

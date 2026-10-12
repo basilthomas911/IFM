@@ -36,6 +36,10 @@ public static class ChangeFundOperatingState
         string principal,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(state);
         var activation = await FundActivationQualification.EvaluateAsync(id, state, events, referenceQueries,
                 command.State == FundOperatingState.Active, cancellationToken).ConfigureAwait(false);
         var errorMsg = $"{command.CommandName}: unable to apply FundOperatingStateChanged event";

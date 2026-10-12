@@ -16,8 +16,7 @@ public sealed class FuturesVwapSignalEventActor(
 {
     /// <summary>Identifies the VWAP Event mailbox.</summary>
     public const string ActorName = FuturesVwapSignalUpdatedEvent.Actor;
-    IFuturesVwapSignalEventContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesVwapSignalEventContext, nameof(actorContext))!;
+    IFuturesVwapSignalEventContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesVwapSignalEventContext, nameof(actorContext))!;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
@@ -52,8 +51,8 @@ public sealed class FuturesVwapSignalEventActor(
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesVwapSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

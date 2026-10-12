@@ -38,28 +38,11 @@ public sealed class BrokerAccountEventActor(IEventActorContext<BrokerAccountEven
 
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<BrokerAccountEventActor> context,
-        ActorThreadId threadId, IEvent domainEvent, Exception exception) =>
-        await exception.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
             ErrorType.EventService, context).ConfigureAwait(false);
 
     static IBrokerAccountEventContext Typed(IEventActorContext<BrokerAccountEventActor> context) =>
         context as IBrokerAccountEventContext ??
-        throw new ArgumentException("Typed BrokerAccount event context required.");
-}
-
-/// <summary>Exposes services used by BrokerAccount event handlers.</summary>
-public interface IBrokerAccountEventContext : IEventActorContext<BrokerAccountEventActor>
-{
-    IActorService ActorService { get; }
-    ILogger<BrokerAccountEventActor> Logger { get; }
-}
-
-/// <summary>Provides runtime services for the BrokerAccount event actor.</summary>
-public sealed class BrokerAccountEventContext(IActorSupervisor supervisor, IActorService actorService,
-    ILogger<BrokerAccountEventActor> logger)
-    : EventActorContext(supervisor, new ActorMailboxId(ActorType.Event, BrokerAccountEventActor.ActorName)),
-        IEventActorContext<BrokerAccountEventActor>, IBrokerAccountEventContext
-{
-    public IActorService ActorService { get; } = actorService;
-    public ILogger<BrokerAccountEventActor> Logger { get; } = logger;
+        throw new ArgumentException("Typed BrokerAccount event context required.",nameof(context));
 }

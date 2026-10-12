@@ -20,6 +20,9 @@ public sealed class AwsRecoveryEvidenceStore(
     public ValueTask<string> WriteDrillEvidenceAsync(DatabaseRestoreDrillEvidence evidence, CancellationToken cancellationToken)
         => WriteAsync(evidence.OperationId, "restore-drill-v1", evidence, cancellationToken);
 
+    /// <summary>Persists signed, Object Lock protected evidence of an exact-version retention execution.</summary>
+    public ValueTask<string> WriteRetentionEvidenceAsync(AwsRetentionExecutionEvidence evidence, CancellationToken cancellationToken)
+        => WriteAsync(evidence.OperationId, "retention-execution-v1", evidence, cancellationToken);
     public ValueTask<string> WriteBreakGlassRecordAsync(DatabaseBreakGlassRecoveryRecord record, CancellationToken cancellationToken)
         => WriteAsync(record.RecoveryOperationId, "break-glass-v1", record, cancellationToken);
 
@@ -52,6 +55,43 @@ public sealed class AwsRecoveryEvidenceStore(
         return DatabaseBackupCanonicalJson.Deserialize<DatabaseBreakGlassRecoveryRecord>(content);
     }
 
+    public ValueTask<string> WriteRetentionFailureAsync(AwsRetentionFailureEvidence failure, CancellationToken token)
+        => WriteAsync(new DatabaseRecoveryOperationId(failure.PlanId.Value),
+            $"retention-failure-{failure.ReplicaId.Value}-{failure.Revision}", failure, token);
+
+    public ValueTask<string> WriteRetentionPlanAsync(AwsStoredRetentionPlan plan, CancellationToken token)
+        => WriteAsync(new DatabaseRecoveryOperationId(plan.Plan.PlanId.Value),
+            $"retention-plan-{plan.Plan.ReplicaId.Value}-{plan.Plan.Revision}", plan, token);
+
+    public async ValueTask<AwsStoredRetentionPlan> ReadRetentionPlanAsync(
+        DatabaseRetentionPlanId planId, long revision, DatabaseArtifactReplicaId replica, CancellationToken token)
+    {
+        var operation = new DatabaseRecoveryOperationId(planId.Value);
+        var name = $"retention-plan-{replica.Value}-{revision}";
+        var content = await ReadBoundedAsync(_keys.Evidence(operation, name), token).ConfigureAwait(false);
+        var signatureBytes = await ReadBoundedAsync(_keys.EvidenceSignature(operation, name), token).ConfigureAwait(false);
+        await signatures.VerifyAsync(content, DatabaseBackupCanonicalJson.Deserialize<AwsSignatureEnvelope>(signatureBytes), token).ConfigureAwait(false);
+        return DatabaseBackupCanonicalJson.Deserialize<AwsStoredRetentionPlan>(content);
+    }
+
+    async ValueTask<byte[]> ReadBoundedAsync(AwsGeneratedObjectKey key, CancellationToken token)
+    {
+        var version = await OnlyVersionAsync(key, token).ConfigureAwait(false);
+        using var response = await s3.GetObjectAsync(new GetObjectRequest
+        { BucketName = options.PrimaryBucketName, Key = key.Value, VersionId = version }, token).ConfigureAwait(false);
+        if (response.ContentLength > options.MaximumSignedDocumentBytes)
+            throw new InvalidDataException("Retention evidence exceeds its document bound.");
+        using var content = new MemoryStream();
+        var buffer = new byte[8192];
+        int read;
+        while ((read = await response.ResponseStream.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
+        {
+            if (content.Length + read > options.MaximumSignedDocumentBytes)
+                throw new InvalidDataException("Retention evidence exceeds its document bound.");
+            await content.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+        }
+        return content.ToArray();
+    }
     async ValueTask<string> WriteAsync<T>(
         DatabaseRecoveryOperationId operationId, string documentName, T document, CancellationToken cancellationToken)
     {
@@ -88,6 +128,8 @@ public sealed class AwsRecoveryEvidenceStore(
         }, cancellationToken).ConfigureAwait(false);
         var versions = (response.Versions ?? []).Where(value => value.IsDeleteMarker != true
             && StringComparer.Ordinal.Equals(value.Key, key.Value)).ToArray();
+        if (versions.Length == 0)
+            throw new FileNotFoundException("The immutable AWS recovery evidence does not exist.");
         if (versions.Length != 1 || string.IsNullOrWhiteSpace(versions[0].VersionId))
             throw new InvalidDataException("The immutable AWS recovery evidence is missing or version-ambiguous.");
         return versions[0].VersionId;

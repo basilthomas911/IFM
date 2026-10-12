@@ -16,8 +16,13 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public class ActorStateFactory(IActorStateFactoryResolver resolver, IDistributedCache cache)
     : IActorStateFactory
 {
-    readonly IActorStateFactoryResolver _resolver = IsArgumentNull.Set(resolver);
-    readonly IDistributedCache _cache = IsArgumentNull.Set(cache);
+    readonly IActorStateFactoryResolver _resolver = ValidateDependencies(resolver, cache);
+
+    static IActorStateFactoryResolver ValidateDependencies(IActorStateFactoryResolver resolver, IDistributedCache cache)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        return IsArgumentNull.Set(resolver);
+    }
 
     public ValueTask<TState> LoadStateAsync<TState>(ActorThreadId stateId) where TState : IActorState
         => ValueTask.FromResult(CreateState<TState>(stateId));

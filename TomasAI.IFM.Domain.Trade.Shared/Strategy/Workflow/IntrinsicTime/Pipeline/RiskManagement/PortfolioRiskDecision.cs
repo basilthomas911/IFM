@@ -4,8 +4,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
-public enum PortfolioRiskDecisionStatus : byte { ExecuteTradeOrders = 1, NoTradeOrders = 2 }
-
 /// <summary>Trade-owned durable copy of the atomic Portfolio order-composition receipt.</summary>
 [MessagePackObject]
 public sealed record PortfolioRiskDecision
@@ -13,6 +11,7 @@ public sealed record PortfolioRiskDecision
     [Key(0)] public Guid CompositionId { get; init; }
     [Key(1)] public Guid WorkflowId { get; init; }
     [Key(2)] public PortfolioRiskDecisionStatus Status { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(3)] public TradeOrderDefinition[] TradeOrders { get; init; } = [];
     [Key(4)] public long FinancialRevision { get; init; }
     [Key(5)] public int AcceptedFundCount { get; init; }

@@ -12,6 +12,8 @@ public interface IEventSourceActorState<TState> : IActorState<TState>
 {
     DomainEventCollection Events { get; }
     long CommittedStreamVersion { get; }
+    /// <summary>Restores stream concurrency metadata when a state window excludes some source event types.</summary>
+    void RestoreCommittedStreamVersion(long version);
     /// <summary>Marks the current pending events as durably accepted without replaying them.</summary>
     void AcceptChanges();
     /// <summary>Transfers pending events to a durability window while keeping their effects in working state.</summary>

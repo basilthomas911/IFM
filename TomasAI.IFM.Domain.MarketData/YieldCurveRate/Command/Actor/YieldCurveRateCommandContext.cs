@@ -6,24 +6,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="YieldCurveRateCommandActor"/>.</summary>
-public interface IYieldCurveRateCommandContext : ICommandActorContext<YieldCurveRateCommandActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<YieldCurveRateCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets the actor service.</summary>
-    IActorService ActorService { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="YieldCurveRateCommandActor"/>.</summary>
 public sealed class YieldCurveRateCommandContext : CommandActorContext,
-    ICommandActorContext<YieldCurveRateCommandActor>, IYieldCurveRateCommandContext
+IYieldCurveRateCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IEventSourceActorStateFactory> _stateFactory;

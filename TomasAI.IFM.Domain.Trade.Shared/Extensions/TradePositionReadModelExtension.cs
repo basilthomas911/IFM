@@ -7,26 +7,37 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
     {
 
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType tradeType, TradeStatus tradeStatus)
-           => GetLatest(tradePosition, tradeType, tradeStatus);
+           
+        {
+            ArgumentNullException.ThrowIfNull(tradePosition);
+            return GetLatest(tradePosition, tradeType, tradeStatus);
+        }
 
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus)
         {
+            ArgumentNullException.ThrowIfNull(tradePosition);
             var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
             return GetLatest(tradePosition, tradeType, tradeStatus);
         }
 
 
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate)
-             => GetLast(tradePosition, tradeType, tradeStatus, valueDate);
+             
+        {
+            ArgumentNullException.ThrowIfNull(tradePosition);
+            return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
+        }
 
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradeType baseTradeType, OptionType optionType, TradeStatus tradeStatus, DateOnly valueDate)
         {
+            ArgumentNullException.ThrowIfNull(tradePosition);
             var tradeType = GetTradePositionTradeType(baseTradeType, optionType);
             return GetLast(tradePosition, tradeType, tradeStatus, valueDate);
         }
 
         public static TradePositionReadModel? Get(this TradePositionReadModel[] tradePosition, TradePositionEntityId key)
         {
+            ArgumentNullException.ThrowIfNull(tradePosition);
             for (var index = tradePosition.Length - 1; index >= 0; index--)
                 if (tradePosition[index].EntityId.Equals(key))
                     return tradePosition[index];
@@ -38,10 +49,10 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
 
         public static decimal GetEodTradePnl(this TradePositionReadModel[] tradePosition)
         {
+            ArgumentNullException.ThrowIfNull(tradePosition);
             var result = 0m;
-            foreach (var position in tradePosition)
-                if (position.TradeStatus is TradeStatus.Open or TradeStatus.EndOfDay)
-                    result += position.TradePnl;
+            foreach (var position in tradePosition.Where(position => position.TradeStatus is TradeStatus.Open or TradeStatus.EndOfDay))
+                result += position.TradePnl;
             return result;
         }
 
@@ -65,16 +76,6 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
             return putTradePosition is not null && callTradePosition is not null
                 ? Math.Abs(putTradePosition.ForwardPrice) + Math.Abs(callTradePosition.ForwardPrice)
                 : 0.0m;
-
-            /*
-            decimal GetForwardPriceByTradeType()
-              => baseTradeType switch
-              {
-                  TradeType.ShortIronCondor => Math.Abs(putTradePosition.ForwardPrice) - (1 * Math.Abs(callTradePosition.ForwardPrice)),
-                  TradeType.LongIronCondor => Math.Abs(putTradePosition.ForwardPrice) - (1 * Math.Abs(callTradePosition.ForwardPrice)),
-                  _ => throw new NotImplementedException()
-              };
-            */
         }
 
 
@@ -100,6 +101,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
 
         public static void Set(this TradePositionReadModel[] tradePosition, TradePositionReadModel oldTradePosition, TradePositionReadModel? newTradePosition)
         {
+            ArgumentNullException.ThrowIfNull(oldTradePosition);
             if (tradePosition is null || newTradePosition is null) return;
             for (var index = tradePosition.Length - 1; index >= 0; index--)
             {
@@ -116,7 +118,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Extensions
             {
                 TradeType.ShortIronCondor => optionType == OptionType.Put ? TradeType.PutCreditSpread : TradeType.CallCreditSpread,
                 TradeType.LongIronCondor => optionType == OptionType.Put ? TradeType.PutDebitSpread : TradeType.CallDebitSpread,
-                _ => throw new NotImplementedException()
+                _ => throw new NotSupportedException("Only Iron Condor positions provide put and call spread trade types.")
             };
 
         static TradePositionReadModel? GetLatest(TradePositionReadModel[] positions, TradeType tradeType, TradeStatus tradeStatus)

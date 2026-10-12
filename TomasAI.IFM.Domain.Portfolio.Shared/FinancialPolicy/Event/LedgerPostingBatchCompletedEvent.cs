@@ -25,6 +25,8 @@ public sealed record LedgerPostingBatchCompletedEvent : ICompleteEvent<LedgerPor
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = "GeneralLedgerCommand";
     [Key(15)] public DateTime ReceivedOn { get; init; }
+    /// <summary>Full accepted facts; absent on historical receipt-only events.</summary>
+    [Key(16)] public LedgerProjectionFacts? ProjectionFacts { get; init; }
     [IgnoreMember] public string UserName => "PortfolioFinancial";
     [IgnoreMember] public string EventName => nameof(LedgerPostingBatchCompletedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

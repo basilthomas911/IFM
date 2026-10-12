@@ -30,7 +30,10 @@ public sealed record FundMandateCreatedEvent : IPortfolioFundDomainEvent
     [Key(12)] public Guid CausationId { get; init; }
     [Key(13)] public DateTime OriginatedOnUtc { get; init; }
     [Key(14)] public FundMandateReadModel Mandate { get; init; } = default!;
-    [Key(15)] public Guid IdempotencyKey { get; init; } = default!;
+    [Key(15)] public Guid IdempotencyKey { get; init; } = Guid.Empty;
+
+    /// <summary>Full accepted projection values; populated before durable append for event-only materialization.</summary>
+    [Key(16)] public TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? ProjectionFacts { get; init; }
 
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(FundMandateCreatedEvent);

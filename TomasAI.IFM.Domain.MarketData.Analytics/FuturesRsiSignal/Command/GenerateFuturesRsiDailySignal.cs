@@ -18,6 +18,8 @@ public static class GenerateFuturesRsiDailySignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesRsiDailySignalCommand command, FuturesRsiSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         command.Compute(state.FuturesRsiSignals, out var futuresRsiSignalChange);
         if (!futuresRsiSignalChange.HasChanged)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

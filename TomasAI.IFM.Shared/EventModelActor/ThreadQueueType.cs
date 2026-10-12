@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,15 +10,5 @@ namespace TomasAI.IFM.Shared.EventModelActor
     {
         Channel,
         RingBuffer,
-    }
-
-    public static class ThreadQueueTypeExtensions
-    {
-        public static string ToStringFast(this ThreadQueueType value) => value switch
-        {
-            ThreadQueueType.Channel => nameof(ThreadQueueType.Channel),
-            ThreadQueueType.RingBuffer => nameof(ThreadQueueType.RingBuffer),
-            _ => value.ToString()
-        };
     }
 }

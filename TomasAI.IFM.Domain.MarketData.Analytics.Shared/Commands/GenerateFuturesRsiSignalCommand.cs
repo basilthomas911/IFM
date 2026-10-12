@@ -31,7 +31,9 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     [Key(6)]
@@ -54,9 +56,7 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     /// </summary>
     public GenerateFuturesRsiSignalCommand() { }
 
-    /// <summary>
-    /// 
-    /// </summary>
+    /// <summary>Requests generation of the futures analytics signal.</summary>
     /// <param name="futuresRsiSignalId"></param>
     /// <param name="futuresPrice"></param>
     /// <exception cref="ArgumentNullException"></exception>
@@ -67,6 +67,7 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         DateTime sourceEventTimestamp = default,
         FuturesTradeSessionBarReadModel? observation = null)
     {
+        ArgumentNullException.ThrowIfNull(futuresRsiSignalId);
         FuturesRsiSignalId = futuresRsiSignalId;
         FuturesPrice = futuresPrice;
         SourceSequence = sourceSequence;

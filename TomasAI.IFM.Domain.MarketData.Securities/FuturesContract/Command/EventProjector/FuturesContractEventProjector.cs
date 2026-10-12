@@ -1,3 +1,6 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -22,14 +25,25 @@ public sealed class FuturesContractEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesContractAddedEvent, FuturesContractAddedCompleteEvent, FuturesContractAddedFailEvent, FuturesContractId>(
-            e => actorContext.DbFactory.SecuritiesDb.InsertFuturesContractAsync(e.Contract)),
+            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.InsertFuturesContractAsync(e.Contract)))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesContractChangedEvent, FuturesContractChangedCompleteEvent, FuturesContractChangedFailEvent, FuturesContractId>(
-            e => actorContext.DbFactory.SecuritiesDb.UpdateFuturesContractAsync(e.OriginalContractId, e.Contract)),
+            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.UpdateFuturesContractAsync(e.OriginalContractId, e.Contract)))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesContractRemovedEvent, FuturesContractRemovedCompleteEvent, FuturesContractRemovedFailEvent, FuturesContractId>(
-            e => actorContext.DbFactory.SecuritiesDb.DeleteFuturesContractAsync(e.ContractId))
+            e => string.Equals(actorContext.DbFactory.SecuritiesDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ValueTask.CompletedTask : new ValueTask(actorContext.DbFactory.SecuritiesDb.DeleteFuturesContractAsync(e.ContractId)))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token))
     ];
 
+    static async Task RebuildAsync(ICommandActorContext<FuturesContractCommandActor> context, IEvent source, CancellationToken token)
+    {
+        var transactions = context.Container.Resolve<IPostgresEventTransaction>();
+        await transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
+        {
+            await SecuritiesContractAtomicPersistence.MaterializeAsync(context.DbFactory.SecuritiesDb,transaction,source,cancellation).ConfigureAwait(false);
+            return true;
+        },token).ConfigureAwait(false);
+    }
+
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        _descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

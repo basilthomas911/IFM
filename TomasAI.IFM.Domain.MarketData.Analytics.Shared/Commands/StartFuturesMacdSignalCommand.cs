@@ -27,6 +27,14 @@ public record StartFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntityId
         RouteTo = routeTo;
         HistoricalSeed = historicalSeed;
     }
+
+    public StartFuturesMacdSignalCommand() { }
+    public StartFuturesMacdSignalCommand(FuturesMacdSignalEntityId entityId)
+    {
+        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
+        ErrorCode = ErrorId;
+        RouteTo = BoundedContextName.FuturesMacdSignalBoundedContext;
+    }
     public const string Actor = "FuturesMacdSignalCommand";
     public const string Verb = "Start";
     public const int ErrorId = 20002;
@@ -37,18 +45,13 @@ public record StartFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntityId
     [Key(3)] public FuturesMacdSignalEntityId EntityId { get; init; } = default!;
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(6)] public FuturesTradeSessionBarReadModel[]? HistoricalSeed { get; init; }
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
-
-    public StartFuturesMacdSignalCommand() { }
-    public StartFuturesMacdSignalCommand(FuturesMacdSignalEntityId entityId)
-    {
-        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
-        ErrorCode = ErrorId;
-        RouteTo = BoundedContextName.FuturesMacdSignalBoundedContext;
-    }
 }

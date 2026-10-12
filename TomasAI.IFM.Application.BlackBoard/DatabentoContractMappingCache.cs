@@ -9,34 +9,6 @@ using TomasAI.IFM.Framework.Serialization;
 namespace TomasAI.IFM.Application.Blackboard;
 
 /// <summary>
-/// Stores current-day Databento contract-ID/instrument-ID pairs in both directions.
-/// </summary>
-public interface IDatabentoContractMappingCache
-{
-    bool TryGetInstrumentId(
-        string dataset,
-        string contractId,
-        out uint instrumentId);
-
-    bool TryGetContractId(
-        string dataset,
-        uint instrumentId,
-        out string? contractId);
-
-    void SetMapping(
-        string dataset,
-        string contractId,
-        uint instrumentId,
-        ContractMappingDirection sourceDirection);
-
-    void ClearMapping(string dataset, string contractId);
-
-    void ClearMapping(string dataset, uint instrumentId);
-
-    void ClearCurrentMappings(string dataset);
-}
-
-/// <summary>
 /// Redis-backed Databento mapping cache with a 24-hour hard expiration and a
 /// 15-minute sliding time-to-live. Keys are isolated by dataset and UTC date
 /// because Databento instrument IDs can be remapped between trading days.
@@ -327,6 +299,7 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         _redisCache.RemoveByPrefix(PartitionPrefix(dataset, CurrentDefinitionDate()));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private DatabentoContractMappingCacheEntry? ReadEntry(string key)
     {
         var value = _redisCache.Get(key);
@@ -420,6 +393,7 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private void BestEffortRefresh(DatabentoContractMappingCacheEntry entry)
     {
         try
@@ -476,6 +450,7 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
         BestEffortRemove(InstrumentKey(entry.Dataset, definitionDate, entry.InstrumentId));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private void BestEffortRemove(string key)
     {
         try
@@ -545,15 +520,4 @@ public sealed class DatabentoContractMappingCache : IDatabentoContractMappingCac
 
     private static void ValidateDataset(string dataset) =>
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
-}
-
-public sealed record DatabentoContractMappingCacheEntry
-{
-    public required string Dataset { get; init; }
-    public required string DefinitionDate { get; init; }
-    public required string ContractId { get; init; }
-    public uint InstrumentId { get; init; }
-    public ushort PublisherId { get; init; }
-    public AssetTypeId AssetTypeId { get; init; }
-    public DateTimeOffset AbsoluteExpirationUtc { get; init; }
 }

@@ -13,22 +13,13 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 
-/// <summary>Process-local, per-contract dispatch state owned by the realtime event context.</summary>
-public sealed class FuturesEodTradeDispatchState
-{
-    internal readonly FuturesEodTradeReadCache ReadCache = new();
-    internal readonly Dictionary<string, FuturesEodTradeWorker> Workers = new(StringComparer.Ordinal);
-    internal bool WorkersEnabled;
-    internal long Handoffs;
-}
-
 /// <summary>Handlers for the EOD realtime event context.</summary>
 public static class FuturesEodDataRealtimeContextExtensions
 {
     const int TradeWorkerCapacityPerContract = 2048;
     const int MaximumTradeWorkers = 16;
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
+    static readonly Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
         FuturesEodDataEventParameters, ValueTask>> ReceiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
             FuturesEodDataEventParameters, ValueTask>>
@@ -61,17 +52,17 @@ public static class FuturesEodDataRealtimeContextExtensions
     /// <summary>Starts the optional per-contract trade workers.</summary>
     public static void StartTradeWorkers(this IFuturesEodDataRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var state = context.TradeDispatch;
         state.WorkersEnabled = context.EnableAsyncTradeWorker;
         if (state.WorkersEnabled)
-            context.Logger.LogInformation(
-                "Futures EOD experimental per-contract trade workers enabled; capacityPerContract={Capacity}; maxContracts={MaximumContracts}.",
-                TradeWorkerCapacityPerContract, MaximumTradeWorkers);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write14(context.Logger, null, TradeWorkerCapacityPerContract, MaximumTradeWorkers);
     }
 
     /// <summary>Drains workers before the projector is stopped.</summary>
     public static async ValueTask StopTradeWorkersAsync(this IFuturesEodDataRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var state = context.TradeDispatch;
         try
         {
@@ -136,6 +127,8 @@ public static class FuturesEodDataRealtimeContextExtensions
         IEventActorContext<FuturesEodDataRealtimeActor> actorContext,
         FuturesTickTradeDataInsertedEvent trade)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(trade);
         var state = context.TradeDispatch;
         var started = Stopwatch.GetTimestamp();
         var outcome = "Failed";
@@ -158,10 +151,8 @@ public static class FuturesEodDataRealtimeContextExtensions
         {
             var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             var count = Interlocked.Increment(ref state.Handoffs);
-            if (elapsed >= 10 || (count & 127) == 0 || outcome == "Failed")
-                context.Logger.LogInformation(
-                    "Futures EOD trade handler exit: {ContractId}; SourceId={SourceId}; TickDataId={TickDataId}; outcome={Outcome}; handoffCount={HandoffCount}; elapsed {ElapsedMilliseconds:F3} ms.",
-                    trade.EntityId.ContractId, trade.Id, trade.TickDataId, outcome, count, elapsed);
+            if (elapsed >= 10 || (count & 127) == 0 || string.Equals(outcome,"Failed",StringComparison.Ordinal))
+                global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write15(context.Logger, null, trade.EntityId.ContractId, trade.Id, trade.TickDataId, outcome, count, elapsed);
         }
     }
 
@@ -170,6 +161,8 @@ public static class FuturesEodDataRealtimeContextExtensions
         IEventActorContext<FuturesEodDataRealtimeActor> actorContext,
         FuturesSessionStatisticsUpdatedRealtimeEvent statistics)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(statistics);
         var worker = context.GetOrCreateTradeWorker(actorContext, statistics.EntityId.ContractId);
         await worker.EnqueueOperationAsync(async () =>
         {
@@ -196,9 +189,7 @@ public static class FuturesEodDataRealtimeContextExtensions
                 context.BlackboardService, context.StatusConsoleWriter,
                 context.Projector, context.Logger, state.ReadCache), context.Logger);
         state.Workers.Add(contractId, worker);
-        context.Logger.LogInformation(
-            "Futures EOD trade worker started for {ContractId}; capacity={Capacity}.",
-            contractId, TradeWorkerCapacityPerContract);
+        global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write16(context.Logger, null, contractId, TradeWorkerCapacityPerContract);
         return worker;
     }
 }

@@ -6,40 +6,6 @@ using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-/// <summary>One immutable read of reference context, underlying and last quote for a registered option.</summary>
-public sealed record OptionChainPricingInputs(OptionPricingContext Context, OptionPricingQuote Underlying,
-    LastQuoteTickSnapshot? OptionQuote = null);
-
-/// <summary>Bounded worker-local input store. Registration happens before physical session admission.</summary>
-public sealed class OptionChainPricingInputStore
-{
-    readonly ConcurrentDictionary<string, OptionChainPricingInputs> entries = new(StringComparer.Ordinal);
-    readonly object registration = new();
-
-    public void Set(OptionChainPricingInputs value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        var id = value.Context.Contract.ContractId;
-        if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Exact contract identity is required.");
-        lock (registration)
-        {
-            if (!entries.ContainsKey(id) && entries.Count >= 2048) throw new InvalidOperationException("Option pricing input capacity exceeded.");
-            // A reference update never retains Greeks or an independently captured option quote.
-            entries[id] = value with { OptionQuote = null };
-        }
-    }
-
-    public bool TryGet(string id, out OptionChainPricingInputs? inputs) => entries.TryGetValue(id, out inputs);
-    public bool Remove(string id) { lock (registration) return entries.TryRemove(id, out _); }
-
-    public void ObserveQuote(string id, OptionChainPricingInputs expected, LastQuoteTickSnapshot quote)
-    {
-        if (expected.OptionQuote is { } previous && (quote.EventTimestamp < previous.EventTimestamp
-            || quote.EventTimestamp == previous.EventTimestamp && quote.SourceSequence <= previous.SourceSequence)) return;
-        entries.TryUpdate(id, expected with { OptionQuote = quote }, expected);
-    }
-}
-
 /// <summary>Production Black-76 implementation of the existing chain callback boundary; no I/O or actor work.</summary>
 public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStore inputs, Guid generationId, TimeProvider? time = null,
     Func<string, OptionPricingQuote?>? readUnderlying = null)
@@ -49,6 +15,7 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
 
     public OptionGreeksSnapshot EnrichQuote(DatabentoOptionChainRoute route, LastQuoteTickSnapshot tick)
     {
+        ArgumentNullException.ThrowIfNull(route);
         if (!inputs.TryGet(route.FuturesOptionContractId, out var current) || current is null)
             return Failed(route, "PricingContextUnavailable", clock.GetUtcNow());
         var result = Calculate(route, current, tick);
@@ -58,6 +25,7 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
 
     public OptionGreeksSnapshot EnrichTrade(DatabentoOptionChainRoute route, LastTradeTickSnapshot tick)
     {
+        ArgumentNullException.ThrowIfNull(route);
         // A trade never becomes an IV mark. Re-evaluate the latest two-sided quote at the current time.
         if (!inputs.TryGet(route.FuturesOptionContractId, out var current) || current?.OptionQuote is not { } quote)
             return Failed(route, "QuoteUnavailable", clock.GetUtcNow());
@@ -78,8 +46,8 @@ public sealed class Black76OptionChainGreeksEnricher(OptionChainPricingInputStor
         if (generationId == Guid.Empty || c.GenerationId != generationId)
             return Failed(route, "Recovering", at);
         if (route.Definition.Instrument.InstrumentId != c.Contract.InstrumentId
-            || route.Definition.Dataset != c.Contract.Dataset || route.Definition.RawSymbol != c.Contract.RawSymbol
-            || route.FuturesOptionContractId != c.Contract.ContractId || tick.ContractId != c.Contract.ContractId
+            || !string.Equals(route.Definition.Dataset,c.Contract.Dataset,StringComparison.Ordinal) || !string.Equals(route.Definition.RawSymbol,c.Contract.RawSymbol,StringComparison.Ordinal)
+            || !string.Equals(route.FuturesOptionContractId,c.Contract.ContractId,StringComparison.Ordinal) || !string.Equals(tick.ContractId,c.Contract.ContractId,StringComparison.Ordinal)
             || route.Definition.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)
             || tick.BidPrice is null || tick.AskPrice is null)
             return Failed(route, "ContractOrQuoteInvalid", at);

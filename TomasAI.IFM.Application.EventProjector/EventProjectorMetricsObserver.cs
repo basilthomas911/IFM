@@ -14,6 +14,7 @@ internal sealed class EventProjectorMetricsObserver(
     readonly EventProjectorReliabilityOptions _options = options.Validate();
     readonly string _projectorName = projectorName;
     readonly ILogger _logger = logger;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213", Justification = "StopAsync exchanges ownership into a local and disposes it in finally; DisposeAsync also releases any residual field.")]
     CancellationTokenSource? _stopping;
     Task? _worker;
 
@@ -32,15 +33,16 @@ internal sealed class EventProjectorMetricsObserver(
     {
         var stopping = Interlocked.Exchange(ref _stopping, null);
         var worker = Interlocked.Exchange(ref _worker, null);
-        if (stopping is null || worker is null)
+        if (stopping is null)
             return;
         await stopping.CancelAsync().ConfigureAwait(false);
         try
         {
-            await worker.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (worker is not null) await worker.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {
+            // Expected worker cancellation during host shutdown.
         }
         finally
         {
@@ -48,6 +50,7 @@ internal sealed class EventProjectorMetricsObserver(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task RunAsync(CancellationToken cancellationToken)
     {
         // Projectors are constructed together during startup. Give each one a stable phase within the polling
@@ -68,11 +71,12 @@ internal sealed class EventProjectorMetricsObserver(
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                // Normal shutdown.
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,                    "{Component}.{Method} "+"Unable to sample operational metrics for projector {ProjectorName}.",nameof(EventProjectorMetricsObserver),nameof(RunAsync),_projectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write4(_logger, ex, nameof(EventProjectorMetricsObserver), nameof(RunAsync), _projectorName);
             }
         }
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
@@ -81,8 +85,7 @@ internal sealed class EventProjectorMetricsObserver(
     internal static TimeSpan GetInitialDelay(string projectorName, TimeSpan pollingInterval)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-        if (pollingInterval <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(pollingInterval));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(pollingInterval, TimeSpan.Zero);
 
         // FNV-1a is deterministic across processes, unlike string.GetHashCode(). This keeps a projector's phase
         // stable between runs while distributing independently named projectors across the complete interval.
@@ -98,5 +101,10 @@ internal sealed class EventProjectorMetricsObserver(
         return TimeSpan.FromTicks((long)(hash % (ulong)pollingInterval.Ticks));
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        _stopping?.Dispose();
+        _stopping = null;
+    }
 }

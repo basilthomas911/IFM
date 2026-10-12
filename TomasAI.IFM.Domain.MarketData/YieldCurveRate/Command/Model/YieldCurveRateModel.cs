@@ -55,7 +55,7 @@ public class YieldCurveRateModel
 
     public YieldCurveRateModel(YieldCurveRateReadModel model)
         : this(
-            model.ValueDate,
+            (model ?? throw new ArgumentNullException(nameof(model))).ValueDate,
             model.OneMonth,
             model.TwoMonth,
             model.ThreeMonth,
@@ -69,6 +69,7 @@ public class YieldCurveRateModel
             model.TwentyYear,
             model.ThirtyYear)
     {
+        ArgumentNullException.ThrowIfNull(model);
     }
 
     public YieldCurveRateReadModel ToViewModel()

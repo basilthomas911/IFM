@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -22,10 +24,14 @@ public sealed class FuturesClosingPriceEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesClosingPriceInsertedEvent, FuturesClosingPriceInsertedCompleteEvent, FuturesClosingPriceInsertedFailEvent, FuturesDataId>(
-            e => actorContext.DbFactory.MarketDataDb.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel(
+            e => string.Equals(actorContext.DbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? Task.CompletedTask : actorContext.DbFactory.MarketDataDb.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel(
                 e.FuturesClosingPriceId.ContractId, e.FuturesClosingPriceId.ValueDate,
                 e.ClosingPrice, e.CreatedOn, e.CreatedBy)))
+            .WithReadModelRebuild((source,token) => actorContext.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async(transaction,cancellationToken) =>
+            {
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,cancellationToken).ConfigureAwait(false);
+                return true;
+            },token))
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

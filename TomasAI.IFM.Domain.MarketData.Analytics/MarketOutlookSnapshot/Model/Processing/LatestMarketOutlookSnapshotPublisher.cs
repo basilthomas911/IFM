@@ -25,11 +25,18 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
 {
     sealed record PendingSnapshot(MarketOutlookReadModel Snapshot, long Sequence);
 
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<MarketOutlookEntityId, PendingSnapshot> pending = [];
     readonly SemaphoreSlim flushGate = new(1, 1);
     IActorProducer? producer;
     long sequence;
+
+    /// <summary>Releases the flush gate after the host has awaited StopAsync and its final bounded flush.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        flushGate.Dispose();
+    }
 
     internal int PendingCount
     {
@@ -115,12 +122,10 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
         }
         catch (OperationCanceledException) when (finalFlush.IsCancellationRequested)
         {
-            logger.LogWarning(
-                "Latest Market Outlook persistence did not complete within the shutdown deadline; {PendingCount} latest rows remain",
-                PendingCount);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write23(logger, null, PendingCount);
         }
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     internal async Task FlushPendingAsync(CancellationToken cancellationToken = default)
     {
         await flushGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -152,11 +157,7 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
                 {
                     healthEvidence?.Record("Market Outlook storage", "ES", "Degraded", exception.Message);
                     Requeue(item);
-                    logger.LogError(
-                        exception,
-                        "Unable to persist latest Market Outlook snapshot for {ContractId}/{ValueDate}; the newest value will be retried",
-                        item.Snapshot.ContractId,
-                        item.Snapshot.ValueDate);
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write22(logger, exception, item.Snapshot.ContractId, item.Snapshot.ValueDate);
                 }
             }
         }

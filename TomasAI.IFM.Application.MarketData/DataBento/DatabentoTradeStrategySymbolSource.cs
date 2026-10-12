@@ -4,15 +4,12 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
-
 /// <summary>Provider-wide product discovery, independent of seeded families and realtime subscriptions.</summary>
-public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory feeds, DatabentoMarketDataRuntimeOptions options,
-    TimeProvider timeProvider, ILogger<DatabentoTradeStrategySymbolSource>? logger = null) : ITradeStrategySymbolSource
+public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory feeds, DatabentoMarketDataRuntimeOptions options, TimeProvider timeProvider, ILogger<DatabentoTradeStrategySymbolSource>? logger = null) : ITradeStrategySymbolSource, IDisposable
 {
     readonly SemaphoreSlim _gate = new(1, 1);
     DateTimeOffset _expires;
     Dictionary<TradeStrategyFamilyType, TradeStrategyProduct[]>? _snapshot;
-
     public async Task<IReadOnlyList<TradeStrategyProduct>> DiscoverAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -30,17 +27,22 @@ public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory fee
                 _snapshot = snapshot;
                 _expires = timeProvider.GetUtcNow().AddMinutes(5);
             }
+
             // Retain compact product summaries only, not the dataset's full option-chain records.
-            return [.. _snapshot[family]];
+            return[.._snapshot[family]];
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task<Dictionary<TradeStrategyFamilyType, TradeStrategyProduct[]>> DiscoverAllAsync(CancellationToken token)
     {
-        var configured = options.TradeStrategySymbolDatasets.Count == 0
-            ? [options.FeedOptions.Dataset] : options.TradeStrategySymbolDatasets;
-        if (configured.Any(string.IsNullOrWhiteSpace)) throw new InvalidOperationException("A symbol-discovery dataset is required.");
+        var configured = options.TradeStrategySymbolDatasets.Count == 0 ? [options.FeedOptions.Dataset] : options.TradeStrategySymbolDatasets;
+        if (configured.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidOperationException("A symbol-discovery dataset is required.");
         var datasets = configured.Select(x => x.Trim().ToUpperInvariant()).Distinct(StringComparer.Ordinal).ToArray();
         HashSet<TradeStrategyProduct> futures = [], optionsProducts = [];
         foreach (var dataset in datasets)
@@ -49,46 +51,74 @@ public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory fee
             var query = feeds.CreateMarketDataQueries(options.FeedOptions with { Dataset = dataset });
             var definitions = await Task.Run(() => query.GetDatasetDefinitions(options.ProviderQueryTimeout), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            if (definitions.Count == 0) throw new InvalidOperationException($"No instrument definitions returned for dataset '{dataset}'.");
+            if (definitions.Count == 0)
+                throw new InvalidOperationException($"No instrument definitions returned for dataset '{dataset}'.");
             int invalid = 0, unresolved = 0;
             bool Current(ContractDetail detail)
             {
                 var now = timeProvider.GetUtcNow();
-                if (detail.ActivationTimestampNanoseconds is { } activation && activation / 1_000_000_000UL > (ulong)now.ToUnixTimeSeconds()) return false;
-                if (detail.ExpirationTimestampNanoseconds is { } expiry) return expiry / 1_000_000_000UL > (ulong)now.ToUnixTimeSeconds();
-                if (detail.MaturityDate is { } maturity) return maturity >= DateOnly.FromDateTime(now.UtcDateTime);
-                ++invalid; return false;
+                if (detail.ActivationTimestampNanoseconds is { } activation && activation / 1_000_000_000UL > (ulong)now.ToUnixTimeSeconds())
+                    return false;
+                if (detail.ExpirationTimestampNanoseconds is { } expiry)
+                    return expiry / 1_000_000_000UL > (ulong)now.ToUnixTimeSeconds();
+                if (detail.MaturityDate is { } maturity)
+                    return maturity >= DateOnly.FromDateTime(now.UtcDateTime);
+                ++invalid;
+                return false;
             }
+
             var currentFutures = definitions.Where(x => x.ContractKind == ContractKind.Future && Current(x)).ToArray();
             var byId = currentFutures.ToLookup(x => x.Instrument.InstrumentId);
             var byName = currentFutures.ToLookup(x => x.RawSymbol, StringComparer.Ordinal);
             void Add(HashSet<TradeStrategyProduct> target, TradeStrategyFamilyType productFamily, ContractDetail underlying, ContractDetail priced)
             {
-                var product = new TradeStrategyProduct(productFamily, underlying.Ticker?.Trim() ?? "",
-                    priced.Currency?.Trim().ToUpperInvariant() ?? "", priced.Exchange?.Trim().ToUpperInvariant() ?? "");
-                try { product.Validate(); target.Add(product); }
-                catch (ArgumentException) { ++invalid; }
+                var product = new TradeStrategyProduct(productFamily, underlying.Ticker?.Trim() ?? "", priced.Currency?.Trim().ToUpperInvariant() ?? "", priced.Exchange?.Trim().ToUpperInvariant() ?? "");
+                try
+                {
+                    product.Validate();
+                    target.Add(product);
+                }
+                catch (ArgumentException)
+                {
+                    ++invalid;
+                }
             }
+
             foreach (var future in currentFutures)
             {
                 token.ThrowIfCancellationRequested();
                 Add(futures, TradeStrategyFamilyType.Futures, future, future);
             }
+
             foreach (var option in definitions.Where(x => x.ContractKind is ContractKind.CallOption or ContractKind.PutOption))
             {
                 token.ThrowIfCancellationRequested();
-                if (!Current(option)) continue;
-                var matches = option.UnderlyingInstrumentId != 0
-                    ? byId[option.UnderlyingInstrumentId].ToArray()
-                    : string.IsNullOrWhiteSpace(option.Underlying) ? [] : byName[option.Underlying].ToArray();
+                if (!Current(option))
+                    continue;
+                var matches = (option.UnderlyingInstrumentId != 0) switch
+                {
+                    true => byId[option.UnderlyingInstrumentId].ToArray(),
+                    false => (string.IsNullOrWhiteSpace(option.Underlying)) switch
+                    {
+                        true => [],
+                        false => byName[option.Underlying].ToArray()}};
                 // Options on spreads/non-futures, unresolved IDs and ambiguous links are not
                 // outright-futures products. Never guess an underlying from the option root.
-                if (matches.Length != 1) { ++unresolved; continue; }
+                if (matches.Length != 1)
+                {
+                    ++unresolved;
+                    continue;
+                }
+
                 Add(optionsProducts, TradeStrategyFamilyType.FuturesOption, matches[0], option);
             }
-            if (invalid != 0 || unresolved != 0)
-                logger?.LogWarning("Symbol discovery {Dataset}: excluded {Invalid} incomplete definitions and {Unresolved} options without a unique current outright-futures underlying.", dataset, invalid, unresolved);
+
+            if ((invalid != 0 || unresolved != 0) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true))
+            {
+                OptionalApplicationDiagnosticLog.Write1(logger, null, dataset, invalid, unresolved);
+            }
         }
+
         if (futures.Count == 0 && optionsProducts.Count == 0)
             throw new InvalidOperationException("No eligible products with complete Symbol, Currency and Exchange were discovered.");
         return new()
@@ -96,5 +126,15 @@ public sealed class DatabentoTradeStrategySymbolSource(IDatabentoFeedFactory fee
             [TradeStrategyFamilyType.Futures] = futures.ToArray(),
             [TradeStrategyFamilyType.FuturesOption] = optionsProducts.ToArray()
         };
+    }
+
+    private int disposedGateOwner;
+    /// <summary>Releases the owned synchronization gate after the host has stopped its operations.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposedGateOwner, 1) != 0)
+            return;
+        _gate.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

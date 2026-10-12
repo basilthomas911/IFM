@@ -1,6 +1,6 @@
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 
-internal class HaltTradeLiveFeedException : ApplicationException
+public class HaltTradeLiveFeedException : Exception
 {
     public HaltTradeLiveFeedException() { }
 

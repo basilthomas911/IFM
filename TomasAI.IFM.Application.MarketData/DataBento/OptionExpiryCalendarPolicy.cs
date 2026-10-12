@@ -19,7 +19,7 @@ public static class OptionExpiryCalendarPolicy
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         var normalized = symbol.Trim().ToUpperInvariant();
-        return normalized == "ES" ? EsRoots : [("Quarterly-Serial", [normalized])];
+        return string.Equals(normalized,"ES",StringComparison.Ordinal) ? EsRoots : [("Quarterly-Serial", [normalized])];
     }
 
     public static DateOnly CalculateCoverageThrough(

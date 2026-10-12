@@ -125,6 +125,7 @@ public sealed class HistoricalDataLoaderEventHandlerTests
         var replayPublisher = Substitute.For<IHistoricalReplayPublisher>();
         var calendar = Substitute.For<IMarketSessionCalendar>();
         var logger = Substitute.For<ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var loader = new TomasAI.IFM.Application.MarketData.Historical.HistoricalDataLoader(
             provider, store, observationStore, replayPublisher, calendar, TimeProvider.System);
         var context = Substitute.For<IFuturesAnalyticsHistoricalDataLoaderEventContext>();

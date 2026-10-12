@@ -19,15 +19,27 @@ public static class GetFuturesOptionStrikePriceDefinitions
     /// <returns>A task representing the asynchronous operation.</returns>
     public static ValueTask<FuturesOptionStrikePriceReadModel> ExecuteAsync(
         this GetFuturesOptionStrikePriceDefinitionsQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory.ReferenceDb, cancellationToken);
+    }
+
+    /// <summary>Reads and replies with the requested Reference result.</summary>
+    public static async ValueTask ExecuteAsync(this GetFuturesOptionStrikePriceDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
+    }
 
     internal static async ValueTask<FuturesOptionStrikePriceReadModel> GetFuturesOptionStrikePriceDefinitionsAsync(
         IReferenceDbContext db,
         CancellationToken cancellationToken = default)
     {
-        Task<ICollection<LookupTypeReadModel>> ReadAsync(string name) => cancellationToken.CanBeCanceled
-            ? db.GetLookupTypeAsync(name, cancellationToken)
-            : db.GetLookupTypeAsync(name);
+        Task<ICollection<LookupTypeReadModel>> ReadAsync(string name) => db.GetLookupTypeAsync(name, cancellationToken);
         var minimum = ReadAsync("FuturesOptionStrikePriceMin");
         var maximum = ReadAsync("FuturesOptionStrikePriceMax");
         var increment = ReadAsync("FuturesOptionStrikePriceIncrement");
@@ -36,17 +48,9 @@ public static class GetFuturesOptionStrikePriceDefinitions
 
         return new FuturesOptionStrikePriceReadModel
         {
-            Minimum = Convert.ToInt32(values[0].FirstOrDefault()?.ShortCode),
-            Maximum = Convert.ToInt32(values[1].FirstOrDefault()?.ShortCode),
-            Increment = Convert.ToInt32(values[2].FirstOrDefault()?.ShortCode)
+            Minimum = Convert.ToInt32(values[0].FirstOrDefault()?.ShortCode, System.Globalization.CultureInfo.InvariantCulture),
+            Maximum = Convert.ToInt32(values[1].FirstOrDefault()?.ShortCode, System.Globalization.CultureInfo.InvariantCulture),
+            Increment = Convert.ToInt32(values[2].FirstOrDefault()?.ShortCode, System.Globalization.CultureInfo.InvariantCulture)
         };
-    }
-
-    /// <summary>Reads and replies with the requested Reference result.</summary>
-    public static async ValueTask ExecuteAsync(this GetFuturesOptionStrikePriceDefinitionsQuery query, Actor.IReferenceQueryContext context, CancellationToken cancellationToken)
-    {
-        var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(result)).ConfigureAwait(false);
     }
 }

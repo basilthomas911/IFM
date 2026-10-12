@@ -84,15 +84,6 @@ public static class FuturesEmaAccumulator
             ? value.Current - value.Previous
             : null;
 
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     readonly record struct EmaValue(decimal Seed, decimal? Current, decimal? Previous);
-}
-
-/// <summary>Contains one EMA state transition.</summary>
-public sealed record FuturesEmaAccumulatorResult(
-    FuturesEmaAccumulatorCheckpoint FuturesEmaCheckpoint,
-    FuturesEmaSignalReadModel? FuturesEmaSignal,
-    MarketObservationApplicationDisposition Disposition)
-{
-    /// <summary>Gets whether this transition advanced durable state.</summary>
-    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
 }

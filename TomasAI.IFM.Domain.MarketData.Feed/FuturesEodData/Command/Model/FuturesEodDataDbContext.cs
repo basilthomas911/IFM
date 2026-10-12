@@ -1,10 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
@@ -19,71 +16,71 @@ internal static class FuturesEodDataDbContext
     /// </summary>
     internal static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
-        => await dbFactory.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate);
+        => await (dbFactory.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves the most recent end-of-day futures data before the supplied value date.
     /// </summary>
     internal static async ValueTask<FuturesEodDataV2ReadModel?> GetLastFuturesEodDataAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
-        => await dbFactory.MarketDataDb
+        => await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesEodDataDbCql)}.{nameof(FuturesEodDataDbCql.GetLastFuturesEodData)}", FuturesEodDataDbCql.GetLastFuturesEodData)
             .SetParameters(new GetLastFuturesEodData(contractId, valueDate))
-            .ExecuteSingleAsync(MapToFuturesEodData);
+            .ExecuteSingleAsync(MapToFuturesEodData)).ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves end-of-day futures data records for a contract within a date range.
     /// </summary>
     internal static async ValueTask<FuturesEodDataV2ReadModel[]> GetFuturesEodDataByDateRangeAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly startDate, DateOnly endDate)
-        => [.. await dbFactory.MarketDataDb
+        => [.. await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesEodDataDbCql)}.{nameof(FuturesEodDataDbCql.GetFuturesEodDataByDateRange)}", FuturesEodDataDbCql.GetFuturesEodDataByDateRange)
             .SetParameters(new GetFuturesEodDataByDateRange(contractId, startDate, endDate))
-            .ExecuteQueryAsync(MapToFuturesEodData)];
+            .ExecuteQueryAsync(MapToFuturesEodData)).ConfigureAwait(false)];
 
     /// <summary>
     /// Retrieves close prices for moving-average calculations.
     /// </summary>
     internal static async ValueTask<FuturesEodClosingPriceReadModel[]> GetFuturesEodClosingPricesAsync(
         this IDbContextFactory dbFactory, string contractId, string symbol, DateOnly startDate, DateOnly endDate, int maxDays)
-        => [.. await dbFactory.MarketDataDb.GetFuturesEodClosingPricesAsync(
-            contractId, symbol, startDate, endDate, maxDays)];
+        => [.. await (dbFactory.MarketDataDb.GetFuturesEodClosingPricesAsync(
+            contractId, symbol, startDate, endDate, maxDays)).ConfigureAwait(false)];
 
     /// <summary>
     /// Retrieves the most recent VIX futures EOD record up to the supplied value date.
     /// </summary>
     internal static async ValueTask<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
-        => await dbFactory.MarketDataDb
+        => await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesEodDataDbCql)}.{nameof(FuturesEodDataDbCql.GetLastVixFuturesEodData)}", FuturesEodDataDbCql.GetLastVixFuturesEodData)
             .SetParameters(new GetLastVixFuturesEodData(contractId, valueDate))
-            .ExecuteSingleAsync(MapToVixFuturesEodData);
+            .ExecuteSingleAsync(MapToVixFuturesEodData)).ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves VIX futures EOD for a contract/value-date pair.
     /// </summary>
     internal static async ValueTask<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
-        => await dbFactory.MarketDataDb
+        => await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesEodDataDbCql)}.{nameof(FuturesEodDataDbCql.GetVixFuturesEodData)}", FuturesEodDataDbCql.GetVixFuturesEodData)
             .SetParameters(new GetVixFuturesEodData(contractId, valueDate))
-            .ExecuteSingleAsync(MapToVixFuturesEodData);
+            .ExecuteSingleAsync(MapToVixFuturesEodData)).ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves VIX futures EOD data for all contracts up to the supplied value date.
     /// </summary>
     internal static async ValueTask<VixFuturesEodDataReadModel[]> GetVixFuturesEodDataByValueDateAsync(
         this IDbContextFactory dbFactory, DateOnly valueDate)
-        => [.. await dbFactory.MarketDataDb.GetVixFuturesEodDataByValueDateAsync(valueDate)];
+        => [.. await (dbFactory.MarketDataDb.GetVixFuturesEodDataByValueDateAsync(valueDate)).ConfigureAwait(false)];
 
     /// <summary>
     /// Retrieves the normal curve table used by futures EOD calculations.
     /// </summary>
     internal static async ValueTask<NormalCurveTableReadModel> GetNormalCurveTableAsync(this IDbContextFactory dbFactory)
     {
-        _normalCurveTable ??= new NormalCurveTableReadModel([.. await dbFactory.MarketDataDb
+        _normalCurveTable ??= new NormalCurveTableReadModel([.. await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesEodDataDbCql)}.{nameof(FuturesEodDataDbCql.GetNormalCurveData)}", FuturesEodDataDbCql.GetNormalCurveData)
-            .ExecuteQueryAsync(MapToNormalCurveData)]);
+            .ExecuteQueryAsync(MapToNormalCurveData)).ConfigureAwait(false)]);
         return _normalCurveTable;
     }
 
@@ -95,9 +92,9 @@ internal static class FuturesEodDataDbContext
     internal static async ValueTask<FuturesEodDataParametersReadModel> GetFuturesEodDataParametersAsync(
         this IDbContextFactory dbFactory, string contractId, DateOnly valueDate)
         => new FuturesEodDataParametersReadModel(
-            FuturesEodDataToday: (await dbFactory.GetFuturesEodDataAsync(contractId, valueDate))!,
-            FuturesEodDataRange: await dbFactory.GetFuturesEodDataByDateRangeAsync(contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1)),
-            NormalCurveTable: await dbFactory.GetNormalCurveTableAsync());
+            FuturesEodDataToday: (await (dbFactory.GetFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false))!,
+            FuturesEodDataRange: await (dbFactory.GetFuturesEodDataByDateRangeAsync(contractId, valueDate.AddMonths(-2), valueDate.AddDays(-1))).ConfigureAwait(false),
+            NormalCurveTable: await (dbFactory.GetNormalCurveTableAsync()).ConfigureAwait(false));
 
     /// <summary>
     /// Inserts a futures EOD data record into the database.
@@ -106,7 +103,7 @@ internal static class FuturesEodDataDbContext
     /// <param name="e">The futures EOD data read model to persist.</param>
     internal static async ValueTask InsertFuturesEodDataAsync(
         this IDbContextFactory dbFactory, FuturesEodDataV2ReadModel e)
-        => await dbFactory.MarketDataDb.InsertFuturesEodDataAsync(e);
+        => await (dbFactory.MarketDataDb.InsertFuturesEodDataAsync(e)).ConfigureAwait(false);
 
     /// <summary>
     /// Inserts a VIX futures EOD data record into the database.
@@ -115,7 +112,7 @@ internal static class FuturesEodDataDbContext
     /// <param name="e">The VIX futures tick data read model to persist.</param>
     internal static async ValueTask InsertVixFuturesEodDataAsync(
         this IDbContextFactory dbFactory, FuturesTickDataV2ReadModel e)
-        => await dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e);
+        => await (dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e)).ConfigureAwait(false);
 
     static FuturesEodDataV2ReadModel MapToFuturesEodData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
@@ -139,13 +136,6 @@ internal static class FuturesEodDataDbContext
             priceVolatility: e.GetEnum<PriceVolatilityType>(17),
             marketDirectionIndicator: e.GetDouble(18),
             windowSize: e.GetInt(19)
-        );
-
-    static FuturesEodClosingPriceReadModel MapToFuturesEodClosingPrice<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
-            symbol: e.GetString(0),
-            valueDate: e.GetDateOnly(1),
-            closingPrice: e.GetDecimal(2)
         );
 
     static VixFuturesEodDataReadModel MapToVixFuturesEodData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord

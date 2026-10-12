@@ -24,8 +24,7 @@ public static class FuturesBollingerBandHistoryCalculator
         int maximumDays)
     {
         ArgumentNullException.ThrowIfNull(observations);
-        if (maximumDays <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maximumDays));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumDays);
 
         var ordered = observations
             .Where(observation => observation.IsComplete

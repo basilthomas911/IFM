@@ -69,25 +69,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             UpdatedOn = this.UpdatedOn,
             UpdatedBy = this.UpdatedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradePlanForwardLossLimitWarningUpdatedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradePlanForwardLossLimitWarningUpdatedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record TradePlanForwardLossLimitWarningUpdatedCompleteEvent : CompleteEvent
-    {
-        public TradePlanForwardLossLimitReadModel TradePlanForwardLossLimit { get; init; }
-        public DateTime UpdatedOn { get; init; }
-        public string UpdatedBy { get; init; }
-
-    }
-
-    public record TradePlanForwardLossLimitWarningUpdatedFailEvent : ErrorEvent
-    {
+        }
     }
 }

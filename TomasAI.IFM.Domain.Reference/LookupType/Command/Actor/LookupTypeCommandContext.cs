@@ -9,9 +9,9 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 
 /// <summary>Provides the typed runtime context used by <see cref="LookupTypeCommandActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class LookupTypeCommandContext :
     CommandActorContext,
-    ICommandActorContext<LookupTypeCommandActor>,
     ILookupTypeCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;

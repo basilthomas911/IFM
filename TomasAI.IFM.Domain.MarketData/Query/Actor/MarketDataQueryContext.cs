@@ -10,26 +10,8 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="MarketDataQueryActor"/>.</summary>
-public interface IMarketDataQueryContext : IQueryActorContext<MarketDataQueryActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<MarketDataQueryActor> Logger { get; }
-    /// <summary>Gets the API process's authoritative futures-session state.</summary>
-    IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
-    /// <summary>Gets provider-backed market metadata.</summary>
-    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
-    QualifiedCompositionDiscovery? CompositionDiscovery { get; }
-    ICompositionMarketDataApi? CompositionMarketData { get; }
-    DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
-    TreasuryPublicationPolicy? TreasuryPublication { get; }
-    TreasuryRateConversionPolicy? TreasuryConversion { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="MarketDataQueryActor"/>.</summary>
-public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorContext<MarketDataQueryActor>, IMarketDataQueryContext
+public sealed class MarketDataQueryContext : QueryActorContext, IMarketDataQueryContext
 {
     /// <summary>Initializes the context.</summary>
     public MarketDataQueryContext(
@@ -42,7 +24,8 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
         ICompositionMarketDataApi? compositionMarketData = null,
         DatasetWorkerAdmissionRegistry? workerAdmissions = null,
         TreasuryPublicationPolicy? treasuryPublication = null,
-        TreasuryRateConversionPolicy? treasuryConversion = null)
+        TreasuryRateConversionPolicy? treasuryConversion = null,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector? ivCollector = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
@@ -54,6 +37,7 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
         WorkerAdmissions = workerAdmissions;
         TreasuryPublication = treasuryPublication;
         TreasuryConversion = treasuryConversion;
+        IvCollector = ivCollector;
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
@@ -68,4 +52,5 @@ public sealed class MarketDataQueryContext : QueryActorContext, IQueryActorConte
     public DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
     public TreasuryPublicationPolicy? TreasuryPublication { get; }
     public TreasuryRateConversionPolicy? TreasuryConversion { get; }
+    public TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector? IvCollector { get; }
 }

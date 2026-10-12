@@ -20,12 +20,14 @@ public static class RetireParameterVersion
     /// <returns>The command acceptance or business failure.</returns>
     public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this RetireParameterVersionCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Retire);
         var hash = ParameterMutationModel.RequestHash(command);
         if (state.Operations.TryGetValue(command.CommandId, out var previous))
         {
-            if (previous != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+            if (!string.Equals(previous,hash,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         if (!state.Versions.TryGetValue(command.Version, out var selected)) throw new InvalidOperationException("PARAM.NOT_FOUND");
@@ -36,7 +38,7 @@ public static class RetireParameterVersion
             var scope = WorkflowParameterScopeModel.Create(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id, horizon);
             var identity = new ParameterAssignmentEntityId(WorkflowParameterScopeModel.AssignmentId(scope));
             var address = new AssignParameterVersionCommand { EntityId = identity, Scope = scope, Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, identity.Format()) };
-            var usage = await context.Assignments.LoadStateAsync(address);
+            var usage = await (context.Assignments.LoadStateAsync(address)).ConfigureAwait(false);
             assigned |= usage.Assignment is { Enabled: true } current && current.Reference == selected.Reference;
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply RetireParameterVersion event";

@@ -74,6 +74,9 @@ public sealed record GetDatabaseBackupLogQuery : IDatabaseBackupQuery, IQuery<Da
     [IgnoreMember] public string Verb => "GetBackupLog";
 
     /// <summary>Applies the established validation rules to the canonical payload.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
     public void Validate()
     {
         DatabaseBackupQueryRules.Validate(this);

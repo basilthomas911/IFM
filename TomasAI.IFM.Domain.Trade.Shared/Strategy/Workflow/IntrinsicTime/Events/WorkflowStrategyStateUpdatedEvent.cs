@@ -55,8 +55,7 @@ public sealed record WorkflowStrategyStateUpdatedEvent : IEvent<IntrinsicTimeStr
                     or Pipeline.RiskManagement.RiskFinancialHandoffPhase.Consumed or Pipeline.RiskManagement.RiskFinancialHandoffPhase.ConsumePending
                     or Pipeline.RiskManagement.RiskFinancialHandoffPhase.Submitted) return null;
             var result = State.RiskManagement.Result?.RiskResult;
-            var target = State.Status == WorkflowStrategyMachineStatus.TimedOut ? "Expired" :
-                result?.Outcome == Pipeline.RiskManagement.RiskAssessmentOutcome.Rejected ? "RiskRejected" : "Cancelled";
+            var target = (State.Status == WorkflowStrategyMachineStatus.TimedOut) switch { true => "Expired", false => (result?.Outcome == Pipeline.RiskManagement.RiskAssessmentOutcome.Rejected) switch { true => "RiskRejected", false => "Cancelled" } };
             return new(CommandId, Id, WorkflowId.Value, candidate.PortfolioId, candidate.FundId, checked((int)candidate.OrderId),
                 State.OrderComposition.Result!.PayloadSha256, target, result?.ResultId ?? Guid.Empty,
                 result is null ? "" : Pipeline.RiskManagement.RiskContracts.Hash(result),

@@ -14,6 +14,7 @@ public static class FuturesAtrWilderSignalFactory
         FuturesTradeSessionBarReadModel observation,
         FuturesAtrWilderResult result)
     {
+        ArgumentNullException.ThrowIfNull(signalId);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentNullException.ThrowIfNull(result);
         var atr = result.AtrValue ?? 0m;

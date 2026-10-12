@@ -20,7 +20,7 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
     public const string ActorName = "FuturesOptionTickDataRealtime";
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
-    protected IFuturesOptionTickDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesOptionTickDataRealtimeContext, nameof(actorContext))!;
+    protected IFuturesOptionTickDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesOptionTickDataRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId TickTradeRoute = new(
         ActorType.Realtime,
@@ -47,12 +47,14 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
 
     protected override ValueTask OnStartup(IEventActorContext<FuturesOptionTickDataRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(TickTradeRoute, Id);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask OnShutdown(IEventActorContext<FuturesOptionTickDataRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -64,19 +66,19 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
 
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
-        IEvent domainEvent)
+        IEvent @event)
     {
         ArgumentNullException.ThrowIfNull(context);
-        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
-        _ = await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        _ = await handler(@event, RealtimeContext).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         ActorThreadId threadId,
-        IEvent domainEvent,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
+        IEvent @event,
+        Exception ex) =>
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands.Validation;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 public class FuturesItiMDIDistributionValidationRules : BaseValidationRules, IValidationRules<FuturesItiMDIDistributionReadModel>
 {
     static readonly FuturesItiMDIDistributionValidator Validator = new();
@@ -18,7 +19,8 @@ public class FuturesItiMDIDistributionValidationRules : BaseValidationRules, IVa
     public ValidationError[] Execute(FuturesItiMDIDistributionReadModel model)
         => Validate(model, Validator);
 
-    class FuturesItiMDIDistributionValidator : AbstractValidator<FuturesItiMDIDistributionReadModel>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
+    sealed class FuturesItiMDIDistributionValidator : AbstractValidator<FuturesItiMDIDistributionReadModel>
     {
         public FuturesItiMDIDistributionValidator()
         {
@@ -46,6 +48,8 @@ public class FuturesItiMDIDistributionValidationRules : BaseValidationRules, IVa
                 .WithMessage(DownTrendingLimitErrorMsg);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Return aggregated validation failures for malformed external models rather than allowing exceptions to escape.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The validation diagnostic intentionally identifies the validated model property.")]
         public override ValidationResult Validate(ValidationContext<FuturesItiMDIDistributionReadModel> context)
         {
             try

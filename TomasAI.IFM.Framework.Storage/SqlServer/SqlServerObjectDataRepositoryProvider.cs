@@ -44,6 +44,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
 
     public SqlServerObjectDataRepositoryProvider(IObjectRepositoryContext ctx, ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         _ctx = ctx;
         _connectionIdentity = RepositoryConnectionIdentity.Get(ctx.Repository);
     }
@@ -52,36 +53,38 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// execute command 
     /// </summary>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Validation and persistence orchestration remain together to preserve execution ordering.")]
     public async Task<long[]> ExecuteCommandAsync(IObjectRepositoryContext ctx, Action<string> onInfoMessage = null)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         var status = new List<long>();
         var cmd = _ctx.Repository.InTransaction() as SqlCommand;
         if (cmd is not null)
         {
-            await ExecuteSqlCommandAsync(cmd);
+            await (ExecuteSqlCommandAsync(cmd)).ConfigureAwait(false);
             return status.ToArray();
         }
         using (var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString))
         {
             if (onInfoMessage is null)
-                await conn.OpenAsync();
+                await (conn.OpenAsync()).ConfigureAwait(false);
             else
             {
                 conn.FireInfoMessageEventOnUserErrors = true;
-                await conn.OpenAsync();
+                await (conn.OpenAsync()).ConfigureAwait(false);
                 conn.InfoMessage += (sender, e) => onInfoMessage(e.Message);
             }
             if (_ctx.UseTransaction)
-                await UseTransactionAsync(conn);
+                await (UseTransactionAsync(conn)).ConfigureAwait(false);
             else
-                await UseNoTransactionAsync(conn);
-            conn.Close();
+                await (UseNoTransactionAsync(conn)).ConfigureAwait(false);
+            await conn.CloseAsync().ConfigureAwait(false);
         }
         return status.ToArray();
 
         async Task UseTransactionAsync(SqlConnection conn)
         {
-            using (var tx = conn.BeginTransaction())
+            using (var tx = (SqlTransaction)await conn.BeginTransactionAsync().ConfigureAwait(false))
             {
                 var cmd = default(SqlCommand);
                 try
@@ -89,13 +92,13 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                     using (cmd = conn.CreateCommand())
                     {
                         cmd.Transaction = tx;
-                        await ExecuteSqlCommandAsync(cmd);
+                        await (ExecuteSqlCommandAsync(cmd)).ConfigureAwait(false);
                     }
-                    tx.Commit();
+                    await tx.CommitAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    tx.Rollback();
+                    await tx.RollbackAsync().ConfigureAwait(false);
                     var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}";
                     throw new StorageException(errorMessage, ex);
                 }
@@ -109,7 +112,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 using (cmd = conn.CreateCommand())
                 {
-                    await ExecuteSqlCommandAsync(cmd);
+                    await (ExecuteSqlCommandAsync(cmd)).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -130,14 +133,14 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                 foreach (var dbParameters in dbParametersList)
                 {
                     cmd.Parameters.Clear();
-                    if (dbParameters is not null && dbParameters.Count() > 0)
+                    if (dbParameters is not null && dbParameters.Length > 0)
                         foreach (var dbParameter in dbParameters)
                             cmd.Parameters.Add(dbParameter);
                     var returnParameter = new SqlParameter("@ReturnVal", SqlDbType.BigInt);
                     returnParameter.Direction = ParameterDirection.ReturnValue;
                     cmd.Parameters.Add(returnParameter);
-                    await cmd.ExecuteNonQueryAsync();
-                    status.Add(Convert.ToInt64(returnParameter.Value));
+                    await (cmd.ExecuteNonQueryAsync()).ConfigureAwait(false);
+                    status.Add(Convert.ToInt64(returnParameter.Value, System.Globalization.CultureInfo.InvariantCulture));
                 }
             }
             else
@@ -145,8 +148,8 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                 var returnParameter = new SqlParameter("@ReturnVal", SqlDbType.BigInt);
                 returnParameter.Direction = ParameterDirection.ReturnValue;
                 cmd.Parameters.Add(returnParameter);
-                await cmd.ExecuteNonQueryAsync();
-                status.Add(Convert.ToInt64(returnParameter.Value));
+                await (cmd.ExecuteNonQueryAsync()).ConfigureAwait(false);
+                status.Add(Convert.ToInt64(returnParameter.Value, System.Globalization.CultureInfo.InvariantCulture));
             }
         }
     }
@@ -157,10 +160,11 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         CommandType commandType,
         List<object> parameterValues)
     {
+        ArgumentNullException.ThrowIfNull(parameterValues);
         if (string.IsNullOrWhiteSpace(commandName))
-            throw new ArgumentException("ObjectDataRepository.QueueCommand: command name parameter is empty");
+            throw new ArgumentException("ObjectDataRepository.QueueCommand: command name parameter is empty",nameof(commandName));
         if (string.IsNullOrWhiteSpace(commandText))
-            throw new ArgumentException("ObjectDataRepository.QueueCommand: command text parameter is empty");
+            throw new ArgumentException("ObjectDataRepository.QueueCommand: command text parameter is empty",nameof(commandText));
         var dbParameters = GetParameters(parameterValues).FirstOrDefault();
         return new ObjectDataQueuedCommand(
             commandName,
@@ -175,16 +179,17 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// execute list of queued commands 
     /// </summary>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "Repository infrastructure executes caller-defined SQL templates with values supplied through bound command parameters; identifiers are trusted schema definitions.")]
     public async Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false)
     {
+        ArgumentNullException.ThrowIfNull(queuedCommands);
         if (queuedCommands.Count == 0)
             throw new InvalidOperationException("SqlServerObjectRepositoryProvider.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
-        var commandText = string.Empty;
         var commandLogText = string.Empty;
         using (var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString))
         {
-            await conn.OpenAsync();
-            using (var tx = conn.BeginTransaction())
+            await (conn.OpenAsync()).ConfigureAwait(false);
+            using (var tx = (SqlTransaction)await conn.BeginTransactionAsync().ConfigureAwait(false))
             {
                 try
                 {
@@ -195,29 +200,28 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                         foreach (ObjectDataQueuedCommand queuedCommand in queuedCommands)
                         {
                             if (string.IsNullOrWhiteSpace(queuedCommand.CommandText))
-                                throw new ArgumentException("SqlServerObjectRepositoryProvider.ExecuteQueuedCommandsAsync: command text parameter is empty");
+                                throw new ArgumentException("SqlServerObjectRepositoryProvider.ExecuteQueuedCommandsAsync: command text parameter is empty",nameof(queuedCommands));
                             cmd.CommandType = queuedCommand.CommandType;
                             cmd.CommandText = queuedCommand.CommandText;
-                            commandText = cmd.CommandText;
                             commandLogText = queuedCommand.CommandLogText;
                             cmd.Parameters.Clear();
                             if (queuedCommand.Parameters != null && queuedCommand.Parameters.Length > 0)
                                 foreach (var spParameter in queuedCommand.Parameters)
                                     cmd.Parameters.Add(spParameter);
-                            await cmd.ExecuteNonQueryAsync();
+                            await (cmd.ExecuteNonQueryAsync()).ConfigureAwait(false);
                         }
                     }
-                    tx.Commit();
+                    await tx.CommitAsync().ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    tx.Rollback();
+                    await tx.RollbackAsync().ConfigureAwait(false);
                     while (ex.InnerException != null) ex = ex.InnerException;
                     var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteQueuedCommandAsync: {commandLogText} {ex.Message}";
                     throw new StorageException(errorMessage, ex);
                 }
             }
-            conn.Close();
+            await conn.CloseAsync().ConfigureAwait(false);
         }
     }
 
@@ -233,7 +237,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
             conn.Open();
             try
             {
-                using (var bulkCopy = new SqlBulkCopy(conn as SqlConnection))
+                using (var bulkCopy = new SqlBulkCopy(conn))
                 {
                     var bulkInsertParameters = GetBulkInsertParameters();
                     bulkCopy.DestinationTableName = bulkInsertParameters.tableName;
@@ -310,14 +314,13 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 if (paramValue == null) continue;
                 paramProps = paramProps ?? paramValue.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
-                var dbParameters = new List<IDbDataParameter>();
                 foreach (var propInfo in paramProps)
                 {
                     var propValue = propInfo.GetValue(paramValue);
                     switch (propInfo.Name)
                     {
                         case "tableName":
-                            bulkInsertParameters.tableName = Convert.ToString(propValue);
+                            bulkInsertParameters.tableName = Convert.ToString(propValue, System.Globalization.CultureInfo.InvariantCulture);
                             break;
                         case "sourceDataReader":
                             bulkInsertParameters.sourceDataReader = propValue as IDataReader;
@@ -335,7 +338,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     /// <param name="value">parameter value</param>
     /// <returns></returns>
-    DbType GetDbTypeFromParameterValue(object value)
+    static DbType GetDbTypeFromParameterValue(object value)
     {
         var valueType = value.GetType();
         return GetDbTypeFromParameterValue(valueType);
@@ -346,7 +349,8 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     /// <param name="valueType">parameter value type</param>
     /// <returns></returns>
-    DbType GetDbTypeFromParameterValue(Type parameterValueType)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
+    static DbType GetDbTypeFromParameterValue(Type parameterValueType)
     {
         if (_dbTypeMap.TryGetValue(parameterValueType, out var dbType))
             return dbType;
@@ -362,42 +366,50 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         cmd.Parameters.Clear();
         if (_ctx.ParameterValues.Count == 1)
         {
-            foreach (var p in GetParameters())
-            {
-                foreach (var e in p)
-                    cmd.Parameters.Add(e);
-                break;
-            }
+            var parameters = GetParameters().FirstOrDefault();
+            if (parameters is not null)
+                foreach (var parameter in parameters)
+                    cmd.Parameters.Add(parameter);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2953", Justification = "Retains the existing provider cleanup API; operations own and dispose their resources within each call.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     public void Dispose()
     {
+        // Provider owns no persistent resource; each operation disposes its connection and command.
     }
 
     /// <summary>
     /// Asynchronously streams mapped rows while keeping the connection and reader scoped to the enumerator.
     /// Disposing the enumerator releases both resources, including when enumeration stops early.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S4456", Justification = "Async enumeration intentionally validates at enumeration start, before opening or scheduling any provider operation.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async IAsyncEnumerable<TResult> StreamObjectsAsync<TResult>(
         IObjectRepositoryContext ctx,
         Func<IObjectDataRecord, TResult> dataMapper,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException("SqlServerObjectRepositoryProvider.StreamObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException("SqlServerObjectRepositoryProvider.StreamObjectsAsync: only single parameter value accepted");
 
         cancellationToken.ThrowIfCancellationRequested();
-        await using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
+        var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
+        await using var connDisposal = conn.ConfigureAwait(false);
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var cmd = conn.CreateCommand();
+        var cmd = conn.CreateCommand();
+        await using var cmdDisposal = cmd.ConfigureAwait(false);
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        await using var dataReader = await cmd.ExecuteReaderAsync(
+        var dataReader = await cmd.ExecuteReaderAsync(
             CommandBehavior.CloseConnection,
             cancellationToken).ConfigureAwait(false);
+        await using var dataReaderDisposal = dataReader.ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
 
         while (await dataReader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -408,21 +420,24 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Executes a query asynchronously and maps the results to a collection using an <see cref="IObjectDataRecord"/>
     /// mapper, eliminating intermediate <c>object[]</c> allocation and value-type boxing.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<ICollection<TResult>> GetObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetObjectsAsync: only single parameter value accepted");
         using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
+        await (conn.OpenAsync()).ConfigureAwait(false);
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        using var dataReader = await (cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection)).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         List<TResult> resultSet = [];
-        while (dataReader.Read())
+        while (await dataReader.ReadAsync().ConfigureAwait(false))
             resultSet.Add(dataMapper(record));
         return resultSet;
     }
@@ -431,21 +446,24 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// Executes a query asynchronously and maps the results to a read-only list using an <see cref="IObjectDataRecord"/>
     /// mapper, returning an immutable collection of value types.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public async Task<IReadOnlyList<TResult>> GetImmutableObjectsAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper) where TResult : struct
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetImmutableObjectsAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetImmutableObjectsAsync: only single parameter value accepted");
         using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
+        await (conn.OpenAsync()).ConfigureAwait(false);
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        using var dataReader = await (cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection)).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         List<TResult> resultSet = [];
-        while (dataReader.Read())
+        while (await dataReader.ReadAsync().ConfigureAwait(false))
             resultSet.Add(dataMapper(record));
         return resultSet;
     }
@@ -456,18 +474,19 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     public async Task<TResult?> GetObjectAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> dataMapper)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (dataMapper is null)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetObjectAsync: dataMapper parameter is null");
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetObjectAsync: only single parameter value accepted");
         using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
+        await (conn.OpenAsync()).ConfigureAwait(false);
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        using var dataReader = await (cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection)).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
-        if (dataReader.Read())
+        if (await dataReader.ReadAsync().ConfigureAwait(false))
             return dataMapper(record);
         return default;
     }
@@ -477,16 +496,18 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     public async Task<TScalar> GetScalarAsync<TScalar>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TScalar> dataMapper) where TScalar : struct
     {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dataMapper);
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"SqlServerObjectRepositoryProvider.GetScalarAsync: only single parameter value accepted");
         using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
+        await (conn.OpenAsync()).ConfigureAwait(false);
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        using var dataReader = await (cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection)).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
-        if (dataReader.Read())
+        if (await dataReader.ReadAsync().ConfigureAwait(false))
             return dataMapper(record);
         return default;
     }
@@ -496,6 +517,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// </summary>
     public async ValueTask ExecuteMapReduceAsync<TResult>(IObjectRepositoryContext ctx, Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer)
     {
+        ArgumentNullException.ThrowIfNull(ctx);
         if (mapper is null)
             throw new StorageException($"SqlServerObjectRepositoryProvider.ExecuteMapReduceAsync: mapper parameter is null");
         if (reducer is null)
@@ -503,11 +525,11 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (ctx.ParameterValues.Count > 1)
             throw new StorageException($"SqlServerObjectRepositoryProvider.ExecuteMapReduceAsync: only single parameter value accepted");
         using var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString);
-        await conn.OpenAsync();
+        await (conn.OpenAsync()).ConfigureAwait(false);
         using var cmd = conn.CreateCommand();
         ctx.SetCommand(cmd);
         SetParameters(cmd);
-        using var dataReader = await cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection);
+        using var dataReader = await (cmd.ExecuteReaderAsync(CommandBehavior.CloseConnection)).ConfigureAwait(false);
         var record = new AdoNetDataRecord().SetReader(dataReader);
         reducer.Invoke(MapReduce());
 

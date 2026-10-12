@@ -12,8 +12,11 @@ public static class GetDatabentoCurrentContracts
     /// <summary>Returns all current Databento contract assignments.</summary>
     public static async ValueTask ExecuteAsync(this GetDatabentoCurrentContractsQuery query, IMarketDataFeedQueryContext context, MarketDataFeedQueryParameters parameters)
     {
-        var values = await parameters.MarketDataServiceStore.ListAssignmentsAsync();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<DatabentoContractAssignmentReadModel[]>([.. values.Select(DatabentoQueryModel.MapAssignment)]));
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        var values = await (parameters.MarketDataServiceStore.ListAssignmentsAsync()).ConfigureAwait(false);
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<DatabentoContractAssignmentReadModel[]>([.. values.Select(DatabentoQueryModel.MapAssignment)]))).ConfigureAwait(false);
     }
 }

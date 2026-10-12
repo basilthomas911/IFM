@@ -26,7 +26,7 @@ public record FuturesItiSignalEntityId : IActorEntityId
     [JsonIgnore]
     public DateOnly TimeFrameStartValueDate => ValueDate;
 
-    /// <summary>
+    /// <summary>Provides the documented analytics model operation.</summary>
     public FuturesItiSignalEntityId() { }
 
     /// <summary>
@@ -51,9 +51,9 @@ public record FuturesItiSignalEntityId : IActorEntityId
     public static FuturesItiSignalEntityId Create(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
         => new(contractId, valueDate, timePeriod);
 
-    /// <summary>
+    /// <summary>Provides the documented analytics model operation.</summary>
     public string Format() => string.Create(null, stackalloc char[80], $"{ContractId}.{ValueDate:yyyyMMdd}.{TimePeriod}");
 
-    /// <summary>
+    /// <summary>Provides the documented analytics model operation.</summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 }

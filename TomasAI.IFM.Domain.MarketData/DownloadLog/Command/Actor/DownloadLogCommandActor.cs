@@ -26,15 +26,16 @@ public sealed class DownloadLogCommandActor(ICommandActorContext<DownloadLogComm
     /// <inheritdoc />
     protected override async ValueTask OnStartup(ICommandActorContext<DownloadLogCommandActor> context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
         _stateRepository = context.Container.Resolve<IEventSourceActorStateRepository<DownloadLogCommandState>>();
         try { await eventProjector.StartAsync(context, cancellationToken).ConfigureAwait(false); }
-        catch { await eventProjector.StopAsync().ConfigureAwait(false); throw; }
+        catch { await eventProjector.StopAsync(CancellationToken.None).ConfigureAwait(false); throw; }
     }
     /// <inheritdoc />
     protected override ValueTask OnShutdown(ICommandActorContext<DownloadLogCommandActor> context)
         => eventProjector.StopAsync();
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, ICommand>>
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         { [InsertMarketDataDownloadLogCommand.Verb] = static message => message.AsCommand<InsertMarketDataDownloadLogCommand>()! }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
@@ -83,5 +84,10 @@ public sealed class DownloadLogCommandActor(ICommandActorContext<DownloadLogComm
         => _stateRepository.SaveStateAsync(context, (DownloadLogCommandState)state, command, cancellationToken);
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<DownloadLogCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
-        => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
+    }
 }

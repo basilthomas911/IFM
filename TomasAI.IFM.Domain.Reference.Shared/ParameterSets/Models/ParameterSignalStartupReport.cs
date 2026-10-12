@@ -1,12 +1,6 @@
 using MessagePack;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
-// Preparation evidence never implies that a signal is warm or fresh.
-public enum ParameterSignalPreparationStatus { NotRequested = 0, ExistingRoute = 1, Accepted = 2, Failed = 3, TimedOut = 4, MarketClosed = 5, Cancelled = 6 }
-[MessagePackObject]
-public sealed record ParameterSignalPreparationOutcome(
- [property: Key(0)] ParameterSignalProducerKey Key,
- [property: Key(1)] ParameterSignalPreparationStatus Status,
- [property: Key(2)] string Detail);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "The published serialization contract uses arrays; preserve its wire shape.")]
 [MessagePackObject]
 public sealed record ParameterSignalStartupReport(
  [property: Key(0)] Guid RunId,

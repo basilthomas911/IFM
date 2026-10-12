@@ -2,7 +2,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using System;
 using System.Collections.Generic;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Validation;

@@ -21,7 +21,10 @@ public static class GetOnTheRunFuturesContract
         this GetOnTheRunFuturesContractQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? dbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(q.Symbol, cancellationToken)
-            : dbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(q.Symbol));
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return new(dbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(q.Symbol, cancellationToken));
+    }
 }

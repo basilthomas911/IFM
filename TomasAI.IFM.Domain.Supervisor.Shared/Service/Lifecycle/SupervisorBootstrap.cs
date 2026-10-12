@@ -12,13 +12,16 @@ public sealed class SupervisorBootstrap(
     IActorRegistry registry,
     IActorFactory factory,
     ActorRuntimeStartupOptions options,
-    ILogger<SupervisorBootstrap> logger) : ISupervisorBootstrap
+    ILogger<SupervisorBootstrap> logger) : ISupervisorBootstrap, IDisposable
 {
     readonly IActorSupervisor _actorSupervisor = actorSupervisor ?? throw new ArgumentNullException(nameof(actorSupervisor));
     readonly IActorRegistry _registry = registry ?? throw new ArgumentNullException(nameof(registry));
     readonly IActorFactory _factory = factory ?? throw new ArgumentNullException(nameof(factory));
     readonly ActorRuntimeStartupOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
     readonly ILogger<SupervisorBootstrap> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    /// <summary>Releases the host lifetime gate after managed actor shutdown has finished.</summary>
+    public void Dispose() => _gate.Dispose();
+
     readonly SemaphoreSlim _gate = new(1, 1);
     IActor[] _actors = [];
     int _running;
@@ -27,9 +30,11 @@ public sealed class SupervisorBootstrap(
     public bool IsRunning => Volatile.Read(ref _running) != 0;
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "The published snapshot property returns a defensive copy to prevent readers mutating current supervisor state.")]
     public IReadOnlyList<ActorType> ActorTypes => _actors.Select(static actor => actor.Id.ActorType).ToArray();
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One lifecycle operation owns its gate, stage diagnostics, rollback, and final release; keep this orchestration boundary together.")]
     public async ValueTask<SupervisorActorsStartupResult> StartSupervisorAsync(CancellationToken cancellationToken)
     {
         var operationId = Guid.NewGuid();
@@ -100,6 +105,8 @@ public sealed class SupervisorBootstrap(
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One lifecycle operation owns its gate, stage diagnostics, rollback, and final release; keep this orchestration boundary together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S5034", Justification = "AsTask consumes this ValueTask exactly once; subsequent timeout waits consume the resulting Task.")]
     public async ValueTask<SupervisorActorsShutdownResult> StopSupervisorAsync(CancellationToken cancellationToken)
     {
         var operationId = Guid.NewGuid();
@@ -220,8 +227,8 @@ public sealed class SupervisorBootstrap(
 
     void TryLogFailure(Guid operationId, string stage, Exception exception)
     {
-        try { _logger.LogError(exception, "Supervisor bootstrap {OperationId} failed at {Stage}.", operationId, stage); }
-        catch (Exception loggingException) when (IsRecoverable(loggingException)) { }
+        try { global::TomasAI.IFM.Domain.Supervisor.Shared.PersistenceDiagnosticLog.Write3(_logger, exception, operationId, stage); }
+        catch (Exception loggingException) when (IsRecoverable(loggingException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     static string Bound(string value) => value.Length <= 1024 ? value : value[..1024];

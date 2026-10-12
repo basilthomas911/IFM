@@ -12,9 +12,9 @@ public static class FuturesTdiSignalGeneratedFail
         this FuturesTdiSignalGeneratedFailEvent failed,
         IFuturesTdiSignalRealtimeContext context)
     {
-        context.Logger.LogError(
-            "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-            failed.EventName, failed.EntityId, failed.ErrorMessage);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(failed);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write41(context.Logger, null, failed.EventName, failed.EntityId, failed.ErrorMessage);
         return ValueTask.FromResult(true);
     }
 }

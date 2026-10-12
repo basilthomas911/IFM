@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Text;
@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Framework.Storage
     /// object repository transaction
     /// </summary>
     /// <typeparam name="TRepo"></typeparam>
-    public class ObjectDataRepositoryTransaction
+    public static class ObjectDataRepositoryTransaction
     {
         public static IObjectRepositoryTransaction<TRepo>? Create<TRepo>(string providerName) where TRepo : IObjectRepository
         {

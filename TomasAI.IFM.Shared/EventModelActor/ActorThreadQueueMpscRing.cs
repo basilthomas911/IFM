@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
-    readonly object retirementGate = new();
+    readonly System.Threading.Lock retirementGate = new();
     int processingOwner;
     bool IScheduledActorThreadQueue.TryClaimProcessing()
     {
@@ -24,14 +24,15 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
     void IScheduledActorThreadQueue.ReleaseProcessing() => Volatile.Write(ref processingOwner, 0);
 
     const int DefaultCapacity = 8192;
-    const int Created = 0;
     const int Active = 1;
     const int Retiring = 2;
     const int Retired = 3;
 
-    readonly object _startLock = new();
+    readonly System.Threading.Lock _startLock = new();
     readonly int _capacity;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Immediate mailbox retirement leaves the semaphore reachable by outstanding waiters until they finish; disposing it synchronously would race them.")]
     readonly SemaphoreSlim _slots;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Immediate mailbox retirement leaves the semaphore reachable by outstanding waiters until they finish; disposing it synchronously would race them.")]
     readonly SemaphoreSlim _itemAvailable;
     readonly ActorAdmissionController _admissionController;
     BoundedMpscRingBuffer<QueuedActorMessage>? _ring;
@@ -208,7 +209,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
             if (_admissionController.Mode == ActorAdmissionMode.Enforce)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!_slots.Wait(0))
+                if (!_slots.Wait(0, cancellationToken))
                     return RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
             }
             else
@@ -242,7 +243,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
             if (_admissionController.Mode == ActorAdmissionMode.Enforce)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var result = _slots.Wait(0)
+                var result = _slots.Wait(0, cancellationToken)
                     ? PublishReserved(message, charge)
                     : RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
                 Interlocked.Decrement(ref _writers);
@@ -288,8 +289,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
 
     static async ValueTask AwaitAccepted(ValueTask<bool> pending)
     {
-        if (!await pending.ConfigureAwait(false))
-            throw new ObjectDisposedException(nameof(ActorThreadQueueMpscRing));
+        ObjectDisposedException.ThrowIf(!await pending.ConfigureAwait(false), typeof(ActorThreadQueueMpscRing));
     }
 
     async ValueTask<bool> AwaitCompatibilityWrite(
@@ -391,6 +391,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
         lock (retirementGate) return CompleteDrainCore();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
     bool CompleteDrainCore()
     {
         Volatile.Write(ref processingOwner, 0);
@@ -401,6 +402,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
         return Count != 0 && Interlocked.CompareExchange(ref _scheduled, 1, 0) == 0;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
     bool IScheduledActorThreadQueue.TryRetire()
     {
         if (Volatile.Read(ref _scheduled) != 0 || Count != 0)
@@ -429,8 +431,7 @@ public sealed class ActorThreadQueueMpscRing : IActorThreadQueue, IScheduledActo
         {
             if (_lifecycle == Active)
                 return;
-            if (_lifecycle == Retired)
-                throw new ObjectDisposedException(nameof(ActorThreadQueueMpscRing));
+            ObjectDisposedException.ThrowIf(_lifecycle == Retired, typeof(ActorThreadQueueMpscRing));
 
             _ring = new BoundedMpscRingBuffer<QueuedActorMessage>(_capacity);
             Volatile.Write(ref _lifecycle, Active);

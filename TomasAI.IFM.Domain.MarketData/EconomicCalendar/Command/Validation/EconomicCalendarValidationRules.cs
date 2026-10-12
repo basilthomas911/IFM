@@ -24,14 +24,11 @@ public class EconomicCalendarValidationRules : BaseValidationRules, IValidationR
             RuleFor(x => x.CountryCode).NotEmpty().WithMessage(CountryCodeErrorMessage);
             RuleFor(x => x.EventName).NotEmpty().WithMessage(EventNameErrorMessage);
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation targets a member of the request, but ParamName intentionally identifies the containing method argument so callers can identify the rejected request.")] 
         public override ValidationResult Validate(ValidationContext<EconomicCalendarReadModel> context)
         {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
+            ArgumentNullException.ThrowIfNull(context);
+            if (context.InstanceToValidate is null)
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("EconomicCalendar", InstanceErrorMessage));

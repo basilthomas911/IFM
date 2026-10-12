@@ -48,9 +48,10 @@ public partial class OptionContractId
         try
         {
             MaturityDate = new DateTime(
-                year: int.Parse(maturityDateMatch.Value.Substring(0, 4)),
-                month: int.Parse(maturityDateMatch.Value.Substring(4, 2)),
-                day: int.Parse(maturityDateMatch.Value.Substring(6, 2)));
+                year: int.Parse(maturityDateMatch.Value.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture),
+                month: int.Parse(maturityDateMatch.Value.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture),
+                day: int.Parse(maturityDateMatch.Value.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture),
+                hour: 0, minute: 0, second: 0, kind: DateTimeKind.Unspecified);
         }
         catch
         {
@@ -60,7 +61,7 @@ public partial class OptionContractId
 
     private void SetOptionType(Match optionTypeMatch)
     {
-        switch (optionTypeMatch.Value.ToUpper())
+        switch (optionTypeMatch.Value.ToUpperInvariant())
         {
             case "C":
                 OptionType = OptionType.Call;
@@ -77,7 +78,7 @@ public partial class OptionContractId
     {
         try
         {
-            StrikePrice = int.Parse(strikePriceMatch.Value);
+            StrikePrice = int.Parse(strikePriceMatch.Value, System.Globalization.CultureInfo.InvariantCulture);
         }
         catch
         {
@@ -85,5 +86,5 @@ public partial class OptionContractId
         }
     }
 
-    public static Regex MyRegex() => new Regex("([a-zA-Z]+)|([0-9]{8})|([a-zA-Z]{1})|([0-9]+)", RegexOptions.Singleline);
+    public static Regex MyRegex() => new Regex("([a-zA-Z]+)|([0-9]{8})|([a-zA-Z]{1})|([0-9]+)", RegexOptions.Singleline | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
 }

@@ -24,7 +24,7 @@ public abstract class AbstractTrade(
     public TradeType TradeType { get; private set; } = tradeType;
     public TradeState TradeState { get; private set; } = tradeState;
     public TradeAction TradeAction { get; private set; } = tradeAction;
-    public string UnderlyingContractId { get; private set; } = (underlyingContractId ?? string.Empty).Replace("\r\n", "").Trim();
+    public string UnderlyingContractId { get; private set; } = (underlyingContractId ?? string.Empty).Replace("\r\n", "", StringComparison.Ordinal).Trim();
     public AssetType UnderlyingAssetType { get; private set; } = underlyingAssetType;
     public bool IsPrimaryTrade { get; private set; } = isPrimaryTrade;
     public bool IsHedgeTrade { get; private set; } = isHedgeTrade;

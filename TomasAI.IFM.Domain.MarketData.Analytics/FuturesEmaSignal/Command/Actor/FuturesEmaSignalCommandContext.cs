@@ -7,20 +7,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Actor;
 
-/// <summary>Defines readonly services required by the EMA command actor.</summary>
-public interface IFuturesEmaSignalCommandContext : ICommandActorContext<FuturesEmaSignalCommandActor>
-{
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesEmaSignalCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<FuturesEmaSignalCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the typed EMA command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesEmaSignalCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesEmaSignalCommandActor>, IFuturesEmaSignalCommandContext
+IFuturesEmaSignalCommandContext
 {
     /// <summary>Initializes the context.</summary>
     public FuturesEmaSignalCommandContext(IActorSupervisor supervisor,

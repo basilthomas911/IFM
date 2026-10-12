@@ -21,12 +21,8 @@ internal static class DatabentoNativeLibraryResolver
             ? "x64"
             : throw new PlatformNotSupportedException(
                 $"Databento native runtime supports x64 only, not {RuntimeInformation.ProcessArchitecture}.");
-        var operatingSystem = OperatingSystem.IsWindows()
-            ? "win"
-            : OperatingSystem.IsLinux()
-                ? "linux"
-                : throw new PlatformNotSupportedException(
-                    "Databento native runtime supports Windows and Linux only.");
+        var operatingSystem = (OperatingSystem.IsWindows()) switch { true => "win", false => (OperatingSystem.IsLinux()) switch { true => "linux", false => throw new PlatformNotSupportedException(
+                    "Databento native runtime supports Windows and Linux only.") } };
         return $"{operatingSystem}-{architecture}";
     }
 
@@ -39,12 +35,8 @@ internal static class DatabentoNativeLibraryResolver
         {
             throw new ArgumentException("The runtime identifier is invalid.", nameof(runtimeIdentifier));
         }
-        var fileName = runtimeIdentifier.StartsWith("win-", StringComparison.Ordinal)
-            ? LibraryName + ".dll"
-            : runtimeIdentifier.StartsWith("linux-", StringComparison.Ordinal)
-                ? "lib" + LibraryName + ".so"
-                : throw new PlatformNotSupportedException(
-                    $"Databento native runtime '{runtimeIdentifier}' is not supported.");
+        var fileName = (runtimeIdentifier.StartsWith("win-", StringComparison.Ordinal)) switch { true => LibraryName + ".dll", false => (runtimeIdentifier.StartsWith("linux-", StringComparison.Ordinal)) switch { true => "lib" + LibraryName + ".so", false => throw new PlatformNotSupportedException(
+                    $"Databento native runtime '{runtimeIdentifier}' is not supported.") } };
         return Path.GetFullPath(Path.Combine(
             baseDirectory,
             "runtimes",

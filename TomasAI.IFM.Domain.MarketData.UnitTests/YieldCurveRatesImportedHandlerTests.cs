@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -63,11 +65,9 @@ public sealed class YieldCurveRatesImportedHandlerTests
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
         result.Should().BeTrue();
-        await db.Received(1).InsertYieldCurveRatesAsync(
-            Arg.Is<YieldCurveRateReadModel[]>(rows =>
-                rows.Length == 1 && rows[0].ValueDate == date && rows[0].OneMonth == 1d),
-            ImportDuplicatePolicy.Reject,
-            request.CommandId);
+        await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
+            Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
         completed.Should().NotBeNull();
         completed!.CommandId.Should().Be(request.CommandId);
         completed.YieldCurveRates.Should().ContainSingle();
@@ -87,10 +87,9 @@ public sealed class YieldCurveRatesImportedHandlerTests
         await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<YieldCurveRateEventActor>.Instance);
 
-        await db.Received(1).InsertYieldCurveRatesAsync(
-            Arg.Is<YieldCurveRateReadModel[]>(rows => rows.Length == 0),
-            ImportDuplicatePolicy.Overwrite,
-            request.CommandId);
+        await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
+            Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceiveWithAnyArgs().InsertYieldCurveRatesAsync(default!, default, default);
         await context.Received(1).SendAsync<YieldCurveRatesImportedCompleteEvent, YieldCurveRateEntityId>(
             Arg.Is<YieldCurveRatesImportedCompleteEvent>(value => value.YieldCurveRates.Length == 0));
     }
@@ -161,6 +160,7 @@ public sealed class YieldCurveRatesImportedHandlerTests
                 Arg.Any<ImportDuplicatePolicy>(),
                 Arg.Any<Guid>())
             .Returns(Task.CompletedTask);
+        PostgresImportBoundary.Configure(dbFactory, context);
         return (api, treasury, dbFactory, db, context);
     }
 

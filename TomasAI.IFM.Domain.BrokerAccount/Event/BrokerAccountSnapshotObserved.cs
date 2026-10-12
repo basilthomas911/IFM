@@ -14,6 +14,9 @@ public static class BrokerAccountSnapshotObserved
         IBrokerAccountEventContext context,
         ILogger<BrokerAccountEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(observed);
         try
         {
             var command = new RecordBrokerAccountSnapshotCommand
@@ -35,9 +38,13 @@ public static class BrokerAccountSnapshotObserved
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,
-                "Broker account snapshot handoff failed for {EventId}, {CommandId}, {EntityId}.",
-                observed.Id, observed.CommandId, observed.EntityId);
+            
+            var diagnosticLogger = logger;
+            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
+            {
+                global::TomasAI.IFM.Domain.BrokerAccount.StorageMigrationDiagnosticLog.Write2(diagnosticLogger, exception, observed.Id, observed.CommandId, observed.EntityId);
+            }
+        
             throw;
         }
     }

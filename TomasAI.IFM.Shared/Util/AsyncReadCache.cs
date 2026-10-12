@@ -3,7 +3,7 @@ namespace TomasAI.IFM.Shared.Util;
 /// <summary>Coalesces bounded reads of versioned data; failures and missing values are never retained.</summary>
 public sealed class AsyncReadCache<TKey, TValue> where TKey : notnull where TValue : class
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<TKey, Entry> entries = new();
     readonly int capacity;
     readonly TimeSpan lifetime;
@@ -14,7 +14,7 @@ public sealed class AsyncReadCache<TKey, TValue> where TKey : notnull where TVal
     public AsyncReadCache(int capacity, TimeSpan lifetime, TimeProvider? clock = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
-        if (lifetime <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(lifetime));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lifetime, TimeSpan.Zero);
         this.capacity = capacity;
         this.lifetime = lifetime;
         this.clock = clock ?? TimeProvider.System;

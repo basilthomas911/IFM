@@ -84,13 +84,3 @@ public static class FuturesBbAccumulator
         return (decimal)Math.Sqrt((double)variance);
     }
 }
-
-/// <summary>Contains one Bollinger state transition.</summary>
-public sealed record FuturesBbAccumulatorResult(
-    FuturesBbAccumulatorCheckpoint FuturesBbCheckpoint,
-    FuturesBbSignalReadModel? FuturesBbSignal,
-    MarketObservationApplicationDisposition Disposition)
-{
-    /// <summary>Gets whether this transition advanced durable state.</summary>
-    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
-}

@@ -13,7 +13,10 @@ public static class GetDatabaseRecoveryObjectiveCompliance
     /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
     public static async ValueTask ExecuteAsync(this GetDatabaseRecoveryObjectiveComplianceQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupQueryActor> context, CancellationToken cancellationToken)
     {
-        var result = await dbContext.GetRecoveryObjectiveComplianceAsync(query, cancellationToken);
-        await DatabaseBackupQueryReply.RequiredAsync(context, query, result);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await (dbContext.GetRecoveryObjectiveComplianceAsync(query, cancellationToken)).ConfigureAwait(false);
+        await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
     }
 }

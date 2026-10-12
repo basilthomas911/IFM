@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,23 +19,4 @@ public enum TradeState
     OrderSubmitted,
     Open,
     Closed
-}
-
-public static class TradeStateExtensions
-{
-    public static string ToStringFast(this TradeState value) => value switch
-    {
-        TradeState.Closed => nameof(TradeState.Closed),
-        TradeState.Open => nameof(TradeState.Open),
-        TradeState.NewTrade => nameof(TradeState.NewTrade),
-        TradeState.OrderPlaced => nameof(TradeState.OrderPlaced),
-        TradeState.OrderPartiallyFilled => nameof(TradeState.OrderPartiallyFilled),
-        TradeState.OrderFilled => nameof(TradeState.OrderFilled),
-        TradeState.OrderCancelled => nameof(TradeState.OrderCancelled),
-        TradeState.TradeToOpen => nameof(TradeState.TradeToOpen),
-        TradeState.TradeToClose => nameof(TradeState.TradeToClose),
-        TradeState.OrderCompleted => nameof(TradeState.OrderCompleted),
-        TradeState.OrderSubmitted => nameof(TradeState.OrderSubmitted),
-        _ => value.ToString()
-    };
 }

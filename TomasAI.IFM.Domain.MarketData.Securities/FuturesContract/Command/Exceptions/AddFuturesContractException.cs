@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
 /// <remarks>This exception is typically used to signal failures during the process of adding a futures contract
 /// in command-handling scenarios. It also provides functionality to convert the exception into an error event for
 /// event-driven error reporting.</remarks>
-public class AddFuturesContractException : ApplicationException, IErrorEventConverter
+public class AddFuturesContractException : Exception, IErrorEventConverter
 {
     public AddFuturesContractException()
     {
@@ -27,7 +27,10 @@ public class AddFuturesContractException : ApplicationException, IErrorEventConv
     }
 
     public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null)
-        => new FuturesContractAddedFailEvent
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return new FuturesContractAddedFailEvent
         {
             Subject = command.Subject,
             CommandId = command.CommandId,
@@ -40,6 +43,7 @@ public class AddFuturesContractException : ApplicationException, IErrorEventConv
             AggregateId = command.StreamId,
             CommandData = JsonConvert.SerializeObject(command, Formatting.Indented)
         };
+    }
 
 
 };

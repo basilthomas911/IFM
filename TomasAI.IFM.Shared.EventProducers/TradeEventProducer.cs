@@ -43,6 +43,7 @@ public class TradeEventProducer : NatsEventProducer, ITradeEventProducer
     /// </summary>
     /// <param name="event"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "One exhaustive typed-event publication switch defines the producer routing contract.")]
     public override async Task PostEventAsync(IEvent @event)
     {
         @event.SetEventSource($"{EventTopic.TradeEvents}");
@@ -114,6 +115,6 @@ public class TradeEventProducer : NatsEventProducer, ITradeEventProducer
             OptionTradeDeletedEvent e => SendEventAsync(e.TradeId, e),
             CommandExceptionEvent e => StreamEventAsync(e.CommandId, e),
             _ => Task.CompletedTask
-        });
+        }).ConfigureAwait(false);
     }
 }

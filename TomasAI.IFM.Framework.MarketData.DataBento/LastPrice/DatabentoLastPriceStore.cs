@@ -12,7 +12,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
 {
     private readonly ConcurrentDictionary<string, Slot> _slots =
         new(StringComparer.Ordinal);
-    private readonly object _registrationSync = new();
+    private readonly System.Threading.Lock _registrationSync = new();
     private int _active = 1;
 
     /// <summary>Initializes a new DatabentoLastPriceStore instance.</summary>
@@ -20,12 +20,9 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     /// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
     public DatabentoLastPriceStore(DateOnly valueDate, int capacity)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
-        if (capacity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-
-        ValueDate = valueDate;
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+ValueDate = valueDate;
         Capacity = capacity;
     }
 
@@ -37,11 +34,12 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     /// <summary>Registers a contract in the value-date-specific last-price store.</summary>
     /// <param name="contractId">The futures or option contract identifier.</param>
     /// <param name="assetTypeId">The asset type identifying futures or futures options.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public void RegisterContract(
         string contractId,
         AssetTypeId assetTypeId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId, nameof(contractId));
         if (assetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
             throw new ArgumentOutOfRangeException(nameof(assetTypeId));
         ThrowIfInactive();
@@ -138,6 +136,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
     /// epoch-scoped reader handles registered for those contracts.
     /// </summary>
     /// <param name="contractIds">The contract ids.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public void ResetContracts(IEnumerable<string> contractIds)
     {
         ArgumentNullException.ThrowIfNull(contractIds);
@@ -145,7 +144,7 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
 
         foreach (var contractId in contractIds.Distinct(StringComparer.Ordinal))
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+            ArgumentException.ThrowIfNullOrWhiteSpace(contractId, nameof(contractIds));
             if (_slots.TryGetValue(contractId, out var slot))
                 slot.Reset();
         }
@@ -182,9 +181,10 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         TryGetWritableSlot(contractId, valueDate, out slot)
         && slot.AssetTypeId == AssetTypeId.FuturesOption;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     private void ValidateIdentity(string contractId, DateOnly valueDate)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId, nameof(contractId));
         if (valueDate != ValueDate)
             throw new ArgumentException(
                 $"Value date {valueDate:yyyy-MM-dd} does not match store epoch {ValueDate:yyyy-MM-dd}.",
@@ -193,13 +193,12 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
 
     private void ThrowIfInactive()
     {
-        if (!IsActive)
-            throw new ObjectDisposedException(nameof(DatabentoLastPriceStore));
+        ObjectDisposedException.ThrowIf(!IsActive, this);
     }
 
     private sealed class Slot
     {
-        private readonly object _writeSync = new();
+        private readonly System.Threading.Lock _writeSync = new();
         private int _version;
         private bool _active = true;
         private bool _hasTrade;

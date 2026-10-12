@@ -1,4 +1,7 @@
 using System.Collections.Immutable;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Shared.EventSourcing;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
@@ -24,10 +27,22 @@ public sealed class FuturesBarDataEventProjector(
         Describe<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(
             static _ => Task.CompletedTask, useDurableReplay: false),
         Describe<FuturesBarDataInsertedEvent, FuturesBarDataInsertedCompleteEvent, FuturesBarDataInsertedFailEvent, FuturesBarDataId>(
-            e => actorContext.DbFactory.MarketDataDb.InsertFuturesBarDataAsync(e.FuturesBarData)),
+            e => string.Equals(actorContext.DbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)
+                ? Task.CompletedTask : actorContext.DbFactory.MarketDataDb.InsertFuturesBarDataAsync(e.FuturesBarData))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token)),
         Describe<FuturesBarDataDeletedEvent, FuturesBarDataDeletedCompleteEvent, FuturesBarDataDeletedFailEvent, FuturesBarDataId>(
-            e => actorContext.DbFactory.MarketDataDb.DeleteFuturesBarDataAsync(e.BarDataId))
+            e => string.Equals(actorContext.DbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)
+                ? Task.CompletedTask : actorContext.DbFactory.MarketDataDb.DeleteFuturesBarDataAsync(e.BarDataId))
+            .WithReadModelRebuild((source,token) => RebuildAsync(actorContext,source,token))
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
+    static async Task RebuildAsync(ICommandActorContext context,IEvent source,CancellationToken token)
+    {
+        await context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async(transaction,cancellation) =>
+        {
+            if (!await PostgresMarketSignalStore.TryProjectAsync(transaction,source,cancellation).ConfigureAwait(false))
+                throw new InvalidOperationException("No audited feed materialization exists for this event.");
+            return true;
+        },token).ConfigureAwait(false);
+    }
 }

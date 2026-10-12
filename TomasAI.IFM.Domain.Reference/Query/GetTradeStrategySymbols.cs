@@ -11,9 +11,11 @@ public static class GetTradeStrategySymbols
     /// <summary>Reads and replies with symbols for the requested strategy family.</summary>
     public static async ValueTask ExecuteAsync(this GetTradeStrategySymbolsQuery query, IReferenceQueryContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = context.MarketDataApi is null
             ? new ServiceFailed<TradeStrategySymbolReadModel[]>(GetTradeStrategySymbolsQuery.ErrorId, "Market-data API is unavailable.")
-            : await context.MarketDataApi.GetTradeStrategySymbolsAsync(query.Family, cancellationToken);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result);
+            : await (context.MarketDataApi.GetTradeStrategySymbolsAsync(query.Family, cancellationToken)).ConfigureAwait(false);
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result)).ConfigureAwait(false);
     }
 }

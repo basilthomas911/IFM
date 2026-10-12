@@ -17,8 +17,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Projector;
 public sealed class TickAggregationRealtimeProjector
     : BaseRealtimeProjector<TickAggregationRealtimeActor>
 {
-    readonly IDbContextFactory dbFactory;
-    readonly LivePipelineEvidence healthEvidence;
     TickStorageGenerationEvidence? generationEvidence;
     readonly ImmutableArray<RealtimeProjectionDescriptor> _descriptors;
 
@@ -32,8 +30,8 @@ public sealed class TickAggregationRealtimeProjector
         ILogger<TickAggregationRealtimeProjector> logger, LivePipelineEvidence healthEvidence,
         TickStorageGenerationEvidence? generationEvidence) : base(logger)
     {
-        this.dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
-        this.healthEvidence = healthEvidence ?? throw new ArgumentNullException(nameof(healthEvidence));
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(healthEvidence);
         this.generationEvidence = generationEvidence;
         _descriptors =
         [
@@ -41,12 +39,22 @@ public sealed class TickAggregationRealtimeProjector
             FuturesTickTradeDataInsertedEvent,
             FuturesTickTradeDataInsertedCompleteEvent,
             FuturesTickTradeDataInsertedFailEvent,
-            TickDataEntityId>(async (e, _) =>
-            {
+            TickDataEntityId>((e, _) => PersistTradeAsync(e, dbFactory, healthEvidence)),
+        Describe<
+            FuturesTickQuoteDataInsertedEvent,
+            FuturesTickQuoteDataInsertedCompleteEvent,
+            FuturesTickQuoteDataInsertedFailEvent,
+            TickDataEntityId>((e, _) => PersistQuoteAsync(e, dbFactory, healthEvidence))
+        ];
+    }
+
+    /// <summary>Persists a normalized trade observation directly to TradeTickQuoteDb and records recovery evidence only after the write succeeds.</summary>
+    async ValueTask PersistTradeAsync(FuturesTickTradeDataInsertedEvent e, IDbContextFactory dbFactory, LivePipelineEvidence healthEvidence)
+    {
                 try
                 {
-                    await dbFactory.MarketDataDb.InsertTickTradeDataAsync(e).ConfigureAwait(false);
-                    if (e.SourceDataset == e.Dataset && e.SourceGenerationId != Guid.Empty)
+                    await dbFactory.TradeTickQuoteDb.InsertTickTradeDataAsync(e).ConfigureAwait(false);
+                    if (string.Equals(e.SourceDataset,e.Dataset,StringComparison.Ordinal) && e.SourceGenerationId != Guid.Empty)
                         Volatile.Read(ref this.generationEvidence)?.Record(e.SourceDataset, e.SourceGenerationId);
                     healthEvidence.Record(
                         "Tick storage",
@@ -68,17 +76,15 @@ public sealed class TickAggregationRealtimeProjector
                         $"Durable trade tick write failed ({exception.GetType().Name}).");
                     throw;
                 }
-            }),
-        Describe<
-            FuturesTickQuoteDataInsertedEvent,
-            FuturesTickQuoteDataInsertedCompleteEvent,
-            FuturesTickQuoteDataInsertedFailEvent,
-            TickDataEntityId>(async (e, _) =>
-            {
+    }
+
+    /// <summary>Persists a normalized quote observation directly to TradeTickQuoteDb and records recovery evidence only after the write succeeds.</summary>
+    async ValueTask PersistQuoteAsync(FuturesTickQuoteDataInsertedEvent e, IDbContextFactory dbFactory, LivePipelineEvidence healthEvidence)
+    {
                 try
                 {
-                    await dbFactory.MarketDataDb.InsertTickQuoteDataAsync(e).ConfigureAwait(false);
-                    if (e.SourceDataset == e.Dataset && e.SourceGenerationId != Guid.Empty)
+                    await dbFactory.TradeTickQuoteDb.InsertTickQuoteDataAsync(e).ConfigureAwait(false);
+                    if (string.Equals(e.SourceDataset,e.Dataset,StringComparison.Ordinal) && e.SourceGenerationId != Guid.Empty)
                         Volatile.Read(ref this.generationEvidence)?.Record(e.SourceDataset, e.SourceGenerationId);
                     healthEvidence.Record(
                         "Tick storage",
@@ -100,8 +106,6 @@ public sealed class TickAggregationRealtimeProjector
                         $"Durable quote tick write failed ({exception.GetType().Name}).");
                     throw;
                 }
-            })
-        ];
     }
 
     public override string ActorName => TickAggregationRealtimeActor.ActorName;
@@ -117,6 +121,4 @@ public sealed class TickAggregationRealtimeProjector
     }
     public override IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors =>
         _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        _descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

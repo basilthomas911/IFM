@@ -19,6 +19,8 @@ public static class GenerateFuturesAtrDailySignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAtrDailySignalCommand command, FuturesAtrSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         command.Compute(state.FuturesAtrCheckpoint, out var futuresAtrSignalChange);
         if (futuresAtrSignalChange.Accepted && !futuresAtrSignalChange.HasChanged)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

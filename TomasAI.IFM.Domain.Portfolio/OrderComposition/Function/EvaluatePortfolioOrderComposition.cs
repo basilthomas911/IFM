@@ -14,6 +14,8 @@ public static class EvaluatePortfolioOrderComposition
         Func<FunctionEventContext<EvaluatePortfolioOrderCompositionCommand>, FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>> dispatch,
         CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dispatch);
         token.ThrowIfCancellationRequested();
         FinancialRequestValidation.Demand(request, "OrderCompositionEvaluate", context.TimeProvider.GetUtcNow().UtcDateTime);
         return ValueTask.FromResult(dispatch(new(typeof(PortfolioOrderCompositionCompletedEvent), request, new PortfolioOrderCompositionReceipt())));

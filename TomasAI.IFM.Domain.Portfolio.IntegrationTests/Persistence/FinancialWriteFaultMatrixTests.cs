@@ -75,6 +75,8 @@ public sealed class FinancialWriteFaultMatrixTests(PortfolioEventStoreFixture fi
     }
     sealed class WriteFaultTransaction : IPostgresEventTransaction
     {
+        public Task<T> ExecuteOnceAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation, CancellationToken token = default)
+            => Transactions().ExecuteOnceAsync(async (db, ct) => { await db.ExecuteAsync("SET LOCAL ifm.qualification_write_failure='enabled';", [], ct); return await operation(db, ct); }, token);
         public Task<T> ExecuteAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation, CancellationToken token = default)
             => Transactions().ExecuteAsync(async (db, ct) => { await db.ExecuteAsync("SET LOCAL ifm.qualification_write_failure='enabled';", [], ct); return await operation(db, ct); }, token);
     }

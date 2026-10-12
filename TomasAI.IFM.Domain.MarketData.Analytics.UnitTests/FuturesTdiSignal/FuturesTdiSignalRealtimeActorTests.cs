@@ -124,6 +124,7 @@ public sealed class FuturesTdiSignalRealtimeActorTests
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var logger = Substitute.For<ILogger<FuturesTdiSignalRealtimeActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         return new TestableFuturesTdiSignalRealtimeActor(
             new FuturesTdiSignalRealtimeContext(supervisor, projector, dbFactory, logger));
     }

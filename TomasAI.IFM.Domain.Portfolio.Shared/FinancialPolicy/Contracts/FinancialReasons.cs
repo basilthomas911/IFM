@@ -49,14 +49,3 @@ public static class FinancialReasons
         _ => throw new ArgumentOutOfRangeException(nameof(code))
     };
 }
-
-/// <summary>A classified refusal carries whether this attempt changed financial authority.</summary>
-public sealed class FinancialOperationException(int code, string message,
-    FinancialCommitDisposition disposition = FinancialCommitDisposition.NotCommitted, Guid? existingOperationId = null)
-    : Exception(message)
-{
-    public int Code { get; } = code;
-    public string Reason => FinancialReasons.Name(Code);
-    public FinancialCommitDisposition Disposition { get; } = disposition;
-    public Guid? ExistingOperationId { get; } = existingOperationId;
-}

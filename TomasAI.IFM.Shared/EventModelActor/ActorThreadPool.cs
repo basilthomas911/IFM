@@ -29,13 +29,14 @@ public class ActorThreadPool(IActorSupervisor context, ILogger logger)
     /// <summary>
     /// Initializes the thread pool with the specified number of threads.
     /// </summary>
-    /// <param name="initialThreadCount">The number of threads to create and add to the thread pool. Must be greater than zero.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="initialThreadCount"/> is less than or equal to zero.</exception>
-    public IActorThreadPool Initialize(int initialThreadCount)
+    /// <param name="threadCount">The number of threads to create and add to the thread pool. Must be greater than zero.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="threadCount"/> is less than or equal to zero.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the actor pool or detached observer, which releases resources after processing exits instead of waiting during recovery.")]
+    public IActorThreadPool Initialize(int threadCount)
     {
-        if (initialThreadCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(initialThreadCount), "Initial thread count must be greater than zero.");
-        for (int i = 0; i < initialThreadCount; i++)
+        if (threadCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(threadCount), "Initial thread count must be greater than zero.");
+        for (int i = 0; i < threadCount; i++)
         {
             var thread = new ActorThread(this, _logger, _defaultTimeout);
             _threadPool.Enqueue(thread);

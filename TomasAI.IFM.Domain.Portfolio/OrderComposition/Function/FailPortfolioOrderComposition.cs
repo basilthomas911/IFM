@@ -10,6 +10,8 @@ public static class FailPortfolioOrderComposition
     public static FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> Fail(
         this FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input, TimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
         var request = input.Request; var now = clock.GetUtcNow().UtcDateTime;
         var detail = input.Exception?.ToString() ?? (input.IsConflict ? "A completed operation exists with different input." : "Portfolio order composition failed.");
         return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Fail(new()

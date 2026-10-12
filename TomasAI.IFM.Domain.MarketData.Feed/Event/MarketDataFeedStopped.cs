@@ -18,9 +18,8 @@ public static class MarketDataFeedStopped
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// 
     /// </summary>
     /// <param name="e"></param>
@@ -32,21 +31,24 @@ public static class MarketDataFeedStopped
         IEventActorContext eventApi,
         MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"MarketDataFeedStoppedEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataLifecycle.StopAsync(e.ValueDate);
+            await (p.MarketDataLifecycle.StopAsync(e.ValueDate)).ConfigureAwait(false);
 
-            await eventApi.SendMarketDataFeedStoppedCompleteAsync(e);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed stopped");
+            await (eventApi.SendMarketDataFeedStoppedCompleteAsync(e)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed stopped")).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}: market data feed stopped", source);
             return true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed stop failed", source);
-            await eventApi.SendMarketDataFeedStoppedFailAsync(e, ex);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
+            await (eventApi.SendMarketDataFeedStoppedFailAsync(e, ex)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

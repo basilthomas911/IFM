@@ -68,12 +68,12 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
         var stateFactory = Substitute.For<IEventSourceActorStateFactory>();
         stateFactory.CreateState<FuturesTradeSessionBarSignalCommandState>().Returns(state);
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
-        eventSource.GetEventStreamIdAsync(command.StreamId).Returns(streamId);
+        eventSource.GetEventStreamIdAsync(command.StreamId, CancellationToken.None).Returns(streamId);
         eventSource.MapReduceActorEventStreamAsync<
                 FuturesTradeSessionBarSignalCommandState,
                 FuturesTradeSessionBarPublishedEvent>(
                 streamId,
-                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>())
+                Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None)
             .Returns(call =>
             {
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()([
@@ -103,8 +103,8 @@ public sealed class FuturesTradeSessionBarSignalStateRepositoryTests
             FuturesTradeSessionBarSignalCommandState,
             FuturesTradeSessionBarPublishedEvent>(
             streamId,
-            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>());
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), CancellationToken.None);
         await eventSource.DidNotReceiveWithAnyArgs().MapReduceActorEventStreamAsync<
-            FuturesTradeSessionBarSignalCommandState>(default, default!);
+            FuturesTradeSessionBarSignalCommandState>(default, default!, CancellationToken.None);
     }
 }

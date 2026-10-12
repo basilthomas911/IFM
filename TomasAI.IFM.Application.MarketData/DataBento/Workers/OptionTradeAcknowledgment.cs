@@ -7,6 +7,7 @@ public static class OptionTradeAcknowledgment
 {
     public static async ValueTask WriteAsync(Stream stream, long sequence, Guid generation, bool retained, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         var frame = new byte[25];
         BinaryPrimitives.WriteInt64LittleEndian(frame, sequence);
         generation.TryWriteBytes(frame.AsSpan(8, 16));
@@ -16,6 +17,7 @@ public static class OptionTradeAcknowledgment
     }
     public static async ValueTask ReadAsync(Stream stream, long sequence, Guid generation, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         var frame = new byte[25];
         await stream.ReadExactlyAsync(frame, token).ConfigureAwait(false);
         if (BinaryPrimitives.ReadInt64LittleEndian(frame) != sequence || new Guid(frame.AsSpan(8, 16)) != generation

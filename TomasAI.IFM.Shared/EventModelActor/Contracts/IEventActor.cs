@@ -16,8 +16,11 @@ public interface IEventActor<TActor> : IActor<TActor>
 {
     ValueTask OnStartup(IEventActorContext<TActor> context);
     ValueTask OnShutdown(IEventActorContext<TActor> context);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask OnExceptionAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 }
 

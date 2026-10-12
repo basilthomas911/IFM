@@ -4,17 +4,12 @@ using System.Runtime.InteropServices;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
-[StructLayout(LayoutKind.Explicit, Size = 128)]
-internal struct MpscPaddedPosition
-{
-    [FieldOffset(64)] public long Value;
-}
-
 /// <summary>
 /// Allocation-free bounded multi-producer ring with sequence-stamped slots and a scheduler-serialized consumer.
 /// </summary>
 internal sealed class BoundedMpscRingBuffer<T> where T : struct
 {
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     struct Slot
     {
         public long Sequence;

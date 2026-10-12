@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Npgsql;
+using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -39,43 +41,48 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
             PRIMARY KEY ((snapshot_id,dataset,root,options),instrument_key));
         """;
     const string Insert = """
-        INSERT INTO instrument_definition (snapshot_id,dataset,bucket,record_index,publisher_id,instrument_id,raw_symbol,asset,instrument_class,currency,exchange,definition_json)
-        VALUES (:snapshot,:dataset,:bucket,:record_index,:publisher,:instrument,:raw,:asset,:class,:currency,:exchange,:json);
+        INSERT INTO reference.instrument_definition (snapshot_id,dataset,bucket,record_index,publisher_id,instrument_id,raw_symbol,asset,instrument_class,currency,exchange,definition_json)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(snapshot_id,dataset,bucket,record_index) DO UPDATE SET publisher_id=EXCLUDED.publisher_id,instrument_id=EXCLUDED.instrument_id,raw_symbol=EXCLUDED.raw_symbol,asset=EXCLUDED.asset,instrument_class=EXCLUDED.instrument_class,currency=EXCLUDED.currency,exchange=EXCLUDED.exchange,definition_json=EXCLUDED.definition_json;
         """;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertAsync(Guid snapshot, long index, ExactInstrumentDefinition row, CancellationToken cancellationToken)
     {
-        if (snapshot == Guid.Empty || index < 0) throw new ArgumentException("A snapshot and nonnegative record index are required.");
+        ArgumentNullException.ThrowIfNull(row);
+        if (snapshot == Guid.Empty || index < 0) throw new ArgumentException("A snapshot and nonnegative record index are required.",nameof(snapshot));
         await db.Use("InstrumentDefinition.Insert", Insert).SetParameters(new Parameters([
-            snapshot, row.Dataset, (int)(index % BucketCount), index, (int)row.PublisherId, (long)row.InstrumentId,
-            row.RawSymbol, row.Asset, row.InstrumentClass, row.Currency, row.Exchange, row.Json])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            Uuid(snapshot), Text(row.Dataset), Integer((int)(index % BucketCount)), Bigint(index), Integer((int)row.PublisherId), Bigint((long)row.InstrumentId),
+            Text(row.RawSymbol), Text(row.Asset), Text(row.InstrumentClass), Text(row.Currency), Text(row.Exchange), Text(row.Json)])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
     public async Task<InstrumentDefinitionSnapshot?> GetSnapshotAsync(CancellationToken cancellationToken)
-        => (await db.Use("InstrumentDefinition.Snapshot", "SELECT snapshot_id,completed_utc,record_count,datasets_json FROM instrument_definition_snapshot WHERE catalog='current';")
+        => (await db.Use("InstrumentDefinition.Snapshot", "SELECT snapshot_id,completed_utc,record_count,datasets_json FROM reference.instrument_definition_snapshot WHERE catalog='current';")
             .ExecuteQueryAsync(row => new InstrumentDefinitionSnapshot(row.GetGuid(0), row.GetDateTime(1), row.GetLong(2), JsonSerializer.Deserialize<string[]>(row.GetString(3))!), cancellationToken).ConfigureAwait(false)).SingleOrDefault();
 
     public async Task PublishAsync(InstrumentDefinitionSnapshot snapshot, IReadOnlyCollection<TradeStrategyProduct> products, CancellationToken cancellationToken)
     {
-        if (snapshot.Id == Guid.Empty || snapshot.RecordCount <= 0 || products.Count == 0) throw new ArgumentException("Cannot publish an empty instrument-definition snapshot.");
+        ArgumentNullException.ThrowIfNull(products);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Id == Guid.Empty || snapshot.RecordCount <= 0 || products.Count == 0) throw new ArgumentException("Cannot publish an empty instrument-definition snapshot.",nameof(snapshot));
         // Preserve the stable product IDs already referenced by saved trade strategy families.
         await Parallel.ForEachAsync(products.Distinct(), new ParallelOptions { MaxDegreeOfParallelism = 16, CancellationToken = cancellationToken }, async (product, token) =>
         {
             var symbol = await symbols.GetOrCreateAsync(product, token).ConfigureAwait(false);
             if (symbol != product.WithId(symbol.Id) || symbol.Validate().Count != 0) throw new InvalidOperationException("Stored symbol does not match the definition product.");
-            await db.Use("InstrumentDefinition.Product", "INSERT INTO instrument_definition_product(snapshot_id,family,symbol,exchange,currency,symbol_id) VALUES(:snapshot,:family,:symbol,:exchange,:currency,:id);")
-                .SetParameters(new Parameters([snapshot.Id, (int)product.Family, product.Symbol, product.Exchange, product.Currency, symbol.Id])).ExecuteCommandAsync(token).ConfigureAwait(false);
+            await db.Use("InstrumentDefinition.Product", "INSERT INTO reference.instrument_definition_product(snapshot_id,family,symbol,exchange,currency,symbol_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(snapshot_id,family,symbol,exchange,currency) DO UPDATE SET symbol_id=EXCLUDED.symbol_id;")
+                .SetParameters(new Parameters([Uuid(snapshot.Id), Integer((int)product.Family), Text(product.Symbol), Text(product.Exchange), Text(product.Currency), Integer(symbol.Id)])).ExecuteCommandAsync(token).ConfigureAwait(false);
         }).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         // Readers continue using the previous complete snapshot until every definition and product is durable.
         await db.Use("InstrumentDefinition.SelectionComplete",
-                "INSERT INTO instrument_definition_selection_status(snapshot_id,complete) VALUES(:snapshot,true);")
-            .SetParameters(new Parameters([snapshot.Id])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-        await db.Use("InstrumentDefinition.Publish", "INSERT INTO instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',:snapshot,:completed,:count,:datasets);")
-            .SetParameters(new Parameters([snapshot.Id, snapshot.CompletedUtc, snapshot.RecordCount, JsonSerializer.Serialize(snapshot.Datasets)])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+                "INSERT INTO reference.instrument_definition_selection_status(snapshot_id,complete) VALUES($1,true) ON CONFLICT(snapshot_id) DO UPDATE SET complete=true;")
+            .SetParameters(new Parameters([Uuid(snapshot.Id)])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        await db.Use("InstrumentDefinition.Publish", "INSERT INTO reference.instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',$1,$2,$3,$4) ON CONFLICT(catalog) DO UPDATE SET snapshot_id=EXCLUDED.snapshot_id,completed_utc=EXCLUDED.completed_utc,record_count=EXCLUDED.record_count,datasets_json=EXCLUDED.datasets_json;")
+            .SetParameters(new Parameters([Uuid(snapshot.Id), TimestampTz(snapshot.CompletedUtc), Bigint(snapshot.RecordCount), Text(JsonSerializer.Serialize(snapshot.Datasets))])).ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
     public async Task<TradeStrategySymbolReadModel[]> GetSymbolsAsync(Guid snapshot, TradeStrategyFamilyType family, CancellationToken cancellationToken)
     {
-        var rows = await db.Use("InstrumentDefinition.Symbols", "SELECT symbol_id,symbol,currency,exchange FROM instrument_definition_product WHERE snapshot_id=:snapshot AND family=:family;")
-            .SetParameters(new Parameters([snapshot, (int)family]))
+        var rows = await db.Use("InstrumentDefinition.Symbols", "SELECT symbol_id,symbol,currency,exchange FROM reference.instrument_definition_product WHERE snapshot_id=$1 AND family=$2 ORDER BY symbol,exchange,currency;")
+            .SetParameters(new Parameters([Uuid(snapshot), Integer((int)family)]))
             .ExecuteQueryAsync(row => new TradeStrategyProduct(family, row.GetString(1), row.GetString(2), row.GetString(3)).WithId(row.GetInt(0)), cancellationToken).ConfigureAwait(false);
         return rows.ToArray();
     }
@@ -85,45 +92,50 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
     public IAsyncEnumerable<string> ReadJsonAsync(Guid snapshot, string dataset, int bucket, CancellationToken cancellationToken = default)
     {
         if (bucket is < 0 or >= BucketCount) throw new ArgumentOutOfRangeException(nameof(bucket));
-        return db.Use("InstrumentDefinition.ReadJson", "SELECT definition_json FROM instrument_definition WHERE snapshot_id=:snapshot AND dataset=:dataset AND bucket=:bucket;")
-            .SetParameters(new Parameters([snapshot, dataset, bucket])).ExecuteStreamAsync(row => row.GetString(0), cancellationToken);
+        return db.Use("InstrumentDefinition.ReadJson", "SELECT definition_json FROM reference.instrument_definition WHERE snapshot_id=$1 AND dataset=$2 AND bucket=$3 ORDER BY record_index;")
+            .SetParameters(new Parameters([Uuid(snapshot), Text(dataset), Integer(bucket)])).ExecuteStreamAsync(row => row.GetString(0), cancellationToken);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task IndexSelectionAsync(InstrumentDefinitionSelection value, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(value);
         if (value.SnapshotId == Guid.Empty || value.InstrumentClass is not ("F" or "C" or "P")
             || value.InstrumentId == 0 || value.PublisherId == 0 || string.IsNullOrWhiteSpace(value.Root)
             || value.DefinitionDigest.Length != 64)
-            throw new ArgumentException("Invalid provider definition index entry.");
-        var key = FormattableString.Invariant($"{value.PublisherId:D5}:{value.InstrumentId:D10}");
+            throw new ArgumentException("Invalid provider definition index entry.",nameof(value));
+        var key = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{value.PublisherId:D5}:{value.InstrumentId:D10}");
         await db.Use("InstrumentDefinition.IndexSelection", """
-                INSERT INTO instrument_definition_selection(snapshot_id,dataset,root,options,instrument_key,payload)
-                VALUES(:snapshot,:dataset,:root,:options,:key,:payload);
+                INSERT INTO reference.instrument_definition_selection(snapshot_id,dataset,root,options,instrument_key,payload)
+                VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(snapshot_id,dataset,root,options,instrument_key) DO UPDATE SET payload=EXCLUDED.payload;
                 """)
             .SetParameters(new Parameters([
-                value.SnapshotId,
-                value.Dataset,
-                value.Root,
-                value.InstrumentClass != "F",
-                key,
-                MessagePackBinarySerializer.Shared.Serialize(value)!
+                Uuid(value.SnapshotId),
+                Text(value.Dataset),
+                Text(value.Root),
+                Boolean(!string.Equals(value.InstrumentClass,"F",StringComparison.Ordinal)),
+                Text(key),
+                Bytea(MessagePackBinarySerializer.Shared.Serialize(value)!)
             ]))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public async Task<InstrumentDefinitionPage> GetSelectionPageAsync(
         InstrumentDefinitionPageRequest request,
         DateTimeOffset at,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         request.Validate();
         var snapshot = await GetSnapshotAsync(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Definition catalog unavailable. Refresh stored definitions first.");
         var indexed = await db.Use(
                 "InstrumentDefinition.SelectionStatus",
-                "SELECT complete FROM instrument_definition_selection_status WHERE snapshot_id=:snapshot;")
-            .SetParameters(new Parameters([snapshot.Id]))
+                "SELECT complete FROM reference.instrument_definition_selection_status WHERE snapshot_id=$1;")
+            .SetParameters(new Parameters([Uuid(snapshot.Id)]))
             .ExecuteQueryAsync(row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);
         if (!indexed.SingleOrDefault())
@@ -143,26 +155,26 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
             }
             catch (Exception e) when (e is FormatException or JsonException)
             {
-                throw new ArgumentException("Invalid definition page cursor.", e);
+                throw new ArgumentException("Invalid definition page cursor.", nameof(request), e);
             }
-            if (cursor is null || cursor.Fingerprint != fingerprint || cursor.After is not { Length: 16 }
+            if (cursor is null || !string.Equals(cursor.Fingerprint,fingerprint,StringComparison.Ordinal) || cursor.After is not { Length: 16 }
                 || cursor.After.Any(c => c != ':' && !char.IsAsciiDigit(c)))
-                throw new ArgumentException("Definition cursor does not match the search.");
+                throw new ArgumentException("Definition cursor does not match the search.", nameof(request));
             after = cursor.After;
         }
 
         var rows = (await db.Use("InstrumentDefinition.SelectionPage", """
-                SELECT instrument_key,payload FROM instrument_definition_selection
-                WHERE snapshot_id=:snapshot AND dataset=:dataset AND root=:root AND options=:options
-                AND instrument_key>:after LIMIT :page_limit;
+                SELECT instrument_key,payload FROM reference.instrument_definition_selection
+                WHERE snapshot_id=$1 AND dataset=$2 AND root=$3 AND options=$4
+                AND instrument_key>$5 ORDER BY instrument_key LIMIT $6;
                 """)
             .SetParameters(new Parameters([
-                snapshot.Id,
-                request.Dataset,
-                request.Root,
-                request.Options,
-                after,
-                request.PageSize + 1
+                Uuid(snapshot.Id),
+                Text(request.Dataset),
+                Text(request.Root),
+                Boolean(request.Options),
+                Text(after),
+                Integer(request.PageSize + 1)
             ]))
             .ExecuteQueryAsync(
                 row => (
@@ -171,16 +183,16 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
                 cancellationToken)
             .ConfigureAwait(false)).ToArray();
         var page = rows.Take(request.PageSize).ToArray();
-        if (page.Any(x => x.Value is null || x.Value.SnapshotId != snapshot.Id || x.Value.Dataset != request.Dataset
-            || x.Value.Root != request.Root || (x.Value.InstrumentClass != "F") != request.Options))
+        if (page.Any(x => x.Value is null || x.Value.SnapshotId != snapshot.Id || !string.Equals(x.Value.Dataset,request.Dataset,StringComparison.Ordinal)
+            || !string.Equals(x.Value.Root,request.Root,StringComparison.Ordinal) || (!string.Equals(x.Value.InstrumentClass,"F",StringComparison.Ordinal)) != request.Options))
             throw new InvalidDataException("Definition index identity conflict.");
 
         bool Matches(InstrumentDefinitionSelection x) =>
             (request.IncludeExpiredOrDeleted || !x.Deleted && x.ExpirationUtc > at && (x.ActivationUtc is null || x.ActivationUtc <= at))
-            && (request.Exchange is null || x.Exchange == request.Exchange)
+            && (request.Exchange is null || string.Equals(x.Exchange,request.Exchange,StringComparison.Ordinal))
             && (request.Expiry is null || x.ExpirationUtc is { } expiry && DateOnly.FromDateTime(expiry.UtcDateTime) == request.Expiry)
             && (request.UnderlyingInstrumentId is null || x.UnderlyingInstrumentId == request.UnderlyingInstrumentId)
-            && (request.Right == ReferenceOptionRight.Unknown || x.InstrumentClass == (request.Right == ReferenceOptionRight.Call ? "C" : "P"))
+            && (request.Right == ReferenceOptionRight.Unknown || string.Equals(x.InstrumentClass,(request.Right == ReferenceOptionRight.Call ? "C" : "P"),StringComparison.Ordinal))
             && (request.MinimumStrike is null || x.Strike >= request.MinimumStrike)
             && (request.MaximumStrike is null || x.Strike <= request.MaximumStrike);
         var next = rows.Length > request.PageSize
@@ -189,6 +201,7 @@ public sealed class InstrumentDefinitionStore(IObjectRepository db, ITradeStrate
         return new(snapshot.Id, snapshot.CompletedUtc, page.Select(x => x.Value).Where(Matches).ToArray(), next);
     }
 
-    readonly record struct Parameters(object[] Values) : IBindValue { public object Bind() => Values; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct Parameters(NpgsqlParameter[] Values) : IBindValue { public object Bind() => Values; }
     sealed record Cursor(string Fingerprint, string After);
 }

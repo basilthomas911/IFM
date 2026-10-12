@@ -38,16 +38,20 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
     /// <inheritdoc/>
     public TreasuryContinuousRateResult GetContinuouslyCompoundedAnnualRate(
         TreasuryCurveSnapshot snapshot, TreasuryTenor tenor, TreasuryRateConversionPolicy policy)
-        => policy == ConversionPolicy && snapshot.Source == Source
+        
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return policy == ConversionPolicy && string.Equals(snapshot.Source,Source,StringComparison.Ordinal)
             ? TreasuryRateConversion.Convert(snapshot, tenor, policy)
             : TreasuryContinuousRateResult.Failed("TreasuryConventionUnverified");
+    }
 
     /// <inheritdoc/>
     public async Task<TreasuryCurveSnapshot?> GetLatestAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)
     {
         var from = DateOnly.FromDayNumber(Math.Max(new DateOnly(1990, 1, 1).DayNumber, asOfDate.DayNumber - 13));
         var rows = await GetRangeAsync(from, asOfDate, cancellationToken).ConfigureAwait(false);
-        return rows.LastOrDefault();
+        return rows.Count > 0 ? rows[^1] : null;
     }
 
     /// <inheritdoc/>
@@ -63,16 +67,17 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
         {
             var result = ImmutableArray.CreateBuilder<TreasuryCurveSnapshot>();
             var lastMonth = new DateOnly(toInclusive.Year, toInclusive.Month, 1);
-            for (var month = new DateOnly(fromInclusive.Year, fromInclusive.Month, 1); ; month = month.AddMonths(1))
+            for (var month = new DateOnly(fromInclusive.Year, fromInclusive.Month, 1); month <= lastMonth; month = month.AddMonths(1))
             {
                 linked.Token.ThrowIfCancellationRequested();
                 if (!months.TryGetValue(month, out var entry) || entry.Expires <= clock.GetUtcNow())
                 {
                     var uri = $"{Endpoint}?data={Series}&field_tdr_date_value_month={month.ToString("yyyyMM", CultureInfo.InvariantCulture)}";
-                    using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
+                    using var response = await client.GetAsync(new Uri(uri), HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
                     response.EnsureSuccessStatusCode();
                     await response.Content.LoadIntoBufferAsync(1_048_576, linked.Token).ConfigureAwait(false);
-                    await using var stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false);
+                    var stream = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false);
+                    await using var streamDisposal = stream.ConfigureAwait(false);
                     using var reader = XmlReader.Create(stream, new XmlReaderSettings
                     {
                         Async = true,
@@ -99,7 +104,7 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
     static ImmutableArray<TreasuryCurveSnapshot> Parse(XDocument document, DateOnly month, DateTimeOffset retrieved)
     {
         if (document.Root?.Name != Atom + "feed") throw new InvalidDataException("Expected Treasury Atom feed.");
-        if (document.Root.Elements(Atom + "link").Any(x => (string?)x.Attribute("rel") == "next"))
+        if (document.Root.Elements(Atom + "link").Any(x => string.Equals((string?)x.Attribute("rel"),"next",StringComparison.Ordinal)))
             throw new InvalidDataException("Unexpected truncated monthly Treasury feed.");
         var rows = new SortedDictionary<DateOnly, TreasuryCurveSnapshot>();
         var entries = document.Root.Elements(Atom + "entry").ToArray();
@@ -118,7 +123,7 @@ public sealed class UsTreasuryCurve(HttpClient client, TimeProvider? timeProvide
             foreach (var (name, tenor) in Columns)
             {
                 var field = properties.Element(Data + name);
-                if (field is null || (string?)field.Attribute(Meta + "null") == "true" || string.IsNullOrWhiteSpace(field.Value)) continue;
+                if (field is null || string.Equals((string?)field.Attribute(Meta + "null"),"true",StringComparison.Ordinal) || string.IsNullOrWhiteSpace(field.Value)) continue;
                 if (!decimal.TryParse(field.Value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
                         CultureInfo.InvariantCulture, out var rate) || rate <= -200m || rate > 1000m)
                     throw new InvalidDataException($"Invalid Treasury rate: {name}.");

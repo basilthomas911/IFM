@@ -164,14 +164,12 @@ public static partial class CoreServiceRegistration
             ("SequenceIdDbConnection", "public.fn_get_next_sequence_id(text)", true)
         })
         {
-            services.AddSingleton<IRecoveryInfrastructureProbe>(_ => new PostgreSqlRecoveryInfrastructureProbe(
-            database.Name, config.GetConnectionString(database.Name)
-            ?? throw new InvalidOperationException(database.Name + " is required for recovery qualification."),
+            services.AddSingleton<IRecoveryInfrastructureProbe>(provider => new PostgreSqlRecoveryInfrastructureProbe(
+            database.Name, provider.GetRequiredService<IDbConnectionSettings>()[database.Name]!.ConnectionString,
             database.Object, database.Procedure));
         }
-        services.AddSingleton<IRecoveryInfrastructureProbe>(_ => new ScyllaRecoveryInfrastructureProbe(
-        "MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")
-        ?? throw new InvalidOperationException("MarketDataDbConnection is required for recovery qualification.")));
+        services.AddSingleton<IRecoveryInfrastructureProbe>(provider => new ScyllaRecoveryInfrastructureProbe(
+        "TradeTickQuoteDbConnection", provider.GetRequiredService<IDbConnectionSettings>()["TradeTickQuoteDbConnection"]!.ConnectionString));
         // Validate the inert recovery policies during composition, before any actor/feed starts.
         // Runtime caller migration is a separate gate; registration does not enable hard reset.
         services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:Episode")

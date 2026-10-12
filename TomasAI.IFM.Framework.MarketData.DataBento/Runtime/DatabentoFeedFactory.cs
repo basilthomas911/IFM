@@ -36,21 +36,23 @@ public sealed class DatabentoFeedFactory : IDatabentoFeedFactory
     /// <summary>Creates the contract-reference query client for the configured dataset.</summary>
     /// <param name="options">The configuration governing provider or feed operation.</param>
     /// <returns>The create market data queries result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public IDatabentoMarketDataQueries CreateMarketDataQueries(DatabentoFeedOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset, nameof(options));
         return new DatabentoMarketDataQueries(options.Dataset);
     }
 
     /// <summary>Creates the latest-price client with the configured admission limits.</summary>
     /// <param name="options">The configuration governing provider or feed operation.</param>
     /// <returns>The create latest price client result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public IDatabentoLatestPriceClient CreateLatestPriceClient(
         DatabentoFeedOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset, nameof(options));
         return new DatabentoLatestPriceClient(
             options.Dataset,
             _latestPriceAdmissionControl);

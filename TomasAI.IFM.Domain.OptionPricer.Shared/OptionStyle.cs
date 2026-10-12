@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,15 +10,5 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
     {
         American,
         European
-    }
-
-    public static class OptionStyleExtensions
-    {
-        public static string ToStringFast(this OptionStyle value) => value switch
-        {
-            OptionStyle.American => nameof(OptionStyle.American),
-            OptionStyle.European => nameof(OptionStyle.European),
-            _ => value.ToString()
-        };
     }
 }

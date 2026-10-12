@@ -41,6 +41,18 @@ public sealed record DelegateFundAllocationCommand : ICommand<PortfolioId>, ICom
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public DelegateFundAllocationCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="allocation">The Allocation command value.</param>
+    /// <param name="expectedPortfolioVersion">The ExpectedPortfolioVersion command value.</param>
+    public DelegateFundAllocationCommand(FundAllocationReadModel allocation, long expectedPortfolioVersion)
+    {
+        Allocation = allocation;
+        ExpectedPortfolioVersion = expectedPortfolioVersion;
+    }
     public const string Actor = "PortfolioCommand";
     public const string Verb = "DelegateFundAllocation";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record DelegateFundAllocationCommand : ICommand<PortfolioId>, ICom
     [IgnoreMember] public string CommandName => nameof(DelegateFundAllocationCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public DelegateFundAllocationCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="allocation">The Allocation command value.</param>
-    /// <param name="expectedPortfolioVersion">The ExpectedPortfolioVersion command value.</param>
-    public DelegateFundAllocationCommand(FundAllocationReadModel allocation, long expectedPortfolioVersion)
-    {
-        Allocation = allocation;
-        ExpectedPortfolioVersion = expectedPortfolioVersion;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

@@ -72,25 +72,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
             SubmittedOn = SubmittedOn,
             SubmittedBy = SubmittedBy
         }.RoutedFrom(this);
-        public IErrorEvent ToFailedEvent(Exception ex) => new UpdateOrderExecutedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new UpdateOrderExecutedFailEvent
         {
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         }.RoutedFrom(this);
-    }
-
-
-    public record UpdateOrderExecutedCompleteEvent : CompleteEvent
-    {
-        public TradeOrderEntityId TradeOrderId { get; init; }
-        public decimal OrderPrice { get; init; }
-        public DateTime SubmittedOn { get; init; }
-        public string SubmittedBy { get; init; }
-    }
-
-    public record UpdateOrderExecutedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

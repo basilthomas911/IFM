@@ -23,3 +23,9 @@
 **/values.dev.yaml
 LICENSE
 README.md
+# Workstation credentials, qualification downloads and agent state are not build inputs.
+.artifacts
+.aws
+.codex
+.agents
+BenchmarkDotNet.Artifacts

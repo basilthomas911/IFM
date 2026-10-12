@@ -35,27 +35,24 @@ public sealed class LedgerConfigurationCommandActor(ICommandActorContext<LedgerC
         {
             [typeof(ConfigureLedgerCommand)] = (command, owner, token) => ((ConfigureLedgerCommand)command).ExecuteAsync(owner, token),
         }.ToFrozenDictionary();
-    protected override ICommand ParseMessage(ICommandActorContext<LedgerConfigurationCommandActor> owner, IActorMessage message) => ParseMappedCommand(owner, message, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ICommand ParseMessage(ICommandActorContext<LedgerConfigurationCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
-    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, ActorThreadId threadId, ICommand command)
         => command.LoadFinancialStateAsync();
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, ICommand command, CancellationToken token)
-        => command.ReconcileFinancialDuplicateAsync(token);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, IActorState state, ICommand command)
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, ICommand command, CancellationToken cancellationToken)
+        => command.ReconcileFinancialDuplicateAsync(cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, IActorState state, ICommand command)
         => ResolveMappedCommandHandler(command, _receiveMap)(command, services, CancellationToken.None);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, IActorState state, ICommand command, CancellationToken token)
-        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, token);
-    protected override ValueTask OnStartup(ICommandActorContext<LedgerConfigurationCommandActor> owner, CancellationToken token) => services.Projector.StartAsync(owner, token);
-    protected override ValueTask OnShutdown(ICommandActorContext<LedgerConfigurationCommandActor> owner) => services.Projector.StopAsync();
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<LedgerConfigurationCommandActor> owner, ActorThreadId threadId, ICommand command, Exception exception)
-        => exception.FinancialCommandFailure(services.Logger);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, cancellationToken);
+    protected override ValueTask OnStartup(ICommandActorContext<LedgerConfigurationCommandActor> context, CancellationToken cancellationToken) => services.Projector.StartAsync(context, cancellationToken);
+    protected override ValueTask OnShutdown(ICommandActorContext<LedgerConfigurationCommandActor> context) => services.Projector.StopAsync();
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<LedgerConfigurationCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        => ex.FinancialCommandFailure(services.Logger);
 }
-
-public sealed class LedgerConfigurationCommandContext(IActorSupervisor supervisor)
-    : CommandActorContext(supervisor, new ActorMailboxId(ActorType.Command, LedgerConfigurationCommandActor.ActorName)), ICommandActorContext<LedgerConfigurationCommandActor>;
 
 

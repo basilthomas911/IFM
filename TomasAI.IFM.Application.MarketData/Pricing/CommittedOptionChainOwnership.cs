@@ -9,11 +9,13 @@ public static class CommittedOptionChainOwnership
 {
     public static WorkerOptionChainRelease Create(DurableSubscriptionSnapshot snapshot, WorkerOptionChainRequest chain)
     {
+        ArgumentNullException.ThrowIfNull(chain);
+        ArgumentNullException.ThrowIfNull(snapshot);
         var contracts = chain.Options.ToDictionary(x => x.Pricing.Contract.ContractId, x => x.Pricing.Contract, StringComparer.Ordinal);
         var leases = snapshot.Authorities.SelectMany(x => x.Leases)
             .Where(x => x.Ticker.AssetKind == SubscriptionAssetKind.FuturesOption && contracts.ContainsKey(x.Ticker.ContractId)
-                && (x.Ticker.PricingPlanId is null || x.Ticker.PricingPlanId == chain.ScopeId)).ToArray();
-        if (leases.Any(x => x.Ticker.Dataset != snapshot.Dataset || x.Ticker.UnderlyingContractId != contracts[x.Ticker.ContractId].UnderlyingContractId))
+                && (x.Ticker.PricingPlanId is null || string.Equals(x.Ticker.PricingPlanId,chain.ScopeId,StringComparison.Ordinal))).ToArray();
+        if (leases.Any(x => !string.Equals(x.Ticker.Dataset,snapshot.Dataset,StringComparison.Ordinal) || !string.Equals(x.Ticker.UnderlyingContractId,contracts[x.Ticker.ContractId].UnderlyingContractId,StringComparison.Ordinal)))
             throw new InvalidDataException("Committed ownership differs from the qualified physical contract.");
         var owners = leases.OrderBy(x => x.LeaseId).Select(x => new WorkerOptionChainOwner(x.LeaseId, [x.Ticker.ContractId])).ToImmutableArray();
         return new(chain.ScopeId, Guid.Empty, chain.GenerationId,

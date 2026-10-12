@@ -8,8 +8,8 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 {
     public class StrikePriceOffsetKey
     {
-        private MarketDirectionType _marketTrend;
-        private MarketVolatilityType _marketVolatility;
+        private readonly MarketDirectionType _marketTrend;
+        private readonly MarketVolatilityType _marketVolatility;
 
         public StrikePriceOffsetKey(MarketDirectionType marketTrend, MarketVolatilityType marketVolatility)
         {

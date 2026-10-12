@@ -21,6 +21,8 @@ public sealed record ExitOrderCompositionCompletedEvent : ICompleteEvent<ExitPos
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public ExitOrderComposition Composition { get; init; } = new();
     [Key(9)] public string RequestFingerprint { get; init; } = string.Empty;
+    /// <summary>Complete accepted stage facts; replay requires no earlier projection rows or external calls.</summary>
+    [Key(10)] public ExitPositionWorkflowProjection? Projection { get; init; }
     [IgnoreMember] public string UserName => "TradePlan";
     [IgnoreMember] public string EventName => nameof(ExitOrderCompositionCompletedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

@@ -16,8 +16,7 @@ public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSig
     /// <summary>Identifies the MACD realtime mailbox.</summary>
     public const string ActorName = "FuturesMacdSignal";
     /// <summary>Gets the typed context supplied to this actor.</summary>
-    protected IFuturesMacdSignalRealtimeContext FuturesMacdSignalRealtimeContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesMacdSignalRealtimeContext, nameof(actorContext))!;
+    protected IFuturesMacdSignalRealtimeContext FuturesMacdSignalRealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesMacdSignalRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId ObservationRoute = new(ActorType.Realtime,
         FuturesTradeSessionBarClosedRealtimeEvent.Actor,
@@ -39,6 +38,7 @@ public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSig
     /// <summary>Registers the shared observation route.</summary>
     protected override ValueTask OnStartup(IEventActorContext<FuturesMacdSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -46,6 +46,7 @@ public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSig
     /// <summary>Removes the shared observation route.</summary>
     protected override ValueTask OnShutdown(IEventActorContext<FuturesMacdSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -65,7 +66,7 @@ public class FuturesMacdSignalRealtimeActor(IRealtimeActorContext<FuturesMacdSig
 
     /// <summary>Publishes the standard actor error event.</summary>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesMacdSignalRealtimeActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

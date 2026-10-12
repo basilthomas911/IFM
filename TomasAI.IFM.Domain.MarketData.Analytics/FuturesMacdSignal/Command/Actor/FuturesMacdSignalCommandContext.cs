@@ -12,29 +12,12 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Validation;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesMacdSignalCommandActor"/>.</summary>
-public interface IFuturesMacdSignalCommandContext : ICommandActorContext<FuturesMacdSignalCommandActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbEventSource service supplied to the actor context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the DbFactory service supplied to the actor context.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the EventProjector service supplied to the actor context.</summary>
-    IEventProjector<FuturesMacdSignalCommandActor> EventProjector { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesMacdSignalCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesMacdSignalCommandActor"/>.</summary>
-public sealed class FuturesMacdSignalCommandContext : CommandActorContext, ICommandActorContext<FuturesMacdSignalCommandActor>, IFuturesMacdSignalCommandContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesMacdSignalCommandContext : CommandActorContext, IFuturesMacdSignalCommandContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesMacdSignalCommandContext(

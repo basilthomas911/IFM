@@ -9,38 +9,6 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
-public sealed record DatasetWorkerStartRequest
-{
-    public required string ExecutablePath { get; init; }
-    public IReadOnlyList<string> PrefixArguments { get; init; } = [];
-    public required string Dataset { get; init; }
-    public required DateOnly ValueDate { get; init; }
-    public required Guid WorkerInstanceId { get; init; }
-    public required Guid GenerationId { get; init; }
-    public long ManifestRevision { get; init; } = 1;
-    public DatasetSubscriptionManifest? Manifest { get; init; }
-}
-
-public sealed record DatasetWorkerProcessSnapshot
-{
-    public required string Dataset { get; init; }
-    public required Guid WorkerInstanceId { get; init; }
-    public required Guid GenerationId { get; init; }
-    public required int ProcessId { get; init; }
-    public required DateTime StartedOnUtc { get; init; }
-    public required bool Running { get; init; }
-    public required bool Healthy { get; init; }
-    public required bool GracefulStopSucceeded { get; init; }
-    public required bool ForcedTermination { get; init; }
-    public int? ExitCode { get; init; }
-    public string Detail { get; init; } = string.Empty;
-    public long ManifestRevision { get; init; }
-    public string ManifestFingerprint { get; init; } = string.Empty;
-    public DatasetWorkerDiagnostics? Diagnostics { get; init; }
-    public bool ControlResponsive { get; init; }
-    public bool DataPlaneHealthy { get; init; }
-}
-
 /// <summary>Owns one exact child process and its duplex local control channel.</summary>
 public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
 {
@@ -74,10 +42,13 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         DatabentoStage3Options options,
         Func<DatasetPublicationEnvelope, CancellationToken, ValueTask>? publicationIngress = null)
     {
+        ArgumentNullException.ThrowIfNull(options);
         this.options = options.Validate();
         this.publicationIngress = publicationIngress;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1003", Justification = "Preserve the existing worker exit and status subscriber delegate contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0046", Justification = "Preserve the existing worker exit and status subscriber delegate contract.")]
     public event Action<DatasetWorkerProcessSnapshot>? Exited;
 
     public DatasetWorkerProcessSnapshot Current => Snapshot();
@@ -107,6 +78,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         finally { commands.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task<DatasetWorkerProcessSnapshot> StartCoreAsync(
         DatasetWorkerStartRequest request,
         CancellationToken cancellationToken)
@@ -125,7 +97,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             throw new ArgumentException("Dataset worker start identity is invalid.", nameof(request));
         var manifest = request.Manifest?.Validate()
             ?? throw new ArgumentException("A complete parent-owned subscription manifest is required.", nameof(request));
-        if (manifest.Dataset != request.Dataset || manifest.ValueDate != request.ValueDate
+        if (!string.Equals(manifest.Dataset,request.Dataset,StringComparison.Ordinal) || manifest.ValueDate != request.ValueDate
             || manifest.Revision != request.ManifestRevision)
             throw new ArgumentException("The start request and subscription manifest must match.", nameof(request));
 
@@ -160,7 +132,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         start.ArgumentList.Add("--dataset");
         start.ArgumentList.Add(request.Dataset);
         start.ArgumentList.Add("--value-date");
-        start.ArgumentList.Add(request.ValueDate.ToString("yyyy-MM-dd"));
+        start.ArgumentList.Add(request.ValueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
         start.ArgumentList.Add("--worker-id");
         start.ArgumentList.Add(request.WorkerInstanceId.ToString("D"));
         start.ArgumentList.Add("--generation-id");
@@ -355,7 +327,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             ValidateResponse(response, expected, allowGenerationChange, correlationId);
             if (manifest is not null && (!response.Healthy
                 || response.ManifestRevision != manifest.Revision
-                || response.ManifestFingerprint != manifest.Fingerprint))
+                || !string.Equals(response.ManifestFingerprint,manifest.Fingerprint,StringComparison.Ordinal)))
                 throw new InvalidDataException("The worker did not qualify the complete requested manifest.");
             if (allowGenerationChange)
                 identity = identity! with
@@ -391,6 +363,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         finally { commands.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     async Task ReadPublicationsAsync(CancellationToken cancellationToken)
     {
         try
@@ -419,13 +392,13 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
                     await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         catch (EndOfStreamException)
         {
             if (!cancellationToken.IsCancellationRequested && process is { HasExited: false })
                 dataPlaneHealthy = false;
         }
-        catch (IOException) when (process is null || process.HasExited) { }
+        catch (IOException) when (process is null || process.HasExited) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         catch
         {
             dataPlaneHealthy = false;
@@ -467,7 +440,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     {
         var current = identity!;
         if (response.WorkerInstanceId != current.WorkerInstanceId
-            || response.Dataset != current.Dataset
+            || !string.Equals(response.Dataset,current.Dataset,StringComparison.Ordinal)
             || response.ValueDate != current.ValueDate
             || correlationId is { } expectedCorrelation && response.CorrelationId != expectedCorrelation
             || !allowGenerationChange && response.GenerationId != current.GenerationId
@@ -498,7 +471,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         var observationMatches = current is not null && observation is not null
             && observation.GenerationId == current.GenerationId
             && observation.ManifestRevision == current.ManifestRevision
-            && observation.ManifestFingerprint == current.Manifest?.Fingerprint;
+            && string.Equals(observation.ManifestFingerprint,current.Manifest?.Fingerprint,StringComparison.Ordinal);
         var child = process;
         bool running;
         int? exitCode;
@@ -531,6 +504,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         };
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1849", Justification = "Immediate pipe closure interrupts blocked publication reads before the bounded shutdown wait; asynchronous pipe disposal can wait for those reads.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6966", Justification = "Immediate pipe closure interrupts blocked publication reads before the bounded shutdown wait; asynchronous pipe disposal can wait for those reads.")]
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
@@ -556,7 +531,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             if (publicationReader is not null)
             {
                 try { await publicationReader.WaitAsync(options.WorkerForceKillTimeout).ConfigureAwait(false); }
-                catch (OperationCanceledException) { }
+                catch (OperationCanceledException) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
                 catch (TimeoutException)
                 {
                     // A misbehaving host publisher cannot prevent exact worker containment.
@@ -643,14 +618,18 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         }
         static class Native
         {
+            [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
             [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true, CharSet = CharSet.Unicode)]
             internal static extern SafeJobHandle CreateJobObject(IntPtr attributes, string? name);
+            [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
             [DllImport("kernel32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool SetInformationJobObject(SafeJobHandle job, int kind, IntPtr value, uint length);
+            [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
             [DllImport("kernel32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool AssignProcessToJobObject(SafeJobHandle job, IntPtr process);
+            [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
             [DllImport("kernel32.dll", SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool CloseHandle(IntPtr value);
@@ -661,8 +640,10 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     {
         internal const int SigTerm = 15;
         internal const int SigKill = 9;
+        [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
         [DllImport("libc", EntryPoint = "getpgid", SetLastError = true)]
         internal static extern int getpgid(int processId);
+        [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
         [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
         internal static extern int kill(int processId, int signal);
     }

@@ -26,9 +26,9 @@ public sealed record GetPortfolioFundStrategySnapshotQuery : IQuery<PortfolioFun
     [Key(5)] public string UnderlyingRoot { get; init; } = default!;
     [Key(6)] public string AssetType { get; init; } = default!;
     [Key(7)] public DateTime AsOfUtc { get; init; } = default!;
-    [Key(8)] public Guid WorkflowId { get; init; } = default!;
+    [Key(8)] public Guid WorkflowId { get; init; } = Guid.Empty;
     [Key(9)] public long WorkflowRevision { get; init; } = default!;
-    [Key(10)] public Guid RequestCorrelationId { get; init; } = default!;
+    [Key(10)] public Guid RequestCorrelationId { get; init; } = Guid.Empty;
     [Key(11)] public Guid CorrelationId { get; init; }
     [Key(12)] public DateTime RequestedOnUtc { get; init; }
     [Key(13)] public PortfolioAccessContext Access { get; init; } = new();

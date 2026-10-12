@@ -12,6 +12,8 @@ public static class AcknowledgeIncidentSupervisorActorComplete
     public static ValueTask ExecuteAsync(this AcknowledgeIncidentSupervisorActorCompleteEvent value,
         ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(value);
         context.Incidents.Acknowledge(value.Target, value.Requester, value.Reason);
         return SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
             value.ExpectedGeneration, SupervisorActorOperationKind.AcknowledgeIncident, value.Requester,

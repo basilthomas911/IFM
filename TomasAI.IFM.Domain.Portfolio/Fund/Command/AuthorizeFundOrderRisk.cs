@@ -20,9 +20,12 @@ public static class AuthorizeFundOrderRisk
     /// <param name="errors">The accumulated ingress validation failures.</param>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <returns>The operation result.</returns>
-    public static List<ValidationError> ValidateFundRiskAuthorization(this List<ValidationError> errors,
+    public static TErrors ValidateFundRiskAuthorization<TErrors>(this TErrors errors,
         AuthorizeFundOrderRiskCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         var body = command;
         if (body?.OrderId is null || command.EntityId is null || body.Authorization is null || body.ExpectedVersion <= 0 ||
             body.OrderId.PortfolioId != command.EntityId.PortfolioId || body.OrderId.FundId != command.EntityId.FundId ||
@@ -43,6 +46,8 @@ public static class AuthorizeFundOrderRisk
     public static ServiceResult<GuidResult> Execute(this AuthorizeFundOrderRiskCommand command,
         PortfolioFundAggregate state, DateTime now, string principal)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FundCompositionStateChanged event";
         var updated = command.Compute(state, now, principal, out var fundChange) switch
         {

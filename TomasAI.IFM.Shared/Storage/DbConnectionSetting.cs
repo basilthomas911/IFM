@@ -8,9 +8,9 @@ namespace TomasAI.IFM.Shared.Storage
 {
     public class DbConnectionSetting : IDbConnectionSetting
     {
-        private string _name;
-        private string _connectionString;
-        private string _providerName;
+        private readonly string _name;
+        private readonly string _connectionString;
+        private readonly string _providerName;
 
         /// <summary>
         /// create spreading
@@ -21,11 +21,11 @@ namespace TomasAI.IFM.Shared.Storage
         public DbConnectionSetting(string name, string connectionString, string providerName)
         {
             if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentNullException("name", "DbConnectionSetting: constructor parameter 'name' is empty");
+                throw new ArgumentNullException(nameof(name), "DbConnectionSetting: constructor parameter 'name' is empty");
             if (string.IsNullOrWhiteSpace(connectionString))
-                throw new ArgumentNullException("connectionString", "DbConnectionSetting: constructor parameter 'connectionString' is empty");
+                throw new ArgumentNullException(nameof(connectionString), "DbConnectionSetting: constructor parameter 'connectionString' is empty");
             if (string.IsNullOrWhiteSpace(providerName))
-                throw new ArgumentNullException("providerName", "DbConnectionSetting: constructor parameter 'providerName' is empty");
+                throw new ArgumentNullException(nameof(providerName), "DbConnectionSetting: constructor parameter 'providerName' is empty");
             _name = name;
             _connectionString = connectionString;
             _providerName = providerName;

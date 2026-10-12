@@ -41,6 +41,18 @@ public sealed record AddPortfolioVersionCommand : ICommand<PortfolioId>, IComman
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public AddPortfolioVersionCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="portfolio">The Portfolio command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    public AddPortfolioVersionCommand(PortfolioReadModel portfolio, long expectedVersion)
+    {
+        Portfolio = portfolio;
+        ExpectedVersion = expectedVersion;
+    }
     public const string Actor = "PortfolioCommand";
     public const string Verb = "AddPortfolioVersion";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record AddPortfolioVersionCommand : ICommand<PortfolioId>, IComman
     [IgnoreMember] public string CommandName => nameof(AddPortfolioVersionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public AddPortfolioVersionCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="portfolio">The Portfolio command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    public AddPortfolioVersionCommand(PortfolioReadModel portfolio, long expectedVersion)
-    {
-        Portfolio = portfolio;
-        ExpectedVersion = expectedVersion;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

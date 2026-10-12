@@ -4,6 +4,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 /// <summary>A retry with refreshed evidence is a new bounded attempt, never a mutation of a completed Function.</summary>
 [MessagePackObject]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct RiskManagementExecutionId(
     [property: Key(0)] IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId,
     [property: Key(1)] StrategyWorkflowId WorkflowId,

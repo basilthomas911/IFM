@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -13,12 +13,16 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 public static class FinancialCanonicalHash
 {
     /// <summary>One canonical requirement-vector identity shared by Risk, financial admission and clients.</summary>
-    public static string Requirements(CapacityRequirements value) => Compute(value with
+    public static string Requirements(CapacityRequirements value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return Compute(value with
     {
         ContentHash = string.Empty,
         Exposures = value.Exposures.OrderBy(x => x.ScopeKind).ThenBy(x => x.ScopeKey, StringComparer.Ordinal)
             .ThenBy(x => x.Measure).ThenBy(x => x.Unit).ToArray()
     });
+    }
     static readonly JsonSerializerOptions Options = CreateOptions();
     static JsonSerializerOptions CreateOptions()
     {
@@ -30,15 +34,18 @@ public static class FinancialCanonicalHash
             // semantic hash while including every nondefault choice in the approved identity.
             foreach (var property in info.Properties)
             {
-                if (property.Name == nameof(PortfolioOrderCandidate.TimeInForce))
-                    property.ShouldSerialize = (_, value) => value is string text && text != "Day";
-                if (property.Name == nameof(PortfolioOrderCandidate.AlgorithmPace))
-                    property.ShouldSerialize = (_, value) => value is string text && text != "Normal";
+                if (string.Equals(property.Name,nameof(PortfolioOrderCandidate.TimeInForce),StringComparison.Ordinal))
+                    property.ShouldSerialize = (_, value) => value is string text && !string.Equals(text,"Day",StringComparison.Ordinal);
+                if (string.Equals(property.Name,nameof(PortfolioOrderCandidate.AlgorithmPace),StringComparison.Ordinal))
+                    property.ShouldSerialize = (_, value) => value is string text && !string.Equals(text,"Normal",StringComparison.Ordinal);
             }
         });
         return new() { TypeInfoResolver = resolver, Converters = { new CanonicalUtcDateTimeConverter() } };
     }
-    public static string Request<T>(IFinancialRequest<T> request) => Compute(new
+    public static string Request<T>(IFinancialRequest<T> request) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Compute(new
     {
         request.PortfolioId,
         request.OperationId,
@@ -48,11 +55,12 @@ public static class FinancialCanonicalHash
         request.Body,
         Principal = request.Access.Principal
     });
+    }
 
     public static string Compute<T>(T value)
     {
         var element = JsonSerializer.SerializeToElement(value, Options);
-        var text = new StringBuilder(); Write(element, text);
+        var text = new StringBuilder(); WriteCanonicalJson(element, text);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 
@@ -60,12 +68,12 @@ public static class FinancialCanonicalHash
     // Semantic identity must not depend on the DateTime.Kind of an otherwise identical instant.
     sealed class CanonicalUtcDateTimeConverter : JsonConverter<DateTime>
     {
-        public override DateTime Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => reader.GetDateTime();
+        public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => reader.GetDateTime();
         public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
             => writer.WriteStringValue(value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc));
     }
 
-    static void Write(JsonElement value, StringBuilder output)
+    static void WriteCanonicalJson(JsonElement value, StringBuilder output)
     {
         switch (value.ValueKind)
         {
@@ -73,13 +81,25 @@ public static class FinancialCanonicalHash
                 output.Append('{'); var first = true;
                 foreach (var property in value.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal))
                 {
-                    if (!first) output.Append(','); first = false;
-                    output.Append(JsonSerializer.Serialize(property.Name)).Append(':'); Write(property.Value, output);
+                    if (!first)
+                    {
+                        output.Append(',');
+                    }
+                    first = false;
+                    output.Append(JsonSerializer.Serialize(property.Name)).Append(':'); WriteCanonicalJson(property.Value, output);
                 }
                 output.Append('}'); break;
             case JsonValueKind.Array:
                 output.Append('['); var initial = true;
-                foreach (var item in value.EnumerateArray()) { if (!initial) output.Append(','); initial = false; Write(item, output); }
+                foreach (var item in value.EnumerateArray())
+                {
+                    if (!initial)
+                    {
+                        output.Append(',');
+                    }
+                    initial = false;
+                    WriteCanonicalJson(item, output);
+                }
                 output.Append(']'); break;
             case JsonValueKind.Number:
                 output.Append(value.GetDecimal().ToString("G29", CultureInfo.InvariantCulture)); break;

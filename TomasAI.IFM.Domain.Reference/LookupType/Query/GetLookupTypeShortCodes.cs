@@ -18,7 +18,10 @@ public static class GetLookupTypeShortCodes
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<LookupTypeShortCodeReadModel[]> ExecuteAsync(
         this GetLookupTypeShortCodesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName, cancellationToken)
-            : dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName))];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return [.. await (dbFactory.ReferenceDb.GetLookupTypeShortCodesAsync(q.LookupTypeName, cancellationToken)).ConfigureAwait(false)];
+    }
 }

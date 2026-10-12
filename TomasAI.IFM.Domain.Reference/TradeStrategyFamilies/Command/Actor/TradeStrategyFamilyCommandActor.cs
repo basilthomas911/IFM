@@ -92,15 +92,12 @@ public sealed class TradeStrategyFamilyCommandActor(
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
         => ResolveMappedCommandHandler(command, _receiveMap)(command, catalog, cancellationToken);
 
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
-        => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, exception.Message));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TradeStrategyFamilyCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, ex.Message));
+    }
 
-}
-
-/// <summary>Provides the Trade Strategy Family command mailbox context.</summary>
-public sealed class TradeStrategyFamilyCommandContext(IActorSupervisor supervisor, ILogger<TradeStrategyFamilyCommandActor> logger)
-    : CommandActorContext(supervisor, new ActorMailboxId(ActorType.Command, TradeStrategyFamilyCommandActor.ActorName)), ICommandActorContext<TradeStrategyFamilyCommandActor>
-{
-    /// <summary>Gets the actor logger.</summary>
-    public ILogger<TradeStrategyFamilyCommandActor> Logger { get; } = logger;
 }

@@ -20,5 +20,11 @@ public static class GetActivePortfolioFinancialPolicy
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetActivePortfolioFinancialPolicyQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetActivePolicyAsync(query.PortfolioId, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetActivePolicyAsync(query.PortfolioId, cancellationToken));
+    }
 }

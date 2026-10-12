@@ -34,6 +34,12 @@ public sealed class SystemAdminDbContext(
     public ISystemAdminDbWriteContext DbWriter => this;
 
     /// <inheritdoc />
+    public Task<EventProjectionApplyOutcome> ApplyDatabaseBackupEventAsync(
+        TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        string projectorName, DatabaseBackupEventContract domainEvent, CancellationToken cancellationToken = default)
+        => SystemAdminBackupSnapshotStore.ProjectAsync(transaction, projectorName, domainEvent, cancellationToken);
+
+    /// <inheritdoc />
     public ValueTask<EventProjectionApplyOutcome> ApplyDatabaseBackupEventAsync(
         string projectorName,
         DatabaseBackupEventContract domainEvent,
@@ -55,29 +61,42 @@ public sealed class SystemAdminDbContext(
     /// <inheritdoc />
     public async ValueTask<DatabaseProtectionSetReadModel[]> GetProtectionSetsAsync(
         GetDatabaseProtectionSetsQuery query, CancellationToken cancellationToken)
-        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProtectionSets)}", SystemAdminDbSql.GetProtectionSets)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProtectionSets)}", SystemAdminDbSql.GetProtectionSets)
             .SetParameters(new SourceFilter(query.Source))
             .ExecuteQueryAsync(MapToProtectionSet, cancellationToken)
             .ConfigureAwait(false)];
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseBackupPolicyReadModel?> GetPolicyAsync(
         GetDatabaseBackupPolicyQuery query, CancellationToken cancellationToken)
-        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetPolicy)}", SystemAdminDbSql.GetPolicy)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetPolicy)}", SystemAdminDbSql.GetPolicy)
             .SetParameters(new PolicyQueryParameter(query.Request.EnvironmentIdentity, query.PolicyId!.Value.Value))
             .ExecuteSingleAsync(MapToPolicy, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseBackupOperationReadModel?> GetBackupOperationAsync(
         GetDatabaseBackupOperationQuery query, CancellationToken cancellationToken)
-        => await this.GetOperationCoreAsync(query.OperationId!.Value.Value, cancellationToken)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await this.GetOperationCoreAsync(query.OperationId!.Value.Value, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseBackupOperationReadModel[]> ListBackupOperationsAsync(
         ListDatabaseBackupOperationsQuery query, CancellationToken cancellationToken)
     {
+        this.ValidateRequiredArgument(query);
         Guid? continuation = Guid.TryParse(query.ContinuationIdentity, out var parsed) ? parsed : null;
         return [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListOperations)}", SystemAdminDbSql.ListOperations)
             .SetParameters(new OperationListParameter(
@@ -91,6 +110,7 @@ public sealed class SystemAdminDbContext(
     public async ValueTask<DatabaseBackupSetReadModel?> GetBackupSetAsync(
         GetDatabaseBackupSetQuery query, CancellationToken cancellationToken)
     {
+        this.ValidateRequiredArgument(query);
         var operations = (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetBackupSetOperations)}", SystemAdminDbSql.GetBackupSetOperations)
             .SetParameters(new BackupSetKey(query.BackupSetId!.Value.Value))
             .ExecuteQueryAsync(MapToOperation, cancellationToken)
@@ -111,43 +131,62 @@ public sealed class SystemAdminDbContext(
     /// <inheritdoc />
     public async ValueTask<DatabaseRestorePointReadModel[]> ListRestorePointsAsync(
         ListDatabaseRestorePointsQuery query, CancellationToken cancellationToken)
-        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestorePoints)}", SystemAdminDbSql.ListRestorePoints)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestorePoints)}", SystemAdminDbSql.ListRestorePoints)
             .SetParameters(new RestorePointListParameter(
                 query.Source, query.ProtectionSetId?.Value, query.FromUtc?.UtcDateTime,
                 query.ToUtc?.UtcDateTime, query.ContinuationIdentity.NullIfEmpty(), query.PageSize))
             .ExecuteQueryAsync(MapToRestorePoint, cancellationToken)
             .ConfigureAwait(false)];
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRestorePointReadModel?> GetRestorePointAsync(
         GetDatabaseRestorePointQuery query, CancellationToken cancellationToken)
-        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRestorePoint)}", SystemAdminDbSql.GetRestorePoint)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRestorePoint)}", SystemAdminDbSql.GetRestorePoint)
             .SetParameters(new RestorePointKey(query.RestorePointId!.Value.Value, query.Source))
             .ExecuteSingleAsync(MapToRestorePoint, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRestorePointReadModel?> GetLatestVerifiedBackupAsync(
         GetLatestVerifiedDatabaseBackupQuery query, CancellationToken cancellationToken)
-        => await this.GetLatestRestorePointCoreAsync(
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await this.GetLatestRestorePointCoreAsync(
             $"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetLatestVerified)}",
             SystemAdminDbSql.GetLatestVerified, query.Source,
             query.ProtectionSetId!.Value.Value, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRestorePointReadModel?> GetLatestRestoreTestedBackupAsync(
         GetLatestRestoreTestedDatabaseBackupQuery query, CancellationToken cancellationToken)
-        => await this.GetLatestRestorePointCoreAsync(
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await this.GetLatestRestorePointCoreAsync(
             $"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetLatestRestoreTested)}",
             SystemAdminDbSql.GetLatestRestoreTested, query.Source,
             query.ProtectionSetId!.Value.Value, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public ValueTask<DatabaseProtectionSetReadModel[]> GetRecoveryObjectiveComplianceAsync(
         GetDatabaseRecoveryObjectiveComplianceQuery query, CancellationToken cancellationToken)
-        => GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
         {
             EntityId = query.EntityId,
             Request = query.Request,
@@ -155,11 +194,13 @@ public sealed class SystemAdminDbContext(
             Subject = query.Subject,
             PageSize = query.PageSize
         }, cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRestoreOperationReadModel?> GetRestoreOperationAsync(
         GetDatabaseRestoreOperationQuery query, CancellationToken cancellationToken)
     {
+        this.ValidateRequiredArgument(query);
         var operation = await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRestoreOperation)}", SystemAdminDbSql.GetRestoreOperation)
             .SetParameters(new OperationKey(query.OperationId!.Value.Value))
             .ExecuteSingleAsync(MapToOperationProjectionRow, cancellationToken)
@@ -170,32 +211,45 @@ public sealed class SystemAdminDbContext(
     /// <inheritdoc />
     public async ValueTask<DatabaseRestoreOperationReadModel[]> ListRestoreDrillsAsync(
         ListDatabaseRestoreDrillsQuery query, CancellationToken cancellationToken)
-        => [.. (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestoreDrills)}", SystemAdminDbSql.ListRestoreDrills)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return [.. (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestoreDrills)}", SystemAdminDbSql.ListRestoreDrills)
             .SetParameters(new RestoreDrillListParameter(query.Source, query.PageSize))
             .ExecuteQueryAsync(MapToOperationProjectionRow, cancellationToken)
             .ConfigureAwait(false))
             .Select(static row => row.ToRestoreOperation())];
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRetentionReadModel?> GetRetentionForecastAsync(
         GetDatabaseRetentionForecastQuery query, CancellationToken cancellationToken)
-        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRetention)}", SystemAdminDbSql.GetRetention)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRetention)}", SystemAdminDbSql.GetRetention)
             .SetParameters(new RetentionQueryParameter(query.Source, query.RetentionPlanId?.Value))
             .ExecuteSingleAsync(MapToRetention, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseBackupHealthReadModel[]> GetServiceHealthAsync(
         GetDatabaseBackupServiceHealthQuery query, CancellationToken cancellationToken)
-        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetServiceHealth)}", SystemAdminDbSql.GetServiceHealth)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetServiceHealth)}", SystemAdminDbSql.GetServiceHealth)
             .SetParameters(new ServiceHealthQueryParameter(query.Request.EnvironmentIdentity, query.Source))
             .ExecuteQueryAsync(MapToHealth, cancellationToken)
             .ConfigureAwait(false)];
+    }
 
     /// <inheritdoc />
     public async ValueTask<DatabaseRecoveryRunStatsReadModel?> GetRecoveryRunStatsAsync(
         GetDatabaseRecoveryRunStatsQuery query, CancellationToken cancellationToken)
     {
+        this.ValidateRequiredArgument(query);
         var rows = (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRunStatistics)}", SystemAdminDbSql.GetRunStatistics)
             .SetParameters(new OperationKey(query.OperationId!.Value.Value))
             .ExecuteQueryAsync(MapToStatisticsProjectionRow, cancellationToken)
@@ -212,13 +266,18 @@ public sealed class SystemAdminDbContext(
 
     /// <inheritdoc />
     public async ValueTask<DatabaseBackupPhaseReadModel[]> GetBackupPhasesAsync(GetDatabaseBackupLogQuery query, CancellationToken cancellationToken)
-        => [.. await Use("SystemAdminDbSql.GetBackupPhases", SystemAdminDbSql.GetBackupPhases)
+        
+    {
+        this.ValidateRequiredArgument(query);
+        return [.. await Use("SystemAdminDbSql.GetBackupPhases", SystemAdminDbSql.GetBackupPhases)
             .SetParameters(new PhasePageParameter(query.OperationId!.Value.Value, query.AfterPhaseRevision, query.PageSize))
             .ExecuteQueryAsync(row => new DatabaseBackupPhaseReadModel
             {
                 Revision = row.GetLong(0), ObservedUtc = row.GetDateTime(1).ToUtcOffset(),
                 Phase = row.GetShort(2).ToEnum<DatabaseRecoveryPhase>(), Outcome = row.GetShort(3).ToEnum<DatabaseRecoveryOutcome>(), ProgressPercent = row.GetInt(4)
-            }, cancellationToken).ConfigureAwait(false)];
+            }, cancellationToken)
+                .ConfigureAwait(false)];
+    }
 
     internal static DatabaseProtectionSetReadModel MapToProtectionSet(IObjectDataRecord row) => new()
     {

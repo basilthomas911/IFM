@@ -23,6 +23,7 @@ internal sealed class EventProjectorOutboxDispatcher(
     readonly Func<IEvent, CancellationToken, ValueTask> _publishAsync = publishAsync ?? throw new ArgumentNullException(nameof(publishAsync));
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     readonly SemaphoreSlim _signal = new(0, 1);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2213", Justification = "StopAsync exchanges ownership into a local and disposes it in finally; DisposeAsync also releases any residual field.")]
     CancellationTokenSource? _stopping;
     Task? _worker;
 
@@ -42,15 +43,16 @@ internal sealed class EventProjectorOutboxDispatcher(
     {
         var stopping = Interlocked.Exchange(ref _stopping, null);
         var worker = Interlocked.Exchange(ref _worker, null);
-        if (stopping is null || worker is null)
+        if (stopping is null)
             return;
         await stopping.CancelAsync().ConfigureAwait(false);
         try
         {
-            await worker.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (worker is not null) await worker.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {
+            // Expected worker cancellation during host shutdown.
         }
         finally
         {
@@ -67,12 +69,15 @@ internal sealed class EventProjectorOutboxDispatcher(
         }
         catch (SemaphoreFullException)
         {
+            // An existing signal already schedules the dispatch.
         }
         catch (ObjectDisposedException)
         {
+            // Host shutdown already removed the dispatcher.
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task RunAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -84,15 +89,17 @@ internal sealed class EventProjectorOutboxDispatcher(
                 await _signal.WaitAsync(_options.OutboxPollingInterval, cancellationToken).ConfigureAwait(false);
                 while (await DispatchBatchAsync(cancellationToken).ConfigureAwait(false) == _options.OutboxBatchSize)
                 {
+                    // Continue draining complete batches until this pass reaches the current tail.
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                // Normal shutdown.
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,"{Component}.{Method} "+"Projector outbox dispatch failed for {ProjectorName}; polling will continue.",nameof(EventProjectorOutboxDispatcher),nameof(RunAsync),_projectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write1(_logger, ex, nameof(EventProjectorOutboxDispatcher), nameof(RunAsync), _projectorName);
                 await Task.Delay(_options.OutboxPollingInterval, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -114,6 +121,7 @@ internal sealed class EventProjectorOutboxDispatcher(
         return messages.Count;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task DispatchAsync(EventProjectorOutboxReadModel message, CancellationToken cancellationToken)
     {
         var startedTimestamp = EventProjectorMetrics.GetOutboxTimestamp();
@@ -128,8 +136,7 @@ internal sealed class EventProjectorOutboxDispatcher(
                     publishedAtUtc,
                     cancellationToken).ConfigureAwait(false))
             {
-                _logger.LogWarning(
-                    "{Component}.{Method} "+"Projector outbox delivery marker lost its lease for {MessageId}; safe re-publication may occur.",nameof(EventProjectorOutboxDispatcher),nameof(DispatchAsync),                    message.MessageId);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write2(_logger, null, nameof(EventProjectorOutboxDispatcher), nameof(DispatchAsync), message.MessageId);
                 EventProjectorMetrics.RecordOutboxPublish(_projectorName, "marker-conflict", startedTimestamp);
             }
             else
@@ -152,8 +159,7 @@ internal sealed class EventProjectorOutboxDispatcher(
                 ex.ToString(),
                 nowUtc,
                 CancellationToken.None).ConfigureAwait(false);
-            _logger.LogWarning(
-                ex,                "{Component}.{Method} "+"Projector outbox publication {MessageId} failed on attempt {AttemptCount}; terminal={Terminal}.",nameof(EventProjectorOutboxDispatcher),nameof(DispatchAsync),                message.MessageId,                message.AttemptCount,                terminal);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write3(_logger, ex, nameof(EventProjectorOutboxDispatcher), nameof(DispatchAsync), message.MessageId, message.AttemptCount, terminal);
             EventProjectorMetrics.RecordOutboxPublish(
                 _projectorName, terminal ? "terminal-failed" : "retried", startedTimestamp);
         }
@@ -176,6 +182,8 @@ internal sealed class EventProjectorOutboxDispatcher(
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
+        _stopping?.Dispose();
+        _stopping = null;
         _signal.Dispose();
     }
 

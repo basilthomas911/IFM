@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 /// <see cref="BoundedContextName.FuturesTradeSignalLLMBoundedContext"/>. Custom properties start at key index 6
 /// because base command members occupy keys 0�5.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public record StartFuturesTradeSignalLLMCommand
     : ICommand<FuturesTradeSignalId>
@@ -32,7 +33,9 @@ public record StartFuturesTradeSignalLLMCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>

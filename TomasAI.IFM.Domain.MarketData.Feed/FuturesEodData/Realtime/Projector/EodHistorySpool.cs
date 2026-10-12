@@ -34,14 +34,14 @@ internal sealed class EodHistorySpool : IDisposable
         var sequence = Interlocked.Increment(ref ordinal);
         entry.FileName = Path.Combine(directory, $"{sequence:D19}-{entry.Event.Id:N}.json");
         Interlocked.Increment(ref pending);
-        try { await SaveAsync(entry); EodHistoryMetrics.Pending.Add(1); }
+        try { await (SaveAsync(entry)).ConfigureAwait(false); EodHistoryMetrics.Pending.Add(1); }
         catch { Interlocked.Decrement(ref pending); throw; }
     }
 
     /// <summary>Reads a bounded ordered batch without loading the entire backlog into memory.</summary>
     public async Task<List<EodHistoryEntry>> ReadBatchAsync(int maximum)
     {
-        if (maximum < 1) throw new ArgumentOutOfRangeException(nameof(maximum));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximum, 1);
         // Keep only the oldest bounded set of filenames, even during a long storage outage.
         var oldest = new PriorityQueue<string, string>(Comparer<string>.Create((left, right) => StringComparer.Ordinal.Compare(right, left)));
         foreach (var name in Directory.EnumerateFiles(directory, "*.json"))
@@ -53,8 +53,9 @@ internal sealed class EodHistorySpool : IDisposable
         var result = new List<EodHistoryEntry>(maximum);
         foreach (var name in names)
         {
-            await using var stream = File.OpenRead(name);
-            var entry = await JsonSerializer.DeserializeAsync<EodHistoryEntry>(stream)
+            var stream = File.OpenRead(name);
+            await using var configuredStream = stream.ConfigureAwait(false);
+            var entry = await (JsonSerializer.DeserializeAsync<EodHistoryEntry>(stream)).ConfigureAwait(false)
                 ?? throw new InvalidDataException($"Invalid EOD spool record: {name}");
             if (entry.SchemaVersion != 1) throw new InvalidDataException($"Unsupported EOD spool schema: {entry.SchemaVersion}");
             entry.FileName = name;
@@ -67,12 +68,15 @@ internal sealed class EodHistorySpool : IDisposable
     public static async Task SaveAsync(EodHistoryEntry entry)
     {
         var temporary = entry.FileName + ".tmp";
-        await using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096,
-            FileOptions.Asynchronous | FileOptions.WriteThrough))
+        var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096,
+            FileOptions.Asynchronous | FileOptions.WriteThrough);
+        await using (stream.ConfigureAwait(false))
         {
-            await JsonSerializer.SerializeAsync(stream, entry);
-            await stream.FlushAsync();
+            await (JsonSerializer.SerializeAsync(stream, entry)).ConfigureAwait(false);
+            await (stream.FlushAsync()).ConfigureAwait(false);
+            #pragma warning disable CA1849 // FlushAsync does not request physical disk durability for the outage spool.
             stream.Flush(flushToDisk: true);
+            #pragma warning restore CA1849
         }
         File.Move(temporary, entry.FileName, overwrite: true);
     }
@@ -87,34 +91,4 @@ internal sealed class EodHistorySpool : IDisposable
 
     /// <summary>Releases this writer's exclusive ownership without deleting pending history.</summary>
     public void Dispose() { EodHistoryMetrics.Pending.Add(-Pending); lease.Dispose(); }
-}
-
-/// <summary>Versioned disk record carrying exact event bytes, calculated snapshots and stable retry identity.</summary>
-internal sealed class EodHistoryEntry
-{
-    public int SchemaVersion { get; init; } = 1;
-    public int EventKind { get; init; }
-    public byte[] EventBytes { get; init; } = [];
-    public BufferedFuturesEodRow? Row { get; init; }
-    public VixFuturesEodDataReadModel? Vx { get; init; }
-    public long CacheVersion { get; init; }
-    public Guid CacheOwnerId { get; init; }
-    public DateTime ObservedAtUtc { get; init; } = DateTime.UtcNow;
-    [System.Text.Json.Serialization.JsonIgnore] public string FileName { get; set; } = "";
-    [System.Text.Json.Serialization.JsonIgnore] public IEvent Event => EventKind switch
-    {
-        0 => MessagePackSerializer.Deserialize<FuturesEodDataInsertedEvent>(EventBytes),
-        1 => MessagePackSerializer.Deserialize<FuturesEodSessionStatisticsUpdatedEvent>(EventBytes),
-        2 => MessagePackSerializer.Deserialize<VixFuturesEodDataInsertedEvent>(EventBytes),
-        _ => throw new InvalidDataException($"Unsupported EOD spool event kind: {EventKind}")
-    };
-
-    public static EodHistoryEntry Create(IEvent source, BufferedFuturesEodRow? row, VixFuturesEodDataReadModel? vx, long version)
-        => source switch
-        {
-            FuturesEodDataInsertedEvent e => new() { EventKind = 0, EventBytes = MessagePackSerializer.Serialize(e), Row = row, CacheVersion = version, CacheOwnerId = CurrentFuturesEodCache.Shared.OwnerId },
-            FuturesEodSessionStatisticsUpdatedEvent e => new() { EventKind = 1, EventBytes = MessagePackSerializer.Serialize(e), Row = row, CacheVersion = version, CacheOwnerId = CurrentFuturesEodCache.Shared.OwnerId },
-            VixFuturesEodDataInsertedEvent e => new() { EventKind = 2, EventBytes = MessagePackSerializer.Serialize(e), Vx = vx },
-            _ => throw new InvalidOperationException($"Unsupported EOD history event: {source.GetType().Name}")
-        };
 }

@@ -9,7 +9,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
 
@@ -27,9 +26,7 @@ public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTic
 
     /// <summary>Gets the typed query context supplied at construction.</summary>
     protected IFuturesOptionTickDataQueryContext QueryContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesOptionTickDataQueryContext, nameof(actorContext))!;
-
-    readonly ILogger<FuturesOptionTickDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+        IsArgumentNull.Named(actorContext as IFuturesOptionTickDataQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -45,7 +42,7 @@ public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTic
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLastFuturesOptionTickDataQuery.Verb] = msg => msg.AsQuery<GetLastFuturesOptionTickDataQuery, FuturesOptionTickDataV2ReadModel>()!
     };
@@ -74,9 +71,9 @@ public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTic
         [typeof(GetLastFuturesOptionTickDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesOptionTickDataQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesOptionTickDataQuery.Verb,
-                new ServiceResult<FuturesOptionTickDataV2ReadModel?>(result));
+            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesOptionTickDataQuery.Verb,
+                new ServiceResult<FuturesOptionTickDataV2ReadModel?>(result))).ConfigureAwait(false);
         }
     };
 
@@ -96,6 +93,6 @@ public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTic
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

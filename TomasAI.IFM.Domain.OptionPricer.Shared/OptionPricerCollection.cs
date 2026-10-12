@@ -8,11 +8,12 @@ using System.Threading;
 
 namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "Preserves the existing externally referenced type identity.")]
     public class OptionPricerCollection : IOptionPricerCollection
     {
-        private static AutoResetEvent _resetEvent = new AutoResetEvent(true);
-        private static object _resetLock = new object();
-        private ConcurrentQueue<IOptionPricer> _optionPricers;
+        private static readonly AutoResetEvent _resetEvent = new AutoResetEvent(true);
+
+        private readonly ConcurrentQueue<IOptionPricer> _optionPricers;
 
         public int Count => _optionPricers.Count;
 
@@ -33,7 +34,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                     _optionPricers.Enqueue(optionPricer);
         }
 
-        public IOptionPricer this[int optionPricerId] => _optionPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
+        public IOptionPricer this[int optionPricerId] => _optionPricers.SingleOrDefault(e => e.Id == optionPricerId);
 
         public List<IOptionPricer> ToList()
             => _optionPricers.ToList();
@@ -44,6 +45,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// <param name="optionPricer"></param>
         public void Add(IOptionPricer optionPricer)
         {
+            ArgumentNullException.ThrowIfNull(optionPricer);
             if (_optionPricers.Any(e => e.Id == optionPricer.Id))
                 throw new InvalidOperationException($"OptionPricerCollection.Add: device id {optionPricer.DeviceId} already exists in this collection");
             _optionPricers.Enqueue(optionPricer);
@@ -53,9 +55,11 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// remove option pricer by option pricer id
         /// </summary>
         /// <param name="optionPricerId"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
         public void Remove(int optionPricerId)
         {
-            var optionPricer = _optionPricers.Where(e => e.Id == optionPricerId).SingleOrDefault();
+            var optionPricer = _optionPricers.SingleOrDefault(e => e.Id == optionPricerId);
             if (optionPricer == null)
                 throw new InvalidOperationException($"OptionPricerCollection.Add: option pricer - {optionPricerId} does not exist in this collection");
             if (_optionPricers.TryDequeue(out optionPricer))
@@ -83,8 +87,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             var optionPricer = default(IOptionPricer);
             do
             {
-                if (!_optionPricers.IsEmpty)
-                    if (_optionPricers.TryDequeue(out optionPricer))
+                if (_optionPricers.TryDequeue(out optionPricer))
                         break;
                 _resetEvent.WaitOne();
             } while (optionPricer == null);
@@ -101,7 +104,16 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             _resetEvent.Set();
         }
 
-        public void Dispose() => Clear();
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing) Clear();
+        }
 
         public bool Exists(OptionPricerId optionPricerId)
             => _optionPricers.Any(e => e.OptionPricerId == optionPricerId);

@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -47,6 +47,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
     internal IReadOnlyCollection<ResolvedContract> ResolvedContracts => _resolved.Values;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     internal static async Task<DatabentoMarketDataCatalog> CreateAsync(
         IReadOnlyDictionary<string, IDatabentoOperationRunner> operationsByDataset,
         DatabentoMarketDataRuntimeOptions options,
@@ -124,6 +125,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1994", Justification = "The attempt limit is checked after each provider result so the final failure retains the provider diagnostic; the loop increment drives bounded retry delay.")]
     private static async Task<IReadOnlyList<ContractDetail?>> QueryCatalogDefinitionsAsync(
         IDatabentoOperationRunner operations,
         string[] names,
@@ -346,7 +348,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
-        if (throughExpiry < fromExpiry) throw new ArgumentOutOfRangeException(nameof(throughExpiry));
+        ArgumentOutOfRangeException.ThrowIfLessThan(throughExpiry, fromExpiry);
         var normalized = underlyingSymbol.Trim().ToUpperInvariant();
         var underlyings = _resolved.Values
             .Where(value => value.Futures is not null
@@ -368,7 +370,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                 try
                 {
                     definitions = await operations.RunAsync(queries =>
-                        queries.GetContractDetails($"{root}.OPT", _options.ProviderQueryTimeout)).ConfigureAwait(false);
+                        queries.GetContractDetails($"{root}.OPT", _options.ProviderQueryTimeout),cancellationToken:cancellationToken).ConfigureAwait(false);
                 }
                 catch (DatabentoFeedException exception) when (
                     exception.Message.Contains("Could not resolve smart symbols", StringComparison.OrdinalIgnoreCase))
@@ -441,7 +443,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerRoot);
-        if (throughMaturityDate < fromMaturityDate) throw new ArgumentOutOfRangeException(nameof(throughMaturityDate));
+        ArgumentOutOfRangeException.ThrowIfLessThan(throughMaturityDate, fromMaturityDate);
         var underlying = _resolved.Values.Where(value => value.Futures is not null)
             .FirstOrDefault(value => string.Equals(value.Futures!.Symbol, underlyingSymbol, StringComparison.OrdinalIgnoreCase)
                                      || string.Equals(value.Detail.Ticker, underlyingSymbol, StringComparison.OrdinalIgnoreCase))
@@ -455,7 +457,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             .Select(detail => MapOption(detail.RawSymbol, detail, underlying.Futures!.Currency))
             .OrderBy(option => option.ContractMonth).ThenBy(option => option.StrikePrice)
             .ThenBy(option => option.OptionType, StringComparer.Ordinal).ThenBy(option => option.ContractId, StringComparer.Ordinal)
-            .ToArray()).ConfigureAwait(false);
+            .ToArray(),cancellationToken:cancellationToken).ConfigureAwait(false);
     }
 
     private string? ResolveUnderlyingDomainId(string dataset, string providerIdentity) =>
@@ -488,6 +490,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             rollover);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase digest text is a persisted content identity, not a case-insensitive comparison key.")]
     private FuturesOptionContractReadModel MapOption(
         string domainContractId,
         ContractDetail detail,
@@ -604,11 +607,12 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                 detail.ContractKind.ToString());
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Name the public request owning the invalid nested property.")]
     private static void ValidateOptions(DatabentoMarketDataRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(options.FeedOptions);
-        ArgumentNullException.ThrowIfNull(options.Contracts);
+        ArgumentNullException.ThrowIfNull(options.FeedOptions, nameof(options));
+        ArgumentNullException.ThrowIfNull(options.Contracts, nameof(options));
         if (options.Contracts.Count == 0)
             throw new ArgumentException("At least one configured contract is required.", nameof(options));
         if (options.Contracts.Select(item => item.DomainContractId)

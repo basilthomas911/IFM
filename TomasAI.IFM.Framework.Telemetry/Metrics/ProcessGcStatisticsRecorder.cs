@@ -6,29 +6,6 @@ using Serilog;
 
 namespace TomasAI.IFM.Framework.Telemetry.Metrics;
 
-/// <summary>Identifies one process lifetime independently of PID reuse and application restarts.</summary>
-public static class ProcessGcRunIdentity
-{
-    /// <summary>Gets the operating-system process start time in UTC.</summary>
-    public static DateTimeOffset StartedUtc { get; } = ReadStartTime();
-    /// <summary>Gets the unique identity shared by GC history and OTel resource attributes.</summary>
-    public static string InstanceId { get; } = $"{Environment.MachineName}/{Environment.ProcessId}/{StartedUtc.UtcTicks}";
-    static DateTimeOffset ReadStartTime()
-    {
-        using var process = Process.GetCurrentProcess();
-        return new DateTimeOffset(process.StartTime.ToUniversalTime());
-    }
-}
-
-/// <summary>A timestamped process-lifetime GC observation; heap sizes describe the last GC, including fragmentation.</summary>
-public sealed record ProcessGcSnapshot(
-    string Service, string ProcessRunId, int ProcessId, DateTimeOffset ProcessStartedUtc,
-    DateTimeOffset RecordedUtc, string Phase, double UptimeSeconds,
-    int Gen0CollectionsSinceStart, int Gen1CollectionsSinceStart, int Gen2CollectionsSinceStart,
-    long AllocatedBytesSinceStartApproximate, double PauseMillisecondsSinceStart,
-    long LastGcHeapBytes, long LastGcCommittedBytes, long LastGcFragmentedBytes,
-    long LastGcLargeObjectHeapBytes, long WorkingSetBytes);
-
 /// <summary>Records cumulative runtime GC statistics from startup to normal shutdown without forcing a collection.</summary>
 public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
 {
@@ -85,7 +62,7 @@ public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
         _loop = Task.Run(() => RecordAsync(directory, retentionDays));
     }
 
-    IEnumerable<Measurement<long>> CollectionCounts()
+    static IEnumerable<Measurement<long>> CollectionCounts()
     {
         for (var generation = 0; generation <= 2; generation++)
             yield return new(GC.CollectionCount(generation), new KeyValuePair<string, object?>("gc.heap.generation", $"gen{generation}"));
@@ -105,6 +82,7 @@ public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
             memory.GenerationInfo.Length > 3 ? memory.GenerationInfo[3].SizeAfterBytes : 0, _process.WorkingSet64);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional GC telemetry writes warn on failure and cannot stop the application.")]
     async Task RecordAsync(string directory, int retentionDays)
     {
         try
@@ -113,23 +91,24 @@ public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
             {
                 Directory.CreateDirectory(directory);
                 var cutoff = DateTime.UtcNow.AddDays(-retentionDays);
-                foreach (var file in Directory.EnumerateFiles(directory, "process-gc-*.jsonl"))
-                    if (File.GetLastWriteTimeUtc(file) < cutoff) File.Delete(file);
+                foreach (var file in Directory.EnumerateFiles(directory, "process-gc-*.jsonl").Where(file => File.GetLastWriteTimeUtc(file) < cutoff))
+                    File.Delete(file);
             }
             catch (Exception exception) { Warn(exception); }
-            await WriteAsync("Started", _stop.Token);
+            await (WriteAsync("Started", _stop.Token)).ConfigureAwait(false);
             using var timer = new PeriodicTimer(_interval);
-            while (await timer.WaitForNextTickAsync(_stop.Token)) await WriteAsync("Sample", _stop.Token);
+            while (await (timer.WaitForNextTickAsync(_stop.Token)).ConfigureAwait(false)) await (WriteAsync("Sample", _stop.Token)).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (_stop.IsCancellationRequested) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         catch (Exception exception) { Warn(exception); }
         finally
         {
             using var finalWrite = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await WriteAsync("Stopped", finalWrite.Token);
+            await (WriteAsync("Stopped", finalWrite.Token)).ConfigureAwait(false);
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional GC telemetry writes warn on failure and cannot stop the application.")]
     async Task WriteAsync(string phase, CancellationToken token)
     {
         try
@@ -137,9 +116,9 @@ public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
             var snapshot = Capture(phase);
             Volatile.Write(ref _latest, snapshot);
             Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
-            await File.AppendAllTextAsync(HistoryPath, JsonSerializer.Serialize(snapshot) + "\n", token);
+            await (File.AppendAllTextAsync(HistoryPath, JsonSerializer.Serialize(snapshot) + "\n", token)).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         catch (Exception exception) { Warn(exception); }
     }
 
@@ -155,10 +134,10 @@ public sealed class ProcessGcStatisticsRecorder : IDisposable, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _stop.Cancel();
-        if (await Task.WhenAny(_loop, Task.Delay(TimeSpan.FromSeconds(3))) == _loop)
+        await _stop.CancelAsync().ConfigureAwait(false);
+        if (await (Task.WhenAny(_loop, Task.Delay(TimeSpan.FromSeconds(3)))).ConfigureAwait(false) == _loop)
         {
-            await _loop;
+            await (_loop).ConfigureAwait(false);
             _process.Dispose(); _stop.Dispose();
         }
         else Log.Warning("{Component}.{Method} GC history shutdown timed out; HistoryPath={HistoryPath}", nameof(ProcessGcStatisticsRecorder), nameof(DisposeAsync), HistoryPath);

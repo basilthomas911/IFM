@@ -33,7 +33,9 @@ public record TestCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "These ignored properties implement the instance command contract.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "These ignored properties implement the instance command contract.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Sample message payload.</summary>
@@ -79,26 +81,4 @@ public record TestCommand
         RouteTo = routeTo;
         MsgString = msgString ?? string.Empty;
     }
-}
-
-/// <summary>
-/// Simple test entity identifier for unit tests (formats as yyyy-MM-dd).
-/// </summary>
-[MessagePackObject]
-public readonly record struct TestId : IActorEntityId
-{
-    /// <summary>As-of (value) date.</summary>
-    [Key(0)]
-    public DateOnly ValueDate { get; init; }
-
-    /// <summary>
-    /// MessagePack serialization constructor (indices must match <see cref="KeyAttribute"/> values).
-    /// </summary>
-    [SerializationConstructor]
-    public TestId(DateOnly valueDate) => ValueDate = valueDate;
-
-    /// <summary>
-    /// Formats the identifier using a dotted representation. For this single-field id it returns yyyy-MM-dd.
-    /// </summary>
-    public string Format() => string.Create(null, stackalloc char[48], $"{ValueDate:yyyy-MM-dd}");
 }

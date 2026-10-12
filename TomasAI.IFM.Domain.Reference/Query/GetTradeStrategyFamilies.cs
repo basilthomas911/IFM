@@ -10,8 +10,10 @@ public static class GetTradeStrategyFamilies
     /// <summary>Reads and replies with all configured strategy families.</summary>
     public static async ValueTask ExecuteAsync(this GetTradeStrategyFamiliesQuery query, IReferenceQueryContext context, CancellationToken cancellationToken)
     {
-        var result = await context.GetTradeStrategyFamiliesAsync(cancellationToken);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await (context.GetTradeStrategyFamiliesAsync(cancellationToken)).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result);
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, result)).ConfigureAwait(false);
     }
 }

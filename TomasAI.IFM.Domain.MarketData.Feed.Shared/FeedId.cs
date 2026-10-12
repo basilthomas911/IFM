@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -36,7 +36,7 @@ public record FeedId : IActorEntityId
     /// <summary>
     /// Formats the identifier into a stable string key. For a single-component identifier, this is the value itself.
     /// </summary>
-    public string Format() => Value.ToString();
+    public string Format() => Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     [IgnoreMember]
     public bool IsValid

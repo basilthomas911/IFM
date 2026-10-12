@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ViewModels
         public DateOnly MaturityDate { get; set; }
         public TradeState TradeState { get; set; }
         public TradeAction TradeAction { get; set; }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
         public string[] OptionLegContractIds { get; set; }
     }
 }

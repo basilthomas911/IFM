@@ -13,23 +13,14 @@ using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Command.EventProjector;
-
 public sealed class FuturesTradeEventProjector : ConventionalEventProjector<FuturesTradeCommandActor>
 {
     readonly IFuturesTradeCommandContext context;
     readonly ImmutableArray<EventProjectionDescriptor> descriptors;
-
-    public FuturesTradeEventProjector(
-        ICommandActorContext<FuturesTradeCommandActor> actorContext,
-        EventProjectorReliabilityOptions? options = null)
-        : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource,
-            Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
+    public FuturesTradeEventProjector(ICommandActorContext<FuturesTradeCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
-        descriptors =
-        [
-            DescribeNotification<FuturesTradeChangedEvent, TradeEntityId>(ProjectAsync)
-        ];
+        descriptors = [DescribeNotification<FuturesTradeChangedEvent, TradeEntityId>(ProjectAsync).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(((FuturesTradeChangedEvent)source).State, token).ConfigureAwait(false))];
     }
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
@@ -37,33 +28,23 @@ public sealed class FuturesTradeEventProjector : ConventionalEventProjector<Futu
 
     async Task ProjectAsync(FuturesTradeChangedEvent changed)
     {
-        await context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(changed.State).ConfigureAwait(false);
-        if (!changed.IsInitialEstablishment) return;
-
-        var positionId = new StrategyPositionId(
-            changed.State.Id,
-            TradeHandoffIdentity.Create("futures-position", changed.State.Id.Format()));
+        if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            await context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(changed.State).ConfigureAwait(false);
+        if (!changed.IsInitialEstablishment)
+            return;
+        var positionId = new StrategyPositionId(changed.State.Id, TradeHandoffIdentity.Create("futures-position", changed.State.Id.Format()));
         var command = new OpenFuturesPositionCommand
         {
             CommandId = TradeHandoffIdentity.Create("open-futures-position", changed.State.Id.Format()),
-            Subject = new ActorSubject(
-                ActorType.Command,
-                FuturesTradePositionCommandActor.ActorName,
-                OpenFuturesPositionCommand.Verb,
-                positionId.Format()),
+            Subject = new ActorSubject(ActorType.Command, FuturesTradePositionCommandActor.ActorName, OpenFuturesPositionCommand.Verb, positionId.Format()),
             EntityId = positionId,
             Trade = changed.State,
             EffectiveAtUtc = changed.State.EstablishedAtUtc
         };
-        var result = await context.ActorService
-            .SendAsync<OpenFuturesPositionCommand, StrategyPositionId>(command, positionId)
-            .ConfigureAwait(false);
+        var result = await context.ActorService.SendAsync<OpenFuturesPositionCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
         if (!result.Success)
-            throw new InvalidOperationException(
-                $"FUTURES_TRADE.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
+            throw new InvalidOperationException($"FUTURES_TRADE.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
     }
 
-    static IFuturesTradeCommandContext Typed(ICommandActorContext<FuturesTradeCommandActor> context) =>
-        context as IFuturesTradeCommandContext ??
-        throw new ArgumentException("Typed Futures Trade context required.");
+    static IFuturesTradeCommandContext Typed(ICommandActorContext<FuturesTradeCommandActor> context) => context as IFuturesTradeCommandContext ?? throw new ArgumentException("Typed Futures Trade context required.", nameof(context));
 }

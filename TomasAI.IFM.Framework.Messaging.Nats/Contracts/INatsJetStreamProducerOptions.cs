@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 /// including the JetStream context, subject prefix, and JSON serialization options.</remarks>
 public interface INatsJetStreamProducerOptions
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     string Url { get; set; }
     string SubjectPrefix { get; set; }
     JsonSerializerOptions JsonSerializerOptions { get; set; }

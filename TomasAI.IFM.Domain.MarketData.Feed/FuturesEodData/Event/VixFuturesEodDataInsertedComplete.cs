@@ -15,13 +15,17 @@ public static class VixFuturesEodDataInsertedComplete
     {
         ServiceId = $"{LogSourceType.FuturesEodDataEvent}";
     }
-    static string ServiceId { get; } = default!;
-
+    static string ServiceId { get; } 
     /// <summary>Caches a completed VIX futures EOD observation and reports the outcome.</summary>
     public static ValueTask<bool> ExecuteAsync(this VixFuturesEodDataInsertedCompleteEvent e,
         IEventActorContext context, FuturesEodDataEventParameters p, ILogger<FuturesEodDataEventActor> logger)
-        => ExecuteCoreAsync(e, context, p, logger);
-
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(p);
+        return ExecuteCoreAsync(e, context, p, logger);
+    }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Runs the shared VX cache behavior for Event and Realtime ownership.</summary>
     internal static async ValueTask<bool> ExecuteCoreAsync(VixFuturesEodDataInsertedCompleteEvent e,
         IEventActorContext context, FuturesEodDataEventParameters p, ILogger logger)
@@ -29,11 +33,11 @@ public static class VixFuturesEodDataInsertedComplete
         var source = $"VixFuturesEodDataInsertedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            var vixFuturesEodData = await context.GetVixFuturesEodDataAsync(e.VixFuturesTickData.ContractId, e.VixFuturesTickData.ValueDate);
+            var vixFuturesEodData = await (context.GetVixFuturesEodDataAsync(e.VixFuturesTickData.ContractId, e.VixFuturesTickData.ValueDate)).ConfigureAwait(false);
             if (vixFuturesEodData is not null && vixFuturesEodData.Length > 0)
             {
                 p.BlackboardService.MarketDataFeed.VixFuturesEodData.Set(e.VixFuturesTickData.ContractId, e.VixFuturesTickData.ValueDate, vixFuturesEodData);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, $"{e.VixFuturesTickData.ContractId}:={e.VixFuturesTickData.Price} cached");
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesEodDataEvent, $"{e.VixFuturesTickData.ContractId}:={e.VixFuturesTickData.Price} cached")).ConfigureAwait(false);
                 logger.LogInformationEvent(ServiceId, "{Source}: {ContractId}:={Price} cached", source, e.VixFuturesTickData.ContractId, e.VixFuturesTickData.Price);
             }
             return true;
@@ -41,7 +45,7 @@ public static class VixFuturesEodDataInsertedComplete
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: vix futures eod data {ContractId} caching failed", source, e.VixFuturesTickData.ContractId);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, 6009, ex.GetErrorMessage());
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, 6009, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

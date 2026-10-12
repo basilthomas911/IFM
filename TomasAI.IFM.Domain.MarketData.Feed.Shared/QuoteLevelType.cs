@@ -1,22 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1008", Justification = "Zero represents no valid persisted business choice; adding it would introduce an unsupported value.")]
     public enum QuoteLevelType
     {
         LevelOne = 1,
         LevelTwo = 2,
-    }
-
-    public static class QuoteLevelTypeExtensions
-    {
-        public static string ToStringFast(this QuoteLevelType value) => value switch
-        {
-            QuoteLevelType.LevelOne => nameof(QuoteLevelType.LevelOne),
-            QuoteLevelType.LevelTwo => nameof(QuoteLevelType.LevelTwo),
-            _ => value.ToString()
-        };
     }
 }

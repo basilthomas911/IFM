@@ -84,6 +84,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
     public EventLogWriteMode WriteMode => EventLogWriteMode.Sequential;
     public bool UseLz4Compression { get; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     public async ValueTask<EventLogAppendResult> AppendAsync(EventLogAppendRequest request, CancellationToken cancellationToken = default)
     {
         var started = Stopwatch.GetTimestamp();
@@ -92,9 +93,11 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         if (prepared.Events.Count == 1 && prepared.Events[0].RequiredProjection is null)
             return await AppendSingleAutocommitAsync(prepared, tags, started, cancellationToken).ConfigureAwait(false);
 
-        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(_connectionString);
+        var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(_connectionString);
+        await using var connectionDisposal = connection.ConfigureAwait(false);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+        var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
+        await using var transactionDisposal = transaction.ConfigureAwait(false);
         var assignments = new EventLogAssignment[prepared.Events.Count];
         try
         {
@@ -123,7 +126,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
         catch
         {
             EventLogPersistenceMetrics.Failed(tags, started);
-            try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            try { await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
             throw;
         }
     }
@@ -146,7 +149,7 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
             throw;
         }
 
-        await using (connection)
+        await using (connection.ConfigureAwait(false))
         {
             try
             {
@@ -180,8 +183,9 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
     {
         if (expectedStreamVersion.HasValue)
         {
-            await using var expectedCommand = EventLogAppenderSupport.Command(
+            var expectedCommand = EventLogAppenderSupport.Command(
                 connection, transaction, _expectedInsertSql);
+        await using var expectedCommandDisposal = expectedCommand.ConfigureAwait(false);
             AddInsertParameters(expectedCommand, request, entry);
             EventLogAppenderSupport.Add(expectedCommand, expectedStreamVersion.Value, NpgsqlDbType.Bigint);
             var scalar = await expectedCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -191,12 +195,14 @@ public sealed class SequentialEventLogAppender : IEventLogAppender
             return new EventLogAssignment(eventVersion, expectedStreamVersion.Value + 1);
         }
 
-        await using var command = EventLogAppenderSupport.Command(
+        var command = EventLogAppenderSupport.Command(
             connection,
             transaction,
             _insertSql);
+        await using var commandDisposal = command.ConfigureAwait(false);
         AddInsertParameters(command, request, entry);
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException($"Event stream {request.EventStream} was not found.");
         return new EventLogAssignment(reader.GetInt64(0), reader.GetInt64(1));

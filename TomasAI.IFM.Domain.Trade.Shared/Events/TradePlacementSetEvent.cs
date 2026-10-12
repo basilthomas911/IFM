@@ -71,24 +71,15 @@ public record TradePlacementSetEvent : IEvent
         SetOn = this.SetOn,
         SetBy = this.SetBy,
     };
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementSetFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradePlacementSetFailEvent
     {
         CommandId = this.CommandId,
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     };
-}
-
-
-public record TradePlacementSetCompleteEvent : CompleteEvent
-{
-    public TradePlacementId TradePlacementId { get; init; }
-    public FuturesTradeSignalV2ReadModel FuturesTradeSignal { get; init; }
-    public DateTime SetOn { get; init; }
-    public string SetBy { get; init; }
-}
-
-public record TradePlacementSetFailEvent : ErrorEvent
-{
+    }
 }

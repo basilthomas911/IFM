@@ -23,6 +23,17 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
 public sealed class WorkflowProjectionOrderingTests
 {
     [Fact]
+    public async Task Source_rebuild_materializes_workflow_without_dispatch_cache_or_notifications()
+    {
+        using var fixture=new Fixture();var snapshot=Snapshot();
+        await fixture.RebuildAsync(snapshot);
+        fixture.Completed.Select(x=>x.Kind).Should().BeEquivalentTo(["timeline","start","detail","entity","status","active"]);
+        fixture.Cache.TryGet(snapshot.EntityId.Format(),out _).Should().BeFalse();
+        fixture.Notifications.Should().BeEmpty();fixture.UiNotifications.Should().BeEmpty();
+        fixture.RiskProjection.ReceivedCalls().Should().BeEmpty();fixture.SubscriptionProjection.ReceivedCalls().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Independent_projection_writes_overlap_before_any_write_completes()
     {
         using var fixture = new Fixture();
@@ -335,6 +346,12 @@ public sealed class WorkflowProjectionOrderingTests
             var gate = new WriteGate();
             gates[(kind, revision)] = gate;
             return gate;
+        }
+
+        public Task RebuildAsync(WorkflowStrategyStateUpdatedEvent snapshot)
+        {
+            entityRevisions[snapshot.EntityId.Format()]=snapshot.WorkflowRevision;
+            return descriptor.RebuildReadModelAsync!(snapshot,CancellationToken.None);
         }
 
         public async Task ApplyAsync(WorkflowStrategyStateUpdatedEvent snapshot)

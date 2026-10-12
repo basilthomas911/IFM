@@ -10,6 +10,7 @@ public static class CompleteCapacityReservation
 {
     public static FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent> Complete(this FunctionEventContext<ReservePortfolioTradeRiskCommand> input)
     {
+        ArgumentNullException.ThrowIfNull(input);
         if (input.Outcome is CapacityReservationCompletedEvent committed) return FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>.Complete(committed);
         var request = input.Request ?? throw new InvalidOperationException("Completion requires a request.");
         var receipt = input.Outcome as CapacityReservationReceipt ?? throw new InvalidOperationException("Completion requires a typed receipt.");

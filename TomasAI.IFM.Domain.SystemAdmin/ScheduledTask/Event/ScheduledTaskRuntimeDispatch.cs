@@ -10,6 +10,9 @@ public static class ScheduledTaskRuntimeDispatch
     /// <summary>Publishes a committed desired definition to the host-specific mailbox.</summary>
     public static ValueTask ApplyAsync(IEvent source, ScheduledTaskDefinition definition, Guid operationCommandId, ScheduledTaskEventContext owner)
     {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(source);
         var request = new ApplyScheduledTaskRuntimeEvent
         {
             Id = source.Id, CommandId = source.CommandId, EntityId = definition.Id, AggregateId = definition.Id.Format(),
@@ -21,6 +24,9 @@ public static class ScheduledTaskRuntimeDispatch
     /// <summary>Requests one manual occurrence only after its run source event and projection are committed.</summary>
     public static ValueTask RequestManualRunAsync(ScheduledTaskRunRequestedCompleteEvent source, ScheduledTaskRun run, ScheduledTaskEventContext owner)
     {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(source);
         var request = new ExecuteScheduledTaskRuntimeRunEvent
         {
             Id = source.Id, CommandId = source.CommandId, EntityId = run.Id, AggregateId = run.Id.Format(),

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -6,11 +6,6 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Subscriptions;
-
-public interface IDurableCompositionReconciler
-{
-    Task<DurableRealization?> ReconcileOnceAsync(CancellationToken cancellationToken);
-}
 
 /// <summary>
 /// Replays committed ownership at startup and after generation/date changes. Reference refresh runs
@@ -31,10 +26,12 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
     readonly SemaphoreSlim wake = new(0, 1);
     int wakePending;
     volatile bool hasActiveLeases;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "The coordinator is asynchronously disposed on value-date replacement and in StopAsync after the background service has stopped.")]
     MarketDataSubscriptionCoordinator? coordinator;
     Guid generation;
     DateOnly valueDate;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         admissions.Changed += Signal;
@@ -56,13 +53,13 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                 catch (Exception error)
                 {
                     var failure = $"{error.GetType().Name}: {error.Message}";
-                    if (failure != lastFailure)
-                        logger.LogWarning("{Component}.{Method} "+"Durable composition reconciliation retained pending intent: {Failure}",nameof(DurableCompositionRuntime),nameof(ExecuteAsync),failure);
+                    if (!string.Equals(failure,lastFailure,StringComparison.Ordinal))
+                        ApplicationDiagnosticLog.Write3(logger, null, nameof(DurableCompositionRuntime), nameof(ExecuteAsync), failure);
                     lastFailure = failure;
                 }
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         finally { admissions.Changed -= Signal; }
     }
 
@@ -73,6 +70,8 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
     }
 
     /// <summary>One bounded, serialized retry. Acknowledgement requires every route in the current committed union.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<DurableRealization?> ReconcileOnceAsync(CancellationToken cancellationToken)
     {
         await serial.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -111,10 +110,10 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                     var plan = await plans.ReadAsync(id, ct).ConfigureAwait(false)
                         ?? throw new InvalidDataException("Committed route plan is unavailable.");
                     plan.Validate();
-                    foreach (var lease in leases.Where(x => x.Ticker.PricingPlanId == id))
+                    foreach (var lease in leases.Where(x => string.Equals(x.Ticker.PricingPlanId,id,StringComparison.Ordinal)))
                         if (lease.Ticker.AssetKind == Contracts.SubscriptionAssetKind.FuturesOption
-                            ? !plan.Options.Any(x => x.ContractId == lease.Ticker.ContractId && x.Definition.Underlying == lease.Ticker.UnderlyingContractId)
-                            : !plan.Futures.Any(x => x.ContractId == lease.Ticker.ContractId))
+                            ? !plan.Options.Any(x => string.Equals(x.ContractId,lease.Ticker.ContractId,StringComparison.Ordinal) && string.Equals(x.Definition.Underlying,lease.Ticker.UnderlyingContractId,StringComparison.Ordinal))
+                            : !plan.Futures.Any(x => string.Equals(x.ContractId,lease.Ticker.ContractId,StringComparison.Ordinal)))
                             throw new InvalidDataException("Committed leg differs from the immutable route plan.");
                     resolved.Add(id, plan);
                 }
@@ -141,7 +140,7 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                             plan.MaturityDate, clock.GetUtcNow().AddSeconds(120), plan.Options, true,
                             plan.Calendar!, plan.Publication!, plan.Conversion!, plan.SeparateContractConnection, plan.IndependentChainConnection), ct, refreshAutomatically: false).ConfigureAwait(false);
                         bootstrap = acquired.Lease;
-                        if (acquired.Failure is not null || bootstrap is null || bootstrap.ScopeId != id)
+                        if (acquired.Failure is not null || bootstrap is null || !string.Equals(bootstrap.ScopeId,id,StringComparison.Ordinal))
                             throw new CompositionMarketSourceException(acquired.Failure?.Code ?? "RoutePlanChanged");
                         registration = new(bootstrap, clock.GetUtcNow());
                         active[id] = registration; // Retain the bounded bootstrap on uncertain delivery.
@@ -149,7 +148,7 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
                     var owned = await workers.ApplyBusinessOwnershipAsync(Scope, Dataset, registration.Lease, ct).ConfigureAwait(false);
                     if (owned.Failure is not null || !owned.Active)
                         throw new CompositionMarketSourceException(owned.Failure?.Code ?? "OwnershipNotReady");
-                    var ownerLease = leases.First(x => x.Ticker.PricingPlanId == id).LeaseId;
+                    var ownerLease = leases.First(x => string.Equals(x.Ticker.PricingPlanId,id,StringComparison.Ordinal)).LeaseId;
                     var control = registration.Lease with { LeaseId = ownerLease, LeaseExpiresAtUtc = clock.GetUtcNow().AddSeconds(120) };
                     if (registration.CheckedAtUtc.AddSeconds(30) <= clock.GetUtcNow()
                         || control.Options.Any(x => x.Pricing.ValidUntilUtc <= clock.GetUtcNow().AddSeconds(2)))
@@ -179,4 +178,11 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
     }
 
     sealed record Registration(WorkerOptionChainRequest Lease, DateTimeOffset CheckedAtUtc);
+    /// <summary>Releases synchronization resources after the host stops this service.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        serial.Dispose();
+        wake.Dispose();
+    }
 }

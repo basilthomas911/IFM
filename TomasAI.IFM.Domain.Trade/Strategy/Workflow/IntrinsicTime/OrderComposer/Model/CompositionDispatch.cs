@@ -10,13 +10,13 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
-
 /// <summary>Builds the final immutable Function request before the workflow commits its dispatch intent.</summary>
 public static class CompositionDispatch
 {
-    public static ExecuteOrderCompositionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view,
-        CompositionPreparation preparation, DateTime now)
+    public static ExecuteOrderCompositionPipelineCommand Create(IntrinsicTimeStrategyWorkflowView view, CompositionPreparation preparation, DateTime now)
     {
+        ArgumentNullException.ThrowIfNull(preparation);
+        ArgumentNullException.ThrowIfNull(view);
         using var trace = WorkflowTrace.Start("composer.dispatch.create", view);
         var start = view.CompositionDispatch ?? throw new InvalidDataException("Accepted preparation is required.");
         using (WorkflowTrace.Start("composer.dispatch.validate_preparation", view))
@@ -24,6 +24,7 @@ public static class CompositionDispatch
             TradeSelectionHandoff.ValidateStart(start, now);
             CompositionPreparationService.Validate(preparation);
         }
+
         using var bindingTrace = WorkflowTrace.Start("composer.dispatch.resolve_binding", view);
         var selected = TradeSelectionContracts.ReadResult(start.AcceptedSelection!);
         var binding = CompositionBindingResolver.Resolve(selected, start.SelectionBinding!, now);
@@ -34,7 +35,9 @@ public static class CompositionDispatch
         var neutral = start.SelectionBinding!.SchemaVersion == 2;
         var deadlines = new List<DateTime>
         {
-            view.ExpiresAtUtc, binding.ValidUntilUtc, preparation.Snapshot.ValidUntilUtc.UtcDateTime,
+            view.ExpiresAtUtc,
+            binding.ValidUntilUtc,
+            preparation.Snapshot.ValidUntilUtc.UtcDateTime,
             now.AddMilliseconds(p.ExecutionMilliseconds)
         };
         if (!neutral)
@@ -43,11 +46,14 @@ public static class CompositionDispatch
         {
             SchemaVersion = 1,
             CommandId = start.CommandId,
-            Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor,
-                ExecuteOrderCompositionPipelineCommand.Verb, id.Format()),
+            Subject = new(ActorType.Function, ExecuteOrderCompositionPipelineCommand.Actor, ExecuteOrderCompositionPipelineCommand.Verb, id.Format()),
             EntityId = id,
             InputWorkflowRevision = view.WorkflowRevision,
-            WorkflowView = view with { CompositionExecution = null, CompositionDispatch = null },
+            WorkflowView = view with
+            {
+                CompositionExecution = null,
+                CompositionDispatch = null
+            },
             TriggerEvent = view.TriggerEvent,
             CorrelationId = view.CorrelationId,
             CausationId = start.CausationId,
@@ -62,12 +68,23 @@ public static class CompositionDispatch
         };
         requestTrace?.Stop();
         using (WorkflowTrace.Start("composer.dispatch.fingerprint", view))
-            request = request with { InputSha256 = request.Fingerprint() };
+            request = request with
+            {
+                InputSha256 = request.Fingerprint()
+            };
+        ValidateRequest(request, view);
+
+        return request;
+    }
+
+    /// <summary>Checks the frozen request fields and evidence under the existing dispatch validation trace.</summary>
+    static void ValidateRequest(ExecuteOrderCompositionPipelineCommand request, IntrinsicTimeStrategyWorkflowView view)
+    {
         using (WorkflowTrace.Start("composer.dispatch.validate_request", view))
         {
             var errors = new List<ValidationError>().ValidateCompositionFields(request).ValidateCompositionEvidence(request);
-            if (errors.Count != 0) throw new CompositionException("OC.CONTRACT.INVALID");
+            if (errors.Count != 0)
+                throw new CompositionException("OC.CONTRACT.INVALID");
         }
-        return request;
     }
 }

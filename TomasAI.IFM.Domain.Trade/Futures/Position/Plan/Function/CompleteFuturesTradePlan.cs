@@ -4,21 +4,19 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function;
-
 public static class CompleteFuturesTradePlan
 {
-    public static FunctionResult<FuturesTradePlanUpdatedEvent, TradePlanFailedEvent<FuturesTradePlanId>> Complete(
-        this FunctionEventContext<UpdateFuturesTradePlanCommand> input, TimeProvider clock)
+    public static FunctionResult<FuturesTradePlanUpdatedEvent, TradePlanFailedEvent<FuturesTradePlanId>> Complete(this FunctionEventContext<UpdateFuturesTradePlanCommand> input, TimeProvider clock)
     {
-        var command = input.Request ?? throw new ArgumentException("Trade Plan completion requires its command.");
-        if (input.Outcome is FuturesTradePlanUpdatedEvent committed &&
-            input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
+        var command = input.Request ?? throw new ArgumentException("Trade Plan completion requires its command.",nameof(input));
+        if (input.Outcome is FuturesTradePlanUpdatedEvent committed && input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
             return FunctionResult<FuturesTradePlanUpdatedEvent, TradePlanFailedEvent<FuturesTradePlanId>>.Complete(committed);
-        var plan = input.Outcome as StrategyTradePlanSnapshot ?? throw new ArgumentException("Calculated Trade Plan is required.");
+        var plan = input.Outcome as StrategyTradePlanSnapshot ?? throw new ArgumentException("Calculated Trade Plan is required.",nameof(input));
         var completed = new FuturesTradePlanUpdatedEvent
         {
-            Subject = new(ActorType.Function, UpdateFuturesTradePlanCommand.Actor,
-                FuturesTradePlanUpdatedEvent.Verb, command.EntityId.Format()),
+            Subject = new(ActorType.Function, UpdateFuturesTradePlanCommand.Actor, FuturesTradePlanUpdatedEvent.Verb, command.EntityId.Format()),
             Id = TradePlanContractIdentity.DeterministicId($"{command.CommandId:N}|{FuturesTradePlanUpdatedEvent.Verb}"),
             EntityId = command.EntityId,
             CommandId = command.CommandId,

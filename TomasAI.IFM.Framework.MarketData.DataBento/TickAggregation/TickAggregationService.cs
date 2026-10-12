@@ -137,6 +137,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     /// <see langword="false"/>.
     /// </summary>
     /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The health probe reports false for unavailable native feed state.")]
     public bool IsFeedUp()
     {
         try
@@ -409,6 +410,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 trade.EventTimestamp, trade.ReceiveTimestamp)
             : null);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Attempt cleanup for every stream and propagate the collected failures.")]
     private void ClearAllStreams()
     {
         List<Exception>? failures = null;
@@ -462,6 +464,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     /// <summary>Starts the market data component asynchronously.</summary>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Attempt owned startup cleanup while preserving the original activation failure.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -477,7 +481,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             var feedStarted = false;
             try
             {
-                using var consumerReady = new ManualResetEventSlim(false);
+                var consumerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 _feed.Start(_options.FeedStartTimeout, remaining =>
                 {
                     foreach (var registration in _feed.GetInstruments())
@@ -508,7 +512,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     _worker = Task.Run(
                         () => ProcessAsync(_generationStopping.Token, consumerReady),
                         CancellationToken.None);
-                    if (!consumerReady.Wait(remaining))
+                    if (!consumerReady.Task.Wait(remaining))
                         throw new TimeoutException(
                             "The tick aggregation consumer did not become ready before feed activation.");
                 });
@@ -532,7 +536,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 _reader = null;
                 if (feedStarted)
                 {
-                    try { _feed.Stop(_options.FeedStopTimeout); }
+                    try { _feed.Stop(_options.FeedStopTimeout, CancellationToken.None); }
                     catch { /* Preserve the original startup failure. */ }
                 }
                 try { await _publisher.StopAsync(cancellationToken).ConfigureAwait(false); }
@@ -553,6 +557,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     public ValueTask StopAsync(CancellationToken cancellationToken) =>
         StopAsyncCore(cancellationToken, fenceGeneration: true);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Attempt each shutdown stage, collect its failure and propagate the aggregate.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     private async ValueTask StopAsyncCore(
         CancellationToken cancellationToken,
         bool fenceGeneration)
@@ -566,15 +572,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 await _generationStopping.CancelAsync().ConfigureAwait(false);
             List<Exception>? failures = null;
             try { ClearAllStreams(); }
-            catch (Exception exception) { (failures ??= []).Add(exception); }
+            catch (Exception exception) { failures = [exception]; }
             try { _feed.Stop(_options.FeedStopTimeout, cancellationToken); }
             catch (Exception exception)
             {
                 (failures ??= []).Add(exception);
-                // The feed owns its still-live producer, drain, buffers, and
-                // published leases after an incomplete bounded stop. Do not wait
-                // indefinitely for channel completion or reclaim those resources;
-                // leave the service in Stopping so a later StopAsync can retry.
+                // The feed retains native resources after an incomplete stop.
+                // A subsequent bounded stop retains responsibility for this session.
                 throw new AggregateException("Tick aggregation shutdown failed.", failures);
             }
             var workerStopped = false;
@@ -603,11 +607,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         finally { _lifecycle.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Record or isolate the transient publication failure; durable ingestion failures are propagated through the worker.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private async Task ProcessAsync(
         CancellationToken cancellationToken,
-        ManualResetEventSlim? startupReady = null)
+        TaskCompletionSource? startupReady = null)
     {
-        startupReady?.Set();
+        startupReady?.TrySetResult();
         string? terminalDetail = null;
         try
         {
@@ -673,6 +679,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2139", Justification = "Log the failed tick with its source identifiers and stage, then preserve the original exception for the supervisor.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private async ValueTask ProcessRecordAsync(
         TickerState state,
         MarketRecord64 record,
@@ -728,14 +736,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 exception.Message));
 
             var metrics = GetMetrics();
-            _logger.LogError(
-                exception,
-                "Tick aggregation failed processing dataset {Dataset}, contract {ContractId}, " +
-                "record {RecordKind}, publisher {PublisherId}, instrument {InstrumentId}, " +
-                "sequence {SourceSequence}, stage {ProcessingStage}, elapsed {ElapsedMilliseconds} ms. " +
-                "Records started {RecordsStarted}, completed {RecordsCompleted}, failed {ProcessingFailures}; " +
-                "quotes {SourceQuoteRecords}, trades {SourceTradeRecords}, MBO {SourceMboRecords}, " +
-                "statistics {SourceStatisticsRecords}; publication failures {PublicationFailures}.",
+            TickAggregationLog.ProcessingFailed(_logger, exception,
                 progress.Dataset,
                 progress.ContractId,
                 progress.RecordKind,
@@ -765,6 +766,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private async ValueTask ProcessRecordCoreAsync(
         TickerState state,
         MarketRecord64 record,
@@ -1559,13 +1561,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         var progress = Volatile.Read(ref _inFlightRecord);
         var stage = (TickAggregationProcessingStage)Volatile.Read(
             ref _currentProcessingStage);
-        _logger.LogWarning(
-            exception,
-            "Tick aggregation handled a non-durable publication failure for {PublicationType}; " +
-            "dataset {Dataset}, contract {ContractId}, record {RecordKind}, publisher {PublisherId}, " +
-            "instrument {InstrumentId}, sequence {SourceSequence}, stage {ProcessingStage}. " +
-            "The hot cache remains current and record processing will continue. " +
-            "Publication failures {PublicationFailures}.",
+        TickAggregationLog.PublicationFailed(_logger, exception,
             publicationType,
             progress?.Dataset ?? _options.Dataset,
             progress?.ContractId ?? state.Mapping.ContractId,
@@ -1608,15 +1604,16 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             ? null
             : new DateTimeOffset(utcTicks, TimeSpan.Zero);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     private static void ValidateOptions(TickAggregationOptions options)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Dataset, nameof(options));
         if (options.DefinitionDate == default)
-            throw new ArgumentOutOfRangeException(nameof(options.DefinitionDate));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.FuturesQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
-            throw new ArgumentOutOfRangeException(nameof(options.FuturesQuoteBatchCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.FuturesOptionQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
-            throw new ArgumentOutOfRangeException(nameof(options.FuturesOptionQuoteBatchCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
         ValidateTimeout(options.FeedStartTimeout, nameof(options.FeedStartTimeout));
         ValidateTimeout(options.FeedStopTimeout, nameof(options.FeedStopTimeout));
     }

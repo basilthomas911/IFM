@@ -16,9 +16,8 @@ public static class FuturesAdxSignalGeneratedComplete
         ServiceId = $"{LogSourceType.FuturesAdxSignalEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Handles the completion of an ADX signal generation event.
     /// </summary>
     /// <param name="e">The completed event containing the generated ADX signal.</param>
@@ -29,6 +28,8 @@ public static class FuturesAdxSignalGeneratedComplete
         IFuturesAdxSignalEventContext context,
         ILogger<FuturesAdxSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         var source = $"FuturesAdxSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
@@ -41,8 +42,8 @@ public static class FuturesAdxSignalGeneratedComplete
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAdxSignalEvent, FuturesAdxSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write4(logger, ex, source, e.EntityId.ContractId);
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAdxSignalEvent, FuturesAdxSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

@@ -19,7 +19,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             _csParams = csParams;
         }
 
-        //public List<double> SpreadValues => GetSpreadValues(_csParams.ElementAt(0).ShortValues, _csParams.ElementAt(0).LongValues).OrderByDescending(e => e).Where(e => e >= 0.0).ToList();
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
         public List<double> SpreadValues => new(Values);
 
         /// <summary>
@@ -44,7 +45,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
                     meanPrice = meanPrice <= 0.0 ? Convert.ToDouble(netSpread) : meanPrice;
                 }
             }
-            catch
+            catch (InvalidOperationException)
             {
                 meanPrice = Convert.ToDouble(netSpread);
             }

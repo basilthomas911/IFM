@@ -15,6 +15,9 @@ public static class DrainSupervisorActor
         this DrainSupervisorActorCommand command, SupervisorCommandState state,
         ISupervisorCommandActorContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         SupervisorActorOperationResult result;
         if (!context.Authorizer.IsAuthorized(command.Requester, SupervisorActorOperationKind.Drain))
         {

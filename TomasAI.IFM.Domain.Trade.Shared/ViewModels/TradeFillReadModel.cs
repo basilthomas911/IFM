@@ -41,6 +41,7 @@ public record TradeFillReadModel
     public string CreatedBy { get; init; }
 
     /// <summary>Collection of per-leg fill details.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(6)]
     public TradeFillDataReadModel[] TradeFillData { get; set; }
 

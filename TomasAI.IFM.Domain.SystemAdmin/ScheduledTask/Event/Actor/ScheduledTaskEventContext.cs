@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Event.Actor;
 /// <summary>Supplies the durable actor transport for runtime installation requests.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ScheduledTaskEventContext : EventActorContext, IEventActorContext<ScheduledTaskEventActor>
 {
     private readonly IActorSupervisor _supervisor;

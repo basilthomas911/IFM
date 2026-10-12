@@ -12,6 +12,8 @@ public static class FuturesEodDataInsertedComplete
     public static async ValueTask ExecuteAsync(this FuturesEodDataInsertedCompleteEvent domainEvent,
         IFuturesEodDataRealtimeContext context, FuturesEodDataEventParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         // Completion remains observable, but a delayed persisted snapshot must not regress live displays.
         if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var current)
             && current != domainEvent.FuturesEodData) return;

@@ -11,8 +11,12 @@ public sealed class PortfolioOrderCompositionFunctionState : BaseEventSourceActo
     public override ActorThreadId Id { get; set; } = default!;
     public PortfolioOrderCompositionCompletedEvent? CompletedEvent { get; private set; }
     public bool IsCompleted => CompletedEvent is not null;
-    public bool Matches(EvaluatePortfolioOrderCompositionCommand request) => CompletedEvent is { } value
-        && value.OperationId == request.OperationId && value.PortfolioId == request.PortfolioId && value.InputHash == request.InputSha256;
+    public bool Matches(EvaluatePortfolioOrderCompositionCommand request) 
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return CompletedEvent is { } value
+        && value.OperationId == request.OperationId && value.PortfolioId == request.PortfolioId && string.Equals(value.InputHash,request.InputSha256,StringComparison.Ordinal);
+    }
     public bool TryComplete(PortfolioOrderCompositionCompletedEvent completed, EvaluatePortfolioOrderCompositionCommand request) => !IsCompleted && Apply(completed, false);
     protected override bool Apply(IEvent domainEvent)
     {

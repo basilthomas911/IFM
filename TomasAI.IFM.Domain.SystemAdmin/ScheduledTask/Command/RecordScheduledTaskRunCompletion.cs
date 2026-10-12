@@ -18,6 +18,8 @@ public static class RecordScheduledTaskRunCompletion
     public static ServiceResult<GuidResult> Execute(this RecordScheduledTaskRunCompletionCommand command,
         ScheduledTaskCommandState state, DateTimeOffset now, ScheduledTaskCatalog? catalog)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply RecordScheduledTaskRunCompletion event";
         var updated = command.Compute(state.ScheduledTaskDefinition, now, catalog, out var model) switch
         {

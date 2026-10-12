@@ -13,7 +13,7 @@ public sealed record CompositionContractSelection(
     {
         if (PricingPlanId is not { Length: 64 } || !PricingPlanId.All(Uri.IsHexDigit)
             || ContractIds.IsDefaultOrEmpty || ContractIds.Length > 4
-            || ContractIds.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 256 || x != x.Trim())
+            || ContractIds.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 256 || !string.Equals(x,x.Trim(),StringComparison.Ordinal))
             || ContractIds.Distinct(StringComparer.Ordinal).Count() != ContractIds.Length)
             throw new InvalidDataException("An exact bounded selected-contract set and reconstruction plan are required.");
     }

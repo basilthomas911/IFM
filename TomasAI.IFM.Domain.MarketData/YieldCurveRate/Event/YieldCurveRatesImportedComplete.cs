@@ -12,5 +12,9 @@ public static class YieldCurveRatesImportedComplete
 {
     /// <summary>Forwards the terminal download outcome without starting another import.</summary>
     public static ValueTask<bool> ExecuteAsync(this YieldCurveRatesImportedCompleteEvent eventValue, IEventActorContext context, ILogger<YieldCurveRateEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Completed, context, logger);
+        
+    {
+        ArgumentNullException.ThrowIfNull(eventValue);
+        return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.TreasuryCurve, MarketDataDownloadStatus.Completed, context, logger);
+    }
 }

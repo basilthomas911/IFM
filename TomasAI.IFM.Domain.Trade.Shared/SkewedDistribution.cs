@@ -6,11 +6,11 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 {
     public class SkewedDistribution
     {
-        private IEnumerable<double> _samples;
-        private Dictionary<string, int> _frequencyMap;
-        private int _count;
-        private double _variance;
-        private double _median;
+        private readonly IEnumerable<double> _samples;
+        private readonly Dictionary<string, int> _frequencyMap;
+        private readonly int _count;
+        private readonly double _variance;
+        private readonly double _median;
 
         public static SkewedDistribution Estimate(IEnumerable<double> samples) => new SkewedDistribution(samples);
 
@@ -28,14 +28,14 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         private SkewedDistribution(IEnumerable<double> samples)
         {
             _count = 0;
-            _frequencyMap = new Dictionary<string, int>();
+            _frequencyMap = new Dictionary<string, int>(StringComparer.Ordinal);
             _samples = samples.Select(sample => ((int)(sample / 0.01) * 0.01));
             for (var index = 0.0; index < 1.0; index += 0.01)
             {
                 if (!_frequencyMap.ContainsKey($"{index:F2}"))
                     _frequencyMap.Add($"{index:F2}", 0);
                 var count = _frequencyMap[$"{index:F2}"];
-                count += _samples.Where(sample => sample >= index && sample < (index + 0.01)).Count();
+                count += _samples.Count(sample => sample >= index && sample < (index + 0.01));
                 _frequencyMap[$"{index:F2}"] = count;
                 _count += count;
             }
@@ -72,7 +72,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         private double GetMedian()
         {
             var orderedSamples = _samples.OrderBy(e => e).ToArray();
-            return orderedSamples[orderedSamples.Count() / 2];
+            return orderedSamples[orderedSamples.Length / 2];
         }
     }
 }

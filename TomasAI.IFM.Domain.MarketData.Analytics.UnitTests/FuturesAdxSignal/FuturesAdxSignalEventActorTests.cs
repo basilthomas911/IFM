@@ -143,7 +143,9 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger1 = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger1.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var mockLogger2 = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger2.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
         var actor1 = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger1);
         var actor2 = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger2);
@@ -618,6 +620,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger);
         var threadId = new ActorThreadId(ActorType.Event, FuturesAdxSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAdxSignalGeneratedCompleteEvent();
@@ -636,6 +639,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger);
         var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
         var @event = SampleData.CreateAdxSignalGeneratedCompleteEvent();
@@ -658,6 +662,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger);
         var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAdxSignalEventActor.Actor, "1");
@@ -680,6 +685,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAdxSignalEventActor>>();
+        mockLogger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxEventActor(mockSupervisor, mockLogger);
         var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAdxSignalEventActor.Actor, "1");

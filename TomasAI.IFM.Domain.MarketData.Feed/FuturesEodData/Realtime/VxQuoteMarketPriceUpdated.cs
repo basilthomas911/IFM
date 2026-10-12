@@ -54,13 +54,7 @@ internal static class VxQuoteMarketPriceUpdated
                 && trade.EventTimestamp >= quote.EventTimestamp)
                 return true;
 
-            var tickData = new FuturesTickDataV2ReadModel(
-                source.EntityId.ContractId,
-                source.EntityId.ValueDate,
-                quote.SourceSequence,
-                TimeOnly.FromDateTime(quote.EventTimestamp.UtcDateTime),
-                midpoint,
-                0);
+            var tickData = CreateQuoteObservation(source, quote, midpoint);
             FuturesSessionStatisticsSnapshot? statistics =
                 marketDataApi.TryGetFuturesSessionStatistics(
                     source.EntityId.ContractId,
@@ -88,6 +82,12 @@ internal static class VxQuoteMarketPriceUpdated
             throw;
         }
     }
+
+    /// <summary>Maps a quote midpoint into an observation with zero traded volume and the quote's source timestamp.</summary>
+    static FuturesTickDataV2ReadModel CreateQuoteObservation(FuturesMarketPriceUpdatedRealtimeEvent source,
+        FuturesMarketQuoteSnapshot quote, decimal midpoint) => new(
+        source.EntityId.ContractId, source.EntityId.ValueDate, quote.SourceSequence,
+        TimeOnly.FromDateTime(quote.EventTimestamp.UtcDateTime), midpoint, 0);
 
     static void ValidateIdentity(FuturesMarketPriceUpdatedRealtimeEvent source)
     {

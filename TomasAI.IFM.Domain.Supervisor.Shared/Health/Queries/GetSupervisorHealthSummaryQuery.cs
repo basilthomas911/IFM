@@ -31,5 +31,6 @@ public sealed record GetSupervisorHealthSummaryQuery : IQuery<SupervisorHealthSu
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
     [IgnoreMember] public int ErrorCode => 9700;
     [IgnoreMember] public string? QueryParams => null;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member implements the actor command or query contract.")]
     [IgnoreMember] public string Verb => QueryVerb;
 }

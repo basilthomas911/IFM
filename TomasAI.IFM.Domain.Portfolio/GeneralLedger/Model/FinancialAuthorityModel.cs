@@ -12,7 +12,11 @@ public static class FinancialAuthorityModel
     public static void Validate(FinancialBookConfiguration book, PortfolioAggregate portfolio,
         IReadOnlyDictionary<int, PortfolioFundAggregate> funds, IReadOnlyDictionary<int, PortfolioFinancialPolicyAggregate> policies, DateTime now)
     {
-        Require(portfolio.Current is { } && !portfolio.IsDeleted && portfolio.Current.PortfolioId == book.PortfolioId && portfolio.Current.BaseCurrency == book.Currency,
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(funds);
+        ArgumentNullException.ThrowIfNull(policies);
+        ArgumentNullException.ThrowIfNull(portfolio);
+        Require(portfolio.Current is { } && !portfolio.IsDeleted && portfolio.Current.PortfolioId == book.PortfolioId && string.Equals(portfolio.Current.BaseCurrency,book.Currency,StringComparison.Ordinal),
             "Book must use an existing Portfolio and its currency.");
         Require(portfolio.Current!.BrokerAccountRefs.Contains(book.ExecutionAccountReference, StringComparer.Ordinal), "Execution account is not assigned to this Portfolio.");
         foreach (var proposed in book.Funds)
@@ -31,16 +35,29 @@ public static class FinancialAuthorityModel
             var aggregate = policies[proposed.Reference.PolicyId];
             var policy = aggregate.Versions.SingleOrDefault(x => x.PolicyVersion == portfolio.Current.ActivePolicyVersion);
             Require(policy is not null && policy.PolicyId == portfolio.Current.ActivePolicyId && policy.OperatingState == PortfolioFinancialPolicyState.Active &&
-                policy.BaseCurrency == "USD" && Effective(policy.EffectiveFromUtc, policy.EffectiveUntilUtc, now) && proposed.PolicyStreamVersion == aggregate.Revision,
+                string.Equals(policy.BaseCurrency,"USD",StringComparison.Ordinal) && Effective(policy.EffectiveFromUtc, policy.EffectiveUntilUtc, now) && proposed.PolicyStreamVersion == aggregate.Revision,
                 "Exact active Portfolio policy and source revision are required.");
             Require(proposed.Deployments.Length > 0 && proposed.Deployments.Select(x => x.Reference.DeploymentKey).Distinct().Count() == proposed.Deployments.Length,
                 "Spendable Funds require distinct exact deployment authorities.");
             foreach (var deployment in proposed.Deployments)
-            {
+                ValidateDeployment(book, portfolio, fund, proposed, policy!, deployment, now);
+            Require(proposed.Deployments.Any(x => x.Reference == proposed.Reference), "Primary policy reference must be one of the exact deployment authorities.");
+        }
+        foreach (var shared in book.Funds.Where(x => x.CanSpend).SelectMany(x => x.Limits).Where(x => x.ScopeKind is CapacityScopeKind.Portfolio or CapacityScopeKind.Underlying)
+            .GroupBy(x => (x.ScopeKind, x.ScopeKey, x.Measure, x.Unit)))
+            Require(shared.Select(x => (x.Enabled, x.Maximum)).Distinct().Count() == 1, "Shared capacity scopes require one consistent cap across Funds.");
+    }
+
+    /// <summary>Validates one exact deployment against its committed assignment, envelope, expiry, Greeks and financial caps.</summary>
+    static void ValidateDeployment(FinancialBookConfiguration book, PortfolioAggregate portfolio,
+        PortfolioFundAggregate fund, FinancialFundAuthority proposed, PortfolioFinancialPolicyReadModel policy,
+        FinancialDeploymentAuthority deployment, DateTime now)
+    {
+
                 var reference = deployment.Reference;
                 Require(reference.PortfolioVersion == portfolio.Current.PortfolioVersion && reference.FundMandateVersion == fund.Current!.FundMandateVersion &&
                     reference.PolicyId == policy!.PolicyId && reference.PolicyVersion == policy.PolicyVersion && reference.AuthorityEpoch == book.AuthorityEpoch &&
-                    reference.SourceWatermark == book.SourceWatermark && reference.ValuationWatermark == book.ValuationWatermark && reference.ValidUntilUtc > now &&
+                    string.Equals(reference.SourceWatermark,book.SourceWatermark,StringComparison.Ordinal) && string.Equals(reference.ValuationWatermark,book.ValuationWatermark,StringComparison.Ordinal) && reference.ValidUntilUtc > now &&
                     reference.FinancialSnapshotHash.Length == 64, "Financial reference does not match committed source definitions.");
                 Require(fund.Current!.PermittedTradeStrategyFamilies.Any(x => x.CatalogDeployment == reference.DeploymentKey), "Deployment is not authorized by the Fund mandate.");
                 var assignment = fund.Assignments.SingleOrDefault(x => x.AssignmentVersion == reference.AssignmentVersion && x.TradeStrategyFamily?.CatalogDeployment == reference.DeploymentKey);
@@ -82,13 +99,7 @@ public static class FinancialAuthorityModel
                     envelope!.AvailableCapital, Math.Min(envelope.MaximumAggregateRisk, envelope.RemainingLossBudget), envelope.MaximumMargin, envelope.MaximumGrossNotional, envelope.MaximumOpenPositions, envelope.MaximumContracts);
                 ValidateLimits(deployment.Limits, CapacityScopeKind.Deployment, FinancialScopeKeys.Deployment(reference.DeploymentKey),
                     Math.Min(policy.MaximumDeployableCapital, envelope.AvailableCapital), caps.MaximumAggregateRisk, caps.MaximumMargin, caps.MaximumGrossNotional, caps.MaximumOpenPositions, envelope.MaximumContracts);
-            }
-            Require(proposed.Deployments.Any(x => x.Reference == proposed.Reference), "Primary policy reference must be one of the exact deployment authorities.");
-        }
-        foreach (var shared in book.Funds.Where(x => x.CanSpend).SelectMany(x => x.Limits).Where(x => x.ScopeKind is CapacityScopeKind.Portfolio or CapacityScopeKind.Underlying)
-            .GroupBy(x => (x.ScopeKind, x.ScopeKey, x.Measure, x.Unit)))
-            Require(shared.Select(x => (x.Enabled, x.Maximum)).Distinct().Count() == 1, "Shared capacity scopes require one consistent cap across Funds.");
-    }
+                }
 
     static void ValidateLimits(CapacityLimit[] limits, CapacityScopeKind scope, string key, decimal funding, decimal loss, decimal margin, decimal notional, int positions, int? contracts)
     {
@@ -100,7 +111,7 @@ public static class FinancialAuthorityModel
         if (contracts is { } count) Check(CapacityMeasure.GrossContracts, CapacityUnit.Contracts, count);
         void Check(CapacityMeasure measure, CapacityUnit unit, decimal maximum)
         {
-            var selected = limits.Where(x => x.ScopeKind == scope && x.ScopeKey == key && x.Measure == measure && x.Unit == unit).ToArray();
+            var selected = limits.Where(x => x.ScopeKind == scope && string.Equals(x.ScopeKey,key,StringComparison.Ordinal) && x.Measure == measure && x.Unit == unit).ToArray();
             Require(selected.Length == 1 && selected[0].Enabled && selected[0].Maximum >= 0 && selected[0].Maximum <= maximum,
                 $"Missing or excessive {scope}/{measure} authority.");
         }

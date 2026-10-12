@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.Exceptions;
 
 namespace TomasAI.IFM.Framework.Storage;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1012", Justification = "Preserves the existing public construction contract.")]
 public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> where TRepo : IObjectRepository
 {
     readonly IObjectCreateProvider _provider;
@@ -16,7 +17,8 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     /// create db context from base class
     /// </summary>
     /// <param name="connectionSetting"></param>
-    public ObjectDataRepository(IDbConnectionSetting connectionSetting, ILogger<DbProvider> logger)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Shared DbProvider logger category is supplied by the existing repository DI contract.")]
+    protected ObjectDataRepository(IDbConnectionSetting connectionSetting, ILogger<DbProvider> logger)
     {
         // only initialize object data repos that have been configured from startup settings...
         _transaction = null;
@@ -67,29 +69,24 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
     public IObjectRepositoryContext Use(string commandName, string commandText)
     {
         if (string.IsNullOrWhiteSpace(commandName))
-            throw new ArgumentException("ObjectDataRepository.UseCommandText: commandName parameter is empty");
+            throw new ArgumentException("ObjectDataRepository.UseCommandText: commandName parameter is empty",nameof(commandName));
         if (string.IsNullOrWhiteSpace(commandText))
-            throw new ArgumentException("ObjectDataRepository.UseCommandText: commandText parameter is empty");
-        _logger.LogDebug(
-            "ObjectDataRepository.UseCommandText: command name: {CommandName}{NewLine}{CommandText}",
-            commandName,
-            Environment.NewLine,
-            commandText);
+            throw new ArgumentException("ObjectDataRepository.UseCommandText: commandText parameter is empty",nameof(commandText));
+        if (_logger.IsEnabled(LogLevel.Debug))
+            StorageLog.UseCommand(_logger, commandName, Environment.NewLine, commandText);
         return _provider.CreateCommandTextContext(commandName, commandText);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Preserves existing case-normalized URI/header matching behavior.")]
     public IObjectUriContext Use(string commandName, Uri uriObject)
     {
         if (string.IsNullOrWhiteSpace(commandName))
-            throw new ArgumentException("ObjectDataRepository.Use: commandName parameter is empty");
+            throw new ArgumentException("ObjectDataRepository.Use: commandName parameter is empty",nameof(commandName));
         if (uriObject is null)
-            throw new ArgumentException("ObjectDataRepository.Use: Uri parameter is empty");
+            throw new ArgumentException("ObjectDataRepository.Use: Uri parameter is empty",nameof(uriObject));
 
-        _logger.LogDebug(
-            "ObjectDataRepository.UseUri: command name: {CommandName}{NewLine}{Uri}",
-            commandName,
-            Environment.NewLine,
-            uriObject);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            StorageLog.UseUri(_logger, commandName, Environment.NewLine, uriObject);
 
         // get uri type..
         var uriContext = uriObject.Scheme.ToLowerInvariant() switch
@@ -100,6 +97,9 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
         };
         return uriContext;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2208", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This validates persisted instance properties, not method arguments; the property name identifies the invalid stored field.")]
         IObjectUriContext CreateFileUriContext()
         {
             if (uriObject is null)
@@ -121,9 +121,9 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
                 "ObjectDataRepository.ExecuteQueuedCommandsAsync: no commands have been queued");
         }
 
-        await _provider
+        await (_provider
             .CreateQueuedCommandsContext(queuedCommands)
-            .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
+            .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction)).ConfigureAwait(false);
     }
 
     /// <summary>

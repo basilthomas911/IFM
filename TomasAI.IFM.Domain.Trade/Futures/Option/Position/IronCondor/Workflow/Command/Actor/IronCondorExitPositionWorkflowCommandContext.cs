@@ -8,34 +8,15 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.Command.Actor;
-
-public interface IIronCondorExitPositionWorkflowCommandContext :
-    ICommandActorContext<IronCondorExitPositionWorkflowCommandActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IDurableReplayQueue DurableReplayQueue { get; }
-    IBlackboardService BlackboardService { get; }
-    IActorService ActorService { get; }
-    IEventProjector<IronCondorExitPositionWorkflowCommandActor> EventProjector { get; }
-    IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState> StateRepository { get; }
-    ILogger<IronCondorExitPositionWorkflowCommandActor> Logger { get; }
-}
-
-public sealed class IronCondorExitPositionWorkflowCommandContext : CommandActorContext,
-    ICommandActorContext<IronCondorExitPositionWorkflowCommandActor>,
-    IIronCondorExitPositionWorkflowCommandContext
+public sealed class IronCondorExitPositionWorkflowCommandContext : CommandActorContext, IIronCondorExitPositionWorkflowCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> eventSource;
     readonly Lazy<IDurableReplayQueue> replay;
     readonly Lazy<IActorService> actors;
     readonly Lazy<IEventProjector<IronCondorExitPositionWorkflowCommandActor>> projector;
     readonly Lazy<IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState>> repository;
-
-    public IronCondorExitPositionWorkflowCommandContext(IActorSupervisor supervisor,
-        IDbContextFactory dbFactory, IBlackboardService blackboard,
-        ILogger<IronCondorExitPositionWorkflowCommandActor> logger)
-        : base(supervisor, new(ActorType.Command, IronCondorExitPositionWorkflowCommandActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public IronCondorExitPositionWorkflowCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<IronCondorExitPositionWorkflowCommandActor> logger) : base(supervisor, new(ActorType.Command, IronCondorExitPositionWorkflowCommandActor.ActorName))
     {
         DbFactory = dbFactory;
         BlackboardService = blackboard;
@@ -55,5 +36,7 @@ public sealed class IronCondorExitPositionWorkflowCommandContext : CommandActorC
     public IActorService ActorService => actors.Value;
     public IEventProjector<IronCondorExitPositionWorkflowCommandActor> EventProjector => projector.Value;
     public IEventSourceActorStateRepository<IronCondorExitPositionWorkflowCommandState> StateRepository => repository.Value;
-    Lazy<T> Resolve<T>() where T : class => new(() => Container.Resolve<T>());
+
+    Lazy<T> Resolve<T>()
+        where T : class => new(() => Container.Resolve<T>());
 }

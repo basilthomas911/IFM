@@ -24,6 +24,7 @@ public class TradePlanForwardLossLimitCacheModel(IRedisCache redisCache, IJsonSe
     /// <returns></returns>
     public TradePlanForwardLossLimitReadModel? Get(TradePlanForwardLossLimitEntityId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -38,6 +39,7 @@ public class TradePlanForwardLossLimitCacheModel(IRedisCache redisCache, IJsonSe
     /// <param name="tradePlanForwardLossLimit"></param>
     public void Set(TradePlanForwardLossLimitEntityId id, TradePlanForwardLossLimitReadModel tradePlanForwardLossLimit)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         var value = _jsonSerializer.Serialize(tradePlanForwardLossLimit);
         _redisCache.Set(key, value);
@@ -50,6 +52,7 @@ public class TradePlanForwardLossLimitCacheModel(IRedisCache redisCache, IJsonSe
     /// <returns></returns>
     public void Remove(TradePlanForwardLossLimitEntityId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         _redisCache.Remove(key);
     }

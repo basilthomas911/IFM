@@ -15,8 +15,8 @@ public sealed class LocalDatabaseNativeRestoreArtifactSink(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var root = Root(engine, restorePointId);
-        if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any())
-            throw new InvalidOperationException("The AWS native restore staging target is not fresh.");
+        // Native source and AWS restore artifacts share an immutable restore-point directory.
+        // Existing files are never overwritten; WriteAsync verifies their signed length and hash.
         Directory.CreateDirectory(root);
         if (engine == DatabaseEngine.PostgreSql)
         {
@@ -39,7 +39,15 @@ public sealed class LocalDatabaseNativeRestoreArtifactSink(
         if (!target.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The AWS restore artifact escaped its approved native root.");
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        if (File.Exists(target)) throw new IOException("The AWS restore artifact target already exists.");
+        if (File.Exists(target))
+        {
+            await using var existing = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read,
+                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (existing.Length != expectedLength || !CryptographicOperations.FixedTimeEquals(
+                    await SHA256.HashDataAsync(existing, cancellationToken).ConfigureAwait(false), Convert.FromHexString(expectedSha256)))
+                throw new InvalidDataException("An existing AWS restore artifact differs from its signed length or SHA-256.");
+            return;
+        }
         await using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             128 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

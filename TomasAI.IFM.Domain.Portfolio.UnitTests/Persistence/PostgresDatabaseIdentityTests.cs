@@ -13,11 +13,12 @@ public sealed class PostgresDatabaseIdentityTests
     {
         var settings = new DbConnectionSettings()
             .Add(EventSourceActorDbContext.EventSourceActorDbConnection, "Database=ifm;Host=LOCALHOST;Port=5432;Username=ifm", "System.Data.Postgres")
-            .Add(PortfolioDbContext.PortfolioDbConnection, "Host=localhost;Username=ifm;Database=IFM;Port=5432", "System.Data.Postgres");
+            .Add(PortfolioDbContext.PortfolioDbConnection, "Host=localhost;Username=ifm;Database=ifm;Port=5432", "System.Data.Postgres");
         FluentActions.Invoking(() => PostgresEventTransaction.ValidatePortfolioDatabaseIdentity(settings)).Should().NotThrow();
     }
 
     [Theory]
+    [InlineData("Host=localhost;Database=ifm;Username=ifm", "Host=localhost;Database=IFM;Username=ifm")]
     [InlineData("Host=localhost;Database=events;Username=ifm", "Host=localhost;Database=portfolio;Username=ifm")]
     [InlineData("Host=localhost;Database=ifm;Username=a", "Host=localhost;Database=ifm;Username=b")]
     public void Different_database_or_identity_is_rejected(string eventSource, string portfolio)

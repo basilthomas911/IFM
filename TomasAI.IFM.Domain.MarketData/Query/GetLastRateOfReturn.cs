@@ -19,9 +19,7 @@ public static class GetLastRateOfReturn
         this GetLastRateOfReturnQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? dbFactory.MarketDataDb.GetLastRateOfReturnAsync(q.Symbol, cancellationToken)
-            : dbFactory.MarketDataDb.GetLastRateOfReturnAsync(q.Symbol));
+        => new(dbFactory.MarketDataDb.GetLastRateOfReturnAsync(q.Symbol, cancellationToken));
 
     /// <summary>Reads and replies with the requested market-data result.</summary>
     public static async ValueTask ExecuteAsync(
@@ -29,6 +27,8 @@ public static class GetLastRateOfReturn
         TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,

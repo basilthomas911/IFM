@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -9,7 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.State;
 /// <summary>Loads administrative source events and commits changes before submitting projections.</summary>
 public sealed class ScheduledTaskRunStateRepository(IEventSourceActorStateFactory stateFactory, IEventSourceActorDbContext eventSource,
-    IActorService actorService, IEventProjector<ScheduledTaskRunCommandActor> projector, ILogger<ScheduledTaskRunStateRepository> logger)
+    IActorService actorService, IEventProjector<ScheduledTaskRunCommandActor> projector, ILogger<ScheduledTaskRunStateRepository> logger, IScheduledTaskTransactionalProjectionWriter? atomicWriter = null, IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger), IEventSourceActorStateRepository<ScheduledTaskRunCommandState>
 {
     /// <inheritdoc />
@@ -19,7 +20,17 @@ public sealed class ScheduledTaskRunStateRepository(IEventSourceActorStateFactor
     /// <inheritdoc />
     public ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command) => SaveStateAsync(context, state, command, CancellationToken.None);
     /// <inheritdoc />
-    public async ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command, CancellationToken cancellationToken) => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    public async ValueTask SaveStateAsync(ICommandActorContext context, ScheduledTaskRunCommandState state, ICommand command, CancellationToken cancellationToken) {
+        ArgumentNullException.ThrowIfNull(state);
+        if (string.Equals(atomicWriter?.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            var events = await ScheduledTaskAtomicPersistence.Save(state, command, EventSourceDb, atomicWriter,
+                transactions ?? throw new InvalidOperationException("Scheduled-task atomic persistence requires the PostgreSQL event transaction service."), cancellationToken).ConfigureAwait(false);
+            // Required writes have committed. Durable markers recover notification submission if this call fails.
+            await projector.DomainEventsProjectionAsync(events).ConfigureAwait(false);
+        }
+        else await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    }
     /// <inheritdoc />
-    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection events) => projector.DomainEventsProjectionAsync(events);
+    protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents) => projector.DomainEventsProjectionAsync(domainEvents);
 }

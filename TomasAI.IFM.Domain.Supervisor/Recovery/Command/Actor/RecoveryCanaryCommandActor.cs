@@ -114,9 +114,9 @@ public sealed class RecoveryCanaryCommandActor(ICommandActorContext<RecoveryCana
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<RecoveryCanaryCommandActor> context, ActorThreadId threadId,
-        ICommand command, Exception exception)
+        ICommand command, Exception ex)
     {
-        logger.LogError(exception, "Supervisor recovery canary command failed for {ActorThreadId}.", threadId);
+        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(logger, ex, "Supervisor recovery canary command", threadId);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? RecoveryCanaryCommand.ErrorId,
                 "Supervisor recovery canary command failed."));

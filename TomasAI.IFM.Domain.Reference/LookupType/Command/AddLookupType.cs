@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -18,6 +18,8 @@ public static class AddLookupType
     /// <returns>The command acceptance or business failure.</returns>
     public static ServiceResult<GuidResult> Execute(this AddLookupTypeCommand e, LookupTypeCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "LookupType.STATE.APPLY_FAILED: unable to apply added lookup event";
         var updated = e.Compute(state, out var lookupChange) switch
         {
@@ -53,11 +55,10 @@ public static class AddLookupType
     /// <returns>True when the lookup transition is valid.</returns>
     internal static bool Compute(this AddLookupTypeCommand e, LookupTypeCommandState state, out LookupTypeChange lookupChange)
     {
-        lookupChange = state.LookupTypeExists(e.EntityId)
-            ? new(null, $"{e.CommandName}: lookupType {e.EntityId} already exists")
-            : e.LookupType is null
-                ? new(null, "LookupType: the lookup definition is required.")
-                : new(e.LookupType with { });
+        lookupChange = (state.LookupTypeExists(e.EntityId)) switch
+{
+    true => new(null, $"{e.CommandName}: lookupType {e.EntityId} already exists"),
+    false => e.LookupType is null ? new(null, "LookupType: the lookup definition is required.") : new(e.LookupType with { })};
         return lookupChange.RejectionReason is null;
     }
 }

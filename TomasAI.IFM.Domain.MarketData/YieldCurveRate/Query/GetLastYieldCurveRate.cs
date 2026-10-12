@@ -19,7 +19,5 @@ internal static class GetLastYieldCurveRate
         this GetLastYieldCurveRateQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? dbFactory.MarketDataDb.GetLastYieldCurveRateAsync(cancellationToken)
-            : dbFactory.MarketDataDb.GetLastYieldCurveRateAsync());
+        => new(dbFactory.MarketDataDb.GetLastYieldCurveRateAsync(cancellationToken));
 }

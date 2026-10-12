@@ -38,14 +38,14 @@ public sealed class S3DatabaseBackupCatalog(
             .Select(static value => value.RestorePoint).ToArray();
 
     public async ValueTask<IReadOnlyList<AwsResolvedCatalogRestorePoint>> EnumerateAwsAsync(
-        DatabaseArtifactReplicaId replicaId, CancellationToken cancellationToken)
+        DatabaseArtifactReplicaId replicaId, CancellationToken cancellationToken, DatabaseProtectionSetId? protectionSetId = null)
     {
         var result = new List<AwsResolvedCatalogRestorePoint>();
         foreach (var version in await ListImmutableVersionsAsync(_catalogPrefix, "/catalog-entry-v1.json", cancellationToken).ConfigureAwait(false))
         {
             var bytes = await ReadVersionAsync(version.Key!, version.VersionId!, options.MaximumSignedDocumentBytes, cancellationToken).ConfigureAwait(false);
             var entry = MapEntry(DatabaseBackupCanonicalJson.Deserialize<AwsCatalogEntry>(bytes));
-            if (entry.ReplicaId != replicaId) continue;
+            if (entry.ReplicaId != replicaId || (protectionSetId is { } scope && entry.ProtectionSetId != scope)) continue;
             var catalogObject = await DescribeVersionAsync(version.Key!, version.VersionId!, bytes, cancellationToken).ConfigureAwait(false);
             result.Add(await ResolveEntryAsync(entry, cancellationToken, MapObject(catalogObject)).ConfigureAwait(false));
         }
@@ -136,8 +136,12 @@ public sealed class S3DatabaseBackupCatalog(
         if (manifest.RestorePointId != entry.RestorePointId || manifest.Engine != entry.Engine)
             throw new InvalidDataException("The AWS engine manifest does not match its catalog identity.");
 
-        foreach (var artifact in record.Artifacts)
-            await objects.VerifyAsync(artifact.Object, cancellationToken).ConfigureAwait(false);
+        // Every exact immutable version still undergoes full content/checksum verification.
+        // Bound parallel downloads so large catalogs do not serialize thousands of S3 trips.
+        await Parallel.ForEachAsync(record.Artifacts,
+            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+            async (artifact, token) => await objects.VerifyAsync(artifact.Object, token).ConfigureAwait(false))
+            .ConfigureAwait(false);
         await objects.VerifyAsync(publicationSignature.Object, cancellationToken).ConfigureAwait(false);
         await objects.VerifyAsync(manifestSignature.Object, cancellationToken).ConfigureAwait(false);
         if (catalogObject is not null) await objects.VerifyAsync(catalogObject, cancellationToken).ConfigureAwait(false);

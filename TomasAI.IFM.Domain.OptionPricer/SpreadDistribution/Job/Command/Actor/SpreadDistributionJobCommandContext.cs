@@ -19,21 +19,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="SpreadDistributionJobCommandActor"/>.</summary>
-public interface ISpreadDistributionJobCommandContext : ICommandActorContext<SpreadDistributionJobCommandActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbEventSource service supplied to the actor context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the EventProjector service supplied to the actor context.</summary>
-    IEventProjector<SpreadDistributionJobCommandActor> EventProjector { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<SpreadDistributionJobCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="SpreadDistributionJobCommandActor"/>.</summary>
-public sealed class SpreadDistributionJobCommandContext : CommandActorContext, ICommandActorContext<SpreadDistributionJobCommandActor>, ISpreadDistributionJobCommandContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class SpreadDistributionJobCommandContext : CommandActorContext, ISpreadDistributionJobCommandContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public SpreadDistributionJobCommandContext(

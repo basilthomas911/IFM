@@ -103,7 +103,7 @@ public sealed class VerticalSpreadTradePlanFunctionActor(IVerticalSpreadTradePla
             command.RequestedAtUtc.Kind != DateTimeKind.Utc ||
             command.Subject != new ActorSubject(ActorType.Function, ActorName,
                 UpdateVerticalSpreadTradePlanCommand.Verb, command.EntityId.Format()))
-            throw new ArgumentException("Valid Vertical Spread Trade Plan routing and source position are required.");
+            throw new ArgumentException("Valid Vertical Spread Trade Plan routing and source position are required.",nameof(command));
         command.Parameters.Validate();
     }
 }

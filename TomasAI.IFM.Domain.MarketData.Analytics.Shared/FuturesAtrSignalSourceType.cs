@@ -18,14 +18,3 @@ public enum FuturesAtrSignalSourceType
     FuturesItiSignal,
     FuturesIntraDayData
 }
-
-public static class FuturesAtrSignalSourceTypeExtensions
-{
-    public static string ToStringFast(this FuturesAtrSignalSourceType value) => value switch
-    {
-        FuturesAtrSignalSourceType.None => nameof(FuturesAtrSignalSourceType.None),
-        FuturesAtrSignalSourceType.FuturesItiSignal => nameof(FuturesAtrSignalSourceType.FuturesItiSignal),
-        FuturesAtrSignalSourceType.FuturesIntraDayData => nameof(FuturesAtrSignalSourceType.FuturesIntraDayData),
-        _ => value.ToString()
-    };
-}

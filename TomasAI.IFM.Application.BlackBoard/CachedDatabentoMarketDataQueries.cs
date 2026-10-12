@@ -4,13 +4,6 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 namespace TomasAI.IFM.Application.Blackboard;
 
 /// <summary>
-/// DI-facing Databento query contract whose mapping operations use the application Blackboard cache.
-/// </summary>
-public interface ICachedDatabentoMarketDataQueries : IDatabentoMarketDataQueries
-{
-}
-
-/// <summary>
 /// Adds bidirectional Blackboard caching to Databento contract mappings while passing contract-detail
 /// queries directly to the provider query service.
 /// </summary>
@@ -163,6 +156,7 @@ public sealed class CachedDatabentoMarketDataQueries : ICachedDatabentoMarketDat
         return contractId;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private bool TryGetInstrumentId(string contractId, out uint instrumentId)
     {
         try
@@ -180,6 +174,7 @@ public sealed class CachedDatabentoMarketDataQueries : ICachedDatabentoMarketDat
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private bool TryGetContractId(uint instrumentId, out string? contractId)
     {
         try
@@ -197,6 +192,7 @@ public sealed class CachedDatabentoMarketDataQueries : ICachedDatabentoMarketDat
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A cache failure is reported and the authoritative provider path remains available; cache maintenance cannot abort feed processing.")]
     private void TrySetMapping(
         string contractId,
         uint instrumentId,
@@ -220,6 +216,7 @@ public sealed class CachedDatabentoMarketDataQueries : ICachedDatabentoMarketDat
         string ContractId,
         TimeSpan? Timeout);
 
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     private readonly record struct InstrumentLookupKey(
         uint InstrumentId,
         TimeSpan? Timeout);

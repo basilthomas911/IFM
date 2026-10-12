@@ -11,11 +11,12 @@ public static class ScheduledTaskRunStageRecordedComplete
     /// <returns>The bounded notification dispatch operation.</returns>
     public static ValueTask ExecuteAsync(this ScheduledTaskRunStageRecordedCompleteEvent source, ScheduledTaskEventContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
         if (source.ScheduledTaskRun?.CompletedEndOfDayValueDate is { } completedDate &&
             context.OperationalDate?.ApplyCompletedEndOfDay(completedDate) == true)
         {
-            context.Logger.LogInformation("{Component}.{Method} Operational date advanced after persisted EOD completion for {ValueDate} {RunId} {CommandId}",
-                nameof(ScheduledTaskRunStageRecordedComplete), nameof(ExecuteAsync), completedDate, source.EntityId.Format(), source.CommandId);
+            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write6(context.Logger, null, nameof(ScheduledTaskRunStageRecordedComplete), nameof(ExecuteAsync), completedDate, source.EntityId.Format(), source.CommandId);
         }
         return ValueTask.CompletedTask;
     }

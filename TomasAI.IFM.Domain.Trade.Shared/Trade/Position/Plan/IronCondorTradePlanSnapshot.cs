@@ -109,11 +109,12 @@ public sealed partial record IronCondorTradePlanSnapshot
     /// <summary>Gets the captured formula inputs used by this calculation.</summary>
     [Key(50)] public IronCondorTradePlanInputs? IronCondorTradePlanInputs { get; init; }
     /// <summary>Gets explicit reasons preventing complete legacy monitoring.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(51)] public string[] UnavailableReasons { get; init; } = [];
     /// <summary>Gets the version of the recovered legacy formulas.</summary>
     [Key(52)] public string CalculationVersion { get; init; } = "Legacy/281550666/CurrentPnlLatestStop/v2";
     /// <summary>Gets whether all required calculation inputs were captured.</summary>
-    [IgnoreMember] public bool IsComplete => CalculationStatus is not null ? CalculationStatus == "Complete" : UnavailableReasons.Length == 0
+    [IgnoreMember] public bool IsComplete => CalculationStatus is not null ? string.Equals(CalculationStatus,"Complete",StringComparison.Ordinal) : UnavailableReasons.Length == 0
         && IronCondorTradePlanInputs is not null && TradeType is not null
         && ForwardPrice.HasValue && ForwardLossRatio.HasValue && MScore.HasValue
         && AssetPrice.HasValue && ShortPutGamma.HasValue && ShortCallGamma.HasValue

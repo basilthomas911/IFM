@@ -25,7 +25,7 @@ public class FuturesMacdSignalQueryActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesMacdSignalQueryContext ActorContext =>
-        IsArgumentNull.Set(Context as IFuturesMacdSignalQueryContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IFuturesMacdSignalQueryContext, nameof(Context))!;
 
     public const string ActorName = "FuturesMacdSignalQuery";
 
@@ -43,7 +43,7 @@ public class FuturesMacdSignalQueryActor(
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetFuturesMacdSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesMacdSignalQuery, FuturesMacdSignalReadModel>(),
         [GetFuturesMacdDailySignalQuery.Verb] = msg => msg.AsQuery<GetFuturesMacdDailySignalQuery, FuturesMacdSignalReadModel>()
@@ -99,6 +99,6 @@ public class FuturesMacdSignalQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

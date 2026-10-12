@@ -10,24 +10,9 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="MarketDataFeedQueryActor"/>.</summary>
-public interface IMarketDataFeedQueryContext : IQueryActorContext<MarketDataFeedQueryActor>
-{
-    /// <summary>Gets the database-context factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<MarketDataFeedQueryActor> Logger { get; }
-
-    /// <summary>Gets the application market-data API.</summary>
-    ApplicationMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the sequence-ID generator.</summary>
-    ISequenceIdGenerator SequenceIdGenerator { get; }
-    IMarketDataServiceStore MarketDataServiceStore { get; }
-    IMarketDataLifecycleRequests MarketDataLifecycle { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="MarketDataFeedQueryActor"/>.</summary>
-public sealed class MarketDataFeedQueryContext : QueryActorContext, IQueryActorContext<MarketDataFeedQueryActor>, IMarketDataFeedQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataFeedQueryContext
 {
     /// <summary>Initializes the typed query context.</summary>
     public MarketDataFeedQueryContext(

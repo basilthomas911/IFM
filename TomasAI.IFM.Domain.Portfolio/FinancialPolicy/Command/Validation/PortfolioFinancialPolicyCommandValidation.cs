@@ -24,40 +24,60 @@ namespace TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Validation;
 public static class PortfolioFinancialPolicyCommandValidation
 {
     /// <summary>Validates the CreatePortfolioFinancialPolicyCommand payload and owning identity.</summary>
-    public static List<ValidationError> ValidateFinancialPolicyCommand(this List<ValidationError> errors, CreatePortfolioFinancialPolicyCommand typed)
+    public static TErrors ValidateFinancialPolicyCommand<TErrors>(this TErrors errors, CreatePortfolioFinancialPolicyCommand typed)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(typed);
         
         ValidateIdentity(errors, typed);
         ValidateCreate(errors, typed);
         return errors;
     }
     /// <summary>Validates the AddPortfolioFinancialPolicyVersionCommand payload and owning identity.</summary>
-    public static List<ValidationError> ValidateFinancialPolicyCommand(this List<ValidationError> errors, AddPortfolioFinancialPolicyVersionCommand typed)
+    public static TErrors ValidateFinancialPolicyCommand<TErrors>(this TErrors errors, AddPortfolioFinancialPolicyVersionCommand typed)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(typed);
         
         ValidateIdentity(errors, typed);
         ValidateVersion(errors, typed);
         return errors;
     }
     /// <summary>Validates the ActivateAndAssignPortfolioFinancialPolicyCommand payload and owning identity.</summary>
-    public static List<ValidationError> ValidateFinancialPolicyCommand(this List<ValidationError> errors, ActivateAndAssignPortfolioFinancialPolicyCommand typed)
+    public static TErrors ValidateFinancialPolicyCommand<TErrors>(this TErrors errors, ActivateAndAssignPortfolioFinancialPolicyCommand typed)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(typed);
         
         ValidateIdentity(errors, typed);
         ValidateActivation(errors, typed);
         return errors;
     }
     /// <summary>Validates the RetirePortfolioFinancialPolicyCommand payload and owning identity.</summary>
-    public static List<ValidationError> ValidateFinancialPolicyCommand(this List<ValidationError> errors, RetirePortfolioFinancialPolicyCommand typed)
+    public static TErrors ValidateFinancialPolicyCommand<TErrors>(this TErrors errors, RetirePortfolioFinancialPolicyCommand typed)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(typed);
         
         ValidateIdentity(errors, typed);
         ValidateRetire(errors, typed);
         return errors;
     }
     /// <summary>Validates the DeleteDraftPortfolioFinancialPolicyCommand payload and owning identity.</summary>
-    public static List<ValidationError> ValidateFinancialPolicyCommand(this List<ValidationError> errors, DeleteDraftPortfolioFinancialPolicyCommand typed)
+    public static TErrors ValidateFinancialPolicyCommand<TErrors>(this TErrors errors, DeleteDraftPortfolioFinancialPolicyCommand typed)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
+        ArgumentNullException.ThrowIfNull(typed);
         
         ValidateIdentity(errors, typed);
         ValidateDelete(errors, typed);
@@ -65,8 +85,7 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
     /// <summary>Checks ValidateIdentity without changing state.</summary>
     static void ValidateIdentity(
-        List<ValidationError> errors,
-        ICommand<PortfolioFinancialPolicyId> command)
+        ICollection<ValidationError> errors,        ICommand<PortfolioFinancialPolicyId> command)
     {
         if (command.EntityId is null)
         {
@@ -78,7 +97,7 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
 
     /// <summary>Checks ValidateCreate without changing state.</summary>
-    static void ValidateCreate(List<ValidationError> errors, CreatePortfolioFinancialPolicyCommand command)
+    static void ValidateCreate(ICollection<ValidationError> errors,CreatePortfolioFinancialPolicyCommand command)
     {
         if (command.IdempotencyKey == Guid.Empty)
             errors.Add(new($"{command.CommandName}.IdempotencyKey is empty"));
@@ -86,14 +105,14 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
 
     /// <summary>Checks ValidateVersion without changing state.</summary>
-    static void ValidateVersion(List<ValidationError> errors, AddPortfolioFinancialPolicyVersionCommand command)
+    static void ValidateVersion(ICollection<ValidationError> errors,AddPortfolioFinancialPolicyVersionCommand command)
     {
         ValidateExpectedRevision(errors, command.ExpectedVersion, command.CommandName);
         ValidatePolicy(errors, command, command.Policy);
     }
 
     /// <summary>Checks ValidateActivation without changing state.</summary>
-    static void ValidateActivation(List<ValidationError> errors, ActivateAndAssignPortfolioFinancialPolicyCommand command)
+    static void ValidateActivation(ICollection<ValidationError> errors,ActivateAndAssignPortfolioFinancialPolicyCommand command)
     {
         if (command.PolicyVersion <= 0)
             errors.Add(new($"{command.CommandName}.PolicyVersion must be positive"));
@@ -102,7 +121,7 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
 
     /// <summary>Checks ValidateRetire without changing state.</summary>
-    static void ValidateRetire(List<ValidationError> errors, RetirePortfolioFinancialPolicyCommand command)
+    static void ValidateRetire(ICollection<ValidationError> errors,RetirePortfolioFinancialPolicyCommand command)
     {
         if (command.PolicyVersion <= 0)
             errors.Add(new($"{command.CommandName}.PolicyVersion must be positive"));
@@ -111,7 +130,7 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
 
     /// <summary>Checks ValidateDelete without changing state.</summary>
-    static void ValidateDelete(List<ValidationError> errors, DeleteDraftPortfolioFinancialPolicyCommand command)
+    static void ValidateDelete(ICollection<ValidationError> errors,DeleteDraftPortfolioFinancialPolicyCommand command)
     {
         ValidateExpectedRevision(errors, command.ExpectedRevision, command.CommandName);
         ValidateReason(errors, command.Reason, command.CommandName);
@@ -119,9 +138,7 @@ public static class PortfolioFinancialPolicyCommandValidation
 
     /// <summary>Checks ValidatePolicy without changing state.</summary>
     static void ValidatePolicy(
-        List<ValidationError> errors,
-        ICommand<PortfolioFinancialPolicyId> command,
-        PortfolioFinancialPolicyReadModel? policy)
+        ICollection<ValidationError> errors,        ICommand<PortfolioFinancialPolicyId> command,        PortfolioFinancialPolicyReadModel? policy)
     {
         if (policy is null)
         {
@@ -139,21 +156,21 @@ public static class PortfolioFinancialPolicyCommandValidation
     }
 
     /// <summary>Checks ValidateExpectedRevision without changing state.</summary>
-    static void ValidateExpectedRevision(List<ValidationError> errors, long expectedRevision, string commandName)
+    static void ValidateExpectedRevision(ICollection<ValidationError> errors,long expectedRevision,string commandName)
     {
         if (expectedRevision < 0)
             errors.Add(new($"{commandName}.expected revision cannot be negative"));
     }
 
     /// <summary>Checks ValidateReason without changing state.</summary>
-    static void ValidateReason(List<ValidationError> errors, string? reason, string commandName)
+    static void ValidateReason(ICollection<ValidationError> errors,string? reason,string commandName)
     {
         if (string.IsNullOrWhiteSpace(reason))
             errors.Add(new($"{commandName}.Reason is required"));
     }
 
     /// <summary>Checks AddErrors without changing state.</summary>
-    static void AddErrors(List<ValidationError> errors, IEnumerable<string> messages, string commandName)
+    static void AddErrors(ICollection<ValidationError> errors,IEnumerable<string> messages,string commandName)
     {
         foreach (var message in messages)
             errors.Add(new($"{commandName}.{message}"));

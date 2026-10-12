@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 /// </summary>
 public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthority, ICompletedFuturesEndOfDayProjection
 {
-    readonly object _gate = new();
+    readonly System.Threading.Lock _gate = new();
     readonly TimeProvider _timeProvider;
     readonly IValueDateProvider _valueDateProvider;
     MarketSessionReadModel _current;

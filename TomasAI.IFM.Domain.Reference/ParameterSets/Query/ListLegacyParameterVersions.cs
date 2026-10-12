@@ -13,8 +13,10 @@ public static class ListLegacyParameterVersions
         ILogger<ParameterSetQueryActor> logger,
         CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         context.AccessPolicy.Demand(ParameterCapability.Read);
-        var rows = await context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows));
+        var rows = await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(offset: query.Offset, cancellationToken: token)).ConfigureAwait(false);
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterLegacyVersion[]>(rows))).ConfigureAwait(false);
     }
 }

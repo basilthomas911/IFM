@@ -42,7 +42,7 @@ public class TradeDbFixture : IDisposable
     void SetSeqIdDatabase()
     {
         var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", "Host=localhost;Port=5432;Database=sequence-id-test-db", "System.Data.Postgres");
+             .Add("SequenceIdDbConnection", LegacyStorageFixtureIsolation.Postgres("ifm_storage_legacy_sequence_trade_tests"), "System.Data.Postgres");
         var diContainer = new Dictionary<Type, SequenceIdDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -59,7 +59,7 @@ public class TradeDbFixture : IDisposable
     void SetTradeDatabase()
     {
         var dbConn = new DbConnectionSettings()
-            .Add("TradeDbConnection", "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db", "System.Data.ScyllaDb");
+            .Add("TradeDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_tests"), "System.Data.ScyllaDb");
         var diContainer = new Dictionary<Type, TradeDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var logger = Substitute.For<ILogger<DbProvider>>();

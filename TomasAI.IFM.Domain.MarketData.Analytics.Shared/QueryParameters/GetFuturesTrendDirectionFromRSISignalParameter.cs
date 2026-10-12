@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 /// <summary>
 /// Represents the parameters required to retrieve the futures trend direction from an RSI signal.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(false)]
 public record GetFuturesTrendDirectionFromRSISignalParameter : IActorEntityId, IQueryParameter
 {

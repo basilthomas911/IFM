@@ -67,24 +67,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events
             TradeAlgorithmId = this.TradeAlgorithmId,
             TradePlan = this.TradePlan
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new ShortIronCondorAlgorithmExecutedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new ShortIronCondorAlgorithmExecutedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record ShortIronCondorAlgorithmExecutedCompleteEvent : CompleteEvent
-    {
-        public TradeAlgorithmId TradeAlgorithmId { get; init; }
-        public TradePlanReadModel TradePlan { get; init; }
-    }
-
-    public record ShortIronCondorAlgorithmExecutedFailEvent : ErrorEvent
-    {
+        }
     }
 
 

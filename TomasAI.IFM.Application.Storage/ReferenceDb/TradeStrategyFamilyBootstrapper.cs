@@ -16,7 +16,7 @@ public sealed class TradeStrategyFamilyBootstrapper(IReferenceDbContext db, ISeq
             var existing = await db.GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false);
             foreach (var definition in TradeStrategyFamilySeed.Definitions)
             {
-                var current = existing.SingleOrDefault(x => x.TradeStrategySymbolId == 0 && x.DefinitionVersion == 1 && x.SystemKey == definition.SystemKey);
+                var current = existing.SingleOrDefault(x => x.TradeStrategySymbolId == 0 && x.DefinitionVersion == 1 && string.Equals(x.SystemKey,definition.SystemKey,StringComparison.Ordinal));
                 if (current is not null)
                     continue;
                 var id = checked((int)await sequenceIds.GetSequenceIdAsync(SequenceName.Reference_TradeStrategyFamilyId, cancellationToken).ConfigureAwait(false));

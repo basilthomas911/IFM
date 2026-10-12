@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Validation;
@@ -15,15 +15,21 @@ public static class TradeOrderDefinitionValidation
         : [.. Orders.Validate(order).Errors.Select(static error => error.ErrorMessage)];
 
     /// <summary>Appends all shared order definition failures to the caller's errors.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateTradeOrderDefinition(this List<ValidationError> errors, TradeOrderDefinition? order)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         errors.AddRange(Validate(order).Select(static error => new ValidationError(error)));
         return errors;
     }
 
     /// <summary>Appends all normalized execution fill failures, handling a missing payload explicitly.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateExecutionFill(this List<ValidationError> errors, ExecutionFillEvidence? fill)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (fill is null) errors.Add(new("Fill is required."));
         else errors.AddRange(Fills.Validate(fill).Errors.Select(static error => new ValidationError(error.ErrorMessage)));
         return errors;
@@ -32,8 +38,11 @@ public static class TradeOrderDefinitionValidation
     private static readonly EstablishedTradeRules Trades = new();
 
     /// <summary>Appends all established Trade evidence errors, including missing nested fills and legs.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateEstablishedTrade(this List<ValidationError> errors, EstablishedTradeDefinition? trade)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (trade is null) errors.Add(new("Trade is required."));
         else errors.AddRange(Trades.Validate(trade).Errors.Select(static error => new ValidationError(error.ErrorMessage)));
         return errors;

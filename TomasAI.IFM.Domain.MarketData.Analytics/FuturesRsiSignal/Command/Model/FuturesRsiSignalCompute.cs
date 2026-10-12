@@ -55,7 +55,7 @@ internal static class FuturesRsiSignalCompute
         };
         return newRSISignal;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")] 
     /// <summary>
     /// Determines whether futures RSI signals can be generated based on the specified window size.
     /// </summary>
@@ -76,7 +76,7 @@ internal static class FuturesRsiSignalCompute
         }
         return false;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")] 
     /// <summary>
     /// Generates a collection of futures RSI signal view models that have valid RSI values, limited to the specified
     /// window size.

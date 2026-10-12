@@ -339,7 +339,7 @@ volumes:
   manager-db-data:
     name: ifm_scylla_manager_db_data
   restore-validation-data:
-    name: ifm_scylla_restore_validation_data
+    name: ${IFM_SCYLLA_RESTORE_VALIDATION_VOLUME:-ifm_scylla_restore_validation_data}
   gate11-source-1-data:
     name: ifm_scylla_gate11_source_1_data
   gate11-source-2-data:

@@ -96,5 +96,8 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
         new("futures_rsi_signal_signaltype", MarketDataSchemaCql.CreateFuturesRsiSignal_SignalTypeIndex, "DROP INDEX IF EXISTS futures_rsi_signal_signaltype;")
     ];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal)
+        ? [new("market_data", MarketDataSchemaSql.Create, "DROP SCHEMA IF EXISTS market_data CASCADE;"),
+           new("strategy_option_chain_parameter_version", MarketDataSchemaSql.OptionChainVersionCreate, "DROP TABLE IF EXISTS market_data.strategy_option_chain_parameter_version;"),
+           new("strategy_option_chain_parameter_current", MarketDataSchemaSql.OptionChainCurrentCreate, "DROP TABLE IF EXISTS market_data.strategy_option_chain_parameter_current;")] : Objects;
 }

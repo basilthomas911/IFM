@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
@@ -23,6 +24,11 @@ public interface IConfigurationDbWriteContext
     /// <param name="parameterSet">The validated parameter set.</param><param name="description">The description.</param><param name="createdBy">The author.</param><param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the insert operation.</returns>
     Task InsertRegimeDiscoveryDraftAsync(RegimeDiscoveryParameterSet parameterSet, string description, string createdBy, CancellationToken cancellationToken = default);
+
+    /// <summary>Materializes an accepted Regime Discovery draft with its original creation timestamp.</summary>
+    Task InsertRegimeDiscoveryDraftAsync(IEnlistedPostgresTransaction transaction, RegimeDiscoveryParameterSet parameterSet, string description, string createdBy, DateTime createdAtUtc, CancellationToken cancellationToken = default);
+
+
 
     /// <summary>Inserts an immutable Market Condition draft.</summary>
     /// <param name="parameterSet">The validated parameter set.</param><param name="description">The description.</param><param name="createdBy">The author.</param><param name="cancellationToken">The cancellation token.</param>
@@ -89,18 +95,35 @@ public interface IConfigurationDbWriteContext
     /// <returns>A task representing the projection operation.</returns>
     Task ProjectParameterSetAsync(IParameterSetFact fact, CancellationToken cancellationToken = default);
 
+    /// <summary>Materializes an accepted parameter set fact on the caller-owned source-event transaction.</summary>
+    Task ProjectParameterSetAsync(IEnlistedPostgresTransaction transaction, IParameterSetFact fact, CancellationToken cancellationToken = default);
+
+
     /// <summary>Projects a parameter-assignment fact.</summary>
     /// <param name="fact">The assignment fact.</param><param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the projection operation.</returns>
     Task ProjectParameterAssignmentAsync(ParameterAssignmentChangedEvent fact, CancellationToken cancellationToken = default);
+
+    /// <summary>Materializes an accepted parameter assignment fact on the caller-owned source-event transaction.</summary>
+    Task ProjectParameterAssignmentAsync(IEnlistedPostgresTransaction transaction, ParameterAssignmentChangedEvent fact, CancellationToken cancellationToken = default);
+
 
     /// <summary>Projects a parameter-startup fact.</summary>
     /// <param name="fact">The startup fact.</param><param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the projection operation.</returns>
     Task ProjectParameterStartupAsync(ParameterStartupChangedEvent fact, CancellationToken cancellationToken = default);
 
+    /// <summary>Materializes an accepted parameter startup fact on the caller-owned source-event transaction.</summary>
+    Task ProjectParameterStartupAsync(IEnlistedPostgresTransaction transaction, ParameterStartupChangedEvent fact, CancellationToken cancellationToken = default);
+
+
     /// <summary>Acquires the cross-host parameter write lease.</summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The asynchronous lease handle.</returns>
     Task<IAsyncDisposable> AcquireParameterWriteLeaseAsync(CancellationToken cancellationToken = default);
+    /// <summary>Materializes the accepted publication of a Regime Discovery draft.</summary>
+    Task PublishRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime effectiveFromUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Materializes the accepted retirement of a Regime Discovery version.</summary>
+    Task RetireRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime retiredAtUtc, CancellationToken cancellationToken = default);
 }

@@ -48,7 +48,7 @@ public static class PipelineExceptionDiagnostics
         return Limit($"{operation}: {Normalize(exception.Message)}", 1024);
     }
 
-    static void Add(IDictionary<string, string> diagnostics, string key, string? value)
+    static void Add(Dictionary<string, string> diagnostics, string key, string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         diagnostics[key] = Limit(Normalize(value), MaximumValueLength);

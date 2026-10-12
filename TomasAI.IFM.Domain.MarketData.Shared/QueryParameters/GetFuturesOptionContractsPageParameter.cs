@@ -22,6 +22,8 @@ public sealed record GetFuturesOptionContractsPageParameter : IActorEntityId, IQ
         => (Symbol, PageSize, ContinuationToken) = (symbol, pageSize, continuationToken);
     public string Format() => Symbol;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Symbol);

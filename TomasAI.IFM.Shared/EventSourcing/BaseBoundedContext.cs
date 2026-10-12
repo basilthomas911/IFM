@@ -12,10 +12,11 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// context, allowing for flexible handling of domain commands.</remarks>
 /// <typeparam name="TState">The type of the state associated with the bounded context. Must implement the <see
 /// cref="IBoundedContextState{TState}"/> interface.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1012", Justification = "Preserve public constructor metadata on the existing abstract compatibility base; construction still requires a concrete derived type.")]
 public abstract class BaseBoundedContext<TState>
     : IBoundedContext<TState> where TState : class, IBoundedContextState<TState>
 {
-    readonly static ConcurrentDictionary<string, (Type CmdHndlrType, object CmdHndlr, MethodInfo Command)> _boundCtxCmdHndlrMap = new();
+    readonly static ConcurrentDictionary<string, (Type CmdHndlrType, object CmdHndlr, MethodInfo Command)> _boundCtxCmdHndlrMap = new(StringComparer.Ordinal);
     readonly IBoundedContextState<TState> _boundCtx;
     readonly Type _boundCtxCmdHndlrType = typeof(IBoundedContextCommandHandler<,>);
     readonly IBoundedContextCommandResolver? _boundCtxCommandResolver;
@@ -24,6 +25,8 @@ public abstract class BaseBoundedContext<TState>
     /// base bounded context root constructor
     /// </summary>
     /// <param name="boundedContextState"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3442", Justification = "Preserve public constructor metadata on the existing abstract compatibility base; construction still requires a concrete derived type.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0017", Justification = "Preserve the existing public constructor metadata used by consumers of this abstract base type.")]
     public BaseBoundedContext(IBoundedContextState<TState> boundedContextState)
     {
         _boundCtx = IsArgumentNull.Set(boundedContextState);
@@ -34,6 +37,8 @@ public abstract class BaseBoundedContext<TState>
     /// </summary>
     /// <param name="boundCtxState"></param>
     /// <param name="boundCtxCommandResolver"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3442", Justification = "Preserve public constructor metadata on the existing abstract compatibility base; construction still requires a concrete derived type.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0017", Justification = "Preserve the existing public constructor metadata used by consumers of this abstract base type.")]
     public BaseBoundedContext(IBoundedContextState<TState> boundCtxState, IBoundedContextCommandResolver boundCtxCommandResolver)
     {
         _boundCtx = IsArgumentNull.Set(boundCtxState);
@@ -54,6 +59,7 @@ public abstract class BaseBoundedContext<TState>
     /// <param name="command">The command to be executed. Must not be <see langword="null"/>.</param>
     public void Execute(ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         // resolve bounded context state command handlers...
         if (!_boundCtxCmdHndlrMap.TryGetValue(command.GetType().FullName!, out var mapEntry))
         {
@@ -73,6 +79,7 @@ public abstract class BaseBoundedContext<TState>
 
     public async ValueTask ExecuteAsync(ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (!_boundCtxCmdHndlrMap.TryGetValue(command.GetType().FullName!, out var mapEntry))
         {
             var boundCtxCmdHndlrType = _boundCtxCmdHndlrType.MakeGenericType(command.GetType(), _boundCtx.GetType());

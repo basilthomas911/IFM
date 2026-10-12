@@ -13,7 +13,7 @@ public sealed class ScheduledTaskQueryActor(IQueryActorContext<ScheduledTaskQuer
     public const string Actor = "ScheduledTaskQuery";
     private readonly ScheduledTaskQueryContext _owner = (ScheduledTaskQueryContext)context;
     /// <summary>Gets all supported query types.</summary>
-    public static IReadOnlyCollection<Type> SupportedQueryTypes => _receiveMap.Keys.ToArray();
+    public static IReadOnlyCollection<Type> SupportedQueryTypes =>CachedSupportedQueryTypes.Value;
     private static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetScheduledTaskRunHistoryQuery.Verb] = message => message.AsQuery<GetScheduledTaskRunHistoryQuery, ScheduledTaskRunPage>()!,
@@ -48,5 +48,6 @@ public sealed class ScheduledTaskQueryActor(IQueryActorContext<ScheduledTaskQuer
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(IQueryActorContext<ScheduledTaskQueryActor> context, IQuery query, CancellationToken cancellationToken) => ResolveMappedQueryHandler(query, _receiveMap)(query, _owner, context, cancellationToken);
     /// <inheritdoc />
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<ScheduledTaskQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception) => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+    protected override ValueTask OnExceptionAsync(IQueryActorContext<ScheduledTaskQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
+private static readonly System.Lazy<IReadOnlyCollection<Type>> CachedSupportedQueryTypes = new(() => System.Array.AsReadOnly(_receiveMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 }

@@ -64,17 +64,17 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// <summary>
     /// Replays a sequence of domain events to reconstruct the current state.
     /// </summary>
-    /// <remarks>If <paramref name="eventStream"/> is <see langword="null"/>, the method returns without
+    /// <remarks>If <paramref name="domainEvents"/> is <see langword="null"/>, the method returns without
     /// making any changes. The method initializes the state before processing the events and resets the domain events
     /// and update status after replaying.</remarks>
-    /// <param name="eventStream">The sequence of events to replay. Each event in the sequence is converted to a domain event and applied to the
+    /// <param name="domainEvents">The sequence of events to replay. Each event in the sequence is converted to a domain event and applied to the
     /// current state.</param>
-    public void ReplayEvents(IEnumerable<EventStreamReadModel> eventStream)
+    public void ReplayEvents(IEnumerable<EventStreamReadModel> domainEvents)
     {
-        if (eventStream is null)
+        if (domainEvents is null)
             return;
         CreateState();
-        foreach (var e in eventStream)
+        foreach (var e in domainEvents)
         {
             if (e is not null && e.ToDomainEvent() is IEvent @event)
                 Apply(@event, false);
@@ -89,18 +89,15 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// <remarks>This method processes each event in the provided sequence to rebuild the state of the domain.
     /// Events that are <see langword="null"/> are ignored. After replaying the events, the state is marked as not
     /// updated.</remarks>
-    /// <param name="eventStream">The sequence of events to replay. If <see langword="null"/>, no action is taken.</param>
+    /// <param name="domainEvents">The sequence of events to replay. If <see langword="null"/>, no action is taken.</param>
     public void ReplayEvents(IEnumerable<IEvent> eventStream)
     {
         _domainEvents = [];
         if (eventStream is null)
             return;
         CreateState();
-        foreach (var @event in eventStream)
-        {
-            if (@event is not null)
-                Apply(@event, false);
-        }
+        foreach (var @event in eventStream.Where(@event => @event is not null))
+            Apply(@event, false);
         Updated = false;
     }
 
@@ -118,7 +115,7 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     public bool Apply<TEvent>(TEvent? domainEvent, bool addEvent = true) where TEvent : IEvent
     {
         var eventApplied = false;
-        if (domainEvent is not null and IEvent @event)
+        if (domainEvent is IEvent @event)
         {
             eventApplied = Apply(@event);
             if (addEvent)
@@ -142,6 +139,7 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     public bool Update(IEvent domainEvent, ICommand command, bool addEvent = true)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (domainEvent is not null)
         {
             EventModelActor.EventInitHelper.SetProperty(domainEvent, nameof(IEvent.CommandId), command.CommandId);
@@ -155,6 +153,7 @@ public abstract class BaseBoundedContextState<TState> : IBoundedContextState<TSt
     /// </summary>
     /// <remarks>This method uses reflection to locate and invoke a method named "Create" with no parameters 
     /// and non-public visibility on the current instance. If such a method is not found, no action is taken.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3011", Justification = "Reflection resolves the exact registered actor/state type and its established private dispatch hooks; no untrusted member name is used.")]
     void CreateState()
     {
         var entityType = GetType();

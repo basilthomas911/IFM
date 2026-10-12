@@ -12,5 +12,9 @@ public static class EconomicCalendarsImportedFail
 {
     /// <summary>Forwards the terminal download outcome without starting another import.</summary>
     public static ValueTask<bool> ExecuteAsync(this EconomicCalendarsImportedFailEvent eventValue, IEventActorContext context, ILogger<EconomicCalendarEventActor> logger)
-        => DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
+        
+    {
+        ArgumentNullException.ThrowIfNull(eventValue);
+        return DownloadLogDelivery.ForwardAsync(eventValue.DownloadOutcome, eventValue, MarketDataDownloadDataset.EconomicCalendar, MarketDataDownloadStatus.Failed, context, logger);
+    }
 }

@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Shared.EventSourcing;
 /// domain event collection
 /// </summary>
 [JsonArray(true)]
-public class DomainEventCollection : List<IEvent>, ICollection<IEvent>
+public class DomainEventCollection : List<IEvent>
 {
 
     /// <summary>
@@ -27,9 +27,8 @@ public class DomainEventCollection : List<IEvent>, ICollection<IEvent>
     public DomainEventCollection(IEnumerable<IEvent> domainEvents)
     {
         if (domainEvents is not null)
-            foreach (var domainEvent in domainEvents)
-                if (domainEvent != null)
-                    Add(domainEvent);
+            foreach (var domainEvent in domainEvents.Where(domainEvent => domainEvent is not null))
+                Add(domainEvent);
     }
 
     /// <summary>
@@ -39,9 +38,8 @@ public class DomainEventCollection : List<IEvent>, ICollection<IEvent>
     public DomainEventCollection(IEnumerable<EventStreamReadModel> eventLogs)
     {
         if (eventLogs is not null)
-            foreach (var e in eventLogs)
-                if (e is not null)
-                    Add(e.ToDomainEvent());
+            foreach (var e in eventLogs.Where(e => e is not null))
+                Add(e.ToDomainEvent());
     }
 
 }

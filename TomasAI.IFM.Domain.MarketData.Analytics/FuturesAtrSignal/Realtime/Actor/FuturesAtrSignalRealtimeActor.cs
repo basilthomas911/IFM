@@ -17,8 +17,7 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
     public const string ActorName = "FuturesAtrSignal";
 
     /// <summary>Gets the typed context supplied to this actor.</summary>
-    protected IFuturesAtrSignalRealtimeContext FuturesAtrSignalRealtimeContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesAtrSignalRealtimeContext, nameof(actorContext))!;
+    protected IFuturesAtrSignalRealtimeContext FuturesAtrSignalRealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesAtrSignalRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId ObservationRoute = new(
         ActorType.Realtime,
@@ -42,6 +41,7 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
     /// <summary>Registers the shared observation route.</summary>
     protected override ValueTask OnStartup(IEventActorContext<FuturesAtrSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         context.AddRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
@@ -50,6 +50,7 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
     /// <summary>Removes the shared observation route.</summary>
     protected override ValueTask OnShutdown(IEventActorContext<FuturesAtrSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         context.RemoveRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
@@ -73,7 +74,7 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
         IEventActorContext<FuturesAtrSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+        Exception ex) =>
+        await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

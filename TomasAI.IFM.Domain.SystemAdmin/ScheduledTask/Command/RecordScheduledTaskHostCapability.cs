@@ -18,6 +18,8 @@ public static class RecordScheduledTaskHostCapability
     public static ServiceResult<GuidResult> Execute(this RecordScheduledTaskHostCapabilityCommand command,
         ScheduledTaskCatalogCommandState state, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTaskCatalog.STATE.APPLY_FAILED;unable to apply RecordScheduledTaskHostCapability event";
         var updated = command.Compute(state.ScheduledTaskCatalog, now, out var model) switch
         {

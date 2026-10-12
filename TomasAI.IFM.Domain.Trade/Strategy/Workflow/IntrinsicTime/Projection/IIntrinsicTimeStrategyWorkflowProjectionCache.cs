@@ -9,6 +9,7 @@ public interface IIntrinsicTimeStrategyWorkflowProjectionCache
     bool TryGet(string workflowEntityId, out ActiveIntrinsicTimeStrategyWorkflowReadModel? workflow);
 
     /// <summary>Stores the latest active projection when its revision is not older than the cached revision.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public interface member used by providers and actor callers.")]
     void Set(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow);
 
     /// <summary>Removes the active projection for a terminal workflow entity.</summary>

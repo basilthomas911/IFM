@@ -91,7 +91,7 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
         });
     }
 
-    RegimeDiscoverySignalObservation Evaluate(
+    static RegimeDiscoverySignalObservation Evaluate(
         RegimeDiscoveryMarketSignalSnapshotRequest request,
         RegimeDiscoverySignalRequirement requirement,
         DateTime capturedAtUtc)
@@ -103,22 +103,26 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
                 RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel) &&
               TryGetExternal(requirement, out source)))
             return Missing(request, requirement, RegimeDiscoverySignalAvailability.Missing);
-        var availability = source.Availability != RegimeDiscoverySignalAvailability.Available
-            ? source.Availability
-            : !source.IsWarm
-                ? RegimeDiscoverySignalAvailability.NotWarm
-                : !source.IsValid
-                    ? RegimeDiscoverySignalAvailability.Invalid
-                    : source.MarketDataAsOfUtc > capturedAtUtc.AddSeconds(request.FutureClockSkewSeconds)
-                        ? RegimeDiscoverySignalAvailability.FutureTimestamp
-                        : capturedAtUtc - source.MarketDataAsOfUtc > TimeSpan.FromSeconds(requirement.MaximumAgeSeconds)
-                            ? RegimeDiscoverySignalAvailability.Stale
-                            : !request.SupportedSchemaVersions.Contains(source.SchemaVersion)
-                                ? RegimeDiscoverySignalAvailability.SchemaUnsupported
-                                : !request.ApprovedCalculationVersions.Contains(source.CalculationVersion,
-                                    StringComparer.Ordinal)
-                                    ? RegimeDiscoverySignalAvailability.CalculationVersionMismatch
-                                    : RegimeDiscoverySignalAvailability.Available;
+        var availability = (source.Availability != RegimeDiscoverySignalAvailability.Available) switch
+{
+    true => source.Availability,
+    false => (!source.IsWarm) switch
+    {
+        true => RegimeDiscoverySignalAvailability.NotWarm,
+        false => (!source.IsValid) switch
+        {
+            true => RegimeDiscoverySignalAvailability.Invalid,
+            false => (source.MarketDataAsOfUtc > capturedAtUtc.AddSeconds(request.FutureClockSkewSeconds)) switch
+            {
+                true => RegimeDiscoverySignalAvailability.FutureTimestamp,
+                false => (capturedAtUtc - source.MarketDataAsOfUtc > TimeSpan.FromSeconds(requirement.MaximumAgeSeconds)) switch
+                {
+                    true => RegimeDiscoverySignalAvailability.Stale,
+                    false => (!request.SupportedSchemaVersions.Contains(source.SchemaVersion)) switch
+                    {
+                        true => RegimeDiscoverySignalAvailability.SchemaUnsupported,
+                        false => !request.ApprovedCalculationVersions.Contains(source.CalculationVersion, StringComparer.Ordinal) ? RegimeDiscoverySignalAvailability.CalculationVersionMismatch : RegimeDiscoverySignalAvailability.Available
+                    }}}}}};
         var freshness = availability == RegimeDiscoverySignalAvailability.Available
             ? Math.Clamp(1m - (decimal)(capturedAtUtc - source.MarketDataAsOfUtc).TotalSeconds /
                 requirement.MaximumAgeSeconds, 0m, 1m)

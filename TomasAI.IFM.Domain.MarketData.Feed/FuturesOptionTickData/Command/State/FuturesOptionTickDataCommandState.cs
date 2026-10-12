@@ -23,27 +23,9 @@ public class FuturesOptionTickDataCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        FuturesOptionTickDataInsertedEvent e => On(e),
-        FuturesOptionTickDataStreamingStartedEvent e => On(e),
-        FuturesOptionTickDataStreamingStoppedEvent e => On(e),
+        FuturesOptionTickDataInsertedEvent => true,
+        FuturesOptionTickDataStreamingStartedEvent => true,
+        FuturesOptionTickDataStreamingStoppedEvent => true,
         _ => false
     };
-
-    /// <summary>
-    /// futures option tick data inserted
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesOptionTickDataInsertedEvent e) => true;
-
-    /// <summary>
-    /// futures option tick data streaming started
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesOptionTickDataStreamingStartedEvent e) => true;
-
-    /// <summary>
-    /// futures option tick data streaming stopped
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesOptionTickDataStreamingStoppedEvent e) => true;
 }

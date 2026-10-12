@@ -14,6 +14,8 @@ public static class RequestBackupRetentionEvaluation
     /// <returns>The command acceptance or business rejection.</returns>
     public static ServiceResult<GuidResult> Execute(this RequestBackupRetentionEvaluationCommand command, DatabaseBackupCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "DatabaseBackup.STATE.APPLY_FAILED: unable to apply RequestBackupRetentionEvaluation lifecycle events";
         var updated = command.Compute(state, out var recoveryTransition) switch
         {

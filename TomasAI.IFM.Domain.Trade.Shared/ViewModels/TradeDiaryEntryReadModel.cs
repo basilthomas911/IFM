@@ -37,16 +37,17 @@ public class TradeDiaryEntryReadModel
         tradeId: id.TradeId,
         valueDate: id.ValueDate,
         tradeStatus: id.TradeStatus,
-        actionSource: tpa.ActionSource,
+        actionSource: (tpa ?? throw new ArgumentNullException(nameof(tpa))).ActionSource,
         actionType: tpa.ActionType,
         actionSubType: tpa.ActionSubType,
         actionState: tpa.ActionState,
         actionReason: tpa.ActionReason)
     {
+        ArgumentNullException.ThrowIfNull(tpa);
     }
 
     public TradeDiaryEntryReadModel(ActionType actionType, TradeDiaryEntryReadModel e) : this(
-        entryDate: e.EntryDate,
+        entryDate: (e ?? throw new ArgumentNullException(nameof(e))).EntryDate,
         orderId: e.OrderId,
         tradeId: e.TradeId,
         valueDate: e.ValueDate,
@@ -57,6 +58,7 @@ public class TradeDiaryEntryReadModel
         actionState: e.ActionState,
         actionReason: e.ActionReason)
     {
+        ArgumentNullException.ThrowIfNull(e);
     }
 
     [JsonIgnore]

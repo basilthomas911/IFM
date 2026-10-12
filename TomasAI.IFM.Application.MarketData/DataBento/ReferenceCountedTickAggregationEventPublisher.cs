@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 internal sealed class ReferenceCountedTickAggregationEventPublisher(
     ITickAggregationEventPublisher inner) : ITickAggregationEventPublisher
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "The inner publisher is borrowed from the epoch owner; this wrapper stops its references but must not dispose the shared transport.")]
     private readonly ITickAggregationEventPublisher _inner =
         inner ?? throw new ArgumentNullException(nameof(inner));
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
@@ -22,6 +23,7 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
 
     public ValueTask StartAsync() => StartAsync(CancellationToken.None);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);

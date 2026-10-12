@@ -6,10 +6,11 @@ public static class ParameterStartupOperationModel
 {
     public static void ValidateDuplicate(IParameterStartupMutation command, string storedName, string storedStream, string json)
     {
+        ArgumentNullException.ThrowIfNull(command);
         using var document = JsonDocument.Parse(json); var value = document.RootElement;
-        if (storedName != command.CommandName || storedStream != command.StreamId ||
+        if (!string.Equals(storedName,command.CommandName,StringComparison.Ordinal) || !string.Equals(storedStream,command.StreamId,StringComparison.Ordinal) ||
          value.GetProperty("CommandId").GetGuid() != command.CommandId || value.GetProperty("RunId").GetGuid() != command.RunId ||
-         value.GetProperty("ExpectedFingerprint").GetString() != command.ExpectedFingerprint ||
+         !string.Equals(value.GetProperty("ExpectedFingerprint").GetString(),command.ExpectedFingerprint,StringComparison.Ordinal) ||
          value.GetProperty("EntityId").GetProperty("Id").GetGuid() != command.EntityId.Id ||
          value.GetProperty("PostEvents").GetBoolean() != command.PostEvents)
             throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");

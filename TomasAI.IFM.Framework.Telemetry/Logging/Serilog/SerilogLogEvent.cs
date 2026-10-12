@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System;
 using Serilog.Events;
 using Newtonsoft.Json;
@@ -13,24 +13,15 @@ namespace TomasAI.IFM.Framework.Telemetry.Logging.Serilog
         [JsonProperty("Level")]
         public string Level { get; set; } = "Information";
 
-        /*
-        [JsonProperty("MessageTemplate")]
-        public string MessageTemplate { get; set; }
-        */
+        
         [JsonProperty("RenderedMessage")]
         public string RenderedMessage { get; set; }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2227", Justification = "Preserve the existing serialized message/configuration contract, including enum widths, numeric values, and collection shape.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
         [JsonProperty("Properties")]
         public Dictionary<string, string> Properties { get; set; }
 
-        /*
-        [JsonProperty("Exception")]
-        public Exception Exception { get; set; }
-        */
-    }
-
-    public class LogEvents
-    {
-        public SerilogLogEvent[] Events { get; set; }
+        
     }
 }

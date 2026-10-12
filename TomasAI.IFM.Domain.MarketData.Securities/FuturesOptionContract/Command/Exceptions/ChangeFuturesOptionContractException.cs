@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Exceptions;
 
-public class ChangeFuturesOptionContractException : ApplicationException
+public class ChangeFuturesOptionContractException : Exception
 {
     public ChangeFuturesOptionContractException(string errorMessage) : base(errorMessage)
     {

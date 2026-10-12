@@ -4,36 +4,24 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.State;
-
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
-
-public interface ITradeSelectionFunctionContext : IFunctionActorContext<TradeSelectionFunctionActor>
-{
-    ITradeSelectionCalculator CalculationModel { get; }
-    IStrategyCatalogCapabilities Capabilities { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<TradeSelectionFunctionActor> Logger { get; }
-    IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand> StateRepository { get; }
-    IFunctionProjector<TradeSelectionFunctionCompletedEvent> FunctionProjector { get; }
-}
-
-public sealed class TradeSelectionFunctionContext : FunctionActorContext,
-    IFunctionActorContext<TradeSelectionFunctionActor>, ITradeSelectionFunctionContext
+public sealed class TradeSelectionFunctionContext : FunctionActorContext, ITradeSelectionFunctionContext
 {
     readonly Lazy<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>> _repository;
     readonly Lazy<IFunctionProjector<TradeSelectionFunctionCompletedEvent>> _projector;
-    public TradeSelectionFunctionContext(IActorSupervisor supervisor,
-        ILogger<TradeSelectionFunctionActor> logger)
-        : base(supervisor, new ActorMailboxId(ActorType.Function, TradeSelectionFunctionActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public TradeSelectionFunctionContext(IActorSupervisor supervisor, ILogger<TradeSelectionFunctionActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Function, TradeSelectionFunctionActor.ActorName))
     {
-        Logger = IsArgumentNull.Set(logger); TimeProvider = TimeProvider.System;
+        Logger = IsArgumentNull.Set(logger);
+        TimeProvider = TimeProvider.System;
         _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand>>());
         _projector = new(() => Container.Resolve<IFunctionProjector<TradeSelectionFunctionCompletedEvent>>());
     }
+
     public ITradeSelectionCalculator CalculationModel { get; } = new TradeSelectionEvaluator();
     public ILogger<TradeSelectionFunctionActor> Logger { get; }
     public IStrategyCatalogCapabilities Capabilities => Container.Resolve<IStrategyCatalogCapabilities>();

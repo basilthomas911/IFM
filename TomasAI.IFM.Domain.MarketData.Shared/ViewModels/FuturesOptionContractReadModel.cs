@@ -4,6 +4,7 @@ using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Validation;
+using System.Globalization;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -105,12 +106,20 @@ public partial record FuturesOptionContractReadModel
     /// <param name="strikePrice">Strike price.</param>
     /// <returns>Formatted local symbol with type and strike.</returns>
     public static string GetContractLocalSymbol(string localSymbol, string optionType, double strikePrice)
-        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"{localSymbol} {optionType.Substring(0, 1)}{strikePrice:0000.################}");
+        
+    {
+        ArgumentNullException.ThrowIfNull(optionType);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{localSymbol} {optionType.AsSpan(0, 1)}{strikePrice:0000.################}");
+    }
 
     public static string GetExactContractLocalSymbol(string localSymbol, string optionType, decimal strikePrice)
-        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"{localSymbol} {optionType.Substring(0, 1)}{strikePrice:0000.############################}");
+        
+    {
+        ArgumentNullException.ThrowIfNull(optionType);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{localSymbol} {optionType.AsSpan(0, 1)}{strikePrice:0000.############################}");
+    }
 
     /// <summary>
     /// Builds a local symbol based on underlying symbol, week number within month, contract month code and year digit.
@@ -120,6 +129,7 @@ public partial record FuturesOptionContractReadModel
     /// <returns>Exchange-compatible local symbol.</returns>
     public static string GetLocalSymbol(string symbol, DateOnly valueDate)
     {
+        ArgumentNullException.ThrowIfNull(symbol);
         string weekSymbol;
         var weekNumber = GetWeekNumber();
         if (weekNumber == 3 && IsContractMonth())
@@ -173,81 +183,58 @@ public partial record FuturesOptionContractReadModel
            !string.IsNullOrEmpty(OptionType);
 }
 
-/// <summary>
-/// Collection wrapper for a set of futures option contract view models.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesOptionContractsReadModel
+/// <summary>The key-9 double is retained only for wire compatibility; new reference flows use StrikePriceDecimal.</summary>
+public partial record FuturesOptionContractReadModel
 {
-    [Key(0)]
-    public FuturesOptionContractReadModel[] Contracts { get; init; } = [];
+    [Key(11)] public decimal? StrikePriceDecimal { get; init; }
+    [Key(12)] public int SchemaVersion { get; init; }
+    [Key(13)] public ReferenceReviewState ReviewState { get; init; }
+    [Key(14)] public string? Dataset { get; init; }
+    [Key(15)] public ushort? PublisherId { get; init; }
+    [Key(16)] public uint? InstrumentId { get; init; }
+    [Key(17)] public string? RawSymbol { get; init; }
+    [Key(18)] public DateTimeOffset? DefinitionTimestampUtc { get; init; }
+    [Key(19)] public string? DefinitionDigest { get; init; }
+    [Key(20)] public string? RawDefinitionReference { get; init; }
+    [Key(21)] public DateTimeOffset? ExpirationUtc { get; init; }
+    [Key(22)] public DateTimeOffset? LastTradingUtc { get; init; }
+    [Key(23)] public string? ExchangeTimeZoneId { get; init; }
+    [Key(24)] public ReferenceSettlementStyle SettlementStyle { get; init; }
+    [Key(25)] public decimal? MultiplierValue { get; init; }
+    [Key(26)] public decimal? PriceScale { get; init; }
+    [Key(27)] public decimal? TickSize { get; init; }
+    [Key(28)] public string? CalendarVersion { get; init; }
+    [Key(29)] public string? MappingVersion { get; init; }
+    [Key(30)] public string? EvidenceId { get; init; }
+    [Key(31)] public DateTimeOffset? EffectiveFromUtc { get; init; }
+    [Key(32)] public DateTimeOffset? EffectiveUntilUtc { get; init; }
+    [Key(33)] public string? UnderlyingContractId { get; init; }
+    [Key(34)] public ReferenceAssetType UnderlyingAssetType { get; init; }
+    [Key(35)] public ReferenceOptionRight OptionRight { get; init; }
+    [Key(36)] public ReferenceExerciseStyle ExerciseStyle { get; init; }
+    [Key(37)] public ReferencePremiumStyle PremiumStyle { get; init; }
+    [Key(38)] public DateTimeOffset? ExerciseCutoffUtc { get; init; }
+    [Key(39)] public string? ExerciseResultContractId { get; init; }
+    [Key(40)] public ReferencePremiumTickRule PremiumTickRule { get; init; }
+    [Key(41)] public string? TickRuleVersion { get; init; }
+    [Key(42)] public ReferenceDayCount DayCount { get; init; }
+    [Key(43)] public uint? UnderlyingInstrumentId { get; init; }
+    [Key(44)] public ushort? UnderlyingPublisherId { get; init; }
 
-    public FuturesOptionContractsReadModel() { }
-
-    public FuturesOptionContractsReadModel(FuturesOptionContractReadModel[] contracts)
-        => Contracts = contracts ?? [];
-}
-
-/// <summary>
-/// Provides FluentValidation rules for <see cref="FuturesOptionContractReadModel"/> instances.
-/// </summary>
-/// <remarks>
-/// Validates futures option contract data ensuring all required fields are present and valid,
-/// including contract identifiers, financial terms, and listing attributes.
-/// Does NOT check for null reference value (per requirements).
-/// </remarks>
-public class FuturesOptionContractReadModelValidationRules(IReferenceLookupService refLookupService) : BaseValidationRules, IValidationRules<FuturesOptionContractReadModel>
-{
-    public const string InstanceErrorMessage = "FuturesOptionContract instance is null";
-    public const string ContractIdErrorMessage = "FuturesOptionContract.ContractId is required";
-    public const string SecurityTypeErrorMessage = "FuturesOptionContract.SecurityType must be FOP";
-    public const string SymbolErrorMessage = "FuturesOptionContract.Symbol is required";
-    public const string LocalSymbolErrorMessage = "FuturesOptionContract.LocalSymbol is required";
-    public const string CurrencyErrorMessage = "FuturesOptionContract.Currency is required";
-    public const string ExchangeErrorMessage = "FuturesOptionContract.Exchange is required";
-    public const string MultiplierErrorMessage = "FuturesOptionContract.Multiplier is required";
-    public const string ContractMonthErrorMessage = "FuturesOptionContract.ContractMonth is required";
-    public const string StrikePriceErrorMessage = "FuturesOptionContract.StrikePrice must be valid number";
-    public const string OptionTypeErrorMessage = "FuturesOptionContract.OptionType is required";
-
-    readonly FuturesOptionContractValidator _validator = new(
-        refLookupService ?? throw new ArgumentNullException(nameof(refLookupService)));
-
-    public ValidationError[] Execute(FuturesOptionContractReadModel futuresOptionContract)
-        => Validate(futuresOptionContract, _validator);
-
-    class FuturesOptionContractValidator : AbstractValidator<FuturesOptionContractReadModel>
+    /// <summary>Explicit legacy translation; conflicting or invalid representations fail rather than round silently.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality verifies lossless decimal/double representation or a zero-width denominator sentinel; epsilon comparison would change validation.")]
+    public decimal GetExactStrikePrice()
     {
-        public FuturesOptionContractValidator(IReferenceLookupService refLookupService)
+        if (!double.IsFinite(StrikePrice) || StrikePrice <= 0) throw new InvalidDataException("Invalid legacy strike.");
+        if (StrikePriceDecimal is { } exact)
         {
-            RuleFor(x => x.ContractId).NotEmpty().WithMessage(ContractIdErrorMessage);
-            RuleFor(x => x.SecurityType).NotEmpty().Equal("FOP").WithMessage(SecurityTypeErrorMessage);
-            RuleFor(x => x.Symbol).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.SymbolExists(e)).WithMessage(SymbolErrorMessage);
-            RuleFor(x => x.LocalSymbol).NotEmpty().WithMessage(LocalSymbolErrorMessage);
-            RuleFor(x => x.Currency).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.CurrencyExists(e)).WithMessage(CurrencyErrorMessage);
-            RuleFor(x => x.Exchange).NotEmpty().Must((c, e) => c.SchemaVersion == 1 || refLookupService.ExchangeExists(e)).WithMessage(ExchangeErrorMessage);
-            RuleFor(x => x.Multiplier).NotEmpty().Must((c, e) => c.SchemaVersion == 1
-                ? decimal.TryParse(e, System.Globalization.NumberStyles.AllowDecimalPoint,
-                    System.Globalization.CultureInfo.InvariantCulture, out var multiplier) && multiplier > 0 && multiplier == c.MultiplierValue
-                : refLookupService.MultiplierExists(e)).WithMessage(MultiplierErrorMessage);
-            RuleFor(x => x.ContractMonth).NotEmpty().Must(e => e != DateOnly.MinValue && e != DateOnly.MaxValue).WithMessage(ContractMonthErrorMessage);
-            RuleFor(x => x.StrikePrice).NotEmpty().Must(e => !double.IsNaN(e)).WithMessage(StrikePriceErrorMessage);
-            RuleFor(x => x.OptionType).NotEmpty().WithMessage(OptionTypeErrorMessage);
+            if (exact <= 0 || (double)exact != StrikePrice) throw new InvalidDataException("Decimal and legacy strike conflict.");
+            return exact;
         }
-
-        public override ValidationResult Validate(ValidationContext<FuturesOptionContractReadModel> context)
-        {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
-            {
-                var validationResult = new ValidationResult();
-                validationResult.Errors.Add(new ValidationFailure("FuturesOptionContract", InstanceErrorMessage));
-                return validationResult;
-            }
-            return base.Validate(context);
-        }
+        if (!decimal.TryParse(StrikePrice.ToString("R", CultureInfo.InvariantCulture),
+            NumberStyles.Float, CultureInfo.InvariantCulture, out var translated) || translated <= 0
+            || (double)translated != StrikePrice)
+            throw new InvalidDataException("Legacy strike cannot be translated without changing its value.");
+        return translated;
     }
 }

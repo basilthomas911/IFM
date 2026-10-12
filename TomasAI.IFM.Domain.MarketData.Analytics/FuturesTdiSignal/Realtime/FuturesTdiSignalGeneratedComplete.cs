@@ -14,6 +14,7 @@ public static class FuturesTdiSignalGeneratedComplete
         IEventActorContext<FuturesTdiSignalRealtimeActor> eventContext,
         IFuturesTdiSignalRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         await eventContext.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
         return true;

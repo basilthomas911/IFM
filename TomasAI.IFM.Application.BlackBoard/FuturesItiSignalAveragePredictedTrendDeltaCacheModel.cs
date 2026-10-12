@@ -39,15 +39,16 @@ public class FuturesItiSignalAveragePredictedTrendDeltaCacheModel
     public async ValueTask<FuturesItiSignalAveragePredictedTrendDeltaDataModel?> GetAsync(string contractId, DateOnly valueDate,
         Func<string, DateOnly, Task<FuturesItiSignalAveragePredictedTrendDeltaDataModel>> getFuturesItiSignalAveragePredictedTrendDelta)
     {
+        ArgumentNullException.ThrowIfNull(getFuturesItiSignalAveragePredictedTrendDelta);
         var key = $"{CacheName}:{contractId}. {valueDate:yyyyMMdd}";
-        var value = _redisCache!.Get(key);
+        var value = await _redisCache!.GetAsync(key).ConfigureAwait(false);
         if (string.IsNullOrEmpty(value))
         {
-            var avgPredictedTrendDelta = await getFuturesItiSignalAveragePredictedTrendDelta(contractId, valueDate);
+            var avgPredictedTrendDelta = await (getFuturesItiSignalAveragePredictedTrendDelta(contractId, valueDate)).ConfigureAwait(false);
             if (avgPredictedTrendDelta is null)
                 return default;
             value = _jsonSerializer.Serialize(avgPredictedTrendDelta);
-            _redisCache.Set(key, value);
+            await _redisCache.SetAsync(key, value).ConfigureAwait(false);
         }
         return _jsonSerializer.Deserialize<FuturesItiSignalAveragePredictedTrendDeltaDataModel>(value);
     }

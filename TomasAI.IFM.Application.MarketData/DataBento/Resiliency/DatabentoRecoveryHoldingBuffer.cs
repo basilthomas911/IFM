@@ -1,12 +1,9 @@
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public sealed record DatabentoRecoveryHoldingSnapshot(int Capacity, int Count,
-    long Accepted, long Dropped);
-
 /// <summary>Holds a finite number of locally qualified records while downstream admission is fenced.</summary>
 public sealed class DatabentoRecoveryHoldingBuffer<T>
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Queue<T> queue;
     readonly int capacity;
     long accepted;

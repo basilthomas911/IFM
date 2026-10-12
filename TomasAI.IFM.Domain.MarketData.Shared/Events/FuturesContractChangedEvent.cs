@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -135,6 +135,7 @@ public record FuturesContractChangedEvent :
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TEntityId) != typeof(FuturesContractId))
             throw new InvalidOperationException($"ToFailedEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(FuturesContractId).FullName}.");
 
@@ -154,134 +155,5 @@ public record FuturesContractChangedEvent :
         };
 
         return (IErrorEvent<TEntityId>)(object)failed;
-    }
-}
-
-/// <summary>
-/// Completed event for futures contract change denormalization.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesContractChangedCompleteEvent : ICompleteEvent<FuturesContractId>
-{
-    [IgnoreMember] public const string Actor = "FuturesContractEvent";
-    [IgnoreMember] public const string Verb = "ChangedComplete";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesContractId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [Key(8)] public FuturesContractId? OriginalContractId { get; init; }
-    [Key(9)] public FuturesContractV3ReadModel? Contract { get; init; }
-    [Key(10)] public DateTime UpdatedOn { get; init; }
-    [Key(11)] public string? UpdatedBy { get; init; }
-
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-
-    public FuturesContractChangedCompleteEvent() { }
-
-    [SerializationConstructor]
-    public FuturesContractChangedCompleteEvent(
-        ActorSubject subject,
-        FuturesContractId entityId,
-        Guid id,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        string eventSource,
-        DateTime receivedOn,
-        FuturesContractId? originalContractId,
-        FuturesContractV3ReadModel? contract,
-        DateTime updatedOn,
-        string? updatedBy)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-        OriginalContractId = originalContractId;
-        Contract = contract;
-        UpdatedOn = updatedOn;
-        UpdatedBy = updatedBy;
-    }
-}
-
-/// <summary>
-/// Failed event for futures contract change denormalization.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesContractChangedFailEvent : IErrorEvent<FuturesContractId>
-{
-    [IgnoreMember] public const string Actor = "FuturesContractEvent";
-    [IgnoreMember] public const string Verb = "ChangedFail";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesContractId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public DateTime ErrorDate { get; init; }
-    [Key(4)] public long EventId { get; init; }
-    [Key(5)] public Guid CommandId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public string ErrorMessage { get; init; }
-    [Key(8)] public int ErrorCode { get; init; }
-    [Key(9)] public ErrorType ErrorType { get; init; }
-    [Key(10)] public string ErrorData { get; init; }
-    [Key(11)] public DateTime ReceivedOn { get; init; }
-    [Key(12)] public string AggregateId { get; init; }
-    [Key(13)] public string CommandName { get; init; }
-    [Key(14)] public string CommandData { get; init; }
-    [Key(15)] public string RouteTo { get; init; }
-
-    [IgnoreMember] public string EventName => this.GetType().Name;
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public EventType EventType => EventType.ErrorEvent;
-
-    public FuturesContractChangedFailEvent() { }
-
-    [SerializationConstructor]
-    public FuturesContractChangedFailEvent(
-        ActorSubject subject,
-        FuturesContractId entityId,
-        Guid id,
-        DateTime errorDate,
-        long eventId,
-        Guid commandId,
-        string eventSource,
-        string errorMessage,
-        int errorCode,
-        ErrorType errorType,
-        string errorData,
-        DateTime receivedOn,
-        string aggregateId,
-        string commandName,
-        string commandData,
-        string routeTo)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        ErrorDate = errorDate;
-        EventId = eventId;
-        CommandId = commandId;
-        EventSource = eventSource ?? string.Empty;
-        ErrorMessage = errorMessage ?? string.Empty;
-        ErrorCode = errorCode;
-        ErrorType = errorType;
-        ErrorData = errorData ?? string.Empty;
-        ReceivedOn = receivedOn;
-        AggregateId = aggregateId ?? string.Empty;
-        CommandName = commandName ?? string.Empty;
-        CommandData = commandData ?? string.Empty;
-        RouteTo = routeTo ?? string.Empty;
     }
 }

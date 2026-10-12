@@ -41,6 +41,18 @@ public sealed record AddPortfolioFinancialPolicyVersionCommand : ICommand<Portfo
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public AddPortfolioFinancialPolicyVersionCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="policy">The Policy command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    public AddPortfolioFinancialPolicyVersionCommand(PortfolioFinancialPolicyReadModel policy, long expectedVersion)
+    {
+        Policy = policy;
+        ExpectedVersion = expectedVersion;
+    }
     public const string Actor = "PortfolioFinancialPolicyCommand";
     public const string Verb = "AddPortfolioFinancialPolicyVersion";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record AddPortfolioFinancialPolicyVersionCommand : ICommand<Portfo
     [IgnoreMember] public string CommandName => nameof(AddPortfolioFinancialPolicyVersionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public AddPortfolioFinancialPolicyVersionCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="policy">The Policy command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    public AddPortfolioFinancialPolicyVersionCommand(PortfolioFinancialPolicyReadModel policy, long expectedVersion)
-    {
-        Policy = policy;
-        ExpectedVersion = expectedVersion;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

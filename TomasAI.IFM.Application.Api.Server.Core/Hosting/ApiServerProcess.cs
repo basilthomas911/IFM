@@ -23,6 +23,8 @@ public static class ApiServerProcess
         if (args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase))
         Console.Error.WriteLine("Instrument definition refresh failed: " + ex.Message);
         Log.Fatal(ex, "IFM WebApiServer: startup failed");
+        if (args.Contains("--validate-restored-databases-only", StringComparer.OrdinalIgnoreCase))
+        Console.Error.WriteLine("Restored database validation failed: " + ex.GetType().Name);
         if (args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase))
         Console.Error.WriteLine("IFM startup verification failed: " + ex.Message);
         if (!args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase)

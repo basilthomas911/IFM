@@ -10,6 +10,8 @@ public static class CompletePortfolioOrderComposition
     public static FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> Complete(
         this FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input, TimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
         if (input.Outcome is PortfolioOrderCompositionCompletedEvent committed)
             return FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>.Complete(committed);
         var request = input.Request ?? throw new InvalidOperationException("Completion requires a request.");

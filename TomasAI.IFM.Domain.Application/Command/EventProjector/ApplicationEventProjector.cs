@@ -30,6 +30,4 @@ public sealed class ApplicationEventProjector(
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        _descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

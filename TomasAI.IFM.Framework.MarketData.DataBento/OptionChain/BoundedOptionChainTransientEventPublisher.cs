@@ -19,8 +19,8 @@ public sealed class BoundedOptionChainTransientEventPublisher :
         int capacity = 4096)
     {
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
-        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
-        _channel = Channel.CreateBounded<Publication>(new BoundedChannelOptions(capacity)
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+_channel = Channel.CreateBounded<Publication>(new BoundedChannelOptions(capacity)
         {
             SingleReader = true,
             SingleWriter = true,
@@ -72,6 +72,7 @@ public sealed class BoundedOptionChainTransientEventPublisher :
     /// <summary>Initializes a new Publication instance.</summary>
     /// <param name="Quote">The bid and ask snapshot, when available.</param>
     /// <param name="Trade">The last trade snapshot, when available.</param>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     private readonly record struct Publication(
         FuturesOptionChainQuoteChangedServiceEvent? Quote,
         FuturesOptionChainTradeChangedServiceEvent? Trade);

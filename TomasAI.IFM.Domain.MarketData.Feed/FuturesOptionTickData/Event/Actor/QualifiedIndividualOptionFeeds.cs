@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -15,10 +15,17 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 /// <summary>Owns individual qualified option leases without using the retired in-process epoch.</summary>
 public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery discovery,
     DatasetWorkerAdmissionRegistry admissions, IDbContextFactory databases,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null)
+    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null) : IDisposable
 {
     readonly Dictionary<(TickerStreamOwner Owner, string Contract), WorkerOptionChainRequest> leases = [];
     readonly SemaphoreSlim serial = new(1, 1);
+    int disposed;
+
+    /// <summary>Releases synchronization resources after the owning feed services have stopped.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0) serial.Dispose();
+    }
 
     /// <summary>Attaches one exact reviewed contract on a separate physical connection and requires worker acknowledgement.</summary>
     /// <param name="owner">The independent actor/view owner.</param>
@@ -27,6 +34,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
     /// <returns>The observed acquisition operation.</returns>
     public async Task AcquireAsync(TickerStreamOwner owner, FuturesOptionContractReadModel contract, DateOnly valueDate)
     {
+        ArgumentNullException.ThrowIfNull(contract);
         await serial.WaitAsync().ConfigureAwait(false);
         try
         {

@@ -21,6 +21,7 @@ public sealed class SystemAdminSchemaDb(IDbConnectionSettings connectionSettings
         new("database_backup_service_health", SystemAdminSchemaSql.CreateServiceHealth, "DROP TABLE IF EXISTS system_admin.database_backup_service_health;"),
         new("database_retention_state", SystemAdminSchemaSql.CreateRetentionState, "DROP TABLE IF EXISTS system_admin.database_retention_state;"),
         new("database_backup_projection_checkpoint", SystemAdminSchemaSql.CreateProjectionCheckpoint, "DROP TABLE IF EXISTS system_admin.database_backup_projection_checkpoint;"),
+        new("database_backup_execution_outbox", SystemAdminSchemaSql.CreateExecutionOutbox, "DROP TABLE IF EXISTS system_admin.database_backup_execution_outbox;"),
         new("database_backup_projection_receipt", SystemAdminSchemaSql.CreateProjectionReceipt, "DROP TABLE IF EXISTS system_admin.database_backup_projection_receipt;")
     ];
 

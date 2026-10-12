@@ -16,9 +16,9 @@ public sealed record TradeStrategySymbolReadModel
     {
         List<string> errors = [];
         if (Id <= 0) errors.Add("A positive product ID is required.");
-        if (string.IsNullOrWhiteSpace(Symbol) || Symbol != Symbol.Trim()) errors.Add("Symbol is required and must be trimmed.");
+        if (string.IsNullOrWhiteSpace(Symbol) || (!string.Equals((Symbol),(Symbol.Trim()),StringComparison.Ordinal))) errors.Add("Symbol is required and must be trimmed.");
         if (Currency is null || Currency.Length != 3 || Currency.Any(c => c is < 'A' or > 'Z')) errors.Add("Currency must be three uppercase letters.");
-        if (string.IsNullOrWhiteSpace(Exchange) || Exchange != Exchange.Trim()) errors.Add("Exchange is required and must be trimmed.");
+        if (string.IsNullOrWhiteSpace(Exchange) || (!string.Equals((Exchange),(Exchange.Trim()),StringComparison.Ordinal))) errors.Add("Exchange is required and must be trimmed.");
         if (string.IsNullOrWhiteSpace(Description)) errors.Add("Description is required.");
         return errors;
     }

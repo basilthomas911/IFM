@@ -102,6 +102,7 @@ public record FuturesBarDataInsertedEvent : IEvent<FuturesBarDataId>
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TEntityId) != typeof(FuturesBarDataId))
             throw new InvalidOperationException($"{EventName}.ToFailEvent: unsupported entity id type {typeof(TEntityId).FullName}. Expected {typeof(FuturesBarDataId).FullName}.");
 
@@ -123,131 +124,5 @@ public record FuturesBarDataInsertedEvent : IEvent<FuturesBarDataId>
         };
 
         return (IErrorEvent<TEntityId>)failed;
-    }
-}
-
-/// <summary>
-/// Event published when futures bar data has been inserted successfully.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesBarDataInsertedCompleteEvent : ICompleteEvent<FuturesBarDataId>
-{
-    [IgnoreMember] public const string Actor = "FuturesBarDataEvent";
-    [IgnoreMember] public const string Verb = "InsertedComplete";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesBarDataId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public long EventId { get; init; }
-    [Key(4)] public Guid CommandId { get; init; }
-    [Key(5)] public string AggregateId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public DateTime ReceivedOn { get; init; }
-
-    [Key(8)] public FuturesBarDataReadModel FuturesBarData { get; init; }
-    [Key(9)] public DateTime CreatedOn { get; init; }
-    [Key(10)] public string CreatedBy { get; init; }
-
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
-
-    public FuturesBarDataInsertedCompleteEvent() { }
-
-    [SerializationConstructor]
-    public FuturesBarDataInsertedCompleteEvent(
-        ActorSubject subject,
-        FuturesBarDataId entityId,
-        Guid id,
-        long eventId,
-        Guid commandId,
-        string aggregateId,
-        string eventSource,
-        DateTime receivedOn,
-        FuturesBarDataReadModel futuresBarData,
-        DateTime createdOn,
-        string createdBy)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        EventId = eventId;
-        CommandId = commandId;
-        AggregateId = aggregateId ?? string.Empty;
-        EventSource = eventSource ?? string.Empty;
-        ReceivedOn = receivedOn;
-        FuturesBarData = futuresBarData;
-        CreatedOn = createdOn;
-        CreatedBy = createdBy ?? string.Empty;
-    }
-}
-
-/// <summary>
-/// Event published when inserting futures bar data fails.
-/// </summary>
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesBarDataInsertedFailEvent : IErrorEvent<FuturesBarDataId>
-{
-    [IgnoreMember] public const string Actor = "FuturesBarDataEvent";
-    [IgnoreMember] public const string Verb = "InsertedFail";
-
-    [Key(0)] public ActorSubject Subject { get; init; }
-    [Key(1)] public FuturesBarDataId EntityId { get; init; }
-    [Key(2)] public Guid Id { get; init; }
-    [Key(3)] public DateTime ErrorDate { get; init; }
-    [Key(4)] public long EventId { get; init; }
-    [Key(5)] public Guid CommandId { get; init; }
-    [Key(6)] public string EventSource { get; init; }
-    [Key(7)] public string ErrorMessage { get; init; }
-    [Key(8)] public int ErrorCode { get; init; }
-    [Key(9)] public ErrorType ErrorType { get; init; }
-    [Key(10)] public string ErrorData { get; init; }
-    [Key(11)] public DateTime ReceivedOn { get; init; }
-    [Key(12)] public string AggregateId { get; init; }
-    [Key(13)] public string CommandName { get; init; }
-    [Key(14)] public string CommandData { get; init; }
-    [Key(15)] public string RouteTo { get; init; }
-
-    [IgnoreMember] public string EventName => GetType().Name;
-    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    [IgnoreMember] public EventType EventType => EventType.ErrorEvent;
-
-    public FuturesBarDataInsertedFailEvent() { }
-
-    [SerializationConstructor]
-    public FuturesBarDataInsertedFailEvent(
-        ActorSubject subject,
-        FuturesBarDataId entityId,
-        Guid id,
-        DateTime errorDate,
-        long eventId,
-        Guid commandId,
-        string eventSource,
-        string errorMessage,
-        int errorCode,
-        ErrorType errorType,
-        string errorData,
-        DateTime receivedOn,
-        string aggregateId,
-        string commandName,
-        string commandData,
-        string routeTo)
-    {
-        Subject = subject;
-        EntityId = entityId;
-        Id = id;
-        ErrorDate = errorDate;
-        EventId = eventId;
-        CommandId = commandId;
-        EventSource = eventSource ?? string.Empty;
-        ErrorMessage = errorMessage ?? string.Empty;
-        ErrorCode = errorCode;
-        ErrorType = errorType;
-        ErrorData = errorData ?? string.Empty;
-        ReceivedOn = receivedOn;
-        AggregateId = aggregateId ?? string.Empty;
-        CommandName = commandName ?? string.Empty;
-        CommandData = commandData ?? string.Empty;
-        RouteTo = routeTo ?? string.Empty;
     }
 }

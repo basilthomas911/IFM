@@ -31,11 +31,11 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly IContainerInstance _container;
     readonly ActorAdmissionOptions _admissionOptions;
     readonly ActorAdmissionController _admissionController;
-    readonly static string _serviceId = "ActorSupervisor";
+    const string _serviceId = "ActorSupervisor";
     static readonly TimeSpan ShutdownQuietPeriod = TimeSpan.FromMilliseconds(100);
     static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(10);
-    readonly object _shutdownGate = new();
-    readonly object _externalProducerGate = new();
+    readonly System.Threading.Lock _shutdownGate = new();
+    readonly System.Threading.Lock _externalProducerGate = new();
     Task? _shutdownTask;
     int _disposed;
     int _isReady;
@@ -88,7 +88,6 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         _realtimeRouters = new RealtimeRouteRegistry();
 
         // Initialize thread pool with one thread per logical processor.
-        //var pool = new ActorThreadPool(this, _logger);
         var pool = new ActorThreadPoolV2(this, _logger, informationLoggingPolicy, realtimeSourceAdmission);
         pool.Initialize(Environment.ProcessorCount * 2);
         _threadPool = pool;
@@ -269,6 +268,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     public async ValueTask StopConsumersAsync()
         => await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     public async ValueTask StopConsumersAsync(CancellationToken cancellationToken)
     {
         List<Exception>? failures = null;
@@ -356,7 +356,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             {
                 actor = _children[mailboxId];
                 actor.Mailbox.ThreadQueues.PauseAdmission();
-                _logger.LogInformation("Actor admission closed; ActorMailboxId={ActorMailboxId}; Method={Method}", mailboxId, nameof(StopAsync));
+                SharedActorDiagnosticLog.Write18(_logger, null, mailboxId, nameof(StopAsync));
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
                     .ConfigureAwait(false))
@@ -381,7 +381,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             async () =>
             {
                 actor.Mailbox.ThreadQueues.PauseAdmission();
-                _logger.LogInformation("Actor admission closed; ActorMailboxId={ActorMailboxId}; Method={Method}", mailboxId, nameof(RestartAsync));
+                SharedActorDiagnosticLog.Write14(_logger, null, mailboxId, nameof(RestartAsync));
                 if (!await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
                     .ConfigureAwait(false))
@@ -391,8 +391,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                     if (mailboxId.ActorType == ActorType.Realtime && actor.IsRunning)
                     {
                         actor.Mailbox.ThreadQueues.ResumeAdmission();
-                        _logger.LogWarning("{Method} deferred before actor stop; ActorMailboxId={ActorMailboxId}; admission reopened after drain timeout; Timeout={Timeout}",
-                            nameof(RestartAsync), mailboxId, ShutdownDrainTimeout);
+                        SharedActorDiagnosticLog.Write13(_logger, null, nameof(RestartAsync), mailboxId, ShutdownDrainTimeout);
                     }
                     throw new TimeoutException($"Actor '{actor.Id}' did not drain before restart.");
                 }
@@ -402,6 +401,69 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             {
                 await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
                 actor.Mailbox.ThreadQueues.ResumeAdmission();
+            },
+            cancellationToken);
+    }
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+        => RestartAsync(threadId, -1, timeout, cancellationToken);
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        if (IsDisposableRealtimeActor(actor))
+            return TryReplaceRealtimeAsync(threadId.MailboxId, threadId, expectedGeneration, cancellationToken);
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                if (expectedGeneration >= 0
+                    && actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration)
+                    return false;
+                var operationId = Guid.NewGuid();
+                var started = Stopwatch.GetTimestamp();
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                SharedActorDiagnosticLog.Write11(_logger, null, nameof(RestartAsync), threadId, operationId, expectedGeneration, timeout);
+                try
+                {
+                    if (!await actor.Mailbox.ThreadQueues
+                        .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                        .ConfigureAwait(false))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        SharedActorDiagnosticLog.Write23(_logger, null, nameof(RestartAsync), threadId, operationId, timeout);
+                        return false;
+                    }
+                    if (!actor.Mailbox.ThreadQueues.Retire(threadId))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        SharedActorDiagnosticLog.Write15(_logger, null, nameof(RestartAsync), threadId, operationId);
+                        return false;
+                    }
+                    if (_threadState.TryGetValue(threadId, out var state))
+                        RemoveThreadState(state);
+                    actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                    SharedActorDiagnosticLog.Write16(_logger, null, threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                    SharedActorDiagnosticLog.Write19(_logger, exception, nameof(RestartAsync), threadId, operationId);
+                    throw;
+                }
+                finally
+                {
+                    SharedActorDiagnosticLog.Write12(_logger, null, nameof(RestartAsync), threadId, operationId, actor.Mailbox.ThreadQueues.IsAdmissionOpen(threadId), actor.Mailbox.ThreadQueues.GetGeneration(threadId), Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                }
             },
             cancellationToken);
     }
@@ -438,8 +500,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             if (!_children.TryUpdate(mailboxId, replacement, oldActor))
                 throw new InvalidOperationException("Realtime actor ownership changed during replacement.");
             replacement.Mailbox.ThreadQueues.ResumeAdmission();
-            _logger.LogWarning("Realtime actor generation replaced without draining; Method={Method}; ActorMailboxId={ActorMailboxId}; GenerationId={GenerationId}",
-                nameof(ReplaceRealtimeAsync), mailboxId, ((IReplaceableRealtimeActor)replacement).RealtimeGeneration.Id);
+            SharedActorDiagnosticLog.Write10(_logger, null, nameof(ReplaceRealtimeAsync), mailboxId, ((IReplaceableRealtimeActor)replacement).RealtimeGeneration.Id);
             replaced = true;
             return replacement;
         }, cancellationToken).ConfigureAwait(false);
@@ -458,7 +519,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             async () =>
             {
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
-                _logger.LogInformation("PauseAsync admission closed; ActorThreadId={ActorThreadId}; Timeout={Timeout}", threadId, timeout);
+                SharedActorDiagnosticLog.Write22(_logger, null, threadId, timeout);
                 return await actor.Mailbox.ThreadQueues
                     .WaitForIdleAsync(threadId, timeout, cancellationToken)
                     .ConfigureAwait(false);
@@ -477,75 +538,10 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             () =>
             {
                 actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
-                _logger.LogInformation("ResumeAsync admission resumed; ActorThreadId={ActorThreadId}; Generation={Generation}", threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
+                SharedActorDiagnosticLog.Write20(_logger, null, threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
                 return ValueTask.FromResult(true);
             },
             cancellationToken).ConfigureAwait(false);
-    }
-
-    public ValueTask<bool> RestartAsync(
-        ActorThreadId threadId,
-        TimeSpan timeout,
-        CancellationToken cancellationToken = default)
-        => RestartAsync(threadId, -1, timeout, cancellationToken);
-
-    public ValueTask<bool> RestartAsync(
-        ActorThreadId threadId,
-        long expectedGeneration,
-        TimeSpan timeout,
-        CancellationToken cancellationToken = default)
-    {
-        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
-            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
-        if (IsDisposableRealtimeActor(actor))
-            return TryReplaceRealtimeAsync(threadId.MailboxId, threadId, expectedGeneration, cancellationToken);
-        return RuntimeContext.RunMailboxOperationAsync(
-            threadId,
-            async () =>
-            {
-                if (expectedGeneration >= 0
-                    && actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration)
-                    return false;
-                var operationId = Guid.NewGuid();
-                var started = Stopwatch.GetTimestamp();
-                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
-                _logger.LogInformation("{Method} admission paused; ActorThreadId={ActorThreadId}; OperationId={OperationId}; ExpectedGeneration={ExpectedGeneration}; Timeout={Timeout}",
-                    nameof(RestartAsync), threadId, operationId, expectedGeneration, timeout);
-                try
-                {
-                    if (!await actor.Mailbox.ThreadQueues
-                        .WaitForIdleAsync(threadId, timeout, cancellationToken)
-                        .ConfigureAwait(false))
-                    {
-                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
-                        _logger.LogWarning("{Method} quarantined after drain timeout; ActorThreadId={ActorThreadId}; OperationId={OperationId}; Timeout={Timeout}", nameof(RestartAsync), threadId, operationId, timeout);
-                        return false;
-                    }
-                    if (!actor.Mailbox.ThreadQueues.Retire(threadId))
-                    {
-                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
-                        _logger.LogWarning("{Method} admission remains closed after retirement failure; ActorThreadId={ActorThreadId}; OperationId={OperationId}", nameof(RestartAsync), threadId, operationId);
-                        return false;
-                    }
-                    if (_threadState.TryGetValue(threadId, out var state))
-                        RemoveThreadState(state);
-                    actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
-                    _logger.LogInformation("Mailbox admission resumed; ActorThreadId={ActorThreadId}; Generation={Generation}", threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
-                    return true;
-                }
-                catch (Exception exception)
-                {
-                    actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
-                    _logger.LogError(exception, "{Method} failed with admission closed; ActorThreadId={ActorThreadId}; OperationId={OperationId}", nameof(RestartAsync), threadId, operationId);
-                    throw;
-                }
-                finally
-                {
-                    _logger.LogInformation("{Method} exit; ActorThreadId={ActorThreadId}; OperationId={OperationId}; AdmissionOpen={AdmissionOpen}; Generation={Generation}; ElapsedMilliseconds={ElapsedMilliseconds}",
-                        nameof(RestartAsync), threadId, operationId, actor.Mailbox.ThreadQueues.IsAdmissionOpen(threadId), actor.Mailbox.ThreadQueues.GetGeneration(threadId), Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-                }
-            },
-            cancellationToken);
     }
 
     public ValueTask<bool> RetireAsync(
@@ -562,7 +558,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             {
                 if (actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration) return false;
                 actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
-                _logger.LogInformation("RetireAsync admission closed; ActorThreadId={ActorThreadId}; Timeout={Timeout}", threadId, timeout);
+                SharedActorDiagnosticLog.Write21(_logger, null, threadId, timeout);
                 if (!await actor.Mailbox.ThreadQueues.WaitForIdleAsync(threadId, timeout, cancellationToken).ConfigureAwait(false))
                     return false;
                 if (!actor.Mailbox.ThreadQueues.Retire(threadId)) return false;
@@ -824,6 +820,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     }
 
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask RouteEventToAsync(NatsMsg<byte[]> routedFromMsg)
     {
         try
@@ -836,7 +833,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 foreach (var e in routedToMailboxIds)
                 {
                     var routedToSubject = new ActorSubject(e.ActorType, e.Name, msgSubject.Verb, msgSubject.EntityId);
-                    await jsEventConsumer.RouteEventToAsync(routedToSubject, routedFromMsg);
+                    await jsEventConsumer.RouteEventToAsync(routedToSubject, routedFromMsg).ConfigureAwait(false);
                 }
             }
         }
@@ -895,6 +892,9 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     async Task ShutdownCoreAsync()
     {
         SetReadiness(false);
@@ -946,9 +946,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
                 var timeout = new TimeoutException(
                     $"Actor mailboxes did not become idle within {ShutdownDrainTimeout}.");
                 ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain_timeout");
-                _logger.LogWarning(timeout,
-                    "{ServiceId}: Actor mailbox drain exceeded its hard shutdown timeout; cancelling producers and workers.",
-                    _serviceId);
+                SharedActorDiagnosticLog.Write17(_logger, timeout, _serviceId);
                 try
                 {
                     await StopAllProducersAsync().ConfigureAwait(false);
@@ -1021,6 +1019,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
     async ValueTask StopIngressConsumersAsync()
     {
         List<Exception>? failures = null;
@@ -1045,18 +1044,21 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             throw new AggregateException("One or more actor request/reply consumers failed to stop.", failures);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     static async ValueTask CaptureStopFailureAsync(IActorConsumer consumer, List<Exception> failures)
     {
         try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
         catch (Exception exception) { failures.Add(exception); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     static async ValueTask CaptureStopFailureAsync(IJSActorConsumer consumer, List<Exception> failures)
     {
         try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
         catch (Exception exception) { failures.Add(exception); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     async ValueTask StopAllProducersAsync()
     {
         List<Exception>? failures = null;

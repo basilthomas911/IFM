@@ -71,24 +71,15 @@ public record TradePlacementClearedEvent : IEvent
         ClearedOn = this.ClearedOn,
         ClearedBy = this.ClearedBy,
     };
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementClearedFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradePlacementClearedFailEvent
     {
         CommandId = this.CommandId,
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     };
-}
-
-
-public record TradePlacementClearedCompleteEvent : CompleteEvent
-{
-    public TradePlacementId TradePlacementId { get; init; }
-    public FuturesTradeSignalV2ReadModel FuturesTradeSignal { get; init; }
-    public DateTime ClearedOn { get; init; }
-    public string ClearedBy { get; init; }
-}
-
-public record TradePlacementClearedFailEvent : ErrorEvent
-{
+    }
 }

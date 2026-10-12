@@ -37,8 +37,12 @@ public class LossProbability(IReadOnlyList<double> putSpreadValues, IReadOnlyLis
     /// A <see cref="LossProbabilityDataModel"/> containing the computed loss probability value. The
     /// <c>Threshold</c> and <c>ThresholdCount</c> fields are set to zero.
     /// </returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserves the existing public pricing collection contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserves the existing public pricing collection contract.")]
     public LossProbabilityDataModel ToViewModel(List<double> putSpreadPnl, List<double> callSpreadPnl)
     {
+        ArgumentNullException.ThrowIfNull(callSpreadPnl);
+        ArgumentNullException.ThrowIfNull(putSpreadPnl);
         var expectedPnl = new List<double>();
         for (var index = 0; index < putSpreadPnl.Count; index++)
         {
@@ -153,7 +157,7 @@ public class LossProbability(IReadOnlyList<double> putSpreadValues, IReadOnlyLis
     /// </remarks>
     /// <param name="expectedPnlValues">The combined put and call spread expected P&amp;L values from Monte Carlo simulation.</param>
     /// <returns>A value between 0.0 and 1.0+ representing the estimated probability of breaching the max loss threshold.</returns>
-    double GetLossProbability(ICollection<double> expectedPnlValues)
+    double GetLossProbability(List<double> expectedPnlValues)
     {
         // check if min value exceeds loss limit...
         var lossValue = expectedPnlValues.Min();
@@ -161,13 +165,13 @@ public class LossProbability(IReadOnlyList<double> putSpreadValues, IReadOnlyLis
             return 1.0;
 
         // get median...
-        var median = expectedPnlValues.OrderBy(e => e).ToArray()[(int)(expectedPnlValues.Count / 2)];
+        var median = expectedPnlValues.OrderBy(e => e).ToArray()[expectedPnlValues.Count / 2];
 
         // get the absolute deviations from the median...
         var absDevsFromMedian = expectedPnlValues.Select(x => Math.Abs(x - median)).ToList();
 
         // get the median of the absolute deviation values...
-        var medianAbsDev = absDevsFromMedian.OrderBy(e => e).ToArray()[(int)(absDevsFromMedian.Count / 2)];
+        var medianAbsDev = absDevsFromMedian.OrderBy(e => e).ToArray()[absDevsFromMedian.Count / 2];
         return Math.Abs((median - (3.5 * medianAbsDev)) / _maxLoss);
     }
 }

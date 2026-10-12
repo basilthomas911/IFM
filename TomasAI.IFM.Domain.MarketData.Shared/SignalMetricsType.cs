@@ -1,9 +1,10 @@
-﻿namespace TomasAI.IFM.Domain.MarketData.Shared;
+namespace TomasAI.IFM.Domain.MarketData.Shared;
 
 /// <summary>
 /// Identifies a market-data signal whose calculation is defined by a timeframe
 /// and period length.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "Preserve the byte-backed persisted/message enum representation.")]
 public enum SignalMetricsType : byte
 {
     /// <summary>No calculated signal is selected.</summary>

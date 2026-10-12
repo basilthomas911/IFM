@@ -31,6 +31,4 @@ public sealed class FuturesTdiSignalRealtimeProjector(
     public override string ActorName => FuturesTdiSignalRealtimeActor.ActorName;
     public override string ProjectorName => nameof(FuturesTdiSignalRealtimeProjector);
     public override IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        _descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

@@ -20,7 +20,7 @@ public sealed class EconomicCalendarRangeTests
     {
         var database = Substitute.For<IMarketDataDbContext>();
         database
-            .GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<ICollection<EconomicCalendarReadModel>>([]));
         var factory = Substitute.For<IDbContextFactory>();
         factory.MarketDataDb.Returns(database);
@@ -33,7 +33,7 @@ public sealed class EconomicCalendarRangeTests
 
         var expectedStart = new DateTime(2026, 8, expectedStartDay, 4, 0, 0, DateTimeKind.Utc);
         var expectedEnd = new DateTime(2026, 8, expectedEndDay, 4, 0, 0, DateTimeKind.Utc).AddTicks(-1);
-        await database.Received(1).GetEconomicCalendarsAsync(expectedStart, expectedEnd, "US");
+        await database.Received(1).GetEconomicCalendarsAsync(expectedStart, expectedEnd, "US", CancellationToken.None);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class EconomicCalendarRangeTests
     {
         var database = Substitute.For<IMarketDataDbContext>();
         database
-            .GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<string>())
+            .GetEconomicCalendarsAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<ICollection<EconomicCalendarReadModel>>([]));
         var factory = Substitute.For<IDbContextFactory>();
         factory.MarketDataDb.Returns(database);
@@ -56,6 +56,6 @@ public sealed class EconomicCalendarRangeTests
         await database.Received(1).GetEconomicCalendarsAsync(
             easternMidnightUtc,
             easternMidnightUtc.AddDays(1).AddTicks(-1),
-            "US");
+            "US", CancellationToken.None);
     }
 }

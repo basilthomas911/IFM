@@ -58,6 +58,7 @@ public sealed record RecoverFuturesVwapSignalCommand : ICommand<FuturesVwapSigna
     [Key(7)] public long BatchOrdinal { get; init; }
     [Key(8)] public bool IsFirstBatch { get; init; }
     [Key(9)] public bool IsFinalBatch { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(10)] public FuturesVwapTradeObservation[] Trades { get; init; } = [];
     [Key(11)] public FuturesVwapConfiguration Configuration { get; init; } = FuturesVwapConfiguration.Standard;
     /// <summary>Gets the live epoch that immediately follows a completed source replay.</summary>
@@ -67,6 +68,8 @@ public sealed record RecoverFuturesVwapSignalCommand : ICommand<FuturesVwapSigna
     [IgnoreMember] public string CommandName => nameof(RecoverFuturesVwapSignalCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => UpdateFuturesVwapSignalCommand.Actor;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 }

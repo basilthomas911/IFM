@@ -24,14 +24,14 @@ public sealed class StrategyPositionCommandApi(IActorProducer producer)
 
     /// <inheritdoc />
     public Task<ServiceResult<Guid>> EndOfDayAsync(StrategyPositionId positionId, TradeStrategyKind strategyKind,
-        DateOnly valueDate, DateTime effectiveAtUtc, CancellationToken cancellationToken = default)
+        DateOnly valueDate, DateTime closeBoundaryUtc, CancellationToken cancellationToken = default)
     {
         if (!positionId.IsValid)
             throw new ArgumentException("A valid strategy-position identity is required.", nameof(positionId));
-        if (effectiveAtUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("The effective time must be UTC.", nameof(effectiveAtUtc));
+        if (closeBoundaryUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("The effective time must be UTC.", nameof(closeBoundaryUtc));
 
-        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         var identity = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"PositionEndOfDay:{positionId.Format()}:{valueDate:yyyy-MM-dd}"));
         var commandId = new Guid(identity.AsSpan(0,16));
         return strategyKind switch
@@ -43,7 +43,7 @@ public sealed class StrategyPositionCommandApi(IActorProducer producer)
                     EndOfDayIronCondorPositionCommand.Verb, positionId),
                 EntityId = positionId,
                 ValueDate = valueDate,
-                EffectiveAtUtc = effectiveAtUtc
+                EffectiveAtUtc = closeBoundaryUtc
             }, cancellationToken),
             TradeStrategyKind.VerticalSpread => SendAsync(new EndOfDayVerticalSpreadPositionCommand
             {
@@ -52,7 +52,7 @@ public sealed class StrategyPositionCommandApi(IActorProducer producer)
                     EndOfDayVerticalSpreadPositionCommand.Verb, positionId),
                 EntityId = positionId,
                 ValueDate = valueDate,
-                EffectiveAtUtc = effectiveAtUtc
+                EffectiveAtUtc = closeBoundaryUtc
             }, cancellationToken),
             TradeStrategyKind.FuturesOutright => SendAsync(new EndOfDayFuturesPositionCommand
             {
@@ -61,7 +61,7 @@ public sealed class StrategyPositionCommandApi(IActorProducer producer)
                     EndOfDayFuturesPositionCommand.Verb, positionId),
                 EntityId = positionId,
                 ValueDate = valueDate,
-                EffectiveAtUtc = effectiveAtUtc
+                EffectiveAtUtc = closeBoundaryUtc
             }, cancellationToken),
             _ => throw new ArgumentException(
                 $"Strategy {strategyKind} does not support end-of-day processing.", nameof(strategyKind))

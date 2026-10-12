@@ -39,6 +39,48 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Validated_restore_admits_cutover_once_and_preserves_service_sequence()
+    {
+        var journal = CreateJournal();
+        await journal.InitializeAsync(default);
+        var original = Intent().ExecutionEvent;
+        var restore = new DatabaseRestoreExecutionRequestedEvent
+        {
+            Id = original.Id, EntityId = original.EntityId, CommandId = original.CommandId,
+            Source = original.Source with { OperationKind = DatabaseRecoveryOperationKind.Restore },
+            RestorePointId = new("verified-backup"), FreshTarget = new("fresh-validation", "disposable")
+        };
+        var restoreIntent = new DatabaseExecutionIntent { ExecutionEvent = restore };
+        await journal.AdmitAsync(restoreIntent, default);
+        var lease = await journal.TryAcquireLeaseAsync(restoreIntent.OperationId, new(HostOptions().HostId), TimeSpan.FromMinutes(1), default);
+        var ready = TomasAI.IFM.Application.DatabaseBackup.Policies.DatabaseBackupServiceEventFactory.ReadyForCutover(
+            restoreIntent, new(HostOptions().HostId), 2, "validated-target", 12);
+        await journal.EnqueueServiceEventAsync(new(ready), default);
+        await journal.RecordCheckpointAsync(new(restoreIntent.OperationId, lease!.HostId, lease.FencingToken,
+            DatabaseRecoveryPhase.ReadyForCutover, true, "validated", DateTimeOffset.UtcNow), default);
+        var cutover = new DatabaseCutoverExecutionRequestedEvent
+        {
+            Id = Guid.NewGuid(), EntityId = restore.EntityId, CommandId = Guid.NewGuid(),
+            Source = restore.Source with { SourceEventId = Guid.NewGuid(), OperationKind = DatabaseRecoveryOperationKind.Cutover },
+            RestorePointId = restore.RestorePointId, FreshTarget = restore.FreshTarget, ValidationRevision = 12
+        };
+        var cutoverIntent = new DatabaseExecutionIntent { ExecutionEvent = cutover };
+        Func<Task> stale = async () => await journal.AdmitAsync(cutoverIntent with
+            { ExecutionEvent = cutover with { ValidationRevision = 11 } }, default);
+        await stale.Should().ThrowAsync<DatabaseExecutionConflictException>();
+        (await journal.AdmitAsync(cutoverIntent, default)).Outcome.Should().Be(JournalAdmissionOutcome.Admitted);
+        (await journal.AdmitAsync(cutoverIntent, default)).Outcome.Should().Be(JournalAdmissionOutcome.ExactDuplicate);
+        var recovered = (await RecoverableAsync(journal)).Single();
+        recovered.Intent.ExecutionEvent.Should().BeOfType<DatabaseCutoverExecutionRequestedEvent>();
+        recovered.LastServiceSequence.Should().Be(2);
+        recovered.FencingToken.Should().BeGreaterThan(lease.FencingToken);
+        (await PendingAsync(journal)).Select(e => e.ServiceSequence).Should().Equal(1, 2);
+        Func<Task> differentApproval = async () => await journal.AdmitAsync(cutoverIntent with
+            { ExecutionEvent = cutover with { Id = Guid.NewGuid() } }, default);
+        await differentApproval.Should().ThrowAsync<DatabaseExecutionConflictException>();
+    }
+
+    [Fact]
     public async Task Restart_recovers_operation_with_new_fence_and_preserves_ordered_outbox()
     {
         var beforeRestart = CreateJournal();
@@ -444,6 +486,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         }
         public ValueTask EnqueueServiceEventAsync(DatabaseServiceEventEnvelope envelope, CancellationToken cancellationToken) => inner.EnqueueServiceEventAsync(envelope, cancellationToken);
         public IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(int maximumCount, CancellationToken cancellationToken) => inner.ReadPendingServiceEventsAsync(maximumCount, cancellationToken);
+        public ValueTask<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(DatabaseRecoveryOperationId id, CancellationToken ct) => inner.ReadLatestServiceEventAsync(id, ct);
         public ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => inner.MarkServiceEventPublishedAsync(eventId, publishedUtc, cancellationToken);
         public IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync(CancellationToken cancellationToken) => inner.ReadRecoverableOperationsAsync(cancellationToken);
         public ValueTask MarkCoreAcknowledgedAsync(DatabaseRecoveryOperationId operationId, long domainRevision, CancellationToken cancellationToken) => inner.MarkCoreAcknowledgedAsync(operationId, domainRevision, cancellationToken);
@@ -492,6 +535,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         public ValueTask RecordCheckpointAsync(JournalCheckpoint checkpoint, CancellationToken cancellationToken) => inner.RecordCheckpointAsync(checkpoint, cancellationToken);
         public ValueTask EnqueueServiceEventAsync(DatabaseServiceEventEnvelope envelope, CancellationToken cancellationToken) => inner.EnqueueServiceEventAsync(envelope, cancellationToken);
         public IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(int maximumCount, CancellationToken cancellationToken) => inner.ReadPendingServiceEventsAsync(maximumCount, cancellationToken);
+        public ValueTask<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(DatabaseRecoveryOperationId id, CancellationToken ct) => inner.ReadLatestServiceEventAsync(id, ct);
         public ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => inner.MarkServiceEventPublishedAsync(eventId, publishedUtc, cancellationToken);
         public IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync(CancellationToken cancellationToken) => inner.ReadRecoverableOperationsAsync(cancellationToken);
         public ValueTask MarkCoreAcknowledgedAsync(DatabaseRecoveryOperationId operationId, long domainRevision, CancellationToken cancellationToken) => inner.MarkCoreAcknowledgedAsync(operationId, domainRevision, cancellationToken);

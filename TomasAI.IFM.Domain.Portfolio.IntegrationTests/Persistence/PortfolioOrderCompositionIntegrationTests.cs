@@ -21,6 +21,7 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Trait("Category", "PortfolioFinancial"), Trait("Gate", "PPG-08")]
 [Collection("PortfolioFinancialDatabase")]
+[Trait("Infrastructure", "SelfContained")]
 public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {
     static readonly CatalogKey DeploymentKey = new(StrategyCatalogKind.Deployment,
@@ -59,6 +60,7 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
                 [book.PortfolioId, (int)CapacityScopeKind.Fund, FinancialScopeKeys.Fund(book.Funds[0].FundId)], ct)));
         Convert.ToInt64(capacity.Effects).Should().BeGreaterThan(0L);
         Convert.ToDecimal(capacity.Working).Should().BeGreaterThan(0);
+        await VerifySourceOnlyRebuildAsync(first);
     }
 
     [Fact]
@@ -283,6 +285,41 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
                 [close.CommandId], token)));
         counts.CloseRows.Should().Be(1L);
         counts.Events.Should().Be(1L);
+        await VerifySourceOnlyRebuildAsync(first);
+    }
+
+    // Deletes only this fixture operation's read rows in the explicitly isolated test database. Source bytes stay intact.
+    static async Task VerifySourceOnlyRebuildAsync(IFinancialCompletedEvent completed)
+    {
+        var connection=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")!);
+        if(connection.Database!="ifm_storage_refactor_test") throw new InvalidOperationException("Isolated test database required.");
+        var owner=Transactions();
+        var source=completed is PortfolioOrderCompositionCompletedEvent
+            ? (IFinancialCompletedEvent)(await new PortfolioFinancialStore(owner).ReadOperationAsync<PortfolioOrderCompositionCompletedEvent>(completed.PortfolioId,completed.OperationId))!
+            : (await new PortfolioFinancialStore(owner).ReadOperationAsync<PortfolioCloseOrderCompositionCompletedEvent>(completed.PortfolioId,completed.OperationId))!;
+        string[] tables=["portfolio.order_composition_decision","portfolio.order_composition_fund_decision","portfolio.accepted_trade_order",
+            "portfolio.accepted_trade_order_leg","portfolio.accepted_trade_order_capacity","portfolio.accepted_position_close","portfolio_financial.capacity_usage"];
+        async Task<string[]> State()=>await owner.ExecuteAsync(async(db,ct)=>
+        {
+            var state=new List<string>();
+            foreach(var table in tables) state.Add((string)(await db.ScalarAsync($"SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text),'[]'::jsonb)::text FROM {table} t;",[],ct))!);
+            return state.ToArray();
+        });
+        var before=await State();
+        await owner.ExecuteOnceAsync(async(db,ct)=>
+        {
+            foreach(var table in new[]{"accepted_trade_order_capacity","accepted_trade_order_leg"})
+                await db.ExecuteAsync($"DELETE FROM portfolio.{table} WHERE order_id IN (SELECT order_id FROM portfolio.accepted_trade_order WHERE operation_id=$1);",[source.OperationId],ct);
+            foreach(var table in new[]{"accepted_position_close","accepted_trade_order","order_composition_fund_decision","order_composition_decision"})
+                await db.ExecuteAsync($"DELETE FROM portfolio.{table} WHERE operation_id=$1;",[source.OperationId],ct);
+            if(source is PortfolioOrderCompositionCompletedEvent) await db.ExecuteAsync("DELETE FROM portfolio_financial.capacity_usage WHERE portfolio_id=$1;",[source.PortfolioId],ct);
+            await db.ExecuteAsync("DELETE FROM portfolio_financial.financial_projection_checkpoint WHERE source_event_id=$1;",[source.Id],ct);
+            await db.ExecuteAsync("DELETE FROM portfolio_financial.financial_operation_receipt WHERE portfolio_id=$1 AND operation_id=$2;",[source.PortfolioId,source.OperationId],ct);
+            await db.ExecuteAsync("UPDATE portfolio_financial.financial_authority SET financial_revision=financial_revision-1 WHERE portfolio_id=$1;",[source.PortfolioId],ct);
+            return true;
+        });
+        var projection=new PortfolioOrderCompositionProjection(owner);await projection.ReplayAsync(source);await projection.ReplayAsync(source);
+        (await State()).Should().Equal(before);
     }
 
     static PostgresEventTransaction Transactions() => GeneralLedgerPostingIntegrationTests.Transactions();
@@ -291,7 +328,7 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
         PortfolioOrderCompositionStore store, EvaluatePortfolioOrderCompositionCommand request) =>
         store.EvaluateAsync(request, Evaluate);
 
-    static ValueTask<PortfolioOrderCompositionReceipt> Evaluate(
+    internal static ValueTask<PortfolioOrderCompositionReceipt> Evaluate(
         EvaluatePortfolioOrderCompositionCommand request, FinancialBookConfiguration book, long revision,
         IReadOnlyList<PortfolioFundFinancialSnapshot> financial, CancellationToken cancellationToken) => PortfolioOrderCompositionModel.EvaluateAsync(
             request, book, revision, financial, new TestIdentityAllocator(request.OperationId), cancellationToken);
@@ -352,7 +389,7 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
     }
 
     internal static async Task<FinancialBookConfiguration> CreateOrderBook(
-        Func<FinancialBookConfiguration, FinancialBookConfiguration>? configure = null)
+        Func<FinancialBookConfiguration, FinancialBookConfiguration>? configure = null, IPostgresEventTransaction? owner=null)
     {
         var book = await GeneralLedgerPostingIntegrationTests.CreateBook(value =>
         {
@@ -368,9 +405,9 @@ public sealed class PortfolioOrderCompositionIntegrationTests(PortfolioEventStor
                 }).ToArray()
             };
             return configure?.Invoke(value) ?? value;
-        });
+        },owner);
         await GeneralLedgerPostingIntegrationTests.Post(GeneralLedgerPostingIntegrationTests.Request(
-            book, LedgerTransactionKind.DepositConfirmed, 1_000_000, 0));
+            book, LedgerTransactionKind.DepositConfirmed, 1_000_000, 0),owner);
         return book;
     }
 

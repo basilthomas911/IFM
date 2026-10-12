@@ -25,6 +25,7 @@ public sealed class EventProjectorRecoveryCoordinator(
     readonly EventProjectorReliabilityOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
     readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     public async Task<EventProjectorRecoveryResult> RecoverAsync(
         string actorName,
         string projectorName,
@@ -114,8 +115,7 @@ public sealed class EventProjectorRecoveryCoordinator(
                                 token).ConfigureAwait(false);
                             if (terminal is not null)
                                 Interlocked.Increment(ref terminalFailures);
-                            _logger.LogError(
-                                "{Component}.{Method} "+"Unable to recover event {EventId} ({EventName}) for projector {ProjectorName}.",nameof(EventProjectorRecoveryCoordinator),nameof(RecoverAsync),                                claimed.EventId,                                item.EventLog.EventName,                                projectorName);
+                            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write24(_logger, null, nameof(EventProjectorRecoveryCoordinator), nameof(RecoverAsync), claimed.EventId, item.EventLog.EventName, projectorName);
                             continue;
                         }
 

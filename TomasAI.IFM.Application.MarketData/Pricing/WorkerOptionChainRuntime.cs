@@ -42,7 +42,8 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         IOptionTradeEvidenceWriter? tradeEvidence = null,
         TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher? optionObservations = null)
     {
-        if (generation == Guid.Empty) throw new ArgumentException("A dataset generation is required.");
+        ArgumentNullException.ThrowIfNull(options);
+        if (generation == Guid.Empty) throw new ArgumentException("A dataset generation is required.",nameof(generation));
         this.generation = generation; this.valueDate = valueDate; dataset = options.Dataset;
         this.prices = prices; clock = time ?? TimeProvider.System;
         this.terminalFault = terminalFault;
@@ -56,6 +57,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         expiryLoop = ExpireAsync();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<WorkerOptionChainResult> AcquireAsync(WorkerOptionChainRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -76,7 +78,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (endedLeases.Contains(request.LeaseId)) return Failure("LeaseEnded");
             if (endedLeases.Count + scopes.Values.Sum(s => s.Leases.Count) >= 4096
                 && !scopes.Values.Any(s => s.Leases.ContainsKey(request.LeaseId))) return Failure("LeaseCapacity");
-            if (scopes.Any(s => s.Key != request.ScopeId && s.Value.Leases.ContainsKey(request.LeaseId))) return Failure("LeaseIdentityConflict");
+            if (scopes.Any(s => !string.Equals(s.Key,request.ScopeId,StringComparison.Ordinal) && s.Value.Leases.ContainsKey(request.LeaseId))) return Failure("LeaseIdentityConflict");
             var ids = new HashSet<string>(StringComparer.Ordinal);
             var instrumentIds = new HashSet<uint>();
             string? underlying = null;
@@ -86,11 +88,11 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 var failure = Black76PricingModel.ValidateContext(context, at);
                 if (failure is not null) return new(false, failure);
                 var contract = context.Contract;
-                if (context.GenerationId != generation || contract.Dataset != dataset || option.Strike <= 0
+                if (context.GenerationId != generation || !string.Equals(contract.Dataset,dataset,StringComparison.Ordinal) || option.Strike <= 0
                     || contract.SchemaVersion == 3 && (contract.Strike != option.Strike
                         || contract.Right != (option.IsCall ? PricingOptionRight.Call : PricingOptionRight.Put))
                     || !ids.Add(contract.ContractId) || !instrumentIds.Add(contract.InstrumentId)
-                    || underlying is not null && underlying != contract.UnderlyingContractId
+                    || underlying is not null && !string.Equals(underlying,contract.UnderlyingContractId,StringComparison.Ordinal)
                     || DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(contract.ExpirationUtc,
                         TimeZoneInfo.FindSystemTimeZoneById(context.Calendar.TimeZoneId)).DateTime) != request.MaturityDate)
                     return Failure("ConflictingDefinition");
@@ -105,13 +107,13 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     || (!string.IsNullOrEmpty(existing.Key.ConnectionScopeId)) != request.IndependentChainConnection) return Failure("ConflictingConnectionMode");
                 if (existing.Leases.Count >= 128 && !existing.Leases.ContainsKey(request.LeaseId)) return Failure("LeaseCapacity");
                 if (state.GetSession(existing.Key).Count != ordered.Length) return Failure("ChainUnavailable");
-                if (existing.Digest != digest)
+                if (!string.Equals(existing.Digest,digest,StringComparison.Ordinal))
                 {
                     // Compare-and-swap the entire pricing batch. A refresh cannot redefine physical routes,
                     // revive an ended lease, or silently overwrite a concurrent reference update.
-                    if (request.ExpectedContextDigest != existing.Digest
+                    if (!string.Equals(request.ExpectedContextDigest,existing.Digest,StringComparison.Ordinal)
                         || !existing.Leases.ContainsKey(request.LeaseId) && !existing.BusinessOwners.Any(x => x.LeaseId == request.LeaseId)
-                        || PhysicalDigest(existing.Options) != PhysicalDigest(ordered)
+                        || !string.Equals(PhysicalDigest(existing.Options),PhysicalDigest(ordered),StringComparison.Ordinal)
                         || ordered.Where((option, index) => option.Pricing.MaximumQuoteAgeMilliseconds > existing.Options[index].Pricing.MaximumQuoteAgeMilliseconds
                             || option.Pricing.MaximumQuoteSkewMilliseconds > existing.Options[index].Pricing.MaximumQuoteSkewMilliseconds).Any())
                         return Failure("ConflictingChainScope");
@@ -178,8 +180,10 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         finally { gate.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
     public async Task<WorkerOptionChainResult> ReleaseAsync(WorkerOptionChainRelease release, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(release);
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -187,24 +191,24 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (!scopes.TryGetValue(release.ScopeId, out var scope)) return new(false, null);
             if (release.Ownership is { } ownership)
             {
-                if (release.LeaseId != Guid.Empty || ownership.ContractSetDigest != PhysicalDigest(scope.Options)
+                if (release.LeaseId != Guid.Empty || !string.Equals(ownership.ContractSetDigest,PhysicalDigest(scope.Options),StringComparison.Ordinal)
                     || ownership.Revision < 0 || string.IsNullOrWhiteSpace(ownership.AuthorityScope) || ownership.AuthorityScope.Length > 128
                     || ownership.Owners.IsDefault || ownership.Owners.Length > 128
                     || ownership.Owners.Any(x => x is null || x.LeaseId == Guid.Empty || x.ContractIds.IsDefaultOrEmpty || x.ContractIds.Length > 128
                         || x.ContractIds.Distinct(StringComparer.Ordinal).Count() != x.ContractIds.Length
-                        || x.ContractIds.Any(id => !scope.Options.Any(option => option.Pricing.Contract.ContractId == id)))
+                        || x.ContractIds.Any(id => !scope.Options.Any(option => string.Equals(option.Pricing.Contract.ContractId,id,StringComparison.Ordinal))))
                     || ownership.Owners.Select(x => x.LeaseId).Distinct().Count() != ownership.Owners.Length)
                     return Failure("OwnershipInvalid");
                 var digest = PricingSemanticHash.Compute(ownership);
                 if (ownershipWatermarks.TryGetValue(release.ScopeId, out var prior)
-                    && (prior.AuthorityScope != ownership.AuthorityScope || ownership.Revision < prior.Revision
-                        || ownership.Revision == prior.Revision && digest != prior.Digest))
+                    && (!string.Equals(prior.AuthorityScope,ownership.AuthorityScope,StringComparison.Ordinal) || ownership.Revision < prior.Revision
+                        || ownership.Revision == prior.Revision && !string.Equals(digest,prior.Digest,StringComparison.Ordinal)))
                     return Failure("OwnershipConflict");
                 if (ownershipWatermarks.Count >= 4096 && !ownershipWatermarks.ContainsKey(release.ScopeId))
                     return Failure("OwnershipCapacity");
-                if (scope.AuthorityScope is not null && scope.AuthorityScope != ownership.AuthorityScope
+                if (scope.AuthorityScope is not null && !string.Equals(scope.AuthorityScope,ownership.AuthorityScope,StringComparison.Ordinal)
                     || ownership.Revision < scope.OwnershipRevision
-                    || ownership.Revision == scope.OwnershipRevision && digest != scope.OwnershipDigest)
+                    || ownership.Revision == scope.OwnershipRevision && !string.Equals(digest,scope.OwnershipDigest,StringComparison.Ordinal))
                     return Failure("OwnershipConflict");
                 scope.AuthorityScope = ownership.AuthorityScope;
                 scope.OwnershipRevision = ownership.Revision;
@@ -212,7 +216,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 scope.BusinessOwners = ownership.Owners;
                 foreach (var option in scope.Options)
                     pricing.RequireRisk(option.Pricing.Contract.ContractId,
-                        ownership.Owners.Any(owner => owner.ContractIds.Contains(option.Pricing.Contract.ContractId)));
+                        ownership.Owners.Any(owner => owner.ContractIds.Contains(option.Pricing.Contract.ContractId, StringComparer.Ordinal)));
                 ownershipWatermarks[release.ScopeId] = (ownership.AuthorityScope, ownership.Revision, digest);
                 // This operation installs the complete business union. It never implicitly releases a discovery lease.
                 if (scope.Leases.Count == 0 && scope.BusinessOwners.IsEmpty) await RemoveAsync(release.ScopeId, scope).ConfigureAwait(false);
@@ -227,6 +231,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
 
     public async Task<CompositionMarketPage> ReadAsync(CompositionSnapshotRequest request, string? continuation, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -314,7 +319,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 finally { gate.Release(); }
             }
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         catch (Exception exception)
         {
             terminalFault?.Invoke($"Option-chain lease drain failed: {exception.GetType().Name}");
@@ -349,7 +354,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     /// <param name="contractId">The option whose final owner may have ended.</param>
     void RemoveUnownedPricing(string contractId)
     {
-        if (scopes.Values.Any(scope => scope.Options.Any(option => option.Pricing.Contract.ContractId == contractId)))
+        if (scopes.Values.Any(scope => scope.Options.Any(option => string.Equals(option.Pricing.Contract.ContractId,contractId,StringComparison.Ordinal))))
             return;
         individualContracts.TryRemove(contractId, out _);
         inputs.Remove(contractId);
@@ -369,7 +374,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 try { await sessions.DisposeAsync().ConfigureAwait(false); }
                 finally { await pricing.DisposeAsync().ConfigureAwait(false); scopes.Clear(); }
             }
-            finally { gate.Release(); }
+            finally { gate.Release(); gate.Dispose(); }
             stopping.Dispose();
         }
     }
@@ -402,14 +407,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     }
     sealed class TransientSink : IOptionChainTransientEventPublisher
     {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
         public ValueTask PublishAsync(FuturesOptionChainQuoteChangedServiceEvent value) => ValueTask.CompletedTask;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
         public ValueTask PublishAsync(FuturesOptionChainTradeChangedServiceEvent value) => ValueTask.CompletedTask;
     }
-}
-
-public sealed class CompositionMarketSourceException(string code, bool cacheUnavailable = false) : Exception(code)
-{
-    public string Code { get; } = code;
-    /// <summary>Temporary cache unavailability stops this signal without an actor fault or recovery retry.</summary>
-    public bool CacheUnavailable { get; } = cacheUnavailable;
 }

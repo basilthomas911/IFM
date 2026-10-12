@@ -138,6 +138,7 @@ public sealed partial class ScyllaPortableSnapshotOptions
 
 public sealed class ScyllaProtectionSetOptions
 {
+    public string[] CqlContactPoints { get; set; } = [];
     public string ManagerCluster { get; set; } = string.Empty;
     public string BackupLocation { get; set; } = string.Empty;
     public string RestoreLocation { get; set; } = string.Empty;
@@ -164,6 +165,8 @@ public sealed class ScyllaProtectionSetOptions
 
 public sealed class ScyllaFreshTargetProfileOptions
 {
+    public string[] CqlContactPoints { get; set; } = [];
+    public bool DiscardExistingApplicationData { get; set; }
     public string ManagerCluster { get; set; } = string.Empty;
     public string[] AllowedLogicalTargets { get; set; } = [];
     public int RequiredLiveNodes { get; set; } = 1;

@@ -18,6 +18,7 @@ RUN apt-get update \
         ca-certificates \
         curl \
         gnupg \
+        locales \
     && install -d -m 0755 /usr/share/postgresql-common/pgdg \
     && curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
@@ -26,6 +27,7 @@ RUN apt-get update \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
         postgresql-17 \
+    && localedef -i en_US -f UTF-8 en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p \
         /opt/scylla-manager/bin \

@@ -30,6 +30,7 @@ public record GetFuturesOptionContractIdsQuery : IQuery<string[]>
     /// <summary>
     /// Futures option contract identifiers requested by the query.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(2)]
     public string[] ContractIds { get; init; } = [];
 

@@ -13,8 +13,7 @@ public sealed class FuturesEmaSignalEventActor(IEventActorContext<FuturesEmaSign
 {
     /// <summary>Gets the event mailbox name.</summary>
     public const string ActorName = FuturesEmaSignalGeneratedEvent.Actor;
-    readonly IFuturesEmaSignalEventContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesEmaSignalEventContext, nameof(actorContext))!;
+    readonly IFuturesEmaSignalEventContext typedContext = IsArgumentNull.Named(actorContext as IFuturesEmaSignalEventContext, nameof(actorContext))!;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -41,7 +40,7 @@ public sealed class FuturesEmaSignalEventActor(IEventActorContext<FuturesEmaSign
     }
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesEmaSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

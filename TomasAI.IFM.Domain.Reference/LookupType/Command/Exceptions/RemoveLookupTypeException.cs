@@ -1,9 +1,9 @@
-﻿namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
+namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 
 /// <summary>
 /// 
 /// </summary>
-public class RemoveLookupTypeException : ApplicationException
+public class RemoveLookupTypeException : Exception
 {
     public RemoveLookupTypeException() : base()
     {

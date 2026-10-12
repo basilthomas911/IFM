@@ -106,3 +106,8 @@ limit.
 
 This service is a Windows/Docker Desktop development workaround. Do not deploy it in production. Set the production
 Linux host's AIO limit through the operating-system provisioning and monitoring configuration instead.
+
+
+## Disposable target after database activation
+
+On this Development workstation the next isolated restore target uses named volume ifm_next_aws_restore_validation_20261011, selected by the local .env file through IFM_SCYLLA_RESTORE_VALIDATION_VOLUME. Its empty application schema, unique host ID, CQL, REST and Manager-agent health were verified. The prior qualified restore volume and operation-specific rollback volumes are preserved. Start this target with the validation profile before submitting a Scylla restore. When activation copies its cold data into the application container, prepare a new empty isolated volume before the next restore to avoid sharing node identity with the activated database.

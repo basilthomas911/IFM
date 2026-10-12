@@ -23,14 +23,25 @@ public class NatsActorProducer(
     INatsProducerOptions options,
     ILogger logger,
     NatsConnectionManager? connectionManager = null)
-    : IActorProducer
+    : IActorProducer, IAsyncDisposable
 {
     readonly INatsProducerOptions _options = IsArgumentNull.Set(options);
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    int _disposeStarted;
+
+    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try { await StopAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
-    INatsClient? _nc;
+    NatsClient? _nc;
     CancellationTokenSource? _operationStopping;
     ActorMailboxId _actorId;
     bool _isRunning;
@@ -70,7 +81,7 @@ public class NatsActorProducer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to start NATS producer for mailbox {MailboxId}",nameof(NatsActorProducer),nameof(StartAsync),mailboxId);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write1(_logger, ex, nameof(NatsActorProducer), nameof(StartAsync), mailboxId);
             throw;
         }
     }
@@ -104,7 +115,7 @@ public class NatsActorProducer(
                 if (_ownsConnectionManager)
                     await _connectionManager.DisposeAsync().ConfigureAwait(false);
                 _nc = null;
-                _logger.LogInformation("{Component}.{Method} "+"NATS producer stopped.",nameof(NatsActorProducer),nameof(StopAsync));
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write2(_logger, null, nameof(NatsActorProducer), nameof(StopAsync));
             }
             finally
             {
@@ -113,7 +124,7 @@ public class NatsActorProducer(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to stop NATS producer.",nameof(NatsActorProducer),nameof(StopAsync));
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write3(_logger, ex, nameof(NatsActorProducer), nameof(StopAsync));
             throw;
         }
     }
@@ -145,6 +156,7 @@ public class NatsActorProducer(
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(command);
         EnsureCoreSubject(subject, ActorType.Command);
         try
         {
@@ -155,11 +167,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), command.ToCommand<TCommand, TEntityId>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Published command to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(SendAsync),subject,command.CommandId);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write4(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject, command.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish command to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write5(_logger, ex, nameof(NatsActorProducer), nameof(SendAsync), subject);
             throw;
         }
     }
@@ -185,6 +197,7 @@ public class NatsActorProducer(
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(@event);
         subject.ActorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorProducer));
         try
         {
@@ -194,11 +207,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Published event to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(SendAsync),subject,@event.CommandId);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write6(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject, @event.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write7(_logger, ex, nameof(NatsActorProducer), nameof(SendAsync), subject);
             throw;
         }
     }
@@ -225,11 +238,11 @@ public class NatsActorProducer(
                 await StartAsync(_actorId).ConfigureAwait(false);
             await PublishAsync(subject.ToString(), @event).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Published  denormalize event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write8(_logger, null, nameof(NatsActorProducer), nameof(SendAsync), subject);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish denormalize event to subject {Subject}",nameof(NatsActorProducer),nameof(SendAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write9(_logger, ex, nameof(NatsActorProducer), nameof(SendAsync), subject);
             throw;
         }
     }
@@ -258,6 +271,7 @@ public class NatsActorProducer(
         where TQuery : class, IQuery<TResult>
         where TResult : class
     {
+        ArgumentNullException.ThrowIfNull(query);
         EnsureCoreSubject(subject, ActorType.Query);
         ServiceResult<TResult> result;
         var started = NatsMessagingMetrics.StartOperation();
@@ -270,8 +284,7 @@ public class NatsActorProducer(
 
             using var operationCancellation = CreateOperationCancellation(cancellationToken);
 
-            // Deserialize the typed reply directly from NATS's receive sequence;
-            // do not materialize an intermediate reply byte[].
+            // Read the typed reply directly from the receive buffer.
             TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
@@ -284,12 +297,12 @@ public class NatsActorProducer(
             result = IsArgumentNull.Set(reply.Data);
             NatsMessagingMetrics.Published.Add(1);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Requested query to subject {Subject} query={Name}",nameof(NatsActorProducer),nameof(RequestAsync),subject,query.GetType().Name);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write10(_logger, null, nameof(NatsActorProducer), nameof(RequestAsync), subject, query.GetType().Name);
         }
         catch (Exception ex)
         {
             NatsMessagingMetrics.RecordOperationFailure(NatsMessagingMetrics.CoreRequestOperation);
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to request query to subject {Subject}",nameof(NatsActorProducer),nameof(RequestAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write11(_logger, ex, nameof(NatsActorProducer), nameof(RequestAsync), subject);
             throw;
         }
         finally
@@ -326,6 +339,7 @@ public class NatsActorProducer(
         where TEntityId : IActorEntityId
         where TResult : class
     {
+        ArgumentNullException.ThrowIfNull(command);
         EnsureCoreSubject(subject, ActorType.Command);
         ServiceResult<TResult> result;
         try
@@ -341,11 +355,11 @@ public class NatsActorProducer(
                 command.ToCommand<TCommand, TEntityId>(),
                 cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Requested command to subject {Subject} CommandId={CommandId}",nameof(NatsActorProducer),nameof(RequestAsync),subject,command.CommandId);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write12(_logger, null, nameof(NatsActorProducer), nameof(RequestAsync), subject, command.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to request command to subject {Subject}",nameof(NatsActorProducer),nameof(RequestAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write13(_logger, ex, nameof(NatsActorProducer), nameof(RequestAsync), subject);
             throw;
         }
         return result!;
@@ -431,7 +445,7 @@ public class NatsActorProducer(
 
     // Borrow the producer's shutdown token when no caller token needs linking. Disposing this scope
     // releases only its own linked source; the producer owns the shutdown source across requests.
-    readonly struct OperationCancellation(CancellationToken token, CancellationTokenSource? ownedSource) : IDisposable
+    readonly struct OperationCancellation(CancellationTokenSource? ownedSource, CancellationToken token) : IDisposable
     {
         public CancellationToken Token { get; } = token;
         public void Dispose() => ownedSource?.Dispose();
@@ -443,9 +457,9 @@ public class NatsActorProducer(
             ?? throw new InvalidOperationException("The NATS actor producer is not running.");
         var stoppingToken = operationStopping.Token;
         if (!cancellationToken.CanBeCanceled)
-            return new OperationCancellation(stoppingToken, null);
+            return new OperationCancellation(null, stoppingToken);
         var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stoppingToken);
-        return new OperationCancellation(linked.Token, linked);
+        return new OperationCancellation(linked, linked.Token);
     }
 
     static void EnsureCoreSubject(ActorSubject subject, ActorType expectedActorType)

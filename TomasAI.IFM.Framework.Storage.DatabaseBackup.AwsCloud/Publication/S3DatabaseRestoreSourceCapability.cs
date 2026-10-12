@@ -82,7 +82,9 @@ public sealed class S3DatabaseRestoreSourceCapability(
         var restorePointId = point.RestorePoint.Entry.RestorePointId;
         var engine = point.RestorePoint.Manifest.Engine;
         await sink.PrepareFreshAsync(engine, restorePointId, cancellationToken).ConfigureAwait(false);
-        foreach (var artifact in point.Publication.Artifacts.OrderBy(static value => value.LogicalRelativePath, StringComparer.Ordinal))
+        await Parallel.ForEachAsync(point.Publication.Artifacts,
+            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+            async (artifact, token) =>
         {
             using var response = await vaultS3.GetObjectAsync(new GetObjectRequest
             {
@@ -90,10 +92,10 @@ public sealed class S3DatabaseRestoreSourceCapability(
                 Key = artifact.Object.ObjectKey,
                 VersionId = artifact.Object.VersionId,
                 ChecksumMode = ChecksumMode.ENABLED
-            }, cancellationToken).ConfigureAwait(false);
+            }, token).ConfigureAwait(false);
             await sink.WriteAsync(engine, restorePointId, artifact.LogicalRelativePath,
-                response.ResponseStream, artifact.Object.Length, artifact.Object.Sha256, cancellationToken).ConfigureAwait(false);
-        }
+                response.ResponseStream, artifact.Object.Length, artifact.Object.Sha256, token).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
 
     async ValueTask<PostgreSqlPreparedRecovery> StageWalAsync(

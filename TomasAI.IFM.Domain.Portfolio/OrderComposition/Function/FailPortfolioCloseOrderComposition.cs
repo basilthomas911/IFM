@@ -12,6 +12,8 @@ public static class FailPortfolioCloseOrderComposition
         this FunctionEventContext<EvaluatePortfolioCloseOrderCompositionCommand> input,
         TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         var request = input.Request;
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var detail = input.Exception?.ToString() ??

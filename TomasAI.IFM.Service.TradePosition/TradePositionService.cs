@@ -36,7 +36,7 @@ public class TradePositionService : ITradePositionService
         _optionPricerCommandApi = optionPricerCommandApi ?? throw new ArgumentNullException(nameof(optionPricerCommandApi));
         _statusConsoleWriter = statusConsoleWriter ?? throw new ArgumentNullException(nameof(statusConsoleWriter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _logger.LogInformation("TradePositionService started");
+        TradePositionDiagnosticLog.Started(_logger);
     }
 
     /// <summary>
@@ -44,8 +44,10 @@ public class TradePositionService : ITradePositionService
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
     public async Task ExecuteAsync(TradePositionChangedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             IEvent updatedEvent = e.TradePositionChangeSource switch
@@ -81,12 +83,12 @@ public class TradePositionService : ITradePositionService
                 _ => default
             };
             if (updatedEvent is not null)
-                await _tradeEventProducer.PostEventAsync(updatedEvent);
+                await (_tradeEventProducer.PostEventAsync(updatedEvent)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex}");
-            _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex}");
+            await (_statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex}")).ConfigureAwait(false);
+            TradePositionDiagnosticLog.EventFailed(_logger, ex, e.GetType().Name);
         }
     }
 
@@ -95,11 +97,13 @@ public class TradePositionService : ITradePositionService
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
     public async Task ExecuteAsync(OptionTradeLegDataChangedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
-            await _tradeEventProducer.PostEventAsync(new OptionTradeLegDataUpdatedEvent
+            await (_tradeEventProducer.PostEventAsync(new OptionTradeLegDataUpdatedEvent
             {
                 CommandId = e.CommandId,
                 Key = e.Key,
@@ -110,13 +114,13 @@ public class TradePositionService : ITradePositionService
                 CreatedBy = e.CreatedBy,
                 UpdatedOn = e.UpdatedOn,
                 UpdatedBy = e.UpdatedBy
-            });
+            })).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeLegDataChangedFailEvent, OptionTradeEntityId>(ex));
-            await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage());
-            _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
+            await (_tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeLegDataChangedFailEvent, OptionTradeEntityId>(ex))).ConfigureAwait(false);
+            await (_statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage())).ConfigureAwait(false);
+            TradePositionDiagnosticLog.EventFailed(_logger, ex, e.GetType().Name);
         }
     }
 
@@ -125,19 +129,21 @@ public class TradePositionService : ITradePositionService
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
     public async Task ExecuteAsync(OptionTradeSpreadDistributionStatisticsUpdatedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
-            await _optionPricerCommandApi.InsertSpreadDistributionsAsync(
+            await (_optionPricerCommandApi.InsertSpreadDistributionsAsync(
                 e.PutSpreadDistribution.ToSpreadDistributionReadModel(),
-                e.CallSpreadDistribution.ToSpreadDistributionReadModel());
+                e.CallSpreadDistribution.ToSpreadDistributionReadModel())).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            await _tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeSpreadDistributionStatisticsUpdatedFailEvent, OptionTradeEntityId>(ex));
-            await _statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex.GetErrorMessage()}");
-            _logger.LogError($"{LogSourceType.TradePosition}: {e.GetType().Name} failed due to {ex.GetErrorMessage()}");
+            await (_tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeSpreadDistributionStatisticsUpdatedFailEvent, OptionTradeEntityId>(ex))).ConfigureAwait(false);
+            await (_statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex.GetErrorMessage()}")).ConfigureAwait(false);
+            TradePositionDiagnosticLog.EventFailed(_logger, ex, e.GetType().Name);
         }
     }
 

@@ -15,14 +15,16 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public partial class MarketDataQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataQueryApi
 {
-    public Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery query, CancellationToken token = default)
+    public Task<ServiceResult<EvaluatedOptionChainReadModel>> GetEvaluatedOptionChainAsync(GetEvaluatedOptionChainQuery request, CancellationToken cancellationToken = default)
     {
-        query.Subject = new ActorSubject(ActorType.Query, GetEvaluatedOptionChainQuery.Actor, GetEvaluatedOptionChainQuery.Verb, ActorEntityId.Default.Format());
-        return RequestAsync<GetEvaluatedOptionChainQuery, EvaluatedOptionChainReadModel>(query.Subject, query, token).AsTask();
+        ArgumentNullException.ThrowIfNull(request);
+        request.Subject = new ActorSubject(ActorType.Query, GetEvaluatedOptionChainQuery.Actor, GetEvaluatedOptionChainQuery.Verb, ActorEntityId.Default.Format());
+        return RequestAsync<GetEvaluatedOptionChainQuery, EvaluatedOptionChainReadModel>(request.Subject, request, cancellationToken).AsTask();
     }
     public Task<ServiceResult<InstrumentDefinitionPage>> GetInstrumentDefinitionsAsync(InstrumentDefinitionPageRequest request,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         request.Validate();
         var query = new GetInstrumentDefinitionsQuery
         {
@@ -51,7 +53,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOnTheRunFuturesContractQuery.Actor, GetOnTheRunFuturesContractQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -62,7 +64,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetRolloverFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetRolloverFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -73,7 +75,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesContractQuery.Actor, GetFuturesContractQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -84,7 +86,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesContractSymbolQuery.Actor, GetFuturesContractSymbolQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesContractSymbolQuery, string>(query.Subject, query);
+        return await (RequestAsync<GetFuturesContractSymbolQuery, string>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -95,7 +97,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractQuery.Actor, GetFuturesOptionContractQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesOptionContractQuery, FuturesOptionContractReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesOptionContractQuery, FuturesOptionContractReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -106,13 +108,14 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesContractsQuery.Actor, GetFuturesContractsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public Task<ServiceResult<FuturesOptionContractPageReadModel>> GetFuturesOptionContractsPageAsync(
         GetFuturesOptionContractsPageParameter request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         request.Validate();
         var query = new GetFuturesOptionContractsPageQuery(request)
         {
@@ -130,7 +133,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractsQuery.Actor, GetFuturesOptionContractsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesOptionContractsQuery, FuturesOptionContractReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesOptionContractsQuery, FuturesOptionContractReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     public Task<ServiceResult<OptionContractExpiryReadModel[]>> GetDatabentoOptionChainRangeAsync(
@@ -177,7 +180,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionContractIdsQuery.Actor, GetFuturesOptionContractIdsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesOptionContractIdsQuery, string[]>(query.Subject, query);
+        return await (RequestAsync<GetFuturesOptionContractIdsQuery, string[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -188,7 +191,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLastYieldCurveRateQuery.Actor, GetLastYieldCurveRateQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>(query.Subject, query);
+        return await (RequestAsync<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -199,7 +202,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLastRateOfReturnQuery.Actor, GetLastRateOfReturnQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLastRateOfReturnQuery, RateOfReturnReadModel>(query.Subject, query);
+        return await (RequestAsync<GetLastRateOfReturnQuery, RateOfReturnReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -210,7 +213,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradingDaysQuery.Actor, GetTradingDaysQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradingDaysQuery, ScalarReadModel<int>>(query.Subject, query);
+        return await (RequestAsync<GetTradingDaysQuery, ScalarReadModel<int>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -221,7 +224,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradingDatesQuery.Actor, GetTradingDatesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetTradingDatesQuery, DateOnly[]>(query.Subject, query);
+        return await (RequestAsync<GetTradingDatesQuery, DateOnly[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -232,7 +235,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetYieldCurveRatesQuery.Actor, GetYieldCurveRatesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -244,7 +247,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetYieldCurveRateYearsQuery.Actor, GetYieldCurveRateYearsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>(query.Subject, query);
+        return await (RequestAsync<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -255,7 +258,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetYieldCurveRateExistsQuery.Actor, GetYieldCurveRateExistsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>(query.Subject, query);
+        return await (RequestAsync<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -266,7 +269,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetValueDateQuery.Actor, GetValueDateQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetValueDateQuery, ScalarReadModel<DateOnly>>(query.Subject, query);
+        return await (RequestAsync<GetValueDateQuery, ScalarReadModel<DateOnly>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -277,7 +280,7 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetMarketSessionQuery.Actor, GetMarketSessionQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetMarketSessionQuery, MarketSessionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetMarketSessionQuery, MarketSessionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -315,6 +318,6 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetIronCondorMarketDataQuery.Actor, GetIronCondorMarketDataQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetIronCondorMarketDataQuery, IronCondorMarketDataReadModel>(query.Subject, query);
+        return await (RequestAsync<GetIronCondorMarketDataQuery, IronCondorMarketDataReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 }

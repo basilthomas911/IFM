@@ -6,47 +6,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 
 [MessagePackObject]
-public sealed record MarketConditionEvidenceItem
-{
-    [Key(0)] public MarketConditionEvidenceArea Area { get; init; }
-    [Key(1)] public string FeatureCode { get; init; } = string.Empty;
-    [Key(2)] public decimal ObservedValue { get; init; }
-    [Key(3)] public string ObservedText { get; init; } = string.Empty;
-    [Key(4)] public string Unit { get; init; } = string.Empty;
-    [Key(5)] public decimal NormalizedValue { get; init; }
-    [Key(6)] public decimal WeightedContribution { get; init; }
-    [Key(7)] public string SourceId { get; init; } = string.Empty;
-    [Key(8)] public DateTime SourceTimestampUtc { get; init; }
-    [Key(9)] public long SequenceId { get; init; }
-    [Key(10)] public MarketSourceAvailability Availability { get; init; }
-    [Key(11)] public MarketFreshnessState Freshness { get; init; }
-    [Key(12)] public string ReasonCode { get; init; } = string.Empty;
-}
-
-[MessagePackObject]
-public sealed record MarketConditionBlockingReason
-{
-    [Key(0)] public MarketConditionEvidenceArea Area { get; init; }
-    [Key(1)] public string ReasonCode { get; init; } = string.Empty;
-    [Key(2)] public string SourceId { get; init; } = string.Empty;
-}
-
-/// <summary>
-/// Carries a non-binding, evidence-derived hint for Trade Selection. The primary Market Condition decision remains
-/// authoritative market language; downstream policy may accept, reject, rerank, or augment this hint.
-/// </summary>
-[MessagePackObject]
-public sealed record MarketConditionOutputHint
-{
-    [Key(0)] public MarketConditionTradeType TradeType { get; init; }
-    [Key(1)] public TimeFrameType TimeFrame { get; init; }
-    [Key(2)] public MarketConditionHintSuitability Suitability { get; init; }
-    [Key(3)] public decimal Confidence { get; init; }
-    [Key(4)] public string ReasonCode { get; init; } = string.Empty;
-    [Key(5)] public bool IsAdvisory { get; init; } = true;
-}
-
-[MessagePackObject]
 public sealed record MarketConditionResult
 {
     MarketConditionEvidenceItem[]? _evidenceItems = [];
@@ -84,18 +43,21 @@ public sealed record MarketConditionResult
     [Key(25)] public MarketConditionLiquidityQuality LiquidityQuality { get; init; }
     [Key(26)] public MarketConditionDataQuality DataQuality { get; init; }
     [Key(27)] public MarketConditionUpstreamAlignment UpstreamAlignment { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(28)]
     public MarketConditionEvidenceItem[] EvidenceItems
     {
         get => _evidenceItems is null ? null! : [.. _evidenceItems];
         init => _evidenceItems = value is null ? null : [.. value];
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(29)]
     public MarketConditionEvidenceItem[] ConflictingEvidenceItems
     {
         get => _conflictingEvidenceItems is null ? null! : [.. _conflictingEvidenceItems];
         init => _conflictingEvidenceItems = value is null ? null : [.. value];
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(30)]
     public MarketConditionBlockingReason[] BlockingReasons
     {
@@ -103,6 +65,7 @@ public sealed record MarketConditionResult
         init => _blockingReasons = value is null ? null : [.. value];
     }
     [Key(31)] public string PrimaryReasonCode { get; init; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(32)]
     public string[] Reasons
     {
@@ -111,6 +74,7 @@ public sealed record MarketConditionResult
     }
     [Key(33)] public string SummaryText { get; init; } = string.Empty;
     /// <summary>Gets extensible, non-binding hints emitted after the primary decision is complete.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(34)]
     public MarketConditionOutputHint[] OutputHints
     {

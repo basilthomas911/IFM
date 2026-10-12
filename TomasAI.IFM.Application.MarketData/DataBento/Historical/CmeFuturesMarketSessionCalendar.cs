@@ -49,8 +49,8 @@ public sealed class CmeFuturesMarketSessionCalendar :
         var endLocal = valueDate.ToDateTime(close, DateTimeKind.Unspecified);
         return new(
             valueDate,
-            TimeZoneInfo.ConvertTimeToUtc(startLocal, _marketTimeZone),
-            TimeZoneInfo.ConvertTimeToUtc(endLocal, _marketTimeZone));
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(startLocal, _marketTimeZone)),
+            new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(endLocal, _marketTimeZone)));
     }
 
     /// <inheritdoc/>
@@ -62,8 +62,7 @@ public sealed class CmeFuturesMarketSessionCalendar :
 
     public DateOnly PreviousBusinessDay(DateOnly valueDate)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         var candidate = valueDate.AddDays(-1);
         while (!IsBusinessDay(candidate))
             candidate = candidate.AddDays(-1);
@@ -72,8 +71,7 @@ public sealed class CmeFuturesMarketSessionCalendar :
 
     public DateOnly NextBusinessDay(DateOnly valueDate)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         var candidate = valueDate.AddDays(1);
         while (!IsBusinessDay(candidate))
             candidate = candidate.AddDays(1);
@@ -88,7 +86,7 @@ public sealed class CmeFuturesMarketSessionCalendar :
         foreach (var id in new[] { "America/New_York", "Eastern Standard Time" })
         {
             try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
-            catch (TimeZoneNotFoundException) { }
+            catch (TimeZoneNotFoundException) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         }
         throw new TimeZoneNotFoundException("The New York market timezone is unavailable.");
     }

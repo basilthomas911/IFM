@@ -22,11 +22,11 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi
             var rows = new List<StrategyCatalog.StrategyDeploymentChoice>(); string? cursor = null;
             while (true)
             {
-                var reply = await QueryStrategyCatalogAsync(new(StrategyCatalog.CatalogQueryOperation.DeploymentChoices, StrategyCatalog.StrategyCatalogKind.Deployment, Limit: 64, AfterCode: cursor), cancellationToken);
+                var reply = await (QueryStrategyCatalogAsync(new(StrategyCatalog.CatalogQueryOperation.DeploymentChoices, StrategyCatalog.StrategyCatalogKind.Deployment, Limit: 64, AfterCode: cursor), cancellationToken)).ConfigureAwait(false);
                 if (!reply.Success || reply.Value is null) return new ServiceFailed<StrategyCatalog.StrategyDeploymentChoice[]>(1063, reply.ErrorMessage ?? "Deployment catalog unavailable.");
                 var page = StrategyCatalog.StrategyCatalogJson.Read<StrategyCatalog.StrategyDeploymentPage>(reply.Value);
                 rows.AddRange(page.Items); if (page.NextCode is null) break;
-                if (rows.Count >= 4096 || page.Items.Length == 0 || page.NextCode == cursor) throw new InvalidOperationException("Deployment catalog paging exceeded its limit.");
+                if (rows.Count >= 4096 || page.Items.Length == 0 || string.Equals(page.NextCode,cursor,StringComparison.Ordinal)) throw new InvalidOperationException("Deployment catalog paging exceeded its limit.");
                 cursor = page.NextCode;
             }
             return new ServiceOk<StrategyCatalog.StrategyDeploymentChoice[]>(rows.ToArray());

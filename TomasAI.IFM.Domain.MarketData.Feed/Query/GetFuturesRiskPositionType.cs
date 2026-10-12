@@ -1,16 +1,12 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;
 
@@ -22,14 +18,14 @@ public static class GetFuturesRiskPositionType
     {
         var riskPositionType = RiskPositionType.Unknown;
 
-        var futuresEodData = await dbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(q.ValueDate);
+        var futuresEodData = await (dbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(q.ValueDate)).ConfigureAwait(false);
         if (futuresEodData is not null)
         {
             var riskPositionValue = q.TradeType switch
             {
                 TradeType.ShortIronCondor => GetShortIronCondorRiskPosition(futuresEodData),
                 TradeType.LongIronCondor => GetLongIronCondorRiskPosition(futuresEodData),
-                _ => throw new NotImplementedException($"Risk Position Type not implemented for: {q.TradeType}")
+                _ => throw new NotSupportedException($"Risk Position Type not implemented for: {q.TradeType}")
             };
             riskPositionType = riskPositionValue switch
             {
@@ -77,6 +73,9 @@ public static class GetFuturesRiskPositionType
         TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
         MarketDataFeedQueryParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new TomasAI.IFM.Shared.EventSourcing.ServiceResult<RiskPositionTypeReadModel>(result)).ConfigureAwait(false);

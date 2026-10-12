@@ -9,12 +9,15 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Query;
-/// <summary>Handles <see cref="GetMarketConditionAssessmentQuery"/>.</summary>
+/// <summary>Handles <see cref = "GetMarketConditionAssessmentQuery"/>.</summary>
 public static class GetMarketConditionAssessment
 {
     /// <summary>Executes the mapped Market Condition query and replies with its typed result.</summary>
     public static async ValueTask ExecuteAsync(this GetMarketConditionAssessmentQuery query, IMarketConditionQueryContext services, IQueryActorContext<MarketConditionQueryActor> context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(services);
         var value = await services.DbFactory.TradeDb.GetMarketConditionAssessmentAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false) ?? throw new KeyNotFoundException("Assessment result was not found.");
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<MarketConditionAssessmentCompletedEvent>(value)).ConfigureAwait(false);
     }

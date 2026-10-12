@@ -11,16 +11,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Critical,
         RedAlert
     }
-
-    public static class ActionStateExtensions
-    {
-        public static string ToStringFast(this ActionState value) => value switch
-        {
-            ActionState.Normal => nameof(ActionState.Normal),
-            ActionState.Warning => nameof(ActionState.Warning),
-            ActionState.Critical => nameof(ActionState.Critical),
-            ActionState.RedAlert => nameof(ActionState.RedAlert),
-            _ => value.ToString()
-        };
-    }
 }

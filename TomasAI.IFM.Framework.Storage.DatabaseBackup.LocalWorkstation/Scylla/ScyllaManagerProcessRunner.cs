@@ -11,6 +11,7 @@ internal enum ScyllaManagerOperation
     Backup,
     Tasks,
     BackupList,
+    BackupProgress,
     BackupFiles,
     RestoreSchema,
     RestoreTables
@@ -36,6 +37,7 @@ internal interface IScyllaManagerProcessRunner
 internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : IScyllaManagerProcessRunner
 {
     const int MaximumCapturedCharacters = 64 * 1024;
+    internal const int MaximumManifestCharacters = 64 * 1024 * 1024;
     readonly ScyllaBackupOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
     public async ValueTask<ScyllaManagerProcessResult> RunAsync(
@@ -66,8 +68,8 @@ internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : 
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!process.Start()) throw new ScyllaManagerOperationException(invocation.Operation, null);
-        var outputTask = ReadBoundedAsync(process.StandardOutput, cancellationToken);
-        var errorTask = ReadBoundedAsync(process.StandardError, cancellationToken);
+        var outputTask = ReadBoundedAsync(process.StandardOutput, invocation.Operation == ScyllaManagerOperation.BackupFiles ? MaximumManifestCharacters : MaximumCapturedCharacters, cancellationToken);
+        var errorTask = ReadBoundedAsync(process.StandardError, MaximumCapturedCharacters, cancellationToken);
         var started = Stopwatch.GetTimestamp();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(invocation.Timeout);
@@ -83,7 +85,7 @@ internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : 
         }
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
-        TomasAI.IFM.Application.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Operation} stdout:\n{output}\nstderr:\n{error}\nExitCode={process.ExitCode}");
+        TomasAI.IFM.Application.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Operation} stdout:\n{(output.Length > MaximumCapturedCharacters ? output[..MaximumCapturedCharacters] + "\n[diagnostic preview truncated; full manifest retained for parsing]" : output)}\nstderr:\n{error}\nExitCode={process.ExitCode}");
         if (process.ExitCode != 0)
             throw new ScyllaManagerOperationException(invocation.Operation, process.ExitCode);
         return new ScyllaManagerProcessResult(output, error, Stopwatch.GetElapsedTime(started));
@@ -98,17 +100,20 @@ internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : 
         return path;
     }
 
-    static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken cancellationToken)
+    internal static async Task<string> ReadBoundedAsync(StreamReader reader, int maximumCharacters, CancellationToken cancellationToken)
     {
         var result = new StringBuilder();
+        var overflow = false;
         var buffer = new char[2048];
         while (true)
         {
             var read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
             if (read == 0) break;
-            if (result.Length < MaximumCapturedCharacters)
-                result.Append(buffer, 0, Math.Min(read, MaximumCapturedCharacters - result.Length));
+            if (read > maximumCharacters - result.Length) overflow = true;
+            if (result.Length < maximumCharacters)
+                result.Append(buffer, 0, Math.Min(read, maximumCharacters - result.Length));
         }
+        if (overflow) throw new InvalidDataException("Scylla Manager output exceeded its bounded capture limit; incomplete output cannot be used as evidence.");
         return result.ToString();
     }
 
@@ -140,6 +145,7 @@ internal sealed class ScyllaManagerOperationException(
         ScyllaManagerOperation.Backup => "backup capture",
         ScyllaManagerOperation.Tasks => "task status check",
         ScyllaManagerOperation.BackupList => "backup listing",
+        ScyllaManagerOperation.BackupProgress => "backup task progress",
         ScyllaManagerOperation.BackupFiles => "backup manifest listing",
         ScyllaManagerOperation.RestoreSchema => "schema restore",
         ScyllaManagerOperation.RestoreTables => "table restore",

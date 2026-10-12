@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
@@ -11,7 +12,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.EventProjector;
-/// <summary>Projects committed administrative source events into revision-fenced ScyllaDB read models.</summary>
+/// <summary>Projects committed administrative source events into revision-fenced read models; PostgreSQL rows already committed with the source.</summary>
 public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter writer, IDurableReplayQueue queue,
     IEventSourceActorDbContext eventSource, IBlackboardService blackboard, ILogger<ScheduledTaskEventProjector> logger,
     EventProjectorReliabilityOptions? options = null)
@@ -20,10 +21,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors { get; } =
     [
-        new(typeof(ScheduledTaskCreatedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+        new EventProjectionDescriptor(typeof(ScheduledTaskCreatedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskCreatedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskCreatedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -33,10 +35,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskCreatedEvent)domainEvent;
                 return new ScheduledTaskCreatedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskCreatedFailEvent.Actor, ScheduledTaskCreatedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskScheduleChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskCreatedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskScheduleChangedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskScheduleChangedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskScheduleChangedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -46,10 +49,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskScheduleChangedEvent)domainEvent;
                 return new ScheduledTaskScheduleChangedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskScheduleChangedFailEvent.Actor, ScheduledTaskScheduleChangedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskEnabledEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskScheduleChangedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskEnabledEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskEnabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskEnabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -59,10 +63,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskEnabledEvent)domainEvent;
                 return new ScheduledTaskEnabledFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskEnabledFailEvent.Actor, ScheduledTaskEnabledFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskDisabledEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskEnabledEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskDisabledEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskDisabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskDisabledEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -72,10 +77,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskDisabledEvent)domainEvent;
                 return new ScheduledTaskDisabledFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskDisabledFailEvent.Actor, ScheduledTaskDisabledFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskRemovedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskDisabledEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskRemovedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskRemovedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskRemovedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -85,10 +91,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskRemovedEvent)domainEvent;
                 return new ScheduledTaskRemovedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskRemovedFailEvent.Actor, ScheduledTaskRemovedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskInstallationRecordedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskRemovedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskInstallationRecordedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskInstallationRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskInstallationRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -98,10 +105,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskInstallationRecordedEvent)domainEvent;
                 return new ScheduledTaskInstallationRecordedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskInstallationRecordedFailEvent.Actor, ScheduledTaskInstallationRecordedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskInstallationFailureRecordedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskInstallationRecordedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskInstallationFailureRecordedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskInstallationFailureRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskInstallationFailureRecordedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -111,10 +119,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskInstallationFailureRecordedEvent)domainEvent;
                 return new ScheduledTaskInstallationFailureRecordedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskInstallationFailureRecordedFailEvent.Actor, ScheduledTaskInstallationFailureRecordedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskRunAdmittedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskInstallationFailureRecordedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskRunAdmittedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskRunAdmittedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskRunAdmittedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -124,10 +133,11 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskRunAdmittedEvent)domainEvent;
                 return new ScheduledTaskRunAdmittedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskRunAdmittedFailEvent.Actor, ScheduledTaskRunAdmittedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true),        new(typeof(ScheduledTaskRunReleasedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskRunAdmittedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false)),        new EventProjectionDescriptor(typeof(ScheduledTaskRunReleasedEvent), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, execution) =>
             {
-                await writer.ProjectAsync(((ScheduledTaskRunReleasedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
+                if (writer is not IScheduledTaskTransactionalProjectionWriter { ProviderName: "System.Data.Postgres" })
+                    await writer.ProjectAsync(((ScheduledTaskRunReleasedEvent)domainEvent).ScheduledTaskDefinition!, execution.CancellationToken).ConfigureAwait(false);
                 return new(EventProjectionApplyOutcome.Applied);
             }, domainEvent =>
             {
@@ -137,8 +147,7 @@ public sealed class ScheduledTaskEventProjector(IScheduledTaskProjectionWriter w
             {
                 var source = (ScheduledTaskRunReleasedEvent)domainEvent;
                 return new ScheduledTaskRunReleasedFailEvent { Id = source.Id, EventId = source.EventId, CommandId = source.CommandId, EntityId = source.EntityId, AggregateId = source.AggregateId, EventSource = source.EventSource, OperationCommandId = source.OperationCommandId, ScheduledTaskDefinition = source.ScheduledTaskDefinition, Subject = new(ActorType.Event, ScheduledTaskRunReleasedFailEvent.Actor, ScheduledTaskRunReleasedFailEvent.Verb, source.EntityId.Format()), ErrorMessage = exception.Message, ErrorType = TomasAI.IFM.Shared.EventSourcing.ErrorType.Storage };
-            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true)
+            }, publishProcessingEvent: false, useDurableReplay: true, publishTerminalEvent: true).WithReadModelRebuild(async (source, token) => await (writer.ProjectAsync(((ScheduledTaskRunReleasedEvent)source).ScheduledTaskDefinition ?? throw new InvalidDataException("Missing committed scheduled-task snapshot."), token)).ConfigureAwait(false))
     ];
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => ProjectionDescriptors.Select(d => d.SourceEventType).ToArray();
 }

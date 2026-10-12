@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Exceptions;
 /// due to invalid input, system constraints, or other application-specific issues. Use the exception message to obtain
 /// details about the cause of the failure. This exception supports serialization for scenarios where exception details
 /// need to be transmitted across application domains.</remarks>
-public class ChangeEconomicCalendarException : ApplicationException
+public class ChangeEconomicCalendarException : Exception
 {
     public ChangeEconomicCalendarException(string errorMessage) : base(errorMessage)
     {

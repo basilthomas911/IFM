@@ -23,13 +23,10 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         IFuturesAnalyticsHistoricalDataLoaderEventContext context,
         ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(requested);
         var request = ToApplicationRequest(requested);
-        logger.LogInformation(
-            "Received historical Analytics request {AttemptId}; automatic={AutomaticStartupWarmup}, received={ReceivedOnUtc}, target={AnalyticsTargetContractId}.",
-            requested.EntityId.Value,
-            requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup,
-            requested.ReceivedOn,
-            requested.FuturesAnalyticsHistoricalDataLoaderParameters.AnalyticsTargetContractId);
+        global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write25(logger, null, requested.EntityId.Value, requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup, requested.ReceivedOn, requested.FuturesAnalyticsHistoricalDataLoaderParameters.AnalyticsTargetContractId);
         try
         {
             if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup
@@ -37,67 +34,11 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
                 && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
                     > AutomaticRequestMaximumAge)
             {
-                logger.LogInformation(
-                    "Ignoring stale automatic historical Analytics request {AttemptId} received at {ReceivedOnUtc}.",
-                    requested.EntityId.Value,
-                    requested.ReceivedOn);
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write26(logger, null, requested.EntityId.Value, requested.ReceivedOn);
                 return;
             }
 
-            HistoricalAnalyticsWarmupResult? warmupResult = null;
-            HistoricalDataLoaderState state;
-            if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup)
-            {
-                logger.LogInformation(
-                    "Writing historical Analytics coverage-scan checkpoint for {AttemptId}.",
-                    requested.EntityId.Value);
-                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
-                {
-                    DataLoadAttemptId = requested.EntityId.Value,
-                    RequestSha256 = $"coverage-scan:{requested.EntityId.Value:D}",
-                    Status = HistoricalDataLoaderStatus.Processing,
-                    Checkpoint = new HistoricalAcquisitionCheckpoint
-                    {
-                        DataLoadAttemptId = requested.EntityId.Value,
-                        Stage = HistoricalAcquisitionStage.None
-                    },
-                    UpdatedAtUtc = DateTimeOffset.UtcNow
-                }, CancellationToken.None).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Historical Analytics coverage-scan checkpoint written for {AttemptId}.",
-                    requested.EntityId.Value);
-                warmupResult = await context.WarmupService.EnsureAsync(
-                    request, CancellationToken.None).ConfigureAwait(false);
-                state = ToState(requested, warmupResult);
-                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
-                {
-                    DataLoadAttemptId = requested.EntityId.Value,
-                    RequestSha256 = $"automatic:{requested.EntityId.Value:D}:{warmupResult.Outcome}:{warmupResult.StartDate:O}:{warmupResult.EndDate:O}",
-                    Status = HistoricalDataLoaderStatus.Completed,
-                    Checkpoint = new HistoricalAcquisitionCheckpoint
-                    {
-                        DataLoadAttemptId = requested.EntityId.Value,
-                        Stage = HistoricalAcquisitionStage.Completed
-                    },
-                    Audit = new HistoricalDataLoaderAudit(
-                        warmupResult.ValidSessionCount,
-                        [],
-                        []),
-                    UpdatedAtUtc = DateTimeOffset.UtcNow
-                }, CancellationToken.None).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Historical Analytics warm-up {Outcome} for {StartDate} through {EndDate}; valid ES sessions {ValidSessionCount}, initially missing sessions {MissingSessionCount}.",
-                    warmupResult.Outcome,
-                    warmupResult.StartDate,
-                    warmupResult.EndDate,
-                    warmupResult.ValidSessionCount,
-                    warmupResult.MissingSessionCount);
-            }
-            else
-            {
-                state = await context.DataLoader.ExecuteAsync(
-                    request, CancellationToken.None).ConfigureAwait(false);
-            }
+            var state = await LoadRequestedAsync(requested, request, context, logger).ConfigureAwait(false);
             var terminal = new FuturesAnalyticsHistoricalDataLoaderCompletedEvent
             {
                 Subject = new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName,
@@ -121,10 +62,68 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogError(
-                exception,
-                "Historical Analytics request {AttemptId} failed before terminal publication.",
-                requested.EntityId.Value);
+            await PublishFailureAsync(requested, context, logger, exception).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Executes either the requested provider acquisition or the explicit automatic coverage warmup.</summary>
+    static async ValueTask<HistoricalDataLoaderState> LoadRequestedAsync(FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested,
+        MarketDataHistoricalRequest request, IFuturesAnalyticsHistoricalDataLoaderEventContext context,
+        ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> logger)
+    {
+            HistoricalAnalyticsWarmupResult? warmupResult = null;
+            HistoricalDataLoaderState state;
+            if (requested.FuturesAnalyticsHistoricalDataLoaderParameters.AutomaticStartupWarmup)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write27(logger, null, requested.EntityId.Value);
+                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
+                {
+                    DataLoadAttemptId = requested.EntityId.Value,
+                    RequestSha256 = $"coverage-scan:{requested.EntityId.Value:D}",
+                    Status = HistoricalDataLoaderStatus.Processing,
+                    Checkpoint = new HistoricalAcquisitionCheckpoint
+                    {
+                        DataLoadAttemptId = requested.EntityId.Value,
+                        Stage = HistoricalAcquisitionStage.None
+                    },
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                }, CancellationToken.None).ConfigureAwait(false);
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write28(logger, null, requested.EntityId.Value);
+                warmupResult = await context.WarmupService.EnsureAsync(
+                    request, CancellationToken.None).ConfigureAwait(false);
+                state = ToState(requested, warmupResult);
+                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
+                {
+                    DataLoadAttemptId = requested.EntityId.Value,
+                    RequestSha256 = $"automatic:{requested.EntityId.Value:D}:{warmupResult.Outcome}:{warmupResult.StartDate:O}:{warmupResult.EndDate:O}",
+                    Status = HistoricalDataLoaderStatus.Completed,
+                    Checkpoint = new HistoricalAcquisitionCheckpoint
+                    {
+                        DataLoadAttemptId = requested.EntityId.Value,
+                        Stage = HistoricalAcquisitionStage.Completed
+                    },
+                    Audit = new HistoricalDataLoaderAudit(
+                        warmupResult.ValidSessionCount,
+                        [],
+                        []),
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                }, CancellationToken.None).ConfigureAwait(false);
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write29(logger, null, warmupResult.Outcome, warmupResult.StartDate, warmupResult.EndDate, warmupResult.ValidSessionCount, warmupResult.MissingSessionCount);
+            }
+            else
+            {
+                state = await context.DataLoader.ExecuteAsync(
+                    request, CancellationToken.None).ConfigureAwait(false);
+            }
+        return state;
+    }
+
+    /// <summary>Records the failed acquisition checkpoint and publishes its existing terminal failure identity.</summary>
+    static async ValueTask PublishFailureAsync(FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested,
+        IFuturesAnalyticsHistoricalDataLoaderEventContext context, ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> logger,
+        Exception exception)
+    {
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write30(logger, exception, requested.EntityId.Value);
             var state = await context.DataLoaderStore.GetAsync(
                 requested.EntityId.Value, CancellationToken.None).ConfigureAwait(false);
             if (state is not null)
@@ -155,7 +154,6 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
             await context.SendAsync<
                 FuturesAnalyticsHistoricalDataLoaderFailedEvent,
                 FuturesAnalyticsHistoricalDataLoaderEntityId>(terminal).ConfigureAwait(false);
-        }
     }
 
     /// <summary>Maps the durable acquisition request to the provider-neutral application request.</summary>
@@ -187,7 +185,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderRequested
 
     /// <summary>Parses a source record ordinal, returning minus one when it is unavailable.</summary>
     static long ParseRecordOrdinal(string? sourcePosition) =>
-        long.TryParse(sourcePosition, out var value) ? value : -1;
+        long.TryParse(sourcePosition,System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : -1;
 
     /// <summary>Uses the final load state or constructs the completed automatic-warmup state.</summary>
     static HistoricalDataLoaderState ToState(

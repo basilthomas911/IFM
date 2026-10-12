@@ -26,6 +26,7 @@ public sealed record PortfolioCloseOrderCompositionCompletedEvent :
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = EvaluatePortfolioCloseOrderCompositionCommand.Actor;
     [Key(15)] public DateTime ReceivedOn { get; init; }
+    [Key(16)] public AcceptedPositionCloseFacts? ProjectionFacts { get; init; }
     [IgnoreMember] public string UserName => "Portfolio";
     [IgnoreMember] public string EventName => nameof(PortfolioCloseOrderCompositionCompletedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

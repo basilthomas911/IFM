@@ -15,6 +15,9 @@ public static class AcknowledgeIncidentSupervisorActor
         this AcknowledgeIncidentSupervisorActorCommand command, SupervisorCommandState state,
         ISupervisorCommandActorContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         cancellationToken.ThrowIfCancellationRequested();
         SupervisorActorOperationResult result;
         if (!context.Authorizer.IsAuthorized(command.Requester,

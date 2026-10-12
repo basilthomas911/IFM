@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Command.Actor;
 /// <summary>Provides readonly persistence, projection, clock and persisted catalog services.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ScheduledTaskRunCommandContext : CommandActorContext, ICommandActorContext<ScheduledTaskRunCommandActor>
 {
     /// <summary>Initializes the owning command actor context.</summary>

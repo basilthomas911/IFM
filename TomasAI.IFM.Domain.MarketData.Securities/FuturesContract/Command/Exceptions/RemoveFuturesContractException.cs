@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
     /// <summary>
     /// remove futures contract exception
     /// </summary>
-    public class RemoveFuturesContractException : ApplicationException, IErrorEventConverter
+    public class RemoveFuturesContractException : Exception, IErrorEventConverter
     {
         public RemoveFuturesContractException()
         {
@@ -27,7 +27,10 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
         /// <param name="command"></param>
         /// <param name="ex"></param>
         /// <returns></returns>
-        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) => new FuturesContractRemovedFailEvent
+        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) 
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            return new FuturesContractRemovedFailEvent
         {
             CommandId = command.CommandId,
             CommandName = command.GetType().Name,
@@ -39,5 +42,6 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
             AggregateId = command.StreamId,
             CommandData = JsonConvert.SerializeObject(command, Formatting.Indented)
         };
+        }
     }
 }

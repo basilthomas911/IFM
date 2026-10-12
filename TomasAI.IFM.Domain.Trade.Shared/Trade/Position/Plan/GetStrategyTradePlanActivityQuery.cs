@@ -35,6 +35,7 @@ public sealed record GetStrategyTradePlanActivityQuery : IQuery<StrategyTradePla
     [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
     [Key(2)] public DateOnly ValueDate { get; init; }
     [Key(3)] public int PageSize { get; init; } = 100;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(4)] public byte[]? PagingState { get; init; }
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => null;

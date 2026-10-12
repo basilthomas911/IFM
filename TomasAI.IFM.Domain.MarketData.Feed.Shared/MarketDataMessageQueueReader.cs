@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 {
     public class MarketDataMessageQueueReader<TMessage>
     {
-        private ConcurrentQueue<TMessage> _messageQueue;
+        private readonly ConcurrentQueue<TMessage> _messageQueue;
 
 
         public MarketDataMessageQueueReader()
@@ -20,23 +20,31 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 
         public void Enqueue(TMessage message)
         {
-            if (message != null)
+            if (message is not null)
                 _messageQueue.Enqueue(message);
         }
 
         public void Close(Action<ICollection<TMessage>> onMessageAction)
-            => ReadAllMessagesFromQueue(onMessageAction);
+            
+        {
+            ArgumentNullException.ThrowIfNull(onMessageAction);
+            ReadAllMessagesFromQueue(onMessageAction);
+        }
 
         public void ReadMessageQueue(Action<ICollection<TMessage>> onMessageAction)
-            => ReadAllMessagesFromQueue(onMessageAction);
+            
+        {
+            Close(onMessageAction);
+        }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Callback boundary isolates subscriber failures so subsequent market messages can continue.")]
         private void ReadAllMessagesFromQueue(Action<ICollection<TMessage>> onMessageAction)
         {
             var messages = new List<TMessage>(GetMessagesFromQueue());
             if (messages.Count > 0)
             {
                 try { onMessageAction(messages); }
-                catch { }
+                catch (Exception ex) { System.Diagnostics.Trace.TraceError("Market data subscriber failed: {0}", ex); }
             }
             return;
 

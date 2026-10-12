@@ -47,6 +47,11 @@ public class MessagePackBinarySerializer : IBinarySerializer
         return result;
     }
 
+    /// <summary>Reads an existing payload buffer using the standard compression-aware decoder.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the injected serializer instance API and overload call sites.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the injected serializer instance API and overload call sites.")]
+    public T? Deserialize<T>(ReadOnlyMemory<byte> data) => data.IsEmpty ? default : MessagePackSerializer.Deserialize<T>(data, Options);
+
     /// <summary>Shared serializer for boundaries that do not own an injected serializer.</summary>
     public static MessagePackBinarySerializer Shared { get; } = new();
 
@@ -73,9 +78,6 @@ public class MessagePackBinarySerializer : IBinarySerializer
 
     /// <summary>Encodes historical uncompressed bytes only for persisted digest compatibility.</summary>
     public static byte[] SerializeHistoricalContent<T>(T value) => MessagePackSerializer.Serialize(value, ContentOptions);
-
-    /// <summary>Reads an existing payload buffer using the standard compression-aware decoder.</summary>
-    public T? Deserialize<T>(ReadOnlyMemory<byte> data) => data.IsEmpty ? default : MessagePackSerializer.Deserialize<T>(data, Options);
 
     /// <summary>Measures the encoded payload with the exact options used by actor transport.</summary>
     public static int MeasureEncoded<T>(T value)

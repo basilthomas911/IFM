@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
@@ -37,6 +39,10 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public IEventSourceActorDbContext ActorEventSourceDb =>
         (_dbContextResolver.Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!;
     public IObjectRepository<SequenceIdDbContext> SequenceIdDb => _dbContextResolver.Resolve<SequenceIdDbContext>();
+    public ITradeTickQuoteDbContext TradeTickQuoteDb =>
+        (_dbContextResolver.Resolve<TradeTickQuoteDbContext>() as ITradeTickQuoteDbContext)!;
+    public TradeTickQuoteSchemaDb TradeTickQuoteSchema =>
+        (_dbContextResolver.Resolve<TradeTickQuoteSchemaDb>() as TradeTickQuoteSchemaDb)!;
     public IMarketDataDbContext MarketDataDb =>
         (_dbContextResolver.Resolve<MarketDataDbContext>() as IMarketDataDbContext)!;
     public IOptionPricerDbContext OptionPricerDb => _dbContextResolver.Resolve<OptionPricerDbContext>() as IOptionPricerDbContext;

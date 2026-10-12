@@ -6,35 +6,18 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Function.Actor;
-
-public interface IVerticalSpreadTradePlanFunctionContext : IFunctionActorContext<VerticalSpreadTradePlanFunctionActor>
+public sealed class VerticalSpreadTradePlanFunctionContext : FunctionActorContext, IVerticalSpreadTradePlanFunctionContext
 {
-    VerticalSpreadTradePlanAlgorithm Algorithm { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<VerticalSpreadTradePlanFunctionActor> Logger { get; }
-    IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState,
-        UpdateVerticalSpreadTradePlanCommand> StateRepository
-    { get; }
-}
-
-public sealed class VerticalSpreadTradePlanFunctionContext : FunctionActorContext,
-    IFunctionActorContext<VerticalSpreadTradePlanFunctionActor>, IVerticalSpreadTradePlanFunctionContext
-{
-    readonly Lazy<IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState,
-        UpdateVerticalSpreadTradePlanCommand>> _repository;
-
-    public VerticalSpreadTradePlanFunctionContext(IActorSupervisor supervisor,
-        ILogger<VerticalSpreadTradePlanFunctionActor> logger)
-        : base(supervisor, new(ActorType.Function, VerticalSpreadTradePlanFunctionActor.ActorName))
+    readonly Lazy<IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>> _repository;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public VerticalSpreadTradePlanFunctionContext(IActorSupervisor supervisor, ILogger<VerticalSpreadTradePlanFunctionActor> logger) : base(supervisor, new(ActorType.Function, VerticalSpreadTradePlanFunctionActor.ActorName))
     {
         Logger = logger;
-        _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<
-            VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>>());
+        _repository = new(() => Container.Resolve<IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand>>());
     }
 
     public VerticalSpreadTradePlanAlgorithm Algorithm { get; } = new();
     public TimeProvider TimeProvider { get; } = TimeProvider.System;
     public ILogger<VerticalSpreadTradePlanFunctionActor> Logger { get; }
-    public IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState,
-        UpdateVerticalSpreadTradePlanCommand> StateRepository => _repository.Value;
+    public IEventSourceFunctionStateRepository<VerticalSpreadTradePlanFunctionState, UpdateVerticalSpreadTradePlanCommand> StateRepository => _repository.Value;
 }

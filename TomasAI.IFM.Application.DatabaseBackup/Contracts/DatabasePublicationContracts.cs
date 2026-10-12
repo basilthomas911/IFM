@@ -151,7 +151,9 @@ public sealed record DatabaseRetentionEvaluationRequest(
     DatabaseArtifactReplicaId ReplicaId,
     DatabaseRestorePointId[] ProtectedRestorePoints,
     DatabaseRestorePointId[] LegalHolds,
-    DatabaseRestorePointId[] ActiveRestorePoints);
+    DatabaseRestorePointId[] ActiveRestorePoints,
+    long PolicyRevision = 1,
+    DatabaseProtectionSetId? ProtectionSetId = null);
 
 public sealed record DatabaseRetentionPlanEntry(
     DatabaseRestorePointId RestorePointId,

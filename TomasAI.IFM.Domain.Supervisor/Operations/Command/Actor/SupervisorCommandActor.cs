@@ -250,10 +250,9 @@ public sealed class SupervisorCommandActor(ICommandActorContext<SupervisorComman
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<SupervisorCommandActor> context, ActorThreadId threadId,
-        ICommand command, Exception exception)
+        ICommand command, Exception ex)
     {
-        Typed(context).Logger.LogError(exception,
-            "Supervisor command failed for {ActorThreadId}.", threadId);
+        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor command", threadId);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? 9701,
                 "Supervisor command processing failed."));

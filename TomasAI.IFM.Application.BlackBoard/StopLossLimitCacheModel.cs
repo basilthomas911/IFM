@@ -25,6 +25,7 @@ public class StopLossLimitCacheModel(IRedisCache redisCache, IJsonSerializer jso
     /// <returns></returns>
     public TradePlanStopLossLimitReadModel? Get(OptionTradeEntityId optionTradeId)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -39,6 +40,7 @@ public class StopLossLimitCacheModel(IRedisCache redisCache, IJsonSerializer jso
     /// <param name="stopLossLimit"></param>
     public void Set(OptionTradeEntityId optionTradeId, TradePlanStopLossLimitReadModel stopLossLimit)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         var value = _jsonSerializer.Serialize(stopLossLimit);
         _redisCache.Set(key, value);
@@ -51,6 +53,7 @@ public class StopLossLimitCacheModel(IRedisCache redisCache, IJsonSerializer jso
     /// <returns></returns>
     public bool Exists(OptionTradeEntityId optionTradeId)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         return _redisCache.TryGet(key, out _);
     }
@@ -61,6 +64,7 @@ public class StopLossLimitCacheModel(IRedisCache redisCache, IJsonSerializer jso
     /// <param name="optionTradeId"></param>
     public void Remove(OptionTradeEntityId optionTradeId)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         _redisCache.Remove(key);
     }

@@ -66,7 +66,7 @@ public class EventNameIdModelTests
 
         // Assert
         result.Should().Be(callbackResult);
-        _redisCache.Received(1).Set(key, serializedResult);
+        await _redisCache.Received(1).SetAsync(key, serializedResult);
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public class EventStreamIdModelTests
 
         // Assert
         result.Should().Be(callbackResult);
-        _redisCache.Received(1).Set(key, serializedResult);
+        await _redisCache.Received(1).SetAsync(key, serializedResult);
     }
 
     [Fact]
@@ -231,7 +231,7 @@ public class FuturesContractSymbolModelTests
         var contractId = "ESZ4";
         var key = $"{DataCacheName.FuturesContractSymbol}:{contractId}";
         var cachedJson = "{\"symbol\"}";
-        _redisCache.Get(key).Returns(cachedJson);
+        _redisCache.GetAsync(key).Returns(cachedJson);
         _jsonSerializer.Deserialize<string>(cachedJson).Returns("ES");
         var callback = Substitute.For<Func<string, ValueTask<string>>>();
 
@@ -249,7 +249,7 @@ public class FuturesContractSymbolModelTests
         // Arrange
         var contractId = "ESZ4";
         var key = $"{DataCacheName.FuturesContractSymbol}:{contractId}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, ValueTask<string>>>();
         callback(contractId).Returns(new ValueTask<string>("ES"));
         _jsonSerializer.Serialize("ES").Returns("{\"ES\"}");
@@ -260,7 +260,7 @@ public class FuturesContractSymbolModelTests
 
         // Assert
         result.Should().Be("ES");
-        _redisCache.Received(1).Set(key, "{\"ES\"}");
+        await _redisCache.Received(1).SetAsync(key, "{\"ES\"}");
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class FuturesContractSymbolModelTests
         // Arrange
         var contractId = "ESZ4";
         var key = $"{DataCacheName.FuturesContractSymbol}:{contractId}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, ValueTask<string>>>();
         callback(Arg.Any<string>()).Returns(new ValueTask<string>(string.Empty));
 
@@ -278,7 +278,7 @@ public class FuturesContractSymbolModelTests
 
         // Assert
         result.Should().BeEmpty();
-        _redisCache.DidNotReceive().Set(Arg.Any<string>(), Arg.Any<string>());
+        await _redisCache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public class FuturesContractSymbolModelTests
         // Arrange
         var contractId = "ESZ4";
         var key = $"{DataCacheName.FuturesContractSymbol}:{contractId}";
-        _redisCache.Get(key).Returns("cached");
+        _redisCache.GetAsync(key).Returns("cached");
         _jsonSerializer.Deserialize<string>("cached").Returns((string?)null);
         var callback = Substitute.For<Func<string, ValueTask<string>>>();
 
@@ -320,7 +320,7 @@ public class VixFuturesOpenPriceModelTests
         // Arrange
         var entityId = new VixFuturesEodDataEntityId("VXZ4", new DateOnly(2024, 1, 15));
         var key = $"{DataCacheName.VixFuturesOpenPrice}:{entityId.Format()}";
-        _redisCache.Get(key).Returns("18.25");
+        _redisCache.GetAsync(key).Returns("18.25");
         var callback = Substitute.For<Func<VixFuturesEodDataEntityId, Task<decimal>>>();
 
         // Act
@@ -337,7 +337,7 @@ public class VixFuturesOpenPriceModelTests
         // Arrange
         var entityId = new VixFuturesEodDataEntityId("VXZ4", new DateOnly(2024, 1, 15));
         var key = $"{DataCacheName.VixFuturesOpenPrice}:{entityId.Format()}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<VixFuturesEodDataEntityId, Task<decimal>>>();
         callback(entityId).Returns(Task.FromResult(20.50m));
 
@@ -346,7 +346,7 @@ public class VixFuturesOpenPriceModelTests
 
         // Assert
         result.Should().Be(20.50m);
-        _redisCache.Received(1).Set(key, "20.50");
+        await _redisCache.Received(1).SetAsync(key, "20.50");
     }
 
     [Fact]
@@ -387,7 +387,7 @@ public class NormalCurveTableModelTests
         var key = $"{DataCacheName.NormalCurveTable}:{valueDate:yyyyMMdd}";
         var cachedJson = "{\"cached\"}";
         var expected = new NormalCurveTableReadModel();
-        _redisCache.Get(key).Returns(cachedJson);
+        _redisCache.GetAsync(key).Returns(cachedJson);
         _jsonSerializer.Deserialize<NormalCurveTableReadModel>(cachedJson).Returns(expected);
         var callback = Substitute.For<Func<ValueTask<NormalCurveTableReadModel>>>();
 
@@ -407,7 +407,7 @@ public class NormalCurveTableModelTests
         var key = $"{DataCacheName.NormalCurveTable}:{valueDate:yyyyMMdd}";
         var callbackResult = new NormalCurveTableReadModel();
         var serializedResult = "{\"serialized\"}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<ValueTask<NormalCurveTableReadModel>>>();
         callback().Returns(new ValueTask<NormalCurveTableReadModel>(callbackResult));
         _jsonSerializer.Serialize(callbackResult).Returns(serializedResult);
@@ -418,7 +418,7 @@ public class NormalCurveTableModelTests
 
         // Assert
         result.Should().Be(callbackResult);
-        _redisCache.Received(1).Set(key, serializedResult);
+        await _redisCache.Received(1).SetAsync(key, serializedResult);
     }
 
     [Fact]
@@ -457,7 +457,7 @@ public class RiskFreeRateModelTests
         // Arrange
         var valueDate = new DateOnly(2024, 1, 15);
         var key = $"{DataCacheName.RiskFreeRate}:{valueDate:yyyyMMdd}";
-        _redisCache.Get(key).Returns("0.0525");
+        _redisCache.GetAsync(key).Returns("0.0525");
         var callback = Substitute.For<Func<DateOnly, ValueTask<double>>>();
 
         // Act
@@ -474,7 +474,7 @@ public class RiskFreeRateModelTests
         // Arrange
         var valueDate = new DateOnly(2024, 1, 15);
         var key = $"{DataCacheName.RiskFreeRate}:{valueDate:yyyyMMdd}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<DateOnly, ValueTask<double>>>();
         callback(valueDate).Returns(new ValueTask<double>(0.045));
 
@@ -483,7 +483,7 @@ public class RiskFreeRateModelTests
 
         // Assert
         result.Should().Be(0.045);
-        _redisCache.Received(1).Set(key, "0.045", TimeSpan.FromMinutes(60));
+        await _redisCache.Received(1).SetAsync(key, "0.045", TimeSpan.FromMinutes(60));
     }
 
     [Fact]
@@ -492,7 +492,7 @@ public class RiskFreeRateModelTests
         // Arrange
         var valueDate = new DateOnly(2024, 6, 1);
         var key = $"{DataCacheName.RiskFreeRate}:{valueDate:yyyyMMdd}";
-        _redisCache.Get(key).Returns("0");
+        _redisCache.GetAsync(key).Returns("0");
         var callback = Substitute.For<Func<DateOnly, ValueTask<double>>>();
 
         // Act
@@ -509,7 +509,7 @@ public class RiskFreeRateModelTests
         // Arrange
         var valueDate = new DateOnly(2024, 3, 20);
         var key = $"{DataCacheName.RiskFreeRate}:{valueDate:yyyyMMdd}";
-        _redisCache.Get(key).Returns((string?)null);
+        _redisCache.GetAsync(key).Returns((string?)null);
         var callback = Substitute.For<Func<DateOnly, ValueTask<double>>>();
         callback(valueDate).Returns(new ValueTask<double>(0.035));
 
@@ -518,7 +518,7 @@ public class RiskFreeRateModelTests
 
         // Assert
         result.Should().Be(0.035);
-        _redisCache.Received(1).Set(key, "0.035", TimeSpan.FromMinutes(60));
+        await _redisCache.Received(1).SetAsync(key, "0.035", TimeSpan.FromMinutes(60));
     }
 
     [Fact]

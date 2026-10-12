@@ -29,6 +29,7 @@ public static class ActorRuntimeStartup
     /// <summary>
     /// Registers and starts the runtime with bounded actor initialization concurrency.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
     public static async ValueTask StartAsync(
         IActorSupervisor supervisor,
         ILogger logger,
@@ -160,13 +161,7 @@ public static class ActorRuntimeStartup
                 }
                 catch (Exception exception)
                 {
-                    logger.LogError(
-                        exception,
-                        "Failed to start {ActorType} actor ({ActorNumber}/{ActorCount}) after {ElapsedMilliseconds:F1} ms.",
-                        actorType,
-                        actorNumber,
-                        actorCount,
-                        Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
+                    SharedActorDiagnosticLog.Write45(logger, exception, actorType, actorNumber, actorCount, Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
                     throw;
                 }
             }
@@ -179,7 +174,7 @@ public static class ActorRuntimeStartup
             else
                 ActorLifecycleMetrics.StartupFailures.Add(1);
 
-            logger.LogError(exception, "Failed to start event model actor supervisor.");
+            SharedActorDiagnosticLog.Write46(logger, exception);
             try
             {
                 await supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
@@ -187,7 +182,7 @@ public static class ActorRuntimeStartup
             catch (Exception rollbackException)
             {
                 ActorLifecycleMetrics.RecordCleanupFailure("startup_rollback");
-                logger.LogError(rollbackException, "Failed to roll back event model actor supervisor startup.");
+                SharedActorDiagnosticLog.Write44(logger, rollbackException);
                 throw;
             }
             throw;

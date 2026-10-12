@@ -1,3 +1,6 @@
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.State;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -37,31 +40,39 @@ public sealed class RegimeDiscoveryConfigurationEventProjector
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => descriptors.Select(x => x.SourceEventType).ToArray();
 
-    EventProjectionDescriptor Describe<T>() where T : class, IEvent => new(
+    EventProjectionDescriptor Describe<T>() where T : class, IEvent => new EventProjectionDescriptor(
         typeof(T), EventProjectionIdempotencyStrategy.NaturalKeyMutation,
-        async (domainEvent, _) =>
+        async (source, execution) => { if (!IsPostgres) {
+await ProjectAsync(source, execution.CancellationToken).ConfigureAwait(false);}
+return new(EventProjectionApplyOutcome.Applied); },
+        _ => null, (_, _) => null, false, false, false)
+        .WithReadModelRebuild((source, token) => RebuildAsync(source, token));
+
+    // These operations change configuration rows only; PublishAsync does not launch a workflow.
+    Task ProjectAsync(IEvent source, CancellationToken token) => source switch
+    {
+        RegimeDiscoveryParameterSetCreatedEvent created => context.ConfigurationDb.InsertRegimeDiscoveryDraftAsync(
+            created.ParameterSet, created.Description, created.CreatedBy, token),
+        RegimeDiscoveryParameterSetPublishedEvent published => context.ConfigurationDb.PublishAsync(StrategyParameterSetKind.RegimeDiscovery,
+            published.EntityId.ParameterSetId, published.EntityId.Version, published.EffectiveFromUtc, token),
+        RegimeDiscoveryParameterSetRetiredEvent retired => context.ConfigurationDb.RetireAsync(StrategyParameterSetKind.RegimeDiscovery,
+            retired.EntityId.ParameterSetId, retired.EntityId.Version, retired.RetiredAtUtc, token),
+        _ => throw new InvalidDataException("Unsupported configuration source event.")
+    };
+
+    bool IsPostgres => string.Equals(context.ConfigurationDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+
+    Task RebuildAsync(IEvent source, CancellationToken token)
+    {
+        if (!IsPostgres) {
+return ProjectAsync(source, token);}
+        return context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async (transaction, cancellationToken) =>
         {
-            switch (domainEvent)
-            {
-                case RegimeDiscoveryParameterSetCreatedEvent created:
-                    await context.ConfigurationDb.InsertRegimeDiscoveryDraftAsync(
-                        created.ParameterSet, created.Description, created.CreatedBy).ConfigureAwait(false);
-                    break;
-                case RegimeDiscoveryParameterSetPublishedEvent published:
-                    await context.ConfigurationDb.PublishAsync(StrategyParameterSetKind.RegimeDiscovery,
-                        published.EntityId.ParameterSetId, published.EntityId.Version,
-                        published.EffectiveFromUtc).ConfigureAwait(false);
-                    break;
-                case RegimeDiscoveryParameterSetRetiredEvent retired:
-                    await context.ConfigurationDb.RetireAsync(StrategyParameterSetKind.RegimeDiscovery,
-                        retired.EntityId.ParameterSetId, retired.EntityId.Version,
-                        retired.RetiredAtUtc).ConfigureAwait(false);
-                    break;
-            }
-            return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
-        }, _ => null, (_, _) => null, false, false, false);
+            await RegimeDiscoveryAcceptedProjection.ApplyAsync(context.ConfigurationDb, transaction, source, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, token);
+    }
 
     static IRegimeDiscoveryConfigurationCommandContext Typed(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> value)

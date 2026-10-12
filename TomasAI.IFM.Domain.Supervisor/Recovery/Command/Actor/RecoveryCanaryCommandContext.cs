@@ -23,13 +23,3 @@ public sealed class RecoveryCanaryCommandContext(IActorSupervisor supervisor)
     /// <inheritdoc />
     public IEventProjector<RecoveryCanaryCommandActor> EventProjector => _projector.Value;
 }
-
-/// <summary>Exposes only the canary command's state and projection capabilities.</summary>
-public interface IRecoveryCanaryCommandContext : ICommandActorContext<RecoveryCanaryCommandActor>
-{
-    /// <summary>The canary event-source repository.</summary>
-    IEventSourceActorStateRepository<RecoveryCanaryCommandState> StateRepository { get; }
-
-    /// <summary>The canary event projector.</summary>
-    IEventProjector<RecoveryCanaryCommandActor> EventProjector { get; }
-}

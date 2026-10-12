@@ -20,15 +20,29 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 /// publishes entity-scoped events through JetStream so legacy producers can retain the same durable
 /// event path as actor event contexts.
 /// </remarks>
-public abstract class NatsEventProducer : IEventProducer
+public abstract class NatsEventProducer : IEventProducer, IAsyncDisposable
 {
+    private int _disposeStarted;
+    /// <summary>Releases owned producers and startup gates after the host stops dispatching.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try
+        {
+            if (_producer is not null) await _producer.DisposeAsync().ConfigureAwait(false);
+            if (_jetStreamProducer is not null) await _jetStreamProducer.DisposeAsync().ConfigureAwait(false);
+        }
+        finally { _producerStartLock.Dispose(); _jetStreamStartLock.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     private static readonly ConcurrentDictionary<(Type EventType, Type EntityIdType), MethodInfo>
         _jetStreamSendMethods = [];
 
     private static readonly MethodInfo _jetStreamSendMethod = typeof(NatsJetStreamActorProducer)
         .GetMethods(BindingFlags.Instance | BindingFlags.Public)
         .Single(method =>
-            method.Name == nameof(NatsJetStreamActorProducer.SendAsync) &&
+            string.Equals(method.Name,nameof(NatsJetStreamActorProducer.SendAsync),StringComparison.Ordinal) &&
             method.IsGenericMethodDefinition &&
             method.GetGenericArguments().Length == 2 &&
             method.GetParameters().Length == 2);
@@ -43,7 +57,7 @@ public abstract class NatsEventProducer : IEventProducer
     /// <summary>
     /// Initializes a transport-free producer for BDD and unit-test use.
     /// </summary>
-    public NatsEventProducer()
+    protected NatsEventProducer()
     {
         _producerName = GetType().Name;
     }
@@ -53,7 +67,7 @@ public abstract class NatsEventProducer : IEventProducer
     /// </summary>
     /// <param name="options">Core NATS producer configuration.</param>
     /// <param name="logger">Logger used for transport diagnostics.</param>
-    public NatsEventProducer(INatsProducerOptions options, ILogger logger)
+    protected NatsEventProducer(INatsProducerOptions options, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -68,7 +82,7 @@ public abstract class NatsEventProducer : IEventProducer
     /// <param name="options">Core NATS producer configuration.</param>
     /// <param name="jetStreamOptions">NATS JetStream producer configuration.</param>
     /// <param name="loggerFactory">Factory used to create transport-specific loggers.</param>
-    public NatsEventProducer(
+    protected NatsEventProducer(
         INatsProducerOptions options,
         INatsJetStreamProducerOptions jetStreamOptions,
         ILoggerFactory loggerFactory)
@@ -91,6 +105,7 @@ public abstract class NatsEventProducer : IEventProducer
     /// </summary>
     /// <param name="event">Event to publish.</param>
     /// <returns>A task representing the publish operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing published actor member name.")]
     public abstract Task PostEventAsync(IEvent @event);
 
     /// <summary>
@@ -119,6 +134,7 @@ public abstract class NatsEventProducer : IEventProducer
         where TEvent : class, IEvent
         => PublishEventAsync("StreamEventAsync", eventKey, eventValue);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     private async Task PublishEventAsync<TKey, TEvent>(string operation, TKey eventKey, TEvent eventValue)
         where TEvent : class, IEvent
     {
@@ -126,7 +142,7 @@ public abstract class NatsEventProducer : IEventProducer
         if (_producer is null && _jetStreamProducer is null)
             return;
 
-        ActorSubject subject = default;
+        ActorSubject subject;
         try
         {
             subject = PrepareEvent(operation, eventKey, eventValue);
@@ -151,14 +167,12 @@ public abstract class NatsEventProducer : IEventProducer
                 await PublishJetStreamAsync(operation, subject, eventValue).ConfigureAwait(false);
                 break;
             default:
-                _logger?.LogError(
-                    "{ProducerName}: actor type {ActorType} does not define a delivery transport.",
-                    _producerName,
-                    subject.ActorType);
+                if (_logger is not null) NatsAdditionalDiagnosticLog.MissingTransport(_logger, _producerName, subject.ActorType);
                 break;
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     private async Task PublishCoreAsync<TEvent>(string operation, ActorSubject subject, TEvent eventValue)
         where TEvent : class, IEvent
     {
@@ -182,6 +196,7 @@ public abstract class NatsEventProducer : IEventProducer
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     private async Task PublishJetStreamAsync<TEvent>(string operation, ActorSubject subject, TEvent eventValue)
         where TEvent : class, IEvent
     {

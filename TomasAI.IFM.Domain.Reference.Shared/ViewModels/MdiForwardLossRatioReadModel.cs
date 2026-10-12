@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ViewModels
     /// Pattern mirrors FundOrderReadModel: explicit properties with sequential MessagePack keys;
     /// derived members are excluded from MessagePack via IgnoreMember. Includes parameterless and value constructors.
     /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the existing message and domain type names used in stored type identities.")]
     [MessagePackObject(AllowPrivate = true)]
     public record MDIForwardLossRatioReadModel
     {

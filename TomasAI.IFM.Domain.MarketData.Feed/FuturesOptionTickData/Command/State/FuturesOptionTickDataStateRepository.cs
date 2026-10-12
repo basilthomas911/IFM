@@ -10,13 +10,11 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Extensions;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 
@@ -52,7 +50,7 @@ public class FuturesOptionTickDataStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state as a <see
     /// cref="FuturesOptionTickDataCommandState"/> instance.</returns>
     public async ValueTask<FuturesOptionTickDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadEmptyStateAsync<FuturesOptionTickDataCommandState>();
+        => await (LoadEmptyStateAsync<FuturesOptionTickDataCommandState>()).ConfigureAwait(false);
 
     /// <summary>
     /// save futures option tick data state changes
@@ -62,7 +60,7 @@ public class FuturesOptionTickDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesOptionTickDataCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await (SaveStateAndDenormalizeEventsAsync(context, state, command)).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures option tick data state

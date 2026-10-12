@@ -22,6 +22,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataAnalyticsCommandApi
 {
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
         DateOnly candidateValueDate,
         string analyticsTargetContractId,
@@ -78,8 +79,10 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="entityId"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> StartFuturesRsiSignalAsync(FuturesRsiSignalEntityId entityId)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -90,7 +93,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StartFuturesRsiSignalCommand.Actor, StartFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = StartFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -104,8 +107,10 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="entityId"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> StopFuturesRsiSignalAsync(FuturesRsiSignalEntityId entityId)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -116,7 +121,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StopFuturesRsiSignalCommand.Actor, StopFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = StopFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -167,6 +172,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
             Subject = new ActorSubject(ActorType.Command, StopFuturesAtrSignalCommand.Actor, StopFuturesAtrSignalCommand.Verb, entityId.Format())
         });
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     async Task<ServiceResult<Guid>> SendLifecycleAsync<TEntityId, TCommand>(
         TEntityId entityId, int errorCode, Func<Guid, TCommand> createCommand)
         where TEntityId : IActorEntityId
@@ -175,7 +181,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         var commandId = Guid.NewGuid();
         try
         {
-            return await RequestCommandAsync(createCommand(commandId), entityId);
+            return await (RequestCommandAsync(createCommand(commandId), entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -190,8 +196,10 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="timePeriod"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesRsiSignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength)
     {
+        ArgumentNullException.ThrowIfNull(futuresEodData);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -205,7 +213,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -221,8 +229,10 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="timePeriod"></param>
     /// <param name="periodLength" ></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesRsiDailySignalAsync(FuturesEodDataV2ReadModel futuresEodData, TimeFrameType timePeriod, int periodLength)
     {
+        ArgumentNullException.ThrowIfNull(futuresEodData);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -236,7 +246,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiDailySignalCommand.Actor, GenerateFuturesRsiDailySignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesRsiDailySignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -254,6 +264,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresItiSignal"></param>
     /// <param name="vixFuturesPrice"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> UpdateFuturesTradeSignalAsync(
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel futuresRsiSignal,
@@ -272,7 +283,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, cmd.EntityId.Format()),
                 ErrorCode = UpdateFuturesTradeSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -287,11 +298,13 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresTdiSignalId"></param>
     /// <param name="futuresRsiSignals"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesTdiSignalAsync(
         FuturesTdiSignalId futuresTdiSignalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
         FuturesTdiConfiguration? configuration = null)
     {
+        ArgumentNullException.ThrowIfNull(futuresTdiSignalId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -309,7 +322,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesTdiSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -327,6 +340,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresPrice"></param>
     /// <param name="vixFuturesPrice"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesItiSignalAsync(
         string contractId, DateOnly valueDate, TimeFrameType timePeriod, DateTime timestamp, double futuresPrice, double vixFuturesPrice)
     {
@@ -341,7 +355,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesItiSignalCommand.Actor, GenerateFuturesItiSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesItiSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -355,20 +369,22 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> SetFuturesItiSignalHoldTradeAsync(FuturesItiSignalId e)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> SetFuturesItiSignalHoldTradeAsync(FuturesItiSignalId itiSignalId)
     {
+        ArgumentNullException.ThrowIfNull(itiSignalId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesItiSignalEntityId(e.ContractId, e.ValueDate, e.TimePeriod);
-            SetFuturesItiSignalHoldTradeCommand cmd = new(e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
+            var entityId = new FuturesItiSignalEntityId(itiSignalId.ContractId, itiSignalId.ValueDate, itiSignalId.TimePeriod);
+            SetFuturesItiSignalHoldTradeCommand cmd = new(itiSignalId.ContractId, itiSignalId.ValueDate, itiSignalId.TimePeriod, itiSignalId.IntrinsicTime)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, SetFuturesItiSignalHoldTradeCommand.Actor, SetFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
                 ErrorCode = SetFuturesItiSignalHoldTradeCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -382,20 +398,22 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> ClearFuturesItiSignalHoldTradeAsync(FuturesItiSignalId e)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> ClearFuturesItiSignalHoldTradeAsync(FuturesItiSignalId itiSignalId)
     {
+        ArgumentNullException.ThrowIfNull(itiSignalId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new FuturesItiSignalEntityId(e.ContractId, e.ValueDate, e.TimePeriod);
-            ClearFuturesItiSignalHoldTradeCommand cmd = new(e.ContractId, e.ValueDate, e.TimePeriod, e.IntrinsicTime)
+            var entityId = new FuturesItiSignalEntityId(itiSignalId.ContractId, itiSignalId.ValueDate, itiSignalId.TimePeriod);
+            ClearFuturesItiSignalHoldTradeCommand cmd = new(itiSignalId.ContractId, itiSignalId.ValueDate, itiSignalId.TimePeriod, itiSignalId.IntrinsicTime)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, ClearFuturesItiSignalHoldTradeCommand.Actor, ClearFuturesItiSignalHoldTradeCommand.Verb, entityId.Format()),
                 ErrorCode = ClearFuturesItiSignalHoldTradeCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -411,10 +429,13 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresAtrSignalId"></param>
     /// <param name="observation">Completed trade-session bar used to advance the ATR checkpoint.</param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesAtrSignalAsync(
         FuturesAtrSignalId futuresAtrSignalId,
         FuturesTradeSessionBarReadModel observation)
     {
+        ArgumentNullException.ThrowIfNull(futuresAtrSignalId);
+        ArgumentNullException.ThrowIfNull(observation);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -426,7 +447,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -441,8 +462,10 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="futuresAdxSignalId"></param>
     /// <param name="futuresPrice"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> GenerateFuturesAdxSignalAsync(FuturesAdxSignalId futuresAdxSignalId, decimal futuresPrice)
     {
+        ArgumentNullException.ThrowIfNull(futuresAdxSignalId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -454,7 +477,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesAdxSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -469,20 +492,22 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     /// <param name="signalId"></param>
     /// <param name="futuresPrice"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> GenerateFuturesMacdSignalAsync(FuturesMacdSignalId signalId, decimal futuresPrice)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> GenerateFuturesMacdSignalAsync(FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
+        ArgumentNullException.ThrowIfNull(futuresMacdSignalId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = signalId.ToEntityId();
-            GenerateFuturesMacdSignalCommand cmd = new(signalId, futuresPrice)
+            var entityId = futuresMacdSignalId.ToEntityId();
+            GenerateFuturesMacdSignalCommand cmd = new(futuresMacdSignalId, futuresPrice)
             {
                 CommandId = cmdId,
                 Subject = new ActorSubject(ActorType.Command, GenerateFuturesMacdSignalCommand.Actor, GenerateFuturesMacdSignalCommand.Verb, entityId.Format()),
                 ErrorCode = GenerateFuturesMacdSignalCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

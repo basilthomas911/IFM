@@ -11,27 +11,12 @@ using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesAtrSignalCommandActor"/>.</summary>
-public interface IFuturesAtrSignalCommandContext : ICommandActorContext<FuturesAtrSignalCommandActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbEventSource service supplied to the actor context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the EventProjector service supplied to the actor context.</summary>
-    IEventProjector<FuturesAtrSignalCommandActor> EventProjector { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesAtrSignalCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesAtrSignalCommandActor"/>.</summary>
-public sealed class FuturesAtrSignalCommandContext : CommandActorContext, ICommandActorContext<FuturesAtrSignalCommandActor>, IFuturesAtrSignalCommandContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesAtrSignalCommandContext : CommandActorContext, IFuturesAtrSignalCommandContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesAtrSignalCommandContext(

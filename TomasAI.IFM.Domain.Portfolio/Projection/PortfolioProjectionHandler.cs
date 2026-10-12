@@ -9,15 +9,17 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
-/// <summary>Deterministic committed-event to Scylla projection mapping used by durable projector descriptors and rebuild.</summary>
+/// <summary>Deterministic committed-event projection mapping used by durable projector descriptors and rebuild.</summary>
 public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPortfolioDbWriteContext projections)
 {
     public async Task ApplyAsync(IPortfolioDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
+        if (domainEvent.ProjectionFacts is not null) return;
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed events can be projected.");
         var portfolioId = ParsePortfolioId(domainEvent.AggregateId);
-        var aggregate = await events.LoadPortfolioAsync(portfolioId, cancellationToken).ConfigureAwait(false);
+        var aggregate = new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioAggregate();
+        aggregate.Replay((await events.LoadPortfolioHistoryAsync(portfolioId,cancellationToken).ConfigureAwait(false)).Where(x=>x.Revision<=domainEvent.Revision));
         var current = aggregate.Current ?? throw new InvalidOperationException("Committed Portfolio history did not rebuild a Portfolio.");
         if (domainEvent is DraftPortfolioDeletedEvent)
         {
@@ -56,9 +58,11 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
     public async Task ApplyAsync(IPortfolioFundDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
+        if (domainEvent.ProjectionFacts is not null) return;
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed events can be projected.");
         var fundId = ParseFundId(domainEvent.AggregateId);
-        var aggregate = await events.LoadFundAsync(fundId, cancellationToken).ConfigureAwait(false);
+        var aggregate = new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFundAggregate();
+        aggregate.Replay((await events.LoadFundHistoryAsync(fundId,cancellationToken).ConfigureAwait(false)).Where(x=>x.Revision<=domainEvent.Revision));
         var current = aggregate.Current ?? throw new InvalidOperationException("Committed Fund history did not rebuild a mandate.");
         await projections.UpsertFundAsync(
             PortfolioProjection<FundMandateReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
@@ -89,9 +93,11 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
     public async Task ApplyAsync(IPortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
+        if (domainEvent.ProjectionFacts is not null) return;
         if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed policy events can be projected.");
         var policyId = ParsePolicyId(domainEvent.AggregateId);
-        var aggregate = await events.LoadPolicyAsync(policyId, cancellationToken).ConfigureAwait(false);
+        var aggregate = new TomasAI.IFM.Domain.Portfolio.Command.State.PortfolioFinancialPolicyAggregate();
+        aggregate.Replay((await events.LoadPolicyHistoryAsync(policyId,cancellationToken).ConfigureAwait(false)).Where(x=>x.Revision<=domainEvent.Revision));
         if (domainEvent is DraftPortfolioFinancialPolicyDeletedEvent)
         {
             await projections.DeleteDraftPolicyAsync(
@@ -144,12 +150,12 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
     public static int StateBucket(int portfolioId) => checked((portfolioId - 1) / 1000);
 
     static PortfolioId ParsePortfolioId(string value) =>
-        int.TryParse(value, out var id) && id > 0 ? new PortfolioId(id) : throw new InvalidOperationException("Portfolio event aggregate identity is invalid.");
+        int.TryParse(value,System.Globalization.CultureInfo.InvariantCulture, out var id) && id > 0 ? new PortfolioId(id) : throw new InvalidOperationException("Portfolio event aggregate identity is invalid.");
 
     static PortfolioFundId ParseFundId(string value)
     {
         var parts = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var fundId) && portfolioId > 0 && fundId > 0
+        return parts.Length == 2 && int.TryParse(parts[0],System.Globalization.CultureInfo.InvariantCulture, out var portfolioId) && int.TryParse(parts[1],System.Globalization.CultureInfo.InvariantCulture, out var fundId) && portfolioId > 0 && fundId > 0
             ? new PortfolioFundId(portfolioId, fundId)
             : throw new InvalidOperationException("PortfolioFund event aggregate identity is invalid.");
     }
@@ -157,7 +163,7 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
     static PortfolioFinancialPolicyId ParsePolicyId(string value)
     {
         var parts = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var policyId) && portfolioId > 0 && policyId > 0
+        return parts.Length == 2 && int.TryParse(parts[0],System.Globalization.CultureInfo.InvariantCulture, out var portfolioId) && int.TryParse(parts[1],System.Globalization.CultureInfo.InvariantCulture, out var policyId) && portfolioId > 0 && policyId > 0
             ? new PortfolioFinancialPolicyId(portfolioId, policyId)
             : throw new InvalidOperationException("PortfolioFinancialPolicy event aggregate identity is invalid.");
     }

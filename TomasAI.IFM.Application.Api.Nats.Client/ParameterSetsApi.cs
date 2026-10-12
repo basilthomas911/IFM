@@ -18,7 +18,7 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
         var runs = new List<ParameterStartupRun>();
         for (var page = 0; page < 100; page++)
         {
-            var result = await RequestAsync<GetParameterStartupRunsQuery, ParameterStartupRun[]>(q.Subject, q, token);
+            var result = await (RequestAsync<GetParameterStartupRunsQuery, ParameterStartupRun[]>(q.Subject, q, token)).ConfigureAwait(false);
             if (!result.Success || result.Value is null) return result;
             runs.AddRange(result.Value);
             if (result.Value.Length < q.Limit) return new ServiceOk<ParameterStartupRun[]>(runs.ToArray());
@@ -28,11 +28,14 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
         return new ServiceFailed<ParameterStartupRun[]>(33101, "Parameter startup history exceeds 2000 runs.");
     }
     public Task<ServiceResult<GuidResult>> ApplyStartupAsync(ApplySignalStartupPlanCommand command, CancellationToken token = default)
-    { var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<ApplySignalStartupPlanCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<ApplySignalStartupPlanCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> ReleaseStartupAsync(ReleaseSignalStartupPlanCommand command, CancellationToken token = default)
-    { var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, ReleaseSignalStartupPlanCommand.Actor, ReleaseSignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<ReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, ReleaseSignalStartupPlanCommand.Actor, ReleaseSignalStartupPlanCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<ReleaseSignalStartupPlanCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> RecordStartupReportAsync(RecordSignalStartupReportCommand command, CancellationToken token = default)
-    { var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, RecordSignalStartupReportCommand.Actor, RecordSignalStartupReportCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<RecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { EntityId = ParameterStartupEntityId.Registry, Subject = new ActorSubject(ActorType.Command, RecordSignalStartupReportCommand.Actor, RecordSignalStartupReportCommand.Verb, ParameterStartupEntityId.Registry.Format()) }; return RequestCommandResultAsync<RecordSignalStartupReportCommand, ParameterStartupEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
     public Task<ServiceResult<ParameterSignalStartupReport>> StartupReportAsync(Guid runId, CancellationToken token = default) { var q = new GetParameterStartupReportQuery { RunId = runId, Subject = QuerySubject(GetParameterStartupReportQuery.Verb) }; return RequestAsync<GetParameterStartupReportQuery, ParameterSignalStartupReport>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<ParameterSignalMonitoringSnapshot>> SignalMonitoringAsync(Guid runId, CancellationToken token = default) { var q = new GetParameterSignalMonitoringQuery { RunId = runId, Subject = QuerySubject(GetParameterSignalMonitoringQuery.Verb) }; return RequestAsync<GetParameterSignalMonitoringQuery, ParameterSignalMonitoringSnapshot>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<ParameterLegacyVersion[]>> LegacyVersionsAsync(int offset = 0, CancellationToken token = default) { var q = new ListLegacyParameterVersionsQuery { Offset = offset, Subject = QuerySubject(ListLegacyParameterVersionsQuery.Verb) }; return RequestAsync<ListLegacyParameterVersionsQuery, ParameterLegacyVersion[]>(q.Subject, q, token).AsTask(); }
@@ -45,7 +48,7 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
         var versions = new List<ParameterSetVersion>();
         for (var page = 0; page < 100; page++)
         {
-            var result = await RequestAsync<ListParameterVersionsQuery, ParameterSetVersion[]>(q.Subject, q, token);
+            var result = await (RequestAsync<ListParameterVersionsQuery, ParameterSetVersion[]>(q.Subject, q, token)).ConfigureAwait(false);
             if (!result.Success || result.Value is null) return result;
             versions.AddRange(result.Value);
             if (result.Value.Length < q.Limit) return new ServiceOk<ParameterSetVersion[]>(versions.ToArray());
@@ -59,16 +62,19 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
     public Task<ServiceResult<ParameterValidationReport>> ValidateAsync(string json, int schemaVersion, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent) { var q = new ValidateParameterCandidateQuery { ComponentCode = componentCode, PayloadJson = json, SchemaVersion = schemaVersion, Subject = QuerySubject(ValidateParameterCandidateQuery.Verb) }; return RequestAsync<ValidateParameterCandidateQuery, ParameterValidationReport>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> CreateAsync(CreateParameterSetCommand command, CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var c = command with { Subject = new ActorSubject(ActorType.Command, CreateParameterSetCommand.Actor, CreateParameterSetCommand.Verb, command.EntityId.Format()) };
         return RequestCommandResultAsync<CreateParameterSetCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask();
     }
     public Task<ServiceResult<GuidResult>> SaveAsync(SaveParameterDraftCommand command, CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var c = command with { Subject = new ActorSubject(ActorType.Command, SaveParameterDraftCommand.Actor, SaveParameterDraftCommand.Verb, command.EntityId.Format()) };
         return RequestCommandResultAsync<SaveParameterDraftCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask();
     }
     public Task<ServiceResult<GuidResult>> PublishAsync(PublishParameterVersionCommand command, CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var c = command with { Subject = new ActorSubject(ActorType.Command, PublishParameterVersionCommand.Actor, PublishParameterVersionCommand.Verb, command.EntityId.Format()) };
         return RequestCommandResultAsync<PublishParameterVersionCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask();
     }
@@ -76,15 +82,19 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
     { var q = new GetParameterSetStateQuery { SetId = setId, Subject = QuerySubject(GetParameterSetStateQuery.Verb) }; return RequestAsync<GetParameterSetStateQuery, ParameterSetSnapshot>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> RenameAsync(RenameParameterSetCommand command, CancellationToken token = default)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var c = command with { Subject = new ActorSubject(ActorType.Command, RenameParameterSetCommand.Actor, RenameParameterSetCommand.Verb, command.EntityId.Format()) };
         return RequestCommandResultAsync<RenameParameterSetCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask();
     }
     public Task<ServiceResult<ParameterAssignmentSnapshot>> AssignmentAsync(string workflowDefinitionId, int targetHorizon, CancellationToken token = default)
     { var q = new GetParameterAssignmentQuery { WorkflowDefinitionId = workflowDefinitionId, TargetHorizon = targetHorizon, Subject = QuerySubject(GetParameterAssignmentQuery.Verb) }; return RequestAsync<GetParameterAssignmentQuery, ParameterAssignmentSnapshot>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> AssignAsync(AssignParameterVersionCommand command, CancellationToken token = default)
-    { var c = command with { Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<AssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<AssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> DisableAssignmentAsync(DisableParameterAssignmentCommand command, CancellationToken token = default)
-    { var c = command with { Subject = new ActorSubject(ActorType.Command, DisableParameterAssignmentCommand.Actor, DisableParameterAssignmentCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<DisableParameterAssignmentCommand, ParameterAssignmentEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { Subject = new ActorSubject(ActorType.Command, DisableParameterAssignmentCommand.Actor, DisableParameterAssignmentCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<DisableParameterAssignmentCommand, ParameterAssignmentEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> RetireAsync(RetireParameterVersionCommand command, CancellationToken token = default)
-    { var c = command with { Subject = new ActorSubject(ActorType.Command, RetireParameterVersionCommand.Actor, RetireParameterVersionCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<RetireParameterVersionCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
+    {
+        ArgumentNullException.ThrowIfNull(command); var c = command with { Subject = new ActorSubject(ActorType.Command, RetireParameterVersionCommand.Actor, RetireParameterVersionCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<RetireParameterVersionCommand, ParameterSetEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }
 }

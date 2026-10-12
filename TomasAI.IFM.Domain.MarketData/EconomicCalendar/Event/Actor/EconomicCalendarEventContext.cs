@@ -7,21 +7,8 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="EconomicCalendarEventActor"/>.</summary>
-public interface IEconomicCalendarEventContext : IEventActorContext<EconomicCalendarEventActor>
-{
-    /// <summary>Gets the supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the reference-data API.</summary>
-    IReferenceDataApi ReferenceDataApi { get; }
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<EconomicCalendarEventActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="EconomicCalendarEventActor"/>.</summary>
-public sealed class EconomicCalendarEventContext : EventActorContext, IEventActorContext<EconomicCalendarEventActor>, IEconomicCalendarEventContext
+public sealed class EconomicCalendarEventContext : EventActorContext, IEconomicCalendarEventContext
 {
     /// <summary>Initializes the context.</summary>
     public EconomicCalendarEventContext(IActorSupervisor supervisor, IReferenceDataApi referenceDataApi,

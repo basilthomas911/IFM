@@ -18,6 +18,8 @@ public static class RecordScheduledTaskRunUncertain
     public static ServiceResult<GuidResult> Execute(this RecordScheduledTaskRunUncertainCommand command,
         ScheduledTaskRunCommandState state, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTaskRun.STATE.APPLY_FAILED;unable to apply RecordScheduledTaskRunUncertain event";
         var updated = command.Compute(state.ScheduledTaskRun, now, out var model) switch
         {

@@ -15,6 +15,9 @@ public static class QuarantineSupervisorActor
         this QuarantineSupervisorActorCommand command, SupervisorCommandState state,
         ISupervisorCommandActorContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         SupervisorActorOperationResult result;
         if (!context.Authorizer.IsAuthorized(command.Requester, SupervisorActorOperationKind.Quarantine))
         {

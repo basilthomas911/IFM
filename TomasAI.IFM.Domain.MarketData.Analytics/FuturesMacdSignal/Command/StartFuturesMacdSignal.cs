@@ -18,6 +18,8 @@ public static class StartFuturesMacdSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StartFuturesMacdSignalCommand command, FuturesMacdSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply MACD start event";
         var updated = command.Compute(state.MacdSignals.LastOrDefault(), out var futuresMacdInitialization) switch
         {

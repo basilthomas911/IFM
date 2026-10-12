@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -20,7 +22,8 @@ public sealed class FuturesVxTermStructureSignalEventProjector(
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
     ILogger<FuturesVxTermStructureSignalEventProjector> logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null)
+    EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesVxTermStructureSignalCommandActor>(
         durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
@@ -32,13 +35,12 @@ public sealed class FuturesVxTermStructureSignalEventProjector(
             FuturesVxTermStructureSignalEntityId>((Func<FuturesVxTermStructureSignalUpdatedEvent, Task>)(async e =>
             {
                 if (e.FuturesVxTermStructureSignal is null) return;
-                await dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.FuturesVxTermStructureSignal).ConfigureAwait(false);
+                if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.FuturesVxTermStructureSignal).ConfigureAwait(false);
                 RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesVxTermStructureSignal);
             }))
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token))
     ];
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

@@ -15,9 +15,7 @@ public static class ApplicationStartupFail
         ArgumentNullException.ThrowIfNull(eventValue);
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
-        logger.LogError(
-            "{ServiceId} failure event {EventId} for command {CommandId}, entity {EntityId}, code {ErrorCode}: {ErrorMessage}",
-            ServiceId, eventValue.Id, eventValue.CommandId, eventValue.EntityId, eventValue.ErrorCode, eventValue.ErrorMessage);
+        global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write1(logger, null, ServiceId, eventValue.Id, eventValue.CommandId, eventValue.EntityId, eventValue.ErrorCode, eventValue.ErrorMessage);
         return ValueTask.CompletedTask;
     }
 }

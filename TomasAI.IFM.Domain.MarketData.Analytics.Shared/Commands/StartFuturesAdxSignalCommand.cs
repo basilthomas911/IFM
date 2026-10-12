@@ -27,6 +27,13 @@ public record StartFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityId>
         RouteTo = routeTo;
         HistoricalSeed = historicalSeed;
     }
+    public StartFuturesAdxSignalCommand() { }
+    public StartFuturesAdxSignalCommand(FuturesAdxSignalEntityId entityId)
+    {
+        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
+        ErrorCode = ErrorId;
+        RouteTo = BoundedContextName.FuturesAdxSignalBoundedContext;
+    }
     public const string Actor = "FuturesAdxSignalCommand";
     public const string Verb = "Start";
     public const int ErrorId = 20002;
@@ -36,17 +43,13 @@ public record StartFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityId>
     [Key(3)] public FuturesAdxSignalEntityId EntityId { get; init; } = default!;
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(6)] public FuturesTradeSessionBarReadModel[]? HistoricalSeed { get; init; }
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
-    public StartFuturesAdxSignalCommand() { }
-    public StartFuturesAdxSignalCommand(FuturesAdxSignalEntityId entityId)
-    {
-        EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
-        ErrorCode = ErrorId;
-        RouteTo = BoundedContextName.FuturesAdxSignalBoundedContext;
-    }
 }

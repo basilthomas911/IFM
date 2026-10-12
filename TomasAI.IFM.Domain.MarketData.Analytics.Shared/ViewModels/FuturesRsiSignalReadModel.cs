@@ -38,7 +38,6 @@ public record FuturesRsiSignalReadModel
     public TimeOnly Timestamp { get; init; }
 
     /// <summary>Classification of the RSI signal granularity (e.g. Daily, OneMinute).</summary>
-
     /// <summary>Price used as the basis for the RSI calculation at this timestamp.</summary>
     [Key(6)]
     public decimal Price { get; init; }
@@ -124,7 +123,6 @@ public record FuturesRsiSignalReadModel
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date for the signal.</param>
     /// <param name="timestamp">Intraday timestamp.</param>
-    /// <param name="signalType">Signal classification type.</param>
     /// <param name="price">Price at the signal time.</param>
     /// <param name="priceChange">Price change since prior period.</param>
     /// <param name="priceGain">Positive price change (gains).</param>
@@ -135,7 +133,7 @@ public record FuturesRsiSignalReadModel
     /// <param name="rsi">RSI value.</param>
     /// <param name="rsiAverage">Smoothed RSI average.</param>
     /// <param name="rsiSlope">RSI slope.</param>
-    /// <param name="windowSize">RSI window length.</param>
+
     public FuturesRsiSignalReadModel(
         string contractId,
         DateOnly valueDate,
@@ -178,45 +176,4 @@ public record FuturesRsiSignalReadModel
     /// Returns a compact JSON representation (diagnostics / logging).
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
-}
-
-/// <summary>
-/// Validation rules for <see cref="FuturesRsiSignalReadModel"/>.
-/// </summary>
-public class FuturesRsiSignalReadModelValidationRules : BaseValidationRules, IValidationRules<FuturesRsiSignalReadModel>
-{
-    static readonly FuturesRsiSignalValidator Validator = new();
-
-    public ValidationError[] Execute(FuturesRsiSignalReadModel futuresRsiSignal) => Validate(futuresRsiSignal, Validator);
-
-    private class FuturesRsiSignalValidator : AbstractValidator<FuturesRsiSignalReadModel>
-    {
-        public FuturesRsiSignalValidator()
-        {
-            RuleFor(x => x.ContractId).NotEmpty().WithMessage("FuturesRsiSignal.ContractId is required");
-            RuleFor(x => x.ValueDate).NotEqual(DateOnly.MinValue).WithMessage("FuturesRsiSignal.ValueDate must be greater than DateOnly.MinValue");
-            RuleFor(x => x.ValueDate).NotEqual(DateOnly.MaxValue).WithMessage("FuturesRsiSignal.ValueDate must be less than DateOnly.MaxValue");
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MinValue).WithMessage("FuturesRsiSignal.Timestamp must be greater than TimeOnly.MinValue");
-            RuleFor(x => x.Timestamp).NotEqual(TimeOnly.MaxValue).WithMessage("FuturesRsiSignal.Timestamp must be less than TimeOnly.MaxValue");
-            RuleFor(x => x.RS).Must(rs => !double.IsNaN(rs)).WithMessage("FuturesRsiSignal.RS is NaN");
-            RuleFor(x => x.RSI).Must(rsi => !double.IsNaN(rsi)).WithMessage("FuturesRsiSignal.RSI is NaN");
-            RuleFor(x => x.RSIAverage).Must(rsiAverage => !double.IsNaN(rsiAverage)).WithMessage("FuturesRsiSignal.RSIAverage is NaN");
-            RuleFor(x => x.RSISlope).Must(rsiSlope => !double.IsNaN(rsiSlope)).WithMessage("FuturesRsiSignal.RSISlope is NaN");
-        }
-
-        public override ValidationResult Validate(ValidationContext<FuturesRsiSignalReadModel> context)
-        {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
-            {
-                var validationResult = new ValidationResult();
-                validationResult.Errors.Add(new ValidationFailure("FuturesRsiSignal", "FuturesRsiSignal instance is null"));
-                return validationResult;
-            }
-            return base.Validate(context);
-        }
-    }
 }

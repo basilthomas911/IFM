@@ -16,8 +16,10 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
 
     public InteractiveBrokersEmulatorTradeBroker(IFrameworkOrderExecutionBroker orders, IFrameworkBrokerAccount account, ILogger? logger = null)
     {
-        if (orders.AccountAlias != account.AccountAlias || orders.Generation != account.Generation)
-            throw new ArgumentException("Emulator order and account ports are not aligned.");
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(orders);
+        if (!string.Equals(orders.AccountAlias,account.AccountAlias,StringComparison.Ordinal) || orders.Generation != account.Generation)
+            throw new ArgumentException("Emulator order and account ports are not aligned.", nameof(orders));
         _orders = orders;
         _account = account;
         this.logger = logger ?? NullLogger.Instance;
@@ -36,7 +38,7 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
         if (Capabilities.Validate(request) is { } capabilityFailure)
             return new(BrokerDispatchOutcome.RejectedLocally, request.OperationId, request.BrokerOrderId,
                 "TB.CAPABILITY.UNSUPPORTED", capabilityFailure, DateTime.UtcNow);
-        return TradeBrokerMapper.ToApplication(await _orders.PlaceAsync(TradeBrokerMapper.ToFramework(request), cancellationToken));
+        return TradeBrokerMapper.ToApplication(await (_orders.PlaceAsync(TradeBrokerMapper.ToFramework(request), cancellationToken)).ConfigureAwait(false));
     }
 
     public async ValueTask<BrokerDispatchReceipt> PlaceAsync(BrokerOrderRequest request, CancellationToken cancellationToken = default)
@@ -65,7 +67,7 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
         var started = Stopwatch.GetTimestamp();
         try
         {
-            var receipt = TradeBrokerMapper.ToApplication(await _orders.ModifyLimitAsync(TradeBrokerMapper.ToFramework(request), cancellationToken));
+            var receipt = TradeBrokerMapper.ToApplication(await (_orders.ModifyLimitAsync(TradeBrokerMapper.ToFramework(request), cancellationToken)).ConfigureAwait(false));
             if (logger.IsEnabled(LogLevel.Information))
                 BrokerDispatchLogging.Completed(logger, nameof(ModifyLimitAsync), request.OperationId, request.BrokerOrderId,
                 request.AccountAlias, 0, request.NewSignedNetDebitLimit, request.ExpectedRevision, receipt.Outcome.ToString(),
@@ -84,7 +86,7 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
         var started = Stopwatch.GetTimestamp();
         try
         {
-            var receipt = TradeBrokerMapper.ToApplication(await _orders.CancelAsync(TradeBrokerMapper.ToFramework(request), cancellationToken));
+            var receipt = TradeBrokerMapper.ToApplication(await (_orders.CancelAsync(TradeBrokerMapper.ToFramework(request), cancellationToken)).ConfigureAwait(false));
             if (logger.IsEnabled(LogLevel.Information))
                 BrokerDispatchLogging.Completed(logger, nameof(CancelAsync), request.OperationId, request.BrokerOrderId,
                 request.AccountAlias, 0, 0m, request.ExpectedRevision, receipt.Outcome.ToString(),
@@ -99,19 +101,19 @@ public sealed class InteractiveBrokersEmulatorTradeBroker : ITradeBroker
     }
 
     public async ValueTask<BrokerObservation[]> ReconcileOrderAsync(string brokerOrderId, CancellationToken cancellationToken = default) =>
-        [.. (await _orders.ReconcileAsync(brokerOrderId, cancellationToken)).Select(TradeBrokerMapper.ToApplication)];
+        [.. (await (_orders.ReconcileAsync(brokerOrderId, cancellationToken)).ConfigureAwait(false)).Select(TradeBrokerMapper.ToApplication)];
     public async ValueTask<BrokerAccountSnapshot> GetAccountSnapshotAsync(CancellationToken cancellationToken = default) =>
-        TradeBrokerMapper.ToApplication(await _account.GetSnapshotAsync(cancellationToken));
+        TradeBrokerMapper.ToApplication(await (_account.GetSnapshotAsync(cancellationToken)).ConfigureAwait(false));
     public async ValueTask<BrokerAccountSnapshot> ResynchronizeAccountAsync(CancellationToken cancellationToken = default) =>
-        TradeBrokerMapper.ToApplication(await _account.ResynchronizeAsync(cancellationToken));
+        TradeBrokerMapper.ToApplication(await (_account.ResynchronizeAsync(cancellationToken)).ConfigureAwait(false));
     public ValueTask<int> PublishMarketQuoteAsync(BrokerMarketQuote quote, CancellationToken cancellationToken = default) =>
         _orders.PublishMarketQuoteAsync(TradeBrokerMapper.ToFramework(quote), cancellationToken);
     public async IAsyncEnumerable<BrokerObservation> ObserveOrdersAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var fact in _orders.ObserveAsync(cancellationToken)) yield return TradeBrokerMapper.ToApplication(fact);
+        await foreach (var fact in _orders.ObserveAsync(cancellationToken).ConfigureAwait(false)) yield return TradeBrokerMapper.ToApplication(fact);
     }
     public async IAsyncEnumerable<BrokerObservation> ObserveAccountAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var fact in _account.ObserveAsync(cancellationToken)) yield return TradeBrokerMapper.ToApplication(fact);
+        await foreach (var fact in _account.ObserveAsync(cancellationToken).ConfigureAwait(false)) yield return TradeBrokerMapper.ToApplication(fact);
     }
 }

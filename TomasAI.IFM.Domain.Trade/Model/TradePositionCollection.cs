@@ -2,15 +2,13 @@ using System.Collections;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
-
 public class TradePositionCollection : ITradePositionCollection
 {
     readonly List<ITradePosition> _tradePosition;
-
     public TradePositionCollection() => _tradePosition = new List<ITradePosition>();
-
     public int Count => _tradePosition.Count;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1043", Justification = "Implements the published composite position identity indexer.")]
     public ITradePosition? this[TradePositionEntityId key]
     {
         get
@@ -24,49 +22,27 @@ public class TradePositionCollection : ITradePositionCollection
                     throw new InvalidOperationException("Sequence contains more than one matching element");
                 match = position;
             }
+
             return match;
         }
     }
 
-    public ITradePosition New(TradePositionEntityId key, DateTime createdOn, string createdBy)
-       => new TradePosition(
-           orderId: key.OrderId,
-           tradeId: key.TradeId,
-           tradeType: key.TradeType,
-           valueDate: key.ValueDate,
-           daysToExpiry: key.DaysToExpiry,
-           tradeStatus: key.TradeStatus,
-           createdOn: createdOn,
-           createdBy: createdBy);
-
+    public ITradePosition New(TradePositionEntityId tradePositionKey, DateTime createdOn, string createdBy) => new TradePosition(orderId: tradePositionKey.OrderId, tradeId: tradePositionKey.TradeId, tradeType: tradePositionKey.TradeType, valueDate: tradePositionKey.ValueDate, daysToExpiry: tradePositionKey.DaysToExpiry, tradeStatus: tradePositionKey.TradeStatus, createdOn: createdOn, createdBy: createdBy);
     public ITradePosition[] Opening()
     {
         var result = new List<ITradePosition>();
         foreach (var position in _tradePosition)
             if (position.TradeStatus == TradeStatus.Open)
                 result.Add(position);
-        return [.. result];
+        return[..result];
     }
 
-    public ITradePosition? Opening(TradeType tradeType)
-        => FindFirst(tradeType, TradeStatus.Open);
-
-    public ITradePosition? IntraDay(TradeType tradeType)
-        => FindLast(tradeType, TradeStatus.IntraDay);
-
-    public ITradePosition? IntraDay(TradeType tradeType, DateOnly valueDate)
-        => FindLast(tradeType, TradeStatus.IntraDay, valueDate);
-
-    public ITradePosition? EndOfDay(TradeType tradeType)
-        => FindLast(tradeType, TradeStatus.EndOfDay);
-
-    public ITradePosition? EndOfDay(TradeType tradeType, DateOnly valueDate)
-        => FindLast(tradeType, TradeStatus.EndOfDay, valueDate);
-
-    public ITradePosition? Closing(TradeType tradeType)
-        => FindFirst(tradeType, TradeStatus.Close);
-
-
+    public ITradePosition? Opening(TradeType tradeType) => FindFirst(tradeType, TradeStatus.Open);
+    public ITradePosition? IntraDay(TradeType tradeType) => FindLast(tradeType, TradeStatus.IntraDay);
+    public ITradePosition? IntraDay(TradeType tradeType, DateOnly valueDate) => FindLast(tradeType, TradeStatus.IntraDay, valueDate);
+    public ITradePosition? EndOfDay(TradeType tradeType) => FindLast(tradeType, TradeStatus.EndOfDay);
+    public ITradePosition? EndOfDay(TradeType tradeType, DateOnly valueDate) => FindLast(tradeType, TradeStatus.EndOfDay, valueDate);
+    public ITradePosition? Closing(TradeType tradeType) => FindFirst(tradeType, TradeStatus.Close);
     public TradePositionChangeSourceType Source(TradeType tradeType)
     {
         switch (tradeType)
@@ -76,27 +52,20 @@ public class TradePositionCollection : ITradePositionCollection
             case TradeType.CallCreditSpread:
                 return TradePositionChangeSourceType.CallCreditSpreadLeg;
         }
+
         return TradePositionChangeSourceType.None;
     }
 
     public bool Exists(TradePositionEntityId key)
     {
-        foreach (var position in _tradePosition)
-            if (Matches(position, key))
-                return true;
-        return false;
+        return _tradePosition.Any(position => Matches(position, key));
     }
 
     public void Add(ITradePosition spreadTradeData) => _tradePosition.Add(spreadTradeData);
-
     public void Clear() => _tradePosition.Clear();
-
     public IEnumerator<ITradePosition> GetEnumerator() => _tradePosition.GetEnumerator();
-
     public bool Remove(ITradePosition spreadTradeData) => _tradePosition.Remove(spreadTradeData);
-
     IEnumerator IEnumerable.GetEnumerator() => _tradePosition.GetEnumerator();
-
     public ITradePositionCollection SetTradePnl(TradeType tradeType)
     {
         var yesterdayTradeData = EndOfDay(tradeType) ?? Opening(tradeType);
@@ -128,20 +97,12 @@ public class TradePositionCollection : ITradePositionCollection
         for (var index = _tradePosition.Count - 1; index >= 0; index--)
         {
             var position = _tradePosition[index];
-            if (position.TradeType == tradeType
-                && position.TradeStatus == tradeStatus
-                && (!valueDate.HasValue || position.ValueDate == valueDate.Value))
+            if (position.TradeType == tradeType && position.TradeStatus == tradeStatus && (!valueDate.HasValue || position.ValueDate == valueDate.Value))
                 return position;
         }
+
         return null;
     }
 
-    static bool Matches(ITradePosition position, TradePositionEntityId key)
-        => position.OrderId == key.OrderId
-            && position.TradeId == key.TradeId
-            && position.TradeType == key.TradeType
-            && position.ValueDate == key.ValueDate
-            && position.DaysToExpiry == key.DaysToExpiry
-            && position.TradeStatus == key.TradeStatus;
-
+    static bool Matches(ITradePosition position, TradePositionEntityId key) => position.OrderId == key.OrderId && position.TradeId == key.TradeId && position.TradeType == key.TradeType && position.ValueDate == key.ValueDate && position.DaysToExpiry == key.DaysToExpiry && position.TradeStatus == key.TradeStatus;
 }

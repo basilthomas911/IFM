@@ -29,33 +29,12 @@ public class ServiceResult
         ErrorMessage = errorMessage ?? string.Empty;
     }
 
-    public ServiceResult(bool success, int errorCode, string? errorMessage = null, bool _unusedForOverload = false)
+    public ServiceResult(bool success, int errorCode, string? errorMessage = null, bool unusedForOverload = false)
     {
         Success = success;
         ErrorCode = errorCode;
         ErrorMessage = errorMessage ?? string.Empty;
     }
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public class ServiceOk : ServiceResult
-{
-    public ServiceOk() : base() { }
-
-    [SerializationConstructor]
-    public ServiceOk(bool success, int errorCode, string errorMessage) : base(success, errorCode, errorMessage) { }
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public class ServiceFailed : ServiceResult
-{
-    public ServiceFailed() : base() { }
-
-    public ServiceFailed(int errorCode, string errorMessage)
-        : base(false, errorCode, errorMessage) { }
-
-    [SerializationConstructor]
-    public ServiceFailed(bool success, int errorCode, string errorMessage) : base(success, errorCode, errorMessage) { }
 }
 
 /// <summary>
@@ -100,8 +79,9 @@ public class ServiceResult<TResult> : ServiceResult
     }
 
     public ServiceResult(IErrorEvent errorEvent)
-        : base(false, errorEvent.ErrorCode, errorEvent.ErrorMessage)
+        : base(false, (errorEvent ?? throw new ArgumentNullException(nameof(errorEvent))).ErrorCode, errorEvent.ErrorMessage)
     {
+        ArgumentNullException.ThrowIfNull(errorEvent);
         Value = default;
         ErrorEvent = errorEvent;
     }
@@ -113,34 +93,3 @@ public class ServiceResult<TResult> : ServiceResult
         ErrorEvent = default;
     }
 }
-
-[MessagePackObject(AllowPrivate = true)]
-public class ServiceOk<TResult> : ServiceResult<TResult>
-{
-    public ServiceOk() : base() { }
-    public ServiceOk(TResult value) : base(value) { }
-
-    [SerializationConstructor]
-    public ServiceOk(bool success, int errorCode, string errorMessage, TResult? value)
-        : base(success, errorCode, errorMessage, value) { }
-}
-
-[MessagePackObject(AllowPrivate = true)]
-public class ServiceFailed<TResult> : ServiceResult<TResult>
-{
-    public ServiceFailed() : base() { }
-
-    [SerializationConstructor]
-    public ServiceFailed(bool success, int errorCode, string errorMessage, TResult? value)
-        : base(success, errorCode, errorMessage, value) { }
-
-    public ServiceFailed(int errorCode, string errorMessage, TResult? value)
-        : base(false, errorCode, errorMessage, value) { }
-
-    public ServiceFailed(int errorCode, string errorMessage) : base(errorCode, errorMessage) { }
-
-    public ServiceFailed(IErrorEvent errorEvent) : base(errorEvent) { }
-}
-
-[MessagePackObject]
-public record GuidResult([property: Key(0)] Guid Guid);

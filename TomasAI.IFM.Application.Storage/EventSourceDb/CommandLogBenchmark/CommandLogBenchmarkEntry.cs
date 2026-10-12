@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandLogBenchmark;
 /// Immutable input shared by the isolated PostgreSQL/ScyllaDB command-log benchmark.
 /// PostgreSQL receives the current JSON representation; ScyllaDB receives MessagePack bytes.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
 public sealed record CommandLogBenchmarkEntry(
     Guid CommandId,
     string StreamId,
@@ -44,31 +45,3 @@ public sealed record CommandLogBenchmarkEntry(
             messagePack);
     }
 }
-
-/// <summary>
-/// Deliberately narrow comparison contract. It is not registered in application runtime dependency injection.
-/// </summary>
-public interface ICommandLogBenchmarkStore
-{
-    Task<bool> TryInsertAsync(
-        CommandLogBenchmarkEntry entry,
-        CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(Guid commandId, CancellationToken cancellationToken = default);
-}
-
-public sealed record ScyllaCommandLogBenchmarkRecord(
-    Guid CommandId,
-    string StreamId,
-    string ActorName,
-    string CommandName,
-    DateTime CommandTimestampUtc,
-    byte[] MessagePackCommandData);
-
-public sealed record PostgresCommandLogBenchmarkRecord(
-    Guid CommandId,
-    string StreamId,
-    string ActorName,
-    string CommandName,
-    DateTime CommandTimestampUtc,
-    string JsonCommandData);

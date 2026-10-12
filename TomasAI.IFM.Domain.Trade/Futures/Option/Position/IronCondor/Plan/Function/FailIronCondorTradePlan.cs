@@ -4,12 +4,12 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function;
-
 public static class FailIronCondorTradePlan
 {
-    public static FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>> Fail(
-        this FunctionEventContext<UpdateIronCondorTradePlanCommand> input, TimeProvider clock)
+    public static FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>> Fail(this FunctionEventContext<UpdateIronCondorTradePlanCommand> input, TimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
         var command = input.Request;
         var now = clock.GetUtcNow().UtcDateTime;
         var reason = input.IsConflict ? "PLAN.COMMAND.CONFLICT" : $"PLAN.{input.Stage.ToString().ToUpperInvariant()}.FAILED";

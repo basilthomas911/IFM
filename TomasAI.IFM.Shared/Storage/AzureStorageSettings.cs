@@ -20,15 +20,15 @@ namespace TomasAI.IFM.Shared.Storage
             string diffDestinationFileName)
         {
             if (string.IsNullOrWhiteSpace(containerName))
-                throw new ArgumentNullException("containerName", "AzureStorageSettings: constructor parameter 'containerName' is empty");
+                throw new ArgumentNullException(nameof(containerName), "AzureStorageSettings: constructor parameter 'containerName' is empty");
             if (string.IsNullOrWhiteSpace(fullSourceFileName))
-                throw new ArgumentNullException("fullSourceFileName", "AzureStorageSettings: constructor parameter 'fullSourceFileName' is empty");
+                throw new ArgumentNullException(nameof(fullSourceFileName), "AzureStorageSettings: constructor parameter 'fullSourceFileName' is empty");
             if (string.IsNullOrWhiteSpace(fullDestinationFileName))
-                throw new ArgumentNullException("fullDestinationFileName", "AzureStorageSettings: constructor parameter 'fullDestinationFileName' is empty");
+                throw new ArgumentNullException(nameof(fullDestinationFileName), "AzureStorageSettings: constructor parameter 'fullDestinationFileName' is empty");
             if (string.IsNullOrWhiteSpace(diffSourceFileName))
-                throw new ArgumentNullException("diffSourceFileName", "AzureStorageSettings: constructor parameter 'diffSourceFileName' is empty");
+                throw new ArgumentNullException(nameof(diffSourceFileName), "AzureStorageSettings: constructor parameter 'diffSourceFileName' is empty");
             if (string.IsNullOrWhiteSpace(diffDestinationFileName))
-                throw new ArgumentNullException("diffDestinationFileName", "AzureStorageSettings: constructor parameter 'diffDestinationFileName' is empty");
+                throw new ArgumentNullException(nameof(diffDestinationFileName), "AzureStorageSettings: constructor parameter 'diffDestinationFileName' is empty");
             _containerName = containerName;
             _fullSourceFileName = fullSourceFileName;
             _fullDestinationFileName = fullDestinationFileName;

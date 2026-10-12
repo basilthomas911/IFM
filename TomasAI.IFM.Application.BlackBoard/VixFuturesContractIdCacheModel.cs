@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 
@@ -13,7 +13,6 @@ public class VixFuturesContractIdCacheModel(IRedisCache redisCache, IJsonSeriali
 {
     readonly string CacheName = $"{DataCacheName.VixFuturesContractId}";
     readonly IRedisCache _redisCache = redisCache;
-    readonly IJsonSerializer _jsonSerializer = jsonSerializer;
 
     /// <summary>
     /// return cached vix futures contract id

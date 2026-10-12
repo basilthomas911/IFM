@@ -17,6 +17,9 @@ public static class GetFuturesVwapSignalHistory
         IFuturesVwapSignalQueryContext typedContext,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(typedContext);
         var values = await FuturesVwapSignalQueryModel.ExecuteAsync(query,
             typedContext.DbFactory, cancellationToken).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,

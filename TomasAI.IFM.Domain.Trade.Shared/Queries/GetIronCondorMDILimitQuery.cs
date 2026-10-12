@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Queries;
 /// MessagePack-serializable query to retrieve the Iron Condor Maximum Drawdown Impact (MDI) limit data for a specific order and
 /// trade on a given value date.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public record GetIronCondorMDILimitQuery : IQuery<IronCondorMDILimitDataModel>
 {

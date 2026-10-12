@@ -291,7 +291,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var expectedReadModel = CreateAtrSignalReadModel();
-        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expectedReadModel));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);
@@ -307,7 +307,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength);
+        await marketDataDb.Received(1).GetLastFuturesAtrSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAtrSignalQuery.Verb,
@@ -322,7 +322,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
         var expectedReadModel = CreateAtrSignalReadModel();
-        marketDataDb.GetLastFuturesAtrDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(expectedReadModel));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);
@@ -338,7 +338,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesAtrDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength);
+        await marketDataDb.Received(1).GetLastFuturesAtrDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAtrDailySignalQuery.Verb,
@@ -352,7 +352,7 @@ public class FuturesAtrSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAtrSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAtrSignalReadModel?>(null));
 
         var actor = _fixture.CreateAtrQueryActor(dbFactory: dbFactory);

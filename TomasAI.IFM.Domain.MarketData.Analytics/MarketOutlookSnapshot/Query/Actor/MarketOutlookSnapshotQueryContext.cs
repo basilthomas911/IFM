@@ -8,18 +8,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query.Actor;
 
-public interface IMarketOutlookSnapshotQueryContext
-    : IQueryActorContext<MarketOutlookSnapshotQueryActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IHistoricalObservationStore HistoricalObservationStore { get; }
-    MarketOutlookSnapshotQueryPolicy Policy { get; }
-    ILogger<MarketOutlookSnapshotQueryActor> Logger { get; }
-}
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class MarketOutlookSnapshotQueryContext
     : QueryActorContext,
-      IQueryActorContext<MarketOutlookSnapshotQueryActor>,
       IMarketOutlookSnapshotQueryContext
 {
     public MarketOutlookSnapshotQueryContext(

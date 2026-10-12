@@ -1,6 +1,7 @@
 namespace TomasAI.IFM.Shared.EventModelActor;
 
 /// <summary>Owns cancellation and synchronous mutation fencing for one disposable realtime actor lifetime.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The retired generation must retain its cancellation source for detached handler tokens and mutation fencing. No wait handle is allocated; managed resources follow the detached execution lifetime instead of being disposed during reset.")]
 public sealed class RealtimeActorGeneration
 {
     static readonly AsyncLocal<RealtimeActorGeneration?> active = new();
@@ -65,23 +66,4 @@ public sealed class RealtimeActorGeneration
         internal static readonly EmptyScope Instance = new();
         public void Dispose() { }
     }
-}
-
-/// <summary>Allows the supervisor to retire a disposable actor without invoking draining shutdown hooks.</summary>
-public interface IReplaceableRealtimeActor
-{
-    /// <summary>Gets the cancellation and fencing authority for this instance.</summary>
-    RealtimeActorGeneration RealtimeGeneration { get; }
-    /// <summary>Retires this instance; its context is never reused by its replacement.</summary>
-    void RetireRealtimeGeneration();
-}
-
-/// <summary>Restricts non-draining replacement to market-data setup actors; financial actors retain durable recovery.</summary>
-public static class RealtimeActorResetPolicy
-{
-    /// <summary>Checks the explicit domain boundary for disposable actor replacement.</summary>
-    public static bool CanReplace(Type type, ActorType actorType)
-        => actorType == ActorType.Realtime
-            && (type.Namespace?.StartsWith("TomasAI.IFM.Domain.MarketData.Feed.", StringComparison.Ordinal) == true
-                || type.Namespace?.StartsWith("TomasAI.IFM.Domain.MarketData.Analytics.", StringComparison.Ordinal) == true);
 }

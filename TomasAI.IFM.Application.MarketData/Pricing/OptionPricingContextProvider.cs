@@ -4,28 +4,18 @@ using TomasAI.IFM.Framework.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-public sealed record OptionPricingContextResult(OptionPricingContext? Context, OptionPricingFailure? Failure);
-
-/// <summary>Builds immutable reference inputs before a session; never runs from a quote callback.</summary>
-public interface IOptionPricingContextProvider
-{
-    Task<OptionPricingContextResult> PrepareAsync(OptionPricingConvention contract, OptionPricingCalendar calendar,
-        TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, Guid generation,
-        string pricerVersion, DateTimeOffset at, CancellationToken cancellationToken);
-}
-
-public sealed record PricingSourceClockPolicy(int MaximumLeadMilliseconds);
-
 public sealed class OptionPricingContextProvider(TreasuryPricingProvider treasury, PricingSourceClockPolicy? clockPolicy = null) : IOptionPricingContextProvider
 {
     public async Task<OptionPricingContextResult> PrepareAsync(OptionPricingConvention contract, OptionPricingCalendar calendar,
         TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, Guid generation,
         string pricerVersion, DateTimeOffset at, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(publication);
         cancellationToken.ThrowIfCancellationRequested();
         var invalid = OptionPricingQualification.Validate(contract, at);
         if (invalid is not null) return new(null, invalid);
-        if (generation == Guid.Empty || pricerVersion != Black76PricingModel.EngineFor(contract))
+        if (generation == Guid.Empty || !string.Equals(pricerVersion,Black76PricingModel.EngineFor(contract),StringComparison.Ordinal))
             return new(null, new("PricingModelUnsupported", "Generation/Pricer", contract.ContractId, "An exact pricing engine and generation are required."));
         int count;
         try { count = OptionPricingQualification.CountTradingDays(calendar, contract, at); }

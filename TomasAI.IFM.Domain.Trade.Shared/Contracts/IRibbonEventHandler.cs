@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.Reports;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Contracts
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "Preserve the existing public trade collection identity.")]
     public interface IRibbonEventHandler
     {
         void OpenTradeBlotter(TradeType tradeBlotterType);

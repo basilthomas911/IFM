@@ -7,17 +7,19 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Extensions;
 
 /// <summary>Provides typed runtime properties for <see cref="FuturesOptionTickDataQueryActor"/> contexts.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class FuturesOptionTickDataQueryExtensions
 {
     extension(IQueryActorContext<FuturesOptionTickDataQueryActor> context)
     {
         /// <summary>Gets the database-context factory.</summary>
         public IDbContextFactory DbFactory =>
-            IsArgumentNull.Set((context as IFuturesOptionTickDataQueryContext)?.DbFactory, nameof(context))!;
+            IsArgumentNull.Named((context as IFuturesOptionTickDataQueryContext)?.DbFactory, nameof(context))!;
 
         /// <summary>Gets the typed actor logger.</summary>
         public ILogger<FuturesOptionTickDataQueryActor> Logger =>
-            IsArgumentNull.Set((context as IFuturesOptionTickDataQueryContext)?.Logger, nameof(context))!;
+            IsArgumentNull.Named((context as IFuturesOptionTickDataQueryContext)?.Logger, nameof(context))!;
     }
 }
 

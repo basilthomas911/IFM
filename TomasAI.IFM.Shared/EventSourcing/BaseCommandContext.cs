@@ -15,10 +15,12 @@ public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventR
     /// <param name="command">The command to be executed, which contains the necessary data and logic for execution.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="ServiceResult{T}"/>
     /// with the command's unique identifier if the execution is successful.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6966", Justification = "Execute is the synchronous domain-handler contract; ExecuteAsync dispatches a different optional handler method and is not interchangeable.")]
     public async Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(ICommand<TEntityId> command) where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(command);
         // load bounded context...
-        var boundCtx = await eventRepository.LoadBoundedContextAsync(command);
+        var boundCtx = await eventRepository.LoadBoundedContextAsync(command).ConfigureAwait(false);
 
         // execute command against bounded context to generate any state change events...
         boundCtx.Execute(command);
@@ -27,7 +29,7 @@ public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventR
         var boundCtxState = boundCtx.State;
 
         // save any state change events...(exact persistence action determined by state repository)...
-        await eventRepository.SaveBoundedContextAsync(boundCtxState, command);
+        await eventRepository.SaveBoundedContextAsync(boundCtxState, command).ConfigureAwait(false);
 
         // successfully executed command...
         return new ServiceOk<Guid>(command.CommandId);
@@ -42,9 +44,11 @@ public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventR
     /// <param name="command">The command to be executed, which must not be null and should contain a valid command identifier.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> representing the asynchronous operation, containing a <see
     /// cref="ServiceResult{Guid}"/> with the command's unique identifier upon successful execution.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6966", Justification = "Execute is the synchronous domain-handler contract; ExecuteAsync dispatches a different optional handler method and is not interchangeable.")]
     public async ValueTask<ServiceResult<Guid>> ExecuteAsync(ICommand command)
     {
-        var boundCtx = await eventRepository.LoadBoundedContextAsync(command);
+        ArgumentNullException.ThrowIfNull(command);
+        var boundCtx = await eventRepository.LoadBoundedContextAsync(command).ConfigureAwait(false);
 
         // execute command against bounded context to generate any state change events...
         boundCtx.Execute(command);
@@ -53,7 +57,7 @@ public abstract class BaseCommandContext<TState>(IEventRepository<TState> eventR
         var boundCtxState = boundCtx.State;
 
         // save any state change events...(exact persistence action determined by state repository)...
-        await eventRepository.SaveBoundedContextAsync(boundCtxState, command);
+        await eventRepository.SaveBoundedContextAsync(boundCtxState, command).ConfigureAwait(false);
 
         // successfully executed command...
         return new ServiceOk<Guid>(command.CommandId);

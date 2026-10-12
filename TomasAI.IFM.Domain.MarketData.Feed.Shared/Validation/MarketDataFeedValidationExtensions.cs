@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Validation;
@@ -21,8 +20,11 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="validationErrors">A list to which validation errors will be added. This list must not be null.</param>
     /// <param name="futuresEodData">The futures end-of-day data to validate. This parameter must not be null.</param>
     /// <returns>The updated list of validation errors, including any errors found during validation of the provided data.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateFuturesEodData(this List<ValidationError> validationErrors, FuturesEodDataV2ReadModel futuresEodData)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new FuturesEodDataValidationRules().Execute(futuresEodData);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
@@ -39,8 +41,11 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="futuresEodDataRange">A collection of <see cref="FuturesEodDataV2ReadModel"/> objects representing the range of futures end-of-day
     /// data. Must contain at least two items.</param>
     /// <returns>The updated list of validation errors, including any errors added during validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateFuturesEodDataRange(this List<ValidationError> validationErrors, ICollection<FuturesEodDataV2ReadModel>? futuresEodDataRange)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if ((futuresEodDataRange?.Count ?? 0) < 2)
             validationErrors.Add(new ValidationError("InsertFuturesEodDataCommand.EodDateRange count is less than 2"));
         if (futuresEodDataRange is not null)
@@ -67,8 +72,11 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="futuresTickData">The futures tick data to validate. This parameter must not be null.</param>
     /// <returns>The updated list of validation errors, including any errors found during validation of the provided futures tick
     /// data.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateFuturesTickData(this List<ValidationError> validationErrors, FuturesTickDataV2ReadModel futuresTickData)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new FuturesTickDataValidationRules().Execute(futuresTickData);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
@@ -85,8 +93,11 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="normalCurveTable">The normal curve table to validate. Must not be null, and its <see
     /// cref="NormalCurveTableReadModel.NormalCurveTable"/> property must contain at least one element.</param>
     /// <returns>The updated list of validation errors, including any errors related to the normal curve table validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateNormalCurveTable(this List<ValidationError> validationErrors, NormalCurveTableReadModel normalCurveTable)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if ((normalCurveTable?.NormalCurveTable?.Length ?? 0) == 0)
             validationErrors.Add(new ValidationError("InsertFuturesEodDataCommand.NormCurveData is empty"));
         return validationErrors;
@@ -100,8 +111,11 @@ public static class MarketDataFeedValidationExtensions
     /// <param name="validationErrors">The collection of validation errors to which any new errors will be added.</param>
     /// <param name="windowSize">The window size to validate. Must be greater than or equal to 1.</param>
     /// <returns>The updated collection of validation errors, including any new errors related to the window size validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateWindowSize(this List<ValidationError> validationErrors, int windowSize)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (windowSize < 1)
             validationErrors.Add(new ValidationError("InsertFuturesEodDataCommand.WindowSize is less than 1"));
         return validationErrors;

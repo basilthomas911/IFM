@@ -8,17 +8,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Actor;
 
-public interface IMarketOutlookSnapshotCommandContext
-    : ICommandActorContext<MarketOutlookSnapshotCommandActor>
-{
-    IEventSourceActorStateRepository<MarketOutlookSnapshotCommandState> Repository { get; }
-    IEventProjector<MarketOutlookSnapshotCommandActor> EventProjector { get; }
-    ILogger<MarketOutlookSnapshotCommandActor> Logger { get; }
-}
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class MarketOutlookSnapshotCommandContext
     : CommandActorContext,
-      ICommandActorContext<MarketOutlookSnapshotCommandActor>,
       IMarketOutlookSnapshotCommandContext
 {
     public MarketOutlookSnapshotCommandContext(

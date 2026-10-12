@@ -6,44 +6,20 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Projector;
-
 /// <summary>
-/// Synchronously writes the candidate completed Regime Discovery result to ScyllaDB. It owns no queue, replay,
+/// Synchronously writes the candidate completed Regime Discovery result to the enlisted PostgreSQL transaction. It owns no queue, replay,
 /// actor route, publication, processing event, or failed-result projection.
 /// </summary>
-public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory)
-    : IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>
+public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory) : IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>
 {
     readonly IDbContextFactory _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
-
-    public async ValueTask ProjectAsync(
-        RegimeDiscoveryPipelineCompletedEvent completed,
-        CancellationToken cancellationToken = default)
+    public async ValueTask ProjectAsync(RegimeDiscoveryPipelineCompletedEvent completed, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(completed);
         var result = completed.Result.ReadRegimeResult();
-        // Encoding belongs to the existing Scylla blob column, not the Function message envelope.
-        var payload = completed.Result.ContentType == Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentType
-            ? MessagePackSerializer.Serialize(result)
-            : completed.Result.Payload.ToArray();
-        await _dbFactory.TradeDb.UpsertRegimeDiscoveryAsync(new RegimeDiscoveryReadModel
-        {
-            WorkflowId = completed.WorkflowId,
-            WorkflowEntityId = completed.EntityId.Format(),
-            InputWorkflowRevision = completed.InputWorkflowRevision,
-            CommandId = completed.CommandId,
-            SourceEventId = completed.Id,
-            // Projection intentionally precedes the PostgreSQL commit, so no event sequence exists yet.
-            SourceEventSequence = 0,
-            Status = "Completed",
-            ParameterPayloadSha256 = completed.ParameterPayloadSha256,
-            SignalSnapshotId = completed.SignalSnapshotId,
-            ResultPayload = payload,
-            ResultPayloadSha256 = Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.ComputePayloadSha256(payload),
-            ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons),
-            SchemaVersion = completed.Result.SchemaVersion,
-            TerminalAtUtc = completed.CompletedAtUtc,
-            UpdatedAtUtc = completed.CompletedAtUtc
-        }, cancellationToken).ConfigureAwait(false);
+        // The projection stores the recorded typed result as a binary payload.
+        var payload = string.Equals(completed.Result.ContentType, Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.TypedRegimeContentType, StringComparison.Ordinal) ? MessagePackSerializer.Serialize(result, cancellationToken: cancellationToken) : completed.Result.Payload.ToArray();
+        await _dbFactory.TradeDb.UpsertRegimeDiscoveryAsync(new RegimeDiscoveryReadModel { WorkflowId = completed.WorkflowId, WorkflowEntityId = completed.EntityId.Format(), InputWorkflowRevision = completed.InputWorkflowRevision, CommandId = completed.CommandId, SourceEventId = completed.Id, // Projection intentionally precedes the PostgreSQL commit, so no event sequence exists yet.
+        SourceEventSequence = 0, Status = "Completed", ParameterPayloadSha256 = completed.ParameterPayloadSha256, SignalSnapshotId = completed.SignalSnapshotId, ResultPayload = payload, ResultPayloadSha256 = Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.ComputePayloadSha256(payload), ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons, cancellationToken: cancellationToken), SchemaVersion = completed.Result.SchemaVersion, TerminalAtUtc = completed.CompletedAtUtc, UpdatedAtUtc = completed.CompletedAtUtc }, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -32,6 +32,4 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventProjector(
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
 
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        descriptors.Select(static value => value.SourceEventType).ToArray();
 }

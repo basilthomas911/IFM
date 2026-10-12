@@ -50,10 +50,18 @@ public static class ActorExtensions
     }
 
     public static IEvent RoutedFrom(this IEvent @event)
-        => @event.RoutedFrom(@event.CommandId, @event.AggregateId, @event.EventSource);
+        
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        return @event.RoutedFrom(@event.CommandId, @event.AggregateId, @event.EventSource);
+    }
 
     public static IEvent RoutedFrom(this IEvent @event, ICommand command)
-        => @event.RoutedFrom(command.CommandId, command.EventSource);
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return @event.RoutedFrom(command.CommandId, command.EventSource);
+    }
 
     /// <summary>
     /// Casts the current command interface to the concrete command type.
@@ -102,7 +110,11 @@ public static class ActorExtensions
     /// <returns>A task that yields the <see cref="ServiceResult{Guid}"/> from the command action.</returns>
     public static Task<ServiceResult<Guid>> ExecuteAsync<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, Task<ServiceResult<Guid>>> commandAction)
         where TEntityId : IActorEntityId
-        => commandAction(command);
+        
+    {
+        ArgumentNullException.ThrowIfNull(commandAction);
+        return commandAction(command);
+    }
 
     /// <summary>
     /// Executes the specified asynchronous command action using the provided command parameter.
@@ -113,7 +125,11 @@ public static class ActorExtensions
     /// <returns>A task that represents the asynchronous operation. The task result contains a ServiceResult with the unique
     /// identifier returned by the command action.</returns>
     public static Task<ServiceResult<Guid>> ExecuteAsync(this ICommandParameter command, Func<ICommandParameter, Task<ServiceResult<Guid>>> commandAction)
-        => commandAction(command);
+        
+    {
+        ArgumentNullException.ThrowIfNull(commandAction);
+        return commandAction(command);
+    }
 
 
     /// <summary>
@@ -126,6 +142,7 @@ public static class ActorExtensions
     public static ServiceResult<Guid> Execute<TEntityId>(this ICommand<TEntityId> command, Func<ICommand, ServiceResult<Guid>> commandAction)
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(commandAction);
         return commandAction(command);
     }
 
@@ -174,7 +191,7 @@ public static class ActorExtensions
         var data = DataSerializer.Serialize(result);
         if (!string.IsNullOrEmpty(message.ReplyTo))
         {
-            await message.ReplyAsync(data, serializer: MsgSerializer);
+            await message.ReplyAsync(data, serializer: MsgSerializer).ConfigureAwait(false);
         }
     }
 
@@ -186,6 +203,7 @@ public static class ActorExtensions
     /// <returns>The verb segment as a string.</returns>
     public static string ExtractVerb(this string subject)
     {
+        ArgumentNullException.ThrowIfNull(subject);
         var span = subject.AsSpan();
         int dot1 = span.IndexOf('.');
         int dot2 = span[(dot1 + 1)..].IndexOf('.') + dot1 + 1;
@@ -238,7 +256,7 @@ public static class ActorExtensions
             }
 
             Volatile.Write(ref _previousSubjectMap, generation);
-            Volatile.Write(ref _currentSubjectMap, new ConcurrentDictionary<string, ActorSubject>());
+            Volatile.Write(ref _currentSubjectMap, new ConcurrentDictionary<string, ActorSubject>(StringComparer.Ordinal));
             Volatile.Write(ref _currentSubjectMapCount, 0);
         }
         finally

@@ -1,10 +1,15 @@
-# Merge with docker-compose.development.yml after runtime role and credentials pass verification.
+# Development backup/restore and owner-authorized automatic expired-version retention.
 # Existing native source configuration and persistent data mounts remain required.
 services:
   database-backup-host:
     environment:
       DatabaseBackup__Sources__AwsCloud__Enabled: "true"
-      DatabaseBackup__Sources__AwsCloud__AcceptBackupRequests: "false"
+      DatabaseBackup__Sources__AwsCloud__AcceptBackupRequests: "true"
+      DatabaseBackup__Sources__AwsCloud__AutomaticRetentionEnabled: "true"
+      DatabaseBackup__Sources__AwsCloud__AutomaticRetentionInterval: "1.00:00:00"
+      DatabaseBackup__Sources__AwsCloud__AutomaticRetentionApprovalReference: DevelopmentOwnerAutomaticRetention-20261010
+      DatabaseBackup__Sources__AwsCloud__RetentionReadRoleArn: arn:aws:iam::107651266250:role/ifm-database-backup-retention-plan-development
+      DatabaseBackup__Sources__AwsCloud__RetentionExecutionRoleArn: arn:aws:iam::107651266250:role/ifm-database-backup-retention-execution-development
       DatabaseBackup__Sources__AwsCloud__LiveAwsTestsEnabled: "true"
       DatabaseBackup__Sources__AwsCloud__DestructiveTestsEnabled: "false"
       DatabaseBackup__Sources__AwsCloud__Environment: Development

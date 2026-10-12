@@ -1,0 +1,431 @@
+{
+    "schemaVersion":  1,
+    "environment":  "Development",
+    "preparedUtc":  "2026-10-10T14:51:36.9802680+00:00",
+    "status":  "HistoricalReadinessInventoryWithCompletedOwnerExceptionExecution",
+    "purpose":  "Exact-version readiness inventory for the dedicated non-evidence Gate14 backups",
+    "sourceVerificationUtc":  "2026-10-10T14:44:24.809112+00:00",
+    "policyRevision":  null,
+    "canonicalPlan":  null,
+    "planSignature":  null,
+    "independentApproval":  null,
+    "deletionAuthorized":  true,
+    "awsObjectMutationPerformed":  true,
+    "candidateRetentionExpiresUtc":  "2026-11-08T23:37:37.881+00:00",
+    "scope":  "Only dedicated Gate14 protection set postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127; all other backup/evidence objects excluded",
+    "objects":  [
+                    {
+                        "role":  "candidate",
+                        "restorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                        "replica":  "aws-primary",
+                        "verifiedArtifactCount":  3,
+                        "verifiedBytes":  40586585,
+                        "exactObjects":  [
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/catalog/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/aws-primary/catalog-entry-v1.json",
+                                                 "versionId":  "eZn6vIvvoPlowMuaUTU_IF3H3ZFUp31e",
+                                                 "length":  1471,
+                                                 "sha256":  "77D9FB523A6339A96AC410BD5A2857136EDC75336ED4D87D2FFF8501459730FE",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                 "versionId":  "rXZ8zwTIFpcswmX8KrEgdxfNqQ.GUgUN",
+                                                 "length":  16779264,
+                                                 "sha256":  "3D4E0B3AA9C3684B1749A853097776EABB5D500F886711734031DC362673B124",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-858e6798dabe/base.tar",
+                                                 "versionId":  "IcFOb0MCRIeOp3o33PlsS8eRolPc_lPc",
+                                                 "length":  23669248,
+                                                 "sha256":  "35051B31F9B7C5D2E4AC86B94236B7AD9F5B5E095A12ED880F33E4D9BEC158D4",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                 "versionId":  "9Ptelv13R76w4nNQ9L8Pjg52XWBH45IE",
+                                                 "length":  138073,
+                                                 "sha256":  "C5175D06B9CBE3900DAE1D6437CFE5C5B4C819D96894D017C20E390CA9150466",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.json",
+                                                 "versionId":  "OUUVyROOefNI6WmQLiCLPQm_Nrrx5LTl",
+                                                 "length":  1657,
+                                                 "sha256":  "9CC3A70ED202100474B2B2F6CAF9087BC49E151A5134695A0A29241E3BF3AE94",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.signature.json",
+                                                 "versionId":  "3K.dxaEnCQcD4GC2n2mjlq8oRU4CKktO",
+                                                 "length":  402,
+                                                 "sha256":  "51A2A22EFD67AD5BCF6FA8ECE5AFDD1395BFE47827CCDEBD44C0BE1E4D2F68A0",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.json",
+                                                 "versionId":  "YEYJ1e7ytt_8xIoTU968jMBQKCI9mrhl",
+                                                 "length":  5621,
+                                                 "sha256":  "40AD600F013D985A189C103C2027235C2FFE9162180DC4C077BC64401E1E2412",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.signature.json",
+                                                 "versionId":  "nNudR4IzkGET45OOdMVdpLBcOk1gYJBz",
+                                                 "length":  397,
+                                                 "sha256":  "1E2C4E3A46B85843AFFB0CCFC9079451D3B115D3F218F915D9B0D4F8F0F41DB5",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             }
+                                         ]
+                    },
+                    {
+                        "role":  "preserve",
+                        "restorePointId":  "b4c472227f044f419ac975f29a2463af",
+                        "replica":  "aws-primary",
+                        "verifiedArtifactCount":  3,
+                        "verifiedBytes":  40586585,
+                        "exactObjects":  [
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/catalog/restore-point/b4c472227f044f419ac975f29a2463af/aws-primary/catalog-entry-v1.json",
+                                                 "versionId":  "QW1v59Nk99v8nKuwQ4G0dJbYn.HDfLtL",
+                                                 "length":  1466,
+                                                 "sha256":  "C05E7FFB0E5649884166C98DDD45879B8DE470A6BF87C69F2FDA6B1D9CC7C077",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                 "versionId":  "N9KYqpg5pTjLN_5aAU4c81PxOGutVrVf",
+                                                 "length":  16779264,
+                                                 "sha256":  "D10C8F01C77D63D6F533D2A66A5A3862A9AEC4B56BFE9E076DFC335FE7C9B6D8",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-858e6798dabe/base.tar",
+                                                 "versionId":  "Czjej.cZvO82jkz9ICVBJupKL9YJ5bYy",
+                                                 "length":  23669248,
+                                                 "sha256":  "E83460A7B136FFB13C779E485205194948972A4B9A07F5AAAD216F1F89D597BE",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                 "versionId":  "0kQbM6NE4nG2b2hZN1QU5q7IZOEl7Guh",
+                                                 "length":  138073,
+                                                 "sha256":  "ECFE8B8730910C189BFD0713F6C842E907B3DC25F9C812DB9F05A781074572E8",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.json",
+                                                 "versionId":  "12K1mGo.wvSD8p72EG2rBeEwWuTa1c9k",
+                                                 "length":  1652,
+                                                 "sha256":  "21474823C0DAB2A60D7DDB1E958EEB48DAD09AEF249FC75FE79F5EB58C31A295",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.signature.json",
+                                                 "versionId":  "TOf5Taie3PTx1umeGIv3Ev_1rR2gSIdd",
+                                                 "length":  407,
+                                                 "sha256":  "06212F712373C25190A367A1CFE1FFB1B6D2CB22BAD4726D9410CB63CCE7C3D0",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.json",
+                                                 "versionId":  "HYGp6vk._cyJJlJUhR.wjo5z0PhYvQ7j",
+                                                 "length":  5611,
+                                                 "sha256":  "1BD27D0695252B97A34A5564743EF60673504B6E31396327C1A2F7B5014AEC9C",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-primary-107651266250",
+                                                 "region":  "ca-central-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.signature.json",
+                                                 "versionId":  "AVv7FrBxjst9tUQIBbYT8V8.29.YyJY.",
+                                                 "length":  392,
+                                                 "sha256":  "214EC94FD5E36521507C45538800C2B1ABCF68FF2CD2614E5B5B9260CD61679B",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             }
+                                         ]
+                    },
+                    {
+                        "role":  "candidate",
+                        "restorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+                        "replica":  "aws-recovery",
+                        "verifiedArtifactCount":  3,
+                        "verifiedBytes":  40586585,
+                        "exactObjects":  [
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/catalog/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/aws-primary/catalog-entry-v1.json",
+                                                 "versionId":  "eZn6vIvvoPlowMuaUTU_IF3H3ZFUp31e",
+                                                 "length":  1471,
+                                                 "sha256":  "77D9FB523A6339A96AC410BD5A2857136EDC75336ED4D87D2FFF8501459730FE",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                 "versionId":  "rXZ8zwTIFpcswmX8KrEgdxfNqQ.GUgUN",
+                                                 "length":  16779264,
+                                                 "sha256":  "3D4E0B3AA9C3684B1749A853097776EABB5D500F886711734031DC362673B124",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-858e6798dabe/base.tar",
+                                                 "versionId":  "IcFOb0MCRIeOp3o33PlsS8eRolPc_lPc",
+                                                 "length":  23669248,
+                                                 "sha256":  "35051B31F9B7C5D2E4AC86B94236B7AD9F5B5E095A12ED880F33E4D9BEC158D4",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                 "versionId":  "9Ptelv13R76w4nNQ9L8Pjg52XWBH45IE",
+                                                 "length":  138073,
+                                                 "sha256":  "C5175D06B9CBE3900DAE1D6437CFE5C5B4C819D96894D017C20E390CA9150466",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.json",
+                                                 "versionId":  "OUUVyROOefNI6WmQLiCLPQm_Nrrx5LTl",
+                                                 "length":  1657,
+                                                 "sha256":  "9CC3A70ED202100474B2B2F6CAF9087BC49E151A5134695A0A29241E3BF3AE94",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/manifests/engine-manifest-v2.signature.json",
+                                                 "versionId":  "3K.dxaEnCQcD4GC2n2mjlq8oRU4CKktO",
+                                                 "length":  402,
+                                                 "sha256":  "51A2A22EFD67AD5BCF6FA8ECE5AFDD1395BFE47827CCDEBD44C0BE1E4D2F68A0",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.json",
+                                                 "versionId":  "YEYJ1e7ytt_8xIoTU968jMBQKCI9mrhl",
+                                                 "length":  5621,
+                                                 "sha256":  "40AD600F013D985A189C103C2027235C2FFE9162180DC4C077BC64401E1E2412",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.8818002+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/3291d2ff9099419aa6c9b3e08ecde95b/publications/aws-primary/publication-v1.signature.json",
+                                                 "versionId":  "nNudR4IzkGET45OOdMVdpLBcOk1gYJBz",
+                                                 "length":  397,
+                                                 "sha256":  "1E2C4E3A46B85843AFFB0CCFC9079451D3B115D3F218F915D9B0D4F8F0F41DB5",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:37:37.881+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             }
+                                         ]
+                    },
+                    {
+                        "role":  "preserve",
+                        "restorePointId":  "b4c472227f044f419ac975f29a2463af",
+                        "replica":  "aws-recovery",
+                        "verifiedArtifactCount":  3,
+                        "verifiedBytes":  40586585,
+                        "exactObjects":  [
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/catalog/restore-point/b4c472227f044f419ac975f29a2463af/aws-primary/catalog-entry-v1.json",
+                                                 "versionId":  "QW1v59Nk99v8nKuwQ4G0dJbYn.HDfLtL",
+                                                 "length":  1466,
+                                                 "sha256":  "C05E7FFB0E5649884166C98DDD45879B8DE470A6BF87C69F2FDA6B1D9CC7C077",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-81d33f546046/pg_wal.tar",
+                                                 "versionId":  "N9KYqpg5pTjLN_5aAU4c81PxOGutVrVf",
+                                                 "length":  16779264,
+                                                 "sha256":  "D10C8F01C77D63D6F533D2A66A5A3862A9AEC4B56BFE9E076DFC335FE7C9B6D8",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-858e6798dabe/base.tar",
+                                                 "versionId":  "Czjej.cZvO82jkz9ICVBJupKL9YJ5bYy",
+                                                 "length":  23669248,
+                                                 "sha256":  "E83460A7B136FFB13C779E485205194948972A4B9A07F5AAAD216F1F89D597BE",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/artifacts/artifact-a44c78dd1791/backup_manifest",
+                                                 "versionId":  "0kQbM6NE4nG2b2hZN1QU5q7IZOEl7Guh",
+                                                 "length":  138073,
+                                                 "sha256":  "ECFE8B8730910C189BFD0713F6C842E907B3DC25F9C812DB9F05A781074572E8",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.json",
+                                                 "versionId":  "12K1mGo.wvSD8p72EG2rBeEwWuTa1c9k",
+                                                 "length":  1652,
+                                                 "sha256":  "21474823C0DAB2A60D7DDB1E958EEB48DAD09AEF249FC75FE79F5EB58C31A295",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/manifests/engine-manifest-v2.signature.json",
+                                                 "versionId":  "TOf5Taie3PTx1umeGIv3Ev_1rR2gSIdd",
+                                                 "length":  407,
+                                                 "sha256":  "06212F712373C25190A367A1CFE1FFB1B6D2CB22BAD4726D9410CB63CCE7C3D0",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.json",
+                                                 "versionId":  "HYGp6vk._cyJJlJUhR.wjo5z0PhYvQ7j",
+                                                 "length":  5611,
+                                                 "sha256":  "1BD27D0695252B97A34A5564743EF60673504B6E31396327C1A2F7B5014AEC9C",
+                                                 "mode":  "Governance",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.6016769+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             },
+                                             {
+                                                 "bucket":  "ifm-db-backup-development-recovery-107651266250",
+                                                 "region":  "ca-west-1",
+                                                 "key":  "v1/environment/development/protection-set/postgresql-gate14-disposable-051f030cd7ab4e3c88a7913ad6928127/engine/postgresql/restore-point/b4c472227f044f419ac975f29a2463af/publications/aws-primary/publication-v1.signature.json",
+                                                 "versionId":  "AVv7FrBxjst9tUQIBbYT8V8.29.YyJY.",
+                                                 "length":  392,
+                                                 "sha256":  "214EC94FD5E36521507C45538800C2B1ABCF68FF2CD2614E5B5B9260CD61679B",
+                                                 "mode":  "GOVERNANCE",
+                                                 "retainUntilUtc":  "2026-11-08T23:38:22.601+00:00",
+                                                 "legalHoldStatus":  "Unknown"
+                                             }
+                                         ]
+                    }
+                ],
+    "blockers":  [
+                     "All 32 legal-hold queries return NoSuchObjectLockConfiguration, not explicit OFF",
+                     "Retained candidate cannot be deleted before expiry without bypassing its approved protection",
+                     "No reviewed retention policy revision or independently approved signed canonical plan"
+                 ],
+    "executionRequirements":  [
+                                  "Reobserve exact object versions, hashes, retention, legal holds and replica state",
+                                  "Reconcile complete catalog and dependency protection before producing executable plan",
+                                  "Preserve newer backup in both vaults",
+                                  "Obtain independent approval bound to signed canonical plan ID/revision/policy revision",
+                                  "Use constrained deletion executor and retain before/after reconciliation evidence"
+                              ],
+    "legalHoldChangeProposal":  "Superseded by explicit user approval of only 16 disposable candidate versions; AWS permissions unresolved, no mutation performed",
+    "developmentOwnerException":  {
+                                      "approved":  true,
+                                      "inventory":  "gate14-development-exception-approval-20261010.json",
+                                      "mfaRoleRequired":  false,
+                                      "independentReviewerRequired":  false,
+                                      "scope":  "Only 16 approved disposable candidate versions",
+                                      "protectionPermissionScope":  "16 keys; IAM protection mutations are not version-bound",
+                                      "executionVerified":  false,
+                                      "awsMutationPerformed":  false
+                                  },
+    "executionResult":  "gate14-execution-result-20261010.json",
+    "inventorySemantics":  "Pre-execution verification inventory retained for audit. Candidate retention/legal-hold observations are superseded by the execution result. Newer backup remains unchanged."
+}

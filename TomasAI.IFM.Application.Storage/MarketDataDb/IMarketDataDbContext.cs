@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <summary>
 /// Combines Market Data database read and write capabilities.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3444", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
 public interface IMarketDataDbContext :
     IObjectRepository<MarketDataDbContext>,
     IMarketDataDbReadContext,

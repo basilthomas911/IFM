@@ -12,26 +12,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Persistence;
 
-public interface IPortfolioEventStore
-{
-    Task AppendPortfolioAsync(PortfolioId portfolioId, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default);
-    Task AppendFundAsync(PortfolioFundId fundId, IPortfolioFundDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default);
-    Task<PortfolioAggregate> LoadPortfolioAsync(PortfolioId portfolioId, CancellationToken cancellationToken = default);
-    Task<PortfolioFundAggregate> LoadFundAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default);
-    Task SavePortfolioSnapshotAsync(PortfolioId portfolioId, PortfolioAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default);
-    Task SaveFundSnapshotAsync(PortfolioFundId fundId, PortfolioFundAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default);
-    Task<IPortfolioDomainEvent?> FindCommittedPortfolioCommandAsync(PortfolioId portfolioId, Guid commandId, CancellationToken cancellationToken = default);
-    Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(PortfolioFundId fundId, Guid commandId, CancellationToken cancellationToken = default);
-    Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(PortfolioId portfolioId, Guid idempotencyKey, CancellationToken cancellationToken = default);
-    Task<FundMandateCreatedEvent?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId fundId, Guid idempotencyKey, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<IPortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId portfolioId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<IPortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default);
-    Task AppendPolicyAsync(PortfolioFinancialPolicyId policyId, IPortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default) => Task.FromResult(new PortfolioFinancialPolicyAggregate());
-    Task<IReadOnlyList<IPortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<IPortfolioFinancialPolicyDomainEvent>>([]);
-    Task<IPortfolioFinancialPolicyDomainEvent?> FindCommittedPolicyCommandAsync(PortfolioFinancialPolicyId policyId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<IPortfolioFinancialPolicyDomainEvent?>(null);
-}
-
 /// <summary>Persists Portfolio command history only in the shared PostgreSQL EventSourceDb.</summary>
 public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb, IPortfolioAuthorityFence? financialFence = null) : IPortfolioEventStore
 {
@@ -39,18 +19,21 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public static string PortfolioStream(PortfolioId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         ThrowIfInvalid(id.Validate(), nameof(id));
         return $"Portfolio.{id.Id}";
     }
 
     public static string FundStream(PortfolioFundId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         ThrowIfInvalid(id.Validate(), nameof(id));
         return $"PortfolioFund.{id.PortfolioId}.{id.FundId}";
     }
 
     public static string PolicyStream(PortfolioFinancialPolicyId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         ThrowIfInvalid(id.Validate(), nameof(id));
         return $"PortfolioFinancialPolicy.{id.PortfolioId}.{id.PolicyId}";
     }
@@ -65,19 +48,12 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         PortfolioEventMetadata? metadata = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(portfolioId);
         ArgumentNullException.ThrowIfNull(domainEvent);
         ValidateAppend(domainEvent.Revision, expectedRevision);
-        var entity = portfolioId.Format();
-        metadata ??= PortfolioEventMetadata.ForCommand(domainEvent.CommandId, domainEvent.Id, domainEvent.OccurredOnUtc);
-        metadata.Validate();
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.Subject), new ActorSubject(ActorType.Event, "Portfolio", domainEvent.EventName, entity));
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.AggregateId), entity);
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EntityId), new ActorEntityId(entity));
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EventSource), nameof(PortfolioAggregate));
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.ReceivedOn), domainEvent.OccurredOnUtc);
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
-        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
+        if (domainEvent.ProjectionFacts is not null && financialFence is null)
+            throw new InvalidOperationException("Accepted Portfolio projections require the owning PostgreSQL transaction fence.");
+        PreparePortfolio(portfolioId,domainEvent,metadata);
         if (financialFence is not null)
             await financialFence.AppendAsync(portfolioId.Id, null, PortfolioStream(portfolioId), domainEvent, expectedRevision, true, cancellationToken).ConfigureAwait(false);
         else
@@ -91,9 +67,12 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         PortfolioEventMetadata? metadata = null,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(fundId);
         using var trace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.append");
         ArgumentNullException.ThrowIfNull(domainEvent);
         ValidateAppend(domainEvent.Revision, expectedRevision);
+        if (domainEvent.ProjectionFacts is not null && financialFence is null)
+            throw new InvalidOperationException("Accepted Portfolio projections require the owning PostgreSQL transaction fence.");
         var entity = fundId.Format();
         metadata ??= PortfolioEventMetadata.ForCommand(domainEvent.CommandId, domainEvent.Id, domainEvent.OccurredOnUtc);
         metadata.Validate();
@@ -118,8 +97,55 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public async Task AppendPolicyAsync(PortfolioFinancialPolicyId policyId, IPortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(policyId);
         ArgumentNullException.ThrowIfNull(domainEvent);
         ValidateAppend(domainEvent.Revision, expectedRevision);
+        if (domainEvent.ProjectionFacts is not null && financialFence is null)
+            throw new InvalidOperationException("Accepted Portfolio projections require the owning PostgreSQL transaction fence.");
+        PreparePolicy(policyId,domainEvent,metadata);
+        if (financialFence is not null)
+            await financialFence.AppendAsync(policyId.PortfolioId, null, PolicyStream(policyId), domainEvent, expectedRevision, true, cancellationToken).ConfigureAwait(false);
+        else
+            await _eventSourceDb.SaveEventsAsync(PolicyStream(policyId), domainEvent.CommandId, new DomainEventCollection([domainEvent]), expectedRevision, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Commits policy activation and its Portfolio assignment together with both accepted projections.</summary>
+    public Task AppendPolicyAndPortfolioAsync(PortfolioFinancialPolicyId policyId,IPortfolioFinancialPolicyDomainEvent policyEvent,
+        PortfolioId portfolioId,IPortfolioDomainEvent portfolioEvent,CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(policyId);
+        ArgumentNullException.ThrowIfNull(portfolioId);
+        ArgumentNullException.ThrowIfNull(policyEvent);
+        ArgumentNullException.ThrowIfNull(portfolioEvent);
+        if (policyId.PortfolioId != portfolioId.Id || policyEvent.CommandId != portfolioEvent.CommandId)
+            throw new ArgumentException("Activation and assignment must belong to the same Portfolio and command.",nameof(policyEvent));
+        if (policyEvent.ProjectionFacts is null || portfolioEvent.ProjectionFacts is null)
+            throw new ArgumentException("Both compound transitions require accepted projection facts.",nameof(policyEvent));
+        PreparePolicy(policyId,policyEvent,null);
+        PreparePortfolio(portfolioId,portfolioEvent,null);
+        return (financialFence ?? throw new InvalidOperationException("Policy activation and assignment require the transaction fence."))
+            .AppendBatchAsync(portfolioId.Id,[
+                new(null,PolicyStream(policyId),policyEvent,policyEvent.Revision-1,true),
+                new(null,PortfolioStream(portfolioId),portfolioEvent,portfolioEvent.Revision-1,true)],cancellationToken);
+    }
+
+    static void PreparePortfolio(PortfolioId portfolioId,IPortfolioDomainEvent domainEvent,PortfolioEventMetadata? metadata)
+    {
+        var entity = portfolioId.Format();
+        metadata ??= PortfolioEventMetadata.ForCommand(domainEvent.CommandId, domainEvent.Id, domainEvent.OccurredOnUtc);
+        metadata.Validate();
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.Subject), new ActorSubject(ActorType.Event, "Portfolio", domainEvent.EventName, entity));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.AggregateId), entity);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EntityId), new ActorEntityId(entity));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EventSource), nameof(PortfolioAggregate));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.ReceivedOn), domainEvent.OccurredOnUtc);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
+    }
+
+    static void PreparePolicy(PortfolioFinancialPolicyId policyId,IPortfolioFinancialPolicyDomainEvent domainEvent,PortfolioEventMetadata? metadata)
+    {
         var entity = policyId.Format();
         metadata ??= PortfolioEventMetadata.ForCommand(domainEvent.CommandId, domainEvent.Id, domainEvent.OccurredOnUtc);
         metadata.Validate();
@@ -131,10 +157,6 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
         EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
-        if (financialFence is not null)
-            await financialFence.AppendAsync(policyId.PortfolioId, null, PolicyStream(policyId), domainEvent, expectedRevision, true, cancellationToken).ConfigureAwait(false);
-        else
-            await _eventSourceDb.SaveEventsAsync(PolicyStream(policyId), domainEvent.CommandId, new DomainEventCollection([domainEvent]), expectedRevision, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default)
@@ -206,6 +228,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public async Task SavePortfolioSnapshotAsync(PortfolioId portfolioId, PortfolioAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(portfolioId);
         ArgumentNullException.ThrowIfNull(aggregate);
         ValidateSnapshotAudit(nowUtc, principal);
         if (aggregate.Current?.PortfolioId != portfolioId.Id) throw new InvalidOperationException("Snapshot aggregate identity does not match the stream.");
@@ -223,6 +246,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     public async Task SaveFundSnapshotAsync(PortfolioFundId fundId, PortfolioFundAggregate aggregate, DateTime nowUtc, string principal, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(fundId);
         ArgumentNullException.ThrowIfNull(aggregate);
         ValidateSnapshotAudit(nowUtc, principal);
         if (aggregate.Current?.PortfolioId != fundId.PortfolioId || aggregate.Current.FundId != fundId.FundId) throw new InvalidOperationException("Snapshot aggregate identity does not match the stream.");
@@ -289,7 +313,7 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
 
     static void ValidateAppend(long eventRevision, long expectedRevision)
     {
-        if (expectedRevision < 0) throw new ArgumentOutOfRangeException(nameof(expectedRevision));
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
         if (eventRevision != expectedRevision + 1)
             throw new InvalidOperationException("The event revision must immediately follow the expected stream revision.");
     }

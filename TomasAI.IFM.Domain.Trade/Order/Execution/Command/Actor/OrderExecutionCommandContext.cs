@@ -9,24 +9,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor;
-
-/// <summary>Exposes the services used by OrderExecution command handlers and projections.</summary>
-public interface IOrderExecutionCommandContext : ICommandActorContext<OrderExecutionCommandActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IDurableReplayQueue DurableReplayQueue { get; }
-    IBlackboardService BlackboardService { get; }
-    IActorService ActorService { get; }
-    IPortfolioTradeAccountingApi PortfolioAccounting { get; }
-    IEventProjector<OrderExecutionCommandActor> EventProjector { get; }
-    IEventSourceActorStateRepository<OrderExecutionCommandState> StateRepository { get; }
-    ILogger<OrderExecutionCommandActor> Logger { get; }
-}
-
 /// <summary>Resolves OrderExecution actor services lazily from the actor container.</summary>
-public sealed class OrderExecutionCommandContext : CommandActorContext,
-    ICommandActorContext<OrderExecutionCommandActor>, IOrderExecutionCommandContext
+public sealed class OrderExecutionCommandContext : CommandActorContext, IOrderExecutionCommandContext
 {
     private readonly Lazy<IEventSourceActorDbContext> _eventDb;
     private readonly Lazy<IDurableReplayQueue> _replay;
@@ -34,11 +18,9 @@ public sealed class OrderExecutionCommandContext : CommandActorContext,
     private readonly Lazy<IPortfolioTradeAccountingApi> _accounting;
     private readonly Lazy<IEventProjector<OrderExecutionCommandActor>> _projector;
     private readonly Lazy<IEventSourceActorStateRepository<OrderExecutionCommandState>> _repository;
-
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
     /// <summary>Creates the typed actor context and its lazy runtime service bindings.</summary>
-    public OrderExecutionCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        IBlackboardService blackboard, ILogger<OrderExecutionCommandActor> logger)
-        : base(supervisor, new(ActorType.Command, OrderExecutionCommandActor.ActorName))
+    public OrderExecutionCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboard, ILogger<OrderExecutionCommandActor> logger) : base(supervisor, new(ActorType.Command, OrderExecutionCommandActor.ActorName))
     {
         DbFactory = dbFactory;
         BlackboardService = blackboard;
@@ -61,5 +43,6 @@ public sealed class OrderExecutionCommandContext : CommandActorContext,
     public IEventProjector<OrderExecutionCommandActor> EventProjector => _projector.Value;
     public IEventSourceActorStateRepository<OrderExecutionCommandState> StateRepository => _repository.Value;
 
-    private Lazy<T> Resolve<T>() where T : class => new(() => Container.Resolve<T>());
+    private Lazy<T> Resolve<T>()
+        where T : class => new(() => Container.Resolve<T>());
 }

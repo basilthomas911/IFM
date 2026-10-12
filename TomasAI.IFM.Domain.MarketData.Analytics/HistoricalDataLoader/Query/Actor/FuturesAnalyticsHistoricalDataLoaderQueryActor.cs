@@ -20,7 +20,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb] = message =>
             message.AsQuery<GetFuturesAnalyticsHistoricalDataLoaderQuery,
@@ -59,6 +59,6 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

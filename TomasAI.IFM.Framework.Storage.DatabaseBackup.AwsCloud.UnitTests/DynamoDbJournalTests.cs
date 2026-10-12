@@ -37,6 +37,58 @@ public sealed class DynamoDbJournalTests
     }
 
     [Fact]
+    public async Task Cutover_reactivates_only_validated_restore_with_compare_and_swap_and_no_new_sequence_one()
+    {
+        var dynamo = Substitute.For<IAmazonDynamoDB>();
+        var original = Intent().ExecutionEvent;
+        var restore = new DatabaseRestoreExecutionRequestedEvent
+        {
+            Id = original.Id, EntityId = original.EntityId, CommandId = original.CommandId,
+            Source = original.Source with { OperationKind = DatabaseRecoveryOperationKind.Restore },
+            RestorePointId = new("verified-backup"), FreshTarget = new("fresh-validation", "disposable")
+        };
+        var stored = DatabaseBackupContractSerializer.Serialize(restore);
+        var ready = DatabaseBackupContractSerializer.Serialize(DatabaseBackupServiceEventFactory.ReadyForCutover(
+            new() { ExecutionEvent = restore }, new("test-host"), 5, "validated-target", 12));
+        var operation = new Dictionary<string, AttributeValue>
+        {
+            ["PK"] = new() { S = "ENV#development#OP#" + original.EntityId.Format() }, ["SK"] = new() { S = "OP" },
+            ["intent_type"] = new() { S = stored.TypeName }, ["intent_payload"] = new() { S = stored.Payload },
+            ["phase"] = new() { N = "11" }, ["terminal"] = new() { BOOL = true },
+            ["last_service_sequence"] = new() { N = "5" }, ["fencing_token"] = new() { N = "2" },
+            ["state_version"] = new() { N = "8" }
+        };
+        dynamo.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var key = call.Arg<GetItemRequest>().Key["SK"].S;
+            return new GetItemResponse { Item = key == "OP" ? operation : key.StartsWith("OUTBOX#")
+                ? new() { ["event_type"] = new() { S = ready.TypeName }, ["event_payload"] = new() { S = ready.Payload } } : [] };
+        });
+        TransactWriteItemsRequest? captured = null;
+        dynamo.TransactWriteItemsAsync(Arg.Do<TransactWriteItemsRequest>(request => captured = request), Arg.Any<CancellationToken>())
+            .Returns(new TransactWriteItemsResponse());
+        var cutover = new DatabaseCutoverExecutionRequestedEvent
+        {
+            Id = Guid.NewGuid(), EntityId = restore.EntityId, CommandId = Guid.NewGuid(),
+            Source = restore.Source with { OperationKind = DatabaseRecoveryOperationKind.Cutover },
+            RestorePointId = restore.RestorePointId, FreshTarget = restore.FreshTarget, ValidationRevision = 12
+        };
+        var intent = new DatabaseExecutionIntent { ExecutionEvent = cutover };
+        var journal = Create(dynamo);
+        await Assert.ThrowsAsync<DatabaseExecutionConflictException>(() => journal.AdmitAsync(intent with
+            { ExecutionEvent = cutover with { ValidationRevision = 11 } }, default).AsTask());
+        (await journal.AdmitAsync(intent, default)).Outcome.Should().Be(JournalAdmissionOutcome.Admitted);
+        captured!.TransactItems.Should().HaveCount(2);
+        var replacement = captured.TransactItems[0].Put;
+        replacement.Item["last_service_sequence"].N.Should().Be("5");
+        replacement.Item["fencing_token"].N.Should().Be("3");
+        replacement.Item["terminal"].BOOL.Should().BeFalse();
+        replacement.Item["phase"].N.Should().Be("12");
+        replacement.ExpressionAttributeValues[":version"].N.Should().Be("8");
+        replacement.ConditionExpression.Should().Contain("state_version=:version");
+    }
+
+    [Fact]
     public async Task Exact_duplicate_resolves_by_consistent_read_without_writing()
     {
         var dynamo = Substitute.For<IAmazonDynamoDB>();

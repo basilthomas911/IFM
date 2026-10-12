@@ -2,8 +2,11 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
-internal class SecuritiesDbCql
+internal static class SecuritiesDbCql
 {
+    public const string InsertOptionPricingReferenceBundle = "INSERT INTO option_pricing_reference_bundle(bundle_id,payload) VALUES(:id,:payload) IF NOT EXISTS;";
+    public const string GetOptionPricingReferenceBundle = "SELECT payload FROM option_pricing_reference_bundle WHERE bundle_id=:id;";
+
     public const string CreateReferenceIdentityTable = """
         CREATE TABLE IF NOT EXISTS securities_reference_identity(identity_key text PRIMARY KEY, binding text);
         """;

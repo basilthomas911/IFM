@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 /// Represents a futures tick price snapshot including price and size.
 /// </summary>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public record struct FuturesTickBidAskReadModel
 {
     /// <summary>Request identifier.</summary>
@@ -56,6 +57,7 @@ public record struct FuturesTickBidAskReadModel
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact comparisons identify explicit zero/expiry/sentinel boundaries and qualified input identity; epsilon comparisons would change pricing and validation semantics.")]
     [IgnoreMember]
     public bool IsValid
         => RequestId != 0 && TickDate != default && TickTime != 0 && Price != 0 && Size != 0;

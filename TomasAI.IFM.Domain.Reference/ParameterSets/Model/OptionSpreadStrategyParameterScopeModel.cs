@@ -18,17 +18,23 @@ public static class OptionSpreadStrategyParameterScopeModel
 
     public static void Validate(ParameterAssignmentScope scope)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         var expected = scope.ComponentCode switch
         {
             IronCondorMarketSelectionParameterModel.ComponentCode => IronCondor(),
             VerticalSpreadMarketSelectionParameterModel.ComponentCode => VerticalSpread(),
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             _ => throw new ArgumentException("PARAM.COMPONENT_UNSUPPORTED")
+#pragma warning restore MA0015
         };
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
         if (scope != expected) throw new ArgumentException("PARAM.SCOPE_INVALID");
+#pragma warning restore MA0015
     }
 
     public static Guid AssignmentId(ParameterAssignmentScope scope)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         Validate(scope);
         var identity = JsonSerializer.Serialize(new
             { scope.ConsumerKindCode, scope.ConsumerId, scope.Role, scope.ComponentCode, scope.ScopeSha256 });

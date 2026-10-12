@@ -285,22 +285,30 @@ public sealed class PortfolioFundCommandActor(
     protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(threadId);
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
         var id = ParseId(command);
         return new PortfolioFundActorState(id, await _events.LoadFundAsync(id).ConfigureAwait(false));
     }
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioFundCommandActor> context, IActorState state, ICommand command) =>
-        ReceiveCoreAsync((PortfolioFundActorState)state, command, CancellationToken.None);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioFundCommandActor> context, IActorState state, ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        return ReceiveCoreAsync((PortfolioFundActorState)state, command, CancellationToken.None);
+    }
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioFundCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken) =>
-        ReceiveCoreAsync((PortfolioFundActorState)state, command, cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioFundCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        return ReceiveCoreAsync((PortfolioFundActorState)state, command, cancellationToken);
+    }
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioFundActorState state, ICommand command, CancellationToken cancellationToken)
     {
@@ -331,7 +339,7 @@ public sealed class PortfolioFundCommandActor(
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
         }
         var now = DateTime.UtcNow;
-        var aggregate = state.Aggregate;
+        _=state.Aggregate;
         await ValidateFamilyReferencesAsync(command, cancellationToken).ConfigureAwait(false);
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
         using var transitionTrace = PortfolioTelemetry.ActivitySource.StartActivity("portfolio.fund.transition");
@@ -341,6 +349,7 @@ public sealed class PortfolioFundCommandActor(
         transitionTrace?.Stop();
         if (domainEvent is not null)
         {
+            TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, state.Aggregate);
             await _events.AppendFundAsync(
                 state.IdValue,
                 domainEvent,
@@ -368,7 +377,7 @@ public sealed class PortfolioFundCommandActor(
         if (mandate is { SchemaVersion: >= 3 })
         {
             if (_referenceQueries is null) throw new InvalidOperationException("Fund selection lookup validation is unavailable.");
-            var selections = await TomasAI.IFM.Domain.Reference.Shared.Lookups.FundSelectionCatalog.LoadAsync(_referenceQueries, cancellationToken);
+            var selections = await (TomasAI.IFM.Domain.Reference.Shared.Lookups.FundSelectionCatalog.LoadAsync(_referenceQueries, cancellationToken)).ConfigureAwait(false);
             selections.ValidateSelections(mandate.UnderlyingUniverse, mandate.EligibleAssetTypes, mandate.PermittedDirections, mandate.PermittedConditions);
         }
         var references = mandate?.PermittedTradeStrategyFamilies ?? (assignment?.TradeStrategyFamily is { } family ? [family] : []);
@@ -377,29 +386,32 @@ public sealed class PortfolioFundCommandActor(
         foreach (var reference in references)
         {
             if (reference.CatalogDeployment is not { } key)
-                throw new ArgumentException("Legacy family permissions are read-only. Select an exact ConfigurationDb deployment.");
-            var row = await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(_referenceQueries, key,
-                assignment?.Enabled == true || mandate?.OperatingState == FundOperatingState.Active, cancellationToken);
-            if (mandate is not null && (!mandate.PermittedTradeFamilies.Contains(row.Definition.Code, StringComparer.Ordinal) || mandate.DecisionHorizon != row.Definition.Horizon.ToString()))
-                throw new ArgumentException("Fund deployment classification or horizon does not match its exact reference.");
-            if (assignment is not null && (assignment.TradeFamily != row.Definition.Code || assignment.DecisionHorizon != row.Definition.Horizon.ToString() || assignment.UnderlyingUniverse.Except(row.Definition.Products.Select(p => p.Symbol), StringComparer.Ordinal).Any()))
-                throw new ArgumentException("Assignment classification, horizon or product universe does not match the exact deployment.");
+                throw new ArgumentException("Legacy family permissions are read-only. Select an exact ConfigurationDb deployment.", nameof(command));
+            var row = await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(_referenceQueries, key,
+                assignment?.Enabled == true || mandate?.OperatingState == FundOperatingState.Active, cancellationToken)).ConfigureAwait(false);
+            if (mandate is not null && (!mandate.PermittedTradeFamilies.Contains(row.Definition.Code, StringComparer.Ordinal) || !string.Equals(mandate.DecisionHorizon,row.Definition.Horizon.ToString(),StringComparison.Ordinal)))
+                throw new ArgumentException("Fund deployment classification or horizon does not match its exact reference.", nameof(command));
+            if (assignment is not null && (!string.Equals(assignment.TradeFamily,row.Definition.Code,StringComparison.Ordinal) || !string.Equals(assignment.DecisionHorizon,row.Definition.Horizon.ToString(),StringComparison.Ordinal) || assignment.UnderlyingUniverse.Except(row.Definition.Products.Select(p => p.Symbol), StringComparer.Ordinal).Any()))
+                throw new ArgumentException("Assignment classification, horizon or product universe does not match the exact deployment.", nameof(command));
             if (assignment is not null)
             {
                 if (assignment.TradeTemplateId != key.Id || assignment.TradeTemplateVersion != key.Version)
-                    throw new ArgumentException("Assignment template identity must equal its ConfigurationDb deployment identity.");
+                    throw new ArgumentException("Assignment template identity must equal its ConfigurationDb deployment identity.", nameof(command));
                 var selection = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.TradeSelection).ToArray();
                 var composition = row.Definition.PipelineParameters.Where(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition).ToArray();
-                if (selection.Length > 1 || composition.Length > 1) throw new ArgumentException("Assignment requires one unambiguous profile per pipeline stage.");
+                if (selection.Length > 1 || composition.Length > 1) throw new ArgumentException("Assignment requires one unambiguous profile per pipeline stage.", nameof(command));
                 if (assignment.TradeSelectionHintProfileId != (selection.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.TradeSelectionHintProfileVersion != (selection.SingleOrDefault()?.Version ?? 0)
                     || assignment.OrderCompositionProfileId != (composition.SingleOrDefault()?.Id ?? Guid.Empty) || assignment.OrderCompositionProfileVersion != (composition.SingleOrDefault()?.Version ?? 0))
-                    throw new ArgumentException("Assignment profiles must match the exact deployment bindings.");
+                    throw new ArgumentException("Assignment profiles must match the exact deployment bindings.", nameof(command));
             }
         }
     }
 
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+    }
 
     static int ErrorCode(ICommand? command, Exception exception) => exception switch
     {
@@ -432,9 +444,9 @@ public sealed class PortfolioFundCommandActor(
     static PortfolioFundId ParseId(ICommand command)
     {
         var parts = command.Subject.EntityId.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var fundId) && portfolioId > 0 && fundId > 0
+        return parts.Length == 2 && int.TryParse(parts[0],System.Globalization.CultureInfo.InvariantCulture, out var portfolioId) && int.TryParse(parts[1],System.Globalization.CultureInfo.InvariantCulture, out var fundId) && portfolioId > 0 && fundId > 0
             ? new PortfolioFundId(portfolioId, fundId)
-            : throw new ArgumentException("PortfolioFund command subject identity is invalid.");
+            : throw new ArgumentException("PortfolioFund command subject identity is invalid.",nameof(command));
     }
 
     sealed class PortfolioFundActorState(PortfolioFundId id, PortfolioFundAggregate aggregate) : IActorState<PortfolioFundActorState>

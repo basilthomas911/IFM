@@ -1,22 +1,8 @@
-﻿using FluentValidation;
+using FluentValidation;
 
 namespace TomasAI.IFM.Shared.Validation;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1040", Justification = "This marker identifies an exact actor/state registration contract; no runtime members are required.")]
 public interface IDataValidation
 {
-}
-
-public static class IDataValidationExtension
-{
-    public static ValidationError[] Validate<TData>(this IDataValidation dataValidation, IValidator<TData> validator)
-        => dataValidation.Validate((TData)dataValidation, validator);
-
-    public static ValidationError[] Validate<TData>(this IDataValidation dataValidation, TData dataSource, IValidator<TData> validator)
-    {
-        ValidationError[] errors = [];
-        var validationResult = validator.Validate(dataSource);
-        if (!validationResult.IsValid)
-            errors = [.. validationResult.Errors.Select(e => new ValidationError(e.ErrorCode, e.ErrorMessage))];
-        return errors;
-    }
 }

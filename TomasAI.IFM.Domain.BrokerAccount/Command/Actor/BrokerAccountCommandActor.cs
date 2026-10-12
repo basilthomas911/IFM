@@ -149,11 +149,16 @@ public sealed class BrokerAccountCommandActor(ICommandActorContext<BrokerAccount
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<BrokerAccountCommandActor> context, ActorThreadId threadId,
-        ICommand command, Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(
+        ICommand command, Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command.ErrorCode,
-                $"BA.EXCEPTION;ExceptionType={exception.GetType().Name};{exception.Message}"));
+                $"BA.EXCEPTION;ExceptionType={ex.GetType().Name};{ex.Message}"));
+    }
 
     private static IBrokerAccountCommandContext Typed(ICommandActorContext<BrokerAccountCommandActor> context) =>
         context as IBrokerAccountCommandContext ??
-        throw new ArgumentException("Typed BrokerAccount command context required.");
+        throw new ArgumentException("Typed BrokerAccount command context required.",nameof(context));
 }

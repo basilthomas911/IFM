@@ -24,9 +24,8 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     : BaseQueryActor<MarketDataQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "MarketDataQuery";
-    readonly ILogger<MarketDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IMarketDataQueryContext MarketDataContext { get; } =
-        IsArgumentNull.Set(actorContext as IMarketDataQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IMarketDataQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -41,7 +40,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     protected override IQuery ParseMessage(IQueryActorContext<MarketDataQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetStrategyOptionChainParametersQuery.Verb] = message => message.AsQuery<GetStrategyOptionChainParametersQuery, StrategyOptionChainParameterSet>()!,
         [GetTradeStrategySymbolsQuery.Verb] = message => message.AsQuery<GetTradeStrategySymbolsQuery, TradeStrategySymbolReadModel[]>()!,
@@ -69,6 +68,16 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
     protected override ValueTask ReceiveAsync(IQueryActorContext<MarketDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext<MarketDataQueryActor> context,
+        IQuery query,
+        CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(query);
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(MarketDataContext, query, cancellationToken).ConfigureAwait(false);
+    }
 
 
     static readonly IReadOnlyDictionary<Type,
@@ -95,16 +104,6 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
             [typeof(GetMarketSessionQuery)] = static (context, query, cancellationToken) =>
                 ((GetMarketSessionQuery)query).ExecuteAsync(context, cancellationToken)
         };
-    protected override async ValueTask ReceiveAsync(
-        IQueryActorContext<MarketDataQueryActor> context,
-        IQuery query,
-        CancellationToken cancellationToken)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(query);
-        var receive = ResolveMappedQueryHandler(query, _receiveMap);
-        await receive(MarketDataContext, query, cancellationToken).ConfigureAwait(false);
-    }
     /// <summary>
     /// Handles exceptions that occur during the processing of a query in the actor context.
     /// </summary>
@@ -122,7 +121,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
 }

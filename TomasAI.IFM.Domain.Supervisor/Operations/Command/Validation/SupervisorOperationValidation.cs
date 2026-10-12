@@ -10,19 +10,25 @@ namespace TomasAI.IFM.Domain.Supervisor.Operations.Command.Validation;
 public static class SupervisorOperationValidation
 {
     /// <summary>Validates the target actor thread identity.</summary>
-    public static List<ValidationError> ValidateSupervisorTarget(
-        this List<ValidationError> errors, ActorThreadId target, string commandName)
+    public static TErrors ValidateSupervisorTarget<TErrors>(
+        this TErrors errors, ActorThreadId target, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (string.IsNullOrWhiteSpace(target.Name) || string.IsNullOrWhiteSpace(target.EntityId))
             errors.Add(new($"{commandName}.Target must identify an actor name and entity."));
         return errors;
     }
 
     /// <summary>Validates generation-fence input for the requested operation.</summary>
-    public static List<ValidationError> ValidateSupervisorGeneration(
-        this List<ValidationError> errors, long generation,
+    public static TErrors ValidateSupervisorGeneration<TErrors>(
+        this TErrors errors, long generation,
         SupervisorActorOperationKind operation, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (generation < 0 ||
             (generation == 0 && operation is SupervisorActorOperationKind.Resume
                 or SupervisorActorOperationKind.Restart or SupervisorActorOperationKind.Recycle
@@ -32,38 +38,51 @@ public static class SupervisorOperationValidation
     }
 
     /// <summary>Validates a bounded non-empty operator identity.</summary>
-    public static List<ValidationError> ValidateSupervisorRequester(
-        this List<ValidationError> errors, string? requester, string commandName)
+    public static TErrors ValidateSupervisorRequester<TErrors>(
+        this TErrors errors, string? requester, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (string.IsNullOrWhiteSpace(requester) || requester.Length > 128)
             errors.Add(new($"{commandName}.Requester must contain 1 to 128 characters."));
         return errors;
     }
 
     /// <summary>Validates a bounded non-empty operator reason.</summary>
-    public static List<ValidationError> ValidateSupervisorReason(
-        this List<ValidationError> errors, string? reason, string commandName)
+    public static TErrors ValidateSupervisorReason<TErrors>(
+        this TErrors errors, string? reason, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (string.IsNullOrWhiteSpace(reason) || reason.Length > 1024)
             errors.Add(new($"{commandName}.Reason must contain 1 to 1024 characters."));
         return errors;
     }
 
     /// <summary>Validates the bounded lifecycle deadline.</summary>
-    public static List<ValidationError> ValidateSupervisorTimeout(
-        this List<ValidationError> errors, long timeoutTicks, string commandName)
+    public static TErrors ValidateSupervisorTimeout<TErrors>(
+        this TErrors errors, long timeoutTicks, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (timeoutTicks <= 0 || timeoutTicks > TimeSpan.FromMinutes(10).Ticks)
             errors.Add(new($"{commandName}.Timeout must be greater than zero and at most ten minutes."));
         return errors;
     }
 
     /// <summary>Checks that the singleton Supervisor entity and routed subject agree.</summary>
-    public static List<ValidationError> ValidateSupervisorRoute(
-        this List<ValidationError> errors, ISupervisorOperationCommand command)
+    public static TErrors ValidateSupervisorRoute<TErrors>(
+        this TErrors errors, ISupervisorOperationCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.EntityId != ActorEntityId.Default
-            || command.Subject.EntityId != command.EntityId.Format())
+            || !string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
             errors.Add(new($"{command.CommandName}.EntityId must match the Supervisor singleton route."));
         if (command.RouteTo != BoundedContextName.SupervisorBoundedContext)
             errors.Add(new($"{command.CommandName}.RouteTo must identify the Supervisor bounded context."));

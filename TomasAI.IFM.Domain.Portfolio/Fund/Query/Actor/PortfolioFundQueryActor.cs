@@ -116,6 +116,7 @@ public sealed class PortfolioFundQueryActor(
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<PortfolioFundQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
         dynamic request = query;
         using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request.CorrelationId);
         operationalGuard.Demand(PortfolioOperation.Read, request.Access, mutation: false);
@@ -137,12 +138,6 @@ public sealed class PortfolioFundQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception) =>
-        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex) =>
+        ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }
-
-/// <summary>Provides the Fund query mailbox for the split actor route.</summary>
-/// <param name="supervisor">The actor supervisor.</param>
-public sealed class PortfolioFundQueryContext(IActorSupervisor supervisor)
-    : QueryActorContext(supervisor, new ActorMailboxId(ActorType.Query, PortfolioFundQueryActor.ActorName)),
-        IQueryActorContext<PortfolioFundQueryActor>;

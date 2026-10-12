@@ -10,27 +10,27 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function;
-
 /// <summary>Builds typed completions and observes committed or replayed results through the event map.</summary>
 public static class CompleteTradeSelectionPipeline
 {
     /// <summary>Creates a calculated completion or records a successful lifecycle observation.</summary>
-    public static FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> Complete(
-        this FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input, TimeProvider clock)
+    public static FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> Complete(this FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input, TimeProvider clock)
     {
-        var c = input.Request ?? throw new ArgumentException("Completion requires its command.");
-        if (input.Outcome is TradeSelectionFunctionCompletedEvent committed &&
-            input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
+        var c = input.Request ?? throw new ArgumentException("Completion requires its command.",nameof(input));
+        if (input.Outcome is TradeSelectionFunctionCompletedEvent committed && input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
         {
-            if (input.Phase == FunctionEventPhase.Replayed) TradeSelectionTelemetry.Replay();
-            else TradeSelectionTelemetry.Record(TradeSelectionContracts.ReadResult(committed.Result),
-                Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
+            if (input.Phase == FunctionEventPhase.Replayed)
+                TradeSelectionTelemetry.Replay();
+            else
+                TradeSelectionTelemetry.Record(TradeSelectionContracts.ReadResult(committed.Result), Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
             return FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Complete(committed);
         }
-        var result = input.Outcome as TradeSelectionResult ?? throw new ArgumentException("Completion requires a calculated selection.");
+
+        var result = input.Outcome as TradeSelectionResult ?? throw new ArgumentException("Completion requires a calculated selection.",nameof(input));
         var policy = TradeSelectionContracts.CommonPolicy(c.SelectionBinding);
-        TradeSelectionContracts.Require(MessagePackBinarySerializer.MeasureContent(result) <= policy.MaximumResultPayloadBytes,
-            "TS.CONTRACT.PAYLOAD_SIZE", "Selection result exceeds its content limit.");
+        TradeSelectionContracts.Require(MessagePackBinarySerializer.MeasureContent(result) <= policy.MaximumResultPayloadBytes, "TS.CONTRACT.PAYLOAD_SIZE", "Selection result exceeds its content limit.");
         var completed = new TradeSelectionFunctionCompletedEvent
         {
             Subject = new(ActorType.Function, ExecuteTradeSelectionPipelineCommand.Actor, TradeSelectionFunctionCompletedEvent.Verb, c.EntityId.Format()),
@@ -53,9 +53,7 @@ public static class CompleteTradeSelectionPipeline
             ValidUntilUtc = result.ValidUntilUtc,
             RequestFingerprint = c.Fingerprint()
         };
-        TradeSelectionContracts.Require(MessagePackBinarySerializer.MeasureContent(completed) <= TradeSelectionContracts.MaximumTransportBytes &&
-            MessagePackBinarySerializer.MeasureEncoded(completed) <= TradeSelectionContracts.MaximumTransportBytes,
-            "TS.CONTRACT.PAYLOAD_SIZE", "Completed event exceeds the transport content limit.");
+        TradeSelectionContracts.Require(MessagePackBinarySerializer.MeasureContent(completed) <= TradeSelectionContracts.MaximumTransportBytes && MessagePackBinarySerializer.MeasureEncoded(completed) <= TradeSelectionContracts.MaximumTransportBytes, "TS.CONTRACT.PAYLOAD_SIZE", "Completed event exceeds the transport content limit.");
         TradeSelectionContracts.ReadResult(completed.Result);
         return FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Complete(completed);
     }

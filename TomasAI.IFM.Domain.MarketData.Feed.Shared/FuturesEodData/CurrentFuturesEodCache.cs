@@ -8,7 +8,7 @@ public sealed class CurrentFuturesEodCache
     /// <summary>Gets the cache owned by this API process.</summary>
     public static CurrentFuturesEodCache Shared { get; } = new();
     readonly ConcurrentDictionary<(string, DateOnly), Entry> entries = new();
-    readonly ConcurrentDictionary<string, DateOnly> latestDates = new();
+    readonly ConcurrentDictionary<string, DateOnly> latestDates = new(StringComparer.Ordinal);
     long revision;
     /// <summary>Identifies this cache lifetime so recovered history cannot acknowledge another process.</summary>
     public Guid OwnerId { get; } = Guid.NewGuid();
@@ -22,13 +22,14 @@ public sealed class CurrentFuturesEodCache
     /// <summary>Publishes an ordered live snapshot and returns its persistence version.</summary>
     public long Publish(FuturesEodDataV2ReadModel snapshot)
     {
+        ArgumentNullException.ThrowIfNull(snapshot);
         using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         var version = Interlocked.Increment(ref revision);
         var now = DateTime.UtcNow;
         latestDates.TryGetValue(snapshot.ContractId, out var previousDate);
         var latest = latestDates.AddOrUpdate(snapshot.ContractId, snapshot.ValueDate, (_, old) => snapshot.ValueDate > old ? snapshot.ValueDate : old);
         if (latest > previousDate)
-            foreach (var key in entries.Keys.Where(key => key.Item1 == snapshot.ContractId && key.Item2 < latest.AddDays(-1)))
+            foreach (var key in entries.Keys.Where(key => string.Equals(key.Item1,snapshot.ContractId,StringComparison.Ordinal) && key.Item2 < latest.AddDays(-1)))
                 entries.TryRemove(key, out _);
         entries.AddOrUpdate((snapshot.ContractId, snapshot.ValueDate),
             _ => new(snapshot, version, 0, now), (_, old) => version > old.Version ? new(snapshot, version, old.PersistedVersion, now) : old);
@@ -41,9 +42,11 @@ public sealed class CurrentFuturesEodCache
             entries.AddOrUpdate((contractId, valueDate), old, (_, current) => current with { PersistedVersion = Math.Max(current.PersistedVersion, version) });
     }
     /// <summary>Loads storage only on a miss; a concurrent live update always wins.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Filtered fallback failure is ignored only when a current ordered live observation is available.")]
     public async Task<FuturesEodDataV2ReadModel?> ReadAsync(string contractId, DateOnly valueDate,
         Func<Task<FuturesEodDataV2ReadModel?>> fallback)
     {
+        ArgumentNullException.ThrowIfNull(fallback);
         if (TryGet(contractId, valueDate, out var current)) return current;
         FuturesEodDataV2ReadModel? stored;
         try { stored = await fallback().ConfigureAwait(false); }

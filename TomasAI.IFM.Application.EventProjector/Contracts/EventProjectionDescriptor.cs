@@ -40,6 +40,13 @@ public sealed record EventProjectionDescriptor
         PublishTerminalEvent = publishTerminalEvent;
     }
 
+    /// <summary>Explicit materialization-only action. Rebuild must never invoke broker dispatch, commands or notifications.</summary>
+    public Func<IEvent, CancellationToken, Task>? RebuildReadModelAsync { get; init; }
+
+    /// <summary>Registers the audited read-table mutation separately from live workflow effects.</summary>
+    public EventProjectionDescriptor WithReadModelRebuild(Func<IEvent, CancellationToken, Task> rebuild)
+        => this with { RebuildReadModelAsync = rebuild ?? throw new ArgumentNullException(nameof(rebuild)) };
+
     public Type SourceEventType { get; }
     public EventProjectionIdempotencyStrategy IdempotencyStrategy { get; }
     public Func<IEvent, ProjectionExecutionContext, ValueTask<EventProjectionApplyResult>> ApplyAsync { get; }

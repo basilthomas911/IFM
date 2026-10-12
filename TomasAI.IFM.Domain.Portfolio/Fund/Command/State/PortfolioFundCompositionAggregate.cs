@@ -48,7 +48,7 @@ public sealed class PortfolioFundCompositionAggregate
     {
         ArgumentNullException.ThrowIfNull(reservation);
         if (reservation.Order.OrderId <= 0 || reservation.Order.IdempotencyKey == Guid.Empty ||
-            (reservation.Trades.Length == 0 && (reservation.Order.Origin != CompositionOrigin.ManualUi || reservation.Order.Status != FundCompositionState.Draft.ToString())) ||
+            (reservation.Trades.Length == 0 && (reservation.Order.Origin != CompositionOrigin.ManualUi || !string.Equals(reservation.Order.Status,FundCompositionState.Draft.ToString(),StringComparison.Ordinal))) ||
             reservation.Trades.Any(x => x.OrderId != reservation.Order.OrderId))
             throw new InvalidOperationException("Committed composition reservation is invalid.");
         if (_orders.ContainsKey(reservation.Order.OrderId) || _reservations.ContainsKey(reservation.Order.IdempotencyKey))
@@ -95,6 +95,7 @@ public sealed class PortfolioFundCompositionAggregate
         DateTime committedOnUtc,
         string principal)
     {
+        ArgumentNullException.ThrowIfNull(tradeIds);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentException.ThrowIfNullOrWhiteSpace(principal);
@@ -113,29 +114,7 @@ public sealed class PortfolioFundCompositionAggregate
         if (_orders.ContainsKey(orderId)) throw new InvalidOperationException("OrderId is already reserved.");
 
         const long aggregateVersion = 1;
-        var order = new FundOrderProjectionReadModel
-        {
-            PortfolioId = request.PortfolioId,
-            FundId = request.FundId,
-            OrderId = orderId,
-            WorkflowId = request.WorkflowId,
-            WorkflowRevision = request.WorkflowRevision,
-            Status = FundCompositionState.TemplateSelected.ToString(),
-            CreatedOnUtc = committedOnUtc,
-            CreatedBy = principal.Trim(),
-            TradeSelectionResultId = request.TradeSelectionResultId,
-            TradeSelectionResultHash = request.TradeSelectionResultSha256,
-            TradeTemplateId = request.TradeTemplateId,
-            TradeTemplateVersion = request.TradeTemplateVersion,
-            OrderCompositionProfileId = request.OrderCompositionProfileId,
-            OrderCompositionProfileVersion = request.OrderCompositionProfileVersion,
-            StrategySnapshotHash = snapshot.PayloadSha256,
-            ExpiresAtUtc = request.ExpiresAtUtc,
-            AggregateVersion = aggregateVersion,
-            IdempotencyKey = request.IdempotencyKey,
-            CanonicalRequestHash = requestHash,
-            Origin = request.Origin,
-        };
+        var order = CreateReservedOrder(request, snapshot, orderId, committedOnUtc, principal, requestHash, aggregateVersion);
         var trades = request.TradeInstructions.Select((instruction, index) => new FundOrderTradeProjectionReadModel
         {
             PortfolioId = request.PortfolioId,
@@ -165,6 +144,36 @@ public sealed class PortfolioFundCompositionAggregate
         _trades.Add(orderId, trades);
         _reservations.Add(request.IdempotencyKey, result);
         return result;
+    }
+
+    /// <summary>Captures the versioned workflow, template, profile and canonical request identities for the newly reserved fund order.</summary>
+    static FundOrderProjectionReadModel CreateReservedOrder(ReserveFundOrderCompositionRequest request,
+        PortfolioFundStrategySnapshot snapshot, int orderId, DateTime committedOnUtc, string principal,
+        string requestHash, long aggregateVersion)
+    {
+        return new FundOrderProjectionReadModel
+        {
+            PortfolioId = request.PortfolioId,
+            FundId = request.FundId,
+            OrderId = orderId,
+            WorkflowId = request.WorkflowId,
+            WorkflowRevision = request.WorkflowRevision,
+            Status = FundCompositionState.TemplateSelected.ToString(),
+            CreatedOnUtc = committedOnUtc,
+            CreatedBy = principal.Trim(),
+            TradeSelectionResultId = request.TradeSelectionResultId,
+            TradeSelectionResultHash = request.TradeSelectionResultSha256,
+            TradeTemplateId = request.TradeTemplateId,
+            TradeTemplateVersion = request.TradeTemplateVersion,
+            OrderCompositionProfileId = request.OrderCompositionProfileId,
+            OrderCompositionProfileVersion = request.OrderCompositionProfileVersion,
+            StrategySnapshotHash = snapshot.PayloadSha256,
+            ExpiresAtUtc = request.ExpiresAtUtc,
+            AggregateVersion = aggregateVersion,
+            IdempotencyKey = request.IdempotencyKey,
+            CanonicalRequestHash = requestHash,
+            Origin = request.Origin,
+        };
     }
 
     /// <summary>Adds an operator-authored trade to an open manual Portfolio Fund order.</summary>
@@ -212,7 +221,7 @@ public sealed class PortfolioFundCompositionAggregate
         var order = RequireManualOrder(
             request.PortfolioId, request.FundId, request.OrderId, request.ExpectedOrderVersion);
         var trades = _trades[order.OrderId];
-        if (trades.Length > 1 || trades.Any(trade => trade.TradeState != nameof(TradeState.NewTrade)))
+        if (trades.Length > 1 || trades.Any(trade => !string.Equals(trade.TradeState,nameof(TradeState.NewTrade),StringComparison.Ordinal)))
             throw new InvalidOperationException("Only an empty order or an order containing one economically inactive new trade can be deleted.");
         var removedTradeIds = trades.Select(trade => trade.TradeId).ToArray();
         _orders.Remove(order.OrderId);
@@ -252,7 +261,7 @@ public sealed class PortfolioFundCompositionAggregate
         ArgumentNullException.ThrowIfNull(evidence);
         ValidateUtc(evidence.OccurredAtUtc, nameof(evidence.OccurredAtUtc));
         if (evidence.SetupTrade is null || (evidence.SetupTrade.FundId > 0 && evidence.SetupTrade.FundId != evidence.FundId) || evidence.ExecutionOrderId <= 0 || evidence.ExecutionTradeId <= 0 || evidence.ExecutionAttemptId == Guid.Empty)
-            throw new ArgumentException("Execution identity and setup evidence are required.");
+            throw new ArgumentException("Execution identity and setup evidence are required.",nameof(evidence));
         if (!_orders.TryGetValue(evidence.SetupTrade.OrderId, out var order) || order.PortfolioId != evidence.PortfolioId || order.FundId != evidence.FundId)
             throw new InvalidOperationException("Execution setup ownership does not match.");
         var trades = _trades[order.OrderId];
@@ -268,34 +277,50 @@ public sealed class PortfolioFundCompositionAggregate
         var primary = trades.Single(x => x.PrimaryTrade);
         if (evidence.ClosingExecution && (evidence.OpeningExecutionTradeId is null || primary.ExecutionTradeId != evidence.OpeningExecutionTradeId))
             throw new InvalidOperationException("Closing execution does not target the linked opening trade.");
-        if (order.Status == nameof(FundCompositionState.Executed))
+        if (string.Equals(order.Status,nameof(FundCompositionState.Executed),StringComparison.Ordinal))
         {
             if (closing && trade.ExecutionAttemptId == evidence.ExecutionAttemptId) return SaveReservation(order, trades);
             throw new InvalidOperationException("Completed setup cannot accept another execution transition.");
         }
-        if (order.Status != nameof(FundCompositionState.Draft))
+        if (!string.Equals(order.Status,nameof(FundCompositionState.Draft),StringComparison.Ordinal))
             throw new InvalidOperationException("Execution setup is not an active draft.");
         // A workflow close without a separate closing setup must retain the opening identity for Load Trade.
         var closesPrimary = evidence.ClosingExecution && trade.PrimaryTrade;
         if (closesPrimary && (!closing || !evidence.FullyClosed)) return SaveReservation(order, trades);
-        var replacingPartial = !opening && !closing && !release && evidence.ClosingExecution && trade.TradeState == nameof(TradeState.OrderPartiallyFilled);
+        var replacingPartial = !opening && !closing && !release && evidence.ClosingExecution && string.Equals(trade.TradeState,nameof(TradeState.OrderPartiallyFilled),StringComparison.Ordinal);
         if (!closesPrimary && !replacingPartial && trade.ExecutionAttemptId != Guid.Empty &&
             (trade.ExecutionAttemptId != evidence.ExecutionAttemptId || trade.ExecutionOrderId != evidence.ExecutionOrderId || trade.ExecutionTradeId != evidence.ExecutionTradeId))
             throw new InvalidOperationException("Stale or conflicting execution identity.");
-        if (release && trade.TradeState != nameof(TradeState.OrderSubmitted))
+        if (release && !string.Equals(trade.TradeState,nameof(TradeState.OrderSubmitted),StringComparison.Ordinal))
             return SaveReservation(order, trades); // Never roll back an established trade.
         if (!opening && !closing && !release && trade.TradeState is nameof(TradeState.Open) or nameof(TradeState.Closed))
             return SaveReservation(order, trades); // Delayed submission cannot regress completed execution.
         var nextVersion = checked(order.AggregateVersion + 1);
-        var changed = trades.Select(x =>
-        {
+        var changed = trades.Select(x => ApplyExecutionToTrade(x, trade.TradeId, evidence,
+            opening, closing, release, closesPrimary, nextVersion)).ToArray();
+        return SaveReservation(order with { AggregateVersion = nextVersion,
+            Status = closing && evidence.FullyClosed ? nameof(FundCompositionState.Executed) : order.Status,
+            StopReason = closing && evidence.FullyClosed ? "Confirmed closing execution completed." : order.StopReason }, changed);
+    }
+
+    /// <summary>Applies confirmed execution facts to one trade row, retaining opening identity and dates when closing or updating sibling versions.</summary>
+    static FundOrderTradeProjectionReadModel ApplyExecutionToTrade(FundOrderTradeProjectionReadModel x,
+        int selectedTradeId, FundTradeExecutionEvidence evidence, bool opening, bool closing, bool release,
+        bool closesPrimary, long nextVersion)
+    {
             if (closing && evidence.FullyClosed && x.PrimaryTrade)
                 return x with { TradeState = nameof(TradeState.Closed), AggregateVersion = nextVersion,
                     ExecutionAttemptId = closesPrimary ? evidence.ExecutionAttemptId : x.ExecutionAttemptId };
-            if (x.TradeId != trade.TradeId) return x with { AggregateVersion = nextVersion };
+            if (x.TradeId != selectedTradeId) return x with { AggregateVersion = nextVersion };
             return x with
             {
-                TradeState = closing ? evidence.FullyClosed ? nameof(TradeState.OrderCompleted) : nameof(TradeState.OrderPartiallyFilled) : opening ? nameof(TradeState.Open) : release ? nameof(TradeState.NewTrade) : nameof(TradeState.OrderSubmitted),
+                TradeState = (closing) switch
+{
+    true => evidence.FullyClosed ? nameof(TradeState.OrderCompleted) : nameof(TradeState.OrderPartiallyFilled),
+    false => (opening) switch
+    {
+        true => nameof(TradeState.Open),
+        false => release ? nameof(TradeState.NewTrade) : nameof(TradeState.OrderSubmitted)}},
                 ExecutionOrderId = release ? 0 : evidence.ExecutionOrderId,
                 ExecutionTradeId = release ? 0 : evidence.ExecutionTradeId,
                 ExecutionAttemptId = release ? Guid.Empty : evidence.ExecutionAttemptId,
@@ -303,10 +328,6 @@ public sealed class PortfolioFundCompositionAggregate
                 MaturityDate = opening ? evidence.MaturityDate : x.MaturityDate,
                 AggregateVersion = nextVersion
             };
-        }).ToArray();
-        return SaveReservation(order with { AggregateVersion = nextVersion,
-            Status = closing && evidence.FullyClosed ? nameof(FundCompositionState.Executed) : order.Status,
-            StopReason = closing && evidence.FullyClosed ? "Confirmed closing execution completed." : order.StopReason }, changed);
     }
 
     public FundCompositionReservationResult CreateManualDraft(
@@ -375,12 +396,12 @@ public sealed class PortfolioFundCompositionAggregate
         ArgumentNullException.ThrowIfNull(result);
         ValidateUtc(acceptedAtUtc, nameof(acceptedAtUtc));
         var current = RequireOrder(orderId, expectedVersion);
-        if (current.Status == FundCompositionState.RiskPending.ToString())
+        if (string.Equals(current.Status,FundCompositionState.RiskPending.ToString(),StringComparison.Ordinal))
         {
-            if (current.CompositionResultId == result.ResultId && current.CompositionResultHash == result.ResultSha256) return current;
+            if (current.CompositionResultId == result.ResultId && string.Equals(current.CompositionResultHash,result.ResultSha256,StringComparison.Ordinal)) return current;
             throw new InvalidOperationException("A different composition result is already terminally recorded.");
         }
-        if (current.Status != FundCompositionState.Composing.ToString()) throw InvalidTransition(current.Status, FundCompositionState.RiskPending);
+        if (!string.Equals(current.Status,FundCompositionState.Composing.ToString(),StringComparison.Ordinal)) throw InvalidTransition(current.Status, FundCompositionState.RiskPending);
         ValidateResult(result.ResultId, result.ResultSha256, result.EvaluatedAtUtc, result.ExpiresAtUtc, acceptedAtUtc);
         return Save(current with
         {
@@ -408,10 +429,10 @@ public sealed class PortfolioFundCompositionAggregate
         };
         if (current.Status is nameof(FundCompositionState.RiskApproved) or nameof(FundCompositionState.RiskRejected))
         {
-            if (current.RiskResultId == result.ResultId && current.RiskResultHash == result.ResultSha256 && current.Status == desired.ToString()) return current;
+            if (current.RiskResultId == result.ResultId && string.Equals(current.RiskResultHash,result.ResultSha256,StringComparison.Ordinal) && string.Equals(current.Status,desired.ToString(),StringComparison.Ordinal)) return current;
             throw new InvalidOperationException("A different Risk result is already terminally recorded.");
         }
-        if (current.Status != FundCompositionState.RiskPending.ToString()) throw InvalidTransition(current.Status, desired);
+        if (!string.Equals(current.Status,FundCompositionState.RiskPending.ToString(),StringComparison.Ordinal)) throw InvalidTransition(current.Status, desired);
         ValidateResult(result.ResultId, result.ResultSha256, result.EvaluatedAtUtc, result.ExpiresAtUtc, acceptedAtUtc);
         if (result.EnvelopeId == Guid.Empty || result.EnvelopeVersion <= 0) throw new ArgumentException("A versioned risk envelope reference is required.", nameof(result));
         if (!string.Equals(result.CandidateSha256, current.CompositionResultHash, StringComparison.Ordinal)) throw new InvalidOperationException("Risk candidate hash does not match the accepted composition.");
@@ -428,16 +449,17 @@ public sealed class PortfolioFundCompositionAggregate
     public FundOrderProjectionReadModel AuthorizeRisk(int orderId, long expectedVersion,
         TomasAI.IFM.Domain.Portfolio.Shared.Financial.FundRiskAuthorizationReference authorization, DateTime now)
     {
+        ArgumentNullException.ThrowIfNull(authorization);
         authorization.Validate();
         ValidateUtc(now, nameof(now));
         var current = RequireOrder(orderId, expectedVersion);
         if (authorization.PortfolioId != current.PortfolioId || authorization.FundId != current.FundId ||
             authorization.OrderId != current.OrderId || authorization.WorkflowId != current.WorkflowId ||
-            authorization.CompositionResultHash != current.CompositionResultHash || now >= authorization.ValidUntilUtc ||
+            !string.Equals(authorization.CompositionResultHash,current.CompositionResultHash,StringComparison.Ordinal) || now >= authorization.ValidUntilUtc ||
             now >= current.ExpiresAtUtc || authorization.ValidUntilUtc > current.ExpiresAtUtc)
             throw new InvalidOperationException("Financial authorization does not match the current composed Fund order.");
         if (current.RiskAuthorization == authorization) return current;
-        if (current.Status != nameof(FundCompositionState.RiskPending) || current.RiskAuthorization is not null)
+        if (!string.Equals(current.Status,nameof(FundCompositionState.RiskPending),StringComparison.Ordinal) || current.RiskAuthorization is not null)
             throw new InvalidOperationException("Only a RiskPending Fund order can accept new financial authorization.");
         return Save(current with
         {
@@ -462,11 +484,12 @@ public sealed class PortfolioFundCompositionAggregate
 
     public FundOrderProjectionReadModel SynchronizeRisk(long version, TomasAI.IFM.Domain.Portfolio.Shared.Financial.RiskTerminalEvidence evidence)
     {
+        ArgumentNullException.ThrowIfNull(evidence);
         var current = RequireOrder(evidence.OrderId, version);
         if (current.TerminalRisk == evidence) return current;
-        if (current.RiskAuthorization is not null || current.TerminalRisk is not null || current.Status != nameof(FundCompositionState.RiskPending)
+        if (current.RiskAuthorization is not null || current.TerminalRisk is not null || !string.Equals(current.Status,nameof(FundCompositionState.RiskPending),StringComparison.Ordinal)
             || current.PortfolioId != evidence.PortfolioId || current.FundId != evidence.FundId || current.WorkflowId != evidence.WorkflowId
-            || current.CompositionResultHash != evidence.CompositionHash || evidence.SourceCommandId == Guid.Empty || evidence.SourceEventId == Guid.Empty
+            || !string.Equals(current.CompositionResultHash,evidence.CompositionHash,StringComparison.Ordinal) || evidence.SourceCommandId == Guid.Empty || evidence.SourceEventId == Guid.Empty
             || evidence.TargetStatus is not ("RiskRejected" or "Cancelled" or "Expired") || evidence.DecidedAtUtc.Kind != DateTimeKind.Utc)
             throw new InvalidOperationException("Terminal Risk outcome conflicts with the current Fund order.");
         return Save(current with
@@ -492,7 +515,7 @@ public sealed class PortfolioFundCompositionAggregate
         if (desired is FundCompositionState.ExecutionRequested or FundCompositionState.Executing or FundCompositionState.Executed or FundCompositionState.ExecutionFailed)
             throw new InvalidOperationException("Execution states are outside the Portfolio implementation boundary.");
         var current = RequireOrder(orderId, expectedVersion);
-        if (!allowed.Any(x => current.Status == x.ToString())) throw InvalidTransition(current.Status, desired);
+        if (!allowed.Any(x => string.Equals(current.Status,x.ToString(),StringComparison.Ordinal))) throw InvalidTransition(current.Status, desired);
         return Save(current with { Status = desired.ToString(), AggregateVersion = current.AggregateVersion + 1 });
     }
 
@@ -511,7 +534,7 @@ public sealed class PortfolioFundCompositionAggregate
         if (order.PortfolioId != portfolioId) throw new InvalidOperationException("Portfolio ownership does not match.");
         if (order.FundId != fundId) throw new InvalidOperationException("Fund ownership does not match.");
         if (order.Origin != CompositionOrigin.ManualUi) throw new InvalidOperationException("Automated orders are read-only.");
-        if (order.Status != nameof(FundCompositionState.Draft)) throw new InvalidOperationException("Only an open manual order can be changed.");
+        if (!string.Equals(order.Status,nameof(FundCompositionState.Draft),StringComparison.Ordinal)) throw new InvalidOperationException("Only an open manual order can be changed.");
         return order;
     }
 
@@ -572,7 +595,7 @@ public sealed class PortfolioFundCompositionAggregate
         opening.PrimaryTrade &&
         opening.TradeState is nameof(TradeState.TradeToOpen) or nameof(TradeState.Open) &&
         !request.PrimaryTrade &&
-        request.TradeType == ClosingType(opening.TradeType) &&
+        string.Equals(request.TradeType,ClosingType(opening.TradeType),StringComparison.Ordinal) &&
         string.Equals(request.BaseContractSymbol, opening.BaseContractSymbol, StringComparison.OrdinalIgnoreCase) &&
         (string.IsNullOrWhiteSpace(opening.BaseContractId) ||
          string.Equals(request.BaseContractId, opening.BaseContractId, StringComparison.Ordinal)) &&
@@ -647,7 +670,8 @@ public sealed class PortfolioFundCompositionAggregate
 
     static void ValidateResult(Guid id, string hash, DateTime evaluatedAtUtc, DateTime expiresAtUtc, DateTime acceptedAtUtc)
     {
-        if (id == Guid.Empty || string.IsNullOrWhiteSpace(hash) || hash.Length != 64) throw new ArgumentException("A result identity and SHA-256 are required.");
+        if (id == Guid.Empty) throw new ArgumentException("A result identity and SHA-256 are required.", nameof(id));
+        if (string.IsNullOrWhiteSpace(hash) || hash.Length != 64) throw new ArgumentException("A result identity and SHA-256 are required.", nameof(hash));
         ValidateUtc(evaluatedAtUtc, nameof(evaluatedAtUtc));
         ValidateUtc(expiresAtUtc, nameof(expiresAtUtc));
         if (evaluatedAtUtc > acceptedAtUtc || acceptedAtUtc >= expiresAtUtc) throw new InvalidOperationException("Result is stale, future-dated, or expired.");

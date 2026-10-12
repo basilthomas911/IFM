@@ -8,12 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 
-public enum RiskAssessmentOutcome { Undefined = 0, Approved = 1, Rejected = 2 }
-
-[MessagePackObject]
-public sealed record RiskSizedLeg([property: Key(0)] string InstrumentId, [property: Key(1)] string Side,
-    [property: Key(2)] int Contracts, [property: Key(3)] long TradeId);
-
 /// <summary>An immutable sizing proposal; Approved is not execution authority until the exact capacity receipt is accepted.</summary>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RiskAssessmentResult

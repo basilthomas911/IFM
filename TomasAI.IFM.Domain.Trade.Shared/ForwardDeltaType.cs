@@ -11,16 +11,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Normal,
         Low
     }
-
-    public static class ForwardDeltaTypeExtensions
-    {
-        public static string ToStringFast(this ForwardDeltaType value) => value switch
-        {
-            ForwardDeltaType.Unknown => nameof(ForwardDeltaType.Unknown),
-            ForwardDeltaType.High => nameof(ForwardDeltaType.High),
-            ForwardDeltaType.Normal => nameof(ForwardDeltaType.Normal),
-            ForwardDeltaType.Low => nameof(ForwardDeltaType.Low),
-            _ => value.ToString()
-        };
-    }
 }

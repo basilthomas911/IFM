@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 

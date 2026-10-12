@@ -12,6 +12,8 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public interface IEventSourceActorDbReadContext
 {
     Task<EventStreamIdReadModel?> GetEventStreamIdFromDbAsync(string eventStream);
+    /// <summary>Reads committed stream metadata without loading or replaying event payloads.</summary>
+    Task<long> GetCommittedStreamVersionAsync(long eventStreamId, CancellationToken cancellationToken = default);
     Task<CommandLogReadModel?> GetCommandLogAsync(Guid commandId);
     Task<bool> HasEventForCommandAsync(Guid commandId);
 
@@ -59,6 +61,10 @@ public interface IEventSourceActorDbReadContext
         string projectorName,
         IReadOnlyCollection<string> eventNames,
         CancellationToken cancellationToken);
+
+    /// <summary>Reads the latest source snapshot and the subsequent events in its stream.</summary>
+    ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId)
+        where TSnapshot : IEvent;
 
     ValueTask MapReduceActorEventStreamAsync<TState>(
         long eventStreamId,

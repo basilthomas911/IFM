@@ -6,27 +6,13 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.EventProjector;
 
-internal interface IEventProjectorTransientQueue
-{
-    ValueTask StartAsync(
-        Func<IEvent, CancellationToken, ValueTask> handler,
-        CancellationToken cancellationToken = default);
-
-    ValueTask EnqueueAsync(IEvent domainEvent, CancellationToken cancellationToken = default);
-
-    /// <summary>Attempts immediate admission of a snapshot projection, rejecting a full or stopped queue.</summary>
-    bool TryEnqueueSnapshot(IEvent domainEvent);
-
-    ValueTask StopAsync(CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Projector-scoped, process-local queue for descriptors that explicitly opt out of durable replay.
 /// </summary>
 internal sealed class EventProjectorTransientQueue(
     string projectorName,
     int capacity,
-    ILogger logger) : IEventProjectorTransientQueue
+    ILogger logger) : IEventProjectorTransientQueue, IAsyncDisposable
 {
     readonly string _projectorName = string.IsNullOrWhiteSpace(projectorName)
         ? throw new ArgumentException("The projector name is required.", nameof(projectorName))
@@ -115,11 +101,10 @@ internal sealed class EventProjectorTransientQueue(
             }
             catch (OperationCanceledException)
             {
-                _workerCancellation?.Cancel();
+                if (_workerCancellation is { } cancelWorker) await cancelWorker.CancelAsync().ConfigureAwait(false);
                 var abandoned = channel.Reader.CanCount ? channel.Reader.Count : 0;
                 EventProjectorMetrics.RecordEvent(_projectorName, "abandoned-on-shutdown", "transient");
-                _logger.LogWarning(
-                    "{Component}.{Method} "+"Abandoned {EventCount} queued non-durable events while stopping projector {ProjectorName}.",nameof(EventProjectorTransientQueue),nameof(StopAsync),                    abandoned,                    _projectorName);
+                global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write5(_logger, null, nameof(EventProjectorTransientQueue), nameof(StopAsync), abandoned, _projectorName);
                 throw;
             }
 
@@ -134,6 +119,15 @@ internal sealed class EventProjectorTransientQueue(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        _workerCancellation?.Dispose();
+        _lifecycleGate.Dispose();
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Transient snapshot failures are logged and dropped while the queue continues processing new snapshots.")]
     async Task RunAsync(
         ChannelReader<Pending> reader,
         Func<IEvent, CancellationToken, ValueTask> handler,
@@ -159,13 +153,13 @@ internal sealed class EventProjectorTransientQueue(
                 catch (Exception ex)
                 {
                     EventProjectorMetrics.RecordEvent(_projectorName, "worker-failed", "transient");
-                    _logger.LogError(
-                        ex,                        "{Component}.{Method} "+"Unhandled non-durable projection failure for event {EventId} in projector {ProjectorName}.",nameof(EventProjectorTransientQueue),nameof(RunAsync),                        domainEvent.EventId,                        _projectorName);
+                    global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write6(_logger, ex, nameof(EventProjectorTransientQueue), nameof(RunAsync), domainEvent.EventId, _projectorName);
                 }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // Normal transient worker cancellation.
         }
     }
 }

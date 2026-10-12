@@ -31,14 +31,11 @@ public class EconomicCalendarIdValidationRules : BaseValidationRules, IValidatio
                 .NotEmpty()
                 .WithMessage(EventNameErrorMessage);
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation targets a member of the request, but ParamName intentionally identifies the containing method argument so callers can identify the rejected request.")] 
         public override ValidationResult Validate(ValidationContext<EconomicCalendarId> context)
         {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
+            ArgumentNullException.ThrowIfNull(context);
+            if (context.InstanceToValidate is null)
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("EconomicCalendarId", InstanceErrorMessage));

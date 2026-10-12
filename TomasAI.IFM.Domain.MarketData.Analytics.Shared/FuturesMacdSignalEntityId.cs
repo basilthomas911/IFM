@@ -34,6 +34,7 @@ public record FuturesMacdSignalEntityId : IActorEntityId
     [Key(5)]
     public int SlowEmaPeriod { get; init; } = FuturesMacdConfiguration.ConventionalSlowEmaPeriod;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Retain this historical serialized event type for existing event-log deserialization.")]
     [IgnoreMember]
     [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]
     public int PeriodLength => SignalEmaPeriod;

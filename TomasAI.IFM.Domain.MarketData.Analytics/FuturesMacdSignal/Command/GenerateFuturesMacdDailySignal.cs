@@ -18,6 +18,8 @@ public static class GenerateFuturesMacdDailySignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdDailySignalCommand command, FuturesMacdSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply generated MACD signal event";
         var updated = command.Compute(state.MacdSignals, out var futuresMacdSignalCompute) switch
         {

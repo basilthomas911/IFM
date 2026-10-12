@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
@@ -15,6 +15,8 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// used in scenarios where thread management and coordination are required,  such as actor-based concurrency
 /// models.</remarks>
 /// <param name="logger"></param>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Its lifetime follows outstanding actor operations; disposing during immediate retirement would race active waiters.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "The established public actor queue/handler contract name describes its role and must remain compatible.")]
 public sealed class BlockingThreadPoolQueue(ILogger logger)
 {
     readonly ConcurrentQueue<IActorThread> _threadPoolQueue = new();
@@ -33,7 +35,7 @@ public sealed class BlockingThreadPoolQueue(ILogger logger)
         _threadPoolQueue.Enqueue(thread);
         _waitSignal.Release();
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("EMA ThreadPool: Thread enqueued. Queue count: {Count}", _threadPoolQueue.Count);
+            SharedActorDiagnosticLog.Write2(_logger, null, _threadPoolQueue.Count);
     }
 
     /// <summary>
@@ -52,7 +54,7 @@ public sealed class BlockingThreadPoolQueue(ILogger logger)
             throw new InvalidOperationException("Queue was unexpectedly empty after semaphore was signaled.");
 
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("EMA ThreadPool: Thread dequeued. Queue count: {Count}", _threadPoolQueue.Count);
+            SharedActorDiagnosticLog.Write3(_logger, null, _threadPoolQueue.Count);
         return thread;
     }
 
@@ -74,7 +76,7 @@ public sealed class BlockingThreadPoolQueue(ILogger logger)
             throw new InvalidOperationException("Queue was unexpectedly empty after semaphore was signaled.");
 
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("EMA ThreadPool: Thread dequeued. Queue count: {Count}", _threadPoolQueue.Count);
+            SharedActorDiagnosticLog.Write4(_logger, null, _threadPoolQueue.Count);
         return thread;
     }
 
@@ -97,7 +99,7 @@ public sealed class BlockingThreadPoolQueue(ILogger logger)
             throw new InvalidOperationException("Queue was unexpectedly empty after semaphore was signaled.");
 
         if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug("EMA ThreadPool: Thread dequeued. Queue count: {Count}", _threadPoolQueue.Count);
+            SharedActorDiagnosticLog.Write1(_logger, null, _threadPoolQueue.Count);
         return thread;
     }
 

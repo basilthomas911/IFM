@@ -1,7 +1,11 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Application.Storage.OptionPricing;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
@@ -22,11 +26,15 @@ internal static class OptionPricingReferenceMaintenance
         if (expiry < ReviewedEsOptionReference.Calendar.CoverageFrom || expiry > ReviewedEsOptionReference.Calendar.CoverageUntil)
             throw new ArgumentException("Expiry is outside reviewed profile coverage.");
         using var logs = LoggerFactory.Create(_ => { });
-        var settings = new DbConnectionSettings().Add("reference", config.GetConnectionString("ReferenceDbConnection")
-            ?? throw new InvalidOperationException("ReferenceDbConnection required."), "System.Data.ScyllaDb");
-        var db = new Repository(settings["reference"], logs.CreateLogger<DbProvider>());
-        await db.Use("OptionReference.Schema", OptionPricingConventionStore.CreateTable).ExecuteCommandAsync(token);
-        await db.Use("OptionReference.BundleSchema", OptionPricingReferenceBundleStore.CreateTable).ExecuteCommandAsync(token);
+        var settings = TomasAI.IFM.Application.Storage.ApplicationStorageConnections.CreatePostgres(
+            config["IFM_TEST_POSTGRES_CONNECTION"] ?? config["Storage:PostgresConnection"]
+                ?? config.GetConnectionString("EventSourceActorDbConnection")
+                ?? throw new InvalidOperationException("The shared PostgreSQL application connection is required."));
+        SecuritiesDbContext? db = null;
+        var factory = new DbContextFactory(new DbContextResolver(_ => db!));
+        db = new SecuritiesDbContext(settings, factory, logs.CreateLogger<DbProvider>());
+        await new SecuritiesSchemaDb(settings, logs.CreateLogger<DbProvider>()).CreateAsync(
+            ["securities"], token);
         var query = new DatabentoFeedFactory().CreateMarketDataQueries(DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
             with
         { DataSource = FeedDataSourceMode.DatabentoLive });
@@ -34,8 +42,13 @@ internal static class OptionPricingReferenceMaintenance
         if (raw.Length == 0 || raw.Select(x => x.Underlying).Distinct().Count() != 1) throw new InvalidDataException("Empty or ambiguous expiry scope.");
         var future = query.GetContractDetail(raw[0].Underlying, TimeSpan.FromSeconds(30)) ?? throw new InvalidDataException("Underlying unavailable.");
         var mapped = raw.Select(x => ReviewedEsOptionReference.Create(x, future)).OrderBy(x => x.Candidate.ContractId, StringComparer.Ordinal).ToArray();
-        var store = new OptionPricingConventionStore(db);
-        foreach (var item in mapped) await store.InsertReviewedAsync(item.Convention, token);
+        foreach (var item in mapped)
+        {
+            var source = raw.Single(x => x.Instrument == item.Candidate.Definition.Instrument);
+            var definition = CreateDefinition(source, future, item.Candidate, item.Convention);
+            var pending = await db.StageReferenceVersionAsync(definition, token);
+            await db.CommitReferenceVersionAsync(pending, token);
+        }
         var bundle = new OptionPricingReferenceBundle(1, "", ReviewedEsOptionReference.Version, expiry, new()
         {
             Dataset = future.Dataset,
@@ -48,6 +61,33 @@ internal static class OptionPricingReferenceMaintenance
         await new OptionPricingReferenceBundleStore(db).PublishAsync(bundle, token);
         Console.WriteLine($"Published and read back {mapped.Length} exact {root} mappings for {expiry:yyyy-MM-dd}; bundle={bundle.BundleId}; underlying={future.RawSymbol}/{future.Instrument.InstrumentId}; profile={bundle.ProfileVersion}.");
     }
-    sealed class Repository(IDbConnectionSetting setting, ILogger<DbProvider> logger) : ObjectDataRepository<Repository>(setting, logger)
-    { public override IObjectRepository Database => this; }
+    static FuturesOptionContractReadModel CreateDefinition(ContractDetail source, ContractDetail future,
+        OptionDefinitionCandidate candidate, TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention convention)
+    {
+        var right = source.ContractKind == ContractKind.CallOption ? ReferenceOptionRight.Call : ReferenceOptionRight.Put;
+        var definition = new FuturesOptionContractReadModel(candidate.ContractId, source.RawSymbol, source.Ticker,
+            source.RawSymbol, "FOP", source.Currency, source.Exchange,
+            convention.Multiplier.ToString(CultureInfo.InvariantCulture), candidate.Definition.MaturityDate,
+            (double)candidate.Definition.StrikePrice, right.ToString())
+        {
+            Dataset = source.Dataset,
+            PublisherId = source.Instrument.PublisherId,
+            InstrumentId = source.Instrument.InstrumentId,
+            RawSymbol = source.RawSymbol,
+            StrikePriceDecimal = candidate.Definition.StrikePrice,
+            UnderlyingContractId = convention.UnderlyingContractId,
+            UnderlyingInstrumentId = future.Instrument.InstrumentId,
+            UnderlyingPublisherId = future.Instrument.PublisherId,
+            UnderlyingAssetType = ReferenceAssetType.Futures,
+            PremiumStyle = ReferencePremiumStyle.PremiumPaid,
+            OptionRight = right,
+            PriceScale = 1,
+            // Reviewed profile evidence timestamp; not asserted to be a provider update timestamp.
+            DefinitionTimestampUtc = convention.EffectiveFromUtc,
+            DefinitionDigest = candidate.DefinitionDigest,
+            RawDefinitionReference = "sha256:" + candidate.DefinitionDigest,
+            ExchangeTimeZoneId = ReviewedEsOptionReference.Calendar.TimeZoneId
+        };
+        return ReviewedOptionReference.Apply(definition, convention);
+    }
 }

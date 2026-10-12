@@ -17,21 +17,27 @@ public static class PostFundTransaction
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this PostFundTransactionCommand command, GeneralLedgerCommandServices services, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
         // Receipt replay precedes sequence allocation and expiry checks; validation still enforces caller permission.
-        var replay = await services.Database.ReadOperationAsync<LedgerPostingCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken);
-        if (replay is not null) return await replay.NotifyAsync(services.Projector, services.Logger);
+        var replay = await (services.Database.ReadOperationAsync<LedgerPostingCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         var allowAdjustment = FinancialRequestValidation.DemandPosting(command, command.Body, DateTime.UtcNow);
-        var item = new PreparedLedgerPosting(await services.Ids.TransactionAsync(cancellationToken), await services.Ids.JournalAsync(cancellationToken), command.Body);
-        var completed = await services.Store.PostAsync(command, [item], (body, rule, prior, original, remaining) =>
+        var item = new PreparedLedgerPosting(await (services.Ids.TransactionAsync(cancellationToken)).ConfigureAwait(false), await (services.Ids.JournalAsync(cancellationToken)).ConfigureAwait(false), command.Body);
+        var completed = await (services.Store.PostAsync(command, [item], (body, rule, prior, original, remaining) =>
             command.Compute(body, rule, prior, original, remaining, allowAdjustment),
-            ledgerCommit => command.Complete(ledgerCommit), cancellationToken);
-        return await completed.NotifyAsync(services.Projector, services.Logger);
+            ledgerCommit => command.Complete(ledgerCommit), cancellationToken)).ConfigureAwait(false);
+        return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
     }
     /// <summary>Handles Complete at the command boundary.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="ledgerCommit">The verified committed ledger revision and posting identities.</param>
     /// <returns>The operation result.</returns>
-    public static LedgerPostingCompletedEvent Complete(this PostFundTransactionCommand command, LedgerCommitInfo ledgerCommit) => new()
+    public static LedgerPostingCompletedEvent Complete(this PostFundTransactionCommand command, LedgerCommitInfo ledgerCommit) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ledgerCommit);
+        return new()
     {
         Id = ledgerCommit.EventId,
         Subject = new(ActorType.Event, PostFundTransactionCommand.Actor, nameof(LedgerPostingCompletedEvent), command.EntityId.Format()),
@@ -62,6 +68,7 @@ public static class PostFundTransaction
             ObligationId = ledgerCommit.Items[0].ObligationId
         }
     };
+    }
     /// <summary>Calculates a ledger posting from the business state read under the financial transaction fence.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="ledgerPosting">The ledger posting business input.</param>

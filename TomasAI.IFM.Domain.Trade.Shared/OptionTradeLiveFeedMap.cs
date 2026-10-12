@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 public class OptionTradeLiveFeedMap
     : ConcurrentDictionary<OptionTradeEntityId, OptionTradeReadModel>, IOptionTradeLiveFeedMap
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     public OptionTradeReadModel[] this[string optionLegContractId]
         => GetOptionTradeByOptionLegContractId(optionLegContractId);
 
@@ -16,6 +17,7 @@ public class OptionTradeLiveFeedMap
 
     public void Add(OptionTradeReadModel optionTrade)
     {
+        ArgumentNullException.ThrowIfNull(optionTrade);
         var key = new OptionTradeEntityId(optionTrade.OrderId, optionTrade.TradeId);
         if (!TryAdd(key, optionTrade))
         {
@@ -26,6 +28,7 @@ public class OptionTradeLiveFeedMap
 
     public bool Remove(OptionTradeReadModel optionTrade)
     {
+        ArgumentNullException.ThrowIfNull(optionTrade);
         var key = new OptionTradeEntityId(optionTrade.OrderId, optionTrade.TradeId);
         return TryRemove(key, out _);
     }

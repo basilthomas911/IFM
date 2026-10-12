@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 /// <summary>Creates additive scheduled-task tables in the configured ScyllaDB database.</summary>
 public sealed class ScheduledTaskSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
-    : SchemaDbContext<ScheduledTaskSchemaDb>(settings["TradeDbConnection"], logger)
+    : SchemaDbContext<ScheduledTaskSchemaDb>(settings[ScheduledTaskReadStore.ConnectionName] ?? settings["TradeDbConnection"], logger)
 {
     private static readonly SchemaObjectDefinition[] Objects =
     [
@@ -15,5 +15,8 @@ public sealed class ScheduledTaskSchemaDb(IDbConnectionSettings settings, ILogge
         new("scheduled_task_run", "CREATE TABLE IF NOT EXISTS scheduled_task_run (environment text, host_id text, schedule_id uuid, intended_fire timestamp, run_id uuid, revision bigint, payload blob, PRIMARY KEY ((environment, host_id, schedule_id), intended_fire, run_id)) WITH CLUSTERING ORDER BY (intended_fire DESC, run_id ASC);", "DROP TABLE IF EXISTS scheduled_task_run;")
     ];
     /// <inheritdoc />
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    static readonly SchemaObjectDefinition[] PostgresObjects =
+    [new("scheduled_task", ScheduledTaskSchemaSql.Create, "DROP SCHEMA IF EXISTS scheduled_task CASCADE;")];
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
+        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
 }

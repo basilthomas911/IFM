@@ -19,11 +19,13 @@ public static class GetTradingDates
         this GetTradingDatesQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? dbFactory.MarketDataDb.GetTradingDatesAsync(
-                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken)
-            : dbFactory.MarketDataDb.GetTradingDatesAsync(
-                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType));
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return new(dbFactory.MarketDataDb.GetTradingDatesAsync(
+                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken));
+    }
 
     /// <summary>Reads and replies with the requested market-data result.</summary>
     public static async ValueTask ExecuteAsync(
@@ -31,6 +33,8 @@ public static class GetTradingDates
         TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,

@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+#pragma warning disable CA1034 // C# 14 extension blocks generate nested metadata types; no public nested type is declared here.
+#pragma warning disable CA1708 // Extension-block metadata names are compiler generated; public methods have distinct signatures.
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
@@ -6,6 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Extensions;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
 public static partial class MarketDataQueryExtensions
 {
     extension(IMarketDataQueryContext context)
@@ -14,98 +17,78 @@ public static partial class MarketDataQueryExtensions
             string symbol,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetOnTheRunFuturesContractQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.SecuritiesDb
-                    .GetOnTheRunFuturesContractAsync(symbol, cancellationToken))!);
+                GetOnTheRunFuturesContractQuery.ErrorId, async () => (await (context.DbFactory.SecuritiesDb
+                    .GetOnTheRunFuturesContractAsync(symbol, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
         public Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(
             string symbol,
             CancellationToken cancellationToken)
             => ExecuteAsync<FuturesContractV3ReadModel[]>(
-                GetRolloverFuturesContractsQuery.ErrorId,
-                cancellationToken,
-                async () => [.. await context.DbFactory.SecuritiesDb
-                .GetRolloverFuturesContractsAsync(symbol, cancellationToken)]);
+                GetRolloverFuturesContractsQuery.ErrorId, async () => [.. await (context.DbFactory.SecuritiesDb
+                .GetRolloverFuturesContractsAsync(symbol, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
         public Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(
             string contractId,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetFuturesContractQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.SecuritiesDb
-                    .GetFuturesContractAsync(contractId, cancellationToken))!);
+                GetFuturesContractQuery.ErrorId, async () => (await (context.DbFactory.SecuritiesDb
+                    .GetFuturesContractAsync(contractId, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
         public Task<ServiceResult<string>> GetFuturesContractSymbolAsync(
             string contractId,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetFuturesContractSymbolQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.SecuritiesDb
-                    .GetFuturesContractAsync(contractId, cancellationToken))?.Symbol ?? string.Empty);
+                GetFuturesContractSymbolQuery.ErrorId, async () => (await (context.DbFactory.SecuritiesDb
+                    .GetFuturesContractAsync(contractId, cancellationToken)).ConfigureAwait(false))?.Symbol ?? string.Empty, cancellationToken);
 
         public Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(
             string contractId,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetFuturesOptionContractQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.SecuritiesDb
-                    .GetFuturesOptionContractAsync(contractId, cancellationToken))!);
+                GetFuturesOptionContractQuery.ErrorId, async () => (await (context.DbFactory.SecuritiesDb
+                    .GetFuturesOptionContractAsync(contractId, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
         public Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync(
             CancellationToken cancellationToken)
             => ExecuteAsync<FuturesContractV3ReadModel[]>(
-                GetFuturesContractsQuery.ErrorId,
-                cancellationToken,
-                async () => [.. await context.DbFactory.SecuritiesDb
-                .GetFuturesContractsAsync(cancellationToken)]);
+                GetFuturesContractsQuery.ErrorId, async () => [.. await (context.DbFactory.SecuritiesDb
+                .GetFuturesContractsAsync(cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
         public Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(
             string symbol,
             CancellationToken cancellationToken)
             => ExecuteAsync<FuturesOptionContractReadModel[]>(
-                GetFuturesOptionContractsQuery.ErrorId,
-                cancellationToken,
-                async () => [.. await context.DbFactory.SecuritiesDb
-                .GetFuturesOptionContractsAsync(symbol, cancellationToken)]);
+                GetFuturesOptionContractsQuery.ErrorId, async () => [.. await (context.DbFactory.SecuritiesDb
+                .GetFuturesOptionContractsAsync(symbol, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
         public Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(
             string[] contractIds,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetFuturesOptionContractIdsQuery.ErrorId,
-                cancellationToken,
-                async () =>
+                GetFuturesOptionContractIdsQuery.ErrorId, async () =>
                 {
                     var uniqueContractIds = contractIds.Distinct(StringComparer.Ordinal).ToArray();
-                    var contracts = await context.DbFactory.SecuritiesDb
-                        .GetFuturesOptionContractsByIdsAsync(uniqueContractIds, cancellationToken);
+                    var contracts = await (context.DbFactory.SecuritiesDb
+                        .GetFuturesOptionContractsByIdsAsync(uniqueContractIds, cancellationToken)).ConfigureAwait(false);
                     var existingContractIds = contracts
                         .Select(static contract => contract.ContractId)
                         .ToHashSet(StringComparer.Ordinal);
                     return contractIds.Where(existingContractIds.Contains).ToArray();
-                });
+                }, cancellationToken);
 
         public Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync(
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetLastYieldCurveRateQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.MarketDataDb
-                    .GetLastYieldCurveRateAsync(cancellationToken))!);
+                GetLastYieldCurveRateQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                    .GetLastYieldCurveRateAsync(cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
         public Task<ServiceResult<RateOfReturnReadModel>> GetLastRateOfReturnAsync(
             string symbol,
             DateOnly valueDate,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetLastRateOfReturnQuery.ErrorId,
-                cancellationToken,
-                async () => (await context.DbFactory.MarketDataDb
-                    .GetLastRateOfReturnAsync(symbol, cancellationToken))!);
+                GetLastRateOfReturnQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                    .GetLastRateOfReturnAsync(symbol, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
         public Task<ServiceResult<ScalarReadModel<int>>> GetTradingDaysAsync(
             DateOnly startDate,
@@ -114,15 +97,13 @@ public static partial class MarketDataQueryExtensions
             CurrencyType currencyType,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetTradingDaysQuery.ErrorId,
-                cancellationToken,
-                async () => new ScalarReadModel<int>(await context.DbFactory.MarketDataDb
+                GetTradingDaysQuery.ErrorId, async () => new ScalarReadModel<int>(await (context.DbFactory.MarketDataDb
                     .GetTradingDayCountAsync(
                         startDate,
                         endDate,
                         marketType,
                         currencyType,
-                        cancellationToken)));
+                        cancellationToken)).ConfigureAwait(false)), cancellationToken);
 
         public Task<ServiceResult<DateOnly[]>> GetTradingDatesAsync(
             DateOnly startDate,
@@ -131,53 +112,43 @@ public static partial class MarketDataQueryExtensions
             CurrencyType currencyType,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetTradingDatesQuery.ErrorId,
-                cancellationToken,
-                () => context.DbFactory.MarketDataDb.GetTradingDatesAsync(
+                GetTradingDatesQuery.ErrorId, () => context.DbFactory.MarketDataDb.GetTradingDatesAsync(
                     startDate,
                     endDate,
                     marketType,
                     currencyType,
-                    cancellationToken));
+                    cancellationToken), cancellationToken);
 
         public Task<ServiceResult<YieldCurveRateReadModel[]>> GetYieldCurveRatesAsync(
             DateOnly startDate,
             DateOnly endDate,
             CancellationToken cancellationToken)
             => ExecuteAsync<YieldCurveRateReadModel[]>(
-                GetYieldCurveRatesQuery.ErrorId,
-                cancellationToken,
-                async () => [.. await context.DbFactory.MarketDataDb
-                .GetYieldCurveRatesAsync(startDate, endDate, cancellationToken)]);
+                GetYieldCurveRatesQuery.ErrorId, async () => [.. await (context.DbFactory.MarketDataDb
+                .GetYieldCurveRatesAsync(startDate, endDate, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
         public Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync(
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetYieldCurveRateYearsQuery.ErrorId,
-                cancellationToken,
-                async () => new YieldCurveRateYearsReadModel(
-                    [.. await context.DbFactory.MarketDataDb.GetYieldCurveRateYearsAsync(cancellationToken)]));
+                GetYieldCurveRateYearsQuery.ErrorId, async () => new YieldCurveRateYearsReadModel(
+                    [.. await (context.DbFactory.MarketDataDb.GetYieldCurveRateYearsAsync(cancellationToken)).ConfigureAwait(false)]), cancellationToken);
 
         public Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(
             DateOnly valueDate,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetYieldCurveRateExistsQuery.ErrorId,
-                cancellationToken,
-                async () => new ScalarReadModel<bool>(await context.DbFactory.MarketDataDb
-                    .GetYieldCurveRateExistsAsync(valueDate, cancellationToken)));
+                GetYieldCurveRateExistsQuery.ErrorId, async () => new ScalarReadModel<bool>(await (context.DbFactory.MarketDataDb
+                    .GetYieldCurveRateExistsAsync(valueDate, cancellationToken)).ConfigureAwait(false)), cancellationToken);
 
         public Task<ServiceResult<ScalarReadModel<DateOnly>>> GetValueDateAsync(
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetValueDateQuery.ErrorId,
-                cancellationToken,
-                () =>
+                GetValueDateQuery.ErrorId, () =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     return Task.FromResult(new ScalarReadModel<DateOnly>(
                         context.MarketSessionAuthority.Current.OperationalValueDate));
-                });
+                }, cancellationToken);
 
         public Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
             string underlyingContractId,
@@ -191,9 +162,7 @@ public static partial class MarketDataQueryExtensions
             CurrencyType currencyType,
             CancellationToken cancellationToken)
             => ExecuteAsync(
-                GetIronCondorMarketDataQuery.ErrorId,
-                cancellationToken,
-                async () =>
+                GetIronCondorMarketDataQuery.ErrorId, async () =>
                 {
                     string[] optionContractIds =
                     [
@@ -222,10 +191,10 @@ public static partial class MarketDataQueryExtensions
                         tradingDayCountTask).ConfigureAwait(false);
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var underlying = await underlyingTask;
-                    var options = await optionsTask;
-                    var yieldCurve = await yieldCurveTask;
-                    var tradingDayCount = await tradingDayCountTask;
+                    var underlying = await (underlyingTask).ConfigureAwait(false);
+                    var options = await (optionsTask).ConfigureAwait(false);
+                    var yieldCurve = await (yieldCurveTask).ConfigureAwait(false);
+                    var tradingDayCount = await (tradingDayCountTask).ConfigureAwait(false);
                     var optionMap = options.ToDictionary(
                         static option => option.ContractId,
                         StringComparer.Ordinal);
@@ -238,14 +207,14 @@ public static partial class MarketDataQueryExtensions
                         optionMap.GetValueOrDefault(longCallOptionContractId)!,
                         (yieldCurve?.OneMonth ?? 0) / 100,
                         tradingDayCount);
-                });
+                }, cancellationToken);
 
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     static async Task<ServiceResult<T>> ExecuteAsync<T>(
         int errorId,
-        CancellationToken cancellationToken,
-        Func<Task<T>> operation)
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -264,3 +233,7 @@ public static partial class MarketDataQueryExtensions
         }
     }
 }
+
+#pragma warning restore CA1708
+
+#pragma warning restore CA1034

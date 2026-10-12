@@ -13,12 +13,15 @@ public static class SpreadDistributionValidationExtensions
     /// <param name="putSpreadDistribution"></param>
     /// <param name="callSpreadDistribution"></param>
     /// <param name="commandName"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public static List<ValidationError> ValidateSpreadDistribution(
         this List<ValidationError> validationErrors,
         SpreadDistributionReadModel putSpreadDistribution,
         SpreadDistributionReadModel callSpreadDistribution,
         string commandName)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (putSpreadDistribution is not null)
         {
             var ruleErrors = ValidationRules.Execute(putSpreadDistribution);

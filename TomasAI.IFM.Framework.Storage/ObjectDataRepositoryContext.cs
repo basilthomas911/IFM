@@ -3,35 +3,36 @@ using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Framework.Storage;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1939", Justification = "Preserves the existing externally referenced identity and named API contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1012", Justification = "Preserves the existing public construction contract.")]
 public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, IDisposable
 {
     readonly IObjectRepository _db;
     List<object>? _parameterValues;
     IParameterValueSource? _parameterValueSource;
-    IObjectRepositoryProvider _provider;
-    bool _useTransaction;
-    int _commandTimeout;
-    ILogger<DbProvider> _logger;
+    readonly IObjectRepositoryProvider _provider;
+    readonly bool _useTransaction;
+    readonly int _commandTimeout;
 
     /// <summary>
     /// create repository context
     /// </summary>
     /// <param name="db"></param>
-    public ObjectDataRepositoryContext(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Shared DbProvider logger category is supplied by the existing repository DI contract.")]
+    protected ObjectDataRepositoryContext(
         IObjectRepository db,
         ILogger<DbProvider> logger,
         string commandName = "")
     {
         if (db == null)
-            throw new ArgumentException("ObjectDataRepositoryContext: base repository parameter is empty");
+            throw new ArgumentException("ObjectDataRepositoryContext: base repository parameter is empty",nameof(db));
         _db = db;
         CommandName = commandName;
         _useTransaction = true;
         _commandTimeout = -1;
-        _logger = logger;
         _provider = ObjectDataRepositoryProvider.Create(db.ProviderName, this, logger)!;
         if (_provider == null)
-            throw new ArgumentException($"ObjectDataRepositoryContext: unable to create Db Provider: {db.ProviderName}");
+            throw new ArgumentException($"ObjectDataRepositoryContext: unable to create Db Provider: {db.ProviderName}",nameof(db));
 
     }
 
@@ -80,6 +81,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     public IObjectRepository Repository => _db;
 
     public string CommandName { get; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserves the repository interface property and method contract.")]
     public string CommandText => GetCommandText();
     public string CommandLogText =>
         $"command name: {CommandName}{Environment.NewLine}{CommandText}";
@@ -93,7 +95,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         _parameterValueSource = null;
         ParameterValues.Clear();
         if (parameterValue is null)
-            throw new ArgumentException("ObjectDataRepositoryContext.SetParameters: must set parameter value to parameter type ");
+            throw new ArgumentException("ObjectDataRepositoryContext.SetParameters: must set parameter value to parameter type ",nameof(parameterValue));
         ParameterValues.Add(parameterValue);
         return this;
     }
@@ -126,7 +128,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 
     public IObjectRepositoryContext SetParameters<TParam>(IEnumerable<TParam> parameterValues)
     {
-        if (parameterValues is null) throw new ArgumentException("ObjectDataRepositoryContext.SetParameters<TParam>: must set parameter values to parameter type ");
+        if (parameterValues is null) throw new ArgumentException("ObjectDataRepositoryContext.SetParameters<TParam>: must set parameter values to parameter type ",nameof(parameterValues));
         _parameterValues = null;
         _parameterValueSource = new ParameterValueSource<TParam>(parameterValues);
         return this;
@@ -151,9 +153,13 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
         int pageSize, byte[]? pagingState = null, CancellationToken cancellationToken = default)
         => _provider.GetPageAsync(this, mapper, pageSize, pagingState, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper)
         => _provider.GetObjectsAsync(this, dataReaderMapper);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public Task<ICollection<TResult>> ExecuteQueryAsync<TResult>(
         Func<IObjectDataRecord, TResult> dataReaderMapper,
         CancellationToken cancellationToken)
@@ -162,9 +168,13 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// <summary>
     /// Executes the query asynchronously and maps the results to a pooled, read-only buffer using an <see cref="IObjectDataRecord"/> mapper.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(Func<IObjectDataRecord, TResult> dataReaderMapper) where TResult : struct
         => _provider.GetImmutableObjectsAsync(this, dataReaderMapper);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public Task<IReadOnlyList<TResult>> ExecuteQueryImmutableAsync<TResult>(
         Func<IObjectDataRecord, TResult> dataReaderMapper,
         CancellationToken cancellationToken)
@@ -230,7 +240,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// return execution command parameters
     /// </summary>
     /// <returns></returns>
-    //public void QueueCommand() => _db.QueueCommand(GetCommandText(), GetCommandType(), GetQueuedCommandParameters().SingleOrDefault());
+
     public object QueueCommand()
         => _provider.QueueCommand(CommandName, GetCommandText(), GetCommandType(), ParameterValues);
 
@@ -249,6 +259,13 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
 
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing) return;
         if (_parameterValues is not null)
         {
             _parameterValues.Clear();

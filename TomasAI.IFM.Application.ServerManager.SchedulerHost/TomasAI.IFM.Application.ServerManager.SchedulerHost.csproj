@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.Contracts\TomasAI.IFM.Application.ServerManager.Contracts.csproj" />
   </ItemGroup>

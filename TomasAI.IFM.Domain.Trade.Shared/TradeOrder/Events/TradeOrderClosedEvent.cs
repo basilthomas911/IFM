@@ -68,25 +68,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
             ClosedOn = ClosedOn,
             ClosedBy = ClosedBy
         }.RoutedFrom(this);
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradeOrderClosedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradeOrderClosedFailEvent
         {
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         }.RoutedFrom(this);
-    }
-
-
-    public record TradeOrderClosedCompleteEvent : CompleteEvent
-    {
-        public TradeOrderEntityId TradeOrderId { get; init; }
-        public DateTime ClosedOn { get; init; }
-        public string ClosedBy { get; init; }
-
-    }
-
-    public record TradeOrderClosedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

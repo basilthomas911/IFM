@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -29,7 +29,8 @@ public sealed class ReferenceDbContext(
     ILogger<DbProvider> logger)
     : ObjectDataRepository<ReferenceDbContext>(connectionSettings["ReferenceDbConnection"], logger), IReferenceDbContext
 {
-    readonly IDbContextFactory _dbFactory = dbFactory;
+    readonly PostgresLookupStore postgresLookups = new();
+readonly IDbContextFactory _dbFactory = dbFactory;
     readonly ISequenceIdGenerator _sequenceIdGenerator = sequenceIdGenerator;
     /// <summary>Gets the Reference database connection-setting key.</summary>
     public const string ReferenceDbConnection = "ReferenceDbConnection";
@@ -49,10 +50,6 @@ public sealed class ReferenceDbContext(
 
     /// <inheritdoc />
     public InstrumentDefinitionStore InstrumentDefinitions => new(this, new TradeStrategySymbolStore(_dbFactory, _sequenceIdGenerator));
-    /// <inheritdoc />
-    public OptionPricingConventionStore OptionPricingConventions => new(this);
-    /// <inheritdoc />
-    public OptionPricingReferenceBundleStore OptionPricingReferenceBundles => new(this);
 
     internal static bool MapToBoolean(IObjectDataRecord e)
         => e.GetBool(0);
@@ -135,9 +132,9 @@ public sealed class ReferenceDbContext(
             mdi: e.GetInt(2),
             forwardLossRatio: e.GetDouble(3),
             createdBy: e.GetString(4),
-            createdOn: e.GetDateTime(5),
+            createdOn: e.IsNull(5) ? null : e.GetDateTime(5),
             updatedBy: e.GetString(6),
-            updatedOn: e.GetDateTime(7)
+            updatedOn: e.IsNull(7) ? null : e.GetDateTime(7)
         );
 
     internal static LookupTypeShortCodeReadModel MapToLookupTypeShortCode<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -183,17 +180,32 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId)
     {
-        await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", ReferenceDbCql.DeleteLookupType)
+        this.ValidateRequiredArgument(lookupTypeId);
+        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await (postgresLookups.DeleteAsync(transaction, lookupTypeId, token))
+                .ConfigureAwait(false);
+                return true;
+            }))
+                .ConfigureAwait(false);
+            return;
+        }
+        await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.DeleteLookupType : ReferenceDbCql.DeleteLookupType)
                .SetParameters(new DeleteLookupType(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
-               .ExecuteCommandAsync();
+               .ExecuteCommandAsync())
+                .ConfigureAwait(false);
 
-        var lookupTypes = await GetLookupTypeAsync(lookupTypeId.LookupTypeName);
+        var lookupTypes = await (GetLookupTypeAsync(lookupTypeId.LookupTypeName))
+                .ConfigureAwait(false);
         if (lookupTypes?.Count > 0)
         {
             var orderId = 0;
-            foreach (var e in lookupTypes)
-                await UpdateLookupTypeAsync(e.Id, e with { OrderId = orderId++, CreatedOn = DateTime.Now });
+            foreach (var e in lookupTypes.OrderBy(e => e.OrderId).ThenBy(e => e.ShortCode, StringComparer.Ordinal))
+                await (UpdateLookupTypeAsync(e.Id, e with { OrderId = orderId++ }))
+                .ConfigureAwait(false);
         }
     }
 
@@ -203,8 +215,22 @@ public sealed class ReferenceDbContext(
     /// <param name="scheduledJobId"></param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task DeleteScheduledJobAsync(int scheduledJobId)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            await this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await PostgresScheduledJobStore.DeleteAsync(transaction,scheduledJobId,token)
+                .ConfigureAwait(false);
+                return true;
+            })
+                .ConfigureAwait(false);
+            return;
+        }
         var db = _dbFactory.ReferenceDb;
         var writeOperation = this.CreateScheduledJobWriteOperation();
         var targetMutationSubmissionStarted = false;
@@ -217,9 +243,10 @@ public sealed class ReferenceDbContext(
                     .ConfigureAwait(false);
 
             // The job-ID ownership is acquired before observing the canonical name.
-            var existing = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
+            var existing = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(scheduledJobId))
-                .ExecuteSingleAsync(MapToScheduledJob!);
+                .ExecuteSingleAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
             if (existing is null)
             {
                 await this.ReleaseScheduledJobWritesAsync(db, writeOperation.Ownerships)
@@ -233,9 +260,10 @@ public sealed class ReferenceDbContext(
                 [this.GetScheduledJobNameOwnershipScope(existing.JobName)])
                     .ConfigureAwait(false);
 
-            var confirmed = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
+            var confirmed = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(scheduledJobId))
-                .ExecuteSingleAsync(MapToScheduledJob!);
+                .ExecuteSingleAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
             if (confirmed is null ||
                 !string.Equals(confirmed.JobName, existing.JobName, StringComparison.Ordinal))
             {
@@ -243,7 +271,8 @@ public sealed class ReferenceDbContext(
                     $"Scheduled job {scheduledJobId} changed while its name ownership was being acquired.");
             }
 
-            var projectionState = await this.SuspendScheduledJobProjectionAsync(db, [existing.JobName]);
+            var projectionState = await (this.SuspendScheduledJobProjectionAsync(db, [existing.JobName]))
+                .ConfigureAwait(false);
             var succeeded = false;
             try
             {
@@ -344,17 +373,27 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", ReferenceDbCql.GetLookupTypeById)
-                .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
-                .ExecuteSingleAsync(MapToLookupType!);
+       
+    {
+        this.ValidateRequiredArgument(lookupTypeId);
+        return await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeById : ReferenceDbCql.GetLookupTypeById)
+                .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteSingleAsync(MapToLookupType!))
+                .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId, CancellationToken cancellationToken)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", ReferenceDbCql.GetLookupTypeById)
-                .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
-                .ExecuteSingleAsync(MapToLookupType!, cancellationToken);
+       
+    {
+        this.ValidateRequiredArgument(lookupTypeId);
+        return await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeById : ReferenceDbCql.GetLookupTypeById)
+                .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteSingleAsync(MapToLookupType!, cancellationToken))
+                .ConfigureAwait(false);
+    }
 
     /// <summary>
     /// return lookup types from lookup type name
@@ -363,17 +402,19 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", ReferenceDbCql.GetLookupType)
-                .SetParameters(new GetLookupType(lookupTypeName))
-                .ExecuteQueryAsync(MapToLookupType!);
+       => await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupType : ReferenceDbCql.GetLookupType)
+                .SetParameters(new GetLookupType(lookupTypeName) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteQueryAsync(MapToLookupType!))
+                .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName, CancellationToken cancellationToken)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", ReferenceDbCql.GetLookupType)
-                .SetParameters(new GetLookupType(lookupTypeName))
-                .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
+       => await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupType : ReferenceDbCql.GetLookupType)
+                .SetParameters(new GetLookupType(lookupTypeName) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteQueryAsync(MapToLookupType!, cancellationToken))
+                .ConfigureAwait(false);
 
     /// <summary>
     /// return all lookup types 
@@ -381,15 +422,17 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync()
-       => await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", ReferenceDbCql.GetLookupTypes)
-               .ExecuteQueryAsync(MapToLookupType!);
+       => await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypes : ReferenceDbCql.GetLookupTypes)
+               .ExecuteQueryAsync(MapToLookupType!))
+                .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync(CancellationToken cancellationToken)
-       => await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", ReferenceDbCql.GetLookupTypes)
-               .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
+       => await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypes : ReferenceDbCql.GetLookupTypes)
+               .ExecuteQueryAsync(MapToLookupType!, cancellationToken))
+                .ConfigureAwait(false);
 
     /// <summary>
     /// return all lookup type names
@@ -397,15 +440,17 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<ICollection<string>> GetLookupTypeNamesAsync()
-       => [.. (await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", ReferenceDbCql.GetLookupTypeNames)
-               .ExecuteQueryAsync(MapToLookupTypeName!)).Select(e => e.LookupTypeName)];
+       => [.. (await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeNames : ReferenceDbCql.GetLookupTypeNames)
+               .ExecuteQueryAsync(MapToLookupTypeName!))
+                .ConfigureAwait(false)).Select(e => e.LookupTypeName)];
 
     /// <inheritdoc />
     public async Task<ICollection<string>> GetLookupTypeNamesAsync(CancellationToken cancellationToken)
-       => [.. (await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", ReferenceDbCql.GetLookupTypeNames)
-               .ExecuteQueryAsync(MapToLookupTypeName!, cancellationToken)).Select(e => e.LookupTypeName)];
+       => [.. (await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeNames : ReferenceDbCql.GetLookupTypeNames)
+               .ExecuteQueryAsync(MapToLookupTypeName!, cancellationToken))
+                .ConfigureAwait(false)).Select(e => e.LookupTypeName)];
 
     /// <summary>
     /// return all lookup type short codes by lookup type
@@ -413,25 +458,29 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", ReferenceDbCql.GetLookupTypeShortCodes)
-                .SetParameters(new GetLookupType(lookupTypeName))
-                .ExecuteQueryAsync(MapToLookupTypeShortCode!);
+       => await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeShortCodes : ReferenceDbCql.GetLookupTypeShortCodes)
+                .SetParameters(new GetLookupType(lookupTypeName) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteQueryAsync(MapToLookupTypeShortCode!))
+                .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName, CancellationToken cancellationToken)
-       => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", ReferenceDbCql.GetLookupTypeShortCodes)
-                .SetParameters(new GetLookupType(lookupTypeName))
-                .ExecuteQueryAsync(MapToLookupTypeShortCode!, cancellationToken);
+       => await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.GetLookupTypeShortCodes : ReferenceDbCql.GetLookupTypeShortCodes)
+                .SetParameters(new GetLookupType(lookupTypeName) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+                .ExecuteQueryAsync(MapToLookupTypeShortCode!, cancellationToken))
+                .ConfigureAwait(false);
 
     /// <summary>
     /// Checks a lookup-type partition without allocating a LINQ iterator or closure.
     /// </summary>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Retain sequential awaited database operations and explicit loops without allocating LINQ iterators on persistence paths.")]
     public async Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode)
     {
-        var values = await GetLookupTypeShortCodesAsync(lookupTypeName);
+        var values = await (GetLookupTypeShortCodesAsync(lookupTypeName))
+                .ConfigureAwait(false);
         foreach (var value in values)
             if (string.Equals(value.ShortCode, shortCode, StringComparison.OrdinalIgnoreCase))
                 return true;
@@ -441,7 +490,8 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task<bool> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode, CancellationToken cancellationToken)
     {
-        var values = await GetLookupTypeShortCodesAsync(lookupTypeName, cancellationToken);
+        var values = await (GetLookupTypeShortCodesAsync(lookupTypeName, cancellationToken))
+                .ConfigureAwait(false);
         foreach (var value in values)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -457,27 +507,38 @@ public sealed class ReferenceDbContext(
     /// <param name="scheduledJobName"></param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<int> GetScheduledJobIdAsync(string scheduledJobName)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await this.LookupTransaction().ExecuteOnceAsync((transaction, token) => PostgresScheduledJobStore.GetIdAsync(transaction,scheduledJobName,token), default)
+                .ConfigureAwait(false);
+
+        this.ValidateRequiredArgument(scheduledJobName);
         var db = _dbFactory.ReferenceDb;
         var scopeName = this.GetScheduledJobProjectionScope(scheduledJobName);
-        var readToken = await this.GetScopedProjectionReadTokenAsync(
+        var readToken = await (this.GetScopedProjectionReadTokenAsync(
             db,
             ScheduledJobProjectionName,
-            scopeName);
+            scopeName))
+                .ConfigureAwait(false);
         if (readToken is not null)
         {
-            var jobId = await this.GetScheduledJobProjectionIdAsync(db, scheduledJobName);
-            if (await this.IsScopedProjectionReadTokenValidAsync(
+            var jobId = await (this.GetScheduledJobProjectionIdAsync(db, scheduledJobName))
+                .ConfigureAwait(false);
+            if (await (this.IsScopedProjectionReadTokenValidAsync(
                 db,
                 ScheduledJobProjectionName,
                 scopeName,
                 readToken.Value))
+                .ConfigureAwait(false))
                 return jobId ?? 0;
         }
 
-        var jobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
-            .ExecuteQueryAsync(MapToScheduledJob!);
+        var jobs = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+            .ExecuteQueryAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
         var legacyMatches = jobs
             .Where(job => string.Equals(job.JobName, scheduledJobName, StringComparison.Ordinal))
             .Take(2)
@@ -495,22 +556,33 @@ public sealed class ReferenceDbContext(
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<int> GetScheduledJobIdAsync(string scheduledJobName, CancellationToken cancellationToken)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await this.LookupTransaction().ExecuteOnceAsync((transaction, token) => PostgresScheduledJobStore.GetIdAsync(transaction,scheduledJobName,token), cancellationToken)
+                .ConfigureAwait(false);
+
+        this.ValidateRequiredArgument(scheduledJobName);
         var db = _dbFactory.ReferenceDb;
         var scopeName = this.GetScheduledJobProjectionScope(scheduledJobName);
-        var readToken = await this.GetScopedProjectionReadTokenAsync(
-            db, ScheduledJobProjectionName, scopeName, cancellationToken);
+        var readToken = await (this.GetScopedProjectionReadTokenAsync(
+            db, ScheduledJobProjectionName, scopeName, cancellationToken))
+                .ConfigureAwait(false);
         if (readToken is not null)
         {
-            var jobId = await this.GetScheduledJobProjectionIdAsync(db, scheduledJobName, cancellationToken);
-            if (await this.IsScopedProjectionReadTokenValidAsync(
+            var jobId = await (this.GetScheduledJobProjectionIdAsync(db, scheduledJobName, cancellationToken))
+                .ConfigureAwait(false);
+            if (await (this.IsScopedProjectionReadTokenValidAsync(
                 db, ScheduledJobProjectionName, scopeName, readToken.Value, cancellationToken))
+                .ConfigureAwait(false))
                 return jobId ?? 0;
         }
 
-        var jobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
-            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
+        var jobs = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken))
+                .ConfigureAwait(false);
         var legacyMatches = jobs
             .Where(job => string.Equals(job.JobName, scheduledJobName, StringComparison.Ordinal))
             .Take(2)
@@ -530,12 +602,18 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync()
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return [.. await this.LookupTransaction().ExecuteOnceAsync((transaction, token) => PostgresScheduledJobStore.ReadAsync(transaction,token), default)
+                .ConfigureAwait(false)];
+
         var db = _dbFactory.ReferenceDb;
-        var scheduledJobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
-               .ExecuteQueryAsync(MapToScheduledJob!);
+        var scheduledJobs = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+               .ExecuteQueryAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
         foreach (var e in scheduledJobs)
         {
-            var jobDaysOfWeek = await GetScheduledJobDaysAsync(e.JobId);
+            var jobDaysOfWeek = await (GetScheduledJobDaysAsync(e.JobId))
+                .ConfigureAwait(false);
             if (jobDaysOfWeek is not null)
                 e.DaysOfWeek = jobDaysOfWeek;
         }
@@ -547,6 +625,29 @@ public sealed class ReferenceDbContext(
                .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!);
     }
 
+    /// <inheritdoc />
+    public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken)
+    {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return [.. await this.LookupTransaction().ExecuteOnceAsync((transaction, token) => PostgresScheduledJobStore.ReadAsync(transaction,token), cancellationToken)
+                .ConfigureAwait(false)];
+
+        var db = _dbFactory.ReferenceDb;
+        var scheduledJobs = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken))
+                .ConfigureAwait(false);
+        foreach (var e in scheduledJobs)
+        {
+            var jobDaysOfWeek = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobDays)}", ReferenceDbCql.GetScheduledJobDays)
+                .SetParameters(new GetScheduledJobDays(e.JobId))
+                .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!, cancellationToken))
+                .ConfigureAwait(false);
+            if (jobDaysOfWeek is not null)
+                e.DaysOfWeek = jobDaysOfWeek;
+        }
+        return scheduledJobs;
+    }
+
     /// <summary>
     /// return mdi forward loss ratio data
     /// </summary>
@@ -555,20 +656,22 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
-        => await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", ReferenceDbCql.GetMDIForwardLossRatios)
-               .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
-               .ExecuteQueryAsync(MapToMDIForwardLossRatio!);
+        => await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.GetMDIForwardLossRatios : ReferenceDbCql.GetMDIForwardLossRatios)
+               .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+               .ExecuteQueryAsync(MapToMDIForwardLossRatio!))
+                .ConfigureAwait(false);
 
     /// <inheritdoc />
     public async Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(
         IntrinsicTimeTrendType trendDirection,
         TradeType tradeType,
         CancellationToken cancellationToken)
-        => await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", ReferenceDbCql.GetMDIForwardLossRatios)
-               .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
-               .ExecuteQueryAsync(MapToMDIForwardLossRatio!, cancellationToken);
+        => await (_dbFactory.ReferenceDb
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.GetMDIForwardLossRatios : ReferenceDbCql.GetMDIForwardLossRatios)
+               .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+               .ExecuteQueryAsync(MapToMDIForwardLossRatio!, cancellationToken))
+                .ConfigureAwait(false);
 
     /// <summary>
     /// insert lookup types
@@ -576,27 +679,27 @@ public sealed class ReferenceDbContext(
     /// <param name="lookupTypes"></param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertLookupTypeAsync(LookupTypeReadModel e)
-        => await _dbFactory.ReferenceDb
-               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", ReferenceDbCql.InsertLookupType)
-               .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
-               .ExecuteCommandAsync();
-
-    /// <inheritdoc />
-    public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken)
     {
-        var db = _dbFactory.ReferenceDb;
-        var scheduledJobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
-            .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
-        foreach (var e in scheduledJobs)
+        this.ValidateRequiredArgument(e);
+        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
         {
-            var jobDaysOfWeek = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobDays)}", ReferenceDbCql.GetScheduledJobDays)
-                .SetParameters(new GetScheduledJobDays(e.JobId))
-                .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!, cancellationToken);
-            if (jobDaysOfWeek is not null)
-                e.DaysOfWeek = jobDaysOfWeek;
+            await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await (postgresLookups.InsertAsync(transaction, e, token))
+                .ConfigureAwait(false);
+                return true;
+            }))
+                .ConfigureAwait(false);
+            return;
         }
-        return scheduledJobs;
+        await (_dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", ReferenceDbCql.InsertLookupType)
+            .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
+            .ExecuteCommandAsync())
+                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -605,8 +708,26 @@ public sealed class ReferenceDbContext(
     /// <param name="e">scheduled job</param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertScheduledJobAsync(ScheduledJobReadModel e)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            this.ValidateRequiredArgument(e);
+            var id = await GetNextSeedIdAsync("ScheduledJobId")
+                .ConfigureAwait(false);
+            await this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await PostgresScheduledJobStore.InsertAsync(transaction,e with { JobId = id },token)
+                .ConfigureAwait(false);
+                return true;
+            })
+                .ConfigureAwait(false);
+            return;
+        }
+        this.ValidateRequiredArgument(e);
         var db = _dbFactory.ReferenceDb;
         var writeOperation = this.CreateScheduledJobWriteOperation();
         var targetMutationSubmissionStarted = false;
@@ -631,7 +752,8 @@ public sealed class ReferenceDbContext(
                     "Repair it only while scheduled-job writers are drained.");
             }
 
-            jobId = reservation?.JobId ?? await GetNextSeedIdAsync("ScheduledJobId");
+            jobId = reservation?.JobId ?? await (GetNextSeedIdAsync("ScheduledJobId"))
+                .ConfigureAwait(false);
             if (jobId <= 0)
             {
                 throw new StorageException(
@@ -644,9 +766,10 @@ public sealed class ReferenceDbContext(
                 [this.GetScheduledJobIdOwnershipScope(jobId)])
                     .ConfigureAwait(false);
 
-            var duplicate = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
+            var duplicate = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(jobId))
-                .ExecuteSingleAsync(MapToScheduledJob!);
+                .ExecuteSingleAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
             if (duplicate is not null)
             {
                 throw new StorageException(
@@ -656,7 +779,8 @@ public sealed class ReferenceDbContext(
                           $"whose canonical name is '{duplicate.JobName}'.");
             }
 
-            var projectionState = await this.SuspendScheduledJobProjectionAsync(db, [e.JobName]);
+            var projectionState = await (this.SuspendScheduledJobProjectionAsync(db, [e.JobName]))
+                .ConfigureAwait(false);
             var succeeded = false;
             try
             {
@@ -732,8 +856,23 @@ public sealed class ReferenceDbContext(
     /// <param name="e">scheduled job</param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task UpdateScheduledJobAsync(ScheduledJobReadModel e)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            await this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await PostgresScheduledJobStore.UpdateAsync(transaction,e,token)
+                .ConfigureAwait(false);
+                return true;
+            })
+                .ConfigureAwait(false);
+            return;
+        }
+        this.ValidateRequiredArgument(e);
         var db = _dbFactory.ReferenceDb;
         var writeOperation = this.CreateScheduledJobWriteOperation();
         var targetMutationSubmissionStarted = false;
@@ -746,9 +885,10 @@ public sealed class ReferenceDbContext(
                 [this.GetScheduledJobIdOwnershipScope(e.JobId)])
                     .ConfigureAwait(false);
 
-            var existing = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
+            var existing = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(e.JobId))
-                .ExecuteSingleAsync(MapToScheduledJob!);
+                .ExecuteSingleAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
             if (existing is null)
             {
                 throw new StorageException(
@@ -763,9 +903,10 @@ public sealed class ReferenceDbContext(
                     .Select(this.GetScheduledJobNameOwnershipScope))
                         .ConfigureAwait(false);
 
-            var confirmed = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
+            var confirmed = await (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(e.JobId))
-                .ExecuteSingleAsync(MapToScheduledJob!);
+                .ExecuteSingleAsync(MapToScheduledJob!))
+                .ConfigureAwait(false);
             if (confirmed is null ||
                 !string.Equals(confirmed.JobName, existing.JobName, StringComparison.Ordinal))
             {
@@ -773,11 +914,12 @@ public sealed class ReferenceDbContext(
                     $"Scheduled job {e.JobId} changed while its name ownership was being acquired.");
             }
 
-            var projectionState = await this.SuspendScheduledJobProjectionAsync(
+            var projectionState = await (this.SuspendScheduledJobProjectionAsync(
                 db,
                 string.Equals(existing.JobName, e.JobName, StringComparison.Ordinal)
                     ? [e.JobName]
-                    : [existing.JobName, e.JobName]);
+                    : [existing.JobName, e.JobName]))
+                .ConfigureAwait(false);
             var succeeded = false;
             try
             {
@@ -878,21 +1020,37 @@ public sealed class ReferenceDbContext(
     /// <param name="e"></param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task UpdateLookupTypeAsync(LookupTypeId id, LookupTypeReadModel e)
     {
+        this.ValidateRequiredArgument(e);
+        this.ValidateRequiredArgument(id);
+        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await (this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                await (postgresLookups.UpdateAsync(transaction, id, e, token))
+                .ConfigureAwait(false);
+                return true;
+            }))
+                .ConfigureAwait(false);
+            return;
+        }
         var queuedCommands = new List<object>();
         var db = _dbFactory.ReferenceDb;
 
         queuedCommands.Add(
-        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", ReferenceDbCql.DeleteLookupType)
+        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.DeleteLookupType : ReferenceDbCql.DeleteLookupType)
                .SetParameters(new DeleteLookupType(id.LookupTypeName, id.OrderId))
                .QueueCommand());
 
         queuedCommands.Add(
-        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", ReferenceDbCql.InsertLookupType)
+        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? ReferenceDbSql.InsertLookupType : ReferenceDbCql.InsertLookupType)
                .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
                .QueueCommand());
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
+        await (db.ExecuteQueuedCommandsAsync(queuedCommands))
+                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -901,12 +1059,18 @@ public sealed class ReferenceDbContext(
     /// <param name="e"></param>
     /// <returns></returns>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel e)
-        => await _dbFactory.ReferenceDb
-              .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
-              .SetParameters(new InsertMDIForwardLossRatio(e.MDI, e.TrendDirection.ToStringFast(), e.TradeType.ToStringFast(), e.ForwardLossRatio, e.CreatedBy, e.CreatedOn, e.UpdatedBy, e.UpdatedOn))
+        
+    {
+        this.ValidateRequiredArgument(e);
+        await _dbFactory.ReferenceDb
+              .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.InsertMDIForwardLossRatio : ReferenceDbCql.InsertMDIForwardLossRatio)
+              .SetParameters(new InsertMDIForwardLossRatio(e.MDI, e.TrendDirection.ToStringFast(), e.TradeType.ToStringFast(), e.ForwardLossRatio, e.CreatedBy, e.CreatedOn, e.UpdatedBy, e.UpdatedOn) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
               .ExecuteCommandAsync()
               .ConfigureAwait(false);
+    }
 
     /// <summary>
     /// insert mdi forward loss ratios
@@ -916,11 +1080,13 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task InsertMDIForwardLossRatiosAsync(ICollection<MDIForwardLossRatioReadModel> mdiForwardLossRatios)
     {
+        this.ValidateRequiredArgument(mdiForwardLossRatios);
         this.ValidateMdiForwardLossRatioLogicalKeys(mdiForwardLossRatios);
-        await _dbFactory.ReferenceDb
-            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
-            .SetParameters(mdiForwardLossRatios.Select(o => new InsertMDIForwardLossRatio(o.MDI, o.TrendDirection.ToStringFast(), o.TradeType.ToStringFast(), o.ForwardLossRatio, o.CreatedBy, o.CreatedOn, o.UpdatedBy, o.UpdatedOn)))
-            .ExecuteCommandAsync();
+        await (_dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.InsertMDIForwardLossRatio : ReferenceDbCql.InsertMDIForwardLossRatio)
+            .SetParameters(mdiForwardLossRatios.Select(o => new InsertMDIForwardLossRatio(o.MDI, o.TrendDirection.ToStringFast(), o.TradeType.ToStringFast(), o.ForwardLossRatio, o.CreatedBy, o.CreatedOn, o.UpdatedBy, o.UpdatedOn) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+            .ExecuteCommandAsync())
+                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -931,10 +1097,11 @@ public sealed class ReferenceDbContext(
     /// <returns></returns>
     /// <inheritdoc />
     public async Task DeleteMDIForwardLossRatioAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
-        => await _dbFactory.ReferenceDb
-                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", ReferenceDbCql.DeleteMDIForwardLossRatio)
-                .SetParameters(new DeleteMDIForwardLossRatio(trendDirection.ToStringFast(), tradeType.ToStringFast()))
-                .ExecuteCommandAsync();
+        => await (_dbFactory.ReferenceDb
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.DeleteMDIForwardLossRatio : ReferenceDbCql.DeleteMDIForwardLossRatio)
+                .SetParameters(new DeleteMDIForwardLossRatio(trendDirection.ToStringFast(), tradeType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+                .ExecuteCommandAsync())
+                .ConfigureAwait(false);
 
     /// <summary>
     /// update mdi forward loss ratio
@@ -944,21 +1111,23 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task UpdateMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel mdiForwardLossRatio)
     {
+        this.ValidateRequiredArgument(mdiForwardLossRatio);
         var queuedCommands = new List<object>();
         var db = _dbFactory.ReferenceDb;
 
         // Delete the existing record
         queuedCommands.Add(
-            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", ReferenceDbCql.DeleteMDIForwardLossRatio)
-                .SetParameters(new DeleteMDIForwardLossRatio(mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast()))
+            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.DeleteMDIForwardLossRatio : ReferenceDbCql.DeleteMDIForwardLossRatio)
+                .SetParameters(new DeleteMDIForwardLossRatio(mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
                 .QueueCommand());
 
         // Insert the updated record
         queuedCommands.Add(
-            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
-                .SetParameters(new InsertMDIForwardLossRatio(mdiForwardLossRatio.MDI, mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast(), mdiForwardLossRatio.ForwardLossRatio, mdiForwardLossRatio.CreatedBy, mdiForwardLossRatio.CreatedOn, mdiForwardLossRatio.UpdatedBy, mdiForwardLossRatio.UpdatedOn))
+            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.InsertMDIForwardLossRatio : ReferenceDbCql.InsertMDIForwardLossRatio)
+                .SetParameters(new InsertMDIForwardLossRatio(mdiForwardLossRatio.MDI, mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast(), mdiForwardLossRatio.ForwardLossRatio, mdiForwardLossRatio.CreatedBy, mdiForwardLossRatio.CreatedOn, mdiForwardLossRatio.UpdatedBy, mdiForwardLossRatio.UpdatedOn) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
                 .QueueCommand());
-        await db.ExecuteQueuedCommandsAsync(queuedCommands);
+        await (db.ExecuteQueuedCommandsAsync(queuedCommands))
+                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -966,11 +1135,20 @@ public sealed class ReferenceDbContext(
     /// This method is intended for an operator-controlled migration before V2-only reads are deployed.
     /// </summary>
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public async Task<ReferenceProjectionBackfillResult> BackfillQueryProjectionsV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default,
         DateTime? staleOperationCutoffUtc = null)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+            // Native exact-name reads use the canonical unique index; no shadow reservation table needs rebuilding.
+            return new ReferenceProjectionBackfillResult(0);
+        }
+
         staleOperationCutoffUtc.ValidateStaleOperationCutoffUtc(nameof(staleOperationCutoffUtc));
 
         var db = _dbFactory.ReferenceDb;
@@ -981,11 +1159,12 @@ public sealed class ReferenceDbContext(
                 verifiedInactiveCutoffUtc,
                 cancellationToken)
                     .ConfigureAwait(false);
-            await this.RecoverVerifiedInactiveProjectionMutationsAsync(
+            await (this.RecoverVerifiedInactiveProjectionMutationsAsync(
                 db,
                 [ScheduledJobProjectionName],
                 verifiedInactiveCutoffUtc,
-                cancellationToken);
+                cancellationToken))
+                .ConfigureAwait(false);
         }
         long scheduledJobCount = 0;
         ReferenceProjectionMutation? scheduledJobMutation = null;
@@ -993,14 +1172,16 @@ public sealed class ReferenceDbContext(
         var targetMutationSubmissionStarted = false;
         try
         {
-            scheduledJobMutation = await this.SuspendProjectionAsync(
+            scheduledJobMutation = await (this.SuspendProjectionAsync(
                 db,
-                ScheduledJobProjectionName);
+                ScheduledJobProjectionName))
+                .ConfigureAwait(false);
 
             var scheduledJobs = new Dictionary<string, int>(StringComparer.Ordinal);
             var scheduledJobNamesById = new Dictionary<int, string>();
-            await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+            await foreach (var row in (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
                 .ExecuteStreamAsync(MapToScheduledJob!, cancellationToken))
+                .ConfigureAwait(false))
             {
                 if (scheduledJobs.TryGetValue(row.JobName, out var existingJobId)
                     && existingJobId != row.JobId)
@@ -1023,14 +1204,16 @@ public sealed class ReferenceDbContext(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 targetMutationSubmissionStarted = true;
-                await this.EnsureScheduledJobNameProjectionAsync(
+                await (this.EnsureScheduledJobNameProjectionAsync(
                     db,
                     scheduledJob.Key,
                     scheduledJob.Value,
-                    cancellationToken);
+                    cancellationToken))
+                .ConfigureAwait(false);
             }
 
-            var reconciliation = await ReconcileQueryProjectionsV2Async(cancellationToken);
+            var reconciliation = await (ReconcileQueryProjectionsV2Async(cancellationToken))
+                .ConfigureAwait(false);
             if (!reconciliation.IsConsistent)
             {
                 throw new StorageException(
@@ -1045,15 +1228,17 @@ public sealed class ReferenceDbContext(
             // overrides. A concurrent scoped writer has a group marker and poisons this backfill's
             // ownership epoch, so global cutover cannot publish over that deletion.
             targetMutationSubmissionStarted = true;
-            await this.ClearScopedProjectionStatesAsync(
+            await (this.ClearScopedProjectionStatesAsync(
                 db,
                 [ScheduledJobProjectionName],
-                cancellationToken);
+                cancellationToken))
+                .ConfigureAwait(false);
 
-            var scheduledJobCompleted = await this.TryCompleteProjectionAsync(
+            var scheduledJobCompleted = await (this.TryCompleteProjectionAsync(
                 db,
                 ScheduledJobProjectionName,
-                scheduledJobMutation.Value);
+                scheduledJobMutation.Value))
+                .ConfigureAwait(false);
             if (!scheduledJobCompleted)
             {
                 throw new StorageException(
@@ -1061,10 +1246,11 @@ public sealed class ReferenceDbContext(
                     "The affected projection remains on canonical fallback; replay the backfill.");
             }
 
-            await this.DeleteProjectionMutationAsync(
+            await (this.DeleteProjectionMutationAsync(
                 db,
                 ScheduledJobProjectionName,
-                scheduledJobMutation.Value.Generation);
+                scheduledJobMutation.Value.Generation))
+                .ConfigureAwait(false);
             published = true;
             return new ReferenceProjectionBackfillResult(scheduledJobCount);
         }
@@ -1081,7 +1267,8 @@ public sealed class ReferenceDbContext(
                         scheduledJobMutation.Value));
                 }
                 if (cleanupTasks.Count != 0)
-                    await Task.WhenAll(cleanupTasks);
+                    await (Task.WhenAll(cleanupTasks))
+                .ConfigureAwait(false);
             }
         }
 
@@ -1094,11 +1281,24 @@ public sealed class ReferenceDbContext(
     public async Task<ReferenceProjectionReconciliationResult> ReconcileQueryProjectionsV2Async(
         CancellationToken cancellationToken = default)
     {
+        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await this.LookupTransaction().ExecuteOnceAsync(async (transaction, token) =>
+            {
+                var count = (long)(await transaction.ScalarAsync("SELECT count(*) FROM reference.scheduled_job;", [], token)
+                .ConfigureAwait(false))!;
+                var orphans = (long)(await transaction.ScalarAsync("SELECT count(*) FROM reference.scheduled_job_days d WHERE NOT EXISTS(SELECT 1 FROM reference.scheduled_job j WHERE j.jobId=d.jobId);", [], token)
+                .ConfigureAwait(false))!;
+                // The unique index is the PostgreSQL name projection, not scheduled_job_by_name.
+                return new ReferenceProjectionReconciliationResult(count,count,0,orphans,0);
+            }, cancellationToken)
+                .ConfigureAwait(false);
+
         var db = _dbFactory.ReferenceDb;
         long sourceJobCount = 0;
         var sourceJobs = new HashSet<ScheduledJobProjectionKey>();
-        await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
+        await foreach (var row in (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
             .ExecuteStreamAsync(MapToScheduledJob!, cancellationToken))
+                .ConfigureAwait(false))
         {
             sourceJobs.Add(new ScheduledJobProjectionKey(row.JobName, row.JobId));
             sourceJobCount++;
@@ -1107,8 +1307,9 @@ public sealed class ReferenceDbContext(
         long projectedJobCount = 0;
         long tokenlessScheduledJobReservations = 0;
         var projectedJobs = new HashSet<ScheduledJobProjectionKey>();
-        await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobsByNameV3All)}", ReferenceDbCql.GetScheduledJobsByNameV3All)
+        await foreach (var row in (db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobsByNameV3All)}", ReferenceDbCql.GetScheduledJobsByNameV3All)
             .ExecuteStreamAsync(MapToScheduledJobProjectionRow, cancellationToken))
+                .ConfigureAwait(false))
         {
             projectedJobs.Add(row.Key);
             projectedJobCount++;
@@ -1126,10 +1327,12 @@ public sealed class ReferenceDbContext(
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>
-        [.. (await _dbFactory.ReferenceDb
-            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetTradeStrategyFamilies)}", ReferenceDbCql.GetTradeStrategyFamilies)
-            .SetParameters(new GetTradeStrategyFamilies("V1"))
-            .ExecuteQueryAsync(MapToTradeStrategyFamily, cancellationToken)).Concat(await TradeStrategyFamilyCatalogStore.ReadDefinitionsAsync(_dbFactory, cancellationToken))
+        [.. (await (_dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetTradeStrategyFamilies)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.GetTradeStrategyFamilies : ReferenceDbCql.GetTradeStrategyFamilies)
+            .SetParameters(new GetTradeStrategyFamilies("V1") { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .ExecuteQueryAsync(MapToTradeStrategyFamily, cancellationToken))
+                .ConfigureAwait(false)).Concat(await (TradeStrategyFamilyCatalogStore.ReadDefinitionsAsync(_dbFactory, cancellationToken))
+                .ConfigureAwait(false))
             .OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion)];
 
     /// <inheritdoc />
@@ -1141,10 +1344,12 @@ public sealed class ReferenceDbContext(
     /// <inheritdoc />
     public async Task InsertTradeStrategyFamilyAsync(TradeStrategyFamilyReadModel family, CancellationToken cancellationToken = default)
     {
-        await _dbFactory.ReferenceDb
-            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertTradeStrategyFamily)}", ReferenceDbCql.InsertTradeStrategyFamily)
-            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Family.ToString(), family.Strategy.ToString(), family.TimeFrame.ToString(), family.Symbol, family.Currency, family.Description, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy))
-            .ExecuteCommandAsync(cancellationToken);
+        this.ValidateRequiredArgument(family);
+        await (_dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertTradeStrategyFamily)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? ReferenceDbSql.InsertTradeStrategyFamily : ReferenceDbCql.InsertTradeStrategyFamily)
+            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Family.ToString(), family.Strategy.ToString(), family.TimeFrame.ToString(), family.Symbol, family.Currency, family.Description, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .ExecuteCommandAsync(cancellationToken))
+                .ConfigureAwait(false);
     }
 
 }

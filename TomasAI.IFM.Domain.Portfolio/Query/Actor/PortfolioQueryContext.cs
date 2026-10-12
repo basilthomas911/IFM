@@ -6,7 +6,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query.Actor;
 
-public sealed class PortfolioQueryContext : QueryActorContext, IQueryActorContext<PortfolioQueryActor>, IPortfolioQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class PortfolioQueryContext : QueryActorContext, IPortfolioQueryContext
 {
     public PortfolioQueryContext(
         IActorSupervisor supervisor,

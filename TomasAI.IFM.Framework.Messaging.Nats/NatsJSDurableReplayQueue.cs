@@ -44,6 +44,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// support concurrent use and maintain isolated state for each projector name.
 /// </para>
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "This published actor transport type is an actual queue; retain its public name.")]
 public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDisposable
 {
     const int DefaultMaxReplayAttempts = 3;
@@ -61,6 +62,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// </summary>
     /// <param name="options">The options that provide the NATS server URL.</param>
     /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "The delegating constructor transfers transport ownership to this queue, which disposes its transport in DisposeAsync.")]
     public NatsJSDurableReplayQueue(
         INatsJetStreamConsumerOptions options,
         NatsConnectionManager? connectionManager = null)
@@ -82,8 +84,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     internal NatsJSDurableReplayQueue(INatsJSDurableQueueTransport transport, TimeSpan idleTimeout)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        if (idleTimeout <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(idleTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(idleTimeout, TimeSpan.Zero);
         _idleTimeout = idleTimeout;
     }
 
@@ -97,8 +98,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     {
         ThrowIfDisposed();
         ValidateProjectorName(eventProjectorName);
-        if (replayInterval <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(replayInterval));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(replayInterval, TimeSpan.Zero);
 
         var state = GetState(eventProjectorName);
         await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -144,8 +144,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     {
         ThrowIfDisposed();
         ValidateProjectorName(eventProjectorName);
-        if (replayInterval <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(replayInterval));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(replayInterval, TimeSpan.Zero);
 
         var state = GetState(eventProjectorName);
         await state.LifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -163,8 +162,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         catch
         {
             state.WorkersEnabled = false;
-            state.ProcessCancellation?.Cancel();
-            state.ReplayCancellation?.Cancel();
+            if (state.ProcessCancellation is { } pendingCancellation165) await pendingCancellation165.CancelAsync().ConfigureAwait(false);
+            if (state.ReplayCancellation is { } pendingCancellation166) await pendingCancellation166.CancelAsync().ConfigureAwait(false);
             await AwaitStoppedAsync(state.ProcessWorker).ConfigureAwait(false);
             await AwaitStoppedAsync(state.ReplayWorker).ConfigureAwait(false);
             state.DisposeWorkers();
@@ -210,8 +209,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             if (Volatile.Read(ref _disposed) != 0)
                 return;
             state.WorkersEnabled = false;
-            state.ProcessCancellation?.Cancel();
-            state.ReplayCancellation?.Cancel();
+            if (state.ProcessCancellation is { } pendingCancellation212) await pendingCancellation212.CancelAsync().ConfigureAwait(false);
+            if (state.ReplayCancellation is { } pendingCancellation213) await pendingCancellation213.CancelAsync().ConfigureAwait(false);
             await AwaitStoppedAsync(state.ProcessWorker).ConfigureAwait(false);
             await AwaitStoppedAsync(state.ReplayWorker).ConfigureAwait(false);
             state.DisposeWorkers();
@@ -457,6 +456,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             worker.GetAwaiter().GetResult();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task RunProcessWorkerAsync(
         string eventProjectorName,
         ProjectorQueueState state,
@@ -510,10 +510,10 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             }
         }
         catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task MoveDeferredToReplayOrRequestRedeliveryAsync(
         string eventProjectorName,
         ProjectorQueueState state,
@@ -545,6 +545,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             .ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task MoveToReplayOrRequestRedeliveryAsync(
         string eventProjectorName,
         ProjectorQueueState state,
@@ -573,6 +574,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             .ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     static async Task AcknowledgeOrRequestRedeliveryAsync(
         INatsJSDurableMessage message,
         TimeSpan redeliveryDelay,
@@ -592,6 +594,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     static async Task RequestRedeliveryAsync(
         INatsJSDurableMessage message,
         TimeSpan delay,
@@ -611,6 +614,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task RunReplayWorkerAsync(
         string eventProjectorName,
         ProjectorQueueState state,
@@ -707,8 +712,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             }
         }
         catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     void ResetIdleTimeout(CancellationTokenSource source)
@@ -883,8 +887,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
             await worker.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -901,8 +904,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
 
         foreach (var state in _states.Values)
         {
-            state.ProcessCancellation?.Cancel();
-            state.ReplayCancellation?.Cancel();
+            if (state.ProcessCancellation is { } pendingCancellation909) await pendingCancellation909.CancelAsync().ConfigureAwait(false);
+            if (state.ReplayCancellation is { } pendingCancellation910) await pendingCancellation910.CancelAsync().ConfigureAwait(false);
         }
         await Task.WhenAll(_states.Values.SelectMany(state => new[] { state.ProcessWorker, state.ReplayWorker })
             .Where(task => task is not null)!

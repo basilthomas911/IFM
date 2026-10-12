@@ -16,7 +16,7 @@ public class ValidationCommandDecorator<TState>(ICommandContext<TState> commandC
     {
         var commandDecorator = commandDecoratorFactory.GetDecorator<TState>();
         commandDecorator?.Validate(command);
-        return await commandContext.ExecuteAsync(command);
+        return await (commandContext.ExecuteAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -29,6 +29,6 @@ public class ValidationCommandDecorator<TState>(ICommandContext<TState> commandC
     {
         var commandDecorator = commandDecoratorFactory.GetDecorator<TState>();
         commandDecorator?.Validate(command);
-        return await commandContext.ExecuteAsync(command);
+        return await (commandContext.ExecuteAsync(command)).ConfigureAwait(false);
     }
 }

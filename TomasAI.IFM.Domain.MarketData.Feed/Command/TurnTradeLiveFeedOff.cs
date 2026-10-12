@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -17,6 +17,8 @@ public static class TurnTradeLiveFeedOff
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this TurnTradeLiveFeedOffCommand command, MarketDataFeedCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply TradeLiveFeedTurnedOffEvent";
         var updated = command.Compute(state.IsTradeLiveFeedOn, out var tradeLiveFeedDeactivation) switch
         {

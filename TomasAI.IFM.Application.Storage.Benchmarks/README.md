@@ -65,3 +65,54 @@ digests/settings, per-version BenchmarkDotNet JSON/CSV/Markdown reports, server 
 Docker CPU/memory/block-I/O samples. The first completed comparison and its scope are recorded
 in `POSTGRES-VERSION-RESULTS.md`. Docker samples include setup, benchmark generation/warmup
 and measurement; they are diagnostic samples, not workload-specific resource-normalized results.
+
+## PostgreSQL event/projection durability comparison
+
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Benchmarks/Compare-PostgresDurability.ps1`.
+The script runs full BenchmarkDotNet measurements (three warmups, eight measured iterations)
+and two 120-second rate-controlled load modes per profile. Use `-LoadSeconds 1800` for
+30 minutes per load mode. These load rates are initial comparison rates, not production capacity.
+
+| Profile | Source fsync / synchronous_commit | Projection boundary |
+| --- | --- | --- |
+| AtomicDurable | on / on | Same durable transaction |
+| AtomicAsyncCommit | on / off | Same transaction; acknowledged recent commits can be lost |
+| AtomicNoFsync | off / on | Same transaction; crash corruption risk |
+| AtomicNoFsyncAsyncCommit | off / off | Same transaction; crash corruption risk |
+| SplitSameInstanceAsyncProjection | on / on | Separate transaction, fsync on, synchronous_commit off |
+| SplitSeparateUnsafeProjection | on / on | Separate instance and transaction, fsync off, synchronous_commit off |
+
+Five BenchmarkDotNet methods measure event append/commit, projection write/commit, complete
+plan persistence, ledger persistence, and concurrent plan/ledger persistence. The component
+benchmarks use independent fixtures; their means are not additive predictions for the full path.
+The workloads execute actual source-event serialization/appends, Iron Condor plan projection
+writes, ledger postings, and simultaneous plan/ledger writes. Financial transactions remain
+fully durable in the split profiles. Each profile uses new isolated PostgreSQL 17.2 volumes;
+only the active profile's instances run. The separate-instance case has an additional server
+and resource budget, so its result also reflects that architectural difference.
+
+`fsync` is instance-wide; it cannot differ between tables or schemas in one PostgreSQL instance.
+`synchronous_commit` is transaction-wide; an atomic event/projection transaction cannot give its
+source and projection different commit durability. The same-instance split uses `SET LOCAL
+synchronous_commit = off` for its projection transaction only.
+
+All profiles retain full_page_writes, verify effective settings, and run an injected constraint
+failure/rollback probe. Transaction rollback does not prove power-loss durability. With fsync
+on and asynchronous commit, a crash can discard acknowledged transactions while retaining a
+consistent database. With fsync off, corruption is possible. See
+[PostgreSQL WAL settings](https://www.postgresql.org/docs/current/runtime-config-wal.html).
+
+The split profiles are experimental measurement paths only. They do not implement automatic
+projection recovery, alter host configuration, or change the no-replay trade-plan policy.
+FinancialHistoryProjection is an example of a rebuildable display projection. Ledger journals,
+balances, and financial fences are authoritative state and remain durable; receipt-only completed
+events do not contain all journal line data required to reconstruct those authoritative records.
+A recoverable business projection requires a durable pending-projection marker committed with
+the source event, replayable inputs, an idempotent projector, and checkpoint recovery. A source
+commit followed by a failed projection leaves a gap; there is no cross-instance atomic commit.
+
+Reports and verified settings are saved under `.artifacts/postgres-durability/<run-id>/`.
+BenchmarkDotNet reports mean/error/standard deviation and allocation; load reports include
+completed operations, errors, missed offered slots, and approximate p50/p95/p99 latency. The
+script removes only its own generated containers/volumes after preserving reports. Application
+databases and their settings remain unchanged.

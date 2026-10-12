@@ -12,13 +12,13 @@ public sealed record RegisterScheduledTaskProjectCommand : ICommand<ScheduledTas
 {
     public const string Actor = "ScheduledTaskCatalogCommand";
     public const string Verb = "RegisterScheduledTaskProject";
-    [Key(0)] public Guid CommandId { get; init; } = default;
+    [Key(0)] public Guid CommandId { get; init; } = Guid.Empty;
     [Key(1)] public ActorSubject Subject { get; init; } = default!;
     [Key(2)] public ScheduledTaskId EntityId { get; init; } = default;
     [Key(3)] public long ExpectedRevision { get; init; } = 0;
     [Key(4)] public string Operator { get; init; } = "";
     [Key(5)] public string Reason { get; init; } = "";
-    [Key(6)] public Guid OperationCommandId { get; init; } = default;
+    [Key(6)] public Guid OperationCommandId { get; init; } = Guid.Empty;
     [Key(7)] public string HostId { get; init; } = "";
     [Key(8)] public string Environment { get; init; } = "";
     [Key(9)] public ScheduledTaskProject Project { get; init; } = new();

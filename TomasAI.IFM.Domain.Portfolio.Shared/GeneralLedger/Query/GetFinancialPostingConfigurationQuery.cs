@@ -27,6 +27,13 @@ public sealed record GetFinancialPostingConfigurationQuery : IFinancialQueryMess
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetFinancialPostingConfigurationQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetFinancialPostingConfigurationQuery(GetFinancialPostingConfigurationRequest parameters) => Parameters = parameters;
     public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "GetFinancialPostingConfiguration";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -53,11 +60,4 @@ public sealed record GetFinancialPostingConfigurationQuery : IFinancialQueryMess
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetFinancialPostingConfigurationQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetFinancialPostingConfigurationQuery(GetFinancialPostingConfigurationRequest parameters) => Parameters = parameters;
 }

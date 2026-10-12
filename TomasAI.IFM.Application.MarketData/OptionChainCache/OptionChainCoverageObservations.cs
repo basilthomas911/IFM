@@ -8,7 +8,7 @@ public sealed class OptionChainCoverageObservations(DatasetWorkerAdmissionRegist
 {
     sealed record Observation(double Volatility);
     readonly OptionChainSnapshotStore<Observation> store = new(128);
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     /// <summary>Uses observed maximum qualified IV from the current worker generation; 20% bootstraps an unpriced universe.</summary>
     public double Read(Guid policyId)
     {

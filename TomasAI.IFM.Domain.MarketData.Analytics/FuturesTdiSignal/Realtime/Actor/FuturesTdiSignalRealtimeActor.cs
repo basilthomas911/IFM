@@ -19,7 +19,7 @@ public class FuturesTdiSignalRealtimeActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesTdiSignalRealtimeContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesTdiSignalRealtimeContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IFuturesTdiSignalRealtimeContext, nameof(actorContext))!;
 
     public const string ActorName = "FuturesTdiSignal";
     readonly FuturesTdiSignalRealtimeState _state = new();
@@ -60,12 +60,14 @@ public class FuturesTdiSignalRealtimeActor(
 
     protected override async ValueTask OnStartup(IEventActorContext<FuturesTdiSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(RsiSignalsRoute, Id);
     }
 
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesTdiSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(RsiSignalsRoute, Id);
         await actorContext.Projector.StopAsync().ConfigureAwait(false);
     }
@@ -81,7 +83,7 @@ public class FuturesTdiSignalRealtimeActor(
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext<FuturesTdiSignalRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+        IEventActorContext<FuturesTdiSignalRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

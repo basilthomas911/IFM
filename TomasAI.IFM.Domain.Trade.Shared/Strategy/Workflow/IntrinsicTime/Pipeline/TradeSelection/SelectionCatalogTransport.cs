@@ -5,26 +5,51 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 public static class SelectionCatalogTransport
 {
-    public static SelectionCapability From(CatalogCapability x) => new() { Role = x.Role, Code = x.Code, Version = x.Version };
-    public static CatalogCapability ToSource(SelectionCapability x) => new(x.Role, x.Code, x.Version);
-    public static SelectionExpiryGroup From(CatalogExpiryGroup x) => new() { Key = x.Key, AfterGroup = x.AfterGroup };
-    public static CatalogExpiryGroup ToSource(SelectionExpiryGroup x) => new(x.Key, x.AfterGroup);
-    public static SelectionLeg From(CatalogLeg x) => new() { Key = x.Key, InstrumentClass = x.InstrumentClass, Side = x.Side, OptionRight = x.OptionRight, Ratio = x.Ratio, ExpiryGroup = x.ExpiryGroup };
-    public static CatalogLeg ToSource(SelectionLeg x) => new(x.Key, x.InstrumentClass, x.Side, x.OptionRight, x.Ratio, x.ExpiryGroup);
-    public static SelectionVariantLeg From(CatalogVariantLeg x) => new() { LegKey = x.LegKey, Side = x.Side, Ratio = x.Ratio };
-    public static CatalogVariantLeg ToSource(SelectionVariantLeg x) => new(x.LegKey, x.Side, x.Ratio);
-    public static SelectionProduct From(CatalogProduct x) => new() { ProductId = x.ProductId, Symbol = x.Symbol, Exchange = x.Exchange, Currency = x.Currency };
-    public static CatalogProduct ToSource(SelectionProduct x) => new(x.ProductId, x.Symbol, x.Exchange, x.Currency);
-    public static SelectionPipelineParameter From(CatalogPipelineParameter x) => new() { Role = x.Role, Kind = x.Kind, Id = x.Id, Version = x.Version, Hash = x.Hash };
-    public static CatalogPipelineParameter ToSource(SelectionPipelineParameter x) => new(x.Role, x.Kind, x.Id, x.Version, x.Hash);
-    public static SelectionParameterBinding From(CatalogParameterBinding x) => new() { Role = x.Role, ParameterSet = x.ParameterSet };
-    public static CatalogParameterBinding ToSource(SelectionParameterBinding x) => new(x.Role, x.ParameterSet);
-    public static SelectionLegacyFamily From(CatalogLegacyFamily x) => new() { Id = x.Id, Version = x.Version };
-    public static CatalogLegacyFamily ToSource(SelectionLegacyFamily x) => new(x.Id, x.Version);
+    public static SelectionCapability From(CatalogCapability x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Role = x.Role, Code = x.Code, Version = x.Version };
+    }
+    public static SelectionExpiryGroup From(CatalogExpiryGroup x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Key = x.Key, AfterGroup = x.AfterGroup };
+    }
+    public static SelectionLeg From(CatalogLeg x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Key = x.Key, InstrumentClass = x.InstrumentClass, Side = x.Side, OptionRight = x.OptionRight, Ratio = x.Ratio, ExpiryGroup = x.ExpiryGroup };
+    }
+    public static SelectionVariantLeg From(CatalogVariantLeg x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { LegKey = x.LegKey, Side = x.Side, Ratio = x.Ratio };
+    }
+    public static SelectionProduct From(CatalogProduct x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { ProductId = x.ProductId, Symbol = x.Symbol, Exchange = x.Exchange, Currency = x.Currency };
+    }
+    public static SelectionPipelineParameter From(CatalogPipelineParameter x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Role = x.Role, Kind = x.Kind, Id = x.Id, Version = x.Version, Hash = x.Hash };
+    }
+    public static SelectionParameterBinding From(CatalogParameterBinding x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Role = x.Role, ParameterSet = x.ParameterSet };
+    }
+    public static SelectionLegacyFamily From(CatalogLegacyFamily x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new() { Id = x.Id, Version = x.Version };
+    }
     public static SelectionCatalogDefinitionSnapshot From(StoredStrategyCatalogDefinition row)
     {
+        ArgumentNullException.ThrowIfNull(row);
         var d = StrategyCatalogValidation.Freeze(row.Definition);
-        if (StrategyCatalogValidation.ContentHash(d) != row.ContentHash) throw new ArgumentException("TS.CONTRACT.HASH: Catalog node hash mismatch.");
+        if (!string.Equals(StrategyCatalogValidation.ContentHash(d),row.ContentHash,StringComparison.Ordinal)) throw new ArgumentException("TS.CONTRACT.HASH: Catalog node hash mismatch.",nameof(row));
         return new()
         {
             SchemaVersion = 1,
@@ -60,8 +85,49 @@ public static class SelectionCatalogTransport
             RetiredBy = row.RetiredBy
         };
     }
+    public static CatalogCapability ToSource(SelectionCapability x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Role, x.Code, x.Version);
+    }
+    public static CatalogExpiryGroup ToSource(SelectionExpiryGroup x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Key, x.AfterGroup);
+    }
+    public static CatalogLeg ToSource(SelectionLeg x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Key, x.InstrumentClass, x.Side, x.OptionRight, x.Ratio, x.ExpiryGroup);
+    }
+    public static CatalogVariantLeg ToSource(SelectionVariantLeg x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.LegKey, x.Side, x.Ratio);
+    }
+    public static CatalogProduct ToSource(SelectionProduct x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.ProductId, x.Symbol, x.Exchange, x.Currency);
+    }
+    public static CatalogPipelineParameter ToSource(SelectionPipelineParameter x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Role, x.Kind, x.Id, x.Version, x.Hash);
+    }
+    public static CatalogParameterBinding ToSource(SelectionParameterBinding x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Role, x.ParameterSet);
+    }
+    public static CatalogLegacyFamily ToSource(SelectionLegacyFamily x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.Id, x.Version);
+    }
     public static StoredStrategyCatalogDefinition ToSource(SelectionCatalogDefinitionSnapshot row)
     {
+        ArgumentNullException.ThrowIfNull(row);
         using var settings = JsonDocument.Parse(row.SettingsJson);
         return new(new StrategyCatalogDefinition
         {

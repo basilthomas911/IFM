@@ -19,10 +19,12 @@ public sealed class DatabaseBackupStateRepository(
     IActorService actorService,
     IEventProjector<DatabaseBackupCommandActor> eventProjector,
     IDatabaseBackupExecutionOutbox executionOutbox,
-    ILogger<DatabaseBackupStateRepository> logger)
+    ILogger<DatabaseBackupStateRepository> logger,
+    IDbContextFactory? databases = null, IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<DatabaseBackupCommandState>
 {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3011", Justification = "Reflection selects only this class-owned constant named generic dispatch helper; no external member name or visibility is accepted.")]
     static readonly MethodInfo SendConcreteEventMethod = typeof(DatabaseBackupStateRepository)
         .GetMethod(nameof(SendConcreteEventCoreAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
     static readonly ConcurrentDictionary<Type, MethodInfo> ConcreteSendMethods = [];
@@ -39,7 +41,38 @@ public sealed class DatabaseBackupStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, DatabaseBackupCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(command);
+        if (databases?.SystemAdminDb is not { ProviderName: "System.Data.Postgres" } target)
+        {
+            await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+            || PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString) != PostgresDatabaseIdentity.Parse(target.ConnectionString))
+            throw new InvalidOperationException("Backup source and read rows must share one PostgreSQL database/security identity.");
+        var owner = transactions ?? throw new InvalidOperationException("Backup persistence requires the PostgreSQL transaction service.");
+        var pending = new DomainEventCollection(state.Events);
+        await owner.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await transaction.ReserveCommandAsync(command, token).ConfigureAwait(false);
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                if (source is not DatabaseBackupEventContract backup)
+                    throw new InvalidDataException("Backup commands require complete backup source events.");
+                await transaction.AppendAsync(command.StreamId, command.CommandId, backup, version++, token).ConfigureAwait(false);
+                await target.ApplyDatabaseBackupEventAsync(transaction, "DatabaseBackupEventProjector", backup, token).ConfigureAwait(false);
+                if (ToExecutionEvent(backup) is not null)
+                    await DatabaseBackupExecutionIntentStore.EnqueueAsync(transaction, backup, token).ConfigureAwait(false);
+            }
+            return true;
+        }, cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context, pending).ConfigureAwait(false);
+    }
 
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
@@ -48,9 +81,18 @@ public sealed class DatabaseBackupStateRepository(
         {
             var executionEvent = ToExecutionEvent(domainEvent);
             if (executionEvent is null) continue;
-            await _executionOutbox.EnqueueAsync(executionEvent).ConfigureAwait(false);
-            await SendConcreteEventAsync(context, executionEvent).ConfigureAwait(false);
-            await _executionOutbox.MarkPublishedAsync(executionEvent.Id).ConfigureAwait(false);
+            if (databases?.SystemAdminDb is { ProviderName: "System.Data.Postgres" })
+            {
+                await SendConcreteEventAsync(context, executionEvent).ConfigureAwait(false);
+                await new DatabaseBackupExecutionIntentStore(transactions ?? throw new InvalidOperationException("Backup outbox requires PostgreSQL transactions."))
+                    .MarkPublishedAsync(domainEvent).ConfigureAwait(false);
+            }
+            else
+            {
+                await _executionOutbox.EnqueueAsync(executionEvent).ConfigureAwait(false);
+                await SendConcreteEventAsync(context, executionEvent).ConfigureAwait(false);
+                await _executionOutbox.MarkPublishedAsync(executionEvent.Id).ConfigureAwait(false);
+            }
         }
     }
 
@@ -75,7 +117,10 @@ public sealed class DatabaseBackupStateRepository(
             (TEvent)domainEvent);
 
     public static DatabaseBackupEventContract? ToExecutionEvent(DatabaseBackupEventContract domainEvent)
-        => domainEvent switch
+        
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return domainEvent switch
         {
             DatabaseBackupExecutionRequestedDomainEvent => Copy<DatabaseBackupExecutionRequestedEvent>(domainEvent),
             DatabaseRestoreExecutionRequestedDomainEvent => Copy<DatabaseRestoreExecutionRequestedEvent>(domainEvent),
@@ -90,11 +135,12 @@ public sealed class DatabaseBackupStateRepository(
                 => Copy<DatabaseRestoreCancellationRequestedEvent>(domainEvent),
             _ => null
         };
+    }
 
     static TEvent Copy<TEvent>(DatabaseBackupEventContract source) where TEvent : DatabaseBackupEventContract, new()
     {
         var template = new TEvent();
-        return (TEvent)(template with
+        return (template with
         {
             Subject = new global::TomasAI.IFM.Shared.EventModelActor.ActorSubject(global::TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "DatabaseBackupExecution", template.Verb, source.EntityId.Format()),
             Id = source.Id,

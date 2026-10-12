@@ -70,28 +70,30 @@ public sealed class ParameterSetCommandActor(ICommandActorContext<ParameterSetCo
         [typeof(PublishParameterVersionCommand)] = (c, ctx, state) => ((PublishParameterVersionCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
         [typeof(RetireParameterVersionCommand)] = (c, ctx, state) => ((RetireParameterVersionCommand)c).ExecuteAsync(ctx, state, ctx.Logger),
     };
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ICommand cmd, CancellationToken token) => ValueTask.FromResult(true);
-    protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ICommand? cmd) => cmd is null ? ValueTask.CompletedTask : ReleaseLease(cmd);
-    protected override ICommand ParseMessage(ICommandActorContext<ParameterSetCommandActor> ctx, IActorMessage msg) => ParseMappedCommand(ctx, msg, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ActorThreadId id, ICommand cmd) { ValidateMappedCommand(cmd, _validationMap); return ValueTask.CompletedTask; }
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ActorThreadId id, ICommand cmd)
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<ParameterSetCommandActor> context, ICommand command, CancellationToken cancellationToken) => ValueTask.FromResult(true);
+    protected override ValueTask OnCommandFinishedAsync(ICommandActorContext<ParameterSetCommandActor> context, ICommand? command) => command is null ? ValueTask.CompletedTask : ReleaseLease(command);
+    protected override ICommand ParseMessage(ICommandActorContext<ParameterSetCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<ParameterSetCommandActor> context, ActorThreadId threadId, ICommand command) { ValidateMappedCommand(command, _validationMap); return ValueTask.CompletedTask; }
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<ParameterSetCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        if (cmd is CreateParameterSetCommand or SaveParameterDraftCommand)
+        ArgumentNullException.ThrowIfNull(command);
+        if (command is CreateParameterSetCommand or SaveParameterDraftCommand)
         {
-            var mutation = (IParameterSetMutation)cmd;
-            if (await Services.ConfigurationDb.GetParameterSchemaAsync(mutation.ComponentCode, mutation.SchemaVersion) is null)
+            var mutation = (IParameterSetMutation)command;
+            if (await (Services.ConfigurationDb.GetParameterSchemaAsync(mutation.ComponentCode, mutation.SchemaVersion)).ConfigureAwait(false) is null)
                 throw new InvalidOperationException("PARAM.SCHEMA_UNREGISTERED");
         }
-        var lease = await Services.ConfigurationDb.AcquireParameterWriteLeaseAsync();
-        if (!leases.TryAdd((cmd.StreamId, cmd.CommandId), lease)) { await lease.DisposeAsync(); throw new InvalidOperationException("PARAM.OPERATION_ALREADY_RUNNING"); }
-        try { return await Services.StateRepository.LoadStateAsync(cmd); }
-        catch { await ReleaseLease(cmd); throw; }
+        var lease = await (Services.ConfigurationDb.AcquireParameterWriteLeaseAsync()).ConfigureAwait(false);
+        if (!leases.TryAdd((command.StreamId, command.CommandId), lease)) { await (lease.DisposeAsync()).ConfigureAwait(false); throw new InvalidOperationException("PARAM.OPERATION_ALREADY_RUNNING"); }
+        try { return await (Services.StateRepository.LoadStateAsync(command)).ConfigureAwait(false); }
+        catch { await (ReleaseLease(command)).ConfigureAwait(false); throw; }
     }
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ActorThreadId id, IActorState state, ICommand cmd)
-    { try { await Services.StateRepository.SaveStateAsync(ctx, (ParameterSetCommandState)state, cmd); } finally { await ReleaseLease(cmd); } }
-    async ValueTask ReleaseLease(ICommand? cmd) { if (cmd is not null && leases.TryRemove((cmd.StreamId, cmd.CommandId), out var lease)) await lease.DisposeAsync(); }
-    protected override async ValueTask OnStartup(ICommandActorContext<ParameterSetCommandActor> ctx) => await Services.EventProjector.StartAsync(ctx);
-    protected override async ValueTask OnShutdown(ICommandActorContext<ParameterSetCommandActor> ctx) => await Services.EventProjector.StopAsync();
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ParameterSetCommandActor> ctx, IActorState state, ICommand cmd) => await ResolveMappedCommandHandler(cmd, _receiveMap)(cmd, Services, (ParameterSetCommandState)state);
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ParameterSetCommandActor> ctx, ActorThreadId id, ICommand cmd, Exception ex) { await ReleaseLease(cmd); return new ServiceFailed<GuidResult>(cmd?.ErrorCode ?? 33010, ex.Message); }
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<ParameterSetCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    { try { await (Services.StateRepository.SaveStateAsync(context, (ParameterSetCommandState)state, command)).ConfigureAwait(false); } finally { await (ReleaseLease(command)).ConfigureAwait(false); } }
+    async ValueTask ReleaseLease(ICommand? cmd) { if (cmd is not null && leases.TryRemove((cmd.StreamId, cmd.CommandId), out var lease)) await (lease.DisposeAsync()).ConfigureAwait(false); }
+    protected override async ValueTask OnStartup(ICommandActorContext<ParameterSetCommandActor> context) => await (Services.EventProjector.StartAsync(context)).ConfigureAwait(false);
+    protected override async ValueTask OnShutdown(ICommandActorContext<ParameterSetCommandActor> context) => await (Services.EventProjector.StopAsync()).ConfigureAwait(false);
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ParameterSetCommandActor> context, IActorState state, ICommand command) => await (ResolveMappedCommandHandler(command, _receiveMap)(command, Services, (ParameterSetCommandState)state)).ConfigureAwait(false);
+    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ParameterSetCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) {
+        ArgumentNullException.ThrowIfNull(ex); await (ReleaseLease(command)).ConfigureAwait(false); return new ServiceFailed<GuidResult>(command?.ErrorCode ?? 33010, ex.Message); }
 }

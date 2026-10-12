@@ -2,9 +2,6 @@ using System.Collections.Immutable;
 
 namespace TomasAI.IFM.Framework.MarketData.OptionChainCache;
 
-/// <summary>A prepared immutable payload and its monotonically increasing publication version.</summary>
-public sealed record OptionChainPublication<T>(long Version, DateTimeOffset PublishedAtUtc, T Snapshot) where T : class;
-
 /// <summary>Provider-independent generation-fenced snapshot storage. Payloads must be deeply immutable.</summary>
 public sealed class OptionChainSnapshotStore<T> where T : class
 {
@@ -49,7 +46,7 @@ public sealed class OptionChainSnapshotStore<T> where T : class
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         ArgumentNullException.ThrowIfNull(publication);
-        ArgumentNullException.ThrowIfNull(publication.Snapshot);
+        if (publication.Snapshot is null) throw new ArgumentNullException(nameof(publication));
         if (publication.Version <= 0 || publication.PublishedAtUtc.Offset != TimeSpan.Zero)
             throw new ArgumentException("Positive version and UTC timestamp are required.", nameof(publication));
         while (true)

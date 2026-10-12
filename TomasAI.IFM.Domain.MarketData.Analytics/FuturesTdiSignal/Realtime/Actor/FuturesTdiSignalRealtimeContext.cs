@@ -8,21 +8,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesTdiSignalRealtimeActor"/>.</summary>
-public interface IFuturesTdiSignalRealtimeContext : IRealtimeActorContext<FuturesTdiSignalRealtimeActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the Projector service supplied to the actor context.</summary>
-    IRealtimeProjector<FuturesTdiSignalRealtimeActor> Projector { get; }
-    /// <summary>Gets storage used to seed restart-safe TDI cross continuity.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesTdiSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesTdiSignalRealtimeActor"/>.</summary>
-public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IRealtimeActorContext<FuturesTdiSignalRealtimeActor>, IFuturesTdiSignalRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IFuturesTdiSignalRealtimeContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesTdiSignalRealtimeContext(

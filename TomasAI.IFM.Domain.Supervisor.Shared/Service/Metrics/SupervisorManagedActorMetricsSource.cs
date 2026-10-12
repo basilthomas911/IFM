@@ -23,6 +23,7 @@ public sealed class SupervisorManagedActorMetricsSource(
         logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "The published snapshot property returns a defensive copy to prevent readers mutating current supervisor state.")]
     public IReadOnlyList<ISupervisorActorMetricsSource> Current =>
         _runtime.CaptureActorMetricsSources()
             .Select(source => (ISupervisorActorMetricsSource)new ActorMetricsSource(source, _healthEvaluator, _logger))
@@ -35,6 +36,7 @@ public sealed class SupervisorManagedActorMetricsSource(
     {
         public ActorMailboxId ActorId => source.ActorId;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "The bounded actor observation and its health classification are calculated from one consistent snapshot.")]
         public SupervisorActorMetrics CaptureSnapshot()
         {
             var snapshot = source.CaptureSnapshot();
@@ -90,13 +92,9 @@ public sealed class SupervisorManagedActorMetricsSource(
                     evaluation.HandlerDurationWarning,
                     evaluation.NoProgressWarning);
             }).ToArray();
-            var health = !snapshot.IsRunning
-                ? SupervisorActorHealth.Critical
-                : threads.Any(static thread => thread.Health == SupervisorActorHealth.Critical)
-                    ? SupervisorActorHealth.Critical
-                    : threads.Any(static thread => thread.Health == SupervisorActorHealth.Degraded)
-                        ? SupervisorActorHealth.Degraded
-                        : Map(snapshot.Status);
+            var health = Map(snapshot.Status);
+            if (!snapshot.IsRunning || threads.Any(static thread => thread.Health == SupervisorActorHealth.Critical)) health = SupervisorActorHealth.Critical;
+            else if (threads.Any(static thread => thread.Health == SupervisorActorHealth.Degraded)) health = SupervisorActorHealth.Degraded;
             return new(
                 snapshot.ActorId,
                 snapshot.Generation,

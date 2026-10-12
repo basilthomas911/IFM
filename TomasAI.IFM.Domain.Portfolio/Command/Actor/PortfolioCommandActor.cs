@@ -149,19 +149,29 @@ public sealed class PortfolioCommandActor(
     protected override ValueTask OnValidateAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(threadId);
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command) =>
-        new PortfolioActorState(ParseId(command), await _events.LoadPortfolioAsync(ParseId(command)).ConfigureAwait(false));
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return new PortfolioActorState(ParseId(command), await _events.LoadPortfolioAsync(ParseId(command)).ConfigureAwait(false));
+    }
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioCommandActor> context, IActorState state, ICommand command) =>
-        ReceiveCoreAsync((PortfolioActorState)state, command, CancellationToken.None);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioCommandActor> context, IActorState state, ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        return ReceiveCoreAsync((PortfolioActorState)state, command, CancellationToken.None);
+    }
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken) =>
-        ReceiveCoreAsync((PortfolioActorState)state, command, cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<PortfolioCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
+        return ReceiveCoreAsync((PortfolioActorState)state, command, cancellationToken);
+    }
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioActorState state, ICommand command, CancellationToken cancellationToken)
     {
@@ -187,6 +197,7 @@ public sealed class PortfolioCommandActor(
         var acceptance = await receive(this, command, state, now, principal, cancellationToken).ConfigureAwait(false);
         if (!acceptance.Success) return acceptance;
         var domainEvent = state.Aggregate.PendingEvent ?? throw new InvalidOperationException("Portfolio handler accepted without applying a source event.");
+        TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, state.Aggregate);
         await _events.AppendPortfolioAsync(
             state.PortfolioId,
             domainEvent,
@@ -200,8 +211,11 @@ public sealed class PortfolioCommandActor(
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+    }
 
     static int ErrorCode(ICommand? command, Exception exception) => exception switch
     {
@@ -218,9 +232,9 @@ public sealed class PortfolioCommandActor(
     };
 
     static PortfolioId ParseId(ICommand command) =>
-        int.TryParse(command.Subject.EntityId, out var id) && id > 0
+        int.TryParse(command.Subject.EntityId,System.Globalization.CultureInfo.InvariantCulture, out var id) && id > 0
             ? new PortfolioId(id)
-            : throw new ArgumentException("Portfolio command subject identity is invalid.");
+            : throw new ArgumentException("Portfolio command subject identity is invalid.",nameof(command));
 
 
 

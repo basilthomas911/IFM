@@ -17,6 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 public record FuturesIntraDayDataReadModel
 {
     /// <summary>Full contract identifier (root + month/year code).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "The read-model property is serialized data; the method implements an existing conversion/provider contract.")]
     [Key(0)]
     public string ContractId { get; init; }
 
@@ -115,6 +116,7 @@ public record FuturesIntraDayDataReadModel
     /// <summary>
     /// Parses and returns the strongly typed futures contract identifier (not serialized).
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve the existing conversion method API used by callers.")]
     public FuturesContractId GetContractId() => new FuturesContractIdParser(ContractId ?? string.Empty).Id;
 
     /// <summary>

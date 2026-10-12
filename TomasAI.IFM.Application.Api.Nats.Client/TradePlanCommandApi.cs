@@ -30,8 +30,10 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="tradePlan"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> UpdateTradePlanAsync(TradePlanReadModel tradePlan)
     {
+        ArgumentNullException.ThrowIfNull(tradePlan);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -44,7 +46,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateTradePlanCommand.Actor, UpdateTradePlanCommand.Verb, entityId.Format()),
                 ErrorCode = UpdateTradePlanCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -62,6 +64,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
     /// <param name="mScore"></param>
     /// <param name="fundBalance"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> UpdateIronCondorTradePlanAsync(
        DateOnly valueDate,
        IOptionTradeCollection optionTrades,
@@ -69,6 +72,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
        double mScore,
        decimal fundBalance)
     {
+        ArgumentNullException.ThrowIfNull(optionTrades);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -88,7 +92,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateIronCondorTradePlanCommand.Actor, UpdateIronCondorTradePlanCommand.Verb, entityId.Format()),
                 ErrorCode = UpdateIronCondorTradePlanCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -102,8 +106,10 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="forwardLossLimit"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> UpdateTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitReadModel forwardLossLimit)
     {
+        ArgumentNullException.ThrowIfNull(forwardLossLimit);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -115,7 +121,7 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, UpdateTradePlanForwardLossLimitCommand.Actor, UpdateTradePlanForwardLossLimitCommand.Verb, forwardLossLimit.EntityId.Format()),
                 ErrorCode = UpdateTradePlanForwardLossLimitCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, forwardLossLimit.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, forwardLossLimit.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -129,19 +135,21 @@ public class TradePlanCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="entityId"></param>
     /// <returns></returns>
-    public async Task<ServiceResult<Guid>> ClearTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitEntityId entityId)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> ClearTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitEntityId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var cmd = new ClearTradePlanForwardLossLimitCommand(entityId)
+            var cmd = new ClearTradePlanForwardLossLimitCommand(id)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, ClearTradePlanForwardLossLimitCommand.Actor, ClearTradePlanForwardLossLimitCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, ClearTradePlanForwardLossLimitCommand.Actor, ClearTradePlanForwardLossLimitCommand.Verb, id.Format()),
                 ErrorCode = ClearTradePlanForwardLossLimitCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

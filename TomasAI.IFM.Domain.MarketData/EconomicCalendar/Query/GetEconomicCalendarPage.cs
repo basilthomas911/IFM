@@ -11,6 +11,7 @@ public static class GetEconomicCalendarPage
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(dbFactory);
         ArgumentNullException.ThrowIfNull(query);
         query.Request.Validate();
         return await dbFactory.MarketDataDb

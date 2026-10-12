@@ -9,6 +9,7 @@ public static class ScheduledTaskComputation
     public static ScheduledTaskChange Compute(ICommand<ScheduledTaskId> command, ScheduledTaskDefinition? definition,
         DateTimeOffset now, ScheduledTaskCatalog? catalog)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (!command.EntityId.IsValid || command.CommandId == Guid.Empty) return Reject("IDENTITY.INVALID", "command and schedule identities are required");
         if (command is CreateScheduledTaskCommand create)
         {
@@ -36,7 +37,7 @@ public static class ScheduledTaskComputation
             ChangeScheduledTaskScheduleCommand c => Change(c, next, now),
             EnableScheduledTaskCommand c => Enable(c, next, catalog, now),
             DisableScheduledTaskCommand c => new(Desired(next with { Enabled = false }, c.Operator, Operation(c))),
-            RemoveScheduledTaskCommand c when definition.Enabled || definition.ActiveRunId is not null => Reject("REMOVE.ACTIVE", "disable schedule and resolve its active run before removal"),
+            RemoveScheduledTaskCommand when definition.Enabled || definition.ActiveRunId is not null => Reject("REMOVE.ACTIVE", "disable schedule and resolve its active run before removal"),
             RemoveScheduledTaskCommand c => new(Desired(next with { Removed = true }, c.Operator, Operation(c))),
             RecordScheduledTaskInstallationCommand c when c.DesiredRevision != definition.DesiredRevision || c.AppliedEnabled != (definition.Enabled && !definition.Removed) || string.IsNullOrWhiteSpace(c.Fingerprint) => Reject("INSTALLATION.STALE", "installation receipt does not match desired revision and enabled state"),
             RecordScheduledTaskInstallationCommand c => new(next with { AppliedRevision = c.DesiredRevision, AppliedEnabled = c.AppliedEnabled, InstallationStatus = ScheduledTaskInstallationStatus.Applied, InstallationDetail = c.Detail, InstallationFingerprint = c.Fingerprint }),
@@ -51,7 +52,7 @@ public static class ScheduledTaskComputation
     /// <summary>Validates timing before incrementing the desired installation revision.</summary>
     private static ScheduledTaskChange Change(ChangeScheduledTaskScheduleCommand command, ScheduledTaskDefinition next, DateTimeOffset now)
     {
-        if (command.Schedule.Environment != next.Schedule.Environment || command.Schedule.HostId != next.Schedule.HostId || command.Schedule.TaskKey != next.Schedule.TaskKey) return Reject("TARGET.IMMUTABLE", "create a new schedule to change its owning host, environment or deployed task");
+        if (!string.Equals(command.Schedule.Environment,next.Schedule.Environment,StringComparison.Ordinal) || !string.Equals(command.Schedule.HostId,next.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(command.Schedule.TaskKey,next.Schedule.TaskKey,StringComparison.Ordinal)) return Reject("TARGET.IMMUTABLE", "create a new schedule to change its owning host, environment or deployed task");
         var validation = ScheduledTaskTimingRules.Preview(command.Schedule, now);
         return validation.Valid ? new(Desired(next with { Schedule = command.Schedule }, command.Operator, Operation(command))) : Reject("SCHEDULE.INVALID", string.Join(";", validation.Errors));
     }
@@ -67,7 +68,7 @@ public static class ScheduledTaskComputation
     private static ScheduledTaskChange Admit(AdmitScheduledTaskRunCommand command, ScheduledTaskDefinition current, ScheduledTaskDefinition next, ScheduledTaskCatalog? catalog, DateTimeOffset now)
     {
         if (!current.Enabled || !current.AppliedEnabled || current.InstallationStatus != ScheduledTaskInstallationStatus.Applied || current.AppliedRevision != current.DesiredRevision) return Reject("RUN.NOT_INSTALLED", "enabled desired revision is not confirmed installed");
-        if (command.DefinitionRevision != current.DesiredRevision || command.HostId != current.Schedule.HostId || command.Environment != current.Schedule.Environment || command.RunId == Guid.Empty) return Reject("RUN.TARGET_MISMATCH", "run does not match installed definition and host");
+        if (command.DefinitionRevision != current.DesiredRevision || !string.Equals(command.HostId,current.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(command.Environment,current.Schedule.Environment,StringComparison.Ordinal) || command.RunId == Guid.Empty) return Reject("RUN.TARGET_MISMATCH", "run does not match installed definition and host");
         if (!command.Manual && !ScheduledTaskTimingRules.IsOccurrence(current.Schedule, command.IntendedFireTimeUtc)) return Reject("RUN.NOT_SCHEDULED", "intended fire instant does not match configured timing");
         if (current.ActiveRunId is not null) return Reject("RUN.OVERLAP", "an admitted run already owns this schedule");
         if (command.IntendedFireTimeUtc > now || now - command.IntendedFireTimeUtc > TimeSpan.FromSeconds(current.Schedule.DispatchToleranceSeconds)) return Reject("RUN.LATE", "occurrence is outside its dispatch tolerance");
@@ -75,15 +76,15 @@ public static class ScheduledTaskComputation
         if (!command.Manual && current.LastAdmittedFireUtc is { } previous && command.IntendedFireTimeUtc <= previous) return Reject("RUN.DUPLICATE", "occurrence has already been admitted or superseded");
         var rejection = ValidateCatalog(current, catalog, now, out var project);
         if (rejection is not null) return rejection;
-        if (project!.ManifestVersion != current.ManifestVersion || project.ArtifactDigest != current.ReviewedArtifactDigest) return Reject("RUN.ARTIFACT_CHANGED", "review and enable the current deployed artifact before running");
+        if (!string.Equals(project!.ManifestVersion,current.ManifestVersion,StringComparison.Ordinal) || !string.Equals(project.ArtifactDigest,current.ReviewedArtifactDigest,StringComparison.Ordinal)) return Reject("RUN.ARTIFACT_CHANGED", "review and enable the current deployed artifact before running");
         return new(next with { ActiveRunId = command.RunId, LastAdmittedFireUtc = command.IntendedFireTimeUtc });
     }
     /// <summary>Checks persisted host freshness and reviewed artifact availability.</summary>
     private static ScheduledTaskChange? ValidateCatalog(ScheduledTaskDefinition definition, ScheduledTaskCatalog? catalog, DateTimeOffset now, out ScheduledTaskProject? project)
     {
-        project = catalog?.Projects.SingleOrDefault(p => p.TaskKey == definition.Schedule.TaskKey);
-        if (catalog is null || catalog.HostId != definition.Schedule.HostId || catalog.Environment != definition.Schedule.Environment || catalog.HostCapability is not { Ready: true } capability || capability.HostId != catalog.HostId || capability.Environment != catalog.Environment || capability.ObservedAtUtc > now || now - capability.ObservedAtUtc > TimeSpan.FromMinutes(2)) return Reject("HOST.UNAVAILABLE", "host capability is missing, stale or not ready");
-        if (project is null || !project.Available || string.IsNullOrWhiteSpace(project.ArtifactDigest) || string.IsNullOrWhiteSpace(project.ManifestVersion) || project.Platform != catalog.HostCapability.Platform || definition.Schedule.MaximumRuntimeSeconds > project.MaximumRuntimeSeconds) return Reject("ARTIFACT.UNAVAILABLE", "deployed artifact is unavailable, incompatible or exceeds its runtime bound");
+        project = catalog?.Projects.SingleOrDefault(p => string.Equals(p.TaskKey,definition.Schedule.TaskKey,StringComparison.Ordinal));
+        if (catalog is null || !string.Equals(catalog.HostId,definition.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(catalog.Environment,definition.Schedule.Environment,StringComparison.Ordinal) || catalog.HostCapability is not { Ready: true } capability || !string.Equals(capability.HostId,catalog.HostId,StringComparison.Ordinal) || !string.Equals(capability.Environment,catalog.Environment,StringComparison.Ordinal) || capability.ObservedAtUtc > now || now - capability.ObservedAtUtc > TimeSpan.FromMinutes(2)) return Reject("HOST.UNAVAILABLE", "host capability is missing, stale or not ready");
+        if (project is null || !project.Available || string.IsNullOrWhiteSpace(project.ArtifactDigest) || string.IsNullOrWhiteSpace(project.ManifestVersion) || !string.Equals(project.Platform,catalog.HostCapability.Platform,StringComparison.Ordinal) || definition.Schedule.MaximumRuntimeSeconds > project.MaximumRuntimeSeconds) return Reject("ARTIFACT.UNAVAILABLE", "deployed artifact is unavailable, incompatible or exceeds its runtime bound");
         return null;
     }
     /// <summary>Marks desired configuration pending without claiming runtime installation.</summary>

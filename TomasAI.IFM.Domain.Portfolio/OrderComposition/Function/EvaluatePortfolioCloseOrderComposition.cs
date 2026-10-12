@@ -17,6 +17,8 @@ public static class EvaluatePortfolioCloseOrderComposition
                 PortfolioCloseOrderCompositionFailedEvent>> dispatch,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dispatch);
         cancellationToken.ThrowIfCancellationRequested();
         FinancialRequestValidation.Demand(
             request, "OrderCompositionClose", context.TimeProvider.GetUtcNow().UtcDateTime);

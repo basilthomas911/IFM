@@ -60,6 +60,7 @@ public sealed record RetireParameterVersionCommand : IParameterSetMutation
     [IgnoreMember] public string CommandName => nameof(RetireParameterVersionCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 }

@@ -15,6 +15,8 @@ public sealed record TickerLeasePolicy
     public int MaximumFutures { get; init; } = 256;
     public int MaximumRememberedOperations { get; init; } = 50_000;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Instance validation reports the configuration property captured by this object.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Instance validation reports the configuration property captured by this object.")]
     public TickerLeasePolicy Validate()
     {
         if (EphemeralTimeToLive < TimeSpan.FromSeconds(1) || EphemeralTimeToLive > TimeSpan.FromHours(1)

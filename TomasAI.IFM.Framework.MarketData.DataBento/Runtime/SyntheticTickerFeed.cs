@@ -15,7 +15,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         internal MarketDataBatch64? AssemblyBatch;
     }
 
-    private readonly object _lifecycleGate = new();
+    private readonly System.Threading.Lock _lifecycleGate = new();
     private readonly DatabentoFeedOptions _options;
     private readonly bool _singleChannel;
     private readonly ManualResetEventSlim _drainAllocated = new(false);
@@ -91,6 +91,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     /// <summary>Registers the requested instruments before feed processing begins.</summary>
     /// <param name="subscriptions">The ticker subscriptions identifying the instruments to stream.</param>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public void Subscribe(
         ReadOnlySpan<TickerSubscription> subscriptions,
         TimeSpan timeout)
@@ -111,34 +112,32 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             var symbols = new Dictionary<string, TickerSubscription>(StringComparer.Ordinal);
             foreach (var subscription in subscriptions)
             {
-                ArgumentException.ThrowIfNullOrWhiteSpace(subscription.Symbol);
+                ArgumentException.ThrowIfNullOrWhiteSpace(subscription.Symbol, nameof(subscriptions));
                 if (Encoding.UTF8.GetByteCount(subscription.Symbol) > ushort.MaxValue)
                 {
-                    throw new ArgumentException(
-                        "Ticker symbols cannot exceed 65,535 UTF-8 bytes.");
+                    throw new ArgumentException(                        "Ticker symbols cannot exceed 65,535 UTF-8 bytes.",nameof(subscriptions));
                 }
                 if (subscription.InputSymbology is not DatabentoInputSymbology.RawSymbol
                     and not DatabentoInputSymbology.InstrumentId)
                 {
-                    throw new ArgumentException("Only stable raw-symbol and instrument-ID selectors are supported.");
+                    throw new ArgumentException("Only stable raw-symbol and instrument-ID selectors are supported.",nameof(subscriptions));
                 }
                 if (subscription.DataKinds == MarketDataKinds.None
                     || (subscription.DataKinds & ~(MarketDataKinds.Quote
                                                    | MarketDataKinds.Trade
                                                    | MarketDataKinds.MboOrderUpdate
                                                    | MarketDataKinds.Statistics
-                                                   | MarketDataKinds.SessionVolume)) != 0
-                    || ((subscription.DataKinds & MarketDataKinds.SessionVolume) != 0
-                        && (subscription.DataKinds & MarketDataKinds.Trade) == 0))
+                                                   | MarketDataKinds.SessionVolume)) != MarketDataKinds.None
+                    || ((subscription.DataKinds & MarketDataKinds.SessionVolume) != MarketDataKinds.None
+                        && (subscription.DataKinds & MarketDataKinds.Trade) == MarketDataKinds.None))
                 {
-                    throw new ArgumentException("A subscription contains invalid market-data kinds.");
+                    throw new ArgumentException("A subscription contains invalid market-data kinds.",nameof(subscriptions));
                 }
                 if (symbols.TryGetValue(subscription.Symbol, out var existing))
                 {
                     if (existing != subscription)
                     {
-                        throw new ArgumentException(
-                            $"Ticker subscription '{subscription.Symbol}' has conflicting selectors or data kinds.");
+                        throw new ArgumentException(                            $"Ticker subscription '{subscription.Symbol}' has conflicting selectors or data kinds.",nameof(subscriptions));
                     }
                     continue;
                 }
@@ -172,9 +171,9 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                                   | MarketDataKinds.Trade
                                   | MarketDataKinds.MboOrderUpdate
                                   | MarketDataKinds.Statistics
-                                  | MarketDataKinds.SessionVolume)) != 0
-                || ((dataKinds & MarketDataKinds.SessionVolume) != 0
-                    && (dataKinds & MarketDataKinds.Trade) == 0))
+                                  | MarketDataKinds.SessionVolume)) != MarketDataKinds.None
+                || ((dataKinds & MarketDataKinds.SessionVolume) != MarketDataKinds.None
+                    && (dataKinds & MarketDataKinds.Trade) == MarketDataKinds.None))
             {
                 throw new ArgumentException("Option market-data kinds are invalid.", nameof(dataKinds));
             }
@@ -194,6 +193,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     /// <summary>Starts feed processing or monitoring.</summary>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
     /// <param name="startConsumer">The callback that starts draining the feed after startup.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
     {
         ValidateTimeout(timeout);
@@ -283,6 +283,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     public void Stop(TimeSpan timeout, CancellationToken cancellationToken) =>
         StopCore(timeout, cancellationToken, forceManagedUnblock: true);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     private void StopCore(
         TimeSpan timeout,
         CancellationToken cancellationToken,
@@ -410,6 +411,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 
     /// <summary>Captures the feed&apos;s current health and processing counters.</summary>
     /// <returns>The health result.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "The realtime metrics and flush loops intentionally avoid LINQ iterator allocations.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     public FeedHealthSnapshot GetHealth()
     {
         var native = new NativeFeedStats
@@ -539,6 +542,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     }
 
     /// <summary>Releases the resources owned by this instance.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "The realtime metrics and flush loops intentionally avoid LINQ iterator allocations.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3877", Justification = "Reject unsafe disposal of a still-active or unpublished native lease instead of reclaiming memory used by its owner.")]
     public void Dispose()
     {
         lock (_lifecycleGate)
@@ -570,6 +575,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _multiplexedReady.Dispose();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private SafeDbFeedHandle CreateAndSubscribeNative(MonotonicDeadline deadline)
     {
         var dataset = Encoding.UTF8.GetBytes(_options.Dataset);
@@ -748,6 +754,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private void BuildMappingsAndChannels()
     {
         NativeStatus.ThrowIfFailed(
@@ -783,7 +790,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     SignalMultiplexedReader),
                 RequiresBaseline = (_optionDataKinds
                                     & (MarketDataKinds.Quote
-                                       | MarketDataKinds.MboOrderUpdate)) != 0
+                                       | MarketDataKinds.MboOrderUpdate)) != MarketDataKinds.None
             };
         }
         var states = _singleChannel
@@ -802,7 +809,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                         SignalMultiplexedReader),
                 RequiresBaseline = (_subscriptions![mapping.SubscriptionIndex].DataKinds
                                         & (MarketDataKinds.Quote
-                                           | MarketDataKinds.MboOrderUpdate)) != 0
+                                           | MarketDataKinds.MboOrderUpdate)) != MarketDataKinds.None
             };
             if (channelsByInstrumentId.TryGetValue(key.InstrumentId, out var existingState))
             {
@@ -845,6 +852,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _registrations = Array.AsReadOnly(registrations);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Capture the dedicated native drain thread failure for feed health and stop diagnostics.")]
     private void DrainThreadMain()
     {
         try
@@ -900,6 +908,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private long DrainLoop()
     {
         long allocationBaseline = -1;
@@ -1044,6 +1053,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "The realtime metrics and flush loops intentionally avoid LINQ iterator allocations.")]
     private void FlushPartialBatches()
     {
         foreach (var state in _channelStates)
@@ -1301,53 +1311,6 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         foreach (var state in _channelStates)
         {
             state.Channel.WakeWaiters();
-        }
-    }
-}
-
-internal readonly struct MonotonicDeadline
-{
-    private readonly long _started;
-    private readonly TimeSpan _timeout;
-
-    /// <summary>Initializes a new MonotonicDeadline instance.</summary>
-    /// <param name="timeout">The maximum time allowed for the operation.</param>
-    internal MonotonicDeadline(TimeSpan timeout)
-    {
-        _started = Stopwatch.GetTimestamp();
-        _timeout = timeout;
-    }
-
-    internal TimeSpan Remaining
-    {
-        get
-        {
-            if (_timeout == Timeout.InfiniteTimeSpan)
-            {
-                return Timeout.InfiniteTimeSpan;
-            }
-            var remaining = _timeout - Stopwatch.GetElapsedTime(_started);
-            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
-        }
-    }
-
-    internal uint RemainingMilliseconds
-    {
-        get
-        {
-            var remaining = Remaining;
-            if (remaining == Timeout.InfiniteTimeSpan)
-            {
-                return NativeConstants.WaitInfinite;
-            }
-            if (remaining <= TimeSpan.Zero)
-            {
-                return 0;
-            }
-            return checked((uint)Math.Clamp(
-                Math.Ceiling(remaining.TotalMilliseconds),
-                1,
-                uint.MaxValue - 1d));
         }
     }
 }

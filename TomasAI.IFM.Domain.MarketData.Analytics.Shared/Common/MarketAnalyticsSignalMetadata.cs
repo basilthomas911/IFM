@@ -5,56 +5,6 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
-/// <summary>Identifies how a market analytics value was calculated.</summary>
-public enum MarketSignalCalculationMethod : byte
-{
-    /// <summary>The calculation method is unknown.</summary>
-    Unknown = 0,
-
-    /// <summary>The signal was calculated from exact normalized trades.</summary>
-    ExactTrades = 1,
-
-    /// <summary>The signal was calculated from an IFM closed OHLCV observation.</summary>
-    ClosedObservation = 2,
-
-    /// <summary>The signal was calculated from a normalized historical provider aggregate.</summary>
-    NormalizedHistoricalAggregate = 3
-}
-
-/// <summary>Provides stable reason codes for invalid or incomplete market signal inputs.</summary>
-public enum MarketSignalValidationIssue : byte
-{
-    /// <summary>No validation issue was detected.</summary>
-    None = 0,
-
-    /// <summary>The source observation is incomplete.</summary>
-    IncompleteObservation = 1,
-
-    /// <summary>The OHLC price relationship is invalid.</summary>
-    InvalidOhlc = 2,
-
-    /// <summary>Required volume is missing.</summary>
-    MissingVolume = 3,
-
-    /// <summary>Required trade lineage is missing.</summary>
-    MissingTradeLineage = 4,
-
-    /// <summary>A gap exists in source delivery lineage.</summary>
-    SourceGap = 5,
-
-    /// <summary>The market series does not match the requested calculation.</summary>
-    SeriesMismatch = 6,
-
-    /// <summary>The observation does not match a composed calculation input.</summary>
-    ObservationMismatch = 7,
-
-    /// <summary>The source is too stale for the calculation.</summary>
-    StaleSource = 8,
-
-    /// <summary>The calculation produced an invalid result.</summary>
-    InvalidCalculation = 9
-}
-
 /// <summary>
 /// Carries common identity, provenance, configuration, and validity metadata for an analytics signal.
 /// </summary>
@@ -95,6 +45,7 @@ public sealed record MarketAnalyticsSignalMetadata
     [Key(10)] public bool IsValid { get; init; }
 
     /// <summary>Gets stable issues explaining an invalid signal.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(11)] public MarketSignalValidationIssue[] ValidationIssues { get; init; } = [];
 
     /// <summary>Gets the Databento stream epoch paired with <see cref="SourceSequence"/>, when applicable.</summary>
@@ -115,41 +66,4 @@ public sealed record MarketAnalyticsSignalMetadata
     /// <summary>Gets the immutable calculation-configuration identity from <see cref="SignalKey"/>.</summary>
     [IgnoreMember]
     public string CalculationConfigurationId => SignalKey.CalculationConfigurationId;
-}
-
-/// <summary>Validates common analytics signal metadata.</summary>
-public sealed class MarketAnalyticsSignalMetadataValidationRules
-    : BaseValidationRules, IValidationRules<MarketAnalyticsSignalMetadata>
-{
-    static readonly Validator Rules = new();
-
-    /// <summary>Validates the supplied signal metadata.</summary>
-    /// <param name="value">Metadata to validate.</param>
-    /// <returns>All validation errors, or an empty array when valid.</returns>
-    public ValidationError[] Execute(MarketAnalyticsSignalMetadata value) => Validate(value, Rules);
-
-    sealed class Validator : AbstractValidator<MarketAnalyticsSignalMetadata>
-    {
-        public Validator()
-        {
-            RuleFor(x => x.SignalKey)
-                .Must(x => new MarketAnalyticsSignalKeyValidationRules().Execute(x).Length == 0);
-            RuleFor(x => x.ContractId).NotEmpty();
-            RuleFor(x => x.ValueDate).Must(x => x != DateOnly.MinValue && x != DateOnly.MaxValue);
-            RuleFor(x => x.ObservationId.Value).NotEmpty();
-            RuleFor(x => x.MarketDataAsOfUtc).Must(IsUtc);
-            RuleFor(x => x.CalculatedAtUtc).Must(IsUtc);
-            RuleFor(x => x).Must(x => x.CalculatedAtUtc >= x.MarketDataAsOfUtc)
-                .WithMessage("CalculatedAtUtc must not precede MarketDataAsOfUtc.");
-            RuleFor(x => x.SourceSequence).GreaterThanOrEqualTo(0);
-            RuleFor(x => x.SchemaVersion).GreaterThan((ushort)0);
-            RuleFor(x => x.CalculationVersion).NotEmpty();
-            RuleFor(x => x.CalculationMethod).IsInEnum().NotEqual(MarketSignalCalculationMethod.Unknown);
-            RuleFor(x => x.ValidationIssues).NotNull();
-            RuleFor(x => x).Must(x => !x.IsValid || x.ValidationIssues.Length == 0)
-                .WithMessage("A valid signal cannot contain validation issues.");
-        }
-
-        static bool IsUtc(DateTimeOffset value) => value.Offset == TimeSpan.Zero;
-    }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Linq;
@@ -9,7 +9,8 @@ namespace TomasAI.IFM.Shared.Util
 {
     public class SignalProcessor<TData>
     {
-        private static object _lock = new object();
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2743", Justification = "The static synchronization/cache field deliberately belongs to each closed generic signal processor type.")]
+        private static readonly System.Threading.Lock _lock = new();
         private Stack<TData> _signalMap;
 
         public SignalProcessor()
@@ -21,6 +22,7 @@ namespace TomasAI.IFM.Shared.Util
 
         public TData Filter(TData signal, int windowSize, Func<TData, double> observation)
         {
+            ArgumentNullException.ThrowIfNull(observation);
             var output = signal;
             lock (_lock)
             {

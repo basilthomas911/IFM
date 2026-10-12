@@ -15,6 +15,7 @@ public sealed record GetScheduledMarketPositionsQuery : IQuery<ScheduledMarketPo
     [Key(2)] public string Environment { get; init; } = "Development";
     [Key(3)] public string HostId { get; init; } = "development";
     [Key(4)] public int PageSize { get; init; } = 50;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     [Key(5)] public byte[]? PagingState { get; init; }
     [Key(6)] public DateOnly ValueDate { get; init; }
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;

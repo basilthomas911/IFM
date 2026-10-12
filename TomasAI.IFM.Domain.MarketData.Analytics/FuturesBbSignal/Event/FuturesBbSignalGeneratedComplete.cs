@@ -15,6 +15,7 @@ public static class FuturesBbSignalGeneratedComplete
         IEventActorContext<FuturesBbSignalEventActor> context,
         ILogger<FuturesBbSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(logger);
         await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
         return true;

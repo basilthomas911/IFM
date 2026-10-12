@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Npgsql;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
@@ -281,13 +282,21 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
                 _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
 
         var staging = _paths.RestoreStaging(request);
-        if (Directory.Exists(staging))
-            throw new InvalidOperationException("An incomplete PostgreSQL fresh-target restore requires explicit reconciliation.");
+        var reuseFullCopy = Directory.Exists(staging);
+        if (reuseFullCopy && (dependencyData.Count != 0 || request.Recovery is not null))
+            throw new InvalidOperationException("An incomplete PostgreSQL incremental or PITR restore requires explicit reconciliation.");
         Directory.CreateDirectory(staging);
         var targetData = Path.Combine(staging, "data");
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Transferring, 1));
         var started = Stopwatch.GetTimestamp();
-        if (dependencyData.Count == 0)
+        if (reuseFullCopy)
+        {
+            await RequireMatchingFullBackupManifestAsync(sourceData, targetData, cancellationToken).ConfigureAwait(false);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(targetData, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            DatabaseRecoveryOutputScope.Append("Reusing full restore copy with matching source manifest; native verification precedes startup.");
+        }
+        else if (dependencyData.Count == 0)
         {
             await CopyDirectoryAsync(sourceData, targetData, cancellationToken).ConfigureAwait(false);
         }
@@ -326,7 +335,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
                 ["start", "--pgdata", targetData, "--wait",
                     "--timeout", Math.Ceiling(profile.StartupTimeout.TotalSeconds).ToString(CultureInfo.InvariantCulture),
                     "--log", Path.Combine(staging, "postgres-validation.log"),
-                    "--options", $"-p {profile.Port} -c listen_addresses={profile.Host}"],
+                    "--options", $"-p {profile.Port} -c listen_addresses={profile.Host} -c unix_socket_directories="],
                 ConnectionEnvironment(),
                 profile.StartupTimeout), cancellationToken).ConfigureAwait(false);
             startedServer = true;
@@ -626,9 +635,26 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
             throw new InvalidOperationException("The PostgreSQL verification boundary does not match captured evidence.");
     }
 
+    /// <summary>Allows a failed full-copy boot to resume only for the exact source manifest.
+    /// pg_verifybackup still verifies every staged file and required WAL before startup.</summary>
+    static async ValueTask RequireMatchingFullBackupManifestAsync(string source, string target, CancellationToken token)
+    {
+        var sourceManifest = Path.Combine(source, "backup_manifest");
+        var targetManifest = Path.Combine(target, "backup_manifest");
+        if (!File.Exists(sourceManifest) || !File.Exists(targetManifest))
+            throw new InvalidOperationException("Incomplete PostgreSQL restore has no matching full backup manifest and requires explicit reconciliation.");
+        await using var original = File.OpenRead(sourceManifest);
+        await using var staged = File.OpenRead(targetManifest);
+        var originalHash = await SHA256.HashDataAsync(original, token).ConfigureAwait(false);
+        var stagedHash = await SHA256.HashDataAsync(staged, token).ConfigureAwait(false);
+        if (!CryptographicOperations.FixedTimeEquals(originalHash, stagedHash))
+            throw new InvalidDataException("Incomplete PostgreSQL restore belongs to a different backup manifest.");
+    }
     static async ValueTask CopyDirectoryAsync(string source, string destination, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(destination);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(destination, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();

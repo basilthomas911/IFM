@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Reference.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the existing message and domain type names used in stored type identities.")]
     public class MDIForwardLossRatioMap
     {
         public const double MDIWatermarkLimit = 0.05;
@@ -18,6 +19,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared
 
         public void Load(ICollection<MDIForwardLossRatioReadModel> mdiForwardLossRatios)
         {
+            ArgumentNullException.ThrowIfNull(mdiForwardLossRatios);
             _mdiMap = new();
             foreach (var e in mdiForwardLossRatios)
                 _mdiMap.Add(e.Id, e);
@@ -42,9 +44,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared
         MDIForwardLossRatioReadModel Get(int mdi, IntrinsicTimeTrendType trendDirection, TradeType tradeType)
         {
             var key = new MDIForwardLossRatioId(mdi, trendDirection, tradeType);
-            return _mdiMap.ContainsKey(key)
-                ? _mdiMap[key]
-                : default;
+            return _mdiMap.TryGetValue(key, out var value) ? value : default;
         }
     }
 

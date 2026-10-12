@@ -39,6 +39,8 @@ public sealed class StrategyOptionChainPreparationTests
         var first = planner.Plan(policy, date, definitions, true, 5000, .20, plan.Calendar!, plan.Publication!, plan.Conversion!);
         Assert.Equal("", first.ReasonCode); Assert.Equal(date.AddDays(45), first.Universes[0].MarketData.MaturityDate);
         Assert.All(first.Universes, u => Assert.Single(u.MarketData.Options.Select(x => x.Definition.Underlying).Distinct()));
+        var smallMove = planner.Plan(policy, date, definitions, true, 5005, .205, plan.Calendar!, plan.Publication!, plan.Conversion!);
+        Assert.Equal(first.Universes.Select(x => x.ScopeId), smallMove.Universes.Select(x => x.ScopeId));
         var expanded = planner.Plan(policy, date, definitions, true, 5000, .40, plan.Calendar!, plan.Publication!, plan.Conversion!);
         Assert.NotEqual(first.Universes[0].ScopeId, expanded.Universes[0].ScopeId);
         Assert.Equal("IncompleteDefinitions", planner.Plan(policy, date, definitions, false, 5000, .20, plan.Calendar!, plan.Publication!, plan.Conversion!).ReasonCode);

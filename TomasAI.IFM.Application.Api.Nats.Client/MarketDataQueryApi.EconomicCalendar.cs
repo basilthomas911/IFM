@@ -22,37 +22,37 @@ public partial class MarketDataQueryApi
                 GetEconomicCalendarPageQuery.Verb,
                 id.Format())
         };
-        return await RequestAsync<GetEconomicCalendarPageQuery, EconomicCalendarPageReadModel>(query.Subject, query);
+        return await (RequestAsync<GetEconomicCalendarPageQuery, EconomicCalendarPageReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
-    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime date, EconomicCalendarViewType viewType, string countryCode)
+    public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync(DateTime todaysDate, EconomicCalendarViewType calendarType, string countryCode)
     {
-        var id = new GetEconomicCalendarParameter(date, viewType, countryCode);
-        var query = new GetEconomicCalendarQuery(date, viewType, countryCode)
+        var id = new GetEconomicCalendarParameter(todaysDate, calendarType, countryCode);
+        var query = new GetEconomicCalendarQuery(todaysDate, calendarType, countryCode)
         {
             Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarQuery.Actor, GetEconomicCalendarQuery.Verb, id.Format())
         };
-        return await RequestAsync<GetEconomicCalendarQuery, EconomicCalendarReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetEconomicCalendarQuery, EconomicCalendarReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     public async Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync()
     {
         var id = new GetEconomicCalendarAllParameter();
         var query = new GetEconomicCalendarAllQuery { Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarAllQuery.Actor, GetEconomicCalendarAllQuery.Verb, id.Format()) };
-        return await RequestAsync<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
-    public async Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime date, EconomicCalendarViewType viewType)
+    public async Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType)
     {
-        var id = new GetEconomicCalendarDateParameter(date, viewType);
-        var query = new GetEconomicCalendarDateQuery(date, viewType) { Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarDateQuery.Actor, GetEconomicCalendarDateQuery.Verb, id.Format()) };
-        return await RequestAsync<GetEconomicCalendarDateQuery, string>(query.Subject, query);
+        var id = new GetEconomicCalendarDateParameter(todaysDate, calendarType);
+        var query = new GetEconomicCalendarDateQuery(todaysDate, calendarType) { Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarDateQuery.Actor, GetEconomicCalendarDateQuery.Verb, id.Format()) };
+        return await (RequestAsync<GetEconomicCalendarDateQuery, string>(query.Subject, query)).ConfigureAwait(false);
     }
 
     public async Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync()
     {
         var id = new GetEconomicCalendarCountryCodesParameter();
         var query = new GetEconomicCalendarCountryCodesQuery { Subject = new ActorSubject(ActorType.Query, GetEconomicCalendarCountryCodesQuery.Actor, GetEconomicCalendarCountryCodesQuery.Verb, id.Format()) };
-        return await RequestAsync<GetEconomicCalendarCountryCodesQuery, EconomicCalendarCountryCodeReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetEconomicCalendarCountryCodesQuery, EconomicCalendarCountryCodeReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 }

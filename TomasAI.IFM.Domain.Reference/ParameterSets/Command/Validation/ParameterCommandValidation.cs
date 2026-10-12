@@ -10,8 +10,12 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 public static class ParameterCommandValidation
 {
     /// <summary>Checks parameter mutation inputs; schema-specific readiness remains in the mapped handler.</summary>
-    public static List<ValidationError> ValidateParameterCommand(this List<ValidationError> errors, IParameterSetMutation command)
+    public static TErrors ValidateParameterCommand<TErrors>(this TErrors errors, IParameterSetMutation command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.ExpectedRevision < 0) errors.Add(new("ParameterSet.ExpectedRevision cannot be negative."));
         if (command is CreateParameterSetCommand or SaveParameterDraftCommand)
         {
@@ -28,8 +32,12 @@ public static class ParameterCommandValidation
     }
 
     /// <summary>Checks an assignment scope and reference against the deterministic scope identity.</summary>
-    public static List<ValidationError> ValidateParameterCommand(this List<ValidationError> errors, AssignParameterVersionCommand command)
+    public static TErrors ValidateParameterCommand<TErrors>(this TErrors errors, AssignParameterVersionCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         ValidateAssignment(errors, command.EntityId, command.Scope, command.ExpectedRevision);
         if (command.Reference is null) errors.Add(new("ParameterAssignment.Reference is required."));
         else if (command.Reference.SetId == Guid.Empty || command.Reference.Version <= 0 || string.IsNullOrWhiteSpace(command.Reference.ComponentCode))
@@ -38,15 +46,23 @@ public static class ParameterCommandValidation
     }
 
     /// <summary>Checks the disabled assignment's scope and expected revision.</summary>
-    public static List<ValidationError> ValidateParameterCommand(this List<ValidationError> errors, DisableParameterAssignmentCommand command)
+    public static TErrors ValidateParameterCommand<TErrors>(this TErrors errors, DisableParameterAssignmentCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         ValidateAssignment(errors, command.EntityId, command.Scope, command.ExpectedRevision);
         return errors;
     }
 
     /// <summary>Checks startup run identity and its operation correlation.</summary>
-    public static List<ValidationError> ValidateParameterCommand(this List<ValidationError> errors, IParameterStartupMutation command)
+    public static TErrors ValidateParameterCommand<TErrors>(this TErrors errors, IParameterStartupMutation command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.RunId == Guid.Empty) errors.Add(new("ParameterStartup.RunId is required."));
         if (command is ApplySignalStartupPlanCommand && command.CommandId != command.RunId)
             errors.Add(new("ParameterStartup.CommandId must match RunId when applying a plan."));
@@ -56,7 +72,7 @@ public static class ParameterCommandValidation
     }
 
     /// <summary>Validates scope fields before computing their exact assignment identity.</summary>
-    private static void ValidateAssignment(List<ValidationError> errors, ParameterAssignmentEntityId id, ParameterAssignmentScope? scope, long revision)
+    private static void ValidateAssignment(ICollection<ValidationError> errors,ParameterAssignmentEntityId id,ParameterAssignmentScope? scope,long revision)
     {
         if (revision < 0) errors.Add(new("ParameterAssignment.ExpectedRevision cannot be negative."));
         if (scope is null) { errors.Add(new("ParameterAssignment.Scope is required.")); return; }
@@ -66,14 +82,14 @@ public static class ParameterCommandValidation
             VerticalSpreadMarketSelectionParameterModel.ComponentCode => OptionSpreadStrategyParameterScopeModel.VerticalSpread(),
             _ => null
         };
-        if (scope.ComponentCode == RegimeDiscoveryParameterModel.ComponentCode)
+        if (string.Equals(scope.ComponentCode,RegimeDiscoveryParameterModel.ComponentCode,StringComparison.Ordinal))
         {
             using var json = ValidateJson(errors, scope.ScopeJson, "ParameterAssignment.ScopeJson");
             if (json is not null && json.RootElement.ValueKind == JsonValueKind.Object &&
                 json.RootElement.TryGetProperty("TargetHorizon", out var horizonValue) && horizonValue.ValueKind == JsonValueKind.String &&
                 Enum.TryParse<TimeFrameType>(horizonValue.GetString(), out var horizon) &&
                 horizon is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly &&
-                scope.ConsumerId == TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id)
+                string.Equals(scope.ConsumerId,TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id,StringComparison.Ordinal))
                 expected = WorkflowParameterScopeModel.Create(scope.ConsumerId, horizon);
         }
         if (expected is null || expected != scope) errors.Add(new("ParameterAssignment.Scope is unsupported or not canonical."));
@@ -82,7 +98,7 @@ public static class ParameterCommandValidation
     }
 
     /// <summary>Parses structured JSON and reports ordinary malformed data without propagating parsing exceptions.</summary>
-    private static JsonDocument? ValidateJson(List<ValidationError> errors, string? json, string name)
+    private static JsonDocument? ValidateJson(ICollection<ValidationError> errors,string? json,string name)
     {
         if (string.IsNullOrWhiteSpace(json)) { errors.Add(new($"{name} is required.")); return null; }
         try { return JsonDocument.Parse(json); }

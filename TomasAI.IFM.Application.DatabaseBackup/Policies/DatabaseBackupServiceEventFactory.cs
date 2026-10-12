@@ -15,7 +15,7 @@ public static class DatabaseBackupServiceEventFactory
         DatabaseBackupHostId hostId)
         => intent.ExecutionEvent.Source.OperationKind switch
         {
-            DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill
+            DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill or DatabaseRecoveryOperationKind.Cutover
                 => Create<DatabaseRestoreServiceAcceptedEvent>(intent, hostId, 1, DatabaseRecoveryPhase.Admitted),
             _ => Create<DatabaseBackupServiceAcceptedEvent>(intent, hostId, 1, DatabaseRecoveryPhase.Admitted)
         };
@@ -26,7 +26,7 @@ public static class DatabaseBackupServiceEventFactory
         long sequence)
         => intent.ExecutionEvent.Source.OperationKind switch
         {
-            DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill
+            DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill or DatabaseRecoveryOperationKind.Cutover
                 => Create<DatabaseRestoreServiceStartedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Started),
             _ => Create<DatabaseBackupServiceStartedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Started)
         };
@@ -110,7 +110,7 @@ public static class DatabaseBackupServiceEventFactory
         {
             DatabaseRecoveryOperationKind.RestoreDrill
                 => Create<DatabaseRestoreDrillCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
-            DatabaseRecoveryOperationKind.Restore
+            DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.Cutover
                 => Create<DatabaseRestoreServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
             _ => Create<DatabaseBackupServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage)
         };

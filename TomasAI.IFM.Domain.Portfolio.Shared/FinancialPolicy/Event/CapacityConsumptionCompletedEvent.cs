@@ -25,6 +25,7 @@ public sealed record CapacityConsumptionCompletedEvent : ICompleteEvent<Financia
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = "CapacityConsumptionFunction";
     [Key(15)] public DateTime ReceivedOn { get; init; }
+    [Key(16)] public CapacityLifecycleProjectionFacts? ProjectionFacts { get; init; }
     [IgnoreMember] public string UserName => "PortfolioFinancial";
     [IgnoreMember] public string EventName => nameof(CapacityConsumptionCompletedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

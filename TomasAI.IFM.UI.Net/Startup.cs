@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -317,6 +317,15 @@ namespace TomasAI.IFM.UI.Net
             _container!.Register<ILookupTypeUIEventConsumer, LookupTypeUIEventConsumer>(Lifestyle.Transient);
             _container!.Register<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>(Lifestyle.Transient);
             _container!.Register<IScheduledTaskUIEventConsumer, ScheduledTaskUIEventConsumer>(Lifestyle.Transient);
+            // These consumers belong to individual view subscriptions. Their owners call StopAsync
+            // when closing, which unsubscribes and disposes the listener connection; sharing a
+            // singleton would let one window stop another window's notifications.
+            foreach (var consumerType in new[] { typeof(IEconomicCalendarUIEventConsumer), typeof(ILookupTypeUIEventConsumer), typeof(ISystemAdminUIEventConsumer), typeof(IScheduledTaskUIEventConsumer) })
+            {
+                _container.GetRegistration(consumerType)!.Registration.SuppressDiagnosticWarning(
+                    DiagnosticType.DisposableTransientComponent,
+                    "The owning view stops its independent listener and disposes its notification subscription when it closes.");
+            }
             _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
             _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesItiSignalUIEventConsumer, FuturesItiSignalUIEventConsumer>();

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Schema;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
@@ -154,27 +156,15 @@ public static partial class CoreServiceRegistration
     static void RegisterStorageServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register storage services...",nameof(CoreServiceRegistration),nameof(RegisterStorageServices));
-        services.AddSingleton(_ =>
+        services.AddSingleton<IDbConnectionSettings>(_ =>
         {
             var isolatedPostgres = config["IFM_TEST_POSTGRES_CONNECTION"];
-            return new DbConnectionSettings()
-            .Add("EventSourceActorDbConnection", isolatedPostgres ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            .Add("ConfigurationDbConnection", isolatedPostgres ?? config.GetConnectionString("ConfigurationDbConnection")
-            ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            .Add("MarketDataServiceDbConnection", isolatedPostgres ?? config.GetConnectionString("MarketDataServiceDbConnection")
-            ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            .Add("SystemAdminDbConnection", isolatedPostgres ?? config.GetConnectionString("SystemAdminDbConnection")
-            ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            .Add("SequenceIdDbConnection", isolatedPostgres ?? config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
-            .Add("PortfolioDbConnection", isolatedPostgres ?? config.GetConnectionString("PortfolioDbConnection")
-            ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
-            .Add("MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
-            .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
-            .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
-            .Add("SecuritiesDbConnection", config.GetConnectionString("SecuritiesDbConnection")!, "System.Data.ScyllaDb")
-            .Add("TradeDbConnection", config.GetConnectionString("TradeDbConnection")!, "System.Data.ScyllaDb")
-            .Add("TradePlanDbConnection", config.GetConnectionString("TradePlanDbConnection")
-            ?? throw new InvalidOperationException("TradePlanDbConnection must target the Trade Plan ScyllaDB keyspace."), "System.Data.ScyllaDb");
+            return ApplicationStorageConnections.Create(
+                isolatedPostgres ?? config["Storage:PostgresConnection"]
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")
+                    ?? throw new InvalidOperationException("The shared PostgreSQL application connection is required."),
+                config.GetConnectionString("TradeTickQuoteDbConnection")
+                    ?? throw new InvalidOperationException("TradeTickQuoteDbConnection must explicitly target the raw ScyllaDB keyspace."));
         });
         services.AddSingleton<IDbCache, DbCache>();
         services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(siContainer, e)!));
@@ -187,6 +177,16 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioOrderCompositionStore>();
         services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioCloseOrderCompositionStore>();
         services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerFinancialProjection>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerConfigurationProjection>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityFinancialProjection>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialAuthorityProjection>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioOrderCompositionProjection>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialReadProjectionRebuilder>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialEventLogReader>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialProjectionBaseline>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.ConfigurationDb.ConfigurationProjectionBaseline>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.BrokerAccountingIntentStore>();
         services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
         provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
         services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
@@ -226,7 +226,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<IPortfolioProjectionRebuilder>(provider =>
         new PortfolioProjectionRebuilder(
         provider.GetRequiredService<IPortfolioEventStore>(),
-        provider.GetRequiredService<IPortfolioDbWriteContext>()));
+        provider.GetRequiredService<IPortfolioDbWriteContext>(),
+        provider.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>()));
         services.AddSingleton<ICommandAuditLogger>(provider =>
         (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
         services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
@@ -242,7 +243,8 @@ public static partial class CoreServiceRegistration
         provider.GetRequiredService<IDbContextFactory>().ReferenceDb.InstrumentDefinitions);
         services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>(provider =>
         provider.GetRequiredService<IDbContextFactory>().SecuritiesDb);
-        services.AddSingleton(provider => provider.GetRequiredService<IDbContextFactory>().ReferenceDb.OptionPricingReferenceBundles);
+        services.AddSingleton(provider => new TomasAI.IFM.Application.Storage.OptionPricing.OptionPricingReferenceBundleStore(
+            provider.GetRequiredService<IDbContextFactory>().SecuritiesDb));
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.EuropeanOptionUniverse>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.TreasuryPricingProvider>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider,
@@ -294,6 +296,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<SequenceIdSchemaDb>();
         services.AddSingleton<PortfolioSchemaDb>();
         services.AddSingleton<MarketDataSchemaDb>();
+        services.AddSingleton<TradeTickQuoteSchemaDb>();
+        services.AddSingleton<ITradeTickQuoteDbContext>(provider => provider.GetRequiredService<IDbContextFactory>().TradeTickQuoteDb);
         services.AddSingleton<OptionPricerSchemaDb>();
         services.AddSingleton<ReferenceSchemaDb>();
         services.AddSingleton<SecuritiesSchemaDb>();

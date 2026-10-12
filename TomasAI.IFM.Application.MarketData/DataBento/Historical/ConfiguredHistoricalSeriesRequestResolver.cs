@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Historical;
 /// <summary>Resolves configured domain identities to provider datasets and symbols.</summary>
 public sealed class ConfiguredHistoricalSeriesRequestResolver : IHistoricalSeriesRequestResolver
 {
-    readonly IReadOnlyDictionary<string, DatabentoHistoricalSeriesProfile> _profiles;
+    readonly Dictionary<string, DatabentoHistoricalSeriesProfile> _profiles;
     readonly IMarketSessionCalendar _calendar;
 
     /// <summary>Initializes the configured resolver.</summary>
@@ -59,6 +59,8 @@ public sealed class ConfiguredHistoricalSeriesRequestResolver : IHistoricalSerie
         MarketDataHistoricalSeriesRequest series,
         HistoricalProviderRecord record)
     {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentNullException.ThrowIfNull(series);
         if (!string.IsNullOrWhiteSpace(series.ContractId)) return series.ContractId;
         if (_profiles.TryGetValue(series.SeriesIdentity.Format(), out var profile)
             && !string.IsNullOrWhiteSpace(profile.ContractId))

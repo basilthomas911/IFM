@@ -43,7 +43,7 @@ public readonly record struct ActorSubject
         => $"{ActorType}.{Name}.{Verb}.{EntityId}";
 
     public bool Is(ActorType actorType, string name, string verb)
-        => ActorType == actorType && Name == name && Verb == verb;
+        => ActorType == actorType && string.Equals(Name, name, StringComparison.Ordinal) && string.Equals(Verb, verb, StringComparison.Ordinal);
 
     public ActorSubject SetActorType(ActorType actorType)
         => this with { ActorType = actorType };

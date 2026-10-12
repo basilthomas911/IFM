@@ -31,10 +31,10 @@ public class FuturesBarDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesBarDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateFromSnapshotLastNRangeAsync<
+        => await (LoadStateFromSnapshotLastNRangeAsync<
             FuturesBarDataCommandState,
             FuturesBarDataStreamingStartedEvent,
-            FuturesBarDataInsertedEvent>(command, 0);
+            FuturesBarDataInsertedEvent>(command, 0)).ConfigureAwait(false);
 
     /// <summary>
     /// save futures bar data state changes
@@ -44,7 +44,41 @@ public class FuturesBarDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesBarDataCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context,state,command,CancellationToken.None).ConfigureAwait(false);
+
+    /// <summary>Commits accepted source facts and required read rows on the same PostgreSQL transaction.</summary>
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesBarDataCommandState state, ICommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        var database = actorContext.DbFactory.MarketDataDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Feed source facts and observations must share one PostgreSQL database/security identity.");
+        var pending = new DomainEventCollection(state.Events);
+        var committed = await context.Container.Resolve<IPostgresEventTransaction>().ExecuteAsync(async (transaction,token) =>
+        {
+            var accepted = new DomainEventCollection();
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                IEvent fact = source;
+                
+                await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
+                accepted.Add(fact);
+            }
+            return accepted;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,committed).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures bar data query state

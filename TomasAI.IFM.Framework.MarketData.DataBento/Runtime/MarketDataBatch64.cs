@@ -59,6 +59,8 @@ public sealed class MarketDataBatch64 : IDisposable
     }
 
     /// <summary>Releases the resources owned by this instance.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1065", Justification = "Reject unsafe disposal of an unpublished native lease instead of reclaiming memory used by its owner.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3877", Justification = "Reject unsafe disposal of a still-active or unpublished native lease instead of reclaiming memory used by its owner.")]
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)

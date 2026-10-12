@@ -17,8 +17,16 @@ public static class ScyllaDbObjectDataExtensions
         => new(dateTime.Hour, dateTime.Minute, dateTime.Second, dateTime.Nanosecond);
 
     public static int AsMilliseconds(this LocalTime localTime)
-        => (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000_000;
+        
+    {
+        ArgumentNullException.ThrowIfNull(localTime);
+        return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000_000;
+    }
 
     public static int AsMicroseconds(this LocalTime localTime)
-        => (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000;
+        
+    {
+        ArgumentNullException.ThrowIfNull(localTime);
+        return (int)(localTime.TotalNanoseconds % 1_000_000_000) % 1_000;
+    }
 }

@@ -17,27 +17,27 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
 {
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = GenerateFuturesBbSignalCommand.Actor;
-    readonly IFuturesBbSignalCommandContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesBbSignalCommandContext, nameof(actorContext))!;
+    readonly IFuturesBbSignalCommandContext typedContext = IsArgumentNull.Named(actorContext as IFuturesBbSignalCommandContext, nameof(actorContext))!;
     IEventSourceActorStateRepository<FuturesBbSignalCommandState> repository = default!;
 
     /// <inheritdoc />
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesBbSignalCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         repository = IsArgumentNull.Set(context.Container.Resolve<
             IEventSourceActorStateRepository<FuturesBbSignalCommandState>>());
-        await typedContext.EventProjector.StartAsync(context);
+        await (typedContext.EventProjector.StartAsync(context)).ConfigureAwait(false);
     }
     /// <inheritdoc />
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesBbSignalCommandActor> context) =>
-        await typedContext.EventProjector.StopAsync();
+        await (typedContext.EventProjector.StopAsync()).ConfigureAwait(false);
     /// <inheritdoc />
     protected override ICommand ParseMessage(
         ICommandActorContext<FuturesBbSignalCommandActor> context,
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [GenerateFuturesBbSignalCommand.Verb] = message =>
             message.AsCommand<GenerateFuturesBbSignalCommand>()
@@ -86,26 +86,26 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, ActorThreadId threadId, ICommand command) =>
-        await repository.LoadStateAsync(command);
+        await (repository.LoadStateAsync(command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, ActorThreadId threadId, ICommand command,
-        CancellationToken cancellationToken) => await repository.LoadStateAsync(command, cancellationToken);
+        CancellationToken cancellationToken) => await (repository.LoadStateAsync(command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesBbSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command) =>
-        await repository.SaveStateAsync(context, (FuturesBbSignalCommandState)state, command);
+        await (repository.SaveStateAsync(context, (FuturesBbSignalCommandState)state, command)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesBbSignalCommandActor> context,
         ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken) =>
-        await repository.SaveStateAsync(context, (FuturesBbSignalCommandState)state, command, cancellationToken);
+        await (repository.SaveStateAsync(context, (FuturesBbSignalCommandState)state, command, cancellationToken)).ConfigureAwait(false);
     /// <inheritdoc />
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, ActorThreadId threadId,
-        ICommand command, Exception exception)
+        ICommand command, Exception ex)
     {
-        var error = await exception.SendErrorEventAsync<
-            TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+        var error = await (ex.SendErrorEventAsync<
+            TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
         return new ServiceFailed<GuidResult>(error);
     }
 }

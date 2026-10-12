@@ -53,13 +53,16 @@ public sealed record GetEvaluatedOptionChainQuery : IQuery<EvaluatedOptionChainR
     [Key(1)] public IActorEntityId EntityId { get; set; } = ActorEntityId.Default;
     [Key(2)] public string UnderlyingContractId { get; set; } = string.Empty;
     [Key(3)] public string UnderlyingSymbol { get; set; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(4)] public string[] ProviderRoots { get; set; } = [];
     [Key(5)] public DateOnly ExpiryDate { get; set; }
     [Key(6)] public decimal? StandardDeviationAmount { get; set; }
     [Key(7)] public double StandardDeviationMultiplier { get; set; } = 2.5;
     /// <summary>Retained solely for MessagePack compatibility; strike selection no longer applies a count cap.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "The obsolete member remains for historical payload/source compatibility during the storage migration.")]
     [Obsolete("Strike count limits are ignored; the entire calculated window is selected.")]
     [Key(8)] public int MaximumStrikeCount { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(9)] public string[] RequiredContractIds { get; set; } = [];
     [Key(10)] public bool ReleaseOnly { get; set; }
     [Key(11)] public bool AllowFrozenEmulatorPreview { get; set; }

@@ -8,10 +8,11 @@ public static class GetParameterSchema
 {
     public static async ValueTask ExecuteAsync(this GetParameterSchemaQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Read);
-        var result = await context.ConfigurationDb.GetParameterSchemaAsync(query.ComponentCode, query.SchemaVersion, token)
+        var result = await (context.ConfigurationDb.GetParameterSchemaAsync(query.ComponentCode, query.SchemaVersion, token)).ConfigureAwait(false)
          ?? throw new KeyNotFoundException("PARAM.SCHEMA_UNSUPPORTED");
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSchemaDefinition>(result));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSchemaDefinition>(result))).ConfigureAwait(false);
     }
 }

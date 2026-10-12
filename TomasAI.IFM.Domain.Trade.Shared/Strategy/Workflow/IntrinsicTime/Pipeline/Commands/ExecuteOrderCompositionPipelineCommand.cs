@@ -90,8 +90,12 @@ public sealed record ExecuteOrderCompositionPipelineCommand : ICommand<OrderComp
     [Key(17)]
     public FundCompositionReservationResult? Reservation
     {
-        get => _reservation is null ? null : _reservation with { Trades = _reservation.Trades is null ? null! : [.. _reservation.Trades] };
-        init => _reservation = value is null ? null! : value with { Trades = value.Trades is null ? null! : [.. value.Trades] };
+        get => (_reservation is null) switch { true => null, false => _reservation with { Trades = _reservation.Trades is null ? null! : [.. _reservation.Trades] } };
+        init
+        {
+            if (value is null) { _reservation = null!; return; }
+            _reservation = value with { Trades = value.Trades is null ? null! : [.. value.Trades] };
+        }
     }
     [Key(18)] public CompositionBinding CompositionBinding { get; init; } = new();
     [Key(19)] public MarketCompositionSnapshot MarketSnapshot { get; init; } = default!;

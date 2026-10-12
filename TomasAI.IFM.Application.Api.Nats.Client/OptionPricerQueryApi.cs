@@ -28,7 +28,7 @@ public class OptionPricerQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetOptionPricerDevicesQuery.Actor, GetOptionPricerDevicesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetOptionPricerDevicesQuery, OptionPricerDevicesReadModel>(query.Subject, query);
+        return await (RequestAsync<GetOptionPricerDevicesQuery, OptionPricerDevicesReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -46,7 +46,7 @@ public class OptionPricerQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetSpreadDistributionQuery.Actor, GetSpreadDistributionQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetSpreadDistributionQuery, SpreadDistributionReadModel>(query.Subject, query);
+        return await (RequestAsync<GetSpreadDistributionQuery, SpreadDistributionReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -61,6 +61,6 @@ public class OptionPricerQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetSpreadDistributionJobInProgressQuery.Actor, GetSpreadDistributionJobInProgressQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetSpreadDistributionJobInProgressQuery, ScalarReadModel<bool>>(query.Subject, query);
+        return await (RequestAsync<GetSpreadDistributionJobInProgressQuery, ScalarReadModel<bool>>(query.Subject, query)).ConfigureAwait(false);
     }
 }

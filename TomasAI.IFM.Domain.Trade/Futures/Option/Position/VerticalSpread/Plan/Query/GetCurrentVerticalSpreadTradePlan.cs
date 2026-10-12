@@ -4,13 +4,14 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Model.Position.Query;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Plan.Query;
-
 /// <summary>Handles the current Vertical Spread Trade Plan query.</summary>
 public static class GetCurrentVerticalSpreadTradePlan
 {
     /// <summary>Reads and replies with the current material plan.</summary>
-    public static ValueTask ExecuteAsync(this GetCurrentVerticalSpreadTradePlanQuery query,
-        IVerticalSpreadTradePlanQueryContext context, CancellationToken cancellationToken) =>
-        StrategyTradePlanQueryExecution.ReplyCurrentAsync(context, context.DbFactory, query,
-            query.PlanId.Position, TradeStrategyKind.VerticalSpread, query.PlanId.ValueDate, cancellationToken);
+    public static ValueTask ExecuteAsync(this GetCurrentVerticalSpreadTradePlanQuery query, IVerticalSpreadTradePlanQueryContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        return StrategyTradePlanQueryExecution.ReplyCurrentAsync(context, context.DbFactory, query, query.PlanId.Position, TradeStrategyKind.VerticalSpread, query.PlanId.ValueDate, cancellationToken);
+    }
 }

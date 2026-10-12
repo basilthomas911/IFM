@@ -16,6 +16,8 @@ public static class ImportYieldCurveRates
     /// <returns>The command ID on success, or the request/application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this ImportYieldCurveRatesCommand command, YieldCurveRateCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "YieldCurveRate.IMPORT.STATE.APPLY_FAILED";
         var computed = command.Compute(out var yieldCurveRateImport);
         var updated = computed switch

@@ -13,22 +13,23 @@ namespace TomasAI.IFM.Application.Storage.PortfolioFinancial;
 /// </summary>
 public sealed class FinancialWorkflowRecoveryJournal(IPostgresEventTransaction transactions)
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<FinancialWorkflowRecoveryPage> ReadPageAsync(long afterStreamId, CancellationToken token = default,
         string? exactStream = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(afterStreamId);
         return transactions.ExecuteAsync(async (db, ct) =>
         {
-            var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialWorkflowRecoveryJournal.With01, [afterStreamId, exactStream], r => (Stream: r.GetInt64(0), Event: r.IsDBNull(1) ? null :
+            var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialWorkflowRecoveryJournal.With01, [afterStreamId, exactStream], r => (Stream: r.GetInt64(0), Event: r.IsDBNull(1) ? null :
                     new EventLogReadModel(r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetInt64(3), r.GetFieldValue<byte[]>(4),
-                        r.GetGuid(5), r.GetString(6), r.GetInt64(7))), ct);
+                        r.GetGuid(5), r.GetString(6), r.GetInt64(7))), ct)).ConfigureAwait(false);
             var snapshots = new List<WorkflowStrategyStateUpdatedEvent>(rows.Count);
             var invalid = new List<long>();
             foreach (var row in rows)
             {
                 if (row.Event is null) continue;
                 // Legacy/unsupported stream tails cannot be resumed by interpreting an older snapshot.
-                if (row.Event.EventName != nameof(WorkflowStrategyStateUpdatedEvent)) continue;
+                if (!string.Equals(row.Event.EventName,nameof(WorkflowStrategyStateUpdatedEvent),StringComparison.Ordinal)) continue;
                 try
                 {
                     if (row.Event.ToDomainEvent() is not WorkflowStrategyStateUpdatedEvent snapshot || snapshot.State is null ||

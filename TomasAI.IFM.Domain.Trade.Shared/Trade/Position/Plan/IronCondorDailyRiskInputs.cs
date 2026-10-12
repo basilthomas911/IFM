@@ -35,6 +35,7 @@ public sealed record IronCondorDailyRiskInputs
     /// <summary>Gets the explicitly captured TimeToExpiryDays; null means unavailable.</summary>
     [Key(13)] public double? TimeToExpiryDays { get; init; }
     /// <summary>Gets the four frozen scenario observations.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(14)] public IronCondorTradePlanLegObservation[] Legs { get; init; } = [];
     /// <summary>Gets the exact immutable strategy risk policy used to capture these inputs.</summary>
     [Key(15)] public TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet? StrategyRiskParameterSet { get; init; }

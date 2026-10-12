@@ -32,7 +32,9 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the existing public instance model API used by consumers and reflection.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>
@@ -44,6 +46,7 @@ public record GenerateFuturesTdiSignalCommand : ICommand<FuturesTdiSignalEntityI
     /// <summary>
     /// Collection of RSI signals used as input factors for computing the TDI signal.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(7)]
     public FuturesRsiSignalReadModel[] FuturesRsiSignals { get; init; }
 

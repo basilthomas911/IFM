@@ -36,14 +36,15 @@ public sealed record RiskParameterSet
     public static RiskParameterSet Read(string json)
     {
         TradeSelectionPolicy.CheckJson(json);
-        var value = JsonSerializer.Deserialize<RiskParameterSet>(json, Options) ?? throw new ArgumentException("RM.CONFIG.MISSING");
+        var value = JsonSerializer.Deserialize<RiskParameterSet>(json, Options) ?? throw new ArgumentException("RM.CONFIG.MISSING",nameof(json));
         value.Validate(); return value;
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless model validation reports malformed persisted instance content, not a caller argument.")]
     public void Validate()
     {
         if (SchemaVersion != 1 || ParameterSetId == Guid.Empty || Version <= 0
             || TargetHorizon is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly)
-            || Root != "ES" || Currency != "USD" || Environment != "Emulator" || RiskCapitalBasis != "AvailableSettledCash"
+            || !string.Equals(Root,"ES",StringComparison.Ordinal) || !string.Equals(Currency,"USD",StringComparison.Ordinal) || !string.Equals(Environment,"Emulator",StringComparison.Ordinal) || !string.Equals(RiskCapitalBasis,"AvailableSettledCash",StringComparison.Ordinal)
             || MaximumUnits is <= 0 or > 100 || PerTradeRiskFraction is <= 0 or > 1 || MarginMethodVersion != 1
             || MarginPerGrossContract is <= 0 or > 1000000 || FeePerGrossContract is < 0 or > 1000
             || VariationReservePerGrossContract is < 0 or > 1000000 || IncrementalLossReserve is < 0 or > 1000000)

@@ -16,7 +16,7 @@ internal static class MarketOutlookComponentEligibility
     internal static bool IsEligible(
         MarketOutlookEntityId entityId,
         FuturesRsiSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == FuturesTradeSignalPrerequisites.SignalTimePeriod
             && signal.PeriodLength == FuturesIntradaySignalActivationProfile.RsiPeriodLength
@@ -27,15 +27,15 @@ internal static class MarketOutlookComponentEligibility
     internal static bool IsEligible(
         MarketOutlookEntityId entityId,
         FuturesTdiSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == FuturesTradeSignalPrerequisites.SignalTimePeriod
-            && signal.ConfigurationId == FuturesTdiConfiguration.StandardConfigurationId;
+            && string.Equals(signal.ConfigurationId,FuturesTdiConfiguration.StandardConfigurationId,StringComparison.Ordinal);
 
     internal static bool IsEligible(
         MarketOutlookEntityId entityId,
         FuturesItiSignalV2ReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == TimeFrameType.Daily
             && signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendDirectionChanged
@@ -44,29 +44,29 @@ internal static class MarketOutlookComponentEligibility
                 or IntrinsicTimeModeType.Trending;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesEmaSignalReadModel signal)
-        => signal.Metadata.ContractId == entityId.ContractId
+        => string.Equals(signal.Metadata.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.Metadata.ValueDate == entityId.ValueDate
             && signal.Metadata.TimeFrame == TimeFrameType.Daily
             && signal.Metadata.IsValid;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesBbSignalReadModel signal)
-        => signal.Metadata.ContractId == entityId.ContractId
+        => string.Equals(signal.Metadata.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.Metadata.ValueDate == entityId.ValueDate
             && signal.Metadata.TimeFrame == TimeFrameType.Daily
             && signal.Metadata.IsValid;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesTradeSignalV2ReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesVwapSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.IsWarm
             && signal.Vwap is > 0m;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesAdxSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == TimeFrameType.FiveMinutes
             && signal.PeriodLength == FuturesIntradaySignalActivationProfile.AdxPeriodLength
@@ -74,7 +74,7 @@ internal static class MarketOutlookComponentEligibility
             && signal.Metadata is not { IsValid: false };
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesAtrSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == TimeFrameType.FiveMinutes
             && signal.PeriodLength == FuturesIntradaySignalActivationProfile.AtrPeriodLength
@@ -84,7 +84,7 @@ internal static class MarketOutlookComponentEligibility
             && signal.Metadata is not { IsValid: false };
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesMacdSignalReadModel signal)
-        => signal.ContractId == entityId.ContractId
+        => string.Equals(signal.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == TimeFrameType.FiveMinutes
             && signal.SignalEmaPeriod == FuturesMacdConfiguration.ConventionalSignalEmaPeriod
@@ -92,6 +92,24 @@ internal static class MarketOutlookComponentEligibility
             && signal.SlowEmaPeriod == FuturesMacdConfiguration.ConventionalSlowEmaPeriod
             && signal.IsWarm
             && signal.Metadata is not { IsValid: false };
+
+    internal static bool IsEligible(
+        MarketOutlookComponentChangedRealtimeEvent source,
+        out string reason)
+    {
+        var eligible = SelectEligible(source, out reason);
+        return eligible.FuturesRsiSignal is not null
+            || eligible.FuturesTdiSignal is not null
+            || eligible.FuturesItiSignal is not null
+            || eligible.VixFuturesPrice > 0
+            || eligible.FuturesEmaSignal is not null
+            || eligible.FuturesBbSignal is not null
+            || eligible.FuturesTradeSignal is not null
+            || eligible.FuturesVwapSignal is not null
+            || eligible.FuturesAdxSignal is not null
+            || eligible.FuturesAtrSignal is not null
+            || eligible.FuturesMacdSignal is not null;
+    }
 
     internal static bool IsEligibleAtPublicationBoundary(
         MarketOutlookEntityId entityId,
@@ -115,24 +133,6 @@ internal static class MarketOutlookComponentEligibility
                 continuation.RootSymbol,
                 StringComparison.OrdinalIgnoreCase));
 
-    internal static bool IsEligible(
-        MarketOutlookComponentChangedRealtimeEvent source,
-        out string reason)
-    {
-        var eligible = SelectEligible(source, out reason);
-        return eligible.FuturesRsiSignal is not null
-            || eligible.FuturesTdiSignal is not null
-            || eligible.FuturesItiSignal is not null
-            || eligible.VixFuturesPrice > 0
-            || eligible.FuturesEmaSignal is not null
-            || eligible.FuturesBbSignal is not null
-            || eligible.FuturesTradeSignal is not null
-            || eligible.FuturesVwapSignal is not null
-            || eligible.FuturesAdxSignal is not null
-            || eligible.FuturesAtrSignal is not null
-            || eligible.FuturesMacdSignal is not null;
-    }
-
     /// <summary>
     /// Independently admits every valid component in a composite message. Invalid siblings are
     /// removed and reported; they never suppress a valid component carried beside them.
@@ -142,24 +142,9 @@ internal static class MarketOutlookComponentEligibility
         out string reason)
     {
         List<string> rejected = [];
-        var rsi = source.FuturesRsiSignal;
-        if (rsi is not null && !IsEligible(source.EntityId, rsi))
-        {
-            rejected.Add("rsi-profile");
-            rsi = null;
-        }
-        var tdi = source.FuturesTdiSignal;
-        if (tdi is not null && !IsEligible(source.EntityId, tdi))
-        {
-            rejected.Add("tdi-profile");
-            tdi = null;
-        }
-        var iti = source.FuturesItiSignal;
-        if (iti is not null && !IsEligible(source.EntityId, iti))
-        {
-            rejected.Add("iti-profile");
-            iti = null;
-        }
+        var rsi = SelectComponent(source.FuturesRsiSignal, source.EntityId, IsEligible, rejected, "rsi-profile");
+        var tdi = SelectComponent(source.FuturesTdiSignal, source.EntityId, IsEligible, rejected, "tdi-profile");
+        var iti = SelectComponent(source.FuturesItiSignal, source.EntityId, IsEligible, rejected, "iti-profile");
         var vix = source.VixFuturesPrice;
         if (vix < 0.01m || vix > 200m)
         {
@@ -167,48 +152,13 @@ internal static class MarketOutlookComponentEligibility
                 rejected.Add("vx-range");
             vix = 0;
         }
-        var ema = source.FuturesEmaSignal;
-        if (ema is not null && !IsEligible(source.EntityId, ema))
-        {
-            rejected.Add("ema-profile");
-            ema = null;
-        }
-        var bb = source.FuturesBbSignal;
-        if (bb is not null && !IsEligible(source.EntityId, bb))
-        {
-            rejected.Add("bb-profile");
-            bb = null;
-        }
-        var tradeSignal = source.FuturesTradeSignal;
-        if (tradeSignal is not null && !IsEligible(source.EntityId, tradeSignal))
-        {
-            rejected.Add("trade-signal-identity");
-            tradeSignal = null;
-        }
-        var vwap = source.FuturesVwapSignal;
-        if (vwap is not null && !IsEligible(source.EntityId, vwap))
-        {
-            rejected.Add("vwap-profile");
-            vwap = null;
-        }
-        var adx = source.FuturesAdxSignal;
-        if (adx is not null && !IsEligible(source.EntityId, adx))
-        {
-            rejected.Add("adx-profile");
-            adx = null;
-        }
-        var atr = source.FuturesAtrSignal;
-        if (atr is not null && !IsEligible(source.EntityId, atr))
-        {
-            rejected.Add("atr-profile");
-            atr = null;
-        }
-        var macd = source.FuturesMacdSignal;
-        if (macd is not null && !IsEligible(source.EntityId, macd))
-        {
-            rejected.Add("macd-profile");
-            macd = null;
-        }
+        var ema = SelectComponent(source.FuturesEmaSignal, source.EntityId, IsEligible, rejected, "ema-profile");
+        var bb = SelectComponent(source.FuturesBbSignal, source.EntityId, IsEligible, rejected, "bb-profile");
+        var tradeSignal = SelectComponent(source.FuturesTradeSignal, source.EntityId, IsEligible, rejected, "trade-signal-identity");
+        var vwap = SelectComponent(source.FuturesVwapSignal, source.EntityId, IsEligible, rejected, "vwap-profile");
+        var adx = SelectComponent(source.FuturesAdxSignal, source.EntityId, IsEligible, rejected, "adx-profile");
+        var atr = SelectComponent(source.FuturesAtrSignal, source.EntityId, IsEligible, rejected, "atr-profile");
+        var macd = SelectComponent(source.FuturesMacdSignal, source.EntityId, IsEligible, rejected, "macd-profile");
         reason = rejected.Count == 0 ? string.Empty : string.Join(", ", rejected);
         return source with
         {
@@ -225,4 +175,13 @@ internal static class MarketOutlookComponentEligibility
             FuturesMacdSignal = macd
         };
     }
+    /// <summary>Removes an incompatible component and records its exact rejection code; valid siblings remain eligible.</summary>
+    static T? SelectComponent<T>(T? component, MarketOutlookEntityId entityId,
+        Func<MarketOutlookEntityId, T, bool> eligible, List<string> rejected, string reason) where T : class
+    {
+        if (component is null || eligible(entityId, component)) return component;
+        rejected.Add(reason);
+        return null;
+    }
+
 }

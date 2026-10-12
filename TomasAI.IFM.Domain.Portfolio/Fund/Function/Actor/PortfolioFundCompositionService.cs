@@ -17,6 +17,7 @@ public sealed class PortfolioFundCompositionService(
         string principal,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         if (_aggregate.TryGetReservation(request.IdempotencyKey, out var prior))
             return _aggregate.Reserve(request, snapshot, prior.Order.OrderId, prior.Trades.Select(x => x.TradeId).ToArray(), committedOnUtc, principal);
 

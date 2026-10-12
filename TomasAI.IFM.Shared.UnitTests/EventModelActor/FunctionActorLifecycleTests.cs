@@ -348,6 +348,101 @@ public sealed class FunctionActorLifecycleTests
     }
 
     [Fact]
+    public async Task Abandoned_loading_keeps_cancellation_resources_until_dependency_finishes()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resourceAvailable = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var state = new TestState();
+        var calls = new List<string>();
+        var repository = new TestRepository(state, calls)
+        {
+            LoadOperation = async token =>
+            {
+                entered.SetResult();
+                await release.Task;
+                try
+                {
+                    _ = token.WaitHandle;
+                    resourceAvailable.SetResult(true);
+                }
+                catch (ObjectDisposedException)
+                {
+                    resourceAvailable.SetResult(false);
+                    throw;
+                }
+                return state;
+            }
+        };
+        var actor = new TestFunctionActor(repository, null,
+            (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        { Policy = (_, _) => new(TimeProvider.System, DateTime.UtcNow.AddMinutes(1)) };
+        using var cancellation = new CancellationTokenSource();
+        var handling = actor.HandleMessageAsync(new TestMessage(new TestRequest()),
+            new ActorThreadId(ActorType.Function, "TestFunction", "test"), cancellation.Token).AsTask();
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => handling);
+            Assert.False(release.Task.IsCompleted);
+            release.SetResult();
+            Assert.True(await resourceAvailable.Task.WaitAsync(TimeSpan.FromSeconds(3)));
+            Assert.False(state.IsCompleted);
+            Assert.Empty(calls);
+        }
+        finally { release.TrySetResult(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stage_timeout_does_not_wait_for_or_propagate_cancellation_callback_failures(bool throwingCallback)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var callbackRelease = new ManualResetEventSlim();
+        var state = new TestState();
+        var calls = new List<string>();
+        var repository = new TestRepository(state, calls)
+        {
+            LoadOperation = async token =>
+            {
+                using var registration = token.Register(() =>
+                {
+                    callbackEntered.TrySetResult();
+                    if (throwingCallback) throw new InvalidOperationException("callback failed");
+                    callbackRelease.Wait();
+                });
+                entered.TrySetResult();
+                await release.Task;
+                return state;
+            }
+        };
+        var actor = new TestFunctionActor(repository, null,
+            (_, request) => FunctionResult<TestCompletedEvent, TestFailedEvent>.Complete(Completed(request)))
+        { Policy = (_, _) => new(TimeProvider.System, DateTime.UtcNow.AddMilliseconds(250)) };
+        var message = new TestMessage(new TestRequest());
+        var handling = actor.HandleMessageAsync(message).AsTask();
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await handling.WaitAsync(TimeSpan.FromSeconds(3));
+            await callbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(message.Reply!.Value!.IsFailed);
+            Assert.False(state.IsCompleted);
+            Assert.Empty(calls);
+            Assert.False(release.Task.IsCompleted);
+        }
+        finally
+        {
+            callbackRelease.Set();
+            release.TrySetResult();
+        }
+    }
+
+    [Fact]
     public async Task Expired_loading_policy_prevents_loading_or_executing()
     {
         var repo = new TestRepository(new TestState(), []);
@@ -585,12 +680,13 @@ public sealed class FunctionActorLifecycleTests
         : IEventSourceFunctionStateRepository<TestState, TestRequest>
     {
         public int Loads { get; private set; }
+        public Func<CancellationToken, ValueTask<TestState>>? LoadOperation { get; init; }
         public ValueTask<TestState> LoadStateAsync(
             TestRequest request,
             CancellationToken cancellationToken = default)
         {
             Loads++;
-            return ValueTask.FromResult(state);
+            return LoadOperation?.Invoke(cancellationToken) ?? ValueTask.FromResult(state);
         }
 
         public ValueTask SaveCompletedStateAsync(

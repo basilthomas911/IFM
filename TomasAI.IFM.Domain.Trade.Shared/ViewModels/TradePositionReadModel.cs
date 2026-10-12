@@ -104,6 +104,7 @@ public record TradePositionReadModel
     public string UpdatedBy { get; init; } = string.Empty;
 
     /// <summary>Attached option legs data for this position.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(21)]
     [JsonProperty]
     public OptionTradeLegDataReadModel[] OptionLegData { get; private set; } = Array.Empty<OptionTradeLegDataReadModel>();
@@ -260,11 +261,12 @@ public record TradePositionReadModel
     /// <summary>Updates an existing option leg entry in <see cref="OptionLegData"/> by matching <c>OptionLegId</c>.</summary>
     public TradePositionReadModel SetOptionLegData(OptionTradeLegDataReadModel optionLegData)
     {
+        ArgumentNullException.ThrowIfNull(optionLegData);
         lock (OptionLegData)
         {
             for (var index = 0; index < OptionLegData.Length; index++)
             {
-                if (optionLegData.OptionLegId == OptionLegData[index].OptionLegId)
+                if (string.Equals(optionLegData.OptionLegId,OptionLegData[index].OptionLegId,StringComparison.Ordinal))
                 {
                     OptionLegData[index] = optionLegData;
                     break;

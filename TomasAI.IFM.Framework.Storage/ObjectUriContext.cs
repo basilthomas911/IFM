@@ -15,6 +15,8 @@ public abstract class ObjectUriContext(
     /// <summary>
     /// Gets the list of parameter values for the URI context.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     public List<object> ParameterValues => _parameterValues;
 
     /// <summary>
@@ -66,10 +68,7 @@ public abstract class ObjectUriContext(
     public IObjectUriContext SetParameters<TParam>(IEnumerable<TParam> parameterValues)
     {
         _parameterValues.Clear();
-        if (parameterValues is null)
-        {
-            throw new ArgumentNullException(nameof(parameterValues));
-        }
+        ArgumentNullException.ThrowIfNull(parameterValues);
         _parameterValues.AddRange(parameterValues.Cast<object>());
         return this;
     }

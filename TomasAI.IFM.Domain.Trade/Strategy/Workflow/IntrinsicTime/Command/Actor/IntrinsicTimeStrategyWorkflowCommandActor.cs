@@ -21,366 +21,249 @@ using TomasAI.IFM.Shared.Validation;
 using System.Collections.Frozen;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
-
 /// <summary>Owns atomic snapshot transitions for one Intrinsic Time Strategy Workflow entity.</summary>
 /// <remarks>
-/// Every accepted transition appends only <see cref="WorkflowStrategyStateUpdatedEvent"/>. Pipeline work is never
+/// Every accepted transition appends only <see cref = "WorkflowStrategyStateUpdatedEvent"/>. Pipeline work is never
 /// dispatched here; the conventional projector may publish the committed snapshot after PostgreSQL succeeds.
 /// </remarks>
-public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
-    ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext)
-    : BaseEventSourceCommandActor<IntrinsicTimeStrategyWorkflowCommandActor>(actorContext, actorContext.Logger)
+public sealed class IntrinsicTimeStrategyWorkflowCommandActor(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext) : BaseEventSourceCommandActor<IntrinsicTimeStrategyWorkflowCommandActor>(actorContext, actorContext.Logger)
 {
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>> _duplicateRetryMap =
-        new Dictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>>
-        {
-            [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, token) => ((AdvanceRiskFinancialHandoffCommand)command).ResumeAfterAuditAsync(token),
-            [typeof(PrepareRiskManagementCommand)] = static (command, token) => ((PrepareRiskManagementCommand)command).ResumeAfterAuditAsync(token)
-        }.ToFrozenDictionary();
+    /// <summary>Defers PostgreSQL command audit reservation to the atomic source-and-projection commit.</summary>
+    readonly bool _atomicAudit = actorContext is IntrinsicTimeStrategyWorkflowCommandContext workflowContext
+        && string.Equals(workflowContext.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
 
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        ICommand command, CancellationToken token)
-        => _duplicateRetryMap.TryGetValue(command.GetType(), out var handler) ? handler(command, token) : ValueTask.FromResult(false);
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
-        {
-            [AdvanceRiskFinancialHandoffCommand.Verb] = message => message.AsCommand<AdvanceRiskFinancialHandoffCommand>()!,
-            [PrepareRiskManagementCommand.Verb] = message => message.AsCommand<PrepareRiskManagementCommand>()!,
-            [AcceptOrderCompositionPreparationCommand.Verb] = message => message.AsCommand<AcceptOrderCompositionPreparationCommand>()!,
-            [ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb] =
-                message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
-            [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
-            [CompleteMarketConditionCommand.Verb] = message => message.AsCommand<CompleteMarketConditionCommand>()!,
-            [RedispatchCurrentStrategyPipelineCommand.Verb] = message => message.AsCommand<RedispatchCurrentStrategyPipelineCommand>()!,
-            [CompleteTradeSelectionReservationCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionReservationCommand>()!,
-            [CompleteTradeSelectionCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionCommand>()!,
-            [CompleteOrderCompositionCommand.Verb] = message => message.AsCommand<CompleteOrderCompositionCommand>()!,
-            [CompleteRiskManagementCommand.Verb] = message => message.AsCommand<CompleteRiskManagementCommand>()!,
-            [FailRegimeDiscoveryCommand.Verb] = message => message.AsCommand<FailRegimeDiscoveryCommand>()!,
-            [FailMarketConditionCommand.Verb] = message => message.AsCommand<FailMarketConditionCommand>()!,
-            [FailTradeSelectionCommand.Verb] = message => message.AsCommand<FailTradeSelectionCommand>()!,
-            [FailOrderCompositionCommand.Verb] = message => message.AsCommand<FailOrderCompositionCommand>()!,
-            [FailRiskManagementCommand.Verb] = message => message.AsCommand<FailRiskManagementCommand>()!,
-            [TimeoutMarketConditionCommand.Verb] = message => message.AsCommand<TimeoutMarketConditionCommand>()!,
-            [TimeoutTradeSelectionCommand.Verb] = message => message.AsCommand<TimeoutTradeSelectionCommand>()!,
-            [TimeoutOrderCompositionCommand.Verb] = message => message.AsCommand<TimeoutOrderCompositionCommand>()!,
-            [TimeoutRiskManagementCommand.Verb] = message => message.AsCommand<TimeoutRiskManagementCommand>()!,
-            [CancelIntrinsicTimeStrategyWorkflowCommand.Verb] =
-                message => message.AsCommand<CancelIntrinsicTimeStrategyWorkflowCommand>()!
-        };
+    protected override bool AuditIsCommittedWithState(ICommand command) => _atomicAudit;
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
-        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
-        {
-            [typeof(AdvanceRiskFinancialHandoffCommand)] = static command =>
-            {
-                var typed = (AdvanceRiskFinancialHandoffCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(PrepareRiskManagementCommand)] = static command =>
-            {
-                var typed = (PrepareRiskManagementCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(AcceptOrderCompositionPreparationCommand)] = static command =>
-            {
-                var typed = (AcceptOrderCompositionPreparationCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static command =>
-            {
-                var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteRegimeDiscoveryCommand)] = static command =>
-            {
-                var typed = (CompleteRegimeDiscoveryCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteMarketConditionCommand)] = static command =>
-            {
-                var typed = (CompleteMarketConditionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static command =>
-            {
-                var typed = (RedispatchCurrentStrategyPipelineCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteTradeSelectionReservationCommand)] = static command =>
-            {
-                var typed = (CompleteTradeSelectionReservationCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteTradeSelectionCommand)] = static command =>
-            {
-                var typed = (CompleteTradeSelectionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteOrderCompositionCommand)] = static command =>
-            {
-                var typed = (CompleteOrderCompositionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CompleteRiskManagementCommand)] = static command =>
-            {
-                var typed = (CompleteRiskManagementCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(FailRegimeDiscoveryCommand)] = static command =>
-            {
-                var typed = (FailRegimeDiscoveryCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(FailMarketConditionCommand)] = static command =>
-            {
-                var typed = (FailMarketConditionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(FailTradeSelectionCommand)] = static command =>
-            {
-                var typed = (FailTradeSelectionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(FailOrderCompositionCommand)] = static command =>
-            {
-                var typed = (FailOrderCompositionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(FailRiskManagementCommand)] = static command =>
-            {
-                var typed = (FailRiskManagementCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(TimeoutMarketConditionCommand)] = static command =>
-            {
-                var typed = (TimeoutMarketConditionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(TimeoutTradeSelectionCommand)] = static command =>
-            {
-                var typed = (TimeoutTradeSelectionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(TimeoutOrderCompositionCommand)] = static command =>
-            {
-                var typed = (TimeoutOrderCompositionCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(TimeoutRiskManagementCommand)] = static command =>
-            {
-                var typed = (TimeoutRiskManagementCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static command =>
-            {
-                var typed = (CancelIntrinsicTimeStrategyWorkflowCommand)command;
-                return new List<ValidationError>()
-                    .ValidateCommandId(typed.CommandId, typed.CommandName)
-                    .ValidateWorkflowEntityId(typed.EntityId)
-                    .ValidateWorkflowCommand(typed);
-            },
-        };
+    static readonly FrozenDictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>> _duplicateRetryMap = new Dictionary<Type, Func<ICommand, CancellationToken, ValueTask<bool>>>
+    {
+        [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, token) => ((AdvanceRiskFinancialHandoffCommand)command).ResumeAfterAuditAsync(token),
+        [typeof(PrepareRiskManagementCommand)] = static (command, token) => ((PrepareRiskManagementCommand)command).ResumeAfterAuditAsync(token)
+    }.ToFrozenDictionary();
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ICommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return _duplicateRetryMap.TryGetValue(command.GetType(), out var handler) ? handler(command, cancellationToken) : ValueTask.FromResult(false);
+    }
 
-    static readonly IReadOnlyDictionary<Type, Func<ICommand,
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
-        IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<Type, Func<ICommand,
-            ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>,
-            IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+    {
+        [AdvanceRiskFinancialHandoffCommand.Verb] = message => message.AsCommand<AdvanceRiskFinancialHandoffCommand>()!,
+        [PrepareRiskManagementCommand.Verb] = message => message.AsCommand<PrepareRiskManagementCommand>()!,
+        [AcceptOrderCompositionPreparationCommand.Verb] = message => message.AsCommand<AcceptOrderCompositionPreparationCommand>()!,
+        [ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
+        [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
+        [CompleteMarketConditionCommand.Verb] = message => message.AsCommand<CompleteMarketConditionCommand>()!,
+        [RedispatchCurrentStrategyPipelineCommand.Verb] = message => message.AsCommand<RedispatchCurrentStrategyPipelineCommand>()!,
+        [CompleteTradeSelectionReservationCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionReservationCommand>()!,
+        [CompleteTradeSelectionCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionCommand>()!,
+        [CompleteOrderCompositionCommand.Verb] = message => message.AsCommand<CompleteOrderCompositionCommand>()!,
+        [CompleteRiskManagementCommand.Verb] = message => message.AsCommand<CompleteRiskManagementCommand>()!,
+        [FailRegimeDiscoveryCommand.Verb] = message => message.AsCommand<FailRegimeDiscoveryCommand>()!,
+        [FailMarketConditionCommand.Verb] = message => message.AsCommand<FailMarketConditionCommand>()!,
+        [FailTradeSelectionCommand.Verb] = message => message.AsCommand<FailTradeSelectionCommand>()!,
+        [FailOrderCompositionCommand.Verb] = message => message.AsCommand<FailOrderCompositionCommand>()!,
+        [FailRiskManagementCommand.Verb] = message => message.AsCommand<FailRiskManagementCommand>()!,
+        [TimeoutMarketConditionCommand.Verb] = message => message.AsCommand<TimeoutMarketConditionCommand>()!,
+        [TimeoutTradeSelectionCommand.Verb] = message => message.AsCommand<TimeoutTradeSelectionCommand>()!,
+        [TimeoutOrderCompositionCommand.Verb] = message => message.AsCommand<TimeoutOrderCompositionCommand>()!,
+        [TimeoutRiskManagementCommand.Verb] = message => message.AsCommand<TimeoutRiskManagementCommand>()!,
+        [CancelIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<CancelIntrinsicTimeStrategyWorkflowCommand>()!
+    };
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+    {
+        [typeof(AdvanceRiskFinancialHandoffCommand)] = static command =>
         {
-            [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, context, state) => ((AdvanceRiskFinancialHandoffCommand)command).ExecuteAsync(context, state),
-            [typeof(PrepareRiskManagementCommand)] = static (command, context, state) =>
-                ((PrepareRiskManagementCommand)command).ExecuteAsync(context, state),
-            [typeof(AcceptOrderCompositionPreparationCommand)] = static (command, context, state) =>
-                ((AcceptOrderCompositionPreparationCommand)command).ExecuteAsync(context, state),
-            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((ExecuteIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state)),
-            [typeof(CompleteRegimeDiscoveryCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((CompleteRegimeDiscoveryCommand)command).Execute(context, state)),
-            [typeof(CompleteMarketConditionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((CompleteMarketConditionCommand)command).Execute(context, state)),
-            [typeof(RedispatchCurrentStrategyPipelineCommand)] = static (command, context, state) => ValueTask.FromResult(((RedispatchCurrentStrategyPipelineCommand)command).Execute(context, state)),
-            [typeof(CompleteTradeSelectionReservationCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteTradeSelectionReservationCommand)command).Execute(context, state)),
-            [typeof(CompleteTradeSelectionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((CompleteTradeSelectionCommand)command).Execute(context, state)),
-            [typeof(CompleteOrderCompositionCommand)] = static (command, context, state) =>
-                ((CompleteOrderCompositionCommand)command).ExecutePreparedAsync(context, state),
-            [typeof(CompleteRiskManagementCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((CompleteRiskManagementCommand)command).Execute(context, state)),
-            [typeof(FailRegimeDiscoveryCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((FailRegimeDiscoveryCommand)command).Execute(context, state)),
-            [typeof(FailMarketConditionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((FailMarketConditionCommand)command).Execute(context, state)),
-            [typeof(FailTradeSelectionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((FailTradeSelectionCommand)command).Execute(context, state)),
-            [typeof(FailOrderCompositionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((FailOrderCompositionCommand)command).Execute(context, state)),
-            [typeof(FailRiskManagementCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((FailRiskManagementCommand)command).Execute(context, state)),
-            [typeof(TimeoutMarketConditionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((TimeoutMarketConditionCommand)command).Execute(context, state)),
-            [typeof(TimeoutTradeSelectionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((TimeoutTradeSelectionCommand)command).Execute(context, state)),
-            [typeof(TimeoutOrderCompositionCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((TimeoutOrderCompositionCommand)command).Execute(context, state)),
-            [typeof(TimeoutRiskManagementCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((TimeoutRiskManagementCommand)command).Execute(context, state)),
-            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) =>
-                ValueTask.FromResult(((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state))
-        };
-
+            var typed = (AdvanceRiskFinancialHandoffCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(PrepareRiskManagementCommand)] = static command =>
+        {
+            var typed = (PrepareRiskManagementCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(AcceptOrderCompositionPreparationCommand)] = static command =>
+        {
+            var typed = (AcceptOrderCompositionPreparationCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static command =>
+        {
+            var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteRegimeDiscoveryCommand)] = static command =>
+        {
+            var typed = (CompleteRegimeDiscoveryCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteMarketConditionCommand)] = static command =>
+        {
+            var typed = (CompleteMarketConditionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(RedispatchCurrentStrategyPipelineCommand)] = static command =>
+        {
+            var typed = (RedispatchCurrentStrategyPipelineCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteTradeSelectionReservationCommand)] = static command =>
+        {
+            var typed = (CompleteTradeSelectionReservationCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteTradeSelectionCommand)] = static command =>
+        {
+            var typed = (CompleteTradeSelectionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteOrderCompositionCommand)] = static command =>
+        {
+            var typed = (CompleteOrderCompositionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CompleteRiskManagementCommand)] = static command =>
+        {
+            var typed = (CompleteRiskManagementCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(FailRegimeDiscoveryCommand)] = static command =>
+        {
+            var typed = (FailRegimeDiscoveryCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(FailMarketConditionCommand)] = static command =>
+        {
+            var typed = (FailMarketConditionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(FailTradeSelectionCommand)] = static command =>
+        {
+            var typed = (FailTradeSelectionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(FailOrderCompositionCommand)] = static command =>
+        {
+            var typed = (FailOrderCompositionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(FailRiskManagementCommand)] = static command =>
+        {
+            var typed = (FailRiskManagementCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(TimeoutMarketConditionCommand)] = static command =>
+        {
+            var typed = (TimeoutMarketConditionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(TimeoutTradeSelectionCommand)] = static command =>
+        {
+            var typed = (TimeoutTradeSelectionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(TimeoutOrderCompositionCommand)] = static command =>
+        {
+            var typed = (TimeoutOrderCompositionCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(TimeoutRiskManagementCommand)] = static command =>
+        {
+            var typed = (TimeoutRiskManagementCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+        [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static command =>
+        {
+            var typed = (CancelIntrinsicTimeStrategyWorkflowCommand)command;
+            return new List<ValidationError>().ValidateCommandId(typed.CommandId, typed.CommandName).ValidateWorkflowEntityId(typed.EntityId).ValidateWorkflowCommand(typed);
+        },
+    };
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, ValueTask<ServiceResult<GuidResult>>>>()
+    {
+        [typeof(AdvanceRiskFinancialHandoffCommand)] = static (command, context, state) => ((AdvanceRiskFinancialHandoffCommand)command).ExecuteAsync(context, state),
+        [typeof(PrepareRiskManagementCommand)] = static (command, context, state) => ((PrepareRiskManagementCommand)command).ExecuteAsync(context, state),
+        [typeof(AcceptOrderCompositionPreparationCommand)] = static (command, context, state) => ((AcceptOrderCompositionPreparationCommand)command).ExecuteAsync(context, state),
+        [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) => ValueTask.FromResult(((ExecuteIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state)),
+        [typeof(CompleteRegimeDiscoveryCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteRegimeDiscoveryCommand)command).Execute(context, state)),
+        [typeof(CompleteMarketConditionCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteMarketConditionCommand)command).Execute(context, state)),
+        [typeof(RedispatchCurrentStrategyPipelineCommand)] = static (command, context, state) => ValueTask.FromResult(((RedispatchCurrentStrategyPipelineCommand)command).Execute(context, state)),
+        [typeof(CompleteTradeSelectionReservationCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteTradeSelectionReservationCommand)command).Execute(context, state)),
+        [typeof(CompleteTradeSelectionCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteTradeSelectionCommand)command).Execute(context, state)),
+        [typeof(CompleteOrderCompositionCommand)] = static (command, context, state) => ((CompleteOrderCompositionCommand)command).ExecutePreparedAsync(context, state),
+        [typeof(CompleteRiskManagementCommand)] = static (command, context, state) => ValueTask.FromResult(((CompleteRiskManagementCommand)command).Execute(context, state)),
+        [typeof(FailRegimeDiscoveryCommand)] = static (command, context, state) => ValueTask.FromResult(((FailRegimeDiscoveryCommand)command).Execute(context, state)),
+        [typeof(FailMarketConditionCommand)] = static (command, context, state) => ValueTask.FromResult(((FailMarketConditionCommand)command).Execute(context, state)),
+        [typeof(FailTradeSelectionCommand)] = static (command, context, state) => ValueTask.FromResult(((FailTradeSelectionCommand)command).Execute(context, state)),
+        [typeof(FailOrderCompositionCommand)] = static (command, context, state) => ValueTask.FromResult(((FailOrderCompositionCommand)command).Execute(context, state)),
+        [typeof(FailRiskManagementCommand)] = static (command, context, state) => ValueTask.FromResult(((FailRiskManagementCommand)command).Execute(context, state)),
+        [typeof(TimeoutMarketConditionCommand)] = static (command, context, state) => ValueTask.FromResult(((TimeoutMarketConditionCommand)command).Execute(context, state)),
+        [typeof(TimeoutTradeSelectionCommand)] = static (command, context, state) => ValueTask.FromResult(((TimeoutTradeSelectionCommand)command).Execute(context, state)),
+        [typeof(TimeoutOrderCompositionCommand)] = static (command, context, state) => ValueTask.FromResult(((TimeoutOrderCompositionCommand)command).Execute(context, state)),
+        [typeof(TimeoutRiskManagementCommand)] = static (command, context, state) => ValueTask.FromResult(((TimeoutRiskManagementCommand)command).Execute(context, state)),
+        [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static (command, context, state) => ValueTask.FromResult(((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(context, state))
+    };
     /// <summary>Gets the workflow Command actor name.</summary>
     public const string ActorName = ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor;
+    IIntrinsicTimeStrategyWorkflowCommandContext ActorContext => Context as IIntrinsicTimeStrategyWorkflowCommandContext ?? throw new InvalidOperationException($"{nameof(Context)} must implement {nameof(IIntrinsicTimeStrategyWorkflowCommandContext)}.");
 
-    IIntrinsicTimeStrategyWorkflowCommandContext ActorContext =>
-        Context as IIntrinsicTimeStrategyWorkflowCommandContext
-        ?? throw new InvalidOperationException(
-            $"{nameof(Context)} must implement {nameof(IIntrinsicTimeStrategyWorkflowCommandContext)}.");
-
-    /// <inheritdoc />
-    protected override async ValueTask OnStartup(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
-        => await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override async ValueTask OnShutdown(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
-        => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override ICommand ParseMessage(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        IActorMessage message)
-        => ParseMappedCommand(context, message, _parseMap);
-
-    /// <inheritdoc />
-    protected override ValueTask OnValidateAsync(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        ActorThreadId threadId,
-        ICommand command)
+    /// <inheritdoc/>
+    protected override async ValueTask OnStartup(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context) => await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override async ValueTask OnShutdown(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context) => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override ICommand ParseMessage(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    /// <inheritdoc/>
+    protected override ValueTask OnValidateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    /// <inheritdoc />
-    protected override async ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        ActorThreadId threadId,
-        ICommand command)
-        => await ActorContext.StateRepository.LoadStateAsync(command).ConfigureAwait(false);
-
-    /// <inheritdoc />
-    protected override async ValueTask OnSaveStateAsync(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        ActorThreadId threadId,
-        IActorState state,
-        ICommand command)
+    /// <inheritdoc/>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ActorThreadId threadId, ICommand command) => await ActorContext.StateRepository.LoadStateAsync(command).ConfigureAwait(false);
+    /// <inheritdoc/>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var workflowState = (IntrinsicTimeStrategyWorkflowCommandState)state;
         await ActorContext.StateRepository.SaveStateAsync(context, workflowState, command).ConfigureAwait(false);
-        if (workflowState.CurrentView is { } view)
-            IntrinsicTimeStrategyWorkflowLogging.StateCommitted(
-                ActorContext.Logger, command.CommandId, view.WorkflowId.ToString(), view.EntityId.Format(),
-                view.WorkflowRevision, view.CurrentStage.ToString(), view.Status.ToString(), view.Outcome.ToString());
+        if (workflowState.CurrentView is { } view && ActorContext.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+        {
+            var loggingArgument1 = view.WorkflowId.ToString();
+            var loggingArgument2 = view.EntityId.Format();
+            var loggingArgument3 = view.CurrentStage.ToString();
+            var loggingArgument4 = view.Status.ToString();
+            var loggingArgument5 = view.Outcome.ToString();
+            IntrinsicTimeStrategyWorkflowLogging.StateCommitted(ActorContext.Logger, command.CommandId, loggingArgument1, loggingArgument2, view.WorkflowRevision, loggingArgument3, loggingArgument4, loggingArgument5);
+        }
     }
 
-    /// <inheritdoc />
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        IActorState actorState,
-        ICommand command)
+    /// <inheritdoc/>
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, IActorState state, ICommand command)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(actorState);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(command);
         var started = Stopwatch.GetTimestamp();
         var entityId = command.Subject.EntityId;
-        IntrinsicTimeStrategyWorkflowLogging.CommandReceived(
-            ActorContext.Logger, command.CommandId, entityId, command.CommandName);
-        var state = (IntrinsicTimeStrategyWorkflowCommandState)actorState;
+        IntrinsicTimeStrategyWorkflowLogging.CommandReceived(ActorContext.Logger, command.CommandId, entityId, command.CommandName);
+        var workflowState = (IntrinsicTimeStrategyWorkflowCommandState)state;
         var receive = ResolveMappedCommandHandler(command, _receiveMap);
-        var result = await receive(command, context, state).ConfigureAwait(false);
-        IntrinsicTimeStrategyWorkflowLogging.CommandHandled(
-            ActorContext.Logger, command.CommandId, entityId, command.CommandName,
-            result.Success, result.ErrorCode, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        var result = await receive(command, context, workflowState).ConfigureAwait(false);
+        if (ActorContext.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Debug))
+        {
+            var loggingArgument1 = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            IntrinsicTimeStrategyWorkflowLogging.CommandHandled(ActorContext.Logger, command.CommandId, entityId, command.CommandName, result.Success, result.ErrorCode, loggingArgument1);
+        }
+
         return result;
     }
 
-    /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        ActorThreadId threadId,
-        ICommand command,
-        Exception ex)
+    /// <inheritdoc/>
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
-        IntrinsicTimeStrategyWorkflowLogging.CommandFailed(
-            ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty,
-            command?.Subject.EntityId ?? threadId.ToString(), command?.CommandName ?? "Unknown",
-            ex.GetType().Name, ex.Message);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceResult<GuidResult>(command?.ErrorCode ?? 21000, ex.Message));
+        ArgumentNullException.ThrowIfNull(ex);
+        IntrinsicTimeStrategyWorkflowLogging.CommandFailed(ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty, command?.Subject.EntityId ?? threadId.ToString(), command?.CommandName ?? "Unknown", ex.GetType().Name, ex.Message);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceResult<GuidResult>(command?.ErrorCode ?? 21000, ex.Message));
     }
-
 }

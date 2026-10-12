@@ -16,6 +16,12 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// scenarios.</remarks>
 public interface ISecuritiesDbReadContext : ICurrentFuturesContractCatalog, IOptionPricingConventionStore
 {
+    /// <summary>Reads the immutable bundle JSON by its content digest.</summary>
+    /// <param name="bundleId">The exact content digest qualified by the caller.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The stored JSON, or null when absent.</returns>
+    Task<string?> GetOptionPricingReferenceBundlePayloadAsync(string bundleId, CancellationToken cancellationToken = default);
+
     /// <inheritdoc />
     new Task<OptionPricingConvention?> GetAsync(
         string contractId,

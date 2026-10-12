@@ -18,7 +18,11 @@ public static class FuturesRsiSignalTimer
     public static bool StartTimer(
         this FuturesRsiSignalStartedEvent e,
         Func<FuturesRsiSignalEntityId, ValueTask> timerAction)
-        => StartTimer(e, timerAction, GetTimerPeriod(e.EntityId));
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return StartTimer(e, timerAction, GetTimerPeriod(e.EntityId));
+    }
 
     internal static bool StartTimer(
         this FuturesRsiSignalStartedEvent e,
@@ -26,12 +30,14 @@ public static class FuturesRsiSignalTimer
         TimeSpan period)
     {
         ArgumentNullException.ThrowIfNull(timerAction);
-        if (period <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(period));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero);
 
         var registration = new TimerRegistration(e.EntityId, timerAction, period);
         if (!Timers.TryAdd(e.EntityId, registration))
+        {
+            registration.DisposeUnstarted();
             return false;
+        }
 
         registration.Start();
         return true;
@@ -41,15 +47,20 @@ public static class FuturesRsiSignalTimer
     /// Accepts a source sequence once for the active timer registration.
     /// </summary>
     public static bool TryAcceptSourceSequence(this FuturesRsiSignalStartedEvent e, long sourceSequence)
-        => sourceSequence >= 0
+        
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        return sourceSequence >= 0
            && Timers.TryGetValue(e.EntityId, out var registration)
-           && registration.TryAcceptSourceSequence(sourceSequence);
+           && registration.TryAcceptSequence(sourceSequence);
+    }
 
     /// <summary>
     /// Stops the callback loop and waits for an in-flight callback to finish.
     /// </summary>
     public static async ValueTask<bool> StopTimerAsync(this FuturesRsiSignalStoppedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         if (!Timers.TryGetValue(e.EntityId, out var registration))
             return false;
 
@@ -106,16 +117,18 @@ public static class FuturesRsiSignalTimer
     sealed class TimerRegistration(
         FuturesRsiSignalEntityId entityId,
         Func<FuturesRsiSignalEntityId, ValueTask> callback,
-        TimeSpan period)
+        TimeSpan period) : IAsyncDisposable
     {
         readonly CancellationTokenSource _stopping = new();
-        readonly object _lifecycleLock = new();
+        readonly System.Threading.Lock _lifecycleLock = new();
         Task _loopTask = Task.CompletedTask;
+        Task? _stopTask;
+        Task _cancellationTask = Task.CompletedTask;
         bool _started;
         bool _stopped;
         long _lastSourceSequence;
 
-        public bool TryAcceptSourceSequence(long sourceSequence)
+        public bool TryAcceptSequence(long sourceSequence)
         {
             while (true)
             {
@@ -139,25 +152,46 @@ public static class FuturesRsiSignalTimer
             }
         }
 
-        public async ValueTask StopAsync()
+        /// <summary>Releases a rejected registration before it owns a callback loop.</summary>
+        public void DisposeUnstarted()
         {
-            Task loopTask;
+            lock (_lifecycleLock)
+            {
+                if (_started || _stopped) return;
+                _stopped = true;
+                _stopTask = Task.CompletedTask;
+                _stopping.Dispose();
+            }
+        }
+
+        public ValueTask DisposeAsync() => StopAsync();
+
+        public ValueTask StopAsync()
+        {
             lock (_lifecycleLock)
             {
                 if (!_stopped)
                 {
                     _stopped = true;
-                    _stopping.Cancel();
+                    _cancellationTask = _stopping.CancelAsync();
                 }
-                loopTask = _loopTask;
+                return new ValueTask(_stopTask ??= CompleteStopAsync());
             }
+        }
 
+        async Task CompleteStopAsync()
+        {
             try
             {
-                await loopTask.ConfigureAwait(false);
+                await Task.WhenAll(_cancellationTask, _loopTask).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
             {
+                // Expected completion after the registration is stopped.
+            }
+            finally
+            {
+                _stopping.Dispose();
             }
         }
 

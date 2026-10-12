@@ -31,7 +31,7 @@ public sealed class ScyllaCommandLogBenchmarkStore(
         return await Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.TryInsertScylla)}", CommandLogBenchmarkStatements.TryInsertScylla)
             .SetParameters(new InsertParameters(entry))
             .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
-            .ConfigureAwait(false) == true;
+            .ConfigureAwait(false);
     }
 
     public Task<ScyllaCommandLogBenchmarkRecord?> GetAsync(
@@ -55,7 +55,8 @@ public sealed class ScyllaCommandLogBenchmarkStore(
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
 
-    readonly record struct InsertParameters(CommandLogBenchmarkEntry Entry) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct InsertParameters(CommandLogBenchmarkEntry Entry) : IBindValue
     {
         public object Bind() => new object?[]
         {
@@ -68,7 +69,8 @@ public sealed class ScyllaCommandLogBenchmarkStore(
         };
     }
 
-    readonly record struct CommandIdParameter(Guid CommandId) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct CommandIdParameter(Guid CommandId) : IBindValue
     {
         public object Bind() => new object?[] { CommandId };
     }

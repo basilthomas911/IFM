@@ -22,6 +22,7 @@ public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction)
     /// <param name="eventServiceType">The type of the service associated with the event.</param>
     /// <returns>An instance of the event handler that implements the <see cref="IAsyncEventHandler{TEvent, TService}"/>
     /// interface for the specified event and service types, or <see langword="null"/> if no handler is found.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional DI handler resolution returns null on any provider resolution failure.")]
     public object? ResolveEventHandler(Type eventType, Type eventServiceType)
     {
         try
@@ -29,9 +30,10 @@ public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction)
             var eventHandlerType = typeof(IAsyncEventHandler<,>).MakeGenericType(eventType, eventServiceType);
             return resolverFunction?.Invoke(eventHandlerType);
         }
-        catch { }
+        catch (Exception)
         {
-            return default;
+            // A resolution miss is the documented nullable result of this optional handler lookup.
+            return null;
         }
     }
 
@@ -47,6 +49,7 @@ public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction)
     /// <returns>An instance of the event service handler that implements <see cref="IAsyncEventServiceHandler{TEvent,
     /// TService}"/> for the specified <paramref name="eventType"/> and <paramref name="eventServiceType"/>, or <see
     /// langword="null"/> if the handler could not be resolved.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional DI handler resolution returns null on any provider resolution failure.")]
     public object? ResolveEventServiceHandler(Type eventType, Type eventServiceType)
     {
         try
@@ -54,9 +57,10 @@ public class EventServiceHandlerResolver(Func<Type, object>? resolverFunction)
             var eventHandlerType = typeof(IAsyncEventServiceHandler<,>).MakeGenericType(eventType, eventServiceType);
             return resolverFunction?.Invoke(eventHandlerType);
         }
-        catch { }
+        catch (Exception)
         {
-            return default;
+            // A resolution miss is the documented nullable result of this optional handler lookup.
+            return null;
         }
     }
 }

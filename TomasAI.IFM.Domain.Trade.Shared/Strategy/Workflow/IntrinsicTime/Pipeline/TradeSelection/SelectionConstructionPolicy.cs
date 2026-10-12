@@ -22,6 +22,7 @@ public sealed record SelectionConstructionPolicy
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SelectionOptionChainCachePolicy? OptionChainCache { get; init; }
     /// <summary>Exact structure-specific global policies for a deployment containing several option structures.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SelectionStructureOptionChainCachePolicy[]? OptionChainCachePolicies { get; init; }
     /// <summary>Resolves only the selected exact structure; never loads or substitutes a current policy.</summary>
@@ -31,7 +32,7 @@ public sealed record SelectionConstructionPolicy
     public static SelectionConstructionPolicy Read(string json)
     {
         TradeSelectionPolicy.CheckJson(json);
-        var p = JsonSerializer.Deserialize<SelectionConstructionPolicy>(json, Options) ?? throw new ArgumentException("Missing construction policy."); p.Validate(); return p;
+        var p = JsonSerializer.Deserialize<SelectionConstructionPolicy>(json, Options) ?? throw new ArgumentException("Missing construction policy.",nameof(json)); p.Validate(); return p;
     }
     public string Serialize() { Validate(); return JsonSerializer.Serialize(this, Options); }
     public string Hash() => TradeSelectionPolicy.HashJson(Serialize());
@@ -44,19 +45,19 @@ public sealed record SelectionConstructionPolicy
                     && pins.Select(x => (x.StructureId, x.StructureVersion)).Distinct().Count() == pins.Length))
         && ParameterSetId != Guid.Empty && Version > 0 && MaximumLegs is >= 1 and <= 4
         && MinimumDaysToExpiry >= 1 && MaximumDaysToExpiry >= MinimumDaysToExpiry && MaximumDaysToExpiry <= 730
-        && MinimumWingWidth >= 0 && MaximumWingWidth >= MinimumWingWidth && MaximumWingWidth <= 10000 && DeltaUnits == "UnderlyingEquivalent" && MaximumDeltaTolerance is >= 0 and <= 1,
+        && MinimumWingWidth >= 0 && MaximumWingWidth >= MinimumWingWidth && MaximumWingWidth <= 10000 && string.Equals(DeltaUnits,"UnderlyingEquivalent",StringComparison.Ordinal) && MaximumDeltaTolerance is >= 0 and <= 1,
         "TS.CONFIG.COMPOSITION_SCHEMA", "Invalid or unsupported construction constraints.");
 
     bool ValidMarketData()
     {
         if (MarketData is not { ValueKind: JsonValueKind.Object } data) return false;
-        string[] required = ["SchemaVersion", "Dataset", "Root", "ValueDate", "IncludeOptions", "ScopeComplete", "MaturityDate", "Options", "Futures"];
+        string[] required = [nameof(SchemaVersion), "Dataset", "Root", "ValueDate", "IncludeOptions", "ScopeComplete", "MaturityDate", "Options", "Futures"];
         string[] optional = ["Calendar", "Publication", "Conversion"];
         if (required.Any(name => !data.TryGetProperty(name, out _))
             || data.EnumerateObject().Any(p => !required.Contains(p.Name, StringComparer.Ordinal) && !optional.Contains(p.Name, StringComparer.Ordinal))) return false;
-        if (data.GetProperty("SchemaVersion").ValueKind != JsonValueKind.Number || !data.GetProperty("SchemaVersion").TryGetInt32(out var schema) || schema != 1
-            || data.GetProperty("Dataset").ValueKind != JsonValueKind.String || data.GetProperty("Dataset").GetString() != "GLBX.MDP3"
-            || data.GetProperty("Root").ValueKind != JsonValueKind.String || data.GetProperty("Root").GetString() != "ES"
+        if (data.GetProperty(nameof(SchemaVersion)).ValueKind != JsonValueKind.Number || !data.GetProperty(nameof(SchemaVersion)).TryGetInt32(out var schema) || schema != 1
+            || data.GetProperty("Dataset").ValueKind != JsonValueKind.String || !string.Equals(data.GetProperty("Dataset").GetString(),"GLBX.MDP3",StringComparison.Ordinal)
+            || data.GetProperty("Root").ValueKind != JsonValueKind.String || !string.Equals(data.GetProperty("Root").GetString(),"ES",StringComparison.Ordinal)
             || data.GetProperty("ScopeComplete").ValueKind != JsonValueKind.True
             || data.GetProperty("IncludeOptions").ValueKind is not (JsonValueKind.True or JsonValueKind.False)
             || data.GetProperty("ValueDate").ValueKind != JsonValueKind.String
@@ -72,37 +73,17 @@ public sealed record SelectionConstructionPolicy
     }
     public void ValidateCandidate(SelectionCatalogDefinitionSnapshot structure, SelectionCatalogDefinitionSnapshot variant)
     {
+        ArgumentNullException.ThrowIfNull(structure);
+        ArgumentNullException.ThrowIfNull(variant);
         TradeSelectionContracts.Require(structure.Legs.Length <= MaximumLegs, "TS.CONFIG.COMPOSITION_SCHEMA", "Composition policy cannot construct this leg count.");
-        if (structure.Legs.Any(x => x.InstrumentClass == "FuturesOption"))
+        if (structure.Legs.Any(x => string.Equals(x.InstrumentClass,"FuturesOption",StringComparison.Ordinal)))
         {
             TradeSelectionContracts.Require(SchemaVersion != 3 || CachePolicy(structure.Key) is not null,
                 "TS.CONFIG.COMPOSITION_SCHEMA", "Exact option structure cache policy is missing.");
             var settings = variant.SettingsJson;
             using var doc = JsonDocument.Parse(settings); var root = doc.RootElement;
-            TradeSelectionContracts.Require(MinimumWingWidth > 0 && root.GetProperty("MinimumWingWidth").GetDecimal() >= MinimumWingWidth && root.GetProperty("MaximumWingWidth").GetDecimal() <= MaximumWingWidth
+            TradeSelectionContracts.Require(MinimumWingWidth > 0 && root.GetProperty(nameof(MinimumWingWidth)).GetDecimal() >= MinimumWingWidth && root.GetProperty(nameof(MaximumWingWidth)).GetDecimal() <= MaximumWingWidth
                 && root.GetProperty("BalanceTolerance").GetDecimal() <= MaximumDeltaTolerance, "TS.CONFIG.COMPOSITION_SCHEMA", "Variant and composition constraints do not agree.");
         }
     }
-}
-
-/// <summary>Pinned global cache policy from the accepted construction policy. Hash is the normalized cache parameter payload hash.</summary>
-public sealed record SelectionOptionChainCachePolicy
-{
-    [JsonRequired] public Guid ParameterSetId { get; init; }
-    [JsonRequired] public int Version { get; init; }
-    [JsonRequired] public string ConfigurationDigest { get; init; } = "";
-    [JsonRequired] public int MaximumQuoteAgeMilliseconds { get; init; } = 1000;
-    [JsonRequired] public int MaximumQuoteSkewMilliseconds { get; init; } = 250;
-    /// <summary>Checks identity, hash syntax and explicit quality bounds without loading configuration.</summary>
-    public bool IsValid() => ParameterSetId != Guid.Empty && Version > 0 && ConfigurationDigest.Length == 64
-        && ConfigurationDigest.All(Uri.IsHexDigit) && MaximumQuoteAgeMilliseconds is >= 1 and <= 5000
-        && MaximumQuoteSkewMilliseconds is >= 0 and <= 2000;
-}
-
-/// <summary>Immutable mapping from an exact catalog structure version to its global option-chain policy.</summary>
-public sealed record SelectionStructureOptionChainCachePolicy
-{
-    [JsonRequired] public Guid StructureId { get; init; }
-    [JsonRequired] public int StructureVersion { get; init; }
-    [JsonRequired] public SelectionOptionChainCachePolicy Policy { get; init; } = new();
 }

@@ -22,9 +22,8 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     : BaseQueryActor<FuturesContractQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesContractQuery";
-    readonly ILogger<FuturesContractQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IFuturesContractQueryContext FuturesContractContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesContractQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IFuturesContractQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -48,7 +47,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetInstrumentDefinitionsQuery.Verb] = msg => msg.AsQuery<GetInstrumentDefinitionsQuery, InstrumentDefinitionPage>()!,
         [GetOnTheRunFuturesContractQuery.Verb] = msg => msg.AsQuery<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>()!,
@@ -78,7 +77,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
-        await receiveFunc.Invoke(FuturesContractContext, query, cancellationToken);
+        await (receiveFunc.Invoke(FuturesContractContext, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -92,39 +91,39 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
     {
         [typeof(GetInstrumentDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
         {
-            await ((GetInstrumentDefinitionsQuery)q).ExecuteAsync(ctx, cancellationToken);
+            await (((GetInstrumentDefinitionsQuery)q).ExecuteAsync(ctx, cancellationToken)).ConfigureAwait(false);
         },
         [typeof(GetOnTheRunFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetOnTheRunFuturesContractQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetOnTheRunFuturesContractQuery.Verb,
-                new ServiceResult<FuturesContractV3ReadModel?>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetOnTheRunFuturesContractQuery.Verb,
+                new ServiceResult<FuturesContractV3ReadModel?>(result))).ConfigureAwait(false);
         },
         [typeof(GetRolloverFuturesContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetRolloverFuturesContractsQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetRolloverFuturesContractsQuery.Verb,
-                new ServiceResult<FuturesContractV3ReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetRolloverFuturesContractsQuery.Verb,
+                new ServiceResult<FuturesContractV3ReadModel[]>(result))).ConfigureAwait(false);
         },
         [typeof(GetFuturesContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesContractQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractQuery.Verb,
-                new ServiceResult<FuturesContractV3ReadModel?>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractQuery.Verb,
+                new ServiceResult<FuturesContractV3ReadModel?>(result))).ConfigureAwait(false);
         },
         [typeof(GetFuturesContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesContractsQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractsQuery.Verb,
-                new ServiceResult<FuturesContractV3ReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesContractsQuery.Verb,
+                new ServiceResult<FuturesContractV3ReadModel[]>(result))).ConfigureAwait(false);
         }
     };
 
@@ -148,7 +147,7 @@ public class FuturesContractQueryActor(IQueryActorContext<FuturesContractQueryAc
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }
 

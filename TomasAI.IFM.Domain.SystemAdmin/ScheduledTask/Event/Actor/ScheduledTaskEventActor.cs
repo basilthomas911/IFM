@@ -95,11 +95,12 @@ public sealed class ScheduledTaskEventActor(IEventActorContext<ScheduledTaskEven
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<ScheduledTaskEventActor> context, IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
-    protected override ValueTask ReceiveAsync(IEventActorContext<ScheduledTaskEventActor> context, IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(domainEvent, _owner);
+    protected override ValueTask ReceiveAsync(IEventActorContext<ScheduledTaskEventActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(@event, _owner);
     /// <inheritdoc />
-    protected override ValueTask OnExceptionAsync(IEventActorContext<ScheduledTaskEventActor> context, ActorThreadId threadId, IEvent domainEvent, Exception exception)
+    protected override ValueTask OnExceptionAsync(IEventActorContext<ScheduledTaskEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        _owner.Logger.LogError(exception, "{Component}.{Method} Runtime dispatch failed for {EventName} {ThreadId}", nameof(ScheduledTaskEventActor), nameof(OnExceptionAsync), domainEvent.EventName, threadId);
-        return ValueTask.FromException(exception);
+        ArgumentNullException.ThrowIfNull(@event);
+        global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write15(_owner.Logger, ex, nameof(ScheduledTaskEventActor), nameof(OnExceptionAsync), @event.EventName, threadId);
+        return ValueTask.FromException(ex);
     }
 }

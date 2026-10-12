@@ -21,9 +21,6 @@ public sealed class ApplicationEventActor(
     IEventActorContext<ApplicationEventActor> actorContext)
     : BaseEventActor<ApplicationEventActor>(actorContext, actorContext.Logger)
 {
-    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private IApplicationEventContext ActorContext =>
-        IsArgumentNull.Set(Context as IApplicationEventContext, nameof(Context))!;
 
     public const string Actor = ApplicationStartupEvent.Actor;
 
@@ -90,11 +87,12 @@ public sealed class ApplicationEventActor(
     /// <inheritdoc/>
     protected override ValueTask ReceiveAsync(IEventActorContext<ApplicationEventActor> context, IEvent @event, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         return ResolveMappedEventHandler(@event, _receiveMap)(@event, context, context.Logger, cancellationToken);
     }
-    /// <summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
     /// </summary>
@@ -119,7 +117,7 @@ public sealed class ApplicationEventActor(
         }
         catch (Exception innerEx)
         {
-            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write11(Context.Logger, innerEx, Actor);
         }
     }
 }

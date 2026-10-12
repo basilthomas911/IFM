@@ -1,16 +1,18 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
 namespace TomasAI.IFM.Framework.OptionPricer.Pricing;
 
-public class OptionSpreadPricer
+public static class OptionSpreadPricer
 {
 
     public static (ICollection<OptionSpreadResult> PutSpreadResult, ICollection<OptionSpreadResult> CallSpreadResult, double Duration) PriceIronCondor(
         CreditSpreadPricerArgs putCreditSpreadArgs,
         CreditSpreadPricerArgs callCreditSpreadArgs)
     {
+        ArgumentNullException.ThrowIfNull(callCreditSpreadArgs);
+        ArgumentNullException.ThrowIfNull(putCreditSpreadArgs);
         var sw = Stopwatch.StartNew();
 
         var putResult = PriceCreditSpread(putCreditSpreadArgs, -1);

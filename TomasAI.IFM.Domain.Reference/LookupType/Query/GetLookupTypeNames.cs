@@ -16,7 +16,9 @@ public static class GetLookupTypeNames
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<string[]> ExecuteAsync(
         this GetLookupTypeNamesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.ReferenceDb.GetLookupTypeNamesAsync(cancellationToken)
-            : dbFactory.ReferenceDb.GetLookupTypeNamesAsync())];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return [.. await (dbFactory.ReferenceDb.GetLookupTypeNamesAsync(cancellationToken)).ConfigureAwait(false)];
+    }
 }

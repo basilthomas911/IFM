@@ -1,7 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
-internal class TradeDbCql
+internal static class TradeDbCql
 {
     public const string DeleteOptionTrade = """
         delete from option_trade

@@ -22,9 +22,8 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     : BaseQueryActor<FuturesOptionContractQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesOptionContractQuery";
-    readonly ILogger<FuturesOptionContractQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IFuturesOptionContractQueryContext FuturesOptionContractContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesOptionContractQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IFuturesOptionContractQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -48,7 +47,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetFuturesOptionContractQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionContractQuery, FuturesOptionContractReadModel>()!,
         [GetFuturesOptionContractsPageQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionContractsPageQuery, FuturesOptionContractPageReadModel>()!,
@@ -77,7 +76,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
-        await receiveFunc.Invoke(FuturesOptionContractContext, query, cancellationToken);
+        await (receiveFunc.Invoke(FuturesOptionContractContext, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -92,33 +91,33 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
         [typeof(GetFuturesOptionContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
-                new ServiceResult<FuturesOptionContractReadModel?>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
+                new ServiceResult<FuturesOptionContractReadModel?>(result))).ConfigureAwait(false);
         },
         [typeof(GetFuturesOptionContractsPageQuery)] = async (ctx, q, cancellationToken) =>
         {
-            var result = await ((GetFuturesOptionContractsPageQuery)q).ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (((GetFuturesOptionContractsPageQuery)q).ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsPageQuery.Verb,
-                new ServiceResult<FuturesOptionContractPageReadModel>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsPageQuery.Verb,
+                new ServiceResult<FuturesOptionContractPageReadModel>(result))).ConfigureAwait(false);
         },
         [typeof(GetFuturesOptionContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractsQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
-                new ServiceResult<FuturesOptionContractReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
+                new ServiceResult<FuturesOptionContractReadModel[]>(result))).ConfigureAwait(false);
         },
         [typeof(GetFuturesOptionContractIdsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractIdsQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb,
-                new ServiceResult<string[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb,
+                new ServiceResult<string[]>(result))).ConfigureAwait(false);
         }
     };
 
@@ -142,6 +141,6 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

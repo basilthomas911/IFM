@@ -16,6 +16,8 @@ public static class CreateRegimeDiscoveryParameterSet
     /// <returns>The command acceptance or business failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this CreateRegimeDiscoveryParameterSetCommand command, ICommandActorContext context, RegimeDiscoveryConfigurationCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         if (state.ParameterSet is not null) return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(command.CommandId)));
         var errorMsg = "RegimeDiscoveryConfiguration.STATE.APPLY_FAILED: unable to apply created event";
         var updated = command.Compute(state, out var configurationChange) switch
@@ -35,7 +37,7 @@ public static class CreateRegimeDiscoveryParameterSet
     /// <returns>True when the transition is valid.</returns>
     internal static bool Compute(this CreateRegimeDiscoveryParameterSetCommand command, RegimeDiscoveryConfigurationCommandState state, out RegimeDiscoveryConfigurationChange configurationChange)
     {
-        configurationChange = state.Status != "Empty"
+        configurationChange = !string.Equals(state.Status,"Empty",StringComparison.Ordinal)
             ? new(RejectionReason: "RegimeDiscoveryConfiguration: only a Empty version can be created.")
             : new(command.ParameterSet with { }, command.Description, command.CreatedBy);
         return configurationChange.RejectionReason is null;
@@ -53,5 +55,6 @@ public static class CreateRegimeDiscoveryParameterSet
             ParameterSet = configurationChange.ParameterSet!,
             Description = configurationChange.Description,
             CreatedBy = configurationChange.CreatedBy,
+            CreatedAtUtc = DateTime.UtcNow,
         };
 }

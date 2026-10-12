@@ -89,9 +89,10 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     Scenario CreateScenario()
     {
         var eventDb = Substitute.For<IEventSourceActorDbContext>();
-        eventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        eventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
         var logger = Substitute.For<ILogger<FuturesTdiSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateActor(eventDb, logger);
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>();
         var container = Substitute.For<IContainerInstance>();
@@ -141,7 +142,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         await scenario.EventDb.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),
             Arg.Any<DateTime>(),
-            Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())));
+            Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())), CancellationToken.None);
     }
 
     [Fact]
@@ -210,7 +211,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     {
         var scenario = CreateScenario();
         var command = SampleData.TdiGenerateCommandFor(TimeFrameType.FiveMinutes);
-        scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
         var parsed = scenario.Actor.InvokeParseMessage(scenario.Context, CreateMessage(command));

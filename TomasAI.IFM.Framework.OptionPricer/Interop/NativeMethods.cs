@@ -8,10 +8,12 @@ internal static partial class NativeMethods
 {
     private const string LibraryName = OptionPricerNativeLibraryResolver.LibraryName;
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_option_pricer_get_abi_version")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial uint GetAbiVersion();
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_price_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OptionPricerNativeStatus Price(
@@ -23,6 +25,7 @@ internal static partial class NativeMethods
         int optionType,
         out double result);
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_price_with_greeks_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OptionPricerNativeStatus PriceWithGreeks(
@@ -34,6 +37,7 @@ internal static partial class NativeMethods
         int optionType,
         out Black76Result result);
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_implied_volatility_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OptionPricerNativeStatus ImpliedVolatility(
@@ -49,6 +53,7 @@ internal static partial class NativeMethods
         double initialGuess,
         out double result);
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_implied_volatility_with_greeks_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OptionPricerNativeStatus ImpliedVolatilityWithGreeks(
@@ -64,6 +69,7 @@ internal static partial class NativeMethods
         double initialGuess,
         out NativeImpliedGreeksResult result);
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_price_batch_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OptionPricerNativeStatus PriceBatch(
@@ -77,6 +83,7 @@ internal static partial class NativeMethods
         double* results,
         out uint errorIndex);
 
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
     [LibraryImport(LibraryName, EntryPoint = "ifm_black76_price_with_greeks_batch_v1")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OptionPricerNativeStatus PriceWithGreeksBatch(

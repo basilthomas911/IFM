@@ -16,12 +16,14 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 /// <summary>Publishes eligible source-operator results to the versionless Market Outlook cache owner.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class MarketOutlookSnapshotRealtimeContextExtensions
 {
     extension(IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         public IMarketOutlookSnapshotRealtimeContext DomainContext =>
-            IsArgumentNull.Set(context as IMarketOutlookSnapshotRealtimeContext, nameof(context))!;
+            IsArgumentNull.Named(context as IMarketOutlookSnapshotRealtimeContext, nameof(context))!;
         public IActorSupervisor Supervisor => context.DomainContext.Supervisor;
         public IDbContextFactory DbFactory => context.DomainContext.DbFactory;
         public ILogger<MarketOutlookSnapshotRealtimeActor> Logger => context.DomainContext.Logger;

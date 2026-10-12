@@ -11,5 +11,9 @@ public static class DatabaseBackupServiceStarted
 {
     /// <summary>Translates and records this Database Backup service event through the command actor.</summary>
     public static ValueTask ExecuteAsync(this DatabaseBackupServiceStartedEvent eventValue, IEventActorContext<DatabaseBackupEventActor> context, ILogger<DatabaseBackupEventActor> logger)
-        => DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+        
+    {
+        ArgumentNullException.ThrowIfNull(eventValue);
+        return DatabaseBackupServiceEventHandler.ExecuteAsync(eventValue, context, logger);
+    }
 }

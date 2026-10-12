@@ -18,6 +18,7 @@ public sealed class OtlpStructuredLogSink : ILogEventSink, IDisposable
 
     public OtlpStructuredLogSink(IConfiguration configuration, string serviceName)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         var section = configuration.GetSection("Telemetry:Logs");
         if (!Uri.TryCreate(section["OtlpEndpoint"], UriKind.Absolute, out var endpoint))
             throw new InvalidOperationException("Telemetry:Logs:OtlpEndpoint must be an absolute URI.");
@@ -33,7 +34,7 @@ public sealed class OtlpStructuredLogSink : ILogEventSink, IDisposable
             options.AddOtlpExporter(exporter =>
             {
                 exporter.Endpoint = endpoint;
-                exporter.Protocol = protocol == "http/protobuf" ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
+                exporter.Protocol = string.Equals(protocol,"http/protobuf",StringComparison.Ordinal) ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
                 exporter.Headers = section["Headers"];
                 exporter.ExportProcessorType = ExportProcessorType.Batch;
                 exporter.BatchExportProcessorOptions.MaxQueueSize = 4096;
@@ -46,18 +47,19 @@ public sealed class OtlpStructuredLogSink : ILogEventSink, IDisposable
 
     public void Emit(LogEvent logEvent)
     {
+        ArgumentNullException.ThrowIfNull(logEvent);
         var category = logEvent.Properties.TryGetValue("SourceContext", out var source) && source is ScalarValue { Value: string name }
             ? name : "IFM";
         var logger = loggers.GetOrAdd(category, factory.CreateLogger);
         var level = (LogLevel)(int)logEvent.Level;
         var state = new List<KeyValuePair<string, object?>>(logEvent.Properties.Count + 1);
         foreach (var property in logEvent.Properties)
-            state.Add(new(property.Key, property.Value is ScalarValue scalar ? Normalize(scalar.Value) : property.Value.ToString()));
+            state.Add(new(property.Key, property.Value is ScalarValue scalar ? Normalize(scalar.Value) : property.Value.ToString(null, System.Globalization.CultureInfo.InvariantCulture)));
         if (!logEvent.Properties.ContainsKey("Component")) state.Add(new("Component", category));
         if (logEvent.TraceId is { } traceId) state.Add(new("TraceId", traceId.ToString()));
         if (logEvent.SpanId is { } spanId) state.Add(new("SpanId", spanId.ToString()));
         state.Add(new("{OriginalFormat}", logEvent.MessageTemplate.Text));
-        logger.Log(level, default, state, logEvent.Exception, (_, _) => logEvent.RenderMessage());
+        logger.Log(level, default, state, logEvent.Exception, (_, _) => logEvent.RenderMessage(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     static object? Normalize(object? value) => value switch

@@ -18,6 +18,8 @@ public static class RemoveScheduledTask
     public static ServiceResult<GuidResult> Execute(this RemoveScheduledTaskCommand command,
         ScheduledTaskCommandState state, DateTimeOffset now, ScheduledTaskCatalog? catalog)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTask.STATE.APPLY_FAILED;unable to apply RemoveScheduledTask event";
         var updated = command.Compute(state.ScheduledTaskDefinition, now, catalog, out var model) switch
         {

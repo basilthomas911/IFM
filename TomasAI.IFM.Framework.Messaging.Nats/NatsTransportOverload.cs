@@ -20,6 +20,7 @@ internal static class NatsTransportOverload
     /// disposes the rejected message exactly once. This method intentionally
     /// absorbs reply failures because the Core subscription loop must continue.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     internal static async ValueTask SettleCoreRejectionAsync(
         IActorMessage message,
         ActorType actorType,
@@ -41,8 +42,7 @@ internal static class NatsTransportOverload
                 {
                     NatsMessagingMetrics.RecordOverloadReply(actorType, "failed");
                     NatsMessagingMetrics.DispatchFailures.Add(1);
-                    logger.LogError(
-                        exception,                        "{Component}.{Method} "+"Component=NatsTransportOverload Method=SettleCoreRejectionAsync Failed to reply to rejected Core NATS request for {Subject}; reason={Reason}.",nameof(NatsTransportOverload),nameof(SettleCoreRejectionAsync),                        message.Subject.ToString(),                        reason.ToStringFast());
+                    global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write19(logger, exception, nameof(NatsTransportOverload), nameof(SettleCoreRejectionAsync), message.Subject.ToString(), reason.ToStringFast());
                 }
                 return;
             }
@@ -56,9 +56,7 @@ internal static class NatsTransportOverload
             }
 
             NatsMessagingMetrics.DispatchFailures.Add(1);
-            logger.LogError(
-                "{Component}.{Method} "+"Component=NatsTransportOverload Method=SettleCoreRejectionAsync Rejected Core NATS traffic for {Subject} without a reply subject; class={TrafficClass}, reason={Reason}. "
-                + "Enforcement configuration must prevent this required or unknown traffic path.",nameof(NatsTransportOverload),nameof(SettleCoreRejectionAsync),                message.Subject.ToString(),                trafficClass,                reason.ToStringFast());
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write20(logger, null, nameof(NatsTransportOverload), nameof(SettleCoreRejectionAsync), message.Subject.ToString(), trafficClass, reason.ToStringFast());
         }
         finally
         {

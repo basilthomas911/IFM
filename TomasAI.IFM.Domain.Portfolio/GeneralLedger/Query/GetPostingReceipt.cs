@@ -11,5 +11,10 @@ public static class GetPostingReceipt
 {
     /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
     public static ValueTask ExecuteAsync<TActor>(this GetPostingReceiptQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        => FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetPostingReceipt", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "GetPostingReceipt", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+    }
 }

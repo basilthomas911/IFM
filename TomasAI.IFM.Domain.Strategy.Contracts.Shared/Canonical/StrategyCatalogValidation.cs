@@ -25,6 +25,7 @@ public static class StrategyCatalogValidation
     }
 
     /// <summary>Defensively freezes and canonicalizes authoring input before asynchronous work starts.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the dependent catalog graph validation rules together in their required validation order.")]
     public static StrategyCatalogDefinition Freeze(StrategyCatalogDefinition source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -53,7 +54,7 @@ public static class StrategyCatalogValidation
         {
             Token(d.Side); Token(d.Bias); Token(d.PremiumMode);
         }
-        else Require(d.Side == "" && d.Bias == "" && d.PremiumMode == "", "Variant traits require a variant.");
+        else Require(d.Side is { Length: 0 } && d.Bias is { Length: 0 } && d.PremiumMode is { Length: 0 }, "Variant traits require a variant.");
 
         ValidateKeys(d.Families, kind == StrategyCatalogKind.Strategy, StrategyCatalogKind.Family);
         ValidateKeys(d.Structures, kind == StrategyCatalogKind.Strategy, StrategyCatalogKind.Structure);
@@ -75,7 +76,7 @@ public static class StrategyCatalogValidation
             while (next is not null)
             {
                 Require(seen.Add(next), "Cyclic expiry groups.");
-                var parent = d.ExpiryGroups.SingleOrDefault(x => x.Key == next);
+                var parent = d.ExpiryGroups.SingleOrDefault(x => string.Equals(x.Key,next,StringComparison.Ordinal));
                 Require(parent is not null, "Missing expiry group reference.");
                 next = parent!.AfterGroup;
             }
@@ -84,8 +85,8 @@ public static class StrategyCatalogValidation
         {
             Token(leg.Key); Require(leg.InstrumentClass is "Futures" or "FuturesOption", "Unsupported instrument class.");
             SideAndRatio(leg.Side, leg.Ratio);
-            Require(leg.InstrumentClass == "Futures" ? leg.OptionRight == "None" : leg.OptionRight is "Call" or "Put", "Invalid option right.");
-            Require(d.ExpiryGroups.Any(g => g.Key == leg.ExpiryGroup), "Leg references a missing expiry group.");
+            Require(string.Equals(leg.InstrumentClass,"Futures",StringComparison.Ordinal) ? string.Equals(leg.OptionRight,"None",StringComparison.Ordinal) : leg.OptionRight is "Call" or "Put", "Invalid option right.");
+            Require(d.ExpiryGroups.Any(g => string.Equals(g.Key,leg.ExpiryGroup,StringComparison.Ordinal)), "Leg references a missing expiry group.");
         }
         Children(d.VariantLegs, x => x.LegKey);
         Require(kind == StrategyCatalogKind.Variant || d.VariantLegs.Length == 0, "Variant leg rules require a variant.");
@@ -144,7 +145,7 @@ public static class StrategyCatalogValidation
 
     internal static void ValidateForPublication(StrategyCatalogDefinition d, IReadOnlyDictionary<CatalogKey, StoredStrategyCatalogDefinition> graph)
     {
-        void Needs(string role) => Require(d.Capabilities.Any(x => x.Role == role), $"A {d.Key.Kind} requires a {role} capability.");
+        void Needs(string role) => Require(d.Capabilities.Any(x => string.Equals(x.Role,role,StringComparison.Ordinal)), $"A {d.Key.Kind} requires a {role} capability.");
         switch (d.Key.Kind)
         {
             case StrategyCatalogKind.Strategy:
@@ -154,7 +155,7 @@ public static class StrategyCatalogValidation
                 Require(d.Legs.Length > 0, "A structure requires legs."); Needs("builder"); Needs("risk"); break;
             case StrategyCatalogKind.Variant:
                 var structure = graph[d.Parent!].Definition;
-                Require(d.VariantLegs.All(l => structure.Legs.Any(s => s.Key == l.LegKey)), "Variant leg does not belong to its exact structure.");
+                Require(d.VariantLegs.All(l => structure.Legs.Any(s => string.Equals(s.Key,l.LegKey,StringComparison.Ordinal))), "Variant leg does not belong to its exact structure.");
                 Needs("validator"); break;
             case StrategyCatalogKind.ParameterSchema:
                 Needs("validator"); break;
@@ -170,7 +171,7 @@ public static class StrategyCatalogValidation
 
     public static CatalogParameterShape ReadShape(JsonElement json)
     {
-        var shape = json.Deserialize<CatalogParameterShape>(JsonOptions) ?? throw new ArgumentException("Missing parameter shape.");
+        var shape = json.Deserialize<CatalogParameterShape>(JsonOptions) ?? throw new ArgumentException("Missing parameter shape.", nameof(json));
         ValidateShape(shape, 0);
         Require(shape.Type == CatalogValueType.Object, "Parameter schema root must be Object.");
         return shape;
@@ -198,6 +199,7 @@ public static class StrategyCatalogValidation
 
     public static void ValidateParameters(CatalogParameterShape shape, JsonElement value)
     {
+        ArgumentNullException.ThrowIfNull(shape);
         ValidateShape(shape, 0);
         _ = CanonicalJson(value);
         ValidateValue(shape, value, "$", 0);
@@ -251,11 +253,17 @@ public static class StrategyCatalogValidation
                     foreach (var p in properties) { w.WritePropertyName(p.Name); Write(w, p.Value); }
                     w.WriteEndObject(); break;
                 case JsonValueKind.Array:
-                    w.WriteStartArray(); foreach (var item in e.EnumerateArray()) Write(w, item); w.WriteEndArray(); break;
+                    w.WriteStartArray();
+                    foreach (var item in e.EnumerateArray())
+                    {
+                        Write(w, item);
+                    }
+                    w.WriteEndArray();
+                    break;
                 case JsonValueKind.Number:
                     Require(e.TryGetDecimal(out _), "JSON number exceeds decimal precision/range.");
                     var number = e.GetDecimal().ToString("G29", System.Globalization.CultureInfo.InvariantCulture);
-                    Require(NumericIdentity(e.GetRawText()) == NumericIdentity(number), "JSON number loses decimal precision.");
+                    Require(string.Equals(NumericIdentity(e.GetRawText()),NumericIdentity(number),StringComparison.Ordinal), "JSON number loses decimal precision.");
                     w.WriteRawValue(number); break;
                 default: e.WriteTo(w); break;
             }
@@ -264,24 +272,24 @@ public static class StrategyCatalogValidation
 
     static string NumericIdentity(string number)
     {
-        var parts = number.ToLowerInvariant().Split('e');
+        var parts = number.Split(['e', 'E'], StringSplitOptions.None);
         var exponent = parts.Length == 2 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
         var mantissa = parts[0];
         var negative = mantissa.StartsWith('-');
         if (negative) mantissa = mantissa[1..];
-        var dot = mantissa.IndexOf('.');
+        var dot = mantissa.IndexOf('.', StringComparison.Ordinal);
         var scale = checked((dot < 0 ? 0 : mantissa.Length - dot - 1) - exponent);
-        var digits = mantissa.Replace(".", "").TrimStart('0');
+        var digits = mantissa.Replace(".", "", StringComparison.Ordinal).TrimStart('0');
         if (digits.Length == 0) return "0";
         while (digits.EndsWith('0')) { digits = digits[..^1]; scale--; }
         return (negative ? "-" : "") + digits + "e" + (-scale).ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     internal static void Utc(DateTime value) => Require(value.Kind == DateTimeKind.Utc && value != default && value.Ticks % 10 == 0, "Use non-default UTC timestamps with PostgreSQL microsecond precision.");
-    internal static void Hash(string value) => Require(value is not null && Regex.IsMatch(value, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant), "Invalid lowercase SHA-256 hash.");
-    internal static void Token(string value) => Require(value is not null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$", RegexOptions.CultureInvariant), "Invalid catalog code/key.");
+    internal static void Hash(string value) => Require(value is not null && Regex.IsMatch(value, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), "Invalid lowercase SHA-256 hash.");
+    internal static void Token(string value) => Require(value is not null && Regex.IsMatch(value, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), "Invalid catalog code/key.");
     internal static void Text(string value, int limit, bool empty = false) => Require(value is not null && value.Length <= limit && (empty || !string.IsNullOrWhiteSpace(value)), "Invalid catalog text.");
-    internal static void Require(bool condition, string message) { if (!condition) throw new ArgumentException(message); }
+    internal static void Require(bool condition, string message) { if (!condition) throw new ArgumentException(message, nameof(condition)); }
     static void SideAndRatio(string side, decimal ratio) => Require(side is "Buy" or "Sell" && ratio > 0 && ratio <= 1000000, "Invalid leg side/ratio.");
     static void Children<T>(T[] values, Func<T, string> key)
     {

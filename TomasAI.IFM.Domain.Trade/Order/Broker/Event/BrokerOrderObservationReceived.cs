@@ -6,34 +6,32 @@ using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Event;
-
 /// <summary>Handles one normalized broker observation.</summary>
 public static class BrokerOrderObservationReceived
 {
     /// <summary>Sends the observation to the authoritative BrokerOrder command stream.</summary>
-    public static async ValueTask ExecuteAsync(this BrokerOrderObservationReceivedEvent received,
-        IBrokerOrderEventContext context,
-        ILogger<BrokerOrderEventActor> logger)
+    public static async ValueTask ExecuteAsync(this BrokerOrderObservationReceivedEvent received, IBrokerOrderEventContext context, ILogger<BrokerOrderEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(received);
         try
         {
             var command = new RecordBrokerOrderObservationCommand
             {
                 CommandId = received.CommandId,
-                Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName,
-                    RecordBrokerOrderObservationCommand.Verb, received.EntityId.Format()),
+                Subject = new(ActorType.Command, BrokerOrderCommandActor.ActorName, RecordBrokerOrderObservationCommand.Verb, received.EntityId.Format()),
                 EntityId = received.EntityId,
                 Observation = received.Observation
             };
-            var result = await context.ActorService.SendAsync<RecordBrokerOrderObservationCommand, BrokerOrderId>(
-                command, received.EntityId).ConfigureAwait(false);
+            var result = await context.ActorService.SendAsync<RecordBrokerOrderObservationCommand, BrokerOrderId>(command, received.EntityId).ConfigureAwait(false);
             if (!result.Success)
-                throw new InvalidOperationException(
-                    $"BrokerOrder.OBSERVATION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
+                throw new InvalidOperationException($"BrokerOrder.OBSERVATION.HANDOFF_FAILED;{result.ErrorCode};{result.ErrorMessage}");
         }
         catch (Exception exception)
         {
-            logger.LogError(exception,                "{Component}.{Method} "+"Broker order observation handoff failed for {EventId}, {CommandId}, {EntityId}.",nameof(BrokerOrderObservationReceived),nameof(ExecuteAsync),                received.Id,received.CommandId,received.EntityId);
+            if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
+                global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write1(logger, exception, nameof(BrokerOrderObservationReceived), nameof(ExecuteAsync), received.Id, received.CommandId, received.EntityId);
             throw;
         }
     }

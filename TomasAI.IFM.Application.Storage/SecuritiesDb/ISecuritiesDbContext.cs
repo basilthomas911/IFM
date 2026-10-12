@@ -10,4 +10,9 @@ public interface ISecuritiesDbContext :
     ISecuritiesDbWriteContext,
     IFuturesContractRolloverStore
 {
+    /// <summary>Gets the Securities read capability.</summary>
+    ISecuritiesDbReadContext DbReader { get; }
+
+    /// <summary>Gets the Securities write capability.</summary>
+    ISecuritiesDbWriteContext DbWriter { get; }
 }

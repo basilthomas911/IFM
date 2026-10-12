@@ -36,7 +36,7 @@ public sealed record ScyllaDbBulkWriteOptions
         if (string.IsNullOrWhiteSpace(value))
             return defaultValue;
 
-        if (!int.TryParse(value, out var parsed) || parsed < 1 || parsed > maximum)
+        if (!int.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out var parsed) || parsed < 1 || parsed > maximum)
         {
             throw new StorageException(
                 $"{variableName} must be an integer between 1 and {maximum}.");

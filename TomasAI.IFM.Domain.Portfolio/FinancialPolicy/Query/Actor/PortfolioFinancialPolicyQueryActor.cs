@@ -72,6 +72,7 @@ public sealed class PortfolioFinancialPolicyQueryActor(
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<PortfolioFinancialPolicyQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
         dynamic request = query;
         using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request.CorrelationId);
         operationalGuard.Demand(PortfolioOperation.Read, request.Access, mutation: false);
@@ -93,12 +94,6 @@ public sealed class PortfolioFinancialPolicyQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception) =>
-        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex) =>
+        ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }
-
-/// <summary>Provides the Financial Policy query mailbox for the split actor route.</summary>
-/// <param name="supervisor">The actor supervisor.</param>
-public sealed class PortfolioFinancialPolicyQueryContext(IActorSupervisor supervisor)
-    : QueryActorContext(supervisor, new ActorMailboxId(ActorType.Query, PortfolioFinancialPolicyQueryActor.ActorName)),
-        IQueryActorContext<PortfolioFinancialPolicyQueryActor>;

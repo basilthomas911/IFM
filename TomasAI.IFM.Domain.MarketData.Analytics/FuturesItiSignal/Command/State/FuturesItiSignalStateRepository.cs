@@ -1,7 +1,7 @@
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -60,7 +60,34 @@ public class FuturesItiSignalStateRepository(
        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesItiSignalCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        var database = dbFactory.MarketDataDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Analytic source events and MarketDataDb must share one PostgreSQL database/security identity.");
+        var owner = context.Container.Resolve<IPostgresEventTransaction>();
+        var pending = new DomainEventCollection(state.Events);
+        await owner.ExecuteAsync(async (transaction,token) =>
+        {
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
+            }
+            return true;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures ITI signal

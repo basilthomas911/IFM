@@ -13,15 +13,20 @@ public static class ScheduledTaskTimingRules
         throw new TimeZoneNotFoundException($"Time zone '{identity}' is unavailable.");
     }
     /// <summary>Checks an intended automatic fire instant against the configured expression and zone.</summary>
-    public static bool IsOccurrence(ScheduledTaskSchedule schedule, DateTimeOffset intendedFireTimeUtc) => schedule.Timing switch
+    public static bool IsOccurrence(ScheduledTaskSchedule schedule, DateTimeOffset intendedFireTimeUtc) 
+    {
+        ArgumentNullException.ThrowIfNull(schedule);
+        return schedule.Timing switch
     {
         ScheduledTaskTiming.OneTime => schedule.StartsAtUtc == intendedFireTimeUtc,
         ScheduledTaskTiming.Cron => new CronExpression(schedule.Expression) { TimeZone = ResolveTimeZone(schedule.TimeZoneId) }.IsSatisfiedBy(intendedFireTimeUtc),
         _ => false
     };
+    }
     /// <summary>Returns bounded preview occurrences using the same parser and zone as installation.</summary>
     public static ScheduledTaskSchedulePreview Preview(ScheduledTaskSchedule schedule, DateTimeOffset now, int count = 5)
     {
+        ArgumentNullException.ThrowIfNull(schedule);
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(schedule.TaskKey) || string.IsNullOrWhiteSpace(schedule.Name) || string.IsNullOrWhiteSpace(schedule.HostId) || string.IsNullOrWhiteSpace(schedule.Environment)) errors.Add("Task, name, host and environment are required.");
         if (schedule.MaximumRuntimeSeconds is < 1 or > 86400 || schedule.DispatchToleranceSeconds is < 1 or > 3600) errors.Add("Runtime must be 1..86400 seconds and dispatch tolerance 1..3600 seconds.");

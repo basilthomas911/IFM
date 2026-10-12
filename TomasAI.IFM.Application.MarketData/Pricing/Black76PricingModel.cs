@@ -6,24 +6,6 @@ using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-/// <summary>Unscaled per-option values; composition applies signed ratios and multipliers exactly once.</summary>
-[MessagePackObject]
-public sealed record OptionPricingValue(
-    [property: Key(0)] double ImpliedVolatility,
-    [property: Key(1)] double Delta,
-    [property: Key(2)] double Gamma,
-    [property: Key(3)] double Theta,
-    [property: Key(4)] double Vega,
-    [property: Key(5)] double Rho,
-    [property: Key(6)] double TheoreticalPrice,
-    [property: Key(7)] double TimeToExpiry,
-    [property: Key(8)] string ContextDigest);
-
-[MessagePackObject]
-public sealed record OptionPricingPassResult(
-    [property: Key(0)] OptionPricingValue? Value,
-    [property: Key(1)] OptionPricingFailure? Failure);
-
 /// <summary>Compatibility entry point routing qualified futures options through the unified calculator.</summary>
 public static partial class Black76PricingModel
 {
@@ -67,6 +49,9 @@ public static partial class Black76PricingModel
     public static OptionPricingFailure? ValidateInputs(OptionPricingContext context, OptionPricingQuote underlying,
         OptionPricingQuote option, decimal strike, bool isCall, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(option);
+        ArgumentNullException.ThrowIfNull(underlying);
         var invalid = ValidateContext(context, at);
         if (invalid is not null) return invalid;
         var contract = context.Contract;
@@ -74,7 +59,7 @@ public static partial class Black76PricingModel
             new(code, input, contract.ContractId, "Option pricing inputs do not satisfy the qualified context.");
         if (underlying.GenerationId != context.GenerationId || option.GenerationId != context.GenerationId)
             return Fail("Recovering", "Generation");
-        if (option.ContractId != contract.ContractId || underlying.ContractId != contract.UnderlyingContractId || strike <= 0
+        if (!string.Equals(option.ContractId,contract.ContractId,StringComparison.Ordinal) || !string.Equals(underlying.ContractId,contract.UnderlyingContractId,StringComparison.Ordinal) || strike <= 0
             || contract.SchemaVersion == 3 && (contract.Strike != strike
                 || contract.Right != (isCall ? PricingOptionRight.Call : PricingOptionRight.Put)))
             return Fail("ContractMetadataUnavailable", "Identity/Strike");
@@ -103,16 +88,21 @@ public static partial class Black76PricingModel
     /// <param name="isCall">True for calls, false for puts.</param><param name="time">The qualified expiry year fraction.</param>
     /// <param name="rate">The captured annual continuous rate.</param><returns>The calculator's unscaled per-option request.</returns>
     public static Unified.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
-        decimal strike, bool isCall, double time, double rate) =>
-        new(Unified.UnderlyingKind.Futures,
+        decimal strike, bool isCall, double time, double rate) 
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        return new(Unified.UnderlyingKind.Futures,
             contract.ExerciseStyle == OptionExerciseStyle.American ? Unified.ExerciseKind.American : Unified.ExerciseKind.European,
             contract.SchemaVersion < 3 || contract.PremiumStyle == OptionPremiumStyle.PaidUpfront
                 ? Unified.PremiumKind.PaidUpfront : Unified.PremiumKind.FuturesStyle,
             isCall ? Unified.OptionSide.Call : Unified.OptionSide.Put, forward, (double)strike, time, rate);
+    }
 
     /// <summary>Validates immutable reference inputs before worker feed allocation and on each pricing pass.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality identifies the discrete boundary or pinned pricing input; an epsilon would change the financial calculation.")]
     public static OptionPricingFailure? ValidateContext(OptionPricingContext context, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(context);
         if (context.Contract is null || context.Calendar is null || context.Rate is null || context.Rate.Conversion is null)
             return new("PricingContextUnavailable", "Context", "", "Required reference context is absent.");
         var contract = context.Contract;
@@ -121,13 +111,13 @@ public static partial class Black76PricingModel
         var invalid = OptionPricingQualification.Validate(contract, at);
         if (invalid is not null) return invalid;
         var engine = EngineFor(contract);
-        if (context.PricerVersion != engine) return Fail("PricingModelUnsupported", "PricerVersion");
+        if (!string.Equals(context.PricerVersion,engine,StringComparison.Ordinal)) return Fail("PricingModelUnsupported", "PricerVersion");
         if (string.IsNullOrWhiteSpace(context.PublicationPolicyVersion) || context.ValidUntilUtc.Offset != TimeSpan.Zero
             || context.ValidUntilUtc <= at || context.Rate.ObservedAtUtc.Offset != TimeSpan.Zero || context.Rate.ObservedAtUtc > at
             || context.Rate.ValueDate > DateOnly.FromDateTime(at.UtcDateTime)) return Fail("TreasuryStale", "ReferenceValidity");
         if (!double.IsFinite(context.Rate.AnnualContinuousRate)
             || context.Rate.Conversion.Convention != Framework.MarketData.Contracts.TreasuryRateConvention.UsTreasuryCmtNominalSemiannual
-            || context.Rate.ModelingPolicy != "FlatSelectedCmtProxy/v1"
+            || !string.Equals(context.Rate.ModelingPolicy,"FlatSelectedCmtProxy/v1",StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(context.Rate.Conversion.EvidenceId)
             || context.Rate.CurveDigest is not { Length: 64 }
             || context.Rate.RatePercent <= -200

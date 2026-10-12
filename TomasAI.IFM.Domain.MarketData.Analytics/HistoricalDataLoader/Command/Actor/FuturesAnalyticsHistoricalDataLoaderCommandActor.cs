@@ -22,12 +22,20 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
     /// <inheritdoc />
     protected override async ValueTask OnStartup(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context)
-        => await context.DataLoaderProjector.StartAsync(context).ConfigureAwait(false);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        await context.DataLoaderProjector.StartAsync(context).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnShutdown(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context)
-        => context.DataLoaderProjector.StopAsync();
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.DataLoaderProjector.StopAsync();
+    }
 
     /// <inheritdoc />
     protected override ICommand ParseMessage(
@@ -35,7 +43,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         IActorMessage message)
         => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [LoadFuturesAnalyticsHistoricalDataCommand.Verb] = message =>
             message.AsCommand<LoadFuturesAnalyticsHistoricalDataCommand>()
@@ -92,23 +100,35 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         ActorThreadId threadId,
-        ICommand command) => await context.DataLoaderRepository.LoadStateAsync(command).ConfigureAwait(false);
+        ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return await context.DataLoaderRepository.LoadStateAsync(command).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        CancellationToken cancellationToken) => await context.DataLoaderRepository
+        CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return await context.DataLoaderRepository
             .LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnSaveStateAsync(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         ActorThreadId threadId,
         IActorState state,
-        ICommand command) => context.DataLoaderRepository.SaveStateAsync(
+        ICommand command) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.DataLoaderRepository.SaveStateAsync(
             context, (FuturesAnalyticsHistoricalDataLoaderCommandState)state, command);
+    }
 
     /// <inheritdoc />
     protected override ValueTask OnSaveStateAsync(
@@ -116,14 +136,22 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         ActorThreadId threadId,
         IActorState state,
         ICommand command,
-        CancellationToken cancellationToken) => context.DataLoaderRepository.SaveStateAsync(
+        CancellationToken cancellationToken) 
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return context.DataLoaderRepository.SaveStateAsync(
             context, (FuturesAnalyticsHistoricalDataLoaderCommandState)state, command, cancellationToken);
+    }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
-        Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceFailed<GuidResult>(command?.ErrorCode ?? 26020, exception.Message));
+        Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
+            new ServiceFailed<GuidResult>(command?.ErrorCode ?? 26020, ex.Message));
+    }
 }

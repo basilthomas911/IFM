@@ -11,6 +11,8 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
 
 /// <summary>Exposes workflow Command services as readonly properties on its closed-generic context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# 14 extension properties use the context receiver and cannot be static receiver-independent properties.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 creates the nested extension receiver type; it is not a separately exposed handwritten nested API.")]
 public static class IntrinsicTimeStrategyWorkflowCommandContextExtensions
 {
     extension(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
@@ -39,7 +41,8 @@ public static class IntrinsicTimeStrategyWorkflowCommandContextExtensions
         public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger => Typed(context).Logger;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "This ordinary helper validates the typed receiver used by every C# 14 extension property.")]
     static IIntrinsicTimeStrategyWorkflowCommandContext Typed(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
-        => IsArgumentNull.Set(context as IIntrinsicTimeStrategyWorkflowCommandContext, nameof(context))!;
+        => context as IIntrinsicTimeStrategyWorkflowCommandContext ?? throw new ArgumentException("The workflow command context must expose its typed services.", nameof(context));
 }

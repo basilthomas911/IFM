@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 /// private pipeline stream that cannot collide with an earlier or later workflow for the same strategy entity.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct RegimeDiscoveryExecutionEntityId : IActorEntityId
 {
     /// <summary>Gets the owning Strategy Workflow entity.</summary>
@@ -48,27 +49,4 @@ public readonly record struct RegimeDiscoveryExecutionEntityId : IActorEntityId
 
     /// <inheritdoc />
     public override string ToString() => Format();
-}
-
-/// <summary>Validates the workflow entity and workflow execution components of a Regime Discovery identity.</summary>
-public sealed class RegimeDiscoveryExecutionEntityIdValidationRules
-    : IValidationStructRules<RegimeDiscoveryExecutionEntityId>
-{
-    /// <inheritdoc />
-    public ValidationError[] Execute(RegimeDiscoveryExecutionEntityId entityId)
-        => new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(entityId.WorkflowEntityId)
-            .Concat(new StrategyWorkflowIdValidationRules().Execute(entityId.WorkflowId))
-            .ToArray();
-}
-
-/// <summary>Adapts the intrinsic execution identity rules to actor validation.</summary>
-public static class RegimeDiscoveryExecutionEntityIdValidationExtensions
-{
-    public static List<ValidationError> ValidateRegimeDiscoveryExecutionEntityId(
-        this List<ValidationError> errors, RegimeDiscoveryExecutionEntityId value)
-    {
-        ArgumentNullException.ThrowIfNull(errors);
-        errors.AddRange(new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(value));
-        return errors;
-    }
 }

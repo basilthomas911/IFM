@@ -9,10 +9,17 @@ public static class FundRiskAuthorizationValidation
     private static readonly AuthorizationRules Rules = new();
 
     /// <summary>Appends every invalid authorization field without throwing.</summary>
-    public static List<ValidationError> ValidateFundRiskAuthorization(this List<ValidationError> errors, FundRiskAuthorizationReference? authorization)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete financial model collection contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete financial model collection contract.")]
+    public static TErrors ValidateFundRiskAuthorization<TErrors>(this TErrors errors, FundRiskAuthorizationReference? authorization)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (authorization is null) errors.Add(new("Financial authorization is required."));
-        else errors.AddRange(Rules.Validate(authorization).Errors.Select(static error => new ValidationError(error.ErrorMessage)));
+        else
+            foreach (var failure in Rules.Validate(authorization).Errors)
+                errors.Add(new ValidationError(failure.ErrorMessage));
         return errors;
     }
 

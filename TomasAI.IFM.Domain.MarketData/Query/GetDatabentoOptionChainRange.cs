@@ -13,6 +13,8 @@ public static class GetDatabentoOptionChainRange
         IMarketDataQueryContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         var contracts = await context.DbFactory.SecuritiesDb.GetOptionContractExpiriesAsync(
             query.UnderlyingSymbol,

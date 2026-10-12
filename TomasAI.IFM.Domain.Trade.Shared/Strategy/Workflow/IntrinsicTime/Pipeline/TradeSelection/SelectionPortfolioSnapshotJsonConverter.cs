@@ -8,11 +8,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 public sealed class SelectionPortfolioSnapshotJsonConverter : JsonConverter<PortfolioFundStrategySnapshot>
 {
     public override void WriteJson(JsonWriter writer, PortfolioFundStrategySnapshot? value, JsonSerializer serializer)
-        => writer.WriteRawValue(System.Text.Json.JsonSerializer.Serialize(value));
+        
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        writer.WriteRawValue(System.Text.Json.JsonSerializer.Serialize(value));
+    }
 
     public override PortfolioFundStrategySnapshot? ReadJson(JsonReader reader, Type objectType,
         PortfolioFundStrategySnapshot? existingValue, bool hasExistingValue, JsonSerializer serializer)
     {
+        ArgumentNullException.ThrowIfNull(reader);
         if (reader.TokenType == JsonToken.Null) return null;
         var floats = reader.FloatParseHandling;
         var dates = reader.DateParseHandling;

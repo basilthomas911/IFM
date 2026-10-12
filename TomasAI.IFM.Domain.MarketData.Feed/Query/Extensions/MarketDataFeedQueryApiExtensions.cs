@@ -23,11 +23,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Extensions;
 /// are allocated through <see cref="ISequenceIdGenerator"/>. Every public method returns a typed service result
 /// with its query-specific error identifier. The implementation may be registered as a singleton.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class MarketDataFeedQueryApiExtensions
 {
     extension(IMarketDataFeedQueryContext context)
     {
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last futures tick data.
         /// </summary>
@@ -40,7 +42,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesTickDataV2ReadModel result =
-                    (await context.DbFactory.MarketDataDb.GetLastFuturesTickDataAsync(contractId, valueDate))!;
+                    (await (context.DbFactory.MarketDataDb.GetLastFuturesTickDataAsync(contractId, valueDate)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesTickDataV2ReadModel>(result);
             }
             catch (Exception ex)
@@ -48,7 +50,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<FuturesTickDataV2ReadModel>(GetLastFuturesTickDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last futures tick data.
         /// </summary>
@@ -61,7 +63,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesTickDataV2ReadModel result =
-                    (await context.DbFactory.MarketDataDb.GetLastFuturesTickDataByTickDateAsync(contractId, tickDate))!;
+                    (await (context.DbFactory.MarketDataDb.GetLastFuturesTickDataByTickDateAsync(contractId, tickDate)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesTickDataV2ReadModel>(result);
             }
             catch (Exception ex)
@@ -71,7 +73,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last futures option tick data.
         /// </summary>
@@ -84,7 +86,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesOptionTickDataV2ReadModel result =
-                    (await context.DbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(contractId, valueDate))!;
+                    (await (context.DbFactory.MarketDataDb.GetLastFuturesOptionTickDataAsync(contractId, valueDate)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesOptionTickDataV2ReadModel>(result);
             }
             catch (Exception ex)
@@ -94,7 +96,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures EOD data.
         /// </summary>
@@ -106,11 +108,11 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
-                var result = await context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate);
+                var result = await (context.DbFactory.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false);
                 if (result is null)
                     return new ServiceOk<FuturesEodDataV2ReadModel>(result!);
-                var movingAverages = await context.DbFactory.GetFuturesEodMovingAveragesAsync(
-                    contractId, result.GetContractId().Symbol, valueDate);
+                var movingAverages = await (context.DbFactory.GetFuturesEodMovingAveragesAsync(
+                    contractId, result.GetContractId().Symbol, valueDate)).ConfigureAwait(false);
                 FuturesEodDataV2ReadModel enrichedResult = result with
                 {
                     FiftyDMA = movingAverages.FiftyDMA,
@@ -123,7 +125,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<FuturesEodDataV2ReadModel>(GetFuturesEodDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last futures EOD data.
         /// </summary>
@@ -135,12 +137,12 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
-                var result = await context.DbFactory.MarketDataDb.GetLastFuturesEodDataAsync(contractId, valueDate);
+                var result = await (context.DbFactory.MarketDataDb.GetLastFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false);
                 if (result is null)
                     return new ServiceOk<FuturesEodDataV2ReadModel>(result!);
                 var id = result.GetContractId();
-                var movingAverages = await context.DbFactory.GetFuturesEodMovingAveragesAsync(
-                    id.ContractId, id.Symbol, result.ValueDate);
+                var movingAverages = await (context.DbFactory.GetFuturesEodMovingAveragesAsync(
+                    id.ContractId, id.Symbol, result.ValueDate)).ConfigureAwait(false);
                 FuturesEodDataV2ReadModel enrichedResult = result with
                 {
                     FiftyDMA = movingAverages.FiftyDMA,
@@ -153,7 +155,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<FuturesEodDataV2ReadModel>(GetLastFuturesEodDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last futures bar data.
         /// </summary>
@@ -167,7 +169,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesBarDataReadModel result =
-                    await context.DbFactory.MarketDataDb.GetLastFuturesBarDataAsync(contractId, symbol, valueDate);
+                    await (context.DbFactory.MarketDataDb.GetLastFuturesBarDataAsync(contractId, symbol, valueDate)).ConfigureAwait(false);
                 return new ServiceOk<FuturesBarDataReadModel>(result);
             }
             catch (Exception ex)
@@ -175,7 +177,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<FuturesBarDataReadModel>(GetLastFuturesBarDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures EOD moving averages.
         /// </summary>
@@ -189,7 +191,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesEodDataMovingAveragesReadModel result =
-                    await context.DbFactory.GetFuturesEodMovingAveragesAsync(contractId, symbol, valueDate);
+                    await (context.DbFactory.GetFuturesEodMovingAveragesAsync(contractId, symbol, valueDate)).ConfigureAwait(false);
                 return new ServiceOk<FuturesEodDataMovingAveragesReadModel>(result);
             }
             catch (Exception ex)
@@ -199,7 +201,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets VIX futures EOD data.
         /// </summary>
@@ -214,11 +216,11 @@ public static class MarketDataFeedQueryApiExtensions
                 if (string.IsNullOrEmpty(contractId))
                 {
                     VixFuturesEodDataReadModel[] values =
-                        [.. await context.DbFactory.MarketDataDb.GetVixFuturesEodDataByValueDateAsync(valueDate)];
+                        [.. await (context.DbFactory.MarketDataDb.GetVixFuturesEodDataByValueDateAsync(valueDate)).ConfigureAwait(false)];
                     return new ServiceOk<VixFuturesEodDataReadModel[]>(values);
                 }
                 VixFuturesEodDataReadModel[] result =
-                    [(await context.DbFactory.MarketDataDb.GetVixFuturesEodDataAsync(contractId, valueDate))!];
+                    [(await (context.DbFactory.MarketDataDb.GetVixFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false))!];
                 return new ServiceOk<VixFuturesEodDataReadModel[]>(result);
             }
             catch (Exception ex)
@@ -226,7 +228,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<VixFuturesEodDataReadModel[]>(GetVixFuturesEodDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last VIX futures EOD data.
         /// </summary>
@@ -239,7 +241,7 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 VixFuturesEodDataReadModel result =
-                    (await context.DbFactory.MarketDataDb.GetLastVixFuturesEodDataAsync(contractId, valueDate))!;
+                    (await (context.DbFactory.MarketDataDb.GetLastVixFuturesEodDataAsync(contractId, valueDate)).ConfigureAwait(false))!;
                 return new ServiceOk<VixFuturesEodDataReadModel>(result);
             }
             catch (Exception ex)
@@ -249,7 +251,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures EOD data.
         /// </summary>
@@ -263,10 +265,10 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesEodDataV2ReadModel[] result =
-                    [.. await context.DbFactory.MarketDataDb.GetFuturesEodDataByDateRangeAsync(
+                    [.. await (context.DbFactory.MarketDataDb.GetFuturesEodDataByDateRangeAsync(
                     contractId,
                     startDate,
-                    endDate)];
+                    endDate)).ConfigureAwait(false)];
                 return new ServiceOk<FuturesEodDataV2ReadModel[]>(result);
             }
             catch (Exception ex)
@@ -276,7 +278,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures bar data.
         /// </summary>
@@ -292,12 +294,12 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesBarDataReadModel[] result =
-                    [.. await context.DbFactory.MarketDataDb.GetFuturesBarDataAsync(
+                    [.. await (context.DbFactory.MarketDataDb.GetFuturesBarDataAsync(
                     contractId,
                     symbol,
                     valueDate,
                     startDate,
-                    endDate)];
+                    endDate)).ConfigureAwait(false)];
                 return new ServiceOk<FuturesBarDataReadModel[]>(result);
             }
             catch (Exception ex)
@@ -305,7 +307,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<FuturesBarDataReadModel[]>(GetFuturesBarDataQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets iron condor market data feed.
         /// </summary>
@@ -350,7 +352,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures EOD data parameters.
         /// </summary>
@@ -382,7 +384,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option contract.
         /// </summary>
@@ -395,9 +397,9 @@ public static class MarketDataFeedQueryApiExtensions
             try
             {
                 FuturesOptionContractReadModel result =
-                    await GetFuturesOptionContract.GetFuturesOptionContractFromProviderAsync(
+                    await (GetFuturesOptionContract.GetFuturesOptionContractFromProviderAsync(
                         context.MarketDataApi,
-                        contractId);
+                        contractId)).ConfigureAwait(false);
                 return new ServiceOk<FuturesOptionContractReadModel>(result);
             }
             catch (Exception ex)
@@ -407,7 +409,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option spread data.
         /// </summary>
@@ -428,13 +430,15 @@ public static class MarketDataFeedQueryApiExtensions
             FuturesOptionContractReadModel qfShortOptionContract,
             FuturesOptionContractReadModel qfLongOptionContract)
         {
+            ArgumentNullException.ThrowIfNull(qfLongOptionContract);
+            ArgumentNullException.ThrowIfNull(qfShortOptionContract);
             try
             {
                 FuturesOptionSpreadDataReadModel result =
-                    await GetFuturesOptionSpreadData.GetFuturesOptionSpreadDataAsync(
+                    await (GetFuturesOptionSpreadData.GetFuturesOptionSpreadDataAsync(
                         context.MarketDataApi,
                         qfShortOptionContract.ContractId,
-                        qfLongOptionContract.ContractId);
+                        qfLongOptionContract.ContractId)).ConfigureAwait(false);
                 return new ServiceOk<FuturesOptionSpreadDataReadModel>(result);
             }
             catch (Exception ex)
@@ -444,7 +448,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets normal curve table.
         /// </summary>
@@ -453,7 +457,7 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
-                NormalCurveTableReadModel result = await context.DbFactory.MarketDataDb.GetNormalCurveTableAsync();
+                NormalCurveTableReadModel result = await (context.DbFactory.MarketDataDb.GetNormalCurveTableAsync()).ConfigureAwait(false);
                 return new ServiceOk<NormalCurveTableReadModel>(result);
             }
             catch (Exception ex)
@@ -461,7 +465,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<NormalCurveTableReadModel>(GetNormalCurveTableQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures risk position type.
         /// </summary>
@@ -473,7 +477,7 @@ public static class MarketDataFeedQueryApiExtensions
         {
             try
             {
-                var data = await context.DbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(valueDate);
+                var data = await (context.DbFactory.MarketDataDb.GetCurrentFuturesEodDataAsync(valueDate)).ConfigureAwait(false);
                 if (data is null)
                 {
                     var unknownResult = new RiskPositionTypeReadModel(RiskPositionType.Unknown);
@@ -484,7 +488,7 @@ public static class MarketDataFeedQueryApiExtensions
                 {
                     TradeType.ShortIronCondor => GetShortIronCondorRiskPosition(data),
                     TradeType.LongIronCondor => GetLongIronCondorRiskPosition(data),
-                    _ => throw new NotImplementedException($"Risk Position Type not implemented for: {tradeType}")
+                    _ => throw new NotSupportedException($"Risk Position Type not implemented for: {tradeType}")
                 };
                 var riskType = riskValue switch
                 {
@@ -502,7 +506,7 @@ public static class MarketDataFeedQueryApiExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets streaming request ID.
         /// </summary>
@@ -521,7 +525,7 @@ public static class MarketDataFeedQueryApiExtensions
                 return new ServiceFailed<ScalarValue<int>>(GetStreamingRequestIdQuery.ErrorId, ex.Message);
             }
         }
-
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "S1144", Justification = "Invoked by the C# extension-block query above; this analyzer does not resolve the extension-block member reference.")]
         static int GetShortIronCondorRiskPosition(FuturesEodDataV2ReadModel data)
         {
             var value = 0;
@@ -532,6 +536,7 @@ public static class MarketDataFeedQueryApiExtensions
             return value;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "S1144", Justification = "Invoked by the C# extension-block query above; this analyzer does not resolve the extension-block member reference.")]
         static int GetLongIronCondorRiskPosition(FuturesEodDataV2ReadModel data)
         {
             var value = 0;

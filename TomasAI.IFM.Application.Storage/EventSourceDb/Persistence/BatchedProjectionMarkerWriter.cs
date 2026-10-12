@@ -5,8 +5,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 
-internal readonly record struct ProjectionMarker(long EventId, DurableProjectionRequirement Requirement);
-
 /// <summary>Experimental set-based equivalent of TryCreateEventProjectorExecutionState.
 /// Only enabled through the guarded benchmark layout; caller owns commit/rollback.</summary>
 internal static class BatchedProjectionMarkerWriter
@@ -45,6 +43,7 @@ internal static class BatchedProjectionMarkerWriter
         SELECT count(*) FROM inserted;
         """;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     internal static async Task InsertAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         IReadOnlyList<ProjectionMarker> markers, string sql, CancellationToken cancellationToken)
     {
@@ -62,7 +61,8 @@ internal static class BatchedProjectionMarkerWriter
             stages[i] = markers[i].Requirement.InitialStage.ToString();
         }
         var now = DateTime.UtcNow;
-        await using var command = EventLogAppenderSupport.Command(connection, transaction, sql);
+        var command = EventLogAppenderSupport.Command(connection, transaction, sql);
+        await using var commandDisposal = command.ConfigureAwait(false);
         EventLogAppenderSupport.Add(command, ids, NpgsqlDbType.Array | NpgsqlDbType.Bigint);
         EventLogAppenderSupport.Add(command, actors, NpgsqlDbType.Array | NpgsqlDbType.Text);
         EventLogAppenderSupport.Add(command, projectors, NpgsqlDbType.Array | NpgsqlDbType.Text);

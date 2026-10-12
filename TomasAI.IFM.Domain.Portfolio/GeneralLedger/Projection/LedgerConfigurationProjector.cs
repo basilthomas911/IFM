@@ -16,12 +16,13 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Projection;
 
 /// <summary>Durably projects committed financial history and publishes completion notifications.</summary>
 public sealed class LedgerConfigurationProjector(IDurableReplayQueue queue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
-    IFinancialHistoryProjection history, ILogger<LedgerConfigurationProjector> logger, EventProjectorReliabilityOptions? options = null)
+    IFinancialHistoryProjection history, ILogger<LedgerConfigurationProjector> logger, EventProjectorReliabilityOptions? options = null, LedgerConfigurationProjection? financial = null)
     : ConventionalEventProjector<LedgerConfigurationCommandActor>(queue, eventSource, blackboard, logger, options)
 {
     static readonly ImmutableArray<Type> Types = [typeof(LedgerConfigurationCompletedEvent)];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors = [
-        DescribeNotification<LedgerConfigurationCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value)),
+        DescribeNotification<LedgerConfigurationCompletedEvent,LedgerPortfolioId>(value=>history.ApplyAsync(value))
+            .WithReadModelRebuild(async (source, ct) => { await ((financial ?? throw new InvalidOperationException("Configuration rebuild service is not registered.")).ReplayAsync((LedgerConfigurationCompletedEvent)source, ct)).ConfigureAwait(false); await (history.ApplyAsync((LedgerConfigurationCompletedEvent)source, ct)).ConfigureAwait(false); }),
     ];
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

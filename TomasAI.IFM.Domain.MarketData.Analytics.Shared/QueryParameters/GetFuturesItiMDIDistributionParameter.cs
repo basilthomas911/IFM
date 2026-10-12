@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
 /// <summary>
 /// Represents the parameters required to retrieve the futures ITI MDI distribution for a specific contract and value date.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(false)]
 public record GetFuturesItiMDIDistributionParameter : IActorEntityId, IQueryParameter
 {

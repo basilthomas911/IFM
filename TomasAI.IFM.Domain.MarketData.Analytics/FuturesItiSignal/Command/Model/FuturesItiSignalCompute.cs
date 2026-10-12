@@ -111,7 +111,7 @@ public sealed class FuturesItiSignalCompute
             return signal.Threshold * DefaultBandPercentage;
         return FuturesPriceTick * DefaultBandPercentage;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")] 
     static bool HasMovedOneBand(
         FuturesItiSignalV2ReadModel current,
         double price,

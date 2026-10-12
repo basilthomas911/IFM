@@ -25,8 +25,13 @@ public static class SchedulerHostApplication
         var schedulerOptions = builder.Configuration.GetSection("SchedulerHost").Get<SchedulerHostOptions>()
             ?? throw new InvalidOperationException("The SchedulerHost configuration section is missing.");
         schedulerOptions.Validate();
-        var connectionString = builder.Configuration.GetConnectionString("SchedulerDbConnection");
+        var sharedConnection = builder.Configuration["Storage:PostgresConnection"];
+        var connectionString = sharedConnection
+            ?? builder.Configuration.GetConnectionString("SchedulerDbConnection");
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        if (sharedConnection is not null)
+            connectionString = TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection
+                .ResolveHostConnectionString(connectionString);
 
         builder.Services.AddSingleton(schedulerOptions);
         builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));

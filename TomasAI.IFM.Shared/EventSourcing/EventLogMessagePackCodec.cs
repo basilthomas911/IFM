@@ -24,6 +24,7 @@ public sealed class EventLogMessagePackCodec(bool compressed = false)
     // Some existing transport constructors normalize null metadata; event-log replay must preserve it.
     public byte[] Serialize(IEvent value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         var buffer = new ArrayBufferWriter<byte>();
         var writer = new MessagePackWriter(buffer);
         writer.WriteArrayHeader(3);
@@ -89,7 +90,7 @@ public sealed class EventLogMessagePackCodec(bool compressed = false)
     {
         // The original mandate placed strategy-family references at key 19. A short-lived replacement contract used
         // keys 19-20 for retired fields and moved that value to 21, so accept both persisted array layouts.
-        if (type.FullName == "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel")
+        if (string.Equals(type.FullName, "TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundMandateReadModel", StringComparison.Ordinal))
             return ReadLegacyFundMandate(type, raw);
         return MessagePackSerializer.Deserialize(type, raw, _readOptions);
     }

@@ -2,16 +2,6 @@ using MessagePack;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 
-public enum FuturesVwapSourceInvalidReason : byte
-{
-    None = 0,
-    DeliveryGap = 1,
-    StreamEpochChanged = 2,
-    UncorrelatableCorrection = 3,
-    InvalidTrade = 4,
-    RecoveryIncomplete = 5
-}
-
 /// <summary>A cumulative, replaceable VWAP observation from the ordered tick source.</summary>
 [MessagePackObject]
 public sealed record FuturesVwapSourceCheckpoint

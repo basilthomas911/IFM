@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 /// MessagePack-serializable query to retrieve ITI MDI signal data for futures contracts for a specific
 /// contract identifier and value date.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public record GetFuturesItiSignalMDIQuery : IQuery<FuturesItiSignalMDIV2ReadModel[]>
 {

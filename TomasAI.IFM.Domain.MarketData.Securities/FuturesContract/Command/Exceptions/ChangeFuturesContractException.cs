@@ -10,8 +10,10 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
     /// <summary>
     /// change futures contract exception
     /// </summary>
-    public class ChangeFuturesContractException : ApplicationException, IErrorEventConverter
+    public class ChangeFuturesContractException : Exception, IErrorEventConverter
     {
+        public ChangeFuturesContractException() { }
+
         public ChangeFuturesContractException(string errorMessage) : base(errorMessage)
         {
         }
@@ -26,7 +28,10 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
         /// <param name="command"></param>
         /// <param name="ex"></param>
         /// <returns></returns>
-        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) => new FuturesContractChangedFailEvent
+        public IErrorEvent ToErrorEvent(ICommand command, Exception? ex = null) 
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            return new FuturesContractChangedFailEvent
         {
             CommandId = command.CommandId,
             CommandName = command.GetType().Name,
@@ -38,5 +43,6 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Excep
             AggregateId = command.StreamId,
             CommandData = JsonConvert.SerializeObject(command, Formatting.Indented)
         };
+        }
     }
 }

@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 /// and handling message serialization.</remarks>
 public interface INatsConsumerOptions
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     string Url { get; set; }
     JsonSerializerOptions JsonSerializerOptions { get; set; }
 
@@ -51,5 +52,7 @@ public interface INatsConsumerOptions
     /// Gets or sets the explicit loss/retry contract for messages without a
     /// reply subject, keyed by actor type.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2227", Justification = "Preserve the existing serialized message/configuration contract, including enum widths, numeric values, and collection shape.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     Dictionary<ActorType, CoreNatsTrafficClass> FireAndForgetTraffic { get; set; }
 }

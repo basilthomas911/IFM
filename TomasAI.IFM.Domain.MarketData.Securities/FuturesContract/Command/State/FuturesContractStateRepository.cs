@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Securities.Persistence;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Extensions;
@@ -23,7 +24,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
 
 public class FuturesContractStateRepository(
-    ICommandActorContext<FuturesContractCommandActor> actorContext)
+    ICommandActorContext<FuturesContractCommandActor> actorContext,
+    IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
         actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<FuturesContractCommandState>
 {
@@ -51,7 +53,24 @@ public class FuturesContractStateRepository(
        => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesContractCommandState state, ICommand command, CancellationToken cancellationToken)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var database = actorContext.DbFactory.SecuritiesDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Securities source events and projections must share one PostgreSQL database/security identity.");
+        var owner = transactions ?? throw new InvalidOperationException("Securities persistence requires the PostgreSQL event transaction service.");
+        var pending = new DomainEventCollection(state.Events);
+        await SecuritiesContractAtomicPersistence.SaveAsync(database,owner,pending,command,state.CommittedStreamVersion,cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures contract query state

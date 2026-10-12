@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -10,6 +10,7 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("option_pricing_reference_bundle", SecuritiesSchemaCql.CreateOptionPricingReferenceBundleTable, "DROP TABLE IF EXISTS option_pricing_reference_bundle;"),
         new("option_contract_expiry_calendar", SecuritiesSchemaCql.CreateOptionContractExpiryCalendarTable, "DROP TABLE IF EXISTS option_contract_expiry_calendar;"),
         new("option_contract_expiry_calendar_definition_columns", SecuritiesSchemaCql.AddOptionExpiryDefinitionColumns,
             "ALTER TABLE option_contract_expiry_calendar DROP underlyingContractId;",
@@ -32,7 +33,8 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
         ReferencePayload("futures_option_contract_by_symbol")
     ];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal)
+        ? [new("securities", SecuritiesSchemaSql.Create, "DROP SCHEMA IF EXISTS securities CASCADE;")] : Objects;
 
     static SchemaObjectDefinition ReferencePayload(string table) => new(
         table + "_reference_payload",

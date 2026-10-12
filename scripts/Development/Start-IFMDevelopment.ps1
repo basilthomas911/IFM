@@ -42,6 +42,20 @@ if (-not (Test-Path -LiteralPath $managerPath)) {
     throw "Development Server Manager was not found at '$managerPath'. Build without -NoBuild first."
 }
 
+# Run the AWS cutover controller outside Server Manager's application job so it can
+# stop/restart that job during an approved database recovery.
+$cutoverScript = Join-Path $repositoryRoot "scripts/AwsBackup/Start-DevelopmentDatabaseCutoverWorker.ps1"
+$cutoverBinary = Join-Path $repositoryRoot ".artifacts/database-recovery/windows-cutover-worker/TomasAI.IFM.Api.DatabaseBackup.Host.exe"
+if ((Test-Path -LiteralPath $cutoverScript) -and (Test-Path -LiteralPath $cutoverBinary)) {
+    try {
+        $nativeBackupHost = docker inspect --format '{{.State.Running}}' ifm-database-backup-development-database-backup-host-1 2>$null
+        if ($LASTEXITCODE -eq 0 -and $nativeBackupHost -eq 'true') {
+            & powershell.exe -NoProfile -File $cutoverScript -NoBuild
+            if ($LASTEXITCODE -ne 0) { Write-Warning 'AWS database cutover controller is unavailable; inspect its persistent logs before restoring.' }
+        }
+    } catch { Write-Warning 'AWS database cutover controller is unavailable; inspect its persistent logs before restoring.' }
+}
+
 $priorEnvironment = [Environment]::GetEnvironmentVariable("DOTNET_ENVIRONMENT")
 $priorRepositoryRoot = [Environment]::GetEnvironmentVariable("IFM_REPOSITORY_ROOT")
 try {

@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.R
 /// Routes live futures trades through the actor-centric bar model and forwards completed bars to the Command actor.
 /// This Realtime actor owns no durable state and performs no projection.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The actor lifecycle owns the barrier registration: OnShutdown awaits the loop and disposes its cancellation source in finally; OnStartup creates a fresh source for restart.")]
 public sealed class FuturesTradeSessionBarSignalRealtimeActor(
     IRealtimeActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesTradeSessionBarSignalRealtimeActor>(actorContext, actorContext.Logger)
@@ -36,11 +37,9 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
                 message => message.AsEvent<FuturesTradeSessionBarSignalBarrierRealtimeEvent>()!
         };
 
-    readonly IFuturesTradeSessionBarSignalRealtimeContext context = IsArgumentNull.Set(
-        actorContext as IFuturesTradeSessionBarSignalRealtimeContext,
-        nameof(actorContext))!;
+    readonly IFuturesTradeSessionBarSignalRealtimeContext context = IsArgumentNull.Named(actorContext as IFuturesTradeSessionBarSignalRealtimeContext, nameof(actorContext))!;
     readonly ILogger<FuturesTradeSessionBarSignalRealtimeActor> logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CancellationTokenSource barrierStopping = new();
+    CancellationTokenSource? barrierStopping;
     Task barrierLoop = Task.CompletedTask;
 
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalRealtimeContext, ILogger, ValueTask<bool>>>
@@ -54,46 +53,58 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
 
     /// <summary>Registers the market-price route and starts the server-owned interval barrier.</summary>
     protected override ValueTask OnStartup(
-        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext)
+        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> context)
     {
-        actorContext.AddRealtimeRouter(MarketPriceRoute, Id, ResolveAccumulatorEntityId);
+        ArgumentNullException.ThrowIfNull(context);
+        context.AddRealtimeRouter(MarketPriceRoute, Id, ResolveAccumulatorEntityId);
+        barrierStopping = new CancellationTokenSource();
         barrierLoop = RunBarrierLoopAsync(
-            actorContext,
-            context.Calendar,
-            context.TimeProvider,
+            context,
+            this.context.Calendar,
+            this.context.TimeProvider,
             barrierStopping.Token);
         return ValueTask.CompletedTask;
     }
 
     /// <summary>Releases the market-price route and stops the interval barrier.</summary>
     protected override async ValueTask OnShutdown(
-        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext)
+        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> context)
     {
-        actorContext.RemoveRealtimeRouter(MarketPriceRoute, Id);
-        await barrierStopping.CancelAsync().ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(context);
+        context.RemoveRealtimeRouter(MarketPriceRoute, Id);
+        var stopping = barrierStopping;
+        if (stopping is null) return;
+        await stopping.CancelAsync().ConfigureAwait(false);
         try
         {
             await barrierLoop.ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (barrierStopping.IsCancellationRequested)
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
         {
+            // The publisher barrier loop completed after its stop request.
+        }
+        finally
+        {
+            stopping.Dispose();
+            barrierStopping = null;
+            barrierLoop = Task.CompletedTask;
         }
     }
 
     /// <summary>Parses routed trade updates and the private publisher barrier event.</summary>
     protected override IEvent ParseMessage(
-        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> context,
         IActorMessage message)
-        => ParseMappedRealtimeEvent(actorContext, message, _parseMap);
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <summary>Dispatches each supported event to its dedicated extension handler.</summary>
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> context,
         IEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(actorContext);
+        ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await handler(@event, context, logger).ConfigureAwait(false);
+        _ = await handler(@event, this.context, logger).ConfigureAwait(false);
     }
 
     static async Task RunBarrierLoopAsync(
@@ -127,10 +138,10 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
 
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
+        IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) => await exception.SendErrorEventAsync<
+        Exception ex) => await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, actorContext).ConfigureAwait(false);
+            ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

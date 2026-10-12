@@ -14,21 +14,10 @@ public interface IActorEventListener
     public EventListenerState State { get; }
     public int MessageCount { get; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection type in the existing configuration/message/actor listener contract.")]
     public ValueTask StartAsync(string eventListenerId, Dictionary<ActorMailboxId, List<string>> eventMap, Func<string, NatsMsg<byte[]>, ValueTask> eventHandler);
     public ValueTask StopAsync();
 
-}
-
-/// <summary>
-/// Identifies an actor event listener that receives events through a durable
-/// NATS JetStream consumer.
-/// </summary>
-/// <remarks>
-/// This distinct interface allows a process to resolve both the transient Core
-/// NATS listener and the durable JetStream listener through dependency injection.
-/// </remarks>
-public interface IJSActorEventListener : IActorEventListener
-{
 }
 
 

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -14,7 +14,6 @@ public class VixFuturesOpenPriceCacheModel(IRedisCache redisCache, IJsonSerializ
 {
     readonly string CacheName = $"{DataCacheName.VixFuturesOpenPrice}";
     readonly IRedisCache _redisCache = redisCache;
-    readonly IJsonSerializer _jsonSerializer = jsonSerializer;
 
     /// <summary>
     /// return cached vix futures open price
@@ -23,16 +22,18 @@ public class VixFuturesOpenPriceCacheModel(IRedisCache redisCache, IJsonSerializ
     /// <returns>futures open price</returns>
     public async ValueTask<decimal> GetAsync(VixFuturesEodDataEntityId entityId, Func<VixFuturesEodDataEntityId, Task<decimal>> GetVixFuturesOpenPriceAsync)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
+        ArgumentNullException.ThrowIfNull(GetVixFuturesOpenPriceAsync);
         var key = $"{CacheName}:{entityId.Format()}";
-        var value = _redisCache.Get(key);
+        var value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         return !string.IsNullOrEmpty(value)
-            ? Convert.ToDecimal(value)
-            : await GetVixFuturesOpenPriceValueAsync();
+            ? Convert.ToDecimal(value, System.Globalization.CultureInfo.InvariantCulture)
+            : await (GetVixFuturesOpenPriceValueAsync()).ConfigureAwait(false);
 
         async Task<decimal> GetVixFuturesOpenPriceValueAsync()
         {
-            var vixFuturesOpenPrice = await GetVixFuturesOpenPriceAsync(entityId);
-            _redisCache.Set(key, $"{vixFuturesOpenPrice}");
+            var vixFuturesOpenPrice = await (GetVixFuturesOpenPriceAsync(entityId)).ConfigureAwait(false);
+            await _redisCache.SetAsync(key, vixFuturesOpenPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)).ConfigureAwait(false);
             return vixFuturesOpenPrice;
         }
     }
@@ -43,6 +44,7 @@ public class VixFuturesOpenPriceCacheModel(IRedisCache redisCache, IJsonSerializ
     /// <param name="entityId"></param>
     public void Clear(VixFuturesEodDataEntityId entityId)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
         var key = $"{CacheName}:{entityId.Format()}";
         _redisCache.Set(key, string.Empty);
     }

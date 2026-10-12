@@ -26,9 +26,8 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     : BaseQueryActor<ReferenceQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "ReferenceQuery";
-    readonly ILogger<ReferenceQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IReferenceQueryContext ReferenceQueryContext { get; } =
-        IsArgumentNull.Set(actorContext as IReferenceQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IReferenceQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -52,7 +51,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLookupDefinitionsQuery.Verb] = msg => msg.AsQuery<GetLookupDefinitionsQuery, LookupDefinitionReadModel[]>()!,
         [TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery.Verb] = msg => msg.AsQuery<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogQuery, string>()!,
@@ -85,7 +84,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
-        await receiveFunc.Invoke(ReferenceQueryContext, query, cancellationToken);
+        await (receiveFunc.Invoke(ReferenceQueryContext, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -128,6 +127,6 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

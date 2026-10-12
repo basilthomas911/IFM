@@ -28,33 +28,30 @@ public sealed class CapacityReservationCommandActor(ICommandActorContext<Capacit
             return new List<ValidationError>()
                 .ValidateCommandId(typed.CommandId, typed.CommandName)
                 .ValidateFinancialEntityId(typed.EntityId, typed.CommandName)
-                .ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest>(typed, ActorType.Command, ActorName, ChangeCapacityReservationCommand.Verb);
+                .ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest, List<ValidationError>>(typed, ActorType.Command, ActorName, ChangeCapacityReservationCommand.Verb);
         },    }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ICommand, CapacityReservationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
         new Dictionary<Type, Func<ICommand, CapacityReservationCommandServices, CancellationToken, ValueTask<ServiceResult<GuidResult>>>>
         {
             [typeof(ChangeCapacityReservationCommand)] = (command, owner, token) => ((ChangeCapacityReservationCommand)command).ExecuteAsync(owner, token),
         }.ToFrozenDictionary();
-    protected override ICommand ParseMessage(ICommandActorContext<CapacityReservationCommandActor> owner, IActorMessage message) => ParseMappedCommand(owner, message, _parseMap);
-    protected override ValueTask OnValidateAsync(ICommandActorContext<CapacityReservationCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ICommand ParseMessage(ICommandActorContext<CapacityReservationCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<CapacityReservationCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
-    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<CapacityReservationCommandActor> owner, ActorThreadId threadId, ICommand command)
+    protected override ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<CapacityReservationCommandActor> context, ActorThreadId threadId, ICommand command)
         => command.LoadFinancialStateAsync();
-    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<CapacityReservationCommandActor> owner, ICommand command, CancellationToken token)
-        => command.ReconcileFinancialDuplicateAsync(token);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<CapacityReservationCommandActor> owner, IActorState state, ICommand command)
+    protected override ValueTask<bool> ShouldProcessDuplicateAsync(ICommandActorContext<CapacityReservationCommandActor> context, ICommand command, CancellationToken cancellationToken)
+        => command.ReconcileFinancialDuplicateAsync(cancellationToken);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<CapacityReservationCommandActor> context, IActorState state, ICommand command)
         => ResolveMappedCommandHandler(command, _receiveMap)(command, services, CancellationToken.None);
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<CapacityReservationCommandActor> owner, IActorState state, ICommand command, CancellationToken token)
-        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, token);
-    protected override ValueTask OnStartup(ICommandActorContext<CapacityReservationCommandActor> owner, CancellationToken token) => services.Projector.StartAsync(owner, token);
-    protected override ValueTask OnShutdown(ICommandActorContext<CapacityReservationCommandActor> owner) => services.Projector.StopAsync();
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<CapacityReservationCommandActor> owner, ActorThreadId threadId, ICommand command, Exception exception)
-        => exception.FinancialCommandFailure(services.Logger);
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<CapacityReservationCommandActor> context, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => ResolveMappedCommandHandler(command, _receiveMap)(command, services, cancellationToken);
+    protected override ValueTask OnStartup(ICommandActorContext<CapacityReservationCommandActor> context, CancellationToken cancellationToken) => services.Projector.StartAsync(context, cancellationToken);
+    protected override ValueTask OnShutdown(ICommandActorContext<CapacityReservationCommandActor> context) => services.Projector.StopAsync();
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<CapacityReservationCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        => ex.FinancialCommandFailure(services.Logger);
 }
-
-public sealed class CapacityReservationCommandContext(IActorSupervisor supervisor)
-    : CommandActorContext(supervisor, new ActorMailboxId(ActorType.Command, CapacityReservationCommandActor.ActorName)), ICommandActorContext<CapacityReservationCommandActor>;
 

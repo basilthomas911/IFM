@@ -34,7 +34,9 @@ public record CompleteSpreadDistributionJobCommand
     [IgnoreMember] public string CommandName => nameof(CompleteSpreadDistributionJobCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => EventSourceValue;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public string OriginatedBy => OriginatedByValue;
 
     /// <summary>The timestamp when the job was completed.</summary>

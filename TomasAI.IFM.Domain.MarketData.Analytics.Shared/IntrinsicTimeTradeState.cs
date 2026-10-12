@@ -17,15 +17,3 @@ public enum IntrinsicTimeTradeState
     Opened,
     Closed
 }
-
-public static class IntrinsicTimeTradeStateExtensions
-{
-    public static string ToStringFast(this IntrinsicTimeTradeState value) => value switch
-    {
-        IntrinsicTimeTradeState.Ready => nameof(IntrinsicTimeTradeState.Ready),
-        IntrinsicTimeTradeState.Hold => nameof(IntrinsicTimeTradeState.Hold),
-        IntrinsicTimeTradeState.Opened => nameof(IntrinsicTimeTradeState.Opened),
-        IntrinsicTimeTradeState.Closed => nameof(IntrinsicTimeTradeState.Closed),
-        _ => value.ToString()
-    };
-}

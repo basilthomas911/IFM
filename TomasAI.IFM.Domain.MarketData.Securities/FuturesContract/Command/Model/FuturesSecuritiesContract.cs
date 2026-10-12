@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -50,9 +50,10 @@ public class FuturesSecuritiesContract(
     public bool Rollover { get; } = rollover;
 
     public FuturesSecuritiesContract(FuturesContractV3ReadModel model)
-        : this(model.ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
+        : this((model ?? throw new ArgumentNullException(nameof(model))).ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
              model.Exchange, model.Multiplier, model.LastTradeDate, model.OnTheRun, model.Rollover)
     {
+        ArgumentNullException.ThrowIfNull(model);
         _source = model;
     }
 

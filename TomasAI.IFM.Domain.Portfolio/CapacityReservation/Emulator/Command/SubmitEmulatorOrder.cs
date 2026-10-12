@@ -10,9 +10,6 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Emulator.Command;
 
-public sealed record EmulatorExecutionCommandServices(EmulatorExecutionStore Store, IPortfolioDbReadContext Database,
-    IEventProjector<EmulatorExecutionCommandActor> Projector, ILogger<EmulatorExecutionCommandActor> Logger);
-
 /// <summary>Mapped emulator command handling; replay uses its original receipt before checking the original deadline.</summary>
 public static class SubmitEmulatorOrder
 {
@@ -20,18 +17,22 @@ public static class SubmitEmulatorOrder
     /// <param name="errors">The accumulated ingress validation failures.</param>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <returns>The operation result.</returns>
-    public static List<ValidationError> ValidateEmulatorOrder(this List<ValidationError> errors, SubmitEmulatorOrderCommand command)
+    public static TErrors ValidateEmulatorOrder<TErrors>(this TErrors errors, SubmitEmulatorOrderCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
-        errors.ValidateFinancialRequest<SubmitEmulatorOrderCommand, SubmitEmulatorOrderRequest>(command,
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
+        errors.ValidateFinancialRequest<SubmitEmulatorOrderCommand, SubmitEmulatorOrderRequest, TErrors>(command,
             TomasAI.IFM.Shared.EventModelActor.ActorType.Command, SubmitEmulatorOrderCommand.Actor, SubmitEmulatorOrderCommand.Verb);
         var submission = command.Body; var emulatorOrder = submission?.Order;
         if (emulatorOrder is null || submission!.ConsumptionOperationId == Guid.Empty || submission.ConsumptionCompletedEventId == Guid.Empty ||
             string.IsNullOrWhiteSpace(submission.ConsumptionInputHash) || emulatorOrder.ExecutionId == Guid.Empty || emulatorOrder.ReservationId == Guid.Empty ||
             emulatorOrder.PortfolioId != command.PortfolioId || emulatorOrder.FundId <= 0 || emulatorOrder.BookId <= 0 || emulatorOrder.OrderId <= 0 ||
-            emulatorOrder.StrategyUnits <= 0 || emulatorOrder.Environment != "Emulator" || emulatorOrder.Currency != "USD" || emulatorOrder.EntryFees < 0 ||
+            emulatorOrder.StrategyUnits <= 0 || !string.Equals(emulatorOrder.Environment,"Emulator",StringComparison.Ordinal) || !string.Equals(emulatorOrder.Currency,"USD",StringComparison.Ordinal) || emulatorOrder.EntryFees < 0 ||
             emulatorOrder.Legs is not { Length: >= 1 and <= 16 } || emulatorOrder.Legs.Any(x => x is null || x.TradeId <= 0 ||
                 string.IsNullOrWhiteSpace(x.InstrumentId) || x.Side is not ("Buy" or "Sell") || x.Contracts <= 0 || x.Multiplier != 50) ||
-            emulatorOrder.ContentHash != emulatorOrder.Hash())
+            !string.Equals(emulatorOrder.ContentHash,emulatorOrder.Hash(),StringComparison.Ordinal))
             errors.Add(new("Exact consumed ES emulator emulatorOrder is required."));
         return errors;
     }
@@ -45,10 +46,12 @@ public static class SubmitEmulatorOrder
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this SubmitEmulatorOrderCommand command,
         EmulatorExecutionCommandServices services, CancellationToken cancellationToken)
     {
-        var replay = await services.Database.ReadOperationAsync<EmulatorOrderSubmittedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken);
-        if (replay is not null) return await replay.NotifyAsync(services.Projector, services.Logger);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
+        var replay = await (services.Database.ReadOperationAsync<EmulatorOrderSubmittedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         FinancialRequestValidation.Demand(command, "EmulatorSubmit", DateTime.UtcNow);
-        var completed = await services.Store.SubmitAsync(command, cancellationToken);
-        return await completed.NotifyAsync(services.Projector, services.Logger);
+        var completed = await (services.Store.SubmitAsync(command, cancellationToken)).ConfigureAwait(false);
+        return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
     }
 }

@@ -18,30 +18,32 @@ public static class FuturesBarDataStreamingStopped
     {
         ServiceId = $"{LogSourceType.FuturesBarDataEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-    /// <summary>Stops the bar timer and publishes a correlated completion or failure event.</summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Stops the bar timer and publishes a correlated completion or failure event.</summary>
     public static async ValueTask<bool> ExecuteAsync(
     this FuturesBarDataStreamingStoppedEvent e,
     IEventActorContext context,
     IEventActorContext eventApi,
     FuturesBarDataEventParameters p, ILogger<FuturesBarDataEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"FuturesBarDataStreamingStoppedEvent for EntityId: {e.EntityId}";
         var stopped = false;
         try
         {
-            await p.FuturesBarDataTimer.StopAsync(e.EntityId);
-            await eventApi.FuturesBarDataStreamingStoppedCompleteAsync(e);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
+            await (p.FuturesBarDataTimer.StopAsync(e.EntityId)).ConfigureAwait(false);
+            await (eventApi.FuturesBarDataStreamingStoppedCompleteAsync(e)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source)).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}", source);
             stopped = true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming stop failed", source);
-            await eventApi.FuturesBarDataStreamingStoppedFailAsync(e, ex);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStoppedEvent.ErrorCode, ex.GetErrorMessage());
+            await (eventApi.FuturesBarDataStreamingStoppedFailAsync(e, ex)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return stopped;
     }

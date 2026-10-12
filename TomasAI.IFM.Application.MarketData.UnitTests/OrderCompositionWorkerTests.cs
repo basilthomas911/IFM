@@ -68,11 +68,12 @@ public sealed partial class OrderCompositionWorkerTests
         var next = cache with { ScopeId = "expanded-cache", LeaseId = Guid.NewGuid() };
         Assert.True((await runtime.AcquireAsync(next, default)).Active);
         await runtime.ReleaseAsync(new(cache.ScopeId, cache.LeaseId, Generation), default);
-        Assert.Equal(1, background.Stops); Assert.Equal(0, manual.Stops); Assert.Equal(0, replacement.Stops);
+        Assert.Equal(0, background.Stops); Assert.Equal(0, manual.Stops); Assert.Equal(0, replacement.Stops);
         await runtime.ReleaseAsync(new(next.ScopeId, next.LeaseId, Generation), default);
-        Assert.Equal(1, replacement.Stops); Assert.Equal(0, manual.Stops);
+        Assert.Equal(0, replacement.Stops); Assert.Equal(0, manual.Stops);
         await runtime.ReleaseAsync(new(original.ScopeId, original.LeaseId, Generation), default);
         Assert.Equal(1, manual.Stops);
+        factory.Received(1).CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>());
         var wire = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(cache);
         Assert.True(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<WorkerOptionChainRequest>(wire!)!.IndependentChainConnection);
     }

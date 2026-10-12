@@ -11,5 +11,10 @@ public static class PrepareFinancialAuthority
 {
     /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
     public static ValueTask ExecuteAsync<TActor>(this PrepareFinancialAuthorityQuery query, FinancialAuthorityPreparation preparation, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        => FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "PrepareFinancialAuthority", () => preparation.PrepareAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        return FinancialQueryReply.ExecuteAsync(query, context, "GeneralLedgerQuery", "PrepareFinancialAuthority", () => preparation.PrepareAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+    }
 }

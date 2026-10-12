@@ -17,6 +17,7 @@ public sealed record MarketConditionCalendarDownloadEvidence
     [Key(6)] public bool CoverageConfirmed { get; init; }
     [Key(7)] public string Reason { get; init; } = string.Empty;
     [Key(8)] public DateTime? ValidUntilUtc { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(9)]
     public MarketDataDownloadLogReadModel[] Attempts
     {

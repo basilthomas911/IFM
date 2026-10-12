@@ -7,33 +7,29 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Model;
-
 /// <summary>Maps a strategy close composition to the Portfolio's atomic financial decision.</summary>
 public static class PositionExitRiskModel
 {
     /// <summary>Submits the close composition to Portfolio and validates its atomic financial decision.</summary>
-    /// <param name="command">The strategy-specific exit-risk request.</param>
-    /// <param name="portfolio">The Portfolio order-composition authority.</param>
-    /// <param name="timeProvider">The clock used for request validity and timestamps.</param>
-    /// <param name="cancellationToken">Cancels Portfolio evaluation.</param>
+    /// <param name = "command">The strategy-specific exit-risk request.</param>
+    /// <param name = "portfolio">The Portfolio order-composition authority.</param>
+    /// <param name = "timeProvider">The clock used for request validity and timestamps.</param>
+    /// <param name = "cancellationToken">Cancels Portfolio evaluation.</param>
     /// <returns>The validated close-risk decision.</returns>
-    public static async ValueTask<PortfolioCloseRiskDecision> EvaluateAsync(
-        EvaluatePositionExitRiskCommand command, IPortfolioOrderCompositionApi portfolio,
-        TimeProvider timeProvider, CancellationToken cancellationToken)
+    public static async ValueTask<PortfolioCloseRiskDecision> EvaluateAsync(EvaluatePositionExitRiskCommand command, IPortfolioOrderCompositionApi portfolio, TimeProvider timeProvider, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(portfolio);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         var composition = command.Composition;
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        if (composition.PositionType != TradeOrderPositionType.Closing ||
-            composition.StrategyKind != command.StrategyKind ||
-            composition.WorkflowId != command.EntityId || command.CompositionEventId == Guid.Empty)
+        if (composition.PositionType != TradeOrderPositionType.Closing || composition.StrategyKind != command.StrategyKind || composition.WorkflowId != command.EntityId || command.CompositionEventId == Guid.Empty)
             throw new InvalidOperationException("EXIT.RISK.INVALID_COMPOSITION");
         var portfolioId = composition.Position.Id.Trade.PortfolioId;
-        var operationId = TradePlanContractIdentity.DeterministicId(
-            $"{composition.WorkflowId.Format()}|portfolio-close");
+        var operationId = TradePlanContractIdentity.DeterministicId($"{composition.WorkflowId.Format()}|portfolio-close");
         var body = new PortfolioCloseOrderCandidate
         {
-            CompositionId = TradePlanContractIdentity.DeterministicId(
-                $"{composition.WorkflowId.Format()}|composition"),
+            CompositionId = TradePlanContractIdentity.DeterministicId($"{composition.WorkflowId.Format()}|composition"),
             WorkflowId = composition.WorkflowId.ToPortfolioWorkflow(),
             Position = composition.Position.ToPortfolioPosition(),
             StrategyKind = (PortfolioExecutionStrategyKind)composition.StrategyKind,
@@ -44,12 +40,41 @@ public static class PositionExitRiskModel
             EvidenceHash = composition.CompositionHash,
             PositionType = PortfolioExecutionPositionType.Closing
         };
+        var request = CreateRequest(command, body, operationId, portfolioId, now);
+        request = request with
+        {
+            InputSha256 = FinancialCanonicalHash.Request(request)
+        };
+        var response = await portfolio.EvaluateCloseAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.Success || response.Value is null)
+            throw new InvalidOperationException($"EXIT.PORTFOLIO.REQUEST_FAILED;ErrorCode={response.ErrorCode};ErrorMessage={response.ErrorMessage}");
+        if (response.Value.Failed is { } failed)
+            throw new InvalidOperationException($"EXIT.PORTFOLIO.DECISION_FAILED;ErrorCode={failed.ErrorCode};ErrorMessage={failed.ErrorMessage};ErrorData={failed.ErrorData}");
+        var completed = response.Value.Completed ?? throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_MISSING");
+        var receipt = completed.Receipt;
+        if (completed.CommandId != request.CommandId || completed.OperationId != request.OperationId || !string.Equals(completed.InputHash, request.InputSha256, StringComparison.Ordinal) || receipt.WorkflowId != composition.WorkflowId.ToPortfolioWorkflow() || receipt.PortfolioId != portfolioId || receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder && receipt.TradeOrder is null || receipt.Status == PortfolioCloseOrderCompositionStatus.NoTradeOrder && receipt.TradeOrder is not null)
+            throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_INVALID");
+        if (receipt.TradeOrder is { } order && (order.PositionType != PortfolioExecutionPositionType.Closing || order.TargetPosition != composition.Position.Id.ToPortfolioPositionReference() || order.Components.Length != 1 || order.Components[0].ReservedTradeId != composition.Position.Id.Trade.TradeId))
+            throw new InvalidOperationException("EXIT.PORTFOLIO.CLOSE_ORDER_INVALID");
+        return new()
+        {
+            PortfolioCompletedEventId = completed.Id,
+            TradeOrder = receipt.TradeOrder?.ToTradeOrder(),
+            ExecuteTradeOrder = receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder,
+            ReasonCode = receipt.ReasonCode,
+            FinancialRevision = receipt.FinancialRevision
+        };
+    }
+    /// <summary>Maps the accepted closing composition to the Portfolio request before its canonical input hash is calculated.</summary>
+    static EvaluatePortfolioCloseOrderCompositionCommand CreateRequest(EvaluatePositionExitRiskCommand command,
+        PortfolioCloseOrderCandidate body, Guid operationId, int portfolioId, DateTime now)
+    {
+        var composition = command.Composition;
         var entityId = new FinancialExecutionId(portfolioId, operationId);
-        var request = new EvaluatePortfolioCloseOrderCompositionCommand
+        return new EvaluatePortfolioCloseOrderCompositionCommand
         {
             CommandId = operationId,
-            Subject = new(ActorType.Function, EvaluatePortfolioCloseOrderCompositionCommand.Actor,
-                EvaluatePortfolioCloseOrderCompositionCommand.Verb, entityId.Format()),
+            Subject = new(ActorType.Function, EvaluatePortfolioCloseOrderCompositionCommand.Actor, EvaluatePortfolioCloseOrderCompositionCommand.Verb, entityId.Format()),
             EntityId = entityId,
             OperationId = operationId,
             PortfolioId = portfolioId,
@@ -60,36 +85,6 @@ public static class PositionExitRiskModel
             ExpectedFinancialRevision = 0,
             Body = body,
             Access = new("StrategyPositionExitWorkflow", ["OrderCompositionClose"], [portfolioId])
-        };
-        request = request with { InputSha256 = FinancialCanonicalHash.Request(request) };
-        var response = await portfolio.EvaluateCloseAsync(request, cancellationToken).ConfigureAwait(false);
-        if (!response.Success || response.Value is null)
-            throw new InvalidOperationException(
-                $"EXIT.PORTFOLIO.REQUEST_FAILED;ErrorCode={response.ErrorCode};ErrorMessage={response.ErrorMessage}");
-        if (response.Value.Failed is { } failed)
-            throw new InvalidOperationException(
-                $"EXIT.PORTFOLIO.DECISION_FAILED;ErrorCode={failed.ErrorCode};ErrorMessage={failed.ErrorMessage};ErrorData={failed.ErrorData}");
-        var completed = response.Value.Completed ??
-            throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_MISSING");
-        var receipt = completed.Receipt;
-        if (completed.CommandId != request.CommandId || completed.OperationId != request.OperationId ||
-            completed.InputHash != request.InputSha256 || receipt.WorkflowId != composition.WorkflowId.ToPortfolioWorkflow() ||
-            receipt.PortfolioId != portfolioId ||
-            receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder && receipt.TradeOrder is null ||
-            receipt.Status == PortfolioCloseOrderCompositionStatus.NoTradeOrder && receipt.TradeOrder is not null)
-            throw new InvalidOperationException("EXIT.PORTFOLIO.RESULT_INVALID");
-        if (receipt.TradeOrder is { } order &&
-            (order.PositionType != PortfolioExecutionPositionType.Closing ||
-             order.TargetPosition != composition.Position.Id.ToPortfolioPositionReference() || order.Components.Length != 1 ||
-             order.Components[0].ReservedTradeId != composition.Position.Id.Trade.TradeId))
-            throw new InvalidOperationException("EXIT.PORTFOLIO.CLOSE_ORDER_INVALID");
-        return new()
-        {
-            PortfolioCompletedEventId = completed.Id,
-            TradeOrder = receipt.TradeOrder?.ToTradeOrder(),
-            ExecuteTradeOrder = receipt.Status == PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder,
-            ReasonCode = receipt.ReasonCode,
-            FinancialRevision = receipt.FinancialRevision
         };
     }
 }

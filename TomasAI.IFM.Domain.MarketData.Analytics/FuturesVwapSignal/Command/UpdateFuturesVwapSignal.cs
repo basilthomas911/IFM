@@ -19,6 +19,8 @@ public static class UpdateFuturesVwapSignal
         this UpdateFuturesVwapSignalCommand command,
         FuturesVwapSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         command.Compute(state.FuturesVwapCheckpoint, out var futuresVwapTransition);
         if (!futuresVwapTransition.Changed)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

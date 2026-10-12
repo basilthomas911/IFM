@@ -2,11 +2,8 @@ using MessagePack;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 
-[MessagePackObject]
-public sealed record GetFinancialAdmissionSnapshotRequest([property: Key(0)] CatalogKey DeploymentKey,
-    [property: Key(1)] string UnderlyingId);
-
 /// <summary>One fenced Portfolio revision. This is preparation evidence, never a reservation or execution permission.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
 [MessagePackObject]
 public sealed record FinancialAdmissionSnapshot([property: Key(0)] int BookId, [property: Key(1)] int PortfolioId,
     [property: Key(2)] int FundId, [property: Key(3)] string OperatingState, [property: Key(4)] bool MigrationQualified,

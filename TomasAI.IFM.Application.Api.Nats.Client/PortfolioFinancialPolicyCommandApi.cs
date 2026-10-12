@@ -15,16 +15,31 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
 {
     static PortfolioAccessContext Access => PortfolioAccessScope.Current
         ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}");
-    public Task<ServiceResult<Guid>> CreatePolicyAsync(PortfolioFinancialPolicyReadModel policy, Guid idempotencyKey, CancellationToken cancellationToken = default) =>
-        Send(new(policy.PortfolioId, policy.PolicyId), CreatePortfolioFinancialPolicyCommand.Verb, new CreatePortfolioFinancialPolicyCommand(policy, idempotencyKey), cancellationToken);
-    public Task<ServiceResult<Guid>> AddPolicyVersionAsync(PortfolioFinancialPolicyReadModel policy, long expectedRevision, CancellationToken cancellationToken = default) =>
-        Send(new(policy.PortfolioId, policy.PolicyId), AddPortfolioFinancialPolicyVersionCommand.Verb, new AddPortfolioFinancialPolicyVersionCommand(policy, expectedRevision), cancellationToken);
-    public Task<ServiceResult<Guid>> ActivateAndAssignAsync(PortfolioFinancialPolicyId id, long version, long expectedPolicyRevision, long expectedPortfolioRevision, CancellationToken cancellationToken = default) =>
-        Send(id, ActivateAndAssignPortfolioFinancialPolicyCommand.Verb, new ActivateAndAssignPortfolioFinancialPolicyCommand(version, expectedPolicyRevision, expectedPortfolioRevision), cancellationToken);
-    public Task<ServiceResult<Guid>> RetirePolicyAsync(PortfolioFinancialPolicyId id, long version, long expectedRevision, string reason, CancellationToken cancellationToken = default) =>
-        Send(id, RetirePortfolioFinancialPolicyCommand.Verb, new RetirePortfolioFinancialPolicyCommand(version, expectedRevision, reason), cancellationToken);
-    public Task<ServiceResult<Guid>> DeleteDraftPolicyAsync(PortfolioFinancialPolicyId id, long expectedRevision, string reason, CancellationToken cancellationToken = default) =>
-        Send(id, DeleteDraftPortfolioFinancialPolicyCommand.Verb, new DeleteDraftPortfolioFinancialPolicyCommand(expectedRevision, reason), cancellationToken);
+    public Task<ServiceResult<Guid>> CreatePolicyAsync(PortfolioFinancialPolicyReadModel policy, Guid idempotencyKey, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return Send(new(policy.PortfolioId, policy.PolicyId), CreatePortfolioFinancialPolicyCommand.Verb, new CreatePortfolioFinancialPolicyCommand(policy, idempotencyKey), cancellationToken);
+    }
+    public Task<ServiceResult<Guid>> AddPolicyVersionAsync(PortfolioFinancialPolicyReadModel policy, long expectedRevision, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return Send(new(policy.PortfolioId, policy.PolicyId), AddPortfolioFinancialPolicyVersionCommand.Verb, new AddPortfolioFinancialPolicyVersionCommand(policy, expectedRevision), cancellationToken);
+    }
+    public Task<ServiceResult<Guid>> ActivateAndAssignAsync(PortfolioFinancialPolicyId policyId, long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(policyId);
+        return Send(policyId, ActivateAndAssignPortfolioFinancialPolicyCommand.Verb, new ActivateAndAssignPortfolioFinancialPolicyCommand(policyVersion, expectedPolicyRevision, expectedPortfolioRevision), cancellationToken);
+    }
+    public Task<ServiceResult<Guid>> RetirePolicyAsync(PortfolioFinancialPolicyId policyId, long policyVersion, long expectedRevision, string reason, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(policyId);
+        return Send(policyId, RetirePortfolioFinancialPolicyCommand.Verb, new RetirePortfolioFinancialPolicyCommand(policyVersion, expectedRevision, reason), cancellationToken);
+    }
+    public Task<ServiceResult<Guid>> DeleteDraftPolicyAsync(PortfolioFinancialPolicyId policyId, long expectedRevision, string reason, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(policyId);
+        return Send(policyId, DeleteDraftPortfolioFinancialPolicyCommand.Verb, new DeleteDraftPortfolioFinancialPolicyCommand(expectedRevision, reason), cancellationToken);
+    }
 
     async Task<ServiceResult<Guid>> Send<T>(PortfolioFinancialPolicyId id, string verb, T payload, CancellationToken cancellationToken)
     {

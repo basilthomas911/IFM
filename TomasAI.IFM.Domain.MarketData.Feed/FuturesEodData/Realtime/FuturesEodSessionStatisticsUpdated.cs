@@ -8,9 +8,13 @@ public static class FuturesEodSessionStatisticsUpdated
 {
     /// <summary>Completes after the owning session-statistics handler has processed the observation.</summary>
     public static ValueTask ExecuteAsync(this FuturesEodSessionStatisticsUpdatedEvent domainEvent, IFuturesEodDataRealtimeContext context)
-        => new FuturesEodDataInsertedEvent
+        
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return new FuturesEodDataInsertedEvent
         {
             Subject = domainEvent.Subject, Id = domainEvent.Id, EntityId = domainEvent.EntityId,
             CommandId = domainEvent.CommandId, FuturesEodData = domainEvent.FuturesEodData
         }.ExecuteAsync(context);
+    }
 }

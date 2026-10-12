@@ -71,26 +71,17 @@ namespace TomasAI.IFM.Domain.Reference.Shared.Events
             DeletedOn = this.DeletedOn,
             DeletedBy = this.DeletedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new StrikePriceVolatilityRemovedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new StrikePriceVolatilityRemovedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record StrikePriceVolatilityRemovedCompleteEvent : CompleteEvent
-    {
-        public StrikePriceVolatilityId StrikePriceVolatilityId { get; init; }
-        public DateTime DeletedOn { get; init; }
-        public string DeletedBy { get; init; }
-
-    }
-
-    public record StrikePriceVolatilityRemovedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

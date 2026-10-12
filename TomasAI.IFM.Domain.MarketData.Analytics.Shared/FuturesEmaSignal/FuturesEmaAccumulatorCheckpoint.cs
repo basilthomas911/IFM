@@ -1,0 +1,36 @@
+using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+
+namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+
+/// <summary>Represents immutable event-sourced state for the complete EMA family.</summary>
+[MessagePackObject]
+public sealed record FuturesEmaAccumulatorCheckpoint
+{
+    /// <summary>Gets the number of accepted closes.</summary>
+    [Key(0)] public int Count { get; init; }
+    /// <summary>Gets the seed sum for EMA10.</summary>
+    [Key(1)] public decimal Seed10 { get; init; }
+    /// <summary>Gets the seed sum for EMA20.</summary>
+    [Key(2)] public decimal Seed20 { get; init; }
+    /// <summary>Gets the seed sum for EMA50.</summary>
+    [Key(3)] public decimal Seed50 { get; init; }
+    /// <summary>Gets the seed sum for EMA200.</summary>
+    [Key(4)] public decimal Seed200 { get; init; }
+    /// <summary>Gets the current EMA10.</summary>
+    [Key(5)] public decimal? Ema10 { get; init; }
+    /// <summary>Gets the current EMA20.</summary>
+    [Key(6)] public decimal? Ema20 { get; init; }
+    /// <summary>Gets the current EMA50.</summary>
+    [Key(7)] public decimal? Ema50 { get; init; }
+    /// <summary>Gets the current EMA200.</summary>
+    [Key(8)] public decimal? Ema200 { get; init; }
+    /// <summary>Gets the last observation identity.</summary>
+    [Key(9)] public FuturesTradeSessionBarSignal.FuturesTradeSessionBarId LastObservationId { get; init; }
+    /// <summary>Gets the last source sequence.</summary>
+    [Key(10)] public long LastSourceSequence { get; init; }
+    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
+    [Key(11)] public DateTimeOffset LastIntervalEndUtc { get; init; }
+    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
+    [Key(12)] public Guid LastStreamEpochId { get; init; }
+}

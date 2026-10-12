@@ -28,7 +28,7 @@ public class OptionLegDataValidationRules : BaseValidationRules, IValidationRule
 
     public ValidationError[] Execute(OptionTradeLegDataReadModel optionLegsData) => Validate(optionLegsData, Validator);
 
-    class OptionLegDataValidator : AbstractValidator<OptionTradeLegDataReadModel>
+    sealed class OptionLegDataValidator : AbstractValidator<OptionTradeLegDataReadModel>
     {
         public OptionLegDataValidator()
         {
@@ -49,11 +49,13 @@ public class OptionLegDataValidationRules : BaseValidationRules, IValidationRule
             RuleFor(x => x.UpdatedBy).NotEmpty().WithMessage(UpdatedByErrorMessage);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Convert malformed model exceptions into the existing aggregated validation failures.")]
         public override ValidationResult Validate(ValidationContext<OptionTradeLegDataReadModel> context)
         {
             try
             {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
+                if (context.InstanceToValidate is null)
+                    throw new ArgumentNullException(nameof(context));
             }
             catch
             {

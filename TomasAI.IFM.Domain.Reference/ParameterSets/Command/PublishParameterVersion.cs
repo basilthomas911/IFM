@@ -20,18 +20,20 @@ public static class PublishParameterVersion
     /// <returns>The command acceptance or business failure.</returns>
     public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this PublishParameterVersionCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Publish);
         var hash = ParameterMutationModel.RequestHash(command);
         if (state.Operations.TryGetValue(command.CommandId, out var previous))
         {
-            if (previous != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+            if (!string.Equals(previous,hash,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply PublishParameterVersion event";
         command.Compute(state, hash, out var parameterChange);
         if (parameterChange.RejectionReason is null && parameterChange.ParameterVersion is { } version
-            && version.Reference.ComponentCode == ParameterSchemaRegistry.StrategyOptionChainCacheComponent)
+            && string.Equals(version.Reference.ComponentCode,ParameterSchemaRegistry.StrategyOptionChainCacheComponent,StringComparison.Ordinal))
         {
             var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet.Read(version.PayloadJson);
             if (policy.Enabled)
@@ -40,7 +42,7 @@ public static class PublishParameterVersion
                     Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Structure, policy.StrategyDefinitionId,
                     policy.StrategyDefinitionVersion)).ConfigureAwait(false);
                 if (definition is null || definition.Status != Domain.Reference.Shared.StrategyCatalog.CatalogLifecycleStatus.Published
-                    || !definition.Definition.Capabilities.Any(x => x.Role == "builder" && x.Version == 1 && x.Code is "IronCondor" or "CallVertical" or "PutVertical"))
+                    || !definition.Definition.Capabilities.Any(x => string.Equals(x.Role,"builder",StringComparison.Ordinal) && x.Version == 1 && x.Code is "IronCondor" or "CallVertical" or "PutVertical"))
                     return command.UpdateFailed("PARAM.OPTION_CHAIN_CATALOG_UNSUPPORTED: an exact published option strategy structure is required.");
             }
         }

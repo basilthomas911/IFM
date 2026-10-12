@@ -1,0 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
+
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Enums")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Health.Queries")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Health.ReadModels")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Operations.Commands")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Recovery")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Health")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Evaluation")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.Policy")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Lifecycle")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Logging")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.Service.Metrics")]
+[assembly: SuppressMessage("Naming", "CA1716", Justification = "Preserve the published namespace and persisted type identity.", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi")]

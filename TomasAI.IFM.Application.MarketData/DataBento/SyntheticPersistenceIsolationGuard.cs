@@ -12,7 +12,7 @@ public static class SyntheticPersistenceIsolationGuard
     public static void Validate(
         DatabentoFeedOptions feedOptions,
         string? eventSourceConnectionString,
-        string? marketDataConnectionString)
+        string? rawTradeQuoteConnectionString)
     {
         ArgumentNullException.ThrowIfNull(feedOptions);
         if (feedOptions.DataSource != FeedDataSourceMode.Synthetic)
@@ -29,9 +29,9 @@ public static class SyntheticPersistenceIsolationGuard
             "Database",
             "EventSourceActorDbConnection");
         RequireSyntheticTarget(
-            marketDataConnectionString,
+            rawTradeQuoteConnectionString,
             "Default Keyspace",
-            "MarketDataDbConnection");
+            "TradeTickQuoteDbConnection");
     }
 
     static void RequireSyntheticTarget(

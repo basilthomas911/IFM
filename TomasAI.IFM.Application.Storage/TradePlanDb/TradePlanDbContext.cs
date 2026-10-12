@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
@@ -21,7 +22,32 @@ public sealed class TradePlanDbContext(
         logger),
       ITradePlanDbContext
 {
-    private readonly ILogger<DbProvider> tradePlanLogger = logger;
+    internal readonly ILogger<DbProvider> tradePlanLogger = logger;
+    internal readonly PostgresTradePlanStore? postgres = string.Equals(connectionSettings[TradePlanDbConnection].ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? new PostgresTradePlanStore(connectionSettings) : null;
+
+    /// <summary>Writes all required plan rows on the transaction that owns the source event append.</summary>
+    public Task ProjectMaterialAsync(IEnlistedPostgresTransaction transaction, StrategyTradePlanSnapshot plan, CancellationToken cancellationToken = default)
+        => (postgres ?? throw new InvalidOperationException("Enlisted plan writes require PostgreSQL."))
+            .ProjectMaterialAsync(transaction, plan, cancellationToken);
+
+    /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Disposable monitoring snapshots are logged and dropped on any persistence failure, as required; the next market update calculates a new snapshot.")]
+    public Task ProjectMaterialAsync(
+        StrategyTradePlanSnapshot plan,
+        CancellationToken cancellationToken = default)
+=>this.ProjectMaterialAsyncCoreBinding(plan, cancellationToken);
+    /// <summary>Writes an exit workflow on its source event transaction.</summary>
+    public Task ProjectExitWorkflowAsync(IEnlistedPostgresTransaction transaction, ExitPositionWorkflowProjection workflow, CancellationToken cancellationToken = default)
+        => (postgres ?? throw new InvalidOperationException("Enlisted workflow writes require PostgreSQL."))
+            .ProjectExitWorkflowAsync(transaction, workflow, cancellationToken);
+
+    /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+    public Task ProjectExitWorkflowAsync(
+        ExitPositionWorkflowProjection workflow,
+        CancellationToken cancellationToken = default)
+=>this.ProjectExitWorkflowAsyncCoreBinding(workflow, cancellationToken);
+
 
     /// <summary>Gets the Trade Plan database connection-setting name.</summary>
     public const string TradePlanDbConnection = "TradePlanDbConnection";
@@ -56,31 +82,13 @@ public sealed class TradePlanDbContext(
             record.GetBytes(0));
 
     /// <inheritdoc />
-    public async Task ProjectMaterialAsync(
-        StrategyTradePlanSnapshot plan,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await this
-                .WriteTradePlanOnceAsync(plan, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            tradePlanLogger.LogError(exception,
-                "{MethodName}: dropping trade plan after persistence failure. PositionId={PositionId} PlanRevision={PlanRevision} ValueDate={ValueDate}",
-                nameof(ProjectMaterialAsync), plan.Position.Id, plan.PlanRevision, plan.ValueDate);
-        }
-    }
-
-    /// <inheritdoc />
     public Task<StrategyTradePlanSnapshot?> GetCurrentAsync(
         StrategyPositionId positionId,
         TradeStrategyKind strategy,
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
     {
+        if (postgres is not null) return postgres.GetCurrentAsync(positionId, strategy, valueDate, cancellationToken);
         positionId.RequireTradePlanScope(strategy, valueDate);
         var id = positionId.Trade;
         var statement = TradePlanDbCql.SelectCurrentPlan.ForTable(
@@ -107,6 +115,7 @@ public sealed class TradePlanDbContext(
         byte[]? pagingState = null,
         CancellationToken cancellationToken = default)
     {
+        if (postgres is not null) return postgres.GetHistoryAsync(positionId, strategy, valueDate, pageSize, pagingState, cancellationToken);
         positionId.RequireTradePlanScope(strategy, valueDate);
         pageSize.RequireTradePlanPageSize();
         var id = positionId.Trade;
@@ -136,6 +145,7 @@ public sealed class TradePlanDbContext(
         byte[]? pagingState = null,
         CancellationToken cancellationToken = default)
     {
+        if (postgres is not null) return postgres.GetActivityAsync(valueDate, pageSize, pagingState, cancellationToken);
         valueDate.RequireTradePlanValueDate();
         pageSize.RequireTradePlanPageSize();
         var parameters = new ValueDateParameter(valueDate);
@@ -150,67 +160,12 @@ public sealed class TradePlanDbContext(
     }
 
     /// <inheritdoc />
-    public async Task ProjectExitWorkflowAsync(
-        ExitPositionWorkflowProjection workflow,
-        CancellationToken cancellationToken = default)
-    {
-        workflow.RequireValidExitWorkflow();
-        var id = workflow.WorkflowId.Position.Trade;
-        var positionId = workflow.WorkflowId.Position.PositionId;
-        var payload = MessagePackBinarySerializer.Shared.Serialize(workflow);
-        var selectParameters = new GetExactExitPositionWorkflow(
-            id.PortfolioId,
-            id.FundId,
-            id.OrderId,
-            id.TradeId,
-            positionId,
-            workflow.WorkflowId.ValueDate,
-            workflow.UpdatedAtUtc,
-            workflow.WorkflowId.ExitDecisionId,
-            workflow.StageRevision);
-        var existing = await Database
-            .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.SelectExactExitWorkflow)}", TradePlanDbCql.SelectExactExitWorkflow)
-            .SetParameters(selectParameters)
-            .ExecuteSingleAsync(MapToPayload, cancellationToken)
-            .ConfigureAwait(false);
-        if (existing is not null)
-        {
-            if (!existing.AsSpan().SequenceEqual(payload))
-            {
-                throw new InvalidOperationException(
-                    "Exit-workflow projection revision conflicts with a different payload.");
-            }
-
-            return;
-        }
-
-        var insertParameters = new InsertExitPositionWorkflow(
-            id.PortfolioId,
-            id.FundId,
-            id.OrderId,
-            id.TradeId,
-            positionId,
-            workflow.WorkflowId.ValueDate,
-            workflow.UpdatedAtUtc,
-            workflow.WorkflowId.ExitDecisionId,
-            workflow.StageRevision,
-            workflow.StrategyKind.ToCqlTinyInt(),
-            workflow.State.ToCqlTinyInt(),
-            workflow.SourcePlanEventId,
-            payload);
-        await Database
-            .Use($"{nameof(TradePlanDbCql)}.{nameof(TradePlanDbCql.InsertExitWorkflow)}", TradePlanDbCql.InsertExitWorkflow)
-            .SetParameters(insertParameters)
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public Task<ExitPositionWorkflowProjection?> GetCurrentExitWorkflowAsync(
         StrategyPositionId positionId,
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
     {
+        if (postgres is not null) return postgres.GetCurrentExitWorkflowAsync(positionId, valueDate, cancellationToken);
         positionId.RequireValueDate(valueDate);
         var id = positionId.Trade;
         var parameters = new GetExitPositionWorkflow(
@@ -234,6 +189,7 @@ public sealed class TradePlanDbContext(
         byte[]? pagingState = null,
         CancellationToken cancellationToken = default)
     {
+        if (postgres is not null) return postgres.GetExitWorkflowTimelineAsync(positionId, valueDate, pageSize, pagingState, cancellationToken);
         positionId.RequireValueDate(valueDate);
         pageSize.RequireTradePlanPageSize();
         var id = positionId.Trade;

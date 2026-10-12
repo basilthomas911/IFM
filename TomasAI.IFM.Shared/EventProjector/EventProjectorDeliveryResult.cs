@@ -23,12 +23,3 @@ public readonly record struct EventProjectorDeliveryResult(
 
     public bool IsDeferred => Disposition == EventProjectorDeliveryDisposition.Deferred;
 }
-
-/// <summary>
-/// Identifies whether the current projector delivery completed or must be delivered again later.
-/// </summary>
-public enum EventProjectorDeliveryDisposition
-{
-    Completed = 0,
-    Deferred = 1
-}

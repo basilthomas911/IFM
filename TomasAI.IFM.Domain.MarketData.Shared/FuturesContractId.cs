@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using System.Xml.Linq;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -27,7 +27,7 @@ public record FuturesContractId : IActorEntityId
     public DateOnly MaturityDate { get; init; }
 
     [IgnoreMember]
-    public bool IsVxContract => !string.IsNullOrEmpty(Symbol) && Symbol == VxSymbol;
+    public bool IsVxContract => !string.IsNullOrEmpty(Symbol) && (string.Equals((Symbol),(VxSymbol),StringComparison.Ordinal));
 
     public string Format()
         => string.Create(null, stackalloc char[64], $"{ContractId}.{Symbol}.{MaturityDate:yyyyMMdd}");

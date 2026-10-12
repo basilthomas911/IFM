@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Framework.Storage
 {
-    public class ObjectDataSqlExpressTreeVisitor : LinqExpressionTreeVisitor
+    public sealed class ObjectDataSqlExpressTreeVisitor : LinqExpressionTreeVisitor
     {
-        private string _sqlText = string.Empty;
+        private readonly string _sqlText = string.Empty;
 
         /// <summary>
         /// create linq expression tree visitor that will convert expression

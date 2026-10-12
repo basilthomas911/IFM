@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -19,7 +21,8 @@ public sealed class FuturesItiSignalEventProjector(
     IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
     ILogger<FuturesItiSignalEventProjector> logger,
     EventProjectorReliabilityOptions? reliabilityOptions = null,
-    FuturesItiSignalRuntimeTelemetry? telemetry = null)
+    FuturesItiSignalRuntimeTelemetry? telemetry = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesItiSignalCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
@@ -36,37 +39,39 @@ public sealed class FuturesItiSignalEventProjector(
                 {
                     SequenceId = signal.SequenceId > 0 ? signal.SequenceId : context.EventId
                 };
-                await db.InsertFuturesItiSignalAsync(signal).ConfigureAwait(false);
+                if (!string.Equals(db.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await db.InsertFuturesItiSignalAsync(signal).ConfigureAwait(false);
                 RegimeDiscoverySignalCacheAdapter.Publish(signal, signal.SequenceId,
                     e.CreatedOn == default ? e.ReceivedOn : e.CreatedOn, (decimal)e.VixFuturesPrice);
                 telemetry?.RecordProjectionCompleted();
                 FuturesItiSignalEventLogging.ProjectionCompleted(
                     logger, e.Id, signal.ContractId, signal.ValueDate, signal.TimePeriod, signal.SequenceId);
-            }),
+            })
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesItiSignalHoldTradeSetEvent, FuturesItiSignalHoldTradeSetCompleteEvent,
             FuturesItiSignalHoldTradeSetFailEvent, FuturesItiSignalEntityId>(
             async (e, context) =>
             {
                 var signal = e.FuturesItiSignal
                     ?? throw new InvalidOperationException("Set hold-trade signal payload is required.");
-                await dbFactory.MarketDataDb.InsertFuturesItiSignalAsync(signal with
+                if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await dbFactory.MarketDataDb.InsertFuturesItiSignalAsync(signal with
                 {
                     SequenceId = signal.SequenceId > 0 ? signal.SequenceId : context.EventId
                 }).ConfigureAwait(false);
-            }),
+            })
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesItiSignalHoldTradeClearedEvent, FuturesItiSignalHoldTradeClearedCompleteEvent,
             FuturesItiSignalHoldTradeClearedFailEvent, FuturesItiSignalEntityId>(
             async (e, context) =>
             {
                 var signal = e.FuturesItiSignal
                     ?? throw new InvalidOperationException("Clear hold-trade signal payload is required.");
-                await dbFactory.MarketDataDb.InsertFuturesItiSignalAsync(signal with
+                if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) await dbFactory.MarketDataDb.InsertFuturesItiSignalAsync(signal with
                 {
                     SequenceId = signal.SequenceId > 0 ? signal.SequenceId : context.EventId
                 }).ConfigureAwait(false);
             })
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

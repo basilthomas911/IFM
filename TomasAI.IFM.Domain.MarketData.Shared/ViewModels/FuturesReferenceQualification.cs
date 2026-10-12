@@ -7,11 +7,12 @@ public static class FuturesReferenceQualification
 {
     public static IReadOnlyList<string> Errors(FuturesContractV3ReadModel c)
     {
+        ArgumentNullException.ThrowIfNull(c);
         var errors = Common(c.SchemaVersion, c.ReviewState, c.Dataset, c.PublisherId, c.InstrumentId, c.RawSymbol,
             c.DefinitionTimestampUtc, c.DefinitionDigest, c.RawDefinitionReference, c.ExpirationUtc, c.LastTradingUtc,
             c.ExchangeTimeZoneId, c.Multiplier, c.MultiplierValue, c.PriceScale, c.TickSize, c.CalendarVersion,
             c.MappingVersion, c.EvidenceId, c.EffectiveFromUtc, c.EffectiveUntilUtc);
-        if (c.SecurityType != "FUT") errors.Add("SecurityType");
+        if (!string.Equals(c.SecurityType,"FUT",StringComparison.Ordinal)) errors.Add("SecurityType");
         if (c.SettlementStyle is not (ReferenceSettlementStyle.Cash or ReferenceSettlementStyle.Physical)) errors.Add("SettlementStyle");
         if (!c.IsValid) errors.Add("LegacyIdentity");
         return errors;
@@ -19,18 +20,19 @@ public static class FuturesReferenceQualification
 
     public static IReadOnlyList<string> Errors(FuturesOptionContractReadModel c)
     {
+        ArgumentNullException.ThrowIfNull(c);
         var errors = Common(c.SchemaVersion, c.ReviewState, c.Dataset, c.PublisherId, c.InstrumentId, c.RawSymbol,
             c.DefinitionTimestampUtc, c.DefinitionDigest, c.RawDefinitionReference, c.ExpirationUtc, c.LastTradingUtc,
             c.ExchangeTimeZoneId, c.Multiplier, c.MultiplierValue, c.PriceScale, c.TickSize, c.CalendarVersion,
             c.MappingVersion, c.EvidenceId, c.EffectiveFromUtc, c.EffectiveUntilUtc);
-        if (c.SecurityType != "FOP") errors.Add("SecurityType");
+        if (!string.Equals(c.SecurityType,"FOP",StringComparison.Ordinal)) errors.Add("SecurityType");
         if (c.UnderlyingAssetType != ReferenceAssetType.Futures || string.IsNullOrWhiteSpace(c.UnderlyingContractId)) errors.Add("Underlying");
         if (c.UnderlyingInstrumentId is null or 0 || c.UnderlyingPublisherId is null or 0) errors.Add("UnderlyingProviderIdentity");
         if (c.ExerciseStyle is not (ReferenceExerciseStyle.European or ReferenceExerciseStyle.American)) errors.Add("ExerciseStyle");
         if (c.SettlementStyle is not (ReferenceSettlementStyle.Cash or ReferenceSettlementStyle.DeliveryOfFuture)) errors.Add("SettlementStyle");
         if (c.PremiumStyle is not (ReferencePremiumStyle.PremiumPaid or ReferencePremiumStyle.FuturesStyleVariation)) errors.Add("PremiumStyle");
         if (c.OptionRight is not (ReferenceOptionRight.Call or ReferenceOptionRight.Put)
-            || c.OptionType != (c.OptionRight == ReferenceOptionRight.Call ? "Call" : "Put")) errors.Add("OptionRight");
+            || !string.Equals(c.OptionType,(c.OptionRight == ReferenceOptionRight.Call ? "Call" : "Put"),StringComparison.Ordinal)) errors.Add("OptionRight");
         if (c.DayCount is not (ReferenceDayCount.Actual365Fixed or ReferenceDayCount.Actual360)) errors.Add("DayCount");
         if (c.PremiumTickRule is not (ReferencePremiumTickRule.Fixed or ReferencePremiumTickRule.CmeEsGlobex358A)
             || string.IsNullOrWhiteSpace(c.TickRuleVersion)) errors.Add("PremiumTickRule");

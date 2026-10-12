@@ -11,36 +11,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
 
-/// <summary>Defines readonly dependencies owned by the strategy-configuration Command actor.</summary>
-public interface IParameterAssignmentCommandContext
-    : ICommandActorContext<ParameterAssignmentCommandActor>
-{
-    IParameterAccessPolicy AccessPolicy { get; }
-    /// <summary>Gets EventSourceDb.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets ConfigurationDb.</summary>
-    IConfigurationDbContext ConfigurationDb { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<ParameterAssignmentCommandActor> EventProjector { get; }
-    /// <summary>Gets the state repository.</summary>
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> StateRepository { get; }
-    /// <summary>Gets the projector queue dependency.</summary>
-    IDurableReplayQueue DurableReplayQueue { get; }
-    /// <summary>Gets the blackboard dependency.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets actor infrastructure.</summary>
-    IActorService ActorService { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> ParameterSets { get; }
-    /// <summary>Gets the logger.</summary>
-    ILogger<ParameterAssignmentCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the closed-generic strategy-configuration Command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ParameterAssignmentCommandContext
     : CommandActorContext,
-      ICommandActorContext<ParameterAssignmentCommandActor>,
       IParameterAssignmentCommandContext
 {
     readonly Lazy<IParameterAccessPolicy> accessPolicy;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Data.Common;
 using TomasAI.IFM.Shared.Exceptions;
@@ -10,9 +10,9 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb
         const string ClassName = nameof(ScyllaDbObjectDataQueuedCommand);
 
         readonly string _commandName;
-        CommandType _commandType;
-        string _commandText;
-        List<object>? _bindValues;
+        readonly CommandType _commandType;
+        readonly string _commandText;
+        readonly List<object>? _bindValues;
         readonly string? _providerName;
         readonly object? _connectionIdentity;
 
@@ -21,10 +21,14 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb
         public string CommandText => _commandText;
         public string CommandLogText =>
             $"command name: {CommandName}{Environment.NewLine}{CommandText}";
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
         public List<object>? BindValues => _bindValues;
         string? IObjectDataQueuedCommandMetadata.ProviderName => _providerName;
         object? IObjectDataQueuedCommandMetadata.ConnectionIdentity => _connectionIdentity;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
         public ScyllaDbObjectDataQueuedCommand(
             string commandName,
             CommandType commandType,

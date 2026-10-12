@@ -1,39 +1,6 @@
 namespace TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
 /// <summary>
-/// Identifies the option-price observation used to calculate implied
-/// volatility and Black-76 Greeks.
-/// </summary>
-public enum OptionGreeksPriceSource
-{
-    None = 0,
-    QuoteMidpoint = 1,
-    Trade = 2
-}
-
-/// <summary>
-/// Explains why an available Greeks calculation is not valid.
-/// </summary>
-public enum OptionGreeksFailureReason
-{
-    None = 0,
-    NoValidQuote = 1,
-    MissingFuturesPrice = 2,
-    StaleFuturesPrice = 3,
-    InvalidFuturesPrice = 4,
-    MissingOptionPrice = 5,
-    StaleOptionPrice = 6,
-    InvalidOptionPrice = 7,
-    InvalidContract = 8,
-    InvalidMaturity = 9,
-    InvalidRiskFreeRate = 10,
-    NoArbitrageViolation = 11,
-    SolverDidNotConverge = 12,
-    NonFiniteResult = 13,
-    PricingContextUnavailable = 14
-}
-
-/// <summary>
 /// An immutable option valuation calculated from one option-price observation,
 /// one underlying futures-price observation, and one session risk-free rate.
 /// </summary>
@@ -95,23 +62,3 @@ public readonly record struct OptionGreeksSnapshot(
     /// <summary>Exact immutable reference and quote context used by this calculation.</summary>
     public string? PricingContextDigest { get; init; }
 }
-
-/// <summary>
-/// Atomically couples the latest option quote with the calculation produced
-/// for that exact quote observation.
-/// </summary>
-/// <param name="Tick">The tick.</param>
-/// <param name="Greeks">The calculated option sensitivities, when available.</param>
-public readonly record struct LastQuoteTickWithGreeksSnapshot(
-    LastQuoteTickSnapshot Tick,
-    OptionGreeksSnapshot Greeks);
-
-/// <summary>
-/// Atomically couples the latest option trade with the most recent
-/// quote-derived Greeks state available when that trade was processed.
-/// </summary>
-/// <param name="Tick">The tick.</param>
-/// <param name="Greeks">The calculated option sensitivities, when available.</param>
-public readonly record struct LastTradeTickWithGreeksSnapshot(
-    LastTradeTickSnapshot Tick,
-    OptionGreeksSnapshot Greeks);

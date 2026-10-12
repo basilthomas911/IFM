@@ -13,10 +13,14 @@ public interface IParameterSetsApi
     Task<ServiceResult<GuidResult>> ApplyStartupAsync(ApplySignalStartupPlanCommand command, CancellationToken token = default);
     Task<ServiceResult<GuidResult>> ReleaseStartupAsync(ReleaseSignalStartupPlanCommand command, CancellationToken token = default);
     Task<ServiceResult<ParameterSignalStartupPlan>> PreviewStartupAsync(Guid runId, CancellationToken token = default);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     Task<ServiceResult<ParameterSchemaDefinition>> SchemaAsync(int schemaVersion, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent);
     Task<ServiceResult<ParameterComponentSummary[]>> ComponentsAsync(CancellationToken token = default);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     Task<ServiceResult<ParameterSetVersion[]>> VersionsAsync(Guid? setId = null, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     Task<ServiceResult<string>> PreviewAsync(Guid setId, CancellationToken token = default, int targetHorizon = (int)TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, string? sourcePayloadJson = null, bool rebuildIntervals = false, string componentCode = ParameterSchemaRegistry.RegimeComponent);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published overload parameter order used by existing callers.")]
     Task<ServiceResult<ParameterValidationReport>> ValidateAsync(string json, int schemaVersion, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent);
     Task<ServiceResult<GuidResult>> CreateAsync(CreateParameterSetCommand command, CancellationToken token = default);
     Task<ServiceResult<GuidResult>> SaveAsync(SaveParameterDraftCommand command, CancellationToken token = default);

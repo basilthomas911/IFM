@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Validation;
 internal static class TradeOrderDefinitionChecks
 {
     /// <summary>Returns intrinsic order, component and leg errors without mutating inputs.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the related validation rules together so the full contract is checked in the established order.")]
     public static string[] Validate(TradeOrderDefinition? order)
     {
         if (order is null) return ["Order is required."];

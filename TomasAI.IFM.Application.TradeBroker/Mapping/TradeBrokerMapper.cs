@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.TradeBroker.Contracts;
+using TomasAI.IFM.Application.TradeBroker.Contracts;
 using TomasAI.IFM.Framework.TradeBroker.Contracts;
 
 namespace TomasAI.IFM.Application.TradeBroker.Mapping;
@@ -9,16 +9,35 @@ public static class TradeBrokerMapper
     public static FrameworkMarketQuote ToFramework(BrokerMarketQuote value) => new(value.ContractId,
         value.Bid, value.Ask, value.BidSize, value.AskSize, value.MarketTimeUtc,
         value.SourceEpoch, value.SourceSequence);
-    public static FrameworkOrderRequest ToFramework(BrokerOrderRequest x) => new(x.AccountAlias, x.BrokerOrderId, x.OperationId,
+    public static FrameworkOrderRequest ToFramework(BrokerOrderRequest x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.AccountAlias, x.BrokerOrderId, x.OperationId,
         x.ComponentId, (FrameworkOrderShape)x.Shape, x.IsClosing,
         [.. x.Legs.Select(l => new FrameworkOrderLeg(l.LegId, l.ContractId, l.SignedQuantity, l.Strike, l.Expiry, l.PutCall, l.CashMultiplier))],
         x.SignedNetDebitLimit, x.MinimumLimit, x.MaximumLimit, x.TickIncrement, x.ValidUntilUtc, x.ApprovalHash, x.ContractReferenceHash,
         x.RequiredCapital, x.MaximumLoss, (FrameworkOrderType)x.OrderType, (FrameworkOrderAlgorithm)x.Algorithm, x.TimeInForce, x.AlgorithmPace);
+    }
 
-    public static FrameworkLimitUpdate ToFramework(BrokerLimitUpdate x) => new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.NewSignedNetDebitLimit, x.ExpectedRevision);
-    public static FrameworkCancelRequest ToFramework(BrokerCancelRequest x) => new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.ExpectedRevision);
-    public static BrokerDispatchReceipt ToApplication(FrameworkDispatchReceipt x) => new((BrokerDispatchOutcome)x.Outcome, x.OperationId, x.BrokerOrderId, x.Category, x.Detail, x.RecordedAtUtc);
-    public static BrokerObservation ToApplication(FrameworkBrokerObservation x) => new()
+    public static FrameworkLimitUpdate ToFramework(BrokerLimitUpdate x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.NewSignedNetDebitLimit, x.ExpectedRevision);
+    }
+    public static FrameworkCancelRequest ToFramework(BrokerCancelRequest x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.AccountAlias, x.BrokerOrderId, x.OperationId, x.ExpectedRevision);
+    }
+    public static BrokerDispatchReceipt ToApplication(FrameworkDispatchReceipt x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new((BrokerDispatchOutcome)x.Outcome, x.OperationId, x.BrokerOrderId, x.Category, x.Detail, x.RecordedAtUtc);
+    }
+    public static BrokerObservation ToApplication(FrameworkBrokerObservation x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new()
     {
         Kind = (BrokerObservationKind)x.Kind,
         ObservationId = x.ObservationId,
@@ -39,7 +58,12 @@ public static class TradeBrokerMapper
         Category = x.Category,
         Detail = x.Detail
     };
-    public static BrokerAccountSnapshot ToApplication(FrameworkAccountSnapshot x) => new(x.AccountAlias, x.Currency,
+    }
+    public static BrokerAccountSnapshot ToApplication(FrameworkAccountSnapshot x) 
+    {
+        ArgumentNullException.ThrowIfNull(x);
+        return new(x.AccountAlias, x.Currency,
         x.CashBalance, x.AvailableFunds, x.Complete, x.NewRiskAllowed, x.Generation, x.AsOfUtc,
         [.. x.Positions.Select(p => new BrokerAccountPosition(p.ContractId, p.SignedQuantity, p.AveragePrice))]);
+    }
 }

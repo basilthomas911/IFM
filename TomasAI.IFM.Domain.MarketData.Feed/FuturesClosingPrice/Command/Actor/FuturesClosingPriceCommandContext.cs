@@ -9,32 +9,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesClosingPriceCommandActor"/>.</summary>
-public interface IFuturesClosingPriceCommandContext : ICommandActorContext<FuturesClosingPriceCommandActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the Market Data database.</summary>
-    IMarketDataDbContext MarketDataDb { get; }
-    /// <summary>Gets the blackboard service.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesClosingPriceCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the durable replay queue.</summary>
-    IDurableReplayQueue DurableReplayQueue { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets the actor service.</summary>
-    IActorService ActorService { get; }
-    /// <summary>Gets the event projector.</summary>
-    IEventProjector<FuturesClosingPriceCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesClosingPriceCommandActor"/>.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesClosingPriceCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesClosingPriceCommandActor>, IFuturesClosingPriceCommandContext
+IFuturesClosingPriceCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;

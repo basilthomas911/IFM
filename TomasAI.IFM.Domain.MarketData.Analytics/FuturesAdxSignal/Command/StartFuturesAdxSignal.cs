@@ -18,6 +18,8 @@ public static class StartFuturesAdxSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StartFuturesAdxSignalCommand command, FuturesAdxSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply ADX start event";
         var updated = command.Compute(state.AdxSignals, out var futuresAdxInitialization) switch
         {

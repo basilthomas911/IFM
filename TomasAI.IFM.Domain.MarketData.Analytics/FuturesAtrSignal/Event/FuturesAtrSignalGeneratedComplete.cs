@@ -17,9 +17,8 @@ public static class FuturesAtrSignalGeneratedComplete
         ServiceId = $"{LogSourceType.FuturesAtrSignalEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Handles the completion of the Futures ATR signal generation process.
     /// This method is invoked when a FuturesAtrSignalGeneratedCompleteEvent is received,
     /// indicating that the ATR signal has been successfully generated for a specific entity.
@@ -33,6 +32,8 @@ public static class FuturesAtrSignalGeneratedComplete
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e,
         IFuturesAtrSignalEventContext context, ILogger<FuturesAtrSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
@@ -45,8 +46,8 @@ public static class FuturesAtrSignalGeneratedComplete
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write10(logger, ex, source, e.EntityId.ContractId);
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

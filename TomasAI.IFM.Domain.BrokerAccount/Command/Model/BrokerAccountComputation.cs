@@ -75,7 +75,7 @@ internal static class BrokerAccountComputation
         var brokerAccountDefinition = currentAccount;
         if (brokerAccountDefinition is null) return BrokerAccountChange.Reject("BrokerAccount.NOT_FOUND");
         if (brokerAccountDefinition.QualificationStatus == BrokerAccountQualificationStatus.Revoked &&
-            brokerAccountDefinition.Reason == command.Reason)
+            string.Equals(brokerAccountDefinition.Reason,command.Reason,StringComparison.Ordinal))
             return BrokerAccountChange.Unchanged(brokerAccountDefinition);
         var changedAccount = brokerAccountDefinition with
         {
@@ -94,7 +94,7 @@ internal static class BrokerAccountComputation
     {
         var brokerAccountDefinition = currentAccount;
         if (brokerAccountDefinition is null) return BrokerAccountChange.Reject("BrokerAccount.NOT_FOUND");
-        if (brokerAccountDefinition.ManualHold && brokerAccountDefinition.Reason == command.Reason)
+        if (brokerAccountDefinition.ManualHold && string.Equals(brokerAccountDefinition.Reason,command.Reason,StringComparison.Ordinal))
             return BrokerAccountChange.Unchanged(brokerAccountDefinition);
         return BrokerAccountChange.Accept(brokerAccountDefinition with
         {
@@ -111,7 +111,7 @@ internal static class BrokerAccountComputation
     {
         var brokerAccountDefinition = currentAccount;
         if (brokerAccountDefinition?.Snapshot is null) return BrokerAccountChange.Reject("BrokerAccount.SNAPSHOT.REQUIRED");
-        if (brokerAccountDefinition.ManifestHash == command.ManifestHash &&
+        if (string.Equals(brokerAccountDefinition.ManifestHash,command.ManifestHash,StringComparison.Ordinal) &&
             brokerAccountDefinition.QualificationStatus == BrokerAccountQualificationStatus.ReviewPending)
             return BrokerAccountChange.Unchanged(brokerAccountDefinition);
         var changedAccount = brokerAccountDefinition with

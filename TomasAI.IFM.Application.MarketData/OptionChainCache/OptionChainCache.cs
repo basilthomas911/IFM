@@ -8,20 +8,9 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 
-/// <summary>Background-only ownership of prepared cache publications; never exposed through IMarketDataApi.</summary>
-public interface IOptionChainSnapshotPublisher
-{
-    /// <summary>Starts a fresh admitted generation.</summary>
-    void Admit(Guid generation);
-    /// <summary>Invalidates quotes for the failing generation.</summary>
-    void Fence(Guid generation);
-    /// <summary>Removes a retired policy scope without stopping unrelated subscription owners.</summary>
-    void Retire(Guid generation, string lookupScope);
-    /// <summary>Publishes an immutable snapshot already priced and validated by background maintenance.</summary>
-    bool Publish(MarketCompositionSnapshot snapshot, DateOnly valueDate, string configurationDigest, long version, string? lookupScope = null);
-}
-
 /// <summary>API-resident facade over provider-independent storage; all read operations are bounded local CPU work.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the published type name and its CLR identity.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0049", Justification = "Preserve the published domain type and protocol identity.")]
 public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPublisher, IDisposable
 {
     sealed record Prepared(MarketCompositionSnapshot Snapshot, DateOnly ValueDate, string ConfigurationDigest,
@@ -29,7 +18,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
     readonly OptionChainSnapshotStore<Prepared> store;
     readonly TimeProvider clock;
     readonly DatasetWorkerAdmissionRegistry? admissions;
-    readonly object lifecycle = new();
+    readonly System.Threading.Lock lifecycle = new();
     Guid admittedGeneration;
 
     /// <summary>Creates a bounded cache with an injectable clock for deterministic freshness verification.</summary>
@@ -94,11 +83,11 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         if (valueDate == default || snapshot.Instruments.IsDefault || snapshot.Instruments.Length > 2048
             || snapshot.SnapshotId == Guid.Empty || snapshot.GenerationId == Guid.Empty || snapshot.SchemaVersion != 1
             || snapshot.EvaluatedAtUtc.Offset != TimeSpan.Zero || snapshot.ValidUntilUtc <= snapshot.EvaluatedAtUtc
-            || snapshot.Digest != PricingSemanticHash.Compute(snapshot with { Digest = "" }))
+            || !string.Equals(snapshot.Digest,PricingSemanticHash.Compute(snapshot with { Digest = "" }),StringComparison.Ordinal))
             throw new ArgumentException("Invalid prepared snapshot.", nameof(snapshot));
         var policy = snapshot.StrategyOptionChainParametersJson is null ? null : StrategyOptionChainParameterSet.Read(snapshot.StrategyOptionChainParametersJson);
-        if (policy is not null && (snapshot.StrategyOptionChainValueDate != valueDate || policy.Hash() != configurationDigest || !policy.Enabled
-            || !policy.BiasRows.Any(x => x.Enabled && x.MarketBias.ToString() == snapshot.StrategyOptionChainBias)))
+        if (policy is not null && (snapshot.StrategyOptionChainValueDate != valueDate || !string.Equals(policy.Hash(),configurationDigest,StringComparison.Ordinal) || !policy.Enabled
+            || !policy.BiasRows.Any(x => x.Enabled && string.Equals(x.MarketBias.ToString(),snapshot.StrategyOptionChainBias,StringComparison.Ordinal))))
             throw new ArgumentException("Prepared global policy provenance does not match its publication.", nameof(snapshot));
         foreach (var row in snapshot.Instruments)
         {
@@ -128,6 +117,8 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         return result;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     OptionChainSnapshotResult Read(OptionChainSnapshotRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -136,7 +127,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
             || request.ValueDate == default || request.Horizon is not ("Daily" or "Weekly" or "Monthly")
             || request.DeadlineUtc.Offset != TimeSpan.Zero || request.DeadlineUtc <= now
             || string.IsNullOrWhiteSpace(request.ConfigurationDigest) || request.RequiredContractIds.IsDefault
-            || request.InstrumentRoot != "ES" || request.StrategyDefinitionVersion < 0
+            || !string.Equals(request.InstrumentRoot,"ES",StringComparison.Ordinal) || request.StrategyDefinitionVersion < 0
             || request.StrategyDefinitionId != Guid.Empty && request.StrategyDefinitionVersion < 1
             || request.RequiredContractIds.Length > 4 || request.MaximumQuoteAgeMilliseconds is < 1 or > 5000
             || request.MaximumQuoteSkewMilliseconds is < 0 or > 2000)
@@ -145,7 +136,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         {
             if (string.IsNullOrWhiteSpace(request.RequiredContractIds[i])) return new(OptionChainSnapshotOutcome.Rejected, "InvalidSnapshotRequest");
             for (var j = 0; j < i; j++)
-                if (request.RequiredContractIds[i] == request.RequiredContractIds[j]) return new(OptionChainSnapshotOutcome.Rejected, "InvalidSnapshotRequest");
+                if (string.Equals(request.RequiredContractIds[i],request.RequiredContractIds[j],StringComparison.Ordinal)) return new(OptionChainSnapshotOutcome.Rejected, "InvalidSnapshotRequest");
         }
         if (!string.IsNullOrEmpty(request.FundPortfolioParameterSchema))
             return new(OptionChainSnapshotOutcome.Rejected, "UnsupportedFundPortfolioParameters");
@@ -154,11 +145,11 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         var prepared = publication.Snapshot;
         var snapshot = prepared.Snapshot;
         OptionChainSnapshotResult Unavailable(string reason) => new(OptionChainSnapshotOutcome.Deferred, reason, ChainVersion: publication.Version);
-        if (prepared.ValueDate != request.ValueDate || prepared.ConfigurationDigest != request.ConfigurationDigest
-            || snapshot.Horizon != request.Horizon) return Unavailable("PolicyNotReady");
+        if (prepared.ValueDate != request.ValueDate || !string.Equals(prepared.ConfigurationDigest,request.ConfigurationDigest,StringComparison.Ordinal)
+            || !string.Equals(snapshot.Horizon,request.Horizon,StringComparison.Ordinal)) return Unavailable("PolicyNotReady");
         if (request.StrategyDefinitionId != Guid.Empty && (prepared.Policy is not { } pinned
             || pinned.StrategyDefinitionId != request.StrategyDefinitionId || pinned.StrategyDefinitionVersion != request.StrategyDefinitionVersion
-            || pinned.InstrumentRoot != request.InstrumentRoot)) return Unavailable("StrategyNotReady");
+            || !string.Equals(pinned.InstrumentRoot,request.InstrumentRoot,StringComparison.Ordinal))) return Unavailable("StrategyNotReady");
         if (snapshot.ValidUntilUtc <= now || snapshot.EvaluatedAtUtc > now) return Unavailable("SnapshotExpired");
         var earliest = DateTimeOffset.MaxValue;
         var latest = DateTimeOffset.MinValue;
@@ -175,8 +166,8 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
             if (instrument.Quote is not { } quote || instrument.Underlying is not { } underlying
                 || instrument.Pricing is null || item.Valuation is null) return Unavailable("ValuationUnavailable");
             var context = instrument.Pricing;
-            if (context.Contract.ContractId != instrument.ContractId || quote.ContractId != instrument.ContractId
-                || underlying.ContractId != context.Contract.UnderlyingContractId || instrument.Strike is not > 0
+            if (!string.Equals(context.Contract.ContractId,instrument.ContractId,StringComparison.Ordinal) || !string.Equals(quote.ContractId,instrument.ContractId,StringComparison.Ordinal)
+                || !string.Equals(underlying.ContractId,context.Contract.UnderlyingContractId,StringComparison.Ordinal) || instrument.Strike is not > 0
                 || instrument.IsCall is null || context.Contract.ExpirationUtc <= now || context.Contract.LastTradingUtc <= now
                 || context.MaximumQuoteAgeMilliseconds is < 1 or > 5000 || context.MaximumQuoteSkewMilliseconds is < 0 or > 2000
                 || context.MaximumSourceClockLeadMilliseconds is < 0 or > 2000)

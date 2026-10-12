@@ -16,6 +16,8 @@ public sealed record HistoricalAnalyticsWarmupOptions
     /// <summary>Gets whether automatic provider acquisition and replay are permitted.</summary>
     public bool AutomaticLoadingPermitted => Enabled;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Instance validation reports the configuration property captured by this object.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Instance validation reports the configuration property captured by this object.")]
     public HistoricalAnalyticsWarmupOptions Validate()
     {
         if (LookbackCalendarDays < 365)
@@ -29,21 +31,3 @@ public sealed record HistoricalAnalyticsWarmupOptions
         return this;
     }
 }
-
-/// <summary>Identifies the result of one automatic coverage request.</summary>
-public enum HistoricalAnalyticsWarmupOutcome
-{
-    Disabled,
-    AlreadyCurrent,
-    AcquiredAndReplayed,
-    ReplayedFromStorage
-}
-
-/// <summary>Reports bounded coverage and replay results without provider records.</summary>
-public sealed record HistoricalAnalyticsWarmupResult(
-    HistoricalAnalyticsWarmupOutcome Outcome,
-    DateOnly StartDate,
-    DateOnly EndDate,
-    int ValidSessionCount,
-    int MissingSessionCount,
-    HistoricalDataLoaderState? LastLoadState);

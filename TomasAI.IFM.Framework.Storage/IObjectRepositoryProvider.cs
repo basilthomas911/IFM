@@ -11,12 +11,18 @@ public interface IObjectRepositoryProvider
         CancellationToken cancellationToken,
         Action<string> onInfoMessage = null)
         => await ExecuteCommandAsync(ctx, onInfoMessage).WaitAsync(cancellationToken).ConfigureAwait(false);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     object QueueCommand(
         string commandName,
         string commandText,
         CommandType commandType,
         List<object> parameterValues);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     async Task ExecuteQueuedCommandsAsync(
         List<object> queuedCommands,
         bool useTransaction,

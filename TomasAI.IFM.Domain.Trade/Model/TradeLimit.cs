@@ -5,27 +5,10 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
-
 public class TradeLimit : IDataValidation, ITradeLimit
 {
-    static IValidator<TradeLimit>? _validator;
-
-    public TradeLimit(
-        int tradeId,
-        TradeType tradeType,
-        decimal riskMargin,
-        decimal maxProfit,
-        decimal maxLoss,
-        decimal maxReturn,
-        decimal maxLossLimit,
-        decimal minProfitLimit,
-        decimal maxProfitLimit,
-        decimal minProfitTarget,
-        decimal dailyProfitTarget,
-        DateTime createdOn,
-        string createdBy,
-        DateTime updatedOn,
-        string updatedBy)
+    static readonly IValidator<TradeLimit> _validator = new TradeLimitValidator();
+    public TradeLimit(int tradeId, TradeType tradeType, decimal riskMargin, decimal maxProfit, decimal maxLoss, decimal maxReturn, decimal maxLossLimit, decimal minProfitLimit, decimal maxProfitLimit, decimal minProfitTarget, decimal dailyProfitTarget, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy)
     {
         TradeId = tradeId;
         TradeType = tradeType;
@@ -42,8 +25,11 @@ public class TradeLimit : IDataValidation, ITradeLimit
         CreatedBy = createdBy;
         UpdatedOn = updatedOn;
         UpdatedBy = updatedBy;
-        _validator ??= new TradeLimitValidator();
         this.Validate(_validator);
+    }
+
+    public TradeLimit(TradeLimitReadModel e, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : this(tradeId: (e ?? throw new ArgumentNullException(nameof(e))).TradeId, tradeType: e.TradeType, riskMargin: e.RiskMargin, maxProfit: e.MaxProfit, maxLoss: e.MaxLoss, maxReturn: e.MaxReturn, maxLossLimit: e.MaxLossLimit, minProfitLimit: e.MinProfitLimit, maxProfitLimit: e.MaxProfitLimit, minProfitTarget: e.MinProfitTarget, dailyProfitTarget: e.DailyProfitTarget, createdOn: createdOn, createdBy: createdBy, updatedOn: updatedOn, updatedBy: updatedBy)
+    {
     }
 
     public int TradeId { get; private set; }
@@ -62,55 +48,10 @@ public class TradeLimit : IDataValidation, ITradeLimit
     public DateTime UpdatedOn { get; private set; }
     public string UpdatedBy { get; private set; }
 
-    public TradeLimit(TradeLimitReadModel e, DateTime createdOn, string createdBy, DateTime updatedOn, string updatedBy) : this(
-        tradeId: e.TradeId,
-        tradeType: e.TradeType,
-        riskMargin: e.RiskMargin,
-        maxProfit: e.MaxProfit,
-        maxLoss: e.MaxLoss,
-        maxReturn: e.MaxReturn,
-        maxLossLimit: e.MaxLossLimit,
-        minProfitLimit: e.MinProfitLimit,
-        maxProfitLimit: e.MaxProfitLimit,
-        minProfitTarget: e.MinProfitTarget,
-        dailyProfitTarget: e.DailyProfitTarget,
-        createdOn: createdOn,
-        createdBy: createdBy,
-        updatedOn: updatedOn,
-        updatedBy: updatedBy)
-    {
-    }
-
-    public TradeLimitReadModel ToViewModel()
-        => new(
-            tradeId: TradeId,
-            tradeType: TradeType,
-            riskMargin: RiskMargin,
-            maxProfit: MaxProfit,
-            maxLoss: MaxLoss,
-            maxReturn: MaxReturn,
-            maxLossLimit: MaxLossLimit,
-            minProfitLimit: MinProfitLimit,
-            maxProfitLimit: MaxProfitLimit,
-            minProfitTarget: MinProfitTarget,
-            dailyProfitTarget: DailyProfitTarget,
-            createdOn: CreatedOn,
-            createdBy: CreatedBy,
-            updatedOn: UpdatedOn,
-            updatedBy: UpdatedBy
-        );
-
+    public TradeLimitReadModel ToViewModel() => new(tradeId: TradeId, tradeType: TradeType, riskMargin: RiskMargin, maxProfit: MaxProfit, maxLoss: MaxLoss, maxReturn: MaxReturn, maxLossLimit: MaxLossLimit, minProfitLimit: MinProfitLimit, maxProfitLimit: MaxProfitLimit, minProfitTarget: MinProfitTarget, dailyProfitTarget: DailyProfitTarget, createdOn: CreatedOn, createdBy: CreatedBy, updatedOn: UpdatedOn, updatedBy: UpdatedBy);
     public ITradeLimit SetDailyProfitTarget(decimal dailyProfitTarget)
     {
         DailyProfitTarget = dailyProfitTarget;
         return this;
-    }
-}
-
-public class TradeLimitValidator : AbstractValidator<TradeLimit>
-{
-    public TradeLimitValidator()
-    {
-        RuleFor(x => x.TradeId).GreaterThan(0).WithMessage("TradeLimit.TradeId is zero or negative");
     }
 }

@@ -6,11 +6,13 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Reference.Shared.Lookups;
 
 /// <summary>Values for Fund authoring, from ConfigurationDb and the published Databento product index.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "The published serialization contract uses arrays; preserve its wire shape.")]
 public sealed record FundSelectionCatalog(string[] Underlyings, LookupDefinitionReadModel[] AssetTypes,
     LookupDefinitionReadModel[] Directions, LookupDefinitionReadModel[] MarketConditions)
 {
     public static async Task<FundSelectionCatalog> LoadAsync(IReferenceQueryApi queries, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(queries);
         ct.ThrowIfCancellationRequested();
         var assets = queries.GetLookupDefinitionsAsync(LookupDefinitionGroups.AssetTypes, ct);
         var directions = queries.GetLookupDefinitionsAsync(LookupDefinitionGroups.Directions, ct);
@@ -19,12 +21,12 @@ public sealed record FundSelectionCatalog(string[] Underlyings, LookupDefinition
         var options = queries.GetTradeStrategySymbolsAsync(TradeStrategyFamilyType.FuturesOption, ct);
         await Task.WhenAll(assets, directions, conditions, futures, options).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
-        var products = Required(await futures, "Futures underlyings").Concat(Required(await options, "Futures option underlyings")).ToArray();
+        var products = Required(await (futures).ConfigureAwait(false), "Futures underlyings").Concat(Required(await (options).ConfigureAwait(false), "Futures option underlyings")).ToArray();
         if (products.Any(x => x.Validate().Count != 0)) throw new InvalidOperationException("Invalid Databento product metadata.");
         var symbols = products.Select(x => x.Symbol).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (symbols.Length == 0) throw new InvalidOperationException("No current Databento underlying symbols are loaded. Refresh instrument definitions first.");
-        return new(symbols, Group(await assets, LookupDefinitionGroups.AssetTypes), Group(await directions, LookupDefinitionGroups.Directions),
-            Group(await conditions, LookupDefinitionGroups.MarketConditions));
+        return new(symbols, Group(await (assets).ConfigureAwait(false), LookupDefinitionGroups.AssetTypes), Group(await (directions).ConfigureAwait(false), LookupDefinitionGroups.Directions),
+            Group(await (conditions).ConfigureAwait(false), LookupDefinitionGroups.MarketConditions));
     }
 
     static T[] Required<T>(ServiceResult<T[]> result, string name)
@@ -33,21 +35,25 @@ public sealed record FundSelectionCatalog(string[] Underlyings, LookupDefinition
     static LookupDefinitionReadModel[] Group(ServiceResult<LookupDefinitionReadModel[]> result, string group)
     {
         var rows = Required(result, group);
-        if (rows.Length == 0 || rows.Any(x => x.Id <= 0 || x.GroupName != group || string.IsNullOrWhiteSpace(x.InternalValue) || string.IsNullOrWhiteSpace(x.DisplayName))
+        if (rows.Length == 0 || rows.Any(x => x.Id <= 0 || !string.Equals(x.GroupName,group,StringComparison.Ordinal) || string.IsNullOrWhiteSpace(x.InternalValue) || string.IsNullOrWhiteSpace(x.DisplayName))
             || rows.Select(x => x.InternalValue).Distinct(StringComparer.Ordinal).Count() != rows.Length)
             throw new InvalidOperationException($"{group}: lookup definitions are missing or invalid.");
         return rows.OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).ToArray();
     }
 
-    public static bool IsSelectable(LookupDefinitionReadModel row) => row.IsEnabled && (row.GroupName switch
+    public static bool IsSelectable(LookupDefinitionReadModel row) 
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return row.IsEnabled && (row.GroupName switch
     {
         LookupDefinitionGroups.AssetTypes => row.InternalValue is "Futures" or "FuturesOption",
         LookupDefinitionGroups.Directions => Enum.TryParse<MarketConditionDirection>(row.InternalValue, out var direction)
-            && Enum.IsDefined(direction) && direction != MarketConditionDirection.Undefined && direction.ToString() == row.InternalValue,
+            && Enum.IsDefined(direction) && direction != MarketConditionDirection.Undefined && string.Equals(direction.ToString(),row.InternalValue,StringComparison.Ordinal),
         LookupDefinitionGroups.MarketConditions => Enum.TryParse<MarketConditionType>(row.InternalValue, out var condition)
-            && Enum.IsDefined(condition) && condition != MarketConditionType.Undefined && condition.ToString() == row.InternalValue,
+            && Enum.IsDefined(condition) && condition != MarketConditionType.Undefined && string.Equals(condition.ToString(),row.InternalValue,StringComparison.Ordinal),
         _ => false
     });
+    }
 
     public void ValidateSelections(string[] underlyings, string[] assets, string[] directions, string[] conditions)
     {
@@ -61,6 +67,6 @@ public sealed record FundSelectionCatalog(string[] Underlyings, LookupDefinition
     {
         var allowed = available.ToHashSet(StringComparer.Ordinal);
         if (values is null || values.Distinct(StringComparer.Ordinal).Count() != values.Length || values.Any(x => !allowed.Contains(x)))
-            throw new ArgumentException($"{label} contains unavailable or duplicate selections. Select values from the current list.");
+            throw new ArgumentException($"{label} contains unavailable or duplicate selections. Select values from the current list.",nameof(values));
     }
 }

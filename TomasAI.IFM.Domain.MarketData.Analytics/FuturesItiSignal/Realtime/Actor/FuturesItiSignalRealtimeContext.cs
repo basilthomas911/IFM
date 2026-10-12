@@ -7,25 +7,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 
-/// <summary>Defines the minimal services required by the Futures ITI realtime ingress actor.</summary>
-public interface IFuturesItiSignalRealtimeContext : IRealtimeActorContext<FuturesItiSignalRealtimeActor>
-{
-    /// <summary>Gets current provider-neutral market-data state.</summary>
-    IMarketDataApi MarketDataApi { get; }
-
-    /// <summary>Gets bounded process-local pipeline evidence.</summary>
-    LivePipelineEvidence HealthEvidence { get; }
-
-    /// <summary>Gets fixed-cardinality Futures ITI telemetry.</summary>
-    FuturesItiSignalRuntimeTelemetry Telemetry { get; }
-
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesItiSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context for the Futures ITI realtime ingress actor.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesItiSignalRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesItiSignalRealtimeActor>, IFuturesItiSignalRealtimeContext
+IFuturesItiSignalRealtimeContext
 {
     /// <summary>Initializes the minimal typed realtime context.</summary>
     public FuturesItiSignalRealtimeContext(

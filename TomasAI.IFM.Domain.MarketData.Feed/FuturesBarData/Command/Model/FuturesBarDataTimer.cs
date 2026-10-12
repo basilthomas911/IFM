@@ -21,8 +21,7 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
 
     public FuturesBarDataTimer(TimeSpan period)
     {
-        if (period <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(period));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero);
         _period = period;
     }
 
@@ -35,7 +34,10 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
             _registrations.TryRemove(new KeyValuePair<FuturesBarDataStreamingId, Registration>(entityId, previous));
         var registration = new Registration(timerAction, _period);
         if (!_registrations.TryAdd(entityId, registration))
+        {
+            registration.DisposeUnstarted();
             return false;
+        }
 
         registration.Start();
         return true;
@@ -75,11 +77,13 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
         }
     }
 
-    sealed class Registration(Func<ValueTask> callback, TimeSpan period)
+    sealed class Registration(Func<ValueTask> callback, TimeSpan period) : IAsyncDisposable
     {
         readonly CancellationTokenSource _stopping = new();
-        readonly object _lifecycleLock = new();
+        readonly System.Threading.Lock _lifecycleLock = new();
         Task _loopTask = Task.CompletedTask;
+        Task? _stopTask;
+        Task _cancellationTask = Task.CompletedTask;
         bool _started;
         bool _stopped;
         internal bool IsTerminal { get { lock (_lifecycleLock) return _started && _loopTask.IsCompleted; } }
@@ -97,26 +101,46 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
             }
         }
 
-        public async ValueTask StopAsync()
+        /// <summary>Releases a rejected registration before it owns a callback loop.</summary>
+        public void DisposeUnstarted()
         {
-            Task loopTask;
+            lock (_lifecycleLock)
+            {
+                if (_started || _stopped) return;
+                _stopped = true;
+                _stopTask = Task.CompletedTask;
+                _stopping.Dispose();
+            }
+        }
+
+        public ValueTask DisposeAsync() => StopAsync();
+
+        public ValueTask StopAsync()
+        {
             lock (_lifecycleLock)
             {
                 if (!_stopped)
                 {
                     _stopped = true;
-                    _stopping.Cancel();
+                    _cancellationTask = _stopping.CancelAsync();
                 }
-
-                loopTask = _loopTask;
+                return new ValueTask(_stopTask ??= CompleteStopAsync());
             }
+        }
 
+        async Task CompleteStopAsync()
+        {
             try
             {
-                await loopTask.ConfigureAwait(false);
+                await Task.WhenAll(_cancellationTask, _loopTask).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
             {
+                // Expected completion after the registration is stopped.
+            }
+            finally
+            {
+                _stopping.Dispose();
             }
         }
 
@@ -127,12 +151,4 @@ public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
                 await callback().ConfigureAwait(false);
         }
     }
-}
-
-public interface IFuturesBarDataTimer
-{
-    bool IsRunning(FuturesBarDataStreamingId entityId) => false;
-    bool Start(FuturesBarDataStreamingId entityId, Func<ValueTask> timerAction);
-    ValueTask<bool> StopAsync(FuturesBarDataStreamingId entityId);
-    ValueTask StopAllAsync();
 }

@@ -8,22 +8,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.Actor;
 
-/// <summary>Defines readonly services required by the trade-session bar signal Command actor.</summary>
-public interface IFuturesTradeSessionBarSignalCommandContext
-    : ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>
-{
-    /// <summary>Gets the typed event-source repository.</summary>
-    IEventSourceActorStateRepository<FuturesTradeSessionBarSignalCommandState> Repository { get; }
-    /// <summary>Gets the durable bar event projector.</summary>
-    IEventProjector<FuturesTradeSessionBarSignalCommandActor> EventProjector { get; }
-    /// <summary>Gets the typed logger.</summary>
-    ILogger<FuturesTradeSessionBarSignalCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the closed generic context for the trade-session bar signal Command actor.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesTradeSessionBarSignalCommandContext
     : CommandActorContext,
-      ICommandActorContext<FuturesTradeSessionBarSignalCommandActor>,
       IFuturesTradeSessionBarSignalCommandContext
 {
     /// <summary>Initializes the immutable Command context.</summary>

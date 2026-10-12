@@ -29,11 +29,10 @@ public sealed class FuturesOptionTickDataEventProjector(
                 {
                     TickId = e.TickData.TickId > 0 ? e.TickData.TickId : context.EventId
                 };
-                await actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(tick);
-                await actorContext.DbFactory.MarketDataDb.UpsertFuturesOptionChainQuoteDataAsync(
-                    e.Contract.ContractId, tick);
+                await (actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(tick)).ConfigureAwait(false);
+                await (actorContext.DbFactory.MarketDataDb.UpsertFuturesOptionChainQuoteDataAsync(
+                    e.Contract.ContractId, tick)).ConfigureAwait(false);
             })
     ];
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

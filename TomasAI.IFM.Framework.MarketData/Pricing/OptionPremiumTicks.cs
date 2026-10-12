@@ -18,8 +18,9 @@ public static class OptionPremiumTicks
     /// <returns>The increment result.</returns>
     public static decimal GetIncrement(OptionPricingConvention contract, decimal premium, bool combinationLeg = false)
     {
+        ArgumentNullException.ThrowIfNull(contract);
         if (contract.SchemaVersion == 1 && contract.PremiumTickRule == OptionPremiumTickRule.Unspecified)
-            return contract.TickSize > 0 ? contract.TickSize : throw new ArgumentException("TickRuleUnavailable");
+            return contract.TickSize > 0 ? contract.TickSize : throw new ArgumentException("TickRuleUnavailable", nameof(contract));
         if (!IsValid(contract)) throw new ArgumentException("TickRuleUnavailable", nameof(contract));
         if (contract.PremiumTickRule == OptionPremiumTickRule.Fixed) return contract.TickSize;
         if (combinationLeg) return .05m;
@@ -33,17 +34,21 @@ public static class OptionPremiumTicks
     /// <summary>Schema 1 preserves legacy fixed mappings. Schema 2 requires an explicit supported rule.</summary>
     /// <param name="contract">The contract.</param>
     /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
-    public static bool IsValid(OptionPricingConvention contract) => contract.SchemaVersion switch
+    public static bool IsValid(OptionPricingConvention contract) 
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+        return contract.SchemaVersion switch
     {
         1 => contract.PremiumTickRule == OptionPremiumTickRule.Unspecified && contract.TickSize > 0,
         2 or 3 => contract.PremiumTickRule switch
         {
             OptionPremiumTickRule.Fixed => contract.TickSize > 0 && !string.IsNullOrWhiteSpace(contract.TickRuleVersion),
-            OptionPremiumTickRule.CmeEsGlobex358A => contract.Root == "ES" && contract.Dataset == "GLBX.MDP3"
-                && contract.Exchange == "XCME" && contract.Currency == "USD" && contract.Multiplier == 50m && contract.TickSize == .05m
-                && contract.TickRuleVersion == CmeEsGlobexVersion,
+            OptionPremiumTickRule.CmeEsGlobex358A => string.Equals(contract.Root,"ES",StringComparison.Ordinal) && string.Equals(contract.Dataset,"GLBX.MDP3",StringComparison.Ordinal)
+                && string.Equals(contract.Exchange,"XCME",StringComparison.Ordinal) && string.Equals(contract.Currency,"USD",StringComparison.Ordinal) && contract.Multiplier == 50m && contract.TickSize == .05m
+                && string.Equals(contract.TickRuleVersion,CmeEsGlobexVersion,StringComparison.Ordinal),
             _ => false
         },
         _ => false
     };
+    }
 }

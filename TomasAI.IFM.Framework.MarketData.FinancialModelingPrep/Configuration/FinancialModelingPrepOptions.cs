@@ -45,7 +45,7 @@ public sealed class FinancialModelingPrepOptions
 
     internal void Validate(bool requireApiKey)
     {
-        if (BaseAddress is null || !BaseAddress.IsAbsoluteUri || BaseAddress.Scheme != Uri.UriSchemeHttps)
+        if (BaseAddress is null || !BaseAddress.IsAbsoluteUri || !string.Equals(BaseAddress.Scheme,Uri.UriSchemeHttps,StringComparison.Ordinal))
         {
             throw new FinancialModelingPrepConfigurationException("The FMP base address must be an absolute HTTPS URI.");
         }
@@ -115,8 +115,8 @@ public sealed class FinancialModelingPrepOptions
     {
         if (string.IsNullOrWhiteSpace(endpoint)
             || Uri.IsWellFormedUriString(endpoint, UriKind.Absolute)
-            || endpoint.Contains('?')
-            || endpoint.Contains('#'))
+            || endpoint.Contains('?',System.StringComparison.Ordinal)
+            || endpoint.Contains('#',System.StringComparison.Ordinal))
         {
             throw new FinancialModelingPrepConfigurationException($"{name} must be a non-empty relative path without a query or fragment.");
         }

@@ -20,20 +20,27 @@ public static class EconomicCalendarValidationExtensions
     /// <param name="validationErrors">The list of validation errors to which any new errors will be added.</param>
     /// <param name="economicCalendar">The economic calendar view model to validate.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateEconomicCalendar(this List<ValidationError> validationErrors, EconomicCalendarReadModel economicCalendar)
+    public static TErrors ValidateEconomicCalendar<TErrors>(this TErrors validationErrors, EconomicCalendarReadModel economicCalendar)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = EconomicCalendarRules.Execute(economicCalendar);
         if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
+            foreach (var validationFailure in ruleErrors)
+                validationErrors.Add(validationFailure);
         return validationErrors;
     }
 
     /// <summary>Validates the optional provider-neutral country filters on an import request.</summary>
-    public static List<ValidationError> ValidateImportCountryCodes(
-        this List<ValidationError> validationErrors,
+    public static TErrors ValidateImportCountryCodes<TErrors>(
+        this TErrors validationErrors,
         string[]? countryCodes,
         string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (countryCodes is null)
         {
             validationErrors.Add(new ValidationError($"{commandName}.CountryCodes is null"));
@@ -55,11 +62,15 @@ public static class EconomicCalendarValidationExtensions
     /// <param name="validationErrors">The list of validation errors to which any new errors will be added.</param>
     /// <param name="economicCalendarId">The economic calendar identifier to validate.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateEconomicCalendarId(this List<ValidationError> validationErrors, EconomicCalendarId economicCalendarId)
+    public static TErrors ValidateEconomicCalendarId<TErrors>(this TErrors validationErrors, EconomicCalendarId economicCalendarId)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = EconomicCalendarIdRules.Execute(economicCalendarId);
         if (ruleErrors is not null)
-            validationErrors.AddRange(ruleErrors);
+            foreach (var validationFailure in ruleErrors)
+                validationErrors.Add(validationFailure);
         return validationErrors;
     }
 }

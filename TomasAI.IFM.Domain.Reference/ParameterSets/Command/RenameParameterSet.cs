@@ -20,12 +20,14 @@ public static class RenameParameterSet
     /// <returns>The command acceptance or business failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this RenameParameterSetCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Author);
         var hash = ParameterMutationModel.RequestHash(command);
         if (state.Operations.TryGetValue(command.CommandId, out var previous))
         {
-            if (previous != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+            if (!string.Equals(previous,hash,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
             return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply RenameParameterSet event";

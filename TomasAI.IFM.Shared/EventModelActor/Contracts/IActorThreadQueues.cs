@@ -1,4 +1,4 @@
-﻿using NATS.Client.Core;
+using NATS.Client.Core;
 
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -25,16 +25,16 @@ public interface IActorThreadQueues
     int Count { get; }
     bool IsAccepting => true;
     void PauseAdmission() { }
+    void PauseAdmission(ActorThreadId threadId) { }
     void ResumeAdmission() { }
+    void ResumeAdmission(ActorThreadId threadId) { }
     ValueTask<bool> WaitForIdleAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(true);
-    bool IsAdmissionOpen(ActorThreadId threadId) => true;
-    void PauseAdmission(ActorThreadId threadId) { }
-    void ResumeAdmission(ActorThreadId threadId) { }
-    /// <summary>Closes admission and exposes a failed lifecycle operation as quarantined.</summary>
-    void QuarantineAdmission(ActorThreadId threadId) => PauseAdmission(threadId);
     ValueTask<bool> WaitForIdleAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(true);
+    bool IsAdmissionOpen(ActorThreadId threadId) => true;
+    /// <summary>Closes admission and exposes a failed lifecycle operation as quarantined.</summary>
+    void QuarantineAdmission(ActorThreadId threadId) => PauseAdmission(threadId);
     bool Retire(ActorThreadId threadId) => false;
     long GetGeneration(ActorThreadId threadId) => 0;
 }

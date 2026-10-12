@@ -15,6 +15,8 @@ public sealed class CommandAuditMessagePackCodec
         .WithResolver(ContractlessStandardResolver.Instance)
         .WithCompression(MessagePackCompression.None);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     public CommandAuditPayload Serialize(ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -28,6 +30,8 @@ public sealed class CommandAuditMessagePackCodec
             SHA256.HashData(bytes));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     public object Deserialize(Type commandType, ReadOnlyMemory<byte> payload, short format, int version)
     {
         ArgumentNullException.ThrowIfNull(commandType);
@@ -47,9 +51,3 @@ public sealed class CommandAuditMessagePackCodec
         return CryptographicOperations.FixedTimeEquals(candidate.Sha256, expectedHash);
     }
 }
-
-public sealed record CommandAuditPayload(
-    CommandAuditPayloadFormat Format,
-    int Version,
-    byte[] Bytes,
-    byte[] Sha256);

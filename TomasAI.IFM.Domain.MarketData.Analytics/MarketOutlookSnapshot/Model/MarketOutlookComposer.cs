@@ -39,7 +39,7 @@ public static class MarketOutlookComposer
             priceVolatility);
         var missing = MissingInputs(eod, state, ema, bb);
         var tradeSignal = ComputeTradeSignal(eod, state) ?? state.FuturesTradeSignal;
-        return new MarketOutlookReadModel
+        var snapshot = new MarketOutlookReadModel
         {
             ContractId = entityId.ContractId,
             ValueDate = entityId.ValueDate,
@@ -62,6 +62,15 @@ public static class MarketOutlookComposer
             FuturesAdxSignal = state.FuturesAdxSignal,
             FuturesAtrSignal = state.FuturesAtrSignal,
             FuturesMacdSignal = state.FuturesMacdSignal,
+        };
+        return ApplyTechnicalAvailability(ApplyPrimaryAvailability(snapshot, state, ema, bb, updatedAtUtc), state, updatedAtUtc);
+    }
+
+    /// <summary>Describes the freshness and readiness of the primary market inputs without changing their observed values.</summary>
+    static MarketOutlookReadModel ApplyPrimaryAvailability(MarketOutlookReadModel snapshot, MarketOutlookInputState state,
+        FuturesEmaSignalReadModel? ema, FuturesBbSignalReadModel? bb, DateTime updatedAtUtc)
+        => snapshot with
+        {
             EsPriceAvailability = Availability(
                 state, CacheComponentType.EsTrade, state.CurrentEsPrice > 0, true, updatedAtUtc),
             RsiAvailability = state.FuturesRsiSignal switch
@@ -80,11 +89,19 @@ public static class MarketOutlookComposer
             VxAvailability = state.VixFuturesPrice > 0
                 ? Availability(state, CacheComponentType.Vx, true, true, updatedAtUtc)
                 : MarketOutlookInputAvailability.Unavailable,
-            DailyAnalyticsAvailability = ema is { IsWarm: true } && bb is { IsWarm: true }
-                ? MarketOutlookInputAvailability.Available
-                : ema is null && bb is null
-                    ? MarketOutlookInputAvailability.Unavailable
-                    : MarketOutlookInputAvailability.Warming,
+            DailyAnalyticsAvailability = (ema is { IsWarm: true } && bb is { IsWarm: true }) switch
+{
+    true => MarketOutlookInputAvailability.Available,
+    false => ema is null && bb is null ? MarketOutlookInputAvailability.Unavailable : MarketOutlookInputAvailability.Warming
+},
+            FeedHealth = FeedHealth(state, updatedAtUtc),
+            FeedHealthReason = FeedHealthReason(state)
+        };
+
+    /// <summary>Describes the warmup, validity and freshness of the calculated technical indicators.</summary>
+    static MarketOutlookReadModel ApplyTechnicalAvailability(MarketOutlookReadModel snapshot, MarketOutlookInputState state, DateTime updatedAtUtc)
+        => snapshot with
+        {
             VwapAvailability = state.FuturesVwapSignal switch
             {
                 null => MarketOutlookInputAvailability.Unavailable,
@@ -115,11 +132,8 @@ public static class MarketOutlookComposer
                 { IsWarm: false } => MarketOutlookInputAvailability.Warming,
                 { Metadata.IsValid: false } => MarketOutlookInputAvailability.Invalid,
                 _ => Availability(state, CacheComponentType.Macd, true, true, updatedAtUtc)
-            },
-            FeedHealth = FeedHealth(state, updatedAtUtc),
-            FeedHealthReason = FeedHealthReason(state)
+            }
         };
-    }
 
     static MarketOutlookInputAvailability Availability(
         MarketOutlookInputState state,
@@ -145,9 +159,11 @@ public static class MarketOutlookComposer
         if (!state.Positions.TryGetValue(CacheComponentType.EsTrade, out var position))
             return "Unavailable";
         var age = nowUtc - position.SourceTimestampUtc;
-        return age <= TimeSpan.FromMinutes(5)
-            ? "Green"
-            : age <= TimeSpan.FromMinutes(15) ? "Yellow" : "Red";
+        return (age <= TimeSpan.FromMinutes(5)) switch
+{
+    true => "Green",
+    false => age <= TimeSpan.FromMinutes(15) ? "Yellow" : "Red"
+};
     }
 
     static string FeedHealthReason(MarketOutlookInputState state)

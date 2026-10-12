@@ -37,25 +37,25 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
     public async ValueTask StartAsync(Func<StatusConsoleLoggedEvent, ValueTask> eventAction)
     {
         _eventAction = eventAction;
-        await StartAsync(
+        await (StartAsync(
             "StatusConsoleEventListener",
             new()
             {
                 [new ActorMailboxId(ActorType.Notify, StatusConsoleLoggedEvent.Actor)] = [StatusConsoleLoggedEvent.Verb]
             },
             EventHandlerAsync
-        );
+        )).ConfigureAwait(false);
 
         /// local function to handle incoming events
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {
             StatusConsoleLoggedEvent loggedEvent = eventVerb switch
             {
-                _ when eventVerb == StatusConsoleLoggedEvent.Verb => eventMsg.AsEvent<StatusConsoleLoggedEvent>()!,
+                _ when string.Equals(eventVerb,StatusConsoleLoggedEvent.Verb,StringComparison.Ordinal) => eventMsg.AsEvent<StatusConsoleLoggedEvent>()!,
                 _ => default!
             };
             if (loggedEvent.IsValid)
-                await _eventAction(loggedEvent);
+                await (_eventAction(loggedEvent)).ConfigureAwait(false);
         }
     }
 
@@ -68,7 +68,7 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
     /// </remarks>
     public new async ValueTask StopAsync()
     {
-        await base.StopAsync();
+        await (base.StopAsync()).ConfigureAwait(false);
         _eventAction = default!;
     }
 }

@@ -11,6 +11,7 @@ public static class StrategyCatalogExamples
     public static StrategyCatalogDefinition New(StrategyCatalogKind kind, string code, string name) => new()
     { Key = new(kind, StableId(code), 1), Code = code, Name = name };
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase hexadecimal digests and catalog keys are persisted contract values.")]
     public static StrategyCatalogDefinition[] Create()
     {
         var family = New(StrategyCatalogKind.Family, "Directional", "Directional strategies");
@@ -34,7 +35,7 @@ public static class StrategyCatalogExamples
         result.Add(Variant(put, "BearPutDebit", "Bearish put debit spread", "Long", "Bearish", "Debit", true));
         foreach (var side in new[] { "Short", "Long" })
             foreach (var bias in new[] { "Balanced", "Bullish", "Bearish" })
-                result.Add(Variant(condor, side + bias + "IronCondor", $"{side} {bias.ToLowerInvariant()} iron condor", side, bias, side == "Short" ? "Credit" : "Debit", side == "Long"));
+                result.Add(Variant(condor, side + bias + "IronCondor", $"{side} {bias.ToLowerInvariant()} iron condor", side, bias, string.Equals(side,"Short",StringComparison.Ordinal) ? "Credit" : "Debit", string.Equals(side,"Long",StringComparison.Ordinal)));
         return result.ToArray();
     }
 
@@ -52,10 +53,10 @@ public static class StrategyCatalogExamples
             Bias = bias,
             PremiumMode = premium,
             Capabilities = [new("validator", "StructureVariant", 1)],
-            VariantLegs = structure.Legs.Select(l => new CatalogVariantLeg(l.Key, invert ? (l.Side == "Buy" ? "Sell" : "Buy") : l.Side, l.Ratio)).ToArray(),
+            VariantLegs = structure.Legs.Select(l => new CatalogVariantLeg(l.Key, (invert) switch { true => (string.Equals(l.Side,"Buy",StringComparison.Ordinal) ? "Sell" : "Buy"), false => l.Side }, l.Ratio)).ToArray(),
             Settings = JsonSerializer.SerializeToElement(new
             {
-                TargetNetDelta = bias == "Balanced" ? 0m : bias == "Bullish" ? .15m : -.15m,
+                TargetNetDelta = (string.Equals(bias,"Balanced",StringComparison.Ordinal)) switch { true => 0m, false => (string.Equals(bias,"Bullish",StringComparison.Ordinal)) switch { true => .15m, false => -.15m } },
                 BalanceTolerance = .05m,
                 SymmetricWings = true,
                 MinimumWingWidth = 0m,

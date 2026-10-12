@@ -81,29 +81,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradePositionAddedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradePositionAddedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record TradePositionAddedCompleteEvent : CompleteEvent
-    {
-        public int OrderId { get; init; }
-        public decimal AssetPrice { get; init; }
-        public double RiskFreeRate { get; init; }
-        public TradePositionReadModel TradePosition { get; init; }
-        public DateTime CreatedOn { get; init; }
-        public string CreatedBy { get; init; }
-
-    }
-
-    public record TradePositionAddedFailEvent : ErrorEvent
-    {
+        }
     }
 
 

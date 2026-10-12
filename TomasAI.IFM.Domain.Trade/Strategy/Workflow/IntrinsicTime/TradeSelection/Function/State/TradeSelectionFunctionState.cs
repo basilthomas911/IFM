@@ -7,11 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.State;
-
-public sealed class TradeSelectionFunctionState
-    : BaseEventSourceActorState<TradeSelectionFunctionState>,
-      IEventSourceFunctionState<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand,
-          TradeSelectionFunctionCompletedEvent>
+public sealed class TradeSelectionFunctionState : BaseEventSourceActorState<TradeSelectionFunctionState>, IEventSourceFunctionState<TradeSelectionFunctionState, ExecuteTradeSelectionPipelineCommand, TradeSelectionFunctionCompletedEvent>
 {
     public override ActorThreadId Id { get; set; } = default!;
     public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; private set; }
@@ -23,16 +19,24 @@ public sealed class TradeSelectionFunctionState
     public bool IsCompleted => CompletedEvent is not null;
     public long LastPersistedEventId { get; private set; }
 
-    public bool Matches(ExecuteTradeSelectionPipelineCommand request) => IsCompleted &&
-        CompletedEvent!.RequestFingerprint == request.Fingerprint();
-    public bool TryComplete(TradeSelectionFunctionCompletedEvent completed,
-        ExecuteTradeSelectionPipelineCommand request) => !IsCompleted && Update(completed, request);
+    public bool Matches(ExecuteTradeSelectionPipelineCommand request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return IsCompleted && string.Equals(CompletedEvent!.RequestFingerprint, request.Fingerprint(), StringComparison.Ordinal);
+    }
+
+    public bool TryComplete(TradeSelectionFunctionCompletedEvent completed, ExecuteTradeSelectionPipelineCommand request) => !IsCompleted && Update(completed, request);
     protected override bool Apply(IEvent domainEvent)
     {
-        if (domainEvent is not TradeSelectionFunctionCompletedEvent completed) return false;
-        EntityId = completed.EntityId; WorkflowId = completed.WorkflowId;
-        InputWorkflowRevision = completed.InputWorkflowRevision; CommandId = completed.CommandId;
-        ParameterPayloadSha256 = completed.ParameterPayloadSha256; CompletedEvent = completed;
-        LastPersistedEventId = Math.Max(LastPersistedEventId, completed.EventId); return true;
+        if (domainEvent is not TradeSelectionFunctionCompletedEvent completed)
+            return false;
+        EntityId = completed.EntityId;
+        WorkflowId = completed.WorkflowId;
+        InputWorkflowRevision = completed.InputWorkflowRevision;
+        CommandId = completed.CommandId;
+        ParameterPayloadSha256 = completed.ParameterPayloadSha256;
+        CompletedEvent = completed;
+        LastPersistedEventId = Math.Max(LastPersistedEventId, completed.EventId);
+        return true;
     }
 }

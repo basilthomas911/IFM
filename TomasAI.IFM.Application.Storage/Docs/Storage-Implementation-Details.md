@@ -553,3 +553,46 @@ Storage behavior is validated primarily outside this project:
 6. Prefer explicit resolution errors over null-forgiving casts when evolving the factory/resolver.
 7. Decide whether excluded legacy folders should be migrated, split into separate projects, or removed to avoid ambiguity.
 8. Add migration/version tracking if schema evolution must support production upgrades rather than clean provisioning.
+
+
+## Option pricing reference ownership
+
+SecuritiesDb is the sole active persistence owner of reviewed security contract versions,
+the pricing conventions derived from those versions, and `option_pricing_reference_bundle`
+manifest rows. Runtime and explicit maintenance publication use the same SecuritiesDb connection.
+
+- Publish qualified `FuturesOptionContractReadModel` values through `StageReferenceVersionAsync`
+  followed by `CommitReferenceVersionAsync`. `GetAsync` derives the convention from the
+  published version; there is no independently writable convention table.
+- ReviewedOptionReference in Application.MarketData applies explicit pricing review terms to
+  an exact provider definition. Provider identity, digest, strike and underlying identity remain
+  attached to that definition. Published version conflicts require a new mapping version.
+- OptionPricingReferenceBundleStore in Application.Storage/OptionPricing is an application-facing
+  validation/serialization adapter. It holds no CQL, DDL, binding records or provider mappers.
+  Bundle persistence uses the SecuritiesDb read/write contracts, SecuritiesDbCql,
+  SecuritiesDbParameters and SecuritiesSchemaCql. The context returns primitive JSON;
+  application bundle models do not become database result models.
+- Bundle publication checks the exact published version, definition digest and calendar version
+  of every member before inserting an immutable manifest. Reads validate its content digest.
+- ReferenceDb retains general reference metadata and instrument-definition ingestion. Its pricing
+  stores, pricing properties and pricing schema registrations are retired.
+
+### Existing installations
+
+Schema creation adds the bundle table to SecuritiesDb without deleting any ReferenceDb data.
+Retired ReferenceDb pricing rows are not read as a runtime fallback. Existing reviewed bundles
+must be explicitly republished through maintenance after their complete provider contracts have
+been qualified and published in SecuritiesDb. Old convention-only rows lack the strike/right and
+underlying provider evidence required for a complete reviewed contract and must not be blindly
+copied into a new reference-version envelope. Do not automatically delete the retired tables.
+
+Explicit maintenance modes require only SecuritiesDbConnection for pricing publication. The
+reviewed ES tool records the reviewed profile evidence timestamp separately from any purported
+provider update timestamp. The cached October qualification uses the existing definition evidence.
+
+Development cleanup (2026-10-11): at the owner's request, the unused
+`reference_test_db.option_pricing_reference_bundle` and
+`reference_test_db.option_pricing_convention` tables were dropped and their absence
+verified. No rows were migrated. Other ReferenceDb tables and SecuritiesDb tables
+were left intact. SecuritiesDb schema initialization creates its new bundle table
+on the next schema initialization or explicit pricing publication.

@@ -11,9 +11,14 @@ public static class ResolveCapacityReservationExecutionPolicy
 {
     public static FunctionExecutionPolicy ResolveExecutionPolicy(this ReservePortfolioTradeRiskCommand request, FunctionFailureStage stage, ICapacityReservationFunctionContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(request);
         var budget = request.RequestedAtUtc.AddSeconds(2);
-        var deadline = stage == FunctionFailureStage.Loading ? context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1)
-            : request.ExpiresAtUtc < budget ? request.ExpiresAtUtc : budget;
+        var deadline = (stage == FunctionFailureStage.Loading) switch
+{
+    true => context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1),
+    false => request.ExpiresAtUtc < budget ? request.ExpiresAtUtc : budget
+};
         return new(context.TimeProvider, deadline, FunctionCompletionMode.AtomicBusinessAndEvent);
     }
 }

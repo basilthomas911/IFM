@@ -4,22 +4,6 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public sealed record DatabentoHardRecoveryPolicy
-{
-    public TimeSpan OverallTimeout { get; init; } = TimeSpan.FromMinutes(5);
-    public TimeSpan AttemptTwoDelay { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan AttemptThreeDelay { get; init; } = TimeSpan.FromSeconds(15);
-
-    public DatabentoHardRecoveryPolicy Validate()
-    {
-        if (OverallTimeout <= TimeSpan.Zero || OverallTimeout > TimeSpan.FromHours(1)
-            || AttemptTwoDelay < TimeSpan.Zero || AttemptThreeDelay < TimeSpan.Zero
-            || AttemptTwoDelay + AttemptThreeDelay >= OverallTimeout)
-            throw new InvalidOperationException("Hard recovery policy has no finite attempt budget.");
-        return this;
-    }
-}
-
 /// <summary>Runs at most three isolated hard attempts and converts exhaustion into one typed result.</summary>
 public sealed class DatabentoHardRecoveryEngine
 {
@@ -39,9 +23,12 @@ public sealed class DatabentoHardRecoveryEngine
         this.logger = logger ?? NullLogger<DatabentoHardRecoveryEngine>.Instance;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<DatabentoHardRecoveryResult> ExecuteAsync(
         DatabentoHardRecoveryRequest request, CancellationToken applicationStopping)
     {
+        ArgumentNullException.ThrowIfNull(request);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(applicationStopping);
         deadline.CancelAfter(policy.OverallTimeout);
         var evidence = new List<DatabentoHardAttemptEvidence>(3);
@@ -70,14 +57,14 @@ public sealed class DatabentoHardRecoveryEngine
             var attemptId = Guid.NewGuid();
             var startedUtc = time.GetUtcNow();
             var started = time.GetTimestamp();
-            logger.LogWarning("{Component}.{Method} "+"Databento hard recovery attempt starting. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number);
+            ApplicationDiagnosticLog.Write18(logger, null, nameof(DatabentoHardRecoveryEngine), nameof(ExecuteAsync), request.CorrelationId, attemptId, number);
             try
             {
                 operation = attempt(number, deadline.Token);
                 var outcome = await operation.WaitAsync(deadline.Token).ConfigureAwait(false);
                 evidence.Add(ToEvidence(number, attemptId, startedUtc,
                     time.GetElapsedTime(started), outcome));
-                logger.LogWarning("{Component}.{Method} "+"Databento hard recovery attempt completed. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}; Succeeded={Succeeded}; SafeToRetry={SafeToRetry}; Stage={Stage}; ElapsedMs={ElapsedMs}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number,outcome.Succeeded,outcome.SafeToRetry,outcome.Stage,time.GetElapsedTime(started).TotalMilliseconds);
+                if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true) { RemainingApplicationDiagnosticLog.Write6(logger, null, nameof(DatabentoHardRecoveryEngine), nameof(ExecuteAsync), request.CorrelationId, attemptId, number, outcome.Succeeded, outcome.SafeToRetry, outcome.Stage, time.GetElapsedTime(started).TotalMilliseconds); }
                 if (outcome.Succeeded)
                 {
                     if (outcome.Workers.Count == 0
@@ -105,7 +92,7 @@ public sealed class DatabentoHardRecoveryEngine
             }
             catch (Exception exception)
             {
-                logger.LogCritical(exception,"{Component}.{Method} "+"Databento hard recovery attempt threw. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}",nameof(DatabentoHardRecoveryEngine),nameof(ExecuteAsync),request.CorrelationId,attemptId,number);
+                ApplicationDiagnosticLog.Write19(logger, exception, nameof(DatabentoHardRecoveryEngine), nameof(ExecuteAsync), request.CorrelationId, attemptId, number);
                 ObserveLateFailure(operation);
                 // A throwing or non-cooperative attempt has not proved worker isolation.
                 evidence.Add(new DatabentoHardAttemptEvidence(number, false, "AttemptBoundary",

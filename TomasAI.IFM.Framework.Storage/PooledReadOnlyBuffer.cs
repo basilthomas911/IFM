@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
@@ -101,10 +101,12 @@ public sealed class PooledReadOnlyBuffer<T> : IReadOnlyList<T>, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (_owner is null)
-            throw new ObjectDisposedException(nameof(PooledReadOnlyBuffer<T>));
+        ObjectDisposedException.ThrowIf(_owner is null, this);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Preserves the existing externally referenced identity and named API contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1815", Justification = "Preserves the existing externally referenced identity and named API contract.")]
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     public struct Enumerator
     {
         private readonly ReadOnlyMemory<T> _memory;

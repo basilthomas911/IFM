@@ -167,7 +167,7 @@ public class FuturesItiSignalCommandState
     /// <returns><see langword="true"/> if a signal entity with the specified identifier exists; otherwise, <see langword="false"/>.</returns>
     internal bool Exists(FuturesItiSignalEntityId entityId)
         => _futuresItiSignal is not null
-            && _futuresItiSignal.Id.ContractId == entityId.ContractId
+            && string.Equals(_futuresItiSignal.Id.ContractId,entityId.ContractId,StringComparison.Ordinal)
             && _futuresItiSignal.EntityId.TimePeriod == entityId.TimePeriod
             && _futuresItiSignal.EntityId.TimeFrameStartValueDate
                 == entityId.TimeFrameStartValueDate;
@@ -189,7 +189,7 @@ public class FuturesItiSignalCommandState
     /// </summary>
     /// <param name="e">The futures signal model containing the trend extreme and intrinsic price values.</param>
     /// <returns>The difference between the trend extreme and the intrinsic price.</returns>
-    internal double GetTrendDelta(FuturesItiSignalV2ReadModel e)
+    internal static double GetTrendDelta(FuturesItiSignalV2ReadModel e)
         => e.TrendExtreme - e.IntrinsicPrice;
 
     /// <summary>
@@ -206,7 +206,7 @@ public class FuturesItiSignalCommandState
     /// <param name="futuresPriceTick">The tick size for futures prices. Defaults to 0.25 if not specified.</param>
     /// <returns>The calculated threshold value, which reflects the minimum target delta or a higher value depending on the trend
     /// conditions.</returns>
-    internal double GetThreshold(FuturesItiSignalV2ReadModel e, int tradingDays, double lambda, double futuresPriceTick = 0.25)
+    internal static double GetThreshold(FuturesItiSignalV2ReadModel e, int tradingDays, double lambda, double futuresPriceTick = 0.25)
     {
         var minTargetDelta = e.IntrinsicPrice * lambda + Math.Sqrt(tradingDays) * futuresPriceTick;
         if (e.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend)

@@ -21,6 +21,48 @@ namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests.DatabaseBackup;
 public sealed class DatabaseBackupActorStateTests
 {
     [Fact]
+    public void Automatic_retention_command_retry_does_not_publish_another_execution_intent()
+    {
+        var state = new DatabaseBackupCommandState();
+        var command = new RequestBackupRetentionEvaluationCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = new(Guid.NewGuid()),
+            Request = Request() with { Origin = DatabaseRequestOrigin.ScheduledTask },
+            Source = BackupSource.AwsCloud, ProtectionSetId = new("core"),
+            RetentionPlanId = new(Guid.NewGuid()), RetentionPlanRevision = 1,
+            EvaluationBoundaryUtc = DateTimeOffset.UtcNow.AddDays(-35)
+        };
+        state.Execute(command);
+        var revision = state.Operation.Revision;
+        state.Events.Clear();
+        state.Execute(command);
+        state.Events.Should().BeEmpty();
+        state.Operation.Revision.Should().Be(revision);
+        var different = command with { RetentionPlanRevision = 2 };
+        Action retry = () => state.Execute(different);
+        retry.Should().Throw<InvalidOperationException>();
+    }
+    [Fact]
+    public void Recording_a_retention_result_does_not_request_another_execution()
+    {
+        var operation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        state.Execute(new RequestBackupRetentionEvaluationCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = operation, Request = Request(),
+            Source = BackupSource.LocalWorkstation, ProtectionSetId = new DatabaseProtectionSetId("core"),
+            RetentionPlanId = new DatabaseRetentionPlanId(Guid.NewGuid()), RetentionPlanRevision = 1,
+            EvaluationBoundaryUtc = DateTimeOffset.UtcNow.AddDays(-35)
+        });
+        state.Execute(Internal<RecordDatabaseOperationAdmissionCommand>(operation, 1, DatabaseRecoveryPhase.Admitted, kind: DatabaseRecoveryOperationKind.Retention));
+        state.Execute(Internal<RecordDatabaseOperationStartedCommand>(operation, 2, DatabaseRecoveryPhase.Started, kind: DatabaseRecoveryOperationKind.Retention));
+        state.Events.Clear();
+        state.Execute(Internal<RecordDatabaseRetentionResultCommand>(operation, 3, DatabaseRecoveryPhase.Completed,
+            kind: DatabaseRecoveryOperationKind.Retention) with { Outcome = DatabaseRecoveryOutcome.Succeeded });
+        var result = state.Events.Single().Should().BeOfType<DatabaseRetentionResultRecordedDomainEvent>().Subject;
+        DatabaseBackupStateRepository.ToExecutionEvent(result).Should().BeNull();
+    }
+    [Fact]
     public async Task State_repository_publishes_using_the_concrete_event_contract()
     {
         var context = Substitute.For<ICommandActorContext>();
@@ -276,6 +318,96 @@ public sealed class DatabaseBackupActorStateTests
 
         state.Execute(stale with { ValidationRevision = 12 });
         state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.CuttingOver);
+        state.Restore.FreshTarget.Should().Be(RequestRestore(operationId).FreshTarget);
+        state.Restore.RestorePointId.Should().Be(RequestRestore(operationId).RestorePointId);
+        state.Execute(Internal<FailDatabaseOperationCommand>(operationId, 5, DatabaseRecoveryPhase.Failed,
+            validationRevision: 12, kind: DatabaseRecoveryOperationKind.Cutover));
+        ((Action)(() => state.Execute(stale with { ExpectedStateRevision = state.Operation.Revision })))
+            .Should().Throw<InvalidOperationException>().WithMessage("*validation revision*");
+        state.Execute(stale with { CommandId = Guid.NewGuid(), ValidationRevision = 12, ExpectedStateRevision = state.Operation.Revision });
+        state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.CuttingOver);
+        state.Restore.RestorePointId.Should().Be(RequestRestore(operationId).RestorePointId);
+    }
+
+    [Fact]
+    public void Restored_missing_cutover_state_can_reconcile_only_validated_external_journal_identity()
+    {
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        var reconcile = Internal<ReconcileDatabaseBackupServiceStateCommand>(operationId, 4,
+            DatabaseRecoveryPhase.CuttingOver, validationRevision: 12, kind: DatabaseRecoveryOperationKind.Cutover) with
+        {
+            RestorePointId = new DatabaseRestorePointId("verified-current-point"),
+            FreshTarget = new DatabaseFreshTargetDescriptor("disposable-validation", "gate7"),
+            CutoverState = DatabaseCutoverState.InProgress,
+            VerificationLevel = DatabaseVerificationLevel.ApplicationValidation
+        };
+        ((Action)(() => state.Execute(reconcile with { ValidationRevision = 0 })))
+            .Should().Throw<InvalidOperationException>().WithMessage("*existing operation*");
+        state.Execute(reconcile);
+        state.Operation.Kind.Should().Be(DatabaseRecoveryOperationKind.Cutover);
+        state.Operation.LastServiceSequence.Should().Be(4);
+        state.Restore.FreshTarget.Should().Be(reconcile.FreshTarget);
+        var revision = state.Operation.Revision;
+        state.Execute(reconcile with { CommandId = Guid.NewGuid(), Source = reconcile.Source with { SourceEventId = Guid.NewGuid() } });
+        state.Operation.Revision.Should().Be(revision);
+        state.Execute(Internal<CompleteDatabaseOperationCommand>(operationId, 5, DatabaseRecoveryPhase.Completed,
+            outcome: DatabaseRecoveryOutcome.Succeeded, kind: DatabaseRecoveryOperationKind.Cutover));
+        state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.Completed);
+    }
+
+    [Theory]
+    [InlineData(DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded)]
+    [InlineData(DatabaseRecoveryPhase.Failed, DatabaseRecoveryOutcome.Failed)]
+    public void Missing_terminal_retention_display_can_recover_without_execution(DatabaseRecoveryPhase phase, DatabaseRecoveryOutcome outcome)
+    {
+        var id = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        var command = Internal<ReconcileDatabaseBackupServiceStateCommand>(id, 4, phase, outcome: outcome,
+            source: BackupSource.AwsCloud, kind: DatabaseRecoveryOperationKind.Retention) with
+        { RetentionPlanId = new DatabaseRetentionPlanId(Guid.NewGuid()), RetentionPlanRevision = 1 };
+        ((Action)(() => state.Execute(command with { RetentionPlanRevision = 0 })))
+            .Should().Throw<InvalidOperationException>().WithMessage("*existing operation*");
+        ((Action)(() => state.Execute(command with { Outcome = DatabaseRecoveryOutcome.None })))
+            .Should().Throw<InvalidOperationException>().WithMessage("*existing operation*");
+        state.Execute(command);
+        state.Operation.Kind.Should().Be(DatabaseRecoveryOperationKind.Retention);
+        state.Operation.Phase.Should().Be(phase);
+        state.Operation.LastServiceSequence.Should().Be(4);
+        var revision = state.Operation.Revision;
+        state.Execute(command);
+        state.Operation.Revision.Should().Be(revision);
+    }
+
+    [Theory]
+    [InlineData("host")]
+    [InlineData("policy")]
+    [InlineData("plan")]
+    [InlineData("sequence")]
+    [InlineData("outcome")]
+    public void Terminal_retention_display_repair_cannot_change_independent_identity(string mismatch)
+    {
+        var id = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        var command = Internal<ReconcileDatabaseBackupServiceStateCommand>(id, 4, DatabaseRecoveryPhase.Completed,
+            outcome: DatabaseRecoveryOutcome.Succeeded, source: BackupSource.AwsCloud,
+            kind: DatabaseRecoveryOperationKind.Retention) with
+        { RetentionPlanId = new DatabaseRetentionPlanId(Guid.NewGuid()), RetentionPlanRevision = 1 };
+        state.Execute(command);
+        var nextId = Guid.NewGuid();
+        var repair = command with { CommandId = nextId, Source = command.Source with { SourceEventId = nextId } };
+        repair = mismatch switch
+        {
+            "host" => repair with { Source = repair.Source with { ProducingHostId = new DatabaseBackupHostId("other-host") } },
+            "policy" => repair with { Source = repair.Source with { PolicyRevision = 3 } },
+            "plan" => repair with { RetentionPlanId = new DatabaseRetentionPlanId(Guid.NewGuid()) },
+            "sequence" => repair with { Source = repair.Source with { SourceRevisionOrSequence = 5 } },
+            _ => repair with { Source = repair.Source with { Phase = DatabaseRecoveryPhase.Failed }, Outcome = DatabaseRecoveryOutcome.Failed }
+        };
+        ((Action)(() => state.Execute(repair))).Should().Throw<InvalidOperationException>();
+        state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.Completed);
+        state.Operation.LastServiceSequence.Should().Be(4);
+        state.Retention.PlanId.Should().Be(command.RetentionPlanId);
     }
 
     [Fact]

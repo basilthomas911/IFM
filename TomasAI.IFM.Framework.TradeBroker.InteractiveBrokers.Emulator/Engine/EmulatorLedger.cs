@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
 public sealed class EmulatorLedger
 {
     private static readonly EmulatorFaultProfile NoFaults = new();
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
     private readonly EmulatorScenario _scenario;
     private readonly IEmulatorClock _clock;
     private readonly IEmulatorLedgerStore _store;
@@ -33,7 +33,9 @@ public sealed class EmulatorLedger
 
     public EmulatorLedger(EmulatorScenario scenario, IEmulatorClock clock, IEmulatorLedgerStore store)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(scenario.AccountAlias);
+        ArgumentNullException.ThrowIfNull(scenario);
+        ArgumentNullException.ThrowIfNull(store);
+        if (string.IsNullOrWhiteSpace(scenario.AccountAlias)) throw new ArgumentException("Account alias is required.", nameof(scenario));
         if (scenario.StartingCash < 0 || scenario.PerLegCommission < 0 ||
             scenario.MaximumQuoteAge <= TimeSpan.Zero || scenario.MaximumStrategyUnitsPerFill <= 0)
             throw new ArgumentOutOfRangeException(nameof(scenario));
@@ -58,9 +60,12 @@ public sealed class EmulatorLedger
                 Revision = item.Revision,
                 Filled = item.Filled,
                 Cancelled = item.Cancelled,
-                FilledStrategyUnits = item.FilledStrategyUnits > 0
-                    ? item.FilledStrategyUnits
-                    : item.Filled ? totalUnits : 0
+                FilledStrategyUnits = item switch
+                {
+                    { FilledStrategyUnits: > 0 } => item.FilledStrategyUnits,
+                    { Filled: true } => totalUnits,
+                    _ => 0
+                }
             });
         }
         foreach (var item in checkpoint.Operations) _operations.Add(item.OperationId, (item.Hash, item.Receipt));
@@ -84,11 +89,12 @@ public sealed class EmulatorLedger
 
     public FrameworkDispatchReceipt Place(FrameworkOrderRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
             var hash = Fingerprint(request);
             if (_operations.TryGetValue(request.OperationId, out var prior))
-                return prior.Hash == hash ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
             var failure = Validate(request);
             if (failure is not null)
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, failure.Value.Code, failure.Value.Detail));
@@ -116,12 +122,13 @@ public sealed class EmulatorLedger
 
     public FrameworkDispatchReceipt Modify(FrameworkLimitUpdate request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
             var hash = Fingerprint(request);
             if (_operations.TryGetValue(request.OperationId, out var prior))
-                return prior.Hash == hash ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
-            if (request.AccountAlias != AccountAlias || !_orders.TryGetValue(request.BrokerOrderId, out var order) || order.Cancelled || order.Filled)
+                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+            if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || order.Cancelled || order.Filled)
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.UNAVAILABLE", "Working order/account was not found."));
             if (request.ExpectedRevision != order.Revision || !ValidLimit(request.NewSignedNetDebitLimit, order.Request))
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.LIMIT.INVALID", "Expected revision or approved price envelope is invalid."));
@@ -156,12 +163,13 @@ public sealed class EmulatorLedger
 
     public FrameworkDispatchReceipt Cancel(FrameworkCancelRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         lock (_sync)
         {
             var hash = Fingerprint(request);
             if (_operations.TryGetValue(request.OperationId, out var prior))
-                return prior.Hash == hash ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
-            if (request.AccountAlias != AccountAlias || !_orders.TryGetValue(request.BrokerOrderId, out var order) || request.ExpectedRevision != order.Revision)
+                return string.Equals(prior.Hash,hash,StringComparison.Ordinal) ? prior.Receipt : Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.OPERATION.CONFLICT", "Operation ID was reused with different content.");
+            if (!string.Equals(request.AccountAlias,AccountAlias,StringComparison.Ordinal) || !_orders.TryGetValue(request.BrokerOrderId, out var order) || request.ExpectedRevision != order.Revision)
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.CANCEL.INVALID", "Order/account or revision is invalid."));
             if (!order.Filled && !order.Cancelled)
             {
@@ -176,6 +184,7 @@ public sealed class EmulatorLedger
     /// <summary>Updates one transient top-of-book quote and evaluates only working orders that use its contract.</summary>
     public int PublishQuote(EmulatorQuote quote)
     {
+        ArgumentNullException.ThrowIfNull(quote);
         lock (_sync)
         {
             if (string.IsNullOrWhiteSpace(quote.ContractId) || quote.MarketTimeUtc.Kind != DateTimeKind.Utc ||
@@ -184,7 +193,7 @@ public sealed class EmulatorLedger
             _latestQuotes[quote.ContractId] = quote;
             var candidates = _orders.Values
                 .Where(order => (!order.Cancelled || Faults.AllowFillsAfterCancel) && !order.Filled &&
-                    order.Request.Legs.Any(leg => leg.ContractId == quote.ContractId))
+                    order.Request.Legs.Any(leg => string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal)))
                 .Select(order => order.Request.BrokerOrderId)
                 .ToArray();
             var matched = 0;
@@ -209,8 +218,10 @@ public sealed class EmulatorLedger
     }
 
     /// <summary>Match a complete quote set once; a missing, stale or mixed-source quote keeps the order working.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "All validation and accepted fill facts are evaluated under one ledger lock to preserve deterministic atomic matching.")]
     public bool TryMatch(string brokerOrderId, IReadOnlyList<EmulatorQuote> quotes)
     {
+        ArgumentNullException.ThrowIfNull(quotes);
         lock (_sync)
         {
             if (Faults.DisconnectMarketMatching ||
@@ -222,7 +233,6 @@ public sealed class EmulatorLedger
             var epoch = quotes[0].SourceEpoch;
             var earliestMarketTime = quotes.Min(quote => quote.MarketTimeUtc);
             var latestMarketTime = quotes.Max(quote => quote.MarketTimeUtc);
-            var sourceSequence = quotes.Max(quote => quote.SourceSequence);
             if (latestMarketTime - earliestMarketTime > _scenario.MaximumQuoteAge) return false;
             decimal netDebit = 0;
             var availableStrategyUnits = int.MaxValue;
@@ -230,7 +240,7 @@ public sealed class EmulatorLedger
             {
                 var leg = legs[i];
                 var quote = quotes[i];
-                if (leg.ContractId != quote.ContractId || quote.SourceEpoch != epoch ||
+                if (!string.Equals(leg.ContractId,quote.ContractId,StringComparison.Ordinal) || quote.SourceEpoch != epoch ||
                     quote.MarketTimeUtc.Kind != DateTimeKind.Utc || quote.MarketTimeUtc > _clock.UtcNow ||
                     _clock.UtcNow - quote.MarketTimeUtc > _scenario.MaximumQuoteAge || quote.Bid <= 0 ||
                     quote.Ask < quote.Bid) return false;
@@ -328,8 +338,11 @@ public sealed class EmulatorLedger
                 return false;
             var legs = order.Request.Legs;
             var total = Math.Abs(legs[0].SignedQuantity);
-            var prices = legs.Select(leg => _latestQuotes.TryGetValue(leg.ContractId, out var quote)
-                ? (leg.SignedQuantity > 0 ? quote.Ask : quote.Bid) : 1m).ToArray();
+            var prices = legs.Select(leg =>
+            {
+                if (!_latestQuotes.TryGetValue(leg.ContractId, out var quote)) return 1m;
+                return leg.SignedQuantity > 0 ? quote.Ask : quote.Bid;
+            }).ToArray();
             var net = legs.Select((leg, i) => prices[i] * leg.SignedQuantity / total).Sum();
             var difference = order.Request.OrderType == FrameworkOrderType.Market ? 0m : order.Limit - net;
             var pivot = Array.FindIndex(legs, leg => difference >= 0 ? leg.SignedQuantity > 0 : leg.SignedQuantity < 0);
@@ -365,7 +378,7 @@ public sealed class EmulatorLedger
 
     public FrameworkBrokerObservation[] Reconcile(string brokerOrderId)
     {
-        lock (_sync) return [.. _observations.Where(x => x.BrokerOrderId == brokerOrderId)];
+        lock (_sync) return [.. _observations.Where(x => string.Equals(x.BrokerOrderId,brokerOrderId,StringComparison.Ordinal))];
     }
 
     public IAsyncEnumerable<FrameworkBrokerObservation> ObserveOrders(CancellationToken token) => _orderEvents.Reader.ReadAllAsync(token);
@@ -374,7 +387,7 @@ public sealed class EmulatorLedger
     private (string Code, string Detail)? Validate(FrameworkOrderRequest r)
     {
         if (r.TimeInForce is not ("Day" or "GTC") || r.AlgorithmPace is not ("Patient" or "Normal" or "Urgent")) return ("EM.EXECUTION.INVALID", "Unsupported time in force or pace.");
-        if (r.AccountAlias != AccountAlias || string.IsNullOrWhiteSpace(r.BrokerOrderId) || r.OperationId == Guid.Empty || r.ComponentId == Guid.Empty || string.IsNullOrWhiteSpace(r.ApprovalHash)) return ("EM.IDENTITY.INVALID", "Account/order/operation/approval is missing or mismatched.");
+        if (!string.Equals(r.AccountAlias,AccountAlias,StringComparison.Ordinal) || string.IsNullOrWhiteSpace(r.BrokerOrderId) || r.OperationId == Guid.Empty || r.ComponentId == Guid.Empty || string.IsNullOrWhiteSpace(r.ApprovalHash)) return ("EM.IDENTITY.INVALID", "Account/order/operation/approval is missing or mismatched.");
         if (r.OrderType is not (FrameworkOrderType.Market or FrameworkOrderType.Limit)
             || r.Algorithm is not (FrameworkOrderAlgorithm.None or FrameworkOrderAlgorithm.Adaptive))
             return ("EM.CAPABILITY.UNSUPPORTED", "Only None/Adaptive on Market/Limit orders are emulated.");
@@ -393,7 +406,7 @@ public sealed class EmulatorLedger
     }
 
     private decimal ActiveReserve(string? except = null) => _orders.Values
-        .Where(x => !x.Filled && !x.Cancelled && x.Request.BrokerOrderId != except)
+        .Where(x => !x.Filled && !x.Cancelled && !string.Equals(x.Request.BrokerOrderId,except,StringComparison.Ordinal))
         .Sum(ReserveFor);
 
     private decimal ReserveFor(OrderState order)
@@ -414,7 +427,14 @@ public sealed class EmulatorLedger
     private static bool ValidLimit(decimal limit, FrameworkOrderRequest r) => r.TickIncrement > 0 && r.MinimumLimit <= r.MaximumLimit && limit >= r.MinimumLimit && limit <= r.MaximumLimit && decimal.Remainder(limit, r.TickIncrement) == 0;
     private static string Fingerprint<T>(T value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(value))));
     private FrameworkDispatchReceipt Receipt(Guid op, string id, FrameworkDispatchOutcome outcome, string category, string detail) => new(outcome, op, id, category, detail, _clock.UtcNow);
-    private FrameworkDispatchReceipt Store(Guid op, string hash, FrameworkDispatchReceipt receipt) { if (op != Guid.Empty) _operations.Add(op, (hash, receipt)); return receipt; }
+    private FrameworkDispatchReceipt Store(Guid op, string hash, FrameworkDispatchReceipt receipt)
+    {
+        if (op != Guid.Empty)
+        {
+            _operations.Add(op, (hash, receipt));
+        }
+        return receipt;
+    }
     private FrameworkDispatchReceipt StoreAndPersist(Guid op, string hash, FrameworkDispatchReceipt receipt)
     {
         Store(op, hash, receipt);

@@ -28,7 +28,6 @@ public abstract class BaseEventActor<TActor>(
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     IActorSupervisor _supervisor;
-    string _serviceId = string.Empty;
     int _lifecycle;
 
     /// <inheritdoc />
@@ -64,12 +63,15 @@ public abstract class BaseEventActor<TActor>(
     /// <summary>
     /// Starts the actor by wiring up producer/consumer and initializing the event actor context.
     /// </summary>
-    public async ValueTask StartAsync(IActorSupervisor supervisorArg)
-        => await StartAsync(supervisorArg, CancellationToken.None).ConfigureAwait(false);
+    public async ValueTask StartAsync(IActorSupervisor supervisor)
+        => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
 
-    public async ValueTask StartAsync(IActorSupervisor supervisorArg, CancellationToken cancellationToken)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
     {
-        IsArgumentNull.Check(supervisorArg);
+        IsArgumentNull.Check(supervisor);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
@@ -78,8 +80,8 @@ public abstract class BaseEventActor<TActor>(
         IJSActorProducer? jetStreamProducer = null;
         try
         {
-            _supervisor = supervisorArg;
-            Mailbox = supervisorArg.CreateMailbox(_actorId);
+            _supervisor = supervisor;
+            Mailbox = supervisor.CreateMailbox(_actorId);
             switch (_actorId.ActorType.GetDeliveryType())
             {
                 case ActorDeliveryType.NatsCore:
@@ -96,8 +98,8 @@ public abstract class BaseEventActor<TActor>(
                     throw new InvalidOperationException(
                         $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
             }
-            _serviceId = typeof(TActor).Name;
-            _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
+            var serviceId = typeof(TActor).Name;
+            _logger.LogInformationEvent(serviceId, "Started {MailboxId} producer.", _actorId);
             using var generationScope = Id.ActorType == ActorType.Realtime ? RealtimeGeneration.Enter() : null;
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
@@ -120,7 +122,7 @@ public abstract class BaseEventActor<TActor>(
                         ActorFailureStage.Cleanup, cleanupException,
                         primaryFailureId == Guid.Empty ? null : primaryFailureId,
                         ActorMessageOutcomeType.HandledFailure);
-                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                    SharedActorDiagnosticLog.Write5(_logger, cleanupException, _actorId);
                 }
             }
             if (jetStreamProducer is not null)
@@ -133,7 +135,7 @@ public abstract class BaseEventActor<TActor>(
                         ActorFailureStage.Cleanup, cleanupException,
                         primaryFailureId == Guid.Empty ? null : primaryFailureId,
                         ActorMessageOutcomeType.HandledFailure);
-                    _logger.LogError(cleanupException, "Failed to roll back {MailboxId} producer startup.", _actorId);
+                    SharedActorDiagnosticLog.Write7(_logger, cleanupException, _actorId);
                 }
             }
             Volatile.Write(ref _lifecycle, 0);
@@ -173,7 +175,7 @@ public abstract class BaseEventActor<TActor>(
                             throw new InvalidOperationException(
                                 $"Actor type '{_actorId.ActorType}' does not define a delivery transport.");
                     }
-                    _logger.LogInformation("Stopped {MailboxId} producer.", _actorId);
+                    SharedActorDiagnosticLog.Write6(_logger, null, _actorId);
                 },
                 () => OnShutdown(_context!),
                 cancellationToken).ConfigureAwait(false);
@@ -190,7 +192,11 @@ public abstract class BaseEventActor<TActor>(
     /// Handles an incoming message by validating and receiving.
     /// </summary>
     public ValueTask HandleMessageAsync(IActorMessage message)
-        => HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+    }
 
     /// <summary>
     /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
@@ -201,8 +207,11 @@ public abstract class BaseEventActor<TActor>(
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
         => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(message);
         using var generationScope = Id.ActorType == ActorType.Realtime ? RealtimeGeneration.Enter() : null;
         IEvent? @event = null;
         var activeStage = ActorRuntimeMetrics.ParsingStage;
@@ -278,9 +287,7 @@ public abstract class BaseEventActor<TActor>(
                 _context.SupervisorRuntime?.RecordFailure(
                     Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
                     exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
-                _logger.LogError(exceptionHandlerFailure,
-                    "Event exception handler failed for {ActorId} {ThreadId} at {FailureStage}. Primary failure: {PrimaryExceptionType}: {PrimaryError}",
-                    Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                SharedActorDiagnosticLog.Write8(_logger, exceptionHandlerFailure, Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
             }
         }
     }
@@ -360,6 +367,7 @@ public abstract class BaseEventActor<TActor>(
     /// handlers intentionally resolve to a no-op; event delivery may fan out to actors that do not
     /// consume every materialized event type.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the instance member called by existing derived actor/validation consumers.")]
     protected THandler ResolveMappedEventHandler<THandler>(
         IEvent @event,
         IReadOnlyDictionary<Type, THandler> receiveMap)
@@ -384,36 +392,31 @@ public abstract class BaseEventActor<TActor>(
             var parameters = invoke.GetParameters()
                 .Select(parameter => Expression.Parameter(parameter.ParameterType, parameter.Name))
                 .ToArray();
-            Expression body = invoke.ReturnType == typeof(void)
-                ? Expression.Empty()
-                : invoke.ReturnType == typeof(Task)
-                    ? Expression.Property(null, typeof(Task), nameof(Task.CompletedTask))
-                    : invoke.ReturnType.IsGenericType
-                      && invoke.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
-                        ? Expression.Call(
-                            typeof(Task),
-                            nameof(Task.FromResult),
-                            [invoke.ReturnType.GetGenericArguments()[0]],
-                            Expression.Default(invoke.ReturnType.GetGenericArguments()[0]))
-                        : Expression.Default(invoke.ReturnType);
+            Expression body;
+            if (invoke.ReturnType == typeof(void)) body = Expression.Empty();
+            else if (invoke.ReturnType == typeof(Task))
+                body = Expression.Property(null, typeof(Task), nameof(Task.CompletedTask));
+            else if (invoke.ReturnType.IsGenericType && invoke.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+                body = Expression.Call(typeof(Task), nameof(Task.FromResult),
+                    [invoke.ReturnType.GetGenericArguments()[0]],
+                    Expression.Default(invoke.ReturnType.GetGenericArguments()[0]));
+            else body = Expression.Default(invoke.ReturnType);
             return Expression.Lambda<THandler>(body, parameters).Compile();
         }
     }
 
     void HandleEventParseFailure(IActorMessage message, Exception exception) =>
-        _logger.LogError(
-            exception,
-            "Unable to parse {ActorType} message for {ActorId}: {Subject}.",
-            _actorId.ActorType,
-            Id,
-            message.Subject);
+        SharedActorDiagnosticLog.Write9(_logger, exception, _actorId.ActorType, Id, message.Subject);
 
     /// <summary>
     /// Compatibility entry point for existing event actor tests while the
     /// runtime path uses owned <see cref="IActorMessage"/> branches directly.
     /// </summary>
     protected IEvent ParseMessage(IEventActorContext<TActor> context, in NatsMsg<byte[]> message)
-        => ParseMessage(context, new LegacyNatsActorMessage(message));
+    {
+        using var adapter = new LegacyNatsActorMessage(message);
+        return ParseMessage(context, adapter);
+    }
     protected virtual ValueTask OnStartup(IEventActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
         IEventActorContext<TActor> context,
@@ -423,17 +426,22 @@ public abstract class BaseEventActor<TActor>(
         return OnStartup(context);
     }
     protected virtual ValueTask OnShutdown(IEventActorContext<TActor> context) => ValueTask.CompletedTask;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     protected abstract ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     protected virtual ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, @event);
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     protected virtual ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event) => ValueTask.CompletedTask;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     protected virtual ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, threadId, @event);
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     protected abstract ValueTask OnExceptionAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 }

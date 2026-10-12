@@ -1,0 +1,16 @@
+using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
+
+namespace TomasAI.IFM.Framework.MarketData.DataBento;
+
+public enum FeedDrainStage
+{
+    Idle = 0,
+    WaitingForNativeSignal = 1,
+    ReadingNativeBatch = 2,
+    RoutingNativeRecord = 3,
+    FlushingPartialBatches = 4,
+    PublishingManagedBatch = 5,
+    ReadingNativeStatistics = 6,
+    Completed = 7,
+    Faulted = 8
+}

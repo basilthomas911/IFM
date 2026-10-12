@@ -5,11 +5,6 @@ using System.Text.Json;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
-public interface IInstrumentDefinitionProvider
-{
-    IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestAsync(string dataset, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Streams the complete definition schema without price/timestamp rounding or field projection.</summary>
 /// <param name="http">The client used to execute provider HTTP requests.</param>
 /// <param name="getApiKey">The get api key.</param>
@@ -38,9 +33,9 @@ public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<st
         metadataResponse.EnsureSuccessStatusCode();
         using var metadata = JsonDocument.Parse(await metadataResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
         var end = metadata.RootElement.GetProperty("schema").GetProperty("definition").GetProperty("end").GetString()!;
-        var start = DateOnly.ParseExact(end[..10], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).AddDays(-1).ToString("yyyy-MM-dd");
+        var start = DateOnly.ParseExact(end[..10], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture).AddDays(-1).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         using var request = Request(HttpMethod.Post, "timeseries.get_range");
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["dataset"] = dataset,
             ["schema"] = "definition",
@@ -56,7 +51,8 @@ public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<st
         });
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var streamDisposal = stream.ConfigureAwait(false);
         using var reader = new StreamReader(stream);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {

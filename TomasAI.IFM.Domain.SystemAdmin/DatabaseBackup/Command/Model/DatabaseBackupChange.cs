@@ -54,5 +54,3 @@ internal sealed record DatabaseBackupChange
     /// <summary>Gets the proposed BackupLineage business information.</summary>
     public DatabaseBackupLineage? BackupLineage { get; init; } 
 }
-/// <summary>Ordered immutable lifecycle changes or a rejected business decision.</summary>
-internal sealed record DatabaseBackupTransition(IReadOnlyList<DatabaseBackupChange> LifecycleChanges, string? RejectionReason = null);

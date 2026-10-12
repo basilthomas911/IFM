@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -19,7 +19,7 @@ public abstract class BaseEventServiceHandler(IStatusConsoleWriter statusConsole
     /// <param name="statusMsg"></param>
     /// <returns></returns>
     protected async Task WriteConsoleAsync(LogSourceType logSourceType, string statusMsg)
-        => await StatusConsole.WriteConsoleAsync(logSourceType, statusMsg);
+        => await (StatusConsole.WriteConsoleAsync(logSourceType, statusMsg)).ConfigureAwait(false);
 
     /// <summary>
     /// write error message to status console log
@@ -29,7 +29,7 @@ public abstract class BaseEventServiceHandler(IStatusConsoleWriter statusConsole
     /// <param name="errorMsg"></param>
     /// <returns></returns>
     protected async Task WriteConsoleAsync(LogSourceType logSourceType, int errorCode, string errorMsg)
-        => await StatusConsole.WriteConsoleAsync(logSourceType, errorCode, errorMsg);
+        => await (StatusConsole.WriteConsoleAsync(logSourceType, errorCode, errorMsg)).ConfigureAwait(false);
 
     /// <summary>
     /// write error message to status console log
@@ -39,6 +39,6 @@ public abstract class BaseEventServiceHandler(IStatusConsoleWriter statusConsole
     /// <param name="errorMsg"></param>
     /// <returns></returns>
     protected async Task WriteConsoleAsync(LogSourceType logSourceType, Exception ex)
-        => await StatusConsole.WriteConsoleAsync(logSourceType, ex.GetErrorMessage());
+        => await (StatusConsole.WriteConsoleAsync(logSourceType, ex.GetErrorMessage())).ConfigureAwait(false);
 
 }

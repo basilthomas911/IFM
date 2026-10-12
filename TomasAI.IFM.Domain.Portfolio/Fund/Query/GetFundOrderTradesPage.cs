@@ -20,5 +20,11 @@ public static class GetFundOrderTradesPage
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetFundOrderTradesPageQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetOrderTradesAsync(query.OrderId, query.PageSize, query.PageToken, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetOrderTradesAsync(query.OrderId, query.PageSize, query.PageToken, cancellationToken));
+    }
 }

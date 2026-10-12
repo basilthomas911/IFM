@@ -17,13 +17,3 @@ public interface IScheduledTaskReadStore
     /// <summary>Reads a bounded page of recent occurrences for one schedule.</summary>
     ValueTask<ScheduledTaskRun[]> GetRunsAsync(string environment, string hostId, ScheduledTaskId scheduleId, int limit, CancellationToken cancellationToken = default);
 }
-/// <summary>Writes read models only from committed scheduled-task source events.</summary>
-public interface IScheduledTaskProjectionWriter
-{
-    /// <summary>Projects one definition with revision-fenced database timestamps.</summary>
-    ValueTask ProjectAsync(ScheduledTaskDefinition definition, CancellationToken cancellationToken = default);
-    /// <summary>Projects one catalog with revision-fenced database timestamps.</summary>
-    ValueTask ProjectAsync(ScheduledTaskCatalog catalog, CancellationToken cancellationToken = default);
-    /// <summary>Projects one run with revision-fenced database timestamps.</summary>
-    ValueTask ProjectAsync(ScheduledTaskRun run, CancellationToken cancellationToken = default);
-}

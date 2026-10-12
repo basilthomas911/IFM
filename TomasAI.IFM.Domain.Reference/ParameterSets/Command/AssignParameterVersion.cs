@@ -20,16 +20,24 @@ public static class AssignParameterVersion
     /// <returns>The command acceptance or business failure.</returns>
     public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this AssignParameterVersionCommand command, IParameterAssignmentCommandContext context, ParameterAssignmentCommandState state, ILogger<ParameterAssignmentCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Assign);
-        if (command.Scope is null || command.Reference is null || command.EntityId.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(command.Scope)) throw new ArgumentException("PARAM.IDENTITY_INVALID");
+        if (command.Scope is null || command.Reference is null || command.EntityId.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(command.Scope)) {
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
+throw new ArgumentException("PARAM.IDENTITY_INVALID");}
+#pragma warning restore MA0015
         var hash = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new { command.CommandName, command.EntityId, command.ExpectedRevision, command.Scope, command.Reference }));
         if (state.Operations.TryGetValue(command.CommandId, out var prior))
-        { if (prior != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH"); return new ServiceOk<GuidResult>(new(command.CommandId)); }
+        { if (!string.Equals(prior,hash,StringComparison.Ordinal)) {
+throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");}
+return new ServiceOk<GuidResult>(new(command.CommandId)); }
         var identity = new ParameterSetEntityId(command.Reference.SetId);
         var address = new CreateParameterSetCommand { EntityId = identity, Subject = new ActorSubject(ActorType.Command, CreateParameterSetCommand.Actor, CreateParameterSetCommand.Verb, identity.Format()) };
-        var set = await context.ParameterSets.LoadStateAsync(address);
-        if (!set.Versions.TryGetValue(command.Reference.Version, out var version) || version.Reference != command.Reference) throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");
+        var set = await (context.ParameterSets.LoadStateAsync(address)).ConfigureAwait(false);
+        if (!set.Versions.TryGetValue(command.Reference.Version, out var version) || version.Reference != command.Reference) {
+throw new InvalidOperationException("PARAM.EXACT_VERSION_MISSING");}
         var errorMsg = "ParameterAssignment.STATE.APPLY_FAILED: unable to apply AssignParameterVersion event";
         var updated = command.Compute(state, hash, version, out var parameterChange) switch
         {

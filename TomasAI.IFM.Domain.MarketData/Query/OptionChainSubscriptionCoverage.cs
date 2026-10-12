@@ -9,6 +9,7 @@ public static class OptionChainSubscriptionCoverage
     public static FuturesOptionContractReadModel[] Buffer(FuturesOptionContractReadModel[] definitions,
         OptionChainStrikeWindowResult window, decimal wingWidth)
     {
+        ArgumentNullException.ThrowIfNull(window);
         if (window.Contracts.Length == 0) return [];
         var lower = window.Contracts.Min(x => (decimal)x.StrikePrice);
         var upper = window.Contracts.Max(x => (decimal)x.StrikePrice);
@@ -26,9 +27,11 @@ public static class OptionChainSubscriptionCoverage
     public static bool Covers(IReadOnlyDictionary<string, (string MappingVersion, string DefinitionDigest)> subscribed,
         IReadOnlyList<FuturesOptionContractReadModel> requested)
     {
+        ArgumentNullException.ThrowIfNull(requested);
+        ArgumentNullException.ThrowIfNull(subscribed);
         foreach (var contract in requested)
             if (!subscribed.TryGetValue(contract.ContractId, out var identity)
-                || identity.MappingVersion != contract.MappingVersion || identity.DefinitionDigest != contract.DefinitionDigest)
+                || !string.Equals(identity.MappingVersion,contract.MappingVersion,StringComparison.Ordinal) || !string.Equals(identity.DefinitionDigest,contract.DefinitionDigest,StringComparison.Ordinal))
                 return false;
         return true;
     }

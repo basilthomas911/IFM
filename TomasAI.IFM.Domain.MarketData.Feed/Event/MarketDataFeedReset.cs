@@ -18,9 +18,8 @@ public static class MarketDataFeedReset
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// 
     /// </summary>
     /// <param name="e"></param>
@@ -33,20 +32,23 @@ public static class MarketDataFeedReset
         IEventActorContext eventApi,
         MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
         try
         {
-            await p.MarketDataLifecycle.ResetAsync(e.ValueDate, e.CommandId);
-            await eventApi.MarketDataFeedResetCompleteAsync(e);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset");
+            await (p.MarketDataLifecycle.ResetAsync(e.ValueDate, e.CommandId)).ConfigureAwait(false);
+            await (eventApi.MarketDataFeedResetCompleteAsync(e)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Market data feed reset")).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}: market data feed reset", source);
             return true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: market data feed reset failed", source);
-            await eventApi.MarketDataFeedResetFailAsync(e, ex);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedResetEvent.ErrorCode, ex.GetErrorMessage());
+            await (eventApi.MarketDataFeedResetFailAsync(e, ex)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedResetEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

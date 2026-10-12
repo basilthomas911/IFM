@@ -26,9 +26,9 @@ public class MarketDataFeedCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        MarketDataFeedStartedEvent e => On(e),
-        MarketDataFeedStoppedEvent e => On(e),
-        MarketDataFeedResetEvent e => On(e),
+        MarketDataFeedStartedEvent => true,
+        MarketDataFeedStoppedEvent => true,
+        MarketDataFeedResetEvent => true,
         TradeLiveFeedAddedEvent e => On(e),
         TradeLiveFeedRemovedEvent e => On(e),
         TradeLiveFeedHaltedEvent e => On(e),
@@ -40,28 +40,12 @@ public class MarketDataFeedCommandState
 
     internal bool IsTradeLiveFeedOn
         => tradeLiveFeedState == TradeLiveFeedStateType.On;
-    /// <summary>
-    /// market data feed started
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(MarketDataFeedStartedEvent e) => true;
-
-    /// <summary>
-    /// market data feed stopped
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(MarketDataFeedStoppedEvent e) => true;
-
-    /// <summary>
-    /// market data feed reset
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(MarketDataFeedResetEvent e) => true;
 
     /// <summary>
     /// trade live feed added
     /// </summary>
     /// <param name="e"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(TradeLiveFeedAddedEvent e)
     {
         tradeLiveFeedState = TradeLiveFeedStateType.On;
@@ -72,6 +56,7 @@ public class MarketDataFeedCommandState
     /// trade live feed removed
     /// </summary>
     /// <param name="e"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(TradeLiveFeedRemovedEvent e)
     {
         tradeLiveFeedState = TradeLiveFeedStateType.Off;
@@ -82,6 +67,7 @@ public class MarketDataFeedCommandState
     /// trade live feed halted
     /// </summary>
     /// <param name="e"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(TradeLiveFeedHaltedEvent e)
     {
         tradeLiveFeedState = TradeLiveFeedStateType.Halted;
@@ -95,6 +81,7 @@ public class MarketDataFeedCommandState
     /// active.</remarks>
     /// <param name="e">The event data indicating that the trade live feed has been turned on.</param>
     /// <returns>Always returns <see langword="true"/>, indicating that the operation was successful.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(TradeLiveFeedTurnedOnEvent e)
     {
         tradeLiveFeedState = TradeLiveFeedStateType.On;
@@ -109,6 +96,7 @@ public class MarketDataFeedCommandState
     /// state remains consistent with the feed's status.</remarks>
     /// <param name="e">The event data associated with the trade live feed being turned off.</param>
     /// <returns>Always returns <see langword="true"/>, indicating that the event was handled successfully.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1172", Justification = "Typed reducer dispatch determines the transition; this accepted event has no payload values used by the state change.")]
     bool On(TradeLiveFeedTurnedOffEvent e)
     {
         tradeLiveFeedState = TradeLiveFeedStateType.Off;

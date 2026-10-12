@@ -412,7 +412,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         var settings = new DbConnectionSettings()
             .Add("MarketDataDbConnection",
-                "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db",
+                LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_market_data"),
                 "System.Data.ScyllaDb");
         var store = TestFixture.DevDatabase;
         var series = MarketSeriesIdentity.ForFuturesSeries(new FuturesSeriesId(

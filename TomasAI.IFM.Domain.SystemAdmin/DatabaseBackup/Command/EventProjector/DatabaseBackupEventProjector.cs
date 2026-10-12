@@ -51,11 +51,13 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
         Type eventType,
         ISystemAdminDbContext db,
         bool useDurableReplay = true)
-        => new(
+        => new EventProjectionDescriptor(
             eventType,
             EventProjectionIdempotencyStrategy.TargetReceipt,
             async (domainEvent, execution) =>
             {
+                if (string.Equals(db.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+                    return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
                 var outcome = await db.ApplyDatabaseBackupEventAsync(
                     execution.ProjectorName,
                     (DatabaseBackupEventContract)domainEvent,
@@ -64,7 +66,10 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
             },
             domainEvent => Complete((DatabaseBackupEventContract)domainEvent),
             (domainEvent, exception) => Fail((DatabaseBackupEventContract)domainEvent, exception),
-            useDurableReplay: useDurableReplay);
+            useDurableReplay: useDurableReplay).WithReadModelRebuild(async (source,token)=>
+            {
+                await db.ApplyDatabaseBackupEventAsync(nameof(DatabaseBackupEventProjector),(DatabaseBackupEventContract)source,token).ConfigureAwait(false);
+            });
 
     static DatabaseBackupProjectionCompletedEvent Complete(DatabaseBackupEventContract source) => new()
     {

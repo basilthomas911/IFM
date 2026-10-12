@@ -18,6 +18,8 @@ public static class GenerateFuturesAdxDailySignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAdxDailySignalCommand command, FuturesAdxSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply generated ADX signal event";
         var updated = command.Compute(state.AdxSignal, state.AdxSignals, out var futuresAdxSignalCompute) switch
         {

@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -16,15 +18,22 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Event
 public sealed class FuturesRsiSignalEventProjector(
     IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
     IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
-    ILogger<FuturesRsiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
+    ILogger<FuturesRsiSignalEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesRsiSignalCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesRsiSignalGeneratedEvent, FuturesRsiSignalGeneratedCompleteEvent, FuturesRsiSignalGeneratedFailEvent, FuturesRsiSignalEntityId>(
-            (Func<FuturesRsiSignalGeneratedEvent, Task>)(async e => { await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false); RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); })),
+            (Func<FuturesRsiSignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
+await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false);}
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); }))
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         Describe<FuturesRsiDailySignalGeneratedEvent, FuturesRsiDailySignalGeneratedCompleteEvent, FuturesRsiDailySignalGeneratedFailEvent, FuturesRsiDailySignalEntityId>(
-            (Func<FuturesRsiDailySignalGeneratedEvent, Task>)(async e => { await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false); RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); })),
+            (Func<FuturesRsiDailySignalGeneratedEvent, Task>)(async e => { if (!string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal)) {
+await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false);}
+RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); }))
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token)),
         DescribeNotification<FuturesRsiDailySignalsGeneratedEvent, FuturesRsiDailySignalEntityId>(),
         DescribeNotification<FuturesRsiSignalsGeneratedEvent, FuturesRsiSignalEntityId>(),
         DescribeNotification<FuturesRsiSignalStartedEvent, FuturesRsiSignalEntityId>(useDurableReplay: false),
@@ -32,5 +41,4 @@ public sealed class FuturesRsiSignalEventProjector(
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
-    public override IReadOnlyCollection<Type> ProjectedEventTypes => _descriptors.Select(static x => x.SourceEventType).ToArray();
 }

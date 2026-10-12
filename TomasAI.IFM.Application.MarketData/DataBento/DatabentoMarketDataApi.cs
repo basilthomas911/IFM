@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -60,6 +60,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<bool> UpdateFuturesTermStructureContractsAsync(
         string symbol,
         DateOnly valueDate,
@@ -202,7 +203,6 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     private readonly DatasetWorkerCurrentValues? _currentValues;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private IDatabentoMarketDataEpoch? _epoch;
-    private Func<Guid, int, string, Task>? _errorMessageHandler;
 
     /// <summary>
     /// Gets the value date of the active market-data epoch, or <see langword="null"/>
@@ -243,6 +243,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This health or identity probe returns its documented unavailable result rather than failing the caller.")]
     public bool IsDatabentoFeedUp(TimeSpan? timeout = null)
     {
         var effectiveTimeout = timeout ?? DefaultFeedUpTimeout;
@@ -311,7 +312,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _epochFactory = epochFactory ?? throw new ArgumentNullException(nameof(epochFactory));
         ArgumentNullException.ThrowIfNull(options);
         if (options.MaximumLastPriceAge <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(options.MaximumLastPriceAge));
+            throw new ArgumentOutOfRangeException(nameof(options));
         _maximumLastPriceAge = options.MaximumLastPriceAge;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _currentContractResolver = currentContractResolver;
@@ -323,6 +324,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<bool> UpdateOnTheRunFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
@@ -452,7 +454,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             try
             {
                 await candidate.StartAsync(cancellationToken).ConfigureAwait(false);
-                _errorMessageHandler = errorMessageHandler;
+
                 Volatile.Write(ref _epoch, candidate);
             }
             catch (Exception exception)
@@ -477,6 +479,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <exception cref="AggregateException">
     /// Thrown after cleanup when one or more stop or disposal operations fail.
     /// </exception>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "Both awaited cleanup operations can throw; collect their failures before reporting the aggregate after all cleanup has been attempted.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     public async Task StopAsync(DateOnly valueDate)
     {
         if (_currentValues is not null)
@@ -495,7 +499,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             try { await active.DisposeAsync().ConfigureAwait(false); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             Volatile.Write(ref _epoch, null);
-            _errorMessageHandler = null;
+
             if (failures is not null)
                 throw new AggregateException("The DataBento epoch did not stop cleanly.", failures);
         }
@@ -642,8 +646,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
         ValidateDate(fromMaturityDate, nameof(fromMaturityDate));
         ValidateDate(throughMaturityDate, nameof(throughMaturityDate));
-        if (throughMaturityDate < fromMaturityDate)
-            throw new ArgumentOutOfRangeException(nameof(throughMaturityDate));
+        ArgumentOutOfRangeException.ThrowIfLessThan(throughMaturityDate, fromMaturityDate);
         if (throughMaturityDate.DayNumber - fromMaturityDate.DayNumber > 730)
             throw new ArgumentOutOfRangeException(nameof(throughMaturityDate), "Option-chain ranges cannot exceed two years.");
         var catalog = GetRunningCatalog();
@@ -667,7 +670,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(underlyingSymbol);
         ValidateDate(fromExpiry, nameof(fromExpiry));
         ValidateDate(throughExpiry, nameof(throughExpiry));
-        if (throughExpiry < fromExpiry) throw new ArgumentOutOfRangeException(nameof(throughExpiry));
+        ArgumentOutOfRangeException.ThrowIfLessThan(throughExpiry, fromExpiry);
         return GetRunningCatalog().DiscoverOptionContractExpiriesAsync(
             underlyingSymbol, fromExpiry, throughExpiry, cancellationToken);
     }
@@ -710,13 +713,13 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     {
         var reader = GetFuturesLastPriceReader(futuresContractId);
         if (reader.TryGetLastTrade(out var trade)
-            && trade.ContractId == futuresContractId
+            && string.Equals(trade.ContractId,futuresContractId,StringComparison.Ordinal)
             && trade.ValueDate == reader.ValueDate
             && IsFresh(trade.EventTimestamp))
             return Task.FromResult<decimal?>(trade.Price);
 
         if (reader.TryGetLastQuote(out var quote)
-            && quote.ContractId == futuresContractId
+            && string.Equals(quote.ContractId,futuresContractId,StringComparison.Ordinal)
             && quote.ValueDate == reader.ValueDate
             && IsFresh(quote.EventTimestamp)
             && quote.TryGetMidpoint(out var midpoint))
@@ -741,7 +744,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         var reader = GetFuturesOptionLastPriceReader(futuresOptionContractId);
         if (!reader.TryGetLastQuote(out var quote) || !IsFresh(quote.EventTimestamp))
             return Task.FromResult<decimal?>(null);
-        if (quote.ContractId != futuresOptionContractId || quote.ValueDate != reader.ValueDate)
+        if (!string.Equals(quote.ContractId,futuresOptionContractId,StringComparison.Ordinal) || quote.ValueDate != reader.ValueDate)
             throw new MarketDataContractMappingException(
                 futuresOptionContractId, "the hot quote identity does not match its reader");
         if (quote.BidPrice is > 0m && quote.AskPrice is > 0m
@@ -912,34 +915,23 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         $"compatibility:{epoch.ValueDate:yyyy-MM-dd}",
         legId);
 
-    private static FuturesContractV3ReadModel RequireFutures(
+    private static void RequireFutures(
         IDatabentoMarketDataEpoch epoch,
         string contractId)
     {
         ValidateContractId(contractId, nameof(contractId));
-        if (epoch.Catalog.FindFutures(contractId) is { } contract) return contract;
+        if (epoch.Catalog.FindFutures(contractId) is not null) return;
         if (epoch.Catalog.FindFuturesOption(contractId) is not null)
             throw KindMismatch(contractId, "futures", "futures option");
         throw new MarketDataContractNotFoundException(contractId);
     }
 
-    private static void RequireConfigured(
+    private static void RequireOption(
         IDatabentoMarketDataEpoch epoch,
         string contractId)
     {
         ValidateContractId(contractId, nameof(contractId));
-        if (epoch.Catalog.FindFutures(contractId) is not null
-            || epoch.Catalog.FindFuturesOption(contractId) is not null)
-            return;
-        throw new MarketDataContractNotFoundException(contractId);
-    }
-
-    private static FuturesOptionContractReadModel RequireOption(
-        IDatabentoMarketDataEpoch epoch,
-        string contractId)
-    {
-        ValidateContractId(contractId, nameof(contractId));
-        if (epoch.Catalog.FindFuturesOption(contractId) is { } contract) return contract;
+        if (epoch.Catalog.FindFuturesOption(contractId) is not null) return;
         if (epoch.Catalog.FindFutures(contractId) is not null)
             throw KindMismatch(contractId, "futures option", "futures");
         throw new MarketDataContractNotFoundException(contractId);
@@ -967,6 +959,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             throw new ArgumentException("A canonical domain contract ID is required.", parameterName);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     private static async Task RollbackStartAsync(
         IDatabentoMarketDataEpoch candidate,
         Exception original)
@@ -978,6 +971,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         _ = original;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A diagnostic recorder failure must not abort realtime ingestion or recovery; this boundary isolates the observer.")]
     private static async Task ReportErrorAsync(
         Func<Guid, int, string, Task>? handler,
         int code,

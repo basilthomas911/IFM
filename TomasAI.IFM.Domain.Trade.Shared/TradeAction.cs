@@ -11,14 +11,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Buy,
         Sell
     }
-
-    public static class TradeActionExtensions
-    {
-        public static string ToStringFast(this TradeAction value) => value switch
-        {
-            TradeAction.Buy => nameof(TradeAction.Buy),
-            TradeAction.Sell => nameof(TradeAction.Sell),
-            _ => value.ToString()
-        };
-    }
 }

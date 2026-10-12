@@ -29,7 +29,8 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 
 public sealed class TradeFlowStateMachineTests
 {
-    static readonly DateTime Now = new(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
+    // Friday during the futures session; live marks must not use a weekend fixture.
+    static readonly DateTime Now = new(2026, 9, 11, 14, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public void Execution_handlers_preserve_commission_received_before_fill()

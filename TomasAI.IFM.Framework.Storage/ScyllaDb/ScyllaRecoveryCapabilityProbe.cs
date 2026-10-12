@@ -7,6 +7,7 @@ public sealed class ScyllaRecoveryCapabilityProbe(string connectionString) : IAs
 {
     readonly ScyllaDbConnection connection = new(connectionString);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Best-effort probe cleanup is bounded by TTL and must not obscure the capability result.")]
     public async Task<bool> CheckAsync(CancellationToken cancellationToken)
     {
         var session = await connection.CreateSessionAsync().WaitAsync(cancellationToken)
@@ -35,9 +36,9 @@ public sealed class ScyllaRecoveryCapabilityProbe(string connectionString) : IAs
             {
                 await session.ExecuteAsync(new SimpleStatement(
                     "DELETE FROM ifm_recovery_probe WHERE probe_id=?", id))
-                    .WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+                    .WaitAsync(TimeSpan.FromSeconds(1), CancellationToken.None).ConfigureAwait(false);
             }
-            catch (Exception) { /* TTL bounds any residue. */ }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceError("Recovery probe cleanup failed; TTL bounds residue: {0}", ex); }
         }
     }
 

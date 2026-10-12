@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -18,7 +20,8 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 
 public class LookupTypeStateRepository(
-    ICommandActorContext<LookupTypeCommandActor> actorContext)
+    ICommandActorContext<LookupTypeCommandActor> actorContext,
+    IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(
         actorContext.StateFactory,
         actorContext.DbEventSource,
@@ -56,7 +59,40 @@ public class LookupTypeStateRepository(
         => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, LookupTypeCommandState state, ICommand command, CancellationToken cancellationToken)
-        => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var database = actorContext.DbFactory.ReferenceDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Lookup source events and ReferenceDb must share one PostgreSQL database/security identity.");
+        var owner = transactions ?? throw new InvalidOperationException("Lookup persistence requires the PostgreSQL event transaction service.");
+        var pending = new DomainEventCollection(state.Events);
+        var writer = new PostgresLookupStore();
+        await owner.ExecuteAsync(async (transaction,token) =>
+        {
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                await (source switch
+                {
+                    LookupTypeAddedEvent added => writer.InsertAsync(transaction,added.LookupType,token),
+                    LookupTypeChangedEvent changed => writer.UpdateAsync(transaction,changed.EntityId,changed.LookupType,token),
+                    LookupTypeRemovedEvent removed => writer.DeleteAsync(transaction,removed.EntityId,token),
+                    _ => throw new InvalidOperationException("Unexpected lookup source event.")
+                }).ConfigureAwait(false);
+            }
+            return true;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Asynchronously denormalizes the specified domain events into the read model database.

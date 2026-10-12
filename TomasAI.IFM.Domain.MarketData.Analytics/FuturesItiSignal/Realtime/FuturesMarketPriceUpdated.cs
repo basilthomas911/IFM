@@ -38,16 +38,16 @@ public static class FuturesMarketPriceUpdated
         try
         {
             if (!IsUsableTradeEvent(@event, out var esTrade, out var filterReason))
-                return Filter(filterReason);
+                return Filter(context, filterReason);
             if (!StringComparer.Ordinal.Equals(@event.EntityId.ContractId, @event.Price.ContractId)
                 || @event.EntityId.ValueDate != @event.Price.ValueDate
                 || @event.EntityId.AssetTypeId != @event.Price.AssetTypeId)
             {
-                return Reject("The market-price event entity and price snapshot identities do not match.");
+                return Reject(context, @event, eventTime, "The market-price event entity and price snapshot identities do not match.");
             }
             if (!context.MarketDataApi.TryGetOnTheRunFuturesContract("ES", out var esContract)
                 || !StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
-                return Filter("Trade is not for the current on-the-run ES contract.");
+                return Filter(context, "Trade is not for the current on-the-run ES contract.");
 
             telemetry.RecordEligibleEsTrade(esTrade.EventTimestamp.UtcDateTime);
 
@@ -58,17 +58,7 @@ public static class FuturesMarketPriceUpdated
                 return true;
             }
 
-            var commandId = CreateCommandId(@event, esTrade);
-            var sourceEventId = @event.Id;
-            var contractId = @event.Price.ContractId;
-            var valueDate = @event.Price.ValueDate;
-            var futuresPrice = Convert.ToDouble(esTrade.LastPrice);
-            var tradeTimestamp = esTrade.EventTimestamp.UtcDateTime;
-            telemetry.RecordCommandRequested();
-            FuturesItiSignalRealtimeLogging.CommandGenerated(
-                context.Logger, sourceEventId, commandId, contractId, valueDate);
-            await GenerateAsync(context, sourceEventId, commandId, contractId, valueDate,
-                tradeTimestamp, futuresPrice, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
+            await SubmitCommandAsync(@event, context, esTrade, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -90,16 +80,37 @@ public static class FuturesMarketPriceUpdated
             throw;
         }
 
-        bool Filter(string reason)
+    }
+
+
+    /// <summary>Builds the deterministic command identity and submits the current ES/VX inputs without changing ingress failure handling.</summary>
+    static async ValueTask SubmitCommandAsync(FuturesMarketPriceUpdatedRealtimeEvent @event,
+        IFuturesItiSignalRealtimeContext context, FuturesMarketTradeSnapshot esTrade, double vxPrice,
+        DateTime eventTime, CancellationToken cancellationToken)
+    {
+            var commandId = CreateCommandId(@event, esTrade);
+            var sourceEventId = @event.Id;
+            var contractId = @event.Price.ContractId;
+            var valueDate = @event.Price.ValueDate;
+            var futuresPrice = Convert.ToDouble(esTrade.LastPrice);
+            var tradeTimestamp = esTrade.EventTimestamp.UtcDateTime;
+            context.Telemetry.RecordCommandRequested();
+            FuturesItiSignalRealtimeLogging.CommandGenerated(
+                context.Logger, sourceEventId, commandId, contractId, valueDate);
+            await GenerateAsync(context, sourceEventId, commandId, contractId, valueDate,
+                tradeTimestamp, futuresPrice, vxPrice, eventTime, cancellationToken).ConfigureAwait(false);
+    }
+
+    static bool Filter(IFuturesItiSignalRealtimeContext context, string reason)
         {
-            telemetry.RecordFiltered(reason);
+            context.Telemetry.RecordFiltered(reason);
             return true;
         }
 
 
-        bool Reject(string reason)
+    static bool Reject(IFuturesItiSignalRealtimeContext context, FuturesMarketPriceUpdatedRealtimeEvent @event, DateTime eventTime, string reason)
         {
-            telemetry.RecordFailure(reason);
+            context.Telemetry.RecordFailure(reason);
             context.HealthEvidence.Record("ITI", Scope, "Unhealthy", reason, eventTime);
             FuturesItiSignalRealtimeLogging.IngressRejected(
                 context.Logger,
@@ -110,8 +121,8 @@ public static class FuturesMarketPriceUpdated
                 reason);
             return false;
         }
-    }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This realtime message boundary records the failed signal operation and contains it according to the existing telemetry and completion contract.")]
     static async ValueTask GenerateAsync(
         IFuturesItiSignalRealtimeContext context,
         Guid sourceEventId,
@@ -203,7 +214,7 @@ public static class FuturesMarketPriceUpdated
             reason = "Trade action does not provide a usable current price.";
             return false;
         }
-        if ((currentTrade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0
+        if ((currentTrade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != NormalizedTradeConditionFlags.None
             || currentTrade.LastPrice <= 0)
         {
             trade = default;
@@ -230,7 +241,7 @@ public static class FuturesMarketPriceUpdated
         if (!context.MarketDataApi.TryGetLastTickPrice(vxContract.ContractId, out var snapshot)
             || snapshot.Trade is not { } trade
             || trade.LastPrice <= 0
-            || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0
+            || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != NormalizedTradeConditionFlags.None
             || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
         {
             reason = $"Current VX trade price is unavailable for {vxContract.ContractId}.";

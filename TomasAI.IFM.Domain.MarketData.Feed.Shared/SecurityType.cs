@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared
 {
-    public class SecurityType
+    public static class SecurityType
     {
         public const string Stock = "Stock";
         public const string Option = "Option";

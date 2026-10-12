@@ -14,6 +14,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
 {
     public Task<ServiceResult<Guid>> ExecuteStrategyCatalogAsync(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogCommandRequest request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         var command = new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogCommand
         {
             CommandId = request.OperationId,
@@ -61,8 +62,10 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="lookupType"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> AddLookupTypeAsync(LookupTypeReadModel lookupType)
     {
+        ArgumentNullException.ThrowIfNull(lookupType);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -75,7 +78,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddLookupTypeCommand.Actor, AddLookupTypeCommand.Verb, entityId.Format()),
                 ErrorCode = AddLookupTypeCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -91,8 +94,10 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
     /// <param name="lookupType"></param>
     /// <param name="overwrite"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ChangeLookupTypeAsync(LookupTypeId lookupTypeId, LookupTypeReadModel lookupType, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(lookupTypeId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -105,7 +110,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeLookupTypeCommand.Actor, ChangeLookupTypeCommand.Verb, lookupTypeId.Format()),
                 ErrorCode = ChangeLookupTypeCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -120,8 +125,10 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
     /// <param name="lookupTypeId"></param>
     /// <param name="overwrite"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> RemoveLookupTypeAsync(LookupTypeId lookupTypeId, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(lookupTypeId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -133,7 +140,7 @@ public class ReferenceCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveLookupTypeCommand.Actor, RemoveLookupTypeCommand.Verb, lookupTypeId.Format()),
                 ErrorCode = RemoveLookupTypeCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

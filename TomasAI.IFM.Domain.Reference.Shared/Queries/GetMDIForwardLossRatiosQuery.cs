@@ -20,6 +20,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.Queries;
 /// - Explicit properties annotated with sequential <see cref="KeyAttribute"/> indices.
 /// - A parameterless constructor for serializers and a full constructor annotated with <see cref="SerializationConstructorAttribute"/>.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the existing message and domain type names used in stored type identities.")]
 [MessagePackObject(AllowPrivate = true)]
 public class GetMDIForwardLossRatiosQuery : IQuery<MDIForwardLossRatioReadModel[]>
 {

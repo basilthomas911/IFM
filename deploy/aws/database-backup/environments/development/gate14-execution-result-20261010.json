@@ -1,0 +1,58 @@
+{
+    "schemaVersion":  1,
+    "environment":  "Development",
+    "status":  "PassedOwnerApprovedDisposableVersionQualification",
+    "completedUtc":  "2026-10-10T16:12:19.3859993+00:00",
+    "verifiedUtc":  "2026-10-10T16:13:33.9411078+00:00",
+    "candidateRestorePointId":  "3291d2ff9099419aa6c9b3e08ecde95b",
+    "preservedRestorePointId":  "b4c472227f044f419ac975f29a2463af",
+    "deletedVersions":  16,
+    "deletedBytes":  81192266,
+    "replicas":  2,
+    "preservedReplicasReverified":  2,
+    "exactVersionAbsenceVerified":  true,
+    "applicationBackupsModified":  false,
+    "protectionActions":  32,
+    "normalSignedPlanDeletionExecutorUsed":  true,
+    "ownerExceptionReference":  "UserApproval-Gate14-16DisposableVersions-20261010",
+    "immutableAuditEvidence":  [
+                                   {
+                                       "replica":  "aws-primary",
+                                       "planId":  {
+                                                      "Value":  "bce91f27-7930-4c35-9047-aa482b7834b9"
+                                                  },
+                                       "evidenceReference":  "s3://ifm-db-backup-development-primary-107651266250/v1/environment/development/evidence/operation/bce91f2779304c359047aa482b7834b9/retention-execution-v1.json?versionId=r5PJdvTclYF473wwO4gMlYOknjarTbjR",
+                                       "result":  {
+                                                      "PlanId":  {
+                                                                     "Value":  "bce91f27-7930-4c35-9047-aa482b7834b9"
+                                                                 },
+                                                      "Revision":  1,
+                                                      "DeletedObjectVersionCount":  8,
+                                                      "DeletedBytes":  40596133
+                                                  }
+                                   },
+                                   {
+                                       "replica":  "aws-recovery",
+                                       "planId":  {
+                                                      "Value":  "16334f29-efa8-4b27-8ed0-618dc40eb0e4"
+                                                  },
+                                       "evidenceReference":  "s3://ifm-db-backup-development-primary-107651266250/v1/environment/development/evidence/operation/16334f29efa84b278ed0618dc40eb0e4/retention-execution-v1.json?versionId=fFdeDj_DG32sJQJjPdLGGY_IIChQQZPU",
+                                       "result":  {
+                                                      "PlanId":  {
+                                                                     "Value":  "16334f29-efa8-4b27-8ed0-618dc40eb0e4"
+                                                                 },
+                                                      "Revision":  1,
+                                                      "DeletedObjectVersionCount":  8,
+                                                      "DeletedBytes":  40596133
+                                                  }
+                                   }
+                               ],
+    "tests":  [
+                  "gate14-owner-deletion.trx",
+                  "gate14-owner-immutable-evidence.trx"
+              ],
+    "evidenceDirectory":  ".artifacts/aws-qualification-20261010/owner-deletion",
+    "runtimeRetentionCommandWired":  false,
+    "productionQualificationChanged":  false,
+    "temporaryPolicyCleanup":  "Owner must detach and delete the four IFM-Gate14-Owner policies; grants expire 2026-10-11T15:35:32.8931485Z"
+}

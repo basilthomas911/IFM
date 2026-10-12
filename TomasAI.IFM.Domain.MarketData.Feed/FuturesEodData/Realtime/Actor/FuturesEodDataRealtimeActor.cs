@@ -32,7 +32,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     public const string ActorName = FuturesEodDataInsertedEvent.Actor;
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
-    protected IFuturesEodDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesEodDataRealtimeContext, nameof(actorContext))!;
+    protected IFuturesEodDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesEodDataRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId TickTradeRoute = new(
         ActorType.Realtime,
@@ -81,6 +81,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
 
     protected override async ValueTask OnStartup(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
         RealtimeContext.StartTradeWorkers();
         context.AddRealtimeRouter(TickTradeRoute, Id);
@@ -90,6 +91,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
 
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
@@ -107,6 +109,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         IActorMessage message)
     {
+        ArgumentNullException.ThrowIfNull(message);
         // Both EOD notifications and routed market prices use "Updated". The
         // destination subject identifies this mailbox; the source identifies
         // the payload contract to deserialize.
@@ -120,22 +123,15 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
 
     protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
-        IEvent domainEvent) =>
-        RealtimeContext.ReceiveAsync(context, domainEvent, _parameters);
-
-    static void LogProjectionFailure(IErrorEvent failed, ILogger logger) => logger.LogErrorEvent(
-        ActorName,
-        "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-        failed.EventName,
-        failed.Subject.EntityId,
-        failed.ErrorMessage);
+        IEvent @event) =>
+        RealtimeContext.ReceiveAsync(context, @event, _parameters);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         ActorThreadId threadId,
-        IEvent domainEvent,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
+        IEvent @event,
+        Exception ex) =>
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

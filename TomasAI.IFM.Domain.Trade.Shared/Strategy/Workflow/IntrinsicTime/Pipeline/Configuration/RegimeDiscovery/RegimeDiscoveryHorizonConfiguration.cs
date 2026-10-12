@@ -3,20 +3,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 
-/// <summary>Configures one observation timeframe used by a strategy horizon.</summary>
-[MessagePackObject]
-public sealed record RegimeDiscoveryTimeFrameConfiguration
-{
-    /// <summary>Gets the observation timeframe.</summary>
-    [Key(0)] public TimeFrameType TimeFrame { get; init; }
-    /// <summary>Gets its non-negative contribution weight.</summary>
-    [Key(1)] public decimal Weight { get; init; }
-    /// <summary>Gets whether evidence from this timeframe is required.</summary>
-    [Key(2)] public bool IsRequired { get; init; }
-    /// <summary>Gets the maximum accepted signal age in seconds.</summary>
-    [Key(3)] public int MaximumAgeSeconds { get; init; }
-}
-
 /// <summary>Maps one workflow horizon to its configured observation timeframes.</summary>
 [MessagePackObject]
 public sealed record RegimeDiscoveryHorizonConfiguration
@@ -24,6 +10,7 @@ public sealed record RegimeDiscoveryHorizonConfiguration
     /// <summary>Gets the Daily, Weekly, or Monthly target horizon.</summary>
     [Key(0)] public TimeFrameType TargetHorizon { get; init; }
     /// <summary>Gets the enabled observation timeframe definitions.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(1)] public RegimeDiscoveryTimeFrameConfiguration[] TimeFrames { get; init; } = [];
 
     /// <summary>Creates the approved V1 default mapping for a target horizon.</summary>

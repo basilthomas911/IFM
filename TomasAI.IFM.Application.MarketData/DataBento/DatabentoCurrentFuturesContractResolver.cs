@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -15,8 +15,7 @@ public sealed class DatabentoCurrentFuturesContractResolver(
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
 
         var contracts = await ResolveEligibleAsync(symbol, valueDate, 1, cancellationToken)
             .ConfigureAwait(false);
@@ -32,8 +31,8 @@ public sealed class DatabentoCurrentFuturesContractResolver(
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
-        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
-        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         var normalizedSymbol = symbol.Trim().ToUpperInvariant();
         var queryOptions = options.FeedOptions with { Dataset = ResolveDataset(normalizedSymbol) };
         var eligibleFrom = valueDate.AddDays(1);
@@ -46,7 +45,7 @@ public sealed class DatabentoCurrentFuturesContractResolver(
             .Where(static detail => detail.ContractKind == ContractKind.Future)
             .Select(detail => new { Detail = detail, Maturity = GetMaturity(detail) })
             .Where(candidate => candidate.Maturity is not null && candidate.Maturity.Value >= eligibleFrom)
-            .Where(candidate => normalizedSymbol != "ES"
+            .Where(candidate => !string.Equals(normalizedSymbol,"ES",StringComparison.Ordinal)
                 || candidate.Maturity!.Value.Month is 3 or 6 or 9 or 12)
             .GroupBy(candidate => (
                 candidate.Maturity!.Value,

@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -17,12 +18,14 @@ public static class InsertFuturesEodData
     /// <param name="state">The owning event-sourced state; mutations occur only through event application.</param>
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     /// <exception cref="ArgumentNullException">Required tick, contract, or current EOD inputs are absent.</exception>
-    public static ServiceResult<GuidResult> Execute(this InsertFuturesEodDataCommand command, FuturesEodDataCommandState state)
+    public static ServiceResult<GuidResult> Execute(this InsertFuturesEodDataCommand command, FuturesEodDataCommandState state, IMarketSessionCalendar? calendar = null)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FuturesEodDataInsertedEvent";
         var updated = command.Compute(out var futuresEodData) switch
         {
-            _ => state.Update(command.CreateFuturesEodDataInsertedEvent(futuresEodData), command)
+            _ => state.Update(command.CreateFuturesEodDataInsertedEvent(futuresEodData,calendar), command)
         };
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
@@ -46,13 +49,14 @@ public static class InsertFuturesEodData
     /// <param name="command">The originating command supplying route and audit metadata.</param>
     /// <param name="futuresEodData">The accepted business values to carry in the event.</param>
     /// <returns>A source event ready for the owning state's Update and Apply path.</returns>
-    internal static FuturesEodDataInsertedEvent CreateFuturesEodDataInsertedEvent(this InsertFuturesEodDataCommand command, FuturesEodDataV2ReadModel futuresEodData)
+    internal static FuturesEodDataInsertedEvent CreateFuturesEodDataInsertedEvent(this InsertFuturesEodDataCommand command, FuturesEodDataV2ReadModel futuresEodData, IMarketSessionCalendar? calendar = null)
         => new()
         {
             CommandId = command.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesEodDataInsertedEvent.Actor, FuturesEodDataInsertedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
             FuturesEodData = futuresEodData,
+            RawObservation = calendar is null ? null : FuturesEodRawObservationFactory.Create(futuresEodData,0,calendar),
             CreatedOn = command.OriginatedOn,
             CreatedBy = command.OriginatedBy
         };

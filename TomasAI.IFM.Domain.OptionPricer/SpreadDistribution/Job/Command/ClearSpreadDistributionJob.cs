@@ -17,6 +17,8 @@ public static class ClearSpreadDistributionJob
     /// <returns>The command identity on success, otherwise the business or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this ClearSpreadDistributionJobCommand command, SpreadDistributionJobCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionJobStatusUpdatedEvent";
         var updated = command.Compute(state.IsJobStatusInProgress, out var spreadDistributionChange) switch
         {

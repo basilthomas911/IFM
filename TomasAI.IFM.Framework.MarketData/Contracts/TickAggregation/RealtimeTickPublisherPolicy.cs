@@ -15,6 +15,8 @@ public sealed record RealtimeTickPublisherPolicy
 
     /// <summary>Validates the supplied configuration and its supported operating limits.</summary>
     /// <returns>This policy after successful validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This validates current instance properties rather than method parameters; existing exception semantics identify invalid ownership or policy state.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This validates current instance properties rather than method parameters; existing exception semantics identify invalid ownership or policy state.")]
     public RealtimeTickPublisherPolicy Validate()
     {
         if (Capacity is < 1 or > 65536 || MaximumQueuedQuoteItems is < 1 or > 4_194_304
@@ -30,98 +32,3 @@ public sealed record RealtimeTickPublisherPolicy
         return this;
     }
 }
-
-public enum RealtimeTickPublisherFailure
-{
-    None,
-    Saturated,
-    QueueExpired,
-    TransportFailed,
-    SendTimedOut,
-    NonCooperativeSend
-}
-
-/// <summary>Cumulative, immutable diagnostics; capacity/depth describe queued items, with at most one extra in-flight send.</summary>
-/// <param name="PolicyEnabled">The policy enabled.</param>
-/// <param name="Running">The running.</param>
-/// <param name="Faulted">The faulted.</param>
-/// <param name="CanRecover">The can recover.</param>
-/// <param name="UncontainedSend">The uncontained send.</param>
-/// <param name="Capacity">The capacity.</param>
-/// <param name="Depth">The depth.</param>
-/// <param name="InFlight">The in flight.</param>
-/// <param name="OldestQueuedAge">The oldest queued age.</param>
-/// <param name="InFlightAge">The in flight age.</param>
-/// <param name="Accepted">The accepted.</param>
-/// <param name="Published">The published.</param>
-/// <param name="Rejected">The rejected.</param>
-/// <param name="SaturationCount">The saturation count.</param>
-/// <param name="GenerationCanceled">The generation canceled.</param>
-/// <param name="ShutdownDiscarded">The shutdown discarded.</param>
-/// <param name="Expired">The expired.</param>
-/// <param name="Failed">The failed.</param>
-/// <param name="Failure">The failure.</param>
-/// <param name="FailureDetail">The failure detail.</param>
-public sealed record RealtimeTickPublisherSnapshot(
-    bool PolicyEnabled,
-    bool Running,
-    bool Faulted,
-    bool CanRecover,
-    bool UncontainedSend,
-    int Capacity,
-    int Depth,
-    int InFlight,
-    TimeSpan OldestQueuedAge,
-    TimeSpan InFlightAge,
-    long Accepted,
-    long Published,
-    long Rejected,
-    long SaturationCount,
-    long GenerationCanceled,
-    long ShutdownDiscarded,
-    long Expired,
-    long Failed,
-    RealtimeTickPublisherFailure Failure,
-    string FailureDetail)
-{
-    public int RetainedQuoteItems { get; init; }
-    public int MaximumRetainedQuoteItems { get; init; }
-    public DateTime? LastAcceptedUtc { get; init; }
-    public DateTime? LastPublishedUtc { get; init; }
-    public DateTime? FirstFailureUtc { get; init; }
-    public DateTime? LastFailureUtc { get; init; }
-    public string LastExceptionType { get; init; } = string.Empty;
-    public string LastExceptionMessage { get; init; } = string.Empty;
-    public string InFlightEventType { get; init; } = string.Empty;
-    public string InFlightSubject { get; init; } = string.Empty;
-    public int CurrentAttempt { get; init; }
-    public TimeSpan NoProgressAge { get; init; }
-    public TimeSpan NoProgressResetThreshold { get; init; }
-    public bool ResetRequired { get; init; }
-}
-
-public interface ITickAggregationPublisherDiagnostics
-{
-    RealtimeTickPublisherSnapshot GetSnapshot();
-}
-
-/// <summary>The caller retains any quote lease when this nonblocking admission rejection is thrown.</summary>
-/// <param name="capacity">The maximum capacity of the buffer, store, or queue.</param>
-public sealed class RealtimeTickPublisherSaturatedException(int capacity)
-    : InvalidOperationException($"The bounded realtime publisher queue is full (capacity={capacity}); this publication was rejected.")
-{
-    public int Capacity { get; } = capacity;
-}
-
-/// <summary>Initializes a new RealtimeTickPublisherQuoteBudgetExceededException instance.</summary>
-/// <param name="maximumItems">The maximum admitted quote item count.</param>
-public sealed class RealtimeTickPublisherQuoteBudgetExceededException(int maximumItems)
-    : InvalidOperationException($"The bounded realtime publisher has reached its retained quote-item limit ({maximumItems}); this publication was rejected.")
-{
-    public int MaximumItems { get; } = maximumItems;
-}
-
-/// <summary>Initializes a new RealtimeTickPublisherUnavailableException instance.</summary>
-/// <param name="reason">The reason the publisher is unavailable.</param>
-public sealed class RealtimeTickPublisherUnavailableException(string reason)
-    : InvalidOperationException($"The bounded realtime publisher is unavailable: {reason}");

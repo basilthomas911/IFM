@@ -137,6 +137,13 @@ public sealed class TickQuoteBufferPool : ITickQuoteBufferPool
         /// <summary>Releases the resources owned by this instance.</summary>
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing) return;
             if (Interlocked.Exchange(ref _returned, 1) != 0) return;
             Array.Clear(Buffer, 0, Count);
             Count = 0;

@@ -11,6 +11,7 @@ public static class ScheduledTaskRunRequestedComplete
     /// <returns>The bounded notification dispatch operation.</returns>
     public static ValueTask ExecuteAsync(this ScheduledTaskRunRequestedCompleteEvent source, ScheduledTaskEventContext context)
     {
+        ArgumentNullException.ThrowIfNull(source);
         return source.ScheduledTaskRun is { Manual: true } run ? ScheduledTaskRuntimeDispatch.RequestManualRunAsync(source, run, context) : ValueTask.CompletedTask;
     }
 }

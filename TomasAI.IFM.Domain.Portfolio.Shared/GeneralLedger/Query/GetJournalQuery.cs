@@ -27,6 +27,13 @@ public sealed record GetJournalQuery : IFinancialQueryMessage<GetJournalRequest,
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetJournalQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetJournalQuery(GetJournalRequest parameters) => Parameters = parameters;
     public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "GetJournal";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -53,11 +60,4 @@ public sealed record GetJournalQuery : IFinancialQueryMessage<GetJournalRequest,
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetJournalQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetJournalQuery(GetJournalRequest parameters) => Parameters = parameters;
 }

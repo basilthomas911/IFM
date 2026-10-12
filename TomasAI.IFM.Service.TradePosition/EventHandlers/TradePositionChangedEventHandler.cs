@@ -15,7 +15,8 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers
     /// <summary>
     /// trade position chnaged event handler
     /// </summary>
-    public class TradePositionChangedEventHandler : BaseEventServiceHandler,
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711", Justification = "Existing event service handler identity is used by service registration.")]
+public class TradePositionChangedEventHandler : BaseEventServiceHandler,
         IAsyncEventHandler<TradePositionChangedEvent>
     {
         readonly ITradeEventProducer _tradeEventProducer;
@@ -39,8 +40,10 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers
         /// </summary>
         /// <param name="e"></param>
         /// <returns></returns>
-        public async Task ExecuteAsync(TradePositionChangedEvent e)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
+    public async Task ExecuteAsync(TradePositionChangedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             try
             {
                 switch (e.TradePositionChangeSource)
@@ -56,7 +59,7 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers
                             UpdatedOn = e.UpdatedOn,
                             UpdatedBy = e.UpdatedBy
                         };
-                        await _tradeEventProducer.PostEventAsync(putPositionUpdated);
+                        await (_tradeEventProducer.PostEventAsync(putPositionUpdated)).ConfigureAwait(false);
                         break;
                     case TradePositionChangeSourceType.CallCreditSpreadLeg:
                         var callPositionUpdated = new TradePositionUpdatedEvent
@@ -69,25 +72,25 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers
                             UpdatedOn = e.UpdatedOn,
                             UpdatedBy = e.UpdatedBy
                         };
-                        await _tradeEventProducer.PostEventAsync(callPositionUpdated);
+                        await (_tradeEventProducer.PostEventAsync(callPositionUpdated)).ConfigureAwait(false);
                         break;
                     case TradePositionChangeSourceType.SpreadDistributionStatistics:
-                        await _tradeEventProducer.PostEventAsync(new OptionTradeSpreadDistributionStatisticsChangedEvent
+                        await (_tradeEventProducer.PostEventAsync(new OptionTradeSpreadDistributionStatisticsChangedEvent
                         {
                             CommandId = e.CommandId,
                             OrderId = e.TradePositionId.OrderId,
                             TradeId = e.TradePositionId.TradeId,
                             ForwardLossRatio = e.PutTradePosition.LossProbability,
                             ValueDate = e.TradePositionId.ValueDate
-                        });
+                        })).ConfigureAwait(false);
                         break;
                 }
             }
             catch (Exception ex)
             {
                 var errorMessage = $"{LogSourceType.TradePosition}: trade position {e.OptionLegId} change failed due to: {ex.GetErrorMessage()}";
-                await WriteConsoleAsync(LogSourceType.TradePosition, 6010, errorMessage);
-                _logger.LogError(ex, errorMessage);
+                await (WriteConsoleAsync(LogSourceType.TradePosition, 6010, errorMessage)).ConfigureAwait(false);
+                TradePositionDiagnosticLog.Failed(_logger, ex, errorMessage);
             }
         }
 

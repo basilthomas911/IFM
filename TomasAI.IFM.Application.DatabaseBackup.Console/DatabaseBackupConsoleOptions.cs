@@ -102,7 +102,7 @@ internal sealed record DatabaseBackupConsoleOptions(
         Usage: database-backup <verb> [options]
 
         Query verbs:
-          status | list-operations | show-operation | list-restore-points | verify | reconcile | follow
+          status | list-operations | show-operation | show-restore | list-restore-points | verify | reconcile | follow
 
         Command verbs:
           backup | cancel | restore | restore-drill | approve-restore | approve-cutover

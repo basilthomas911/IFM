@@ -1,10 +1,6 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
-
-public sealed record ResolvedCurrentFuturesContract(
-    FuturesContractV3ReadModel Contract,
-    DateOnly NextRolloverDate);
 
 public interface IDatabentoCurrentFuturesContractResolver
 {
@@ -20,7 +16,7 @@ public interface IDatabentoCurrentFuturesContractResolver
         int count,
         CancellationToken cancellationToken = default)
     {
-        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         var current = await ResolveAsync(symbol, valueDate, cancellationToken).ConfigureAwait(false);
         return [current.Contract];
     }

@@ -8,9 +8,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Valid
 public static class GenerateFuturesEmaSignalValidation
 {
     /// <summary>Adds all source-bar and routing errors before the command loads state.</summary>
-    public static List<ValidationError> ValidateSourceBar(
-        this List<ValidationError> errors, GenerateFuturesEmaSignalCommand command)
+    public static TErrors ValidateSourceBar<TErrors>(
+        this TErrors errors, GenerateFuturesEmaSignalCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.Observation is not { } bar)
         {
             errors.Add(new("EMA.BAR.NULL", "A completed source bar is required."));
@@ -22,7 +26,7 @@ public static class GenerateFuturesEmaSignalValidation
             errors.Add(new("EMA.BAR.INVALID", "A valid completed source bar is required."));
         if (bar.MarketSeriesIdentity != command.EntityId.MarketSeriesIdentity
             || bar.TimeFrame != command.EntityId.TimeFrame
-            || command.Subject.EntityId != command.EntityId.Format())
+            || !string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
             errors.Add(new("EMA.BAR.ROUTE", "The source bar must match the command series and timeframe."));
         return errors;
     }

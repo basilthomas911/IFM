@@ -5,6 +5,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <summary>Preserves the first lifecycle failure while containing and linking cleanup failures.</summary>
 static class ActorLifecycleGuard
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     internal static async ValueTask StopAsync(
         SupervisorRuntimeContext? runtime,
         ActorMailboxId actorId,
@@ -50,7 +51,6 @@ static class ActorLifecycleGuard
             if (primary is null)
             {
                 primary = exception;
-                primaryId = failureId;
                 SupervisorRuntimeContext.MarkRecorded(exception, failureId);
             }
         }

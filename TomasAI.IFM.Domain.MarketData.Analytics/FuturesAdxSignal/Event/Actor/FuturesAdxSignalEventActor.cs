@@ -24,9 +24,7 @@ public class FuturesAdxSignalEventActor(
     public const string Actor = "FuturesAdxSignalEvent";
 
     /// <summary>Gets the ADX-specific event context supplied when this actor is constructed.</summary>
-    protected IFuturesAdxSignalEventContext FuturesAdxSignalEventContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesAdxSignalEventContext,
-        nameof(actorContext))!;
+    protected IFuturesAdxSignalEventContext FuturesAdxSignalEventContext { get; } = IsArgumentNull.Named(actorContext as IFuturesAdxSignalEventContext, nameof(actorContext))!;
 
     readonly ILogger<FuturesAdxSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesAdxSignalEventContext, ILogger<FuturesAdxSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesAdxSignalEventContext, ILogger<FuturesAdxSignalEventActor>, ValueTask<bool>>>()
@@ -66,7 +64,7 @@ public class FuturesAdxSignalEventActor(
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesAdxSignalStartedEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalStartedEvent>()!,
         [FuturesAdxSignalStoppedEvent.Verb] = msg => msg.AsEvent<FuturesAdxSignalStoppedEvent>()!,
@@ -94,7 +92,7 @@ public class FuturesAdxSignalEventActor(
         FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
         return ValueTask.CompletedTask;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
@@ -111,12 +109,19 @@ public class FuturesAdxSignalEventActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            try
+            {
+                await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context ?? Context)).ConfigureAwait(false);
+            }
+            catch (Exception publicationException)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write5(Context.Logger, publicationException, Actor);
+            }
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write5(Context.Logger, innerEx, Actor);
         }
     }
 }

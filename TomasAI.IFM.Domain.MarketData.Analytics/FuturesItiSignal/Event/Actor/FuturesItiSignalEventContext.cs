@@ -8,23 +8,9 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesItiSignalEventActor"/>.</summary>
-public interface IFuturesItiSignalEventContext : IEventActorContext<FuturesItiSignalEventActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the StatusConsoleWriter service supplied to the actor context.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesItiSignalEventActor> Logger { get; }
-    /// <summary>Gets bounded Futures ITI runtime telemetry.</summary>
-    FuturesItiSignalRuntimeTelemetry Telemetry { get; }
-    /// <summary>Gets the admission policy for new ITI-triggered strategy workflows.</summary>
-    IIntrinsicTimeWorkflowStartPolicy WorkflowStartPolicy { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesItiSignalEventActor"/>.</summary>
-public sealed class FuturesItiSignalEventContext : EventActorContext, IEventActorContext<FuturesItiSignalEventActor>, IFuturesItiSignalEventContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesItiSignalEventContext : EventActorContext, IFuturesItiSignalEventContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesItiSignalEventContext(

@@ -5,18 +5,15 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
-
 /// <summary>
 /// Represents the event-sourced state of Futures ADX signal commands within the actor system.
 /// </summary>
 /// <remarks>This class manages the state transitions for Futures ADX signal operations by applying domain events
-/// such as <see cref="FuturesAdxSignalGeneratedEvent"/>.</remarks>
-public class FuturesAdxSignalCommandState
-    : BaseEventSourceActorState<FuturesAdxSignalCommandState>, IEventSourceActorState<FuturesAdxSignalCommandState>
+/// such as <see cref = "FuturesAdxSignalGeneratedEvent"/>.</remarks>
+public class FuturesAdxSignalCommandState : BaseEventSourceActorState<FuturesAdxSignalCommandState>, IEventSourceActorState<FuturesAdxSignalCommandState>
 {
     readonly List<FuturesAdxSignalReadModel> _adxSignals = new(32);
     FuturesAdxSignalReadModel? _adxSignal;
-
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
     /// </summary>
@@ -25,7 +22,7 @@ public class FuturesAdxSignalCommandState
     /// <summary>
     /// Applies the specified domain event to update the state of the current object.
     /// </summary>
-    /// <param name="domainEvent">The domain event to apply. Must be of a supported type.</param>
+    /// <param name = "domainEvent">The domain event to apply. Must be of a supported type.</param>
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
@@ -37,7 +34,6 @@ public class FuturesAdxSignalCommandState
             FuturesAdxDailySignalGeneratedEvent e => On(e.FuturesAdxSignal),
             _ => false
         };
-
         bool OnStarted(FuturesAdxSignalReadModel? restored, bool reset)
         {
             if (reset)
@@ -46,11 +42,13 @@ public class FuturesAdxSignalCommandState
                 _adxSignal = null;
                 return true;
             }
+
             if (restored is not null && _adxSignals.Count == 0)
             {
                 _adxSignals.Add(restored);
                 _adxSignal = restored;
             }
+
             return true;
         }
 
@@ -64,14 +62,15 @@ public class FuturesAdxSignalCommandState
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Apply accepted facts in order and stop at the first rejection; state mutation must remain explicit rather than becoming a filtering predicate.")]
     /// <summary>Applies a validated start and its precomputed historical signals through event dispatch.</summary>
-    /// <param name="startedEvent">The accepted ADX start event.</param>
-    /// <param name="historicalSignals">Prevalidated signal events in observation order.</param>
-    /// <param name="command">The originating start command used for event metadata.</param>
+    /// <param name = "startedEvent">The accepted ADX start event.</param>
+    /// <param name = "historicalSignals">Prevalidated signal events in observation order.</param>
+    /// <param name = "command">The originating start command used for event metadata.</param>
     /// <returns>True when all initialization events have been applied.</returns>
-    public bool Update(FuturesAdxSignalStartedEvent startedEvent,
-        IReadOnlyList<FuturesAdxSignalGeneratedEvent> historicalSignals, ICommand command)
+    public bool Update(FuturesAdxSignalStartedEvent startedEvent, IReadOnlyList<FuturesAdxSignalGeneratedEvent> historicalSignals, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(historicalSignals);
         if (!Update(startedEvent, command))
             return false;
         foreach (var historicalSignal in historicalSignals)
@@ -84,7 +83,6 @@ public class FuturesAdxSignalCommandState
     /// Gets the view model that provides ADX signal data for futures trading analysis.
     /// </summary>
     public FuturesAdxSignalReadModel AdxSignal => _adxSignal!;
-
     /// <summary>
     /// 
     /// </summary>

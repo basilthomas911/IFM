@@ -14,6 +14,7 @@ public sealed record FundTradeTemplateAssignmentReadModel
     [Key(6)] public long TradeTemplateVersion { get; init; }
     [Key(7)] public bool Enabled { get; init; }
     [Key(8)] public string DecisionHorizon { get; init; } = string.Empty;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(9)] public string[] UnderlyingUniverse { get; init; } = [];
     [Key(10)] public string AssetType { get; init; } = string.Empty;
     [Key(11)] public string TradeFamily { get; init; } = string.Empty;

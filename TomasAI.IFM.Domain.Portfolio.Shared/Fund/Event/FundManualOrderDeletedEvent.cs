@@ -31,7 +31,11 @@ public sealed record FundManualOrderDeletedEvent : IPortfolioFundDomainEvent
     [Key(13)] public DateTime OriginatedOnUtc { get; init; }
     [Key(14)] public int OrderId { get; init; } = default!;
     /// <summary>Gets the economically inactive trades removed with the order.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
     [Key(15)] public int[] RemovedTradeIds { get; init; } = [];
+
+    /// <summary>Full accepted projection values; populated before durable append for event-only materialization.</summary>
+    [Key(16)] public TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? ProjectionFacts { get; init; }
 
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(FundManualOrderDeletedEvent);

@@ -20,7 +20,7 @@ public class SpreadDistributionValidationRules : BaseValidationRules, IValidatio
 
     public ValidationError[] Execute(SpreadDistributionReadModel spreadDistribution) => Validate(spreadDistribution, Validator);
 
-    class SpreadDistributionValidator : AbstractValidator<SpreadDistributionReadModel>
+    sealed class SpreadDistributionValidator : AbstractValidator<SpreadDistributionReadModel>
     {
         public SpreadDistributionValidator()
         {
@@ -36,11 +36,8 @@ public class SpreadDistributionValidationRules : BaseValidationRules, IValidatio
 
         public override ValidationResult Validate(ValidationContext<SpreadDistributionReadModel> context)
         {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
+            ArgumentNullException.ThrowIfNull(context);
+            if (context.InstanceToValidate is null)
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("SpreadDistribution", InstanceErrorMessage));

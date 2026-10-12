@@ -9,6 +9,8 @@ public static class ParameterSignalMonitoringModel
 {
     public static async ValueTask<ParameterSignalMonitoringSnapshot> CaptureAsync(ParameterStartupRun run, string contractId, IRegimeDiscoveryMarketSignalSnapshotProvider provider, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(run);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
         var rows = new List<ParameterSignalMonitoringRow>();
         foreach (var assignment in run.Scopes.Where(x => x.Enabled))
@@ -37,7 +39,7 @@ public static class ParameterSignalMonitoringModel
                 ApprovedCalculationVersions = value.DataQuality.ApprovedCalculationVersions,
                 CaptureAttempts = value.DataQuality.SnapshotCaptureAttempts
             };
-            var captured = await provider.CaptureAsync(request, token);
+            var captured = await (provider.CaptureAsync(request, token)).ConfigureAwait(false);
             var observations = captured.Snapshot?.Observations ?? captured.Issues;
             foreach (var observation in observations)
             {

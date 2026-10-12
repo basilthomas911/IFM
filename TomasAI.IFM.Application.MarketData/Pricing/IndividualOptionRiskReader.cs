@@ -12,7 +12,11 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
 
     /// <summary>Retains a provider-acknowledged scope for read-only risk capture.</summary>
     /// <param name="lease">The acknowledged exact-option lease.</param>
-    public void Register(WorkerOptionChainRequest lease) => scopes[lease.LeaseId] = lease;
+    public void Register(WorkerOptionChainRequest lease) 
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        scopes[lease.LeaseId] = lease;
+    }
 
     /// <summary>Removes only the released owner scope.</summary>
     /// <param name="leaseId">The owner lease identity.</param>
@@ -26,7 +30,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
         if (!admissions.TryGet("GLBX.MDP3", out var admitted) || admitted.ValueDate != valueDate) return false;
         return contractIds.All(contractId => scopes.Values.Any(value => value.ValueDate == valueDate
             && value.GenerationId == admitted.GenerationId && value.Options.Length == 1
-            && value.Options[0].Pricing.Contract.ContractId == contractId));
+            && string.Equals(value.Options[0].Pricing.Contract.ContractId,contractId,StringComparison.Ordinal)));
     }
 
     /// <summary>Captures one qualified option valuation from the current admitted worker generation.</summary>
@@ -38,7 +42,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
     {
         if (!admissions.TryGet("GLBX.MDP3", out var admitted) || admitted.ValueDate != valueDate) return null;
         var lease = scopes.Values.FirstOrDefault(value => value.ValueDate == valueDate && value.GenerationId == admitted.GenerationId
-            && value.Options.Length == 1 && value.Options[0].Pricing.Contract.ContractId == contractId);
+            && value.Options.Length == 1 && string.Equals(value.Options[0].Pricing.Contract.ContractId,contractId,StringComparison.Ordinal));
         if (lease is null) return null;
         var now = DateTimeOffset.UtcNow;
         // The worker freezes observations before selecting its valuation instant. A host timestamp
@@ -48,7 +52,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
             MaximumQuoteAgeMilliseconds: 5000, MaximumQuoteSkewMilliseconds: 1000), token).ConfigureAwait(false);
         if (result.Failure is null && result.Snapshot is { } snapshot && snapshot.GenerationId == admitted.GenerationId
             && snapshot.ValidUntilUtc > DateTimeOffset.UtcNow && snapshot.Instruments.Length == 1
-            && snapshot.Instruments[0].Instrument.ContractId == contractId && snapshot.Instruments[0].Valuation is not null)
+            && string.Equals(snapshot.Instruments[0].Instrument.ContractId,contractId,StringComparison.Ordinal) && snapshot.Instruments[0].Valuation is not null)
         {
             return snapshot;
         }
@@ -57,9 +61,7 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
             && (!unavailableReportedAt.TryGetValue(contractId, out var last) || now - last >= TimeSpan.FromMinutes(1)))
         {
             unavailableReportedAt[contractId] = now;
-            logger.LogWarning("Individual option risk unavailable; MethodName={MethodName} ContractId={ContractId} ValueDate={ValueDate} GenerationId={GenerationId} ScopeId={ScopeId} FailureCode={FailureCode} Input={Input} Detail={Detail}",
-                nameof(CaptureAsync), contractId, valueDate, admitted.GenerationId, lease.ScopeId,
-                result.Failure?.Code ?? "UnqualifiedSnapshot", result.Failure?.Input ?? "Valuation", result.Failure?.Detail ?? "The returned scope did not contain current qualified risk evidence.");
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true) { RemainingApplicationDiagnosticLog.Write5(logger, null, nameof(CaptureAsync), contractId, valueDate, admitted.GenerationId, lease.ScopeId, result.Failure?.Code ?? "UnqualifiedSnapshot", result.Failure?.Input ?? "Valuation", result.Failure?.Detail ?? "The returned scope did not contain current qualified risk evidence."); }
         }
         return null;
     }

@@ -13,15 +13,18 @@ public static class GetScheduledMarketPositions
     public static async ValueTask ExecuteAsync(this GetScheduledMarketPositionsQuery query, ITradeDbReadContext store,
         IQueryActorContext<ScheduledTaskQueryActor> context, CancellationToken cancellationToken)
     {
-        var page = await store.GetOpenPositionRoutePageAsync(query.PageSize, query.PagingState, cancellationToken);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(store);
+        var page = await (store.GetOpenPositionRoutePageAsync(query.PageSize, query.PagingState, cancellationToken)).ConfigureAwait(false);
         var positions = new List<StrategyPositionSnapshot>();
         foreach (var route in page.Items.Select(item => item.Route).DistinctBy(item => item.StrategyPositionId))
         {
             var id = new StrategyPositionId(new(route.PortfolioId,route.FundId,route.OrderId,route.TradeId), route.StrategyPositionId);
-            var position = await store.GetStrategyPositionAsync(id, cancellationToken);
+            var position = await (store.GetStrategyPositionAsync(id, cancellationToken)).ConfigureAwait(false);
             if (position is { IsOpen: true } && (query.ValueDate == default || position.ValueDate <= query.ValueDate)) positions.Add(position);
         }
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ScheduledMarketPositionPage>(new()
-        { Positions = positions.ToArray(), PagingState = page.PagingState }));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ScheduledMarketPositionPage>(new()
+        { Positions = positions.ToArray(), PagingState = page.PagingState }))).ConfigureAwait(false);
     }
 }

@@ -16,7 +16,7 @@ public static class FuturesAtrWilderAccumulator
         out FuturesAtrWilderResult result)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        if (periodLength <= 0) throw new ArgumentOutOfRangeException(nameof(periodLength));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(periodLength);
         checkpoint ??= FuturesAtrAccumulatorCheckpoint.Empty(periodLength);
         if (checkpoint.PeriodLength is not (0) && checkpoint.PeriodLength != periodLength)
             throw new InvalidOperationException("The ATR checkpoint period does not match the command period.");
@@ -30,18 +30,7 @@ public static class FuturesAtrWilderAccumulator
         var seed = checkpoint.SeedTrueRanges.ToList();
         var completed = checkpoint.CompletedAtrValues.ToList();
         var previousAtr = checkpoint.CurrentAtr;
-        decimal? currentAtr = previousAtr;
-
-        if (previousAtr is null)
-        {
-            seed.Add(trueRange);
-            if (seed.Count == periodLength)
-                currentAtr = seed.Average();
-        }
-        else
-        {
-            currentAtr = ((previousAtr.Value * (periodLength - 1)) + trueRange) / periodLength;
-        }
+        var currentAtr = CalculateCurrentAtr(previousAtr, seed, trueRange, periodLength);
 
         decimal? baseline = completed.Count == BaselineLength ? completed.Average() : null;
         var ratio = currentAtr is not null && baseline is > 0
@@ -78,6 +67,15 @@ public static class FuturesAtrWilderAccumulator
         return true;
     }
 
+    /// <summary>Seeds ATR with the mean of N true ranges; afterward applies (previous ATR ? (N ? 1) + current true range) / N.</summary>
+    static decimal? CalculateCurrentAtr(decimal? previousAtr, List<decimal> seed, decimal trueRange, int periodLength)
+    {
+        if (previousAtr is not null)
+            return ((previousAtr.Value * (periodLength - 1)) + trueRange) / periodLength;
+        seed.Add(trueRange);
+        return seed.Count == periodLength ? seed.Average() : null;
+    }
+
     static decimal TrueRange(FuturesTradeSessionBarReadModel observation, decimal? previousClose)
     {
         var highLow = observation.High - observation.Low;
@@ -99,13 +97,3 @@ public static class FuturesAtrWilderAccumulator
         return false;
     }
 }
-
-/// <summary>Contains one Wilder ATR transition and its complete replay checkpoint.</summary>
-public sealed record FuturesAtrWilderResult(
-    decimal TrueRange,
-    decimal? AtrValue,
-    decimal? PreviousAtrValue,
-    decimal? AtrBaseline,
-    decimal? AtrRatio,
-    bool IsWarm,
-    FuturesAtrAccumulatorCheckpoint Checkpoint);

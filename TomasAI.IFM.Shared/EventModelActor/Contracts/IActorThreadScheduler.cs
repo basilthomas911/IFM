@@ -1,4 +1,4 @@
-﻿using NATS.Client.Core;
+using NATS.Client.Core;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IActorThreadScheduler
 {
     void Start(IActorThreadQueue threadQueue);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     void Stop();
     bool WriteData(IActorMessage message);
 

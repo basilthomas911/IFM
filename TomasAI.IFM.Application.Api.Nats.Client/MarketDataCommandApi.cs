@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -27,8 +27,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="overwrite">A value indicating whether to overwrite an existing contract with the same identifier.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="ServiceResult{T}"/>
     /// with the unique identifier of the added futures contract.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> AddFuturesContractAsync(FuturesContractV3ReadModel futuresContract, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(futuresContract);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -39,7 +41,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesContractCommand.Actor, AddFuturesContractCommand.Verb, futuresContract.Id.Format()),
                 ErrorCode = AddFuturesContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -55,19 +57,22 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="futuresContract">The updated details of the futures contract. Cannot be null.</param>
     /// <param name="overwrite">A value indicating whether to overwrite the existing contract details.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the updated futures contract.</returns>
-    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId contractId, FuturesContractV3ReadModel futuresContract, bool overwrite)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
+    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId originalContract, FuturesContractV3ReadModel futuresContract, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(originalContract);
+        ArgumentNullException.ThrowIfNull(futuresContract);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var cmd = new ChangeFuturesContractCommand(contractId, futuresContract, overwrite)
+            var cmd = new ChangeFuturesContractCommand(originalContract, futuresContract, overwrite)
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, ChangeFuturesContractCommand.Actor, ChangeFuturesContractCommand.Verb, (futuresContract.Id ?? contractId).Format()),
+                Subject = new ActorSubject(ActorType.Command, ChangeFuturesContractCommand.Actor, ChangeFuturesContractCommand.Verb, (futuresContract.Id ?? originalContract).Format()),
                 ErrorCode = ChangeFuturesContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -83,8 +88,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="overwrite">A boolean value indicating whether to overwrite any existing data associated with the contract.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the removed futures contract if the
     /// operation is successful.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> RemoveFuturesContractAsync(FuturesContractId contractId, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(contractId);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -95,7 +102,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveFuturesContractCommand.Actor, RemoveFuturesContractCommand.Verb, contractId.Format()),
                 ErrorCode = RemoveFuturesContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, cmd.EntityId);
+            serviceResult = await (RequestCommandAsync(cmd!, cmd.EntityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -110,8 +117,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="futuresOptionContract">The view model representing the futures option contract to be added.</param>
     /// <param name="overwrite">A value indicating whether to overwrite an existing contract with the same identifier.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the added futures option contract.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> AddFuturesOptionContractAsync(FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(futuresOptionContract);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -123,7 +132,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractCommand.Actor, AddFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = AddFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -137,6 +146,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="futuresOptionContracts">The array of futures option contracts to add.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> AddFuturesOptionContractsAsync(int year, FuturesOptionContractReadModel[] futuresOptionContracts)
     {
         Guid cmdId = Guid.NewGuid();
@@ -150,7 +160,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddFuturesOptionContractsCommand.Actor, AddFuturesOptionContractsCommand.Verb, entityId.Format()),
                 ErrorCode = AddFuturesOptionContractsCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -166,8 +176,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="futuresOptionContract">The updated contract details.</param>
     /// <param name="overwrite">Whether to overwrite existing data.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ChangeFuturesOptionContractAsync(string contractId, FuturesOptionContractReadModel futuresOptionContract, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(futuresOptionContract);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -179,7 +191,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeFuturesOptionContractCommand.Actor, ChangeFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -194,6 +206,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="contractId">The contract identifier string.</param>
     /// <param name="overwrite">Whether to overwrite existing data.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> RemoveFuturesOptionContractAsync(string contractId, bool overwrite)
     {
         Guid cmdId = Guid.NewGuid();
@@ -208,7 +221,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveFuturesOptionContractCommand.Actor, RemoveFuturesOptionContractCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveFuturesOptionContractCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -223,8 +236,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="yieldCurveRate">The yield curve rate details.</param>
     /// <param name="overwrite">Whether to overwrite existing data.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> AddYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(yieldCurveRate);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -236,7 +251,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, AddYieldCurveRateCommand.Actor, AddYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = AddYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -251,8 +266,10 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="yieldCurveRate">The yield curve rate details.</param>
     /// <param name="overwrite">Whether to overwrite existing data.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ChangeYieldCurveRateAsync(YieldCurveRateReadModel yieldCurveRate, bool overwrite)
     {
+        ArgumentNullException.ThrowIfNull(yieldCurveRate);
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
@@ -264,7 +281,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ChangeYieldCurveRateCommand.Actor, ChangeYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = ChangeYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -279,6 +296,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="valueDate">The value date of the yield curve rate to remove.</param>
     /// <param name="overwrite">Whether to overwrite existing data.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> RemoveYieldCurveRateAsync(DateOnly valueDate, bool overwrite)
     {
         Guid cmdId = Guid.NewGuid();
@@ -292,7 +310,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, RemoveYieldCurveRateCommand.Actor, RemoveYieldCurveRateCommand.Verb, entityId.Format()),
                 ErrorCode = RemoveYieldCurveRateCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -306,6 +324,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="importDate">The import date.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ImportYieldCurveRatesAsync(DateTime importDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -319,7 +338,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ImportYieldCurveRatesCommand.Actor, ImportYieldCurveRatesCommand.Verb, entityId.Format()),
                 ErrorCode = ImportYieldCurveRatesCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

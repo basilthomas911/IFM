@@ -34,7 +34,7 @@ internal sealed class PipeDatasetWorkerPublisher(
         try
         {
             if (!IsRunning || Volatile.Read(ref closed) != 0 || generation == Guid.Empty
-                || evidence.Source.GenerationId != generation || evidence.Source.Dataset != dataset || evidence.Source.ValueDate != valueDate)
+                || evidence.Source.GenerationId != generation || !string.Equals(evidence.Source.Dataset,dataset,StringComparison.Ordinal) || evidence.Source.ValueDate != valueDate)
                 throw new InvalidOperationException("Option trade publication is not admitted.");
             var publication = Interlocked.Increment(ref sequence);
             await DatasetPublicationFrameCodec.WriteAsync(stream, new()
@@ -46,7 +46,7 @@ internal sealed class PipeDatasetWorkerPublisher(
                 ManifestRevision = manifestRevision,
                 PublicationSequence = publication,
                 Kind = DatasetPublicationKind.OptionTradeEvidence,
-                Payload = MessagePackSerializer.Serialize(evidence)
+                Payload = MessagePackSerializer.Serialize(evidence,cancellationToken:cancellationToken)
             }, cancellationToken).ConfigureAwait(false);
             await OptionTradeAcknowledgment.ReadAsync(retentionAcknowledgments, publication, generation, cancellationToken).ConfigureAwait(false);
         }
@@ -98,41 +98,41 @@ internal sealed class PipeDatasetWorkerPublisher(
         writer.Release();
     }
 
-    public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent value) =>
-        PublishAsync(value, CancellationToken.None);
-    public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent value,
+    public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event) =>
+        PublishAsync(@event, CancellationToken.None);
+    public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.MarketPrice,
-            MessagePackSerializer.Serialize(value), cancellationToken);
+            MessagePackSerializer.Serialize(@event,cancellationToken:cancellationToken), cancellationToken);
 
-    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent value) =>
-        PublishAsync(value, CancellationToken.None);
-    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent value,
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event) =>
+        PublishAsync(@event, CancellationToken.None);
+    public ValueTask PublishAsync(FuturesTradeReplayBatchRealtimeEvent @event,
         CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.TradeReplayBatch,
-            MessagePackSerializer.Serialize(value), cancellationToken);
+            MessagePackSerializer.Serialize(@event,cancellationToken:cancellationToken), cancellationToken);
 
-    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent value) =>
-        PublishAsync(value, CancellationToken.None);
-    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent value,
+    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event) =>
+        PublishAsync(@event, CancellationToken.None);
+    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event,
         CancellationToken cancellationToken) => WriteAsync(DatasetPublicationKind.SessionStatistics,
-            MessagePackSerializer.Serialize(value), cancellationToken);
+            MessagePackSerializer.Serialize(@event,cancellationToken:cancellationToken), cancellationToken);
 
-    public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent value) =>
-        PublishAsync(value, CancellationToken.None);
-    public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent value,
-        CancellationToken cancellationToken) => WriteAsync(value.OptionMarketPriceObservation?.PriceBasis == OptionMarketPriceBasis.QuoteMidpoint
+    public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event) =>
+        PublishAsync(@event, CancellationToken.None);
+    public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event,
+        CancellationToken cancellationToken) => WriteAsync(@event.OptionMarketPriceObservation?.PriceBasis == OptionMarketPriceBasis.QuoteMidpoint
             ? DatasetPublicationKind.OptionQuoteObservation : DatasetPublicationKind.Trade,
-            MessagePackSerializer.Serialize(value), cancellationToken);
+            MessagePackSerializer.Serialize(@event,cancellationToken:cancellationToken), cancellationToken);
 
-    public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent value,
+    public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event,
         ITickQuoteBufferLease lease) =>
-        await PublishAsync(value, lease, CancellationToken.None).ConfigureAwait(false);
-    public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent value,
+        await PublishAsync(@event, lease, CancellationToken.None).ConfigureAwait(false);
+    public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event,
         ITickQuoteBufferLease lease, CancellationToken cancellationToken)
     {
         try
         {
             await WriteAsync(DatasetPublicationKind.Quote,
-                MessagePackSerializer.Serialize(value), cancellationToken).ConfigureAwait(false);
+                MessagePackSerializer.Serialize(@event,cancellationToken:cancellationToken), cancellationToken).ConfigureAwait(false);
         }
         finally { lease.Dispose(); }
     }

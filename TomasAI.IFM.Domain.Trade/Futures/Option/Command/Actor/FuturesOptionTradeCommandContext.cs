@@ -8,41 +8,15 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Command.Actor;
-
-public interface IFuturesOptionTradeCommandContext :
-    ICommandActorContext<FuturesOptionTradeCommandActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IDurableReplayQueue DurableReplayQueue { get; }
-    IBlackboardService BlackboardService { get; }
-    IActorService ActorService { get; }
-    IEventProjector<FuturesOptionTradeCommandActor> EventProjector { get; }
-    IEventSourceActorStateRepository<FuturesOptionTradeCommandState> StateRepository { get; }
-    ILogger<FuturesOptionTradeCommandActor> Logger { get; }
-}
-
-public sealed class FuturesOptionTradeCommandContext :
-    CommandActorContext,
-    ICommandActorContext<FuturesOptionTradeCommandActor>,
-    IFuturesOptionTradeCommandContext
+public sealed class FuturesOptionTradeCommandContext : CommandActorContext, IFuturesOptionTradeCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IDurableReplayQueue> _durableReplayQueue;
     readonly Lazy<IActorService> _actorService;
     readonly Lazy<IEventProjector<FuturesOptionTradeCommandActor>> _eventProjector;
     readonly Lazy<IEventSourceActorStateRepository<FuturesOptionTradeCommandState>> _stateRepository;
-
-    public FuturesOptionTradeCommandContext(
-        IActorSupervisor supervisor,
-        IDbContextFactory dbFactory,
-        IBlackboardService blackboardService,
-        ILogger<FuturesOptionTradeCommandActor> logger)
-        : base(
-            supervisor,
-            new ActorMailboxId(
-                ActorType.Command,
-                FuturesOptionTradeCommandActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public FuturesOptionTradeCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<FuturesOptionTradeCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, FuturesOptionTradeCommandActor.ActorName))
     {
         DbFactory = dbFactory;
         BlackboardService = blackboardService;
@@ -61,9 +35,8 @@ public sealed class FuturesOptionTradeCommandContext :
     public IDurableReplayQueue DurableReplayQueue => _durableReplayQueue.Value;
     public IActorService ActorService => _actorService.Value;
     public IEventProjector<FuturesOptionTradeCommandActor> EventProjector => _eventProjector.Value;
-    public IEventSourceActorStateRepository<FuturesOptionTradeCommandState> StateRepository =>
-        _stateRepository.Value;
+    public IEventSourceActorStateRepository<FuturesOptionTradeCommandState> StateRepository => _stateRepository.Value;
 
-    Lazy<T> Resolve<T>() where T : class =>
-        new(() => Container.Resolve<T>());
+    Lazy<T> Resolve<T>()
+        where T : class => new(() => Container.Resolve<T>());
 }

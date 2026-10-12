@@ -75,7 +75,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
         IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) => await exception.SendErrorEventAsync<
+        Exception ex) => await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

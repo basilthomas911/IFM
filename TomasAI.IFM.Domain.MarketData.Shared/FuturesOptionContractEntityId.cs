@@ -31,23 +31,3 @@ public record FuturesOptionContractEntityId(
     [IgnoreMember]
     public bool IsValid => !string.IsNullOrWhiteSpace(ContractId) && Year > 0;
 }
-
-[MessagePackObject(AllowPrivate = true)]
-public record FuturesOptionContractsEntityId(
-    [property: Key(0)] int Year)
-    : IActorEntityId
-{
-    /// <summary>
-    /// Parameterless constructor required for some serializers; defaults to the current UTC year.
-    /// </summary>
-    public FuturesOptionContractsEntityId() : this(DateTime.UtcNow.Year) { }
-
-    /// <summary>
-    /// Formats the identifier as a dot-separated key.
-    /// </summary>
-    /// <returns>Formatted string (e.g., "2025").</returns>
-    public string Format() => Year.ToString();
-
-    [IgnoreMember]
-    public bool IsValid => Year > 0;
-}

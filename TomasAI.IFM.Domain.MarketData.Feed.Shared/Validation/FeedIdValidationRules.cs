@@ -14,7 +14,7 @@ public class FeedIdValidationRules : BaseValidationRules, IValidationRules<FeedI
 
     public ValidationError[] Execute(FeedId feedId) => Validate(feedId, new FeedIdValidator());
 
-    class FeedIdValidator : AbstractValidator<FeedId>
+    sealed class FeedIdValidator : AbstractValidator<FeedId>
     {
         public FeedIdValidator()
         {

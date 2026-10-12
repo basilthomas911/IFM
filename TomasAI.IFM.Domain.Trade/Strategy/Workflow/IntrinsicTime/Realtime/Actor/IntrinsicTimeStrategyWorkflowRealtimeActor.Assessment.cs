@@ -22,12 +22,12 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
     {
         var view = snapshot.State;
         if (view.Status != WorkflowStrategyMachineStatus.Started || view.CurrentStage != StrategyWorkflowStage.MarketCondition)
-            throw new ArgumentException("Only a committed Market Condition stage can dispatch Assess.");
-        var binding = view.AssessmentBinding ?? throw new ArgumentException("Workflow has no frozen assessment profile; start a new assessment workflow.");
+            throw new ArgumentException("Only a committed Market Condition stage can dispatch Assess.",nameof(snapshot));
+        var binding = view.AssessmentBinding ?? throw new ArgumentException("Workflow has no frozen assessment profile; start a new assessment workflow.",nameof(snapshot));
         binding.Validate();
         var id = new MarketConditionAssessmentExecutionId(view.EntityId, view.WorkflowId);
         var configuredDeadline = view.UpdatedAtUtc.AddMilliseconds(binding.Parameters.MaximumExecutionMilliseconds);
-        var regime = view.RegimeDiscovery.Result ?? throw new ArgumentException("Missing accepted regime.");
+        var regime = view.RegimeDiscovery.Result ?? throw new ArgumentException("Missing accepted regime.",nameof(snapshot));
         var command = new ExecuteMarketConditionAssessmentCommand
         {
             CommandId = DeterministicPipelineCommandId(view.WorkflowId, view.CurrentStage, view.WorkflowRevision),
@@ -52,6 +52,7 @@ public sealed partial class IntrinsicTimeStrategyWorkflowRealtimeActor
         return command;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A failed Function request is converted to its explicit assessment failure event; the workflow retains a terminal outcome.")]
     static async ValueTask ExecuteAssessmentAsync(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context, WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var clock = RequireEventContext(context).TimeProvider;

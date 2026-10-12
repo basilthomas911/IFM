@@ -7,15 +7,17 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 
 internal static class CommandAuditPostgres
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3265", Justification = "Npgsql documents Array and Range as modifiers that must be combined with the element type using bitwise OR; these values describe PostgreSQL parameter types.")]
     internal static async Task<CommandAuditWriteResult[]> ReserveAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         IReadOnlyList<CommandAuditEnvelope> envelopes,
         CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand(
+        var command = new NpgsqlCommand(
             EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
         { CommandTimeout = 3 };
+        await using var commandDisposal = command.ConfigureAwait(false);
         Add(command, envelopes.Select(static item => item.CommandId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Uuid);
         Add(command, envelopes.Select(static item => item.StreamId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
         Add(command, envelopes.Select(static item => item.ActorName).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
@@ -29,7 +31,8 @@ internal static class CommandAuditPostgres
         Add(command, envelopes.Select(static item => item.Payload.Sha256).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Bytea);
 
         var results = new CommandAuditWriteResult[envelopes.Count];
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
         var count = 0;
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -37,16 +40,16 @@ internal static class CommandAuditPostgres
             if ((uint)ordinal >= (uint)results.Length) throw new InvalidDataException("Invalid command audit ordinal.");
             var accepted = reader.GetBoolean(2);
             var payloadConflict = false;
-            if (!accepted && !reader.IsDBNull(3))
+            if (!accepted && !(await reader.IsDBNullAsync(3,cancellationToken).ConfigureAwait(false)))
             {
-                var storedHash = reader.GetFieldValue<byte[]>(3);
+                var storedHash = (await reader.GetFieldValueAsync<byte[]>(3,cancellationToken).ConfigureAwait(false));
                 if (storedHash.Length != SHA256.HashSizeInBytes ||
                     !CryptographicOperations.FixedTimeEquals(storedHash, envelopes[ordinal].Payload.Sha256))
                     payloadConflict = true;
             }
             results[ordinal] = new CommandAuditWriteResult(
                 accepted,
-                !accepted && reader.IsDBNull(3),
+                !accepted && (await reader.IsDBNullAsync(3,cancellationToken).ConfigureAwait(false)),
                 payloadConflict);
             count++;
         }
@@ -67,12 +70,14 @@ internal static class CommandAuditPostgres
     static async Task<bool> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         CommandAuditEnvelope candidate, CancellationToken token)
     {
-        await using var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = 3 };
+        var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = 3 };
+        await using var readDisposal = read.ConfigureAwait(false);
         read.Parameters.AddWithValue(candidate.CommandId);
-        await using var reader = await read.ExecuteReaderAsync(token).ConfigureAwait(false);
+        var reader = await read.ExecuteReaderAsync(token).ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
         if (!await reader.ReadAsync(token).ConfigureAwait(false) || Enumerable.Range(0, 4).Any(reader.IsDBNull)) return false;
-        var bytes = reader.GetFieldValue<byte[]>(0);
-        var hash = reader.GetFieldValue<byte[]>(3);
+        var bytes = (await reader.GetFieldValueAsync<byte[]>(0,token).ConfigureAwait(false));
+        var hash = (await reader.GetFieldValueAsync<byte[]>(3,token).ConfigureAwait(false));
         if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(bytes), hash)) return false;
         var codec = new CommandAuditMessagePackCodec();
         var stored = codec.Deserialize(candidate.RetryCommandType!, bytes, reader.GetInt16(1), reader.GetInt32(2));

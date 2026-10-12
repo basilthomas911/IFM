@@ -12,6 +12,8 @@ public static class GetSupervisorHealthSummary
     public static ValueTask ExecuteAsync(this GetSupervisorHealthSummaryQuery query,
         ISupervisorQueryActorContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         var snapshot = context.ActorMetrics.Current;
         var result = new SupervisorHealthSummaryReadModel(

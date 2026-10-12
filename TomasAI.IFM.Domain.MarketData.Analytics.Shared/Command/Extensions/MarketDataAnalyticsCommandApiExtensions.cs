@@ -34,6 +34,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         DateTimeOffset sessionEndUtc,
         FuturesVwapConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(checkpoint);
         UpdateFuturesVwapSignalCommand command = new()
         {
@@ -56,6 +57,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         FuturesVwapTradeObservation observation,
         FuturesVwapConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentNullException.ThrowIfNull(configuration);
         UpdateFuturesVwapSignalCommand command = new()
@@ -82,6 +84,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         FuturesVwapTradeObservation[] trades,
         FuturesVwapConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(trades);
         ArgumentNullException.ThrowIfNull(configuration);
         RecoverFuturesVwapSignalCommand command = new()
@@ -109,6 +112,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         FuturesVxTermStructureLegObservation observation,
         FuturesVxTermStructureConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentNullException.ThrowIfNull(configuration);
         UpdateFuturesVxTermStructureSignalCommand command = new()
@@ -129,6 +133,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         this IEventActorContext context,
         FuturesTradeSessionBarReadModel observation)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(observation);
         var entityId = new FuturesTradeSessionBarEntityId(observation.MarketSeriesIdentity, observation.TimeFrame);
         GenerateFuturesEmaSignalCommand command = new()
@@ -148,6 +153,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         FuturesTradeSessionBarReadModel observation,
         FuturesEmaSignalReadModel emaSignal)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentNullException.ThrowIfNull(emaSignal);
         var entityId = new FuturesTradeSessionBarEntityId(observation.MarketSeriesIdentity, observation.TimeFrame);
@@ -177,6 +183,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         DateTime sourceEventTimestamp = default,
         FuturesTradeSessionBarReadModel? observation = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         var entityId = signalId.ToEntityId();
         GenerateFuturesRsiSignalCommand command = new(
             signalId,
@@ -213,6 +221,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         Guid? commandId = null)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         configuration ??= FuturesTdiConfiguration.Standard;
         var normalizedSignalId = new FuturesTdiSignalId(
             signalId.ContractId,
@@ -251,6 +261,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         decimal futuresPrice,
         FuturesTradeSessionBarReadModel? observation = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         var entityId = signalId.ToEntityId();
         GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice, observation)
         {
@@ -278,6 +290,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         decimal futuresPrice,
         FuturesTradeSessionBarReadModel? observation = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         var entityId = signalId.ToEntityId();
         GenerateFuturesAdxSignalCommand command = new(signalId, futuresPrice, observation)
         {
@@ -305,6 +319,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
           decimal futuresPrice,
           FuturesTradeSessionBarReadModel observation)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         var entityId = signalId.ToEntityId();
         GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice, observation)
         {
@@ -332,6 +348,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         FuturesAtrSignalId signalId,
         FuturesTradeSessionBarReadModel observation)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(signalId);
         ArgumentNullException.ThrowIfNull(observation);
         var entityId = signalId.ToDailyEntityId();
         GenerateFuturesAtrDailySignalCommand command = new(signalId, observation.Close, observation)
@@ -356,7 +374,6 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="futuresTdiSignal">The optional TDI signal input.</param>
     /// <param name="futuresItiSignalData">The optional ITI signal input.</param>
     /// <param name="vixFuturesPrice">The current VIX futures price.</param>
-    /// <param name="commandId">An optional stable command identifier used by deterministic durable derivation.</param>
     /// <param name="timePeriod">The signal time-frame type.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesTradeSignalAsync<TActor>(
@@ -369,6 +386,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         TimeFrameType timePeriod)
         where TActor : IActor
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(futuresEodData);
         var entityId = new FuturesTradeSignalEntityId(
             futuresEodData.ContractId ?? string.Empty,
             futuresEodData.ValueDate,
@@ -413,6 +432,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         Guid? commandId = null,
         DateOnly? timeFrameStartValueDate = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var frameStart = timeFrameStartValueDate ?? valueDate;
         var entityId = new FuturesItiSignalEntityId(contractId, frameStart, timePeriod);
         GenerateFuturesItiSignalCommand command = new(
@@ -440,7 +460,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var result = await context.RequestAsync<TCommand, TEntityId>(command);
+        var result = await context.RequestAsync<TCommand, TEntityId>(command).ConfigureAwait(false);
         return result ?? new ServiceFailed<GuidResult>(
             command.ErrorCode,
             $"{command.CommandName} did not return a command result.");

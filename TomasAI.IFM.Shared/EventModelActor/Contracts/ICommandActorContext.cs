@@ -17,9 +17,11 @@ public interface ICommandActorContext
     IContainerInstance Container { get; }
     SupervisorRuntimeContext SupervisorRuntime => null!;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event, CancellationToken cancellationToken)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
@@ -31,6 +33,7 @@ public interface ICommandActorContext
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb);
 }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface ICommandActorContext<TActor> : ICommandActorContext
 where TActor : IActor
 {

@@ -36,6 +36,9 @@ public static class GetFuturesOptionContract
         TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
         MarketDataFeedQueryParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(parameters.MarketDataApi).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new TomasAI.IFM.Shared.EventSourcing.ServiceResult<FuturesOptionContractReadModel>(result)).ConfigureAwait(false);

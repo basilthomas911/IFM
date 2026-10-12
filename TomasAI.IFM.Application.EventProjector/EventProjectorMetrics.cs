@@ -164,6 +164,7 @@ internal static class EventProjectorMetrics
             Volatile.Read(ref value.WorkerCapacity));
     }
 
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     internal readonly record struct ProjectorOperationalMetrics(
         long PendingCount,
         double OldestPendingAgeSeconds,

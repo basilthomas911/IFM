@@ -204,8 +204,8 @@ public static partial class CoreServiceRegistration
         }
         SyntheticPersistenceIsolationGuard.Validate(
         feedOptions,
-        config.GetConnectionString("EventSourceActorDbConnection"),
-        config.GetConnectionString("MarketDataDbConnection"));
+        config["IFM_TEST_POSTGRES_CONNECTION"] ?? config["Storage:PostgresConnection"] ?? config.GetConnectionString("EventSourceActorDbConnection"),
+        config.GetConnectionString("TradeTickQuoteDbConnection"));
         var snapshotSource = feedOptions.DataSource == FeedDataSourceMode.Synthetic
         ? MarketOutlookSnapshotSource.Synthetic
         : MarketOutlookSnapshotSource.DatabentoLive;
@@ -367,6 +367,12 @@ public static partial class CoreServiceRegistration
         TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCacheServiceCollectionExtensions
         .AddStrategyOptionChainCache<TomasAI.IFM.Domain.MarketData.OptionChainCache.StoredOptionUniverseSource>(services);
         services.AddHostedService<DevelopmentOptionChainParameterSeeder>();
+        services.AddSingleton<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>(provider => new(
+            provider.GetRequiredService<IMarketDataDbContext>(), provider.GetRequiredService<IHostEnvironment>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>>()));
+        services.AddSingleton<TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector>(provider =>
+            provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>());
+        services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>());
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.IDurableCompositionReconciler>(provider =>
         provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>());

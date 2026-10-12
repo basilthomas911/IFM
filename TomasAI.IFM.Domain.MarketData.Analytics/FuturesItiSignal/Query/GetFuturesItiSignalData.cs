@@ -31,18 +31,12 @@ public static class GetFuturesItiSignalData
         CancellationToken cancellationToken = default)
     {
         var db = dbFactory.MarketDataDb;
-        var trendDirectionTask = cancellationToken.CanBeCanceled
-            ? db.GetLastFuturesItiSignalTrendDirectionChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken)
-            : db.GetLastFuturesItiSignalTrendDirectionChangeAsync(q.ContractId, q.ValueDate);
-        var trendExtremeTask = cancellationToken.CanBeCanceled
-            ? db.GetLastFuturesItiSignalTrendExtremeChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken)
-            : db.GetLastFuturesItiSignalTrendExtremeChangeAsync(q.ContractId, q.ValueDate);
-        var trendReversalTask = cancellationToken.CanBeCanceled
-            ? db.GetLastFuturesItiSignalTrendReversalChangeAsync(
-                q.ContractId, q.ValueDate, cancellationToken)
-            : db.GetLastFuturesItiSignalTrendReversalChangeAsync(q.ContractId, q.ValueDate);
+        var trendDirectionTask = db.GetLastFuturesItiSignalTrendDirectionChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken);
+        var trendExtremeTask = db.GetLastFuturesItiSignalTrendExtremeChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken);
+        var trendReversalTask = db.GetLastFuturesItiSignalTrendReversalChangeAsync(
+                q.ContractId, q.ValueDate, cancellationToken);
         await Task.WhenAll(trendDirectionTask, trendExtremeTask, trendReversalTask)
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
@@ -59,7 +53,10 @@ public static class GetFuturesItiSignalData
         IDbContextFactory db,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesItiSignalDataQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetFuturesItiSignalDataAsync(db, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalDataQuery.Verb,

@@ -96,6 +96,7 @@ public sealed record RequestBackupRetentionEvaluationCommand : IDatabaseBackupCo
     [Key(7)] public BackupSource Source { get; init; }
     [Key(8)] public DatabaseProtectionSetId? ProtectionSetId { get; init; }
     [Key(9)] public DatabaseConsistencyMode ConsistencyMode { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     [Key(10)] public DatabaseLogicalDestination[] RequiredDestinations { get; init; } = [];
     [Key(11)] public long ExpectedPolicyRevision { get; init; }
     [Key(12)] public long ExpectedStateRevision { get; init; }

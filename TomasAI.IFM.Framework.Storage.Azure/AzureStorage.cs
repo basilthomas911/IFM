@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
@@ -33,17 +33,18 @@ namespace TomasAI.IFM.Framework.Storage.Azure
 
                 // Upload data from backup file...
                 if (progressFunc is not null)
-                    await progressFunc.Invoke($"Uploading {storageFile.Source} to {storageFile.Container}\\{storageFile.Destination}...");
+                    await (progressFunc.Invoke($"Uploading {storageFile.Source} to {storageFile.Container}\\{storageFile.Destination}...")).ConfigureAwait(false);
                 using (var stream = new FileStream(storageFile.Source, FileMode.Open, FileAccess.Read))
                 {
-                    await blobClient.UploadAsync(stream, true);
+                    await (blobClient.UploadAsync(stream, true)).ConfigureAwait(false);
                 }
                 if (progressFunc is not null)
-                    await progressFunc.Invoke($"Upload of {storageFile.Source} to {storageFile.Container}\\{storageFile.Destination} completed");
+                    await (progressFunc.Invoke($"Upload of {storageFile.Source} to {storageFile.Container}\\{storageFile.Destination} completed")).ConfigureAwait(false);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is global::Azure.RequestFailedException or IOException)
             {
-                await progressFunc.Invoke($"Unable to upload {dbName} due to {ex.Message}");
+                if (progressFunc is null) throw;
+                await progressFunc.Invoke($"Unable to upload {dbName} due to {ex.Message}").ConfigureAwait(false);
             }
         }
 

@@ -5,16 +5,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
 
-/// <summary>Defines the readonly EMA realtime context.</summary>
-public interface IFuturesEmaSignalRealtimeContext : IRealtimeActorContext<FuturesEmaSignalRealtimeActor>
-{
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesEmaSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed EMA realtime context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesEmaSignalRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesEmaSignalRealtimeActor>, IFuturesEmaSignalRealtimeContext
+IFuturesEmaSignalRealtimeContext
 {
     /// <summary>Initializes the context.</summary>
     public FuturesEmaSignalRealtimeContext(IActorSupervisor supervisor,

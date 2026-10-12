@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 
@@ -22,11 +22,12 @@ public class RiskFreeRateCacheModel(IRedisCache redisCache, IJsonSerializer json
     /// <returns>risk free rate</returns>
     public async ValueTask<double> GetAsync(DateOnly valueDate, Func<DateOnly, ValueTask<double>> getRiskFreeRateAsync)
     {
+        ArgumentNullException.ThrowIfNull(getRiskFreeRateAsync);
         var key = $"{CacheName}:{valueDate:yyyyMMdd}";
-        var value = _redisCache.Get(key);
+        var value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         return !string.IsNullOrEmpty(value)
-            ? Convert.ToDouble(value)
-            : await GetRiskFreeRateValueAsync();
+            ? Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)
+            : await (GetRiskFreeRateValueAsync()).ConfigureAwait(false);
 
         /// <summary>
         /// Retrieves the risk free rate value from the source and caches it.
@@ -34,8 +35,8 @@ public class RiskFreeRateCacheModel(IRedisCache redisCache, IJsonSerializer json
         /// <returns>The risk free rate value.</returns>
         async Task<double> GetRiskFreeRateValueAsync()
         {
-            var riskFreeRate = await getRiskFreeRateAsync(valueDate);
-            _redisCache.Set(key, $"{riskFreeRate}", TimeSpan.FromMinutes(60));
+            var riskFreeRate = await (getRiskFreeRateAsync(valueDate)).ConfigureAwait(false);
+            await _redisCache.SetAsync(key, riskFreeRate.ToString(System.Globalization.CultureInfo.InvariantCulture), TimeSpan.FromMinutes(60)).ConfigureAwait(false);
             return riskFreeRate;
         }
     }
@@ -52,7 +53,7 @@ public class RiskFreeRateCacheModel(IRedisCache redisCache, IJsonSerializer json
         var key = $"{CacheName}:{valueDate:yyyyMMdd}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
-            ? Convert.ToDouble(value)
+            ? Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)
             : default;
     }
 

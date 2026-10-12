@@ -20,36 +20,34 @@ using TomasAI.IFM.Shared.Validation;
 using System.Collections.Frozen;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Validation;
-
 /// <summary>Pure workflow command validation before loading a workflow snapshot.</summary>
 public static class IntrinsicTimeWorkflowCommandValidation
 {
     private static readonly IntrinsicTimeStrategyWorkflowEntityIdValidationRules EntityRules = new();
-
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
     /// <summary>Applies all intrinsic workflow entity rules, including its ITI signal identity.</summary>
     public static List<ValidationError> ValidateWorkflowEntityId(this List<ValidationError> errors, IntrinsicTimeStrategyWorkflowEntityId entityId)
     {
+        ArgumentNullException.ThrowIfNull(errors);
         errors.AddRange(EntityRules.Execute(entityId));
         return errors;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
     /// <summary>Appends workflow payload and cross-identity failures without throwing or mutating state.</summary>
     public static List<ValidationError> ValidateWorkflowCommand(this List<ValidationError> errors, ICommand<IntrinsicTimeStrategyWorkflowEntityId> command)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
             errors.Add(new("Workflow commands require an entity routing identity."));
-        if (command is ICommand<IntrinsicTimeStrategyWorkflowEntityId> entityCommand &&
-            !string.Equals(command.Subject.EntityId, entityCommand.EntityId.Format(), StringComparison.Ordinal))
+        if (command is ICommand<IntrinsicTimeStrategyWorkflowEntityId> entityCommand && !string.Equals(command.Subject.EntityId, entityCommand.EntityId.Format(), StringComparison.Ordinal))
             errors.Add(new("Workflow command subject must match its entity identity."));
-
-        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute)
-        {
-            if (execute.ProposedWorkflowId.Value == Guid.Empty || execute.TriggerEventId == Guid.Empty ||
-                execute.CorrelationId == Guid.Empty || execute.CausationId == Guid.Empty ||
-                execute.RequestedAtUtc.Kind != DateTimeKind.Utc || execute.WorkflowDefinitionVersion <= 0 ||
-                execute.TriggerEvent is null || execute.TriggerEvent.EntityId != execute.EntityId.ItiSignalEntityId)
-                errors.Add(new("Workflow start requires valid workflow, trigger, trace, time, and routing identities."));
-        }
+        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute &&
+            (execute.ProposedWorkflowId.Value == Guid.Empty || execute.TriggerEventId == Guid.Empty || execute.CorrelationId == Guid.Empty || execute.CausationId == Guid.Empty || execute.RequestedAtUtc.Kind != DateTimeKind.Utc || execute.WorkflowDefinitionVersion <= 0 || execute.TriggerEvent is null || execute.TriggerEvent.EntityId != execute.EntityId.ItiSignalEntityId))
+            errors.Add(new("Workflow start requires valid workflow, trigger, trace, time, and routing identities."));
 
         var completionResult = command switch
         {
@@ -66,15 +64,11 @@ public static class IntrinsicTimeWorkflowCommandValidation
             errors.AddRange(resultErrors);
         }
 
-        if (command is PrepareRiskManagementCommand preparation &&
-            (preparation.WorkflowId.Value == Guid.Empty || preparation.InputWorkflowRevision < 1))
+        if (command is PrepareRiskManagementCommand preparation && (preparation.WorkflowId.Value == Guid.Empty || preparation.InputWorkflowRevision < 1))
             errors.Add(new("Exact Risk preparation identity is required."));
-        if (command is AcceptOrderCompositionPreparationCommand acceptance &&
-            (acceptance.WorkflowId.Value == Guid.Empty || acceptance.InputWorkflowRevision < 1 || acceptance.Evidence is null ||
-             acceptance.Evidence.WorkflowId != acceptance.WorkflowId.Value || acceptance.Evidence.PreparationRevision != acceptance.InputWorkflowRevision))
+        if (command is AcceptOrderCompositionPreparationCommand acceptance && (acceptance.WorkflowId.Value == Guid.Empty || acceptance.InputWorkflowRevision < 1 || acceptance.Evidence is null || acceptance.Evidence.WorkflowId != acceptance.WorkflowId.Value || acceptance.Evidence.PreparationRevision != acceptance.InputWorkflowRevision))
             errors.Add(new("Exact preparation identity is required."));
-        if (command is AdvanceRiskFinancialHandoffCommand handoff &&
-            (handoff.WorkflowId.Value == Guid.Empty || handoff.InputWorkflowRevision < 1 || !Enum.IsDefined(handoff.ExpectedPhase)))
+        if (command is AdvanceRiskFinancialHandoffCommand handoff && (handoff.WorkflowId.Value == Guid.Empty || handoff.InputWorkflowRevision < 1 || !Enum.IsDefined(handoff.ExpectedPhase)))
             errors.Add(new("Exact financial handoff identity and checkpoint are required."));
         if (completionResult is null && command is CompleteRegimeDiscoveryCommand or CompleteMarketConditionCommand or CompleteTradeSelectionCommand or CompleteOrderCompositionCommand)
             errors.Add(new("Completion Result is required."));

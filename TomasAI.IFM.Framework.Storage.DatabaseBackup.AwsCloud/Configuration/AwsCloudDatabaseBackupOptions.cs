@@ -15,6 +15,11 @@ public sealed class AwsCloudDatabaseBackupOptions
 
     public bool Enabled { get; set; }
     public bool AcceptBackupRequests { get; set; }
+    public bool AutomaticRetentionEnabled { get; set; }
+    public TimeSpan AutomaticRetentionInterval { get; set; } = TimeSpan.FromHours(24);
+    public string AutomaticRetentionApprovalReference { get; set; } = string.Empty;
+    public string RetentionReadRoleArn { get; set; } = string.Empty;
+    public string RetentionExecutionRoleArn { get; set; } = string.Empty;
     public bool LiveAwsTestsEnabled { get; set; }
     public bool DestructiveTestsEnabled { get; set; }
     public AwsBackupEnvironment Environment { get; set; } = AwsBackupEnvironment.Development;
@@ -60,6 +65,11 @@ public sealed class AwsCloudDatabaseBackupOptions
     {
         if (!Enabled) return;
         if (!Enum.IsDefined(Environment)) throw Invalid("environment is unsupported");
+        if (AutomaticRetentionEnabled && (Environment != AwsBackupEnvironment.Development
+            || AutomaticRetentionInterval < TimeSpan.FromHours(1)
+            || string.IsNullOrWhiteSpace(AutomaticRetentionApprovalReference)
+            || AutomaticRetentionApprovalReference.Any(char.IsControl)))
+            throw Invalid("automatic retention requires a Development owner authorization and an interval of at least one hour");
         RequireAccount(WorkloadAccountId, nameof(WorkloadAccountId));
         RequireAccount(PrimaryVaultAccountId, nameof(PrimaryVaultAccountId));
         RequireAccount(RecoveryVaultAccountId, nameof(RecoveryVaultAccountId));

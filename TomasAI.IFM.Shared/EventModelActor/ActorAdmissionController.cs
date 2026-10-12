@@ -238,9 +238,3 @@ public sealed class ActorAdmissionController
             ? (int)actorType
             : (int)ActorType.Unknown;
 }
-
-readonly record struct ActorAdmissionCharge(bool IsTracked, ActorType ActorType, int PayloadBytes)
-{
-    // Release may run on a different thread than reservation.
-    public int StripeIndex { get; init; }
-}

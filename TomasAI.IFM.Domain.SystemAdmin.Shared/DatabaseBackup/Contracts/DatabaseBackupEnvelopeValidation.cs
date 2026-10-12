@@ -10,25 +10,44 @@ public static class DatabaseBackupEnvelopeValidation
     private static readonly SourceRules Sources = new();
 
     /// <summary>Validates the recovery operation's intrinsic identity.</summary>
-    public static List<ValidationError> ValidateRecoveryOperationId(this List<ValidationError> errors, DatabaseRecoveryOperationId id, string commandName)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    public static TErrors ValidateRecoveryOperationId<TErrors>(this TErrors errors, DatabaseRecoveryOperationId id, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (id.Value == Guid.Empty) errors.Add(new($"{commandName}.EntityId is required."));
         return errors;
     }
 
     /// <summary>Appends every request envelope failure, including missing envelopes.</summary>
-    public static List<ValidationError> ValidateBackupRequest(this List<ValidationError> errors, DatabaseRequestEnvelope? request)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    public static TErrors ValidateBackupRequest<TErrors>(this TErrors errors, DatabaseRequestEnvelope? request)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (request is null) errors.Add(new("Request is required."));
-        else errors.AddRange(Requests.Validate(request).Errors.Select(static failure => new ValidationError(failure.ErrorMessage)));
+        else
+            foreach (var failure in Requests.Validate(request).Errors)
+                errors.Add(new ValidationError(failure.ErrorMessage));
         return errors;
     }
 
     /// <summary>Appends every source envelope failure, including missing envelopes.</summary>
-    public static List<ValidationError> ValidateBackupSource(this List<ValidationError> errors, DatabaseSourceEnvelope? source)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    public static TErrors ValidateBackupSource<TErrors>(this TErrors errors, DatabaseSourceEnvelope? source)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (source is null) errors.Add(new("Source is required."));
-        else errors.AddRange(Sources.Validate(source).Errors.Select(static failure => new ValidationError(failure.ErrorMessage)));
+        else
+            foreach (var failure in Sources.Validate(source).Errors)
+                errors.Add(new ValidationError(failure.ErrorMessage));
         return errors;
     }
 

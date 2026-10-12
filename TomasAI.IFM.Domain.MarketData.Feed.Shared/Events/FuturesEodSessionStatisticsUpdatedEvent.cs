@@ -95,10 +95,13 @@ public sealed record FuturesEodSessionStatisticsUpdatedEvent : IEvent<FuturesEod
         return (ICompleteEvent<TEntityId>)completed;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserves the existing concrete named-argument API.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserves the existing concrete named-argument API.")]
     public IErrorEvent<TEntityId> ToFailEvent<TFail, TEntityId>(Exception exception)
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(exception);
         if (typeof(TEntityId) != typeof(FuturesEodDataId)
             || typeof(TFail) != typeof(FuturesEodDataInsertedFailEvent))
             throw new InvalidOperationException("The requested failure event does not match the session-statistics event family.");

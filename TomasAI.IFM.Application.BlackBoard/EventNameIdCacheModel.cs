@@ -30,13 +30,13 @@ public class EventNameIdCacheModel(IRedisCache redisCache, IJsonSerializer jsonS
     /// <returns></returns>
     public async Task<EventNameIdReadModel> GetAsync(string eventName, string eventTypeName, Func<string, string, Task<EventNameIdReadModel>> getEventNameId)
     {
-        //var key = jsonSerializer.Serialize(new { CacheName, eventName, eventTypeName });
+        ArgumentNullException.ThrowIfNull(getEventNameId);
         var key = $"{CacheName}:{eventName}.{eventTypeName}";
         if (!redisCache.TryGet(key, out string? value))
         {
-            var eventNameId = await getEventNameId(eventName, eventTypeName);
+            var eventNameId = await (getEventNameId(eventName, eventTypeName)).ConfigureAwait(false);
             value = jsonSerializer.Serialize(eventNameId);
-            redisCache.Set(key, value);
+            await redisCache.SetAsync(key, value).ConfigureAwait(false);
         }
         return string.IsNullOrEmpty(value)
             ? new EventNameIdReadModel(-1, string.Empty, string.Empty)

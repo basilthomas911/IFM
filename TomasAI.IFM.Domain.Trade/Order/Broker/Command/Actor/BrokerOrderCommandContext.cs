@@ -11,25 +11,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command.Actor;
-
-public interface IBrokerOrderCommandContext : ICommandActorContext<BrokerOrderCommandActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IEventSourceActorDbContext DbEventSource { get; }
-    IDurableReplayQueue DurableReplayQueue { get; }
-    IBlackboardService BlackboardService { get; }
-    IActorService ActorService { get; }
-    ITradeBroker TradeBroker { get; }
-    IBrokerOrderReadStore ReadStore { get; }
-    IBrokerAccountReadStore BrokerAccountStore { get; }
-    BrokerOrderObservationBridge ObservationBridge { get; }
-    IEventProjector<BrokerOrderCommandActor> EventProjector { get; }
-    IEventSourceActorStateRepository<BrokerOrderCommandState> StateRepository { get; }
-    ILogger<BrokerOrderCommandActor> Logger { get; }
-}
-
-public sealed class BrokerOrderCommandContext : CommandActorContext,
-    ICommandActorContext<BrokerOrderCommandActor>, IBrokerOrderCommandContext
+public sealed class BrokerOrderCommandContext : CommandActorContext, IBrokerOrderCommandContext
 {
     private readonly Lazy<IEventSourceActorDbContext> _eventSource;
     private readonly Lazy<IDurableReplayQueue> _replay;
@@ -40,10 +22,8 @@ public sealed class BrokerOrderCommandContext : CommandActorContext,
     private readonly Lazy<BrokerOrderObservationBridge> _observationBridge;
     private readonly Lazy<IEventProjector<BrokerOrderCommandActor>> _projector;
     private readonly Lazy<IEventSourceActorStateRepository<BrokerOrderCommandState>> _repository;
-
-    public BrokerOrderCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        IBlackboardService blackboardService, ILogger<BrokerOrderCommandActor> logger)
-        : base(supervisor, new ActorMailboxId(ActorType.Command, BrokerOrderCommandActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public BrokerOrderCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<BrokerOrderCommandActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Command, BrokerOrderCommandActor.ActorName))
     {
         DbFactory = dbFactory;
         BlackboardService = blackboardService;
@@ -71,5 +51,7 @@ public sealed class BrokerOrderCommandContext : CommandActorContext,
     public BrokerOrderObservationBridge ObservationBridge => _observationBridge.Value;
     public IEventProjector<BrokerOrderCommandActor> EventProjector => _projector.Value;
     public IEventSourceActorStateRepository<BrokerOrderCommandState> StateRepository => _repository.Value;
-    private Lazy<T> ResolveOnce<T>() where T : class => new(() => Container.Resolve<T>());
+
+    private Lazy<T> ResolveOnce<T>()
+        where T : class => new(() => Container.Resolve<T>());
 }

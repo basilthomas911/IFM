@@ -29,16 +29,15 @@ public class ActorStateFactoryResolver(Func<Type, object> resolverFunction = def
     /// specified type.</remarks>
     /// <param name="genericActorStateType">The type of the object to resolve.</param>
     /// <returns>An instance of the specified type if the resolution is successful; otherwise, the default value for the type.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A resolver miss or activation failure is returned to the caller as no matching handler.")]
     public object Resolve(Type genericActorStateType)
     {
         try
         {
             return _resolverFunction?.Invoke(genericActorStateType)!;
         }
-        catch { }
-        {
-            return default!;
-        }
+        catch { /* Resolution failure returns no matching instance to the caller. */ }
+        return default!;
     }
 
 }

@@ -16,6 +16,7 @@ public sealed record GetScheduledTaskRunHistoryQuery : IQuery<ScheduledTaskRunPa
     [Key(3)] public string HostId { get; init; } = "development";
     [Key(4)] public int PageSize { get; init; } = 50;
     [Key(5)] public ScheduledTaskId ScheduleId { get; init; } = default;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     [Key(6)] public byte[]? PagingState { get; init; }
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
     [IgnoreMember] public int ErrorCode => 9300;

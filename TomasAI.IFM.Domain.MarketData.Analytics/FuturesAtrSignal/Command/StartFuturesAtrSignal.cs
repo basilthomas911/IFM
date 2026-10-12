@@ -18,6 +18,8 @@ public static class StartFuturesAtrSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StartFuturesAtrSignalCommand command, FuturesAtrSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply ATR start event";
         var updated = command.Compute(state.AtrSignal, out var futuresAtrInitialization) switch
         {

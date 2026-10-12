@@ -18,6 +18,8 @@ public static class SubmitSpreadDistributionJob
     /// <returns>The command identity on success, otherwise the business or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this SubmitSpreadDistributionJobCommand command, SpreadDistributionJobCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionJobSubmittedEvent";
         var updated = command.Compute(state.SpreadDistributionJob, out var spreadDistributionChange) switch
         {

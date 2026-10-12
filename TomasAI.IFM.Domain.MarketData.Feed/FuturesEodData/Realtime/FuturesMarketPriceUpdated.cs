@@ -11,6 +11,7 @@ public static class FuturesMarketPriceUpdated
         this FuturesMarketPriceUpdatedRealtimeEvent domainEvent,
         IFuturesEodDataRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         _ = await VxQuoteMarketPriceUpdated.ExecuteVxQuoteAsync(
             domainEvent, context.MarketDataApi, context.Projector,
             context.StatusConsoleWriter, context.Logger).ConfigureAwait(false);

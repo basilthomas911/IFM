@@ -21,6 +21,7 @@ internal static class FuturesTradeSignalPrerequisites
     internal static bool ShouldGenerate(FuturesItiSignalGeneratedCompleteEvent source)
         => source.EntityId.TimePeriod == TriggerTimePeriod;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "Each provider ValueTask is converted to Task exactly once; WhenAll and subsequent awaits consume only the Task.")]
     internal static async ValueTask<FuturesTradeSignalPrerequisiteResult> LoadAsync<TActor>(
         FuturesItiSignalGeneratedCompleteEvent source,
         IEventActorContext<TActor> context)
@@ -87,14 +88,3 @@ internal static class FuturesTradeSignalPrerequisites
             missing.Count == 0 ? null : string.Join(", ", missing));
     }
 }
-
-internal sealed record FuturesTradeSignalPrerequisiteResult(
-    FuturesTradeSignalInputs? Inputs,
-    string? MissingInputs);
-
-internal sealed record FuturesTradeSignalInputs(
-    FuturesEodDataV2ReadModel FuturesEodData,
-    FuturesRsiSignalReadModel? FuturesRsiSignal,
-    FuturesTdiSignalReadModel? FuturesTdiSignal,
-    FuturesItiSignalDataReadModel? FuturesItiSignalData,
-    decimal VixFuturesPrice);

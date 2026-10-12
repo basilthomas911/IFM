@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -42,7 +42,9 @@ public record AddFuturesContractCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the established instance event, read-model or validation API used by existing consumers.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the established instance event, read-model or validation API used by existing consumers.")]
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Parameterless constructor required by serializers.</summary>
@@ -55,6 +57,7 @@ public record AddFuturesContractCommand
     /// <param name="overwrite">Whether to overwrite an existing contract.</param>
     public AddFuturesContractCommand(FuturesContractV3ReadModel contract, bool overwrite = false)
     {
+        ArgumentNullException.ThrowIfNull(contract);
         Contract = IsArgumentNull.Set(contract);
         EntityId = contract.Id;
         Overwrite = overwrite;

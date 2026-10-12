@@ -16,9 +16,9 @@ public static class FuturesTradeSessionBarClosed
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         if (!@event.Observation.IsValid) return true;
-        var result = await context.GenerateFuturesEmaSignalAsync(@event.Observation);
+        var result = await (context.GenerateFuturesEmaSignalAsync(@event.Observation)).ConfigureAwait(false);
         if (result is ServiceFailed<GuidResult>)
-            logger.LogError("EMA command rejected observation {ObservationId}.", @event.Observation.ObservationId);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write34(logger, null, @event.Observation.ObservationId);
         return result is not ServiceFailed<GuidResult>;
     }
 }

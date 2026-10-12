@@ -11,10 +11,10 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Portfolio.OrderComposition.Function.Actor;
 
-public sealed class PortfolioOrderCompositionFunctionActor(IPortfolioOrderCompositionFunctionContext context)
+public sealed class PortfolioOrderCompositionFunctionActor(IPortfolioOrderCompositionFunctionContext services)
     : BaseEventSourceFunctionActor<PortfolioOrderCompositionFunctionActor, EvaluatePortfolioOrderCompositionCommand,
         FinancialExecutionId, FinancialExecutionId, PortfolioOrderCompositionFunctionState,
-        PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>(context, context.StateRepository, null, context.Logger)
+        PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>(services, services.StateRepository, null, services.Logger)
 {
     public const string ActorName = EvaluatePortfolioOrderCompositionCommand.Actor;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, EvaluatePortfolioOrderCompositionCommand>> parseMap =
@@ -24,7 +24,7 @@ public sealed class PortfolioOrderCompositionFunctionActor(IPortfolioOrderCompos
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
             [typeof(EvaluatePortfolioOrderCompositionCommand)] = command =>
-            new List<ValidationError>().ValidateFinancialRequest<EvaluatePortfolioOrderCompositionCommand, PortfolioOrderCandidate>(
+            new List<ValidationError>().ValidateFinancialRequest<EvaluatePortfolioOrderCompositionCommand, PortfolioOrderCandidate, List<ValidationError>>(
                 (EvaluatePortfolioOrderCompositionCommand)command, ActorType.Function, ActorName, EvaluatePortfolioOrderCompositionCommand.Verb)
         }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<EvaluatePortfolioOrderCompositionCommand, IPortfolioOrderCompositionFunctionContext,
@@ -42,11 +42,11 @@ public sealed class PortfolioOrderCompositionFunctionActor(IPortfolioOrderCompos
         new Dictionary<Type, Func<EvaluatePortfolioOrderCompositionCommand, FunctionFailureStage, IPortfolioOrderCompositionFunctionContext, FunctionExecutionPolicy>>
         { [typeof(EvaluatePortfolioOrderCompositionCommand)] = (request, stage, owner) => request.ResolveExecutionPolicy(stage, owner) }.ToFrozenDictionary();
 
-    protected override EvaluatePortfolioOrderCompositionCommand ParseMessage(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> owner, IActorMessage message) => ParseMappedFunction(owner, message, parseMap);
-    protected override ValueTask ValidateAsync(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> owner, ActorThreadId threadId, EvaluatePortfolioOrderCompositionCommand request, CancellationToken token) { token.ThrowIfCancellationRequested(); ValidateMappedCommand(request, validationMap); return ValueTask.CompletedTask; }
-    protected override FunctionExecutionPolicy ResolveExecutionPolicy(EvaluatePortfolioOrderCompositionCommand request, FunctionFailureStage stage) => DispatchMappedExecutionPolicy(request, stage, context, policyMap);
-    protected override ValueTask<FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>> ExecuteFunctionAsync(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> owner, PortfolioOrderCompositionFunctionState state, EvaluatePortfolioOrderCompositionCommand request, CancellationToken token) => ResolveMappedFunctionHandler(request, receiveMap)(request, context, input => HandleFunctionEvent(owner, input), token);
-    protected override FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> HandleFunctionEvent(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> owner, FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input) => MapEvent(input, context.TimeProvider);
+    protected override EvaluatePortfolioOrderCompositionCommand ParseMessage(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> context, IActorMessage message) => ParseMappedFunction(context, message, parseMap);
+    protected override ValueTask ValidateAsync(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> context, ActorThreadId threadId, EvaluatePortfolioOrderCompositionCommand request, CancellationToken cancellationToken) { cancellationToken.ThrowIfCancellationRequested(); ValidateMappedCommand(request, validationMap); return ValueTask.CompletedTask; }
+    protected override FunctionExecutionPolicy ResolveExecutionPolicy(EvaluatePortfolioOrderCompositionCommand request, FunctionFailureStage stage) => DispatchMappedExecutionPolicy(request, stage, services, policyMap);
+    protected override ValueTask<FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent>> ExecuteFunctionAsync(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> context, PortfolioOrderCompositionFunctionState state, EvaluatePortfolioOrderCompositionCommand request, CancellationToken cancellationToken) => ResolveMappedFunctionHandler(request, receiveMap)(request, services, input => HandleFunctionEvent(context, input), cancellationToken);
+    protected override FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> HandleFunctionEvent(IFunctionActorContext<PortfolioOrderCompositionFunctionActor> context, FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input) => MapEvent(input, services.TimeProvider);
     internal static FunctionResult<PortfolioOrderCompositionCompletedEvent, PortfolioOrderCompositionFailedEvent> MapEvent(
         FunctionEventContext<EvaluatePortfolioOrderCompositionCommand> input, TimeProvider clock)
         => DispatchMappedFunctionEvent(input, clock, eventMap);

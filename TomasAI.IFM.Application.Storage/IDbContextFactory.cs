@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
@@ -30,8 +32,8 @@ public interface IDbContextFactory
     IEventSourceActorDbContext ActorEventSourceDb { get; }
     IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
 
-    //IObjectRepository<MarketDataDbContext> MarketDataDb { get; }
     IMarketDataDbContext MarketDataDb { get; }
+    ITradeTickQuoteDbContext TradeTickQuoteDb { get; }
     IOptionPricerDbContext OptionPricerDb { get; }
     IReferenceDbContext ReferenceDb { get; }
     ISecuritiesDbContext SecuritiesDb { get; }
@@ -45,6 +47,7 @@ public interface IDbContextFactory
     EventSourceSchemaDb EventSourceSchema { get; }
     SequenceIdSchemaDb SequenceIdSchema { get; }
     MarketDataSchemaDb MarketDataSchema { get; }
+    TradeTickQuoteSchemaDb TradeTickQuoteSchema { get; }
     OptionPricerSchemaDb OptionPricerSchema { get; }
     ReferenceSchemaDb ReferenceSchema { get; }
     SecuritiesSchemaDb SecuritiesSchema { get; }

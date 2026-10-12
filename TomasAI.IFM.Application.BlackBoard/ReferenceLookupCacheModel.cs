@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 
@@ -20,6 +20,7 @@ public class ReferenceLookupCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// </summary>
     /// <param name="id"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published concrete collection contract used by callers.")]
     public Dictionary<string, List<string>>? Get()
     {
         var key = $"{CacheName}";
@@ -33,6 +34,7 @@ public class ReferenceLookupCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// cache reference lookup data
     /// </summary>
     /// <param name="referenceLookup"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the published concrete collection contract used by callers.")]
     public void Set(Dictionary<string, List<string>> referenceLookup)
     {
         var key = $"{CacheName}";

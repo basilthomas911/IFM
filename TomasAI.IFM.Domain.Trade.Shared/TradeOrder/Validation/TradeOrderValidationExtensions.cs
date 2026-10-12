@@ -15,8 +15,11 @@ public static class TradeOrderValidationExtensions
     /// </summary>
     /// <param name="validationErrors"></param>
     /// <param name="tradeOrder"></param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Preserve the existing concrete serialized collection model contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the existing concrete serialized collection model contract.")]
     public static List<ValidationError> ValidateTradeOrder(this List<ValidationError> validationErrors, TradeOrderReadModel tradeOrder)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new TradeOrderValidationRules().Execute(tradeOrder);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);

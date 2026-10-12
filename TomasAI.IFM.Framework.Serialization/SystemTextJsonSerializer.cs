@@ -22,6 +22,7 @@ public class SystemTextJsonSerializer : IJsonSerializer
 
     public object Deserialize(string content, Type contentType) => JsonSerializer.Deserialize(content, contentType, _options)!;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the serializer content-type array contract used by existing adapters.")]
     public string[] SupportedContentTypes { get; } = { "application/json", "text/json", "text/x-json", "text/javascript", "*+json" };
 
     public string ContentType { get; set; } = "application/json";

@@ -70,6 +70,7 @@ public sealed record CreateRegimeDiscoveryParameterSetCommand
     /// <inheritdoc />
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance property implements command or exception metadata required by the published interface.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
     /// <inheritdoc />
     [IgnoreMember] public string OriginatedBy => CreatedBy;

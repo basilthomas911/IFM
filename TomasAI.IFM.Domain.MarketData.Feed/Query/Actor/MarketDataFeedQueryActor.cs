@@ -23,9 +23,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
 
     /// <summary>Gets the typed query context supplied at construction.</summary>
     protected IMarketDataFeedQueryContext QueryContext { get; } =
-        IsArgumentNull.Set(actorContext as IMarketDataFeedQueryContext, nameof(actorContext))!;
-
-    readonly ILogger<MarketDataFeedQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+        IsArgumentNull.Named(actorContext as IMarketDataFeedQueryContext, nameof(actorContext))!;
     readonly MarketDataFeedQueryParameters _qryParameters = new(
         ((IMarketDataFeedQueryContext)actorContext).MarketDataApi, ((IMarketDataFeedQueryContext)actorContext).SequenceIdGenerator,
         ((IMarketDataFeedQueryContext)actorContext).DbFactory, ((IMarketDataFeedQueryContext)actorContext).MarketDataServiceStore,
@@ -45,7 +43,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetFuturesOptionContractQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionContractQuery, FuturesOptionContractReadModel>()!,
         [GetFuturesOptionSpreadDataQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionSpreadDataQuery, FuturesOptionSpreadDataReadModel>()!,
@@ -108,6 +106,6 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

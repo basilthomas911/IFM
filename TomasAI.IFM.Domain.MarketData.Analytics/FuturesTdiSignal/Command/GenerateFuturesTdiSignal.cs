@@ -18,6 +18,8 @@ public static class GenerateFuturesTdiSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesTdiSignalCommand command, FuturesTdiSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply generated TDI signal event";
         var updated = command.Compute(state.TdiSignal, out var futuresTdiSignalCompute) switch
         {

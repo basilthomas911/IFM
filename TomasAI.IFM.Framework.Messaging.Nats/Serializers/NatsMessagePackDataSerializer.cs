@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 /// format.</remarks>
 public class NatsMessagePackDataSerializer : IDataSerializer
 {
-    readonly IBinarySerializer _serializer = new MessagePackBinarySerializer();
+    readonly MessagePackBinarySerializer _serializer = new MessagePackBinarySerializer();
 
     /// <summary>
     /// Deserializes the specified byte array into an object of the specified type.

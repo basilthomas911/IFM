@@ -15,18 +15,19 @@ public sealed record TradeSelectionActivation
     [JsonRequired] public string InstrumentRoot { get; init; } = string.Empty;
     [JsonRequired] public TimeFrameType TargetHorizon { get; init; }
     [JsonRequired] public SelectionPipelinePolicyReference SelectionPolicyReference { get; init; } = new();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonRequired] public CatalogKey[] DeploymentKeys { get; init; } = [];
     static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
     public static TradeSelectionActivation Read(string json)
     {
         TradeSelectionPolicy.CheckJson(json);
-        var p = JsonSerializer.Deserialize<TradeSelectionActivation>(json, Options) ?? throw new ArgumentException("Missing activation."); p.Validate(); return p;
+        var p = JsonSerializer.Deserialize<TradeSelectionActivation>(json, Options) ?? throw new ArgumentException("Missing activation.",nameof(json)); p.Validate(); return p;
     }
     public string Serialize() { Validate(); return JsonSerializer.Serialize(this, Options); }
     public string Hash() => TradeSelectionPolicy.HashJson(Serialize());
     public void Validate()
     {
-        TradeSelectionContracts.Require(SchemaVersion is 1 or 2 && ParameterSetId != Guid.Empty && Version > 0 && InstrumentRoot == "ES" && TradeSelectionPolicy.IsHorizon(TargetHorizon), "TS.CONFIG.ACTIVATION", "Invalid workflow activation.");
+        TradeSelectionContracts.Require(SchemaVersion is 1 or 2 && ParameterSetId != Guid.Empty && Version > 0 && string.Equals(InstrumentRoot,"ES",StringComparison.Ordinal) && TradeSelectionPolicy.IsHorizon(TargetHorizon), "TS.CONFIG.ACTIVATION", "Invalid workflow activation.");
         if (SchemaVersion == 1)
             TradeSelectionContracts.Require(PortfolioId > 0 && FundId is null or > 0, "TS.CONFIG.ACTIVATION", "Legacy activation requires Portfolio/Fund authority.");
         else

@@ -76,5 +76,9 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
         $"ALTER TABLE {table} DROP {column};",
         ["already exists", "conflicts with an existing column"]);
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    static readonly SchemaObjectDefinition[] PostgresObjects =
+        [new("trade",TradeSchemaSql.Create,"DROP SCHEMA IF EXISTS trade CASCADE;")];
+
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
+        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
 }

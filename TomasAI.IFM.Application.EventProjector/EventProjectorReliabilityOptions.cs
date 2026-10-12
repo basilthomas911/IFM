@@ -46,6 +46,7 @@ public sealed record EventProjectorReliabilityOptions
     /// When set, only these projectors may use durable JetStream replay. An empty list
     /// makes every projector transient. Null preserves descriptor defaults.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Configuration binder contract uses an array of projector names; runtime consumes it during startup validation.")]
     public string[]? DurableProjectorAllowlist { get; init; }
 
     public EventProjectorReliabilityOptions Validate()
@@ -63,15 +64,15 @@ public sealed record EventProjectorReliabilityOptions
         if (TransactionalOutboxEnabled && !FencedExecutionEnabled)
             throw new InvalidOperationException("Transactional outbox dispatch requires fenced execution.");
         if (InitialReplayDelay <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(InitialReplayDelay));
+            throw new InvalidOperationException("InitialReplayDelay is outside its configured range.");
         if (ClaimLeaseDuration <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(ClaimLeaseDuration));
+            throw new InvalidOperationException("ClaimLeaseDuration is outside its configured range.");
         if (OutboxPollingInterval <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(OutboxPollingInterval));
+            throw new InvalidOperationException("OutboxPollingInterval is outside its configured range.");
         if (OutboxDispatchLeaseDuration <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(OutboxDispatchLeaseDuration));
+            throw new InvalidOperationException("OutboxDispatchLeaseDuration is outside its configured range.");
         if (MetricsPollingInterval < TimeSpan.FromSeconds(1) || MetricsPollingInterval > TimeSpan.FromMinutes(5))
-            throw new ArgumentOutOfRangeException(nameof(MetricsPollingInterval));
+            throw new InvalidOperationException("MetricsPollingInterval is outside its configured range.");
         return this;
     }
 

@@ -14,11 +14,11 @@ public static class FuturesEmaSignalGeneratedComplete
     public static async ValueTask<bool> ExecuteAsync(this FuturesEmaSignalGeneratedCompleteEvent @event,
         IFuturesEmaSignalEventContext context, ILogger<FuturesEmaSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
-        var result = await context.GenerateFuturesBbSignalAsync(@event.Observation, @event.FuturesEmaSignal);
+        var result = await (context.GenerateFuturesBbSignalAsync(@event.Observation, @event.FuturesEmaSignal)).ConfigureAwait(false);
         if (result is ServiceFailed<GuidResult>)
-            logger.LogError("Bollinger command rejected EMA observation {ObservationId}.",
-                @event.FuturesEmaSignal.Metadata.ObservationId);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write40(logger, null, @event.FuturesEmaSignal.Metadata.ObservationId);
         return result is not ServiceFailed<GuidResult>;
     }
 }

@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Application.Blackboard;
 /// </summary>
 /// <param name="redisCache"></param>
 /// <param name="jsonSerializer"></param>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the published domain and protocol type name.")]
 public class IronCondorMDILimitCacheModel(IRedisCache redisCache, IJsonSerializer jsonSerializer)
 {
     readonly string CacheName = $"{DataCacheName.IronCondorMDILimit}";
@@ -25,6 +26,7 @@ public class IronCondorMDILimitCacheModel(IRedisCache redisCache, IJsonSerialize
     /// <returns></returns>
     public IronCondorMDILimitDataModel? Get(OptionTradeEntityId id, DateOnly valueDate)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()},{valueDate:yyyyMMdd}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -40,6 +42,7 @@ public class IronCondorMDILimitCacheModel(IRedisCache redisCache, IJsonSerialize
     /// <param name="ironCondorMDILimit"></param>
     public void Set(OptionTradeEntityId id, DateOnly valueDate, IronCondorMDILimitDataModel ironCondorMDILimit)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()},{valueDate:yyyyMMdd}";
         var value = _jsonSerializer.Serialize(ironCondorMDILimit);
         _redisCache.Set(key, value);

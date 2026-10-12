@@ -2,14 +2,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Query;
 
-/// <summary>The selected cached contracts and the actual selected strike boundaries.</summary>
-/// <param name="Contracts">Cached contracts selected for the chain.</param>
-/// <param name="LowerBound">Lowest selected strike, excluding only required legs outside the window.</param>
-/// <param name="UpperBound">Highest selected strike, excluding only required legs outside the window.</param>
-/// <param name="Method">Selection method, including whether the IV window was clipped.</param>
-public sealed record OptionChainStrikeWindowResult(
-    FuturesOptionContractReadModel[] Contracts, decimal? LowerBound, decimal? UpperBound, string Method);
-
 /// <summary>Pure selectors for cached option strikes; pricing and live subscription happen elsewhere.</summary>
 public static class OptionChainStrikeWindow
 {

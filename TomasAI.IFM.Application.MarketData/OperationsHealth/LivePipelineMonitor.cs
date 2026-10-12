@@ -6,22 +6,12 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
-
-public interface ILivePipelineProbe
-{
-    Task<LivePipelineHealthSnapshot> CheckAsync(CancellationToken token);
-    Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token);
-    Task RecoverDownstreamAsync(LivePipelineCheck unhealthyCheck, DateOnly valueDate, CancellationToken token);
-}
-
 /// <summary>
 /// Single owner of the minute audit. Dataset-owned upstream failures receive a five-minute
 /// confirmation window. Downstream failures receive a one-minute confirmation window and
 /// are recovered through their own lifecycle owner.
 /// </summary>
-public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider time,
-    ILogger<LivePipelineMonitor> logger, LivePipelineEvidence? evidence = null,
-    IStatusConsoleWriter? statusConsole = null, LivePipelineMonitorOptions? configuredOptions = null) : BackgroundService
+public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider time, ILogger<LivePipelineMonitor> logger, LivePipelineEvidence? evidence = null, IStatusConsoleWriter? statusConsole = null, LivePipelineMonitorOptions? configuredOptions = null) : BackgroundService
 {
     static readonly TimeSpan DownstreamRecoveryDelay = TimeSpan.FromMinutes(1);
     readonly LivePipelineMonitorOptions options = (configuredOptions ?? new()).Validate();
@@ -36,33 +26,33 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     string lastHardResetState = "NotRequired";
     string? lastHardResetError;
     bool recoveryEpisodeTerminal;
-
     public LivePipelineHealthSnapshot Current
     {
         get
         {
             var value = Volatile.Read(ref current);
-            if (time.GetUtcNow().UtcDateTime - value.ObservedUtc <= TimeSpan.FromSeconds(90)) return value;
+            if (time.GetUtcNow().UtcDateTime - value.ObservedUtc <= TimeSpan.FromSeconds(90))
+                return value;
             return value with
             {
                 Status = "Unknown",
-                Checks = value.Checks.Append(new LivePipelineCheck(
-                "Health monitor", "minute cycle", "Unknown", "Health observation is overdue.", time.GetUtcNow().UtcDateTime)).ToArray()
+                Checks = value.Checks.Append(new LivePipelineCheck("Health monitor", "minute cycle", "Unknown", "Health observation is overdue.", time.GetUtcNow().UtcDateTime)).ToArray()
             };
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task CheckOnceAsync(CancellationToken token)
     {
-        if (!await gate.WaitAsync(0, token).ConfigureAwait(false)) return;
+        if (!await gate.WaitAsync(0, token).ConfigureAwait(false))
+            return;
         try
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(TimeSpan.FromSeconds(40));
             var next = await probe.CheckAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
             var now = time.GetUtcNow().UtcDateTime;
-
-            if (next.ValueDate is null || next.Status == "Inactive")
+            if (next.ValueDate is null || string.Equals(next.Status, "Inactive", StringComparison.Ordinal))
             {
                 upstreamRecoveries.Clear();
                 downstreamRecoveries.Clear();
@@ -76,53 +66,31 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
 
             var upstream = next.Checks.Where(IsHardResetTrigger).ToArray();
             UpdateUpstreamWindows(upstream, now);
-            var recoverable = next.Checks
-                .Where(check => check.Required && check.Component != "Market Outlook inputs"
-                    && DownstreamTarget(check) is not null)
-                .GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal)
-                .Select(group => group.FirstOrDefault(check => !IsHealthy(check)) ?? group.First())
-                .OrderBy(check => DownstreamRank(DownstreamTarget(check)!))
-                .ToArray();
+            var recoverable = next.Checks.Where(check => check.Required && !string.Equals(check.Component, "Market Outlook inputs", StringComparison.Ordinal) && DownstreamTarget(check)is not null).GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal).Select(group => group.FirstOrDefault(check => !IsHealthy(check)) ?? group.First()).OrderBy(check => DownstreamRank(DownstreamTarget(check)!)).ToArray();
             UpdateDownstreamWindows(recoverable, now);
             Publish(Decorate(next));
             LogUnhealthyChecks(next);
             // A completed feed reset gets its full observation window. Old component retry
             // counters must not launch another reset or replace actors from pre-reset evidence.
-            var observingReset = lastHardResetUtc is { } resetUtc
-                && now - resetUtc < options.RecoveryObservationWindow;
-
-            var dueUpstream = upstream
-                .Where(check => !recoveryEpisodeTerminal && !IsHealthy(check)
-                    && upstreamRecoveries.TryGetValue(CheckKey(check), out var recovery)
-                    && recovery.Attempts < options.MaximumHardResetAttempts
-                    && (recovery.Attempts == 0
-                        ? now - recovery.UnhealthySinceUtc >= options.HardResetDelay
-                        : recovery.State is "HardResetFailed" or "HardResetRecoveryFailed"
-                          && recovery.LastAttemptUtc is { } attempted
-                          && now - attempted >= options.RecoveryObservationWindow))
-                .ToArray();
-            var exhaustedDownstream = downstreamRecoveries.Where(pair => pair.Value.Attempts >= 3
-                && pair.Value.State is "Failed" or "Requested"
-                && pair.Value.LastAttemptUtc is { } last && now - last >= DownstreamRecoveryDelay)
-                .Select(pair => pair.Key).ToArray();
-            var forcedResetDue = options.ForceOneHardResetAfterStartup
-                && !forcedHardResetRequested
-                && now - monitorStartedUtc >= options.HardResetDelay;
+            var observingReset = lastHardResetUtc is { } resetUtc && now - resetUtc < options.RecoveryObservationWindow;
+            var dueUpstream = upstream.Where(check => !recoveryEpisodeTerminal && !IsHealthy(check) && upstreamRecoveries.TryGetValue(CheckKey(check), out var recovery) && recovery.Attempts < options.MaximumHardResetAttempts && (recovery.Attempts == 0 ? now - recovery.UnhealthySinceUtc >= options.HardResetDelay : recovery.State is "HardResetFailed" or "HardResetRecoveryFailed" && recovery.LastAttemptUtc is { } attempted && now - attempted >= options.RecoveryObservationWindow)).ToArray();
+            var exhaustedDownstream = downstreamRecoveries.Where(pair => pair.Value.Attempts >= 3 && pair.Value.State is "Failed" or "Requested" && pair.Value.LastAttemptUtc is { } last && now - last >= DownstreamRecoveryDelay).Select(pair => pair.Key).ToArray();
+            var forcedResetDue = options.ForceOneHardResetAfterStartup && !forcedHardResetRequested && now - monitorStartedUtc >= options.HardResetDelay;
             if (!recoveryEpisodeTerminal && !observingReset && (dueUpstream.Length > 0 || exhaustedDownstream.Length > 0 || forcedResetDue))
             {
                 forcedHardResetRequested = true;
                 foreach (var target in exhaustedDownstream)
                     downstreamRecoveries[target] = downstreamRecoveries[target] with
-                    { State = "EscalatedToHardReset", LastAttemptUtc = now };
+                    {
+                        State = "EscalatedToHardReset",
+                        LastAttemptUtc = now
+                    };
                 if (exhaustedDownstream.Length > 0)
-                    logger.LogWarning("Realtime recovery exhausted three soft resets; Method={Method}; Targets={Targets}; invoking existing hard reset policy.",
-                        nameof(CheckOnceAsync), string.Join(", ", exhaustedDownstream));
+                    ApplicationDiagnosticLog.Write5(logger, null, nameof(CheckOnceAsync), string.Join(", ", exhaustedDownstream));
                 if (forcedResetDue)
-                    logger.LogWarning(
-                        "{Component}.{Method} "+"The configured five-minute startup boundary was reached. Performing the one-shot complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
+                    ApplicationDiagnosticLog.Write6(logger, null, nameof(LivePipelineMonitor), nameof(CheckOnceAsync));
                 else if (dueUpstream.Length > 0)
-                    logger.LogWarning(
-                        "{Component}.{Method} "+"Required live-pipeline health remained unhealthy for five minutes ({Components}). Performing a complete hard reset.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync),                        string.Join(", ", dueUpstream.Select(CheckKey)));
+                    ApplicationDiagnosticLog.Write7(logger, null, nameof(LivePipelineMonitor), nameof(CheckOnceAsync), string.Join(", ", dueUpstream.Select(CheckKey)));
                 lastHardResetUtc = now;
                 lastHardResetState = "HardResetInProgress";
                 lastHardResetError = null;
@@ -130,26 +98,22 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 {
                     using var resetDeadline = CancellationTokenSource.CreateLinkedTokenSource(token);
                     resetDeadline.CancelAfter(options.RecoveryObservationWindow);
-                    await probe.HardResetAsync(next, resetDeadline.Token)
-                        .WaitAsync(resetDeadline.Token).ConfigureAwait(false);
+                    await probe.HardResetAsync(next, resetDeadline.Token).WaitAsync(resetDeadline.Token).ConfigureAwait(false);
                     lastHardResetState = "HardResetCompletedAwaitingRecovery";
                     var completedUtc = time.GetUtcNow().UtcDateTime;
                     lastHardResetUtc = completedUtc;
                     AdvanceUpstreamRecovery(completedUtc, lastHardResetState, null);
                     downstreamRecoveries.Clear();
                 }
-                catch (DatabentoRecoveryEpisodeStatusException ex)
-                    when (ex.Result.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
+                catch (DatabentoRecoveryEpisodeStatusException ex)when (ex.Result.Outcome == DatabentoRecoveryRequestOutcome.AlreadyInProgress)
                 {
                     lastHardResetState = "HardResetInProgress";
                     AdvanceUpstreamRecovery(now, lastHardResetState, null);
-                    logger.LogInformation("{Component}.{Method} "+"Duplicate hard reset request ignored; the authoritative recovery episode remains active. CorrelationId={CorrelationId}",nameof(LivePipelineMonitor),nameof(CheckOnceAsync),ex.Result.CorrelationId);
+                    ApplicationDiagnosticLog.Write8(logger, null, nameof(LivePipelineMonitor), nameof(CheckOnceAsync), ex.Result.CorrelationId);
                 }
                 catch (DatabentoRecoveryEpisodeStatusException ex)
                 {
-                    recoveryEpisodeTerminal = ex.Result.Outcome is
-                        DatabentoRecoveryRequestOutcome.Unrecoverable or
-                        DatabentoRecoveryRequestOutcome.ApplicationStopping;
+                    recoveryEpisodeTerminal = ex.Result.Outcome is DatabentoRecoveryRequestOutcome.Unrecoverable or DatabentoRecoveryRequestOutcome.ApplicationStopping;
                     lastHardResetState = ex.Result.Outcome switch
                     {
                         DatabentoRecoveryRequestOutcome.DatabentoHealthyDownstreamDegraded => "EpisodeDownstreamDegraded",
@@ -158,63 +122,56 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     };
                     lastHardResetError = ex.Result.Detail;
                     AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
-                    logger.LogCritical(ex,                        "{Component}.{Method} "+"Recovery episode ended without full downstream qualification; no independent hard reset will be retried.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
+                    ApplicationDiagnosticLog.Write9(logger, ex, nameof(LivePipelineMonitor), nameof(CheckOnceAsync));
                 }
-                catch (Exception ex) when (!token.IsCancellationRequested)
+                catch (Exception ex)when (!token.IsCancellationRequested)
                 {
                     lastHardResetState = "HardResetFailed";
                     lastHardResetError = ex.Message;
                     AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
-                    logger.LogWarning(ex,                        "{Component}.{Method} "+"Complete live-pipeline hard reset failed.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
+                    ApplicationDiagnosticLog.Write10(logger, ex, nameof(LivePipelineMonitor), nameof(CheckOnceAsync));
                 }
             }
+
             if (!recoveryEpisodeTerminal && lastHardResetUtc is null)
                 await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
-            else if (!recoveryEpisodeTerminal && lastHardResetUtc is { } lastReset
-                && time.GetUtcNow().UtcDateTime - lastReset >= options.RecoveryObservationWindow)
+            else if (!recoveryEpisodeTerminal && lastHardResetUtc is { } lastReset && time.GetUtcNow().UtcDateTime - lastReset >= options.RecoveryObservationWindow)
                 await RecoverDueDownstreamAsync(recoverable, next.ValueDate.Value, now, token).ConfigureAwait(false);
             MarkExpiredRecoveryWindows(upstream, now);
-
             await ReportStatusAsync(next, deadline.Token).ConfigureAwait(false);
             Publish(Decorate(next));
         }
-        catch (Exception ex) when (!token.IsCancellationRequested)
+        catch (Exception ex)when (!token.IsCancellationRequested)
         {
             var now = time.GetUtcNow().UtcDateTime;
-            var failed = new LivePipelineHealthSnapshot(now, current.ValueDate, "Unknown",
-            [.. current.Checks.Where(x => x.Component != "Health monitor"),
-                new("Health monitor", "minute cycle", "Unknown", ex.Message, now)]);
+            var failed = new LivePipelineHealthSnapshot(now, current.ValueDate, "Unknown", [..current.Checks.Where(x => !string.Equals(x.Component, "Health monitor", StringComparison.Ordinal)), new("Health monitor", "minute cycle", "Unknown", ex.Message, now)]);
             Publish(failed);
-            logger.LogWarning(ex,"{Component}.{Method} "+"Live pipeline audit or recovery failed; health remains unconfirmed.",nameof(LivePipelineMonitor),nameof(CheckOnceAsync));
+            ApplicationDiagnosticLog.Write11(logger, ex, nameof(LivePipelineMonitor), nameof(CheckOnceAsync));
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
-    async Task RecoverDueDownstreamAsync(
-        IReadOnlyList<LivePipelineCheck> checks,
-        DateOnly valueDate,
-        DateTime now,
-        CancellationToken token)
+    async Task RecoverDueDownstreamAsync(IReadOnlyList<LivePipelineCheck> checks, DateOnly valueDate, DateTime now, CancellationToken token)
     {
         foreach (var check in checks.Where(check => check.Required && !IsHealthy(check)))
         {
             var target = DownstreamTarget(check)!;
-            if (!downstreamRecoveries.TryGetValue(target, out var state)
-                || (state.Attempts >= 3 || state.State == "EscalatedToHardReset")
-                || now - state.UnhealthySinceUtc < DownstreamRecoveryDelay
-                || state.LastAttemptUtc is { } last && now - last < DownstreamRecoveryDelay)
+            if (!downstreamRecoveries.TryGetValue(target, out var state) || (state.Attempts >= 3 || string.Equals(state.State, "EscalatedToHardReset", StringComparison.Ordinal)) || now - state.UnhealthySinceUtc < DownstreamRecoveryDelay || state.LastAttemptUtc is { } last && now - last < DownstreamRecoveryDelay)
                 continue;
-
             var attempt = state.Attempts + 1;
-            logger.LogWarning("Soft recovery starting; Method={Method}; Target={Target}; Attempt={Attempt}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}",
-                nameof(RecoverDueDownstreamAsync), target, attempt, valueDate, check.Component, check.Scope,
-                check.Status, check.Reason, check.ObservedUtc, check.LastProgressUtc);
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+            {
+                RemainingApplicationDiagnosticLog.Write2(logger, null, nameof(RecoverDueDownstreamAsync), target, attempt, valueDate, check.Component, check.Scope, check.Status, check.Reason, check.ObservedUtc, check.LastProgressUtc);
+            }
+
             try
             {
                 using var recoveryDeadline = CancellationTokenSource.CreateLinkedTokenSource(token);
                 recoveryDeadline.CancelAfter(TimeSpan.FromSeconds(40));
-                await probe.RecoverDownstreamAsync(check, valueDate, recoveryDeadline.Token)
-                    .WaitAsync(recoveryDeadline.Token).ConfigureAwait(false);
+                await probe.RecoverDownstreamAsync(check, valueDate, recoveryDeadline.Token).WaitAsync(recoveryDeadline.Token).ConfigureAwait(false);
                 downstreamRecoveries[target] = state with
                 {
                     Attempts = attempt,
@@ -222,10 +179,9 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     State = "Requested",
                     LastError = null
                 };
-                logger.LogWarning(
-                    "{Component}.{Method} "+"Requested targeted downstream recovery for {Target} after its one-minute confirmation window. Attempt={Attempt}.",nameof(LivePipelineMonitor),nameof(RecoverDueDownstreamAsync),                    target,attempt);
+                ApplicationDiagnosticLog.Write12(logger, null, nameof(LivePipelineMonitor), nameof(RecoverDueDownstreamAsync), target, attempt);
             }
-            catch (Exception ex) when (!token.IsCancellationRequested)
+            catch (Exception ex)when (!token.IsCancellationRequested)
             {
                 downstreamRecoveries[target] = state with
                 {
@@ -234,7 +190,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     State = "Failed",
                     LastError = ex.Message
                 };
-                logger.LogWarning(ex,                    "{Component}.{Method} "+"Targeted downstream recovery failed for {Target}. Attempt={Attempt}.",nameof(LivePipelineMonitor),nameof(RecoverDueDownstreamAsync),target,attempt);
+                ApplicationDiagnosticLog.Write13(logger, ex, nameof(LivePipelineMonitor), nameof(RecoverDueDownstreamAsync), target, attempt);
             }
         }
     }
@@ -247,22 +203,23 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         foreach (var check in checks)
         {
             var key = CheckKey(check);
-            if (IsHealthy(check)) upstreamRecoveries.Remove(key);
-            else upstreamRecoveries.TryAdd(key, NewUpstreamRecovery(now));
+            if (IsHealthy(check))
+                upstreamRecoveries.Remove(key);
+            else
+                upstreamRecoveries.TryAdd(key, NewUpstreamRecovery(now));
         }
     }
 
     UpstreamRecovery NewUpstreamRecovery(DateTime now)
     {
-        if (lastHardResetUtc is { } resetUtc
-            && now - resetUtc < options.RecoveryObservationWindow)
+        if (lastHardResetUtc is { } resetUtc && now - resetUtc < options.RecoveryObservationWindow)
             return new(resetUtc, 1, resetUtc, lastHardResetState, lastHardResetError);
         return new(now, 0, null, "PendingHardReset", null);
     }
 
     void AdvanceUpstreamRecovery(DateTime now, string state, string? error)
     {
-        foreach (var (key, recovery) in upstreamRecoveries.ToArray())
+        foreach (var(key, recovery)in upstreamRecoveries.ToArray())
             upstreamRecoveries[key] = recovery with
             {
                 UnhealthySinceUtc = now,
@@ -278,12 +235,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         foreach (var check in checks.Where(check => !IsHealthy(check)))
         {
             var key = CheckKey(check);
-            if (!upstreamRecoveries.TryGetValue(key, out var recovery)
-                || recovery.Attempts == 0
-                || recovery.LastAttemptUtc is not { } attempted
-                || now - attempted < options.RecoveryObservationWindow
-                || recovery.State is "HardResetFailed" or "HardResetRecoveryFailed"
-                    or "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable" or "EpisodeApplicationStopping")
+            if (!upstreamRecoveries.TryGetValue(key, out var recovery) || recovery.Attempts == 0 || recovery.LastAttemptUtc is not { } attempted || now - attempted < options.RecoveryObservationWindow || recovery.State is "HardResetFailed" or "HardResetRecoveryFailed" or "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable" or "EpisodeApplicationStopping")
                 continue;
             upstreamRecoveries[key] = recovery with
             {
@@ -292,10 +244,10 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             };
         }
     }
+
     void UpdateDownstreamWindows(IReadOnlyList<LivePipelineCheck> checks, DateTime now)
     {
-        var observed = checks.Select(DownstreamTarget).Where(target => target is not null)
-            .Select(target => target!).ToHashSet(StringComparer.Ordinal);
+        var observed = checks.Select(DownstreamTarget).Where(target => target is not null).Select(target => target!).ToHashSet(StringComparer.Ordinal);
         foreach (var target in downstreamRecoveries.Keys.Where(target => !observed.Contains(target)).ToArray())
             downstreamRecoveries.Remove(target);
         foreach (var check in checks)
@@ -303,59 +255,57 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var target = DownstreamTarget(check)!;
             if (IsHealthy(check))
             {
-                if (downstreamRecoveries.Remove(target, out var prior) && prior.Attempts > 0)
-                    logger.LogInformation("Soft recovery health confirmed; Method={Method}; Target={Target}; Attempts={Attempts}; Component={HealthComponent}; Scope={Scope}; Reason={Reason}; LastProgressUtc={LastProgressUtc}",
-                        nameof(CheckOnceAsync), target, prior.Attempts, check.Component, check.Scope,
-                        check.Reason, check.LastProgressUtc);
+                if ((downstreamRecoveries.Remove(target, out var prior) && prior.Attempts > 0) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true))
+                {
+                    RemainingApplicationDiagnosticLog.Write3(logger, null, nameof(CheckOnceAsync), target, prior.Attempts, check.Component, check.Scope, check.Reason, check.LastProgressUtc);
+                }
             }
-            else downstreamRecoveries.TryAdd(target, new(now, 0, null, "Pending", null));
+            else
+                downstreamRecoveries.TryAdd(target, new(now, 0, null, "Pending", null));
         }
     }
 
     LivePipelineHealthSnapshot Decorate(LivePipelineHealthSnapshot snapshot)
     {
         var checks = snapshot.Checks.Select(Decorate).ToList();
-        if (lastHardResetState is "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable"
-            or "EpisodeApplicationStopping")
+        if (lastHardResetState is "EpisodeDownstreamDegraded" or "EpisodeUnrecoverable" or "EpisodeApplicationStopping")
         {
-            checks.Add(new LivePipelineCheck("Recovery episode", "Databento downstream",
-                "Degraded", lastHardResetError ?? lastHardResetState,
-                snapshot.ObservedUtc)
+            checks.Add(new LivePipelineCheck("Recovery episode", "Databento downstream", "Degraded", lastHardResetError ?? lastHardResetState, snapshot.ObservedUtc) { RecoveryState = lastHardResetState });
+            return snapshot with
             {
-                RecoveryState = lastHardResetState
-            });
-            return snapshot with { Status = "Degraded", Checks = checks };
+                Status = "Degraded",
+                Checks = checks
+            };
         }
-        return snapshot with { Checks = checks };
+
+        return snapshot with
+        {
+            Checks = checks
+        };
     }
 
     LivePipelineCheck Decorate(LivePipelineCheck check)
     {
-        if (IsDatasetOwnedUpstream(check) && !IsHealthy(check)
-            && upstreamRecoveries.TryGetValue(CheckKey(check), out var upstream)
-            && (upstream.Attempts > 0 || !HasAttemptedDownstreamRecovery(check)))
+        if (IsDatasetOwnedUpstream(check) && !IsHealthy(check) && upstreamRecoveries.TryGetValue(CheckKey(check), out var upstream) && (upstream.Attempts > 0 || !HasAttemptedDownstreamRecovery(check)))
             return check with
             {
                 RecoveryAttempts = upstream.Attempts,
-                RecoveryState = upstream.LastError is null
-                    ? upstream.State
-                    : $"{upstream.State}: {upstream.LastError}",
-                NextRecoveryUtc = upstream.Attempts >= options.MaximumHardResetAttempts
-                    ? null
-                    : upstream.Attempts == 0
-                    ? upstream.UnhealthySinceUtc + options.HardResetDelay
-                    : upstream.LastAttemptUtc + options.RecoveryObservationWindow
+                RecoveryState = upstream.LastError is null ? upstream.State : $"{upstream.State}: {upstream.LastError}",
+                NextRecoveryUtc = (upstream.Attempts >= options.MaximumHardResetAttempts) switch
+                {
+                    true => null,
+                    false => (upstream.Attempts == 0) switch
+                    {
+                        true => upstream.UnhealthySinceUtc + options.HardResetDelay,
+                        false => upstream.LastAttemptUtc + options.RecoveryObservationWindow
+                    }}
             };
-
         var target = DownstreamTarget(check);
-        if (target is not null && !IsHealthy(check)
-            && downstreamRecoveries.TryGetValue(target, out var downstream))
+        if (target is not null && !IsHealthy(check) && downstreamRecoveries.TryGetValue(target, out var downstream))
             return check with
             {
                 RecoveryAttempts = downstream.Attempts,
-                RecoveryState = downstream.LastError is null
-                    ? downstream.State
-                    : $"{downstream.State}: {downstream.LastError}",
+                RecoveryState = downstream.LastError is null ? downstream.State : $"{downstream.State}: {downstream.LastError}",
                 NextRecoveryUtc = (downstream.LastAttemptUtc ?? downstream.UnhealthySinceUtc) + DownstreamRecoveryDelay
             };
         return check;
@@ -364,34 +314,35 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     bool HasAttemptedDownstreamRecovery(LivePipelineCheck check)
     {
         var target = DownstreamTarget(check);
-        return target is not null
-            && downstreamRecoveries.TryGetValue(target, out var state)
-            && state.Attempts > 0;
+        return target is not null && downstreamRecoveries.TryGetValue(target, out var state) && state.Attempts > 0;
     }
 
     async Task ReportStatusAsync(LivePipelineHealthSnapshot snapshot, CancellationToken token)
     {
-        if (snapshot.Status == "Healthy")
+        if (string.Equals(snapshot.Status, "Healthy", StringComparison.Ordinal))
         {
             lastAlert = null;
             return;
         }
-        var pendingUpstream = upstreamRecoveries.Count == 0
-            ? "No hard reset is pending."
-            : $"Next hard-reset or recovery deadline: {upstreamRecoveries.Values.Min(value => value.Attempts == 0
-                ? value.UnhealthySinceUtc + options.HardResetDelay
-                : value.LastAttemptUtc!.Value + options.RecoveryObservationWindow):O}.";
+
+        var pendingUpstream = (upstreamRecoveries.Count == 0) switch
+        {
+            true => "No hard reset is pending.",
+            false => $"Next hard-reset or recovery deadline: {upstreamRecoveries.Values.Min(value => value.Attempts == 0 ? value.UnhealthySinceUtc + options.HardResetDelay : value.LastAttemptUtc!.Value + options.RecoveryObservationWindow):O}."};
         var alert = $"Live pipeline {snapshot.Status}. {pendingUpstream} Downstream recovery is handled per component.";
-        if (lastAlert == alert) return;
+        if (string.Equals(lastAlert, alert, StringComparison.Ordinal))
+            return;
         lastAlert = alert;
-        if (statusConsole is null) return;
+        if (statusConsole is null)
+            return;
         try
         {
-            await statusConsole.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, alert)
-                .WaitAsync(TimeSpan.FromSeconds(2), token).ConfigureAwait(false);
+            await statusConsole.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, alert).WaitAsync(TimeSpan.FromSeconds(2), token).ConfigureAwait(false);
         }
-        catch (Exception ex) when (!token.IsCancellationRequested)
-        { logger.LogWarning(ex,"{Component}.{Method} "+"Status-console delivery failed; pipeline recovery remains independent.",nameof(LivePipelineMonitor),nameof(ReportStatusAsync)); }
+        catch (Exception ex)when (!token.IsCancellationRequested)
+        {
+            ApplicationDiagnosticLog.Write14(logger, ex, nameof(LivePipelineMonitor), nameof(ReportStatusAsync));
+        }
     }
 
     // One record per failing check per minute, never per tick. Preserve the evidence that
@@ -401,10 +352,10 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
         foreach (var check in snapshot.Checks.Where(check => !IsHealthy(check)))
         {
             var detail = Decorate(check);
-            logger.LogWarning("Live pipeline check unhealthy; Method={Method}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Required={Required}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}; RecoveryAttempts={RecoveryAttempts}; RecoveryState={RecoveryState}; NextRecoveryUtc={NextRecoveryUtc}",
-                nameof(CheckOnceAsync), snapshot.ValueDate, check.Component, check.Scope, check.Status,
-                check.Required, check.Reason, check.ObservedUtc, check.LastProgressUtc,
-                detail.RecoveryAttempts, detail.RecoveryState, detail.NextRecoveryUtc);
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+            {
+                RemainingApplicationDiagnosticLog.Write4(logger, null, nameof(CheckOnceAsync), snapshot.ValueDate, check.Component, check.Scope, check.Status, check.Required, check.Reason, check.ObservedUtc, check.LastProgressUtc, detail.RecoveryAttempts, detail.RecoveryState, detail.NextRecoveryUtc);
+            }
         }
     }
 
@@ -416,38 +367,33 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
 
     static bool IsHealthy(LivePipelineCheck check) => check.Status is "Healthy" or "Inactive";
     static string CheckKey(LivePipelineCheck check) => check.Component + "/" + check.Scope;
-
-    static bool IsHardResetTrigger(LivePipelineCheck check)
-        => check.Required
-            && !check.Component.StartsWith("UI ", StringComparison.Ordinal)
-            && check.Component is not "Deployment identity" and not "Session authority"
-            // Components with an explicit lifecycle owner are recovered independently. Escalating
-            // them into a feed hard reset destroys accumulator progress and can create a permanent
-            // warm-up loop while the upstream transport is otherwise healthy.
-            && DownstreamTarget(check) is null;
-
+    static bool IsHardResetTrigger(LivePipelineCheck check) => check.Required && !check.Component.StartsWith("UI ", StringComparison.Ordinal) && check.Component is not "Deployment identity" and not "Session authority" // Components with an explicit lifecycle owner are recovered independently. Escalating
+    // them into a feed hard reset destroys accumulator progress and can create a permanent
+    // warm-up loop while the upstream transport is otherwise healthy.
+    && DownstreamTarget(check)is null;
     static bool IsDatasetOwnedUpstream(LivePipelineCheck check) => IsHardResetTrigger(check);
-
     static string? DownstreamTarget(LivePipelineCheck check) => check.Component switch
     {
         "Bar timer" or "Chart storage/query" => "Chart bars",
-        "Analytics attachments" or "Analytics processing" =>
-            check.Scope.Split('/', 2)[0] is "RSI" or "ATR" or "ADX" or "MACD"
-                ? check.Scope
-                : null,
+        "Analytics attachments" or "Analytics processing" => check.Scope.Split('/', 2)[0] is "RSI" or "ATR" or "ADX" or "MACD" ? check.Scope : null,
         "ITI route" or "ITI ingress" or "ITI durable completion" => "ITI",
         "Market Outlook inputs" or "Market Outlook publication" or "Market Outlook storage" => "Market Outlook",
         _ => null
     };
-
     static int DownstreamRank(string target)
     {
-        if (target == "Chart bars") return 0;
-        if (target.StartsWith("RSI/", StringComparison.Ordinal)) return 1;
-        if (target.StartsWith("ATR/", StringComparison.Ordinal)) return 2;
-        if (target.StartsWith("ADX/", StringComparison.Ordinal)) return 3;
-        if (target.StartsWith("MACD/", StringComparison.Ordinal)) return 4;
-        if (target == "ITI") return 5;
+        if (string.Equals(target, "Chart bars", StringComparison.Ordinal))
+            return 0;
+        if (target.StartsWith("RSI/", StringComparison.Ordinal))
+            return 1;
+        if (target.StartsWith("ATR/", StringComparison.Ordinal))
+            return 2;
+        if (target.StartsWith("ADX/", StringComparison.Ordinal))
+            return 3;
+        if (target.StartsWith("MACD/", StringComparison.Ordinal))
+            return 4;
+        if (string.Equals(target, "ITI", StringComparison.Ordinal))
+            return 5;
         return 6;
     }
 
@@ -459,17 +405,12 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             await CheckOnceAsync(stoppingToken).ConfigureAwait(false);
     }
 
-    sealed record DownstreamRecovery(
-        DateTime UnhealthySinceUtc,
-        int Attempts,
-        DateTime? LastAttemptUtc,
-        string State,
-        string? LastError);
-
-    sealed record UpstreamRecovery(
-        DateTime UnhealthySinceUtc,
-        int Attempts,
-        DateTime? LastAttemptUtc,
-        string State,
-        string? LastError);
+    sealed record DownstreamRecovery(DateTime UnhealthySinceUtc, int Attempts, DateTime? LastAttemptUtc, string State, string? LastError);
+    sealed record UpstreamRecovery(DateTime UnhealthySinceUtc, int Attempts, DateTime? LastAttemptUtc, string State, string? LastError);
+    /// <summary>Releases synchronization resources after the host stops this service.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        gate.Dispose();
+    }
 }

@@ -18,7 +18,9 @@ public static class GetEconomicCalendarCountryCodes
     /// <returns></returns>
     public static async ValueTask<EconomicCalendarCountryCodeReadModel[]> ExecuteAsync(
         this GetEconomicCalendarCountryCodesQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.MarketDataDb.GetEconomicCalendarCountryCodesAsync(cancellationToken)
-            : dbFactory.MarketDataDb.GetEconomicCalendarCountryCodesAsync())];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarCountryCodesAsync(cancellationToken)).ConfigureAwait(false)];
+    }
 }

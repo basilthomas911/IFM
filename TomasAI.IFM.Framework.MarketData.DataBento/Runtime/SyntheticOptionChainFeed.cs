@@ -32,10 +32,12 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
     /// <summary>Registers the requested instruments before feed processing begins.</summary>
     /// <param name="subscription">The option-chain subscription identifying the instruments to stream.</param>
     /// <param name="timeout">The maximum time allowed for the operation.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout)
     {
         ArgumentNullException.ThrowIfNull(subscription);
-        ArgumentException.ThrowIfNullOrWhiteSpace(subscription.Underlying);
+        ArgumentException.ThrowIfNullOrWhiteSpace(subscription.Underlying, nameof(subscription));
         if (_subscribed)
         {
             throw new InvalidOperationException("The option-chain subscription is immutable.");
@@ -44,13 +46,13 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         {
             throw new ArgumentException("An exact option maturity date is required.", nameof(subscription));
         }
-        ArgumentNullException.ThrowIfNull(subscription.Strikes);
+        ArgumentNullException.ThrowIfNull(subscription.Strikes, nameof(subscription));
         if (subscription.Strikes.Count == 0)
         {
             throw new ArgumentException("At least one option strike is required.", nameof(subscription));
         }
         if (subscription.Rights == OptionRightSelection.None
-            || (subscription.Rights & ~OptionRightSelection.Both) != 0)
+            || (subscription.Rights & ~OptionRightSelection.Both) != OptionRightSelection.None)
         {
             throw new ArgumentException("Select Call, Put, or Both option rights.", nameof(subscription));
         }
@@ -59,7 +61,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                                            | MarketDataKinds.Trade
                                            | MarketDataKinds.MboOrderUpdate
                                            | MarketDataKinds.Statistics
-                                           | MarketDataKinds.SessionVolume)) != 0)
+                                           | MarketDataKinds.SessionVolume)) != MarketDataKinds.None)
         {
             throw new ArgumentException("Option market-data kinds are invalid.", nameof(subscription));
         }
@@ -79,10 +81,10 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                     nameof(subscription));
             }
         }
-        ArgumentNullException.ThrowIfNull(subscription.ResolvedContracts);
+        ArgumentNullException.ThrowIfNull(subscription.ResolvedContracts, nameof(subscription));
         if (subscription.ResolvedContracts.Count == 0)
         {
-            throw new ArgumentException("At least one resolved option contract is required.");
+            throw new ArgumentException("At least one resolved option contract is required.",nameof(subscription));
         }
         var instrumentIds = new HashSet<uint>();
         var symbols = new HashSet<string>(StringComparer.Ordinal);
@@ -90,8 +92,8 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         for (var index = 0; index < subscription.ResolvedContracts.Count; index++)
         {
             var contract = subscription.ResolvedContracts[index];
-            ArgumentNullException.ThrowIfNull(contract);
-            ArgumentException.ThrowIfNullOrWhiteSpace(contract.RawSymbol);
+            ArgumentNullException.ThrowIfNull(contract, nameof(subscription));
+            ArgumentException.ThrowIfNullOrWhiteSpace(contract.RawSymbol, nameof(subscription));
             if (!string.Equals(contract.Dataset, _options.Dataset, StringComparison.Ordinal))
             {
                 throw new ArgumentException(
@@ -106,7 +108,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                     + $"'{contract.Underlying}', not '{subscription.Underlying}'.",
                     nameof(subscription));
             }
-            if (contract.MaturityDate != subscription.MaturityDate)
+            if (!subscription.MultipleMaturities && contract.MaturityDate != subscription.MaturityDate)
             {
                 throw new ArgumentException(
                     $"Resolved contract '{contract.RawSymbol}' has maturity "
@@ -114,7 +116,7 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
                     nameof(subscription));
             }
             if (contract.Right is not (OptionRightSelection.Call or OptionRightSelection.Put)
-                || (subscription.Rights & contract.Right) == 0)
+                || (subscription.Rights & contract.Right) == OptionRightSelection.None)
             {
                 throw new ArgumentException(
                     $"Resolved contract '{contract.RawSymbol}' has an unselected option right.",
@@ -135,16 +137,15 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
             }
             if (Encoding.UTF8.GetByteCount(contract.RawSymbol) > ushort.MaxValue)
             {
-                throw new ArgumentException(
-                    "Option symbols cannot exceed 65,535 UTF-8 bytes.");
+                throw new ArgumentException(                    "Option symbols cannot exceed 65,535 UTF-8 bytes.",nameof(subscription));
             }
             if (!instrumentIds.Add(contract.Instrument.InstrumentId))
             {
-                throw new ArgumentException($"Duplicate option instrument {contract.Instrument}.");
+                throw new ArgumentException($"Duplicate option instrument {contract.Instrument}.",nameof(subscription));
             }
             if (!symbols.Add(contract.RawSymbol))
             {
-                throw new ArgumentException($"Duplicate option raw symbol '{contract.RawSymbol}'.");
+                throw new ArgumentException($"Duplicate option raw symbol '{contract.RawSymbol}'.",nameof(subscription));
             }
             selections[index] = new OptionContractSelection(
                 contract.RawSymbol,

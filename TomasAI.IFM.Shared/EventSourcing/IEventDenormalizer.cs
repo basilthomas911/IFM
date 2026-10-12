@@ -6,6 +6,7 @@ public interface IEventDenormalizer
     Task DenormalizeEventsAsync(DomainEventCollection domainEvents);
 }
 
-public interface IEventDenormalizer<TboundedContextState> : IEventDenormalizer where TboundedContextState : IBoundedContextState
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
+public interface IEventDenormalizer<TBoundedContextState> : IEventDenormalizer where TBoundedContextState : IBoundedContextState
 {
 }

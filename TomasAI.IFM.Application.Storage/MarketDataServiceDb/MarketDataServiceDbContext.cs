@@ -22,12 +22,15 @@ public sealed class MarketDataServiceDbContext(
     : ObjectDataRepository<MarketDataServiceDbContext>(settings[MarketDataServiceDbConnection], logger),
       IMarketDataServiceDbContext
 {
+    static readonly JsonSerializerOptions JsonOptions = new() { MaxDepth = 32 };
+
     internal readonly ISequenceIdDbContext _sequenceIds = sequenceIds;
     internal readonly IDbConnectionSetting _connection = settings[MarketDataServiceDbConnection];
     internal readonly ILogger<DbProvider> _logger = logger;
     internal readonly TimeProvider _time = TimeProvider.System;
     internal readonly Action<DurableStoreWriteStage>? _writeObserver;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "The database provider owns this injected logger; retain its category and constructor contract while the context supplies structured component names.")]
     internal MarketDataServiceDbContext(
         IDbConnectionSettings settings,
         IDbContextFactory factory,
@@ -131,6 +134,8 @@ public sealed class MarketDataServiceDbContext(
         long expectedSecondVersion,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(front);
+        ArgumentNullException.ThrowIfNull(second);
         var transaction = BeginTransaction();
         try
         {
@@ -181,6 +186,7 @@ public sealed class MarketDataServiceDbContext(
         DatabentoWatchdogObservation observation,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(observation);
         var existing = await this.GetObservationByIdentityAsync(observation.ObservationId, cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null)
@@ -278,6 +284,7 @@ public sealed class MarketDataServiceDbContext(
         DatasetIncidentTransition transition,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(transition);
         var version = await Database
             .Use("MarketDataService.PersistDatasetIncident", MarketDataServiceDbSql.PersistDatasetIncident)
             .SetParameters(new IncidentParameter(transition))
@@ -312,7 +319,8 @@ public sealed class MarketDataServiceDbContext(
     /// <returns>A task representing the asynchronous persistence operation.</returns>
     public async Task SaveAsync(CompositionRoutePlan plan, CancellationToken cancellationToken)
     {
-        var payload = JsonSerializer.Serialize(plan, new JsonSerializerOptions { MaxDepth = 32 });
+        ArgumentNullException.ThrowIfNull(plan);
+        var payload = JsonSerializer.Serialize(plan, JsonOptions);
         _ = await Database
             .Use("MarketDataService.InsertCompositionRoutePlan", MarketDataServiceDbSql.InsertCompositionRoutePlan)
             .SetParameters(new CompositionRoutePlanParameter(plan, payload))
@@ -320,7 +328,7 @@ public sealed class MarketDataServiceDbContext(
             .ConfigureAwait(false);
         var saved = await ReadAsync(plan.PlanId, cancellationToken)
             .ConfigureAwait(false);
-        if (saved is null || saved.PlanId != plan.PlanId)
+        if (saved is null || !string.Equals(saved.PlanId,plan.PlanId,StringComparison.Ordinal))
             throw new InvalidDataException("Route plan commit could not be verified.");
     }
 
@@ -436,7 +444,7 @@ public sealed class MarketDataServiceDbContext(
     {
         var result = JsonSerializer.Deserialize<CompositionRoutePlan>(
             row.GetString(0),
-            new JsonSerializerOptions { MaxDepth = 32 })
+            JsonOptions)
             ?? throw new InvalidDataException("Persisted route plan is empty.");
         result.Validate();
         return result;

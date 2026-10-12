@@ -23,6 +23,8 @@ public static class CreateFundMandate
         DateTime now,
         string principal)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FundMandateCreated event";
         var updated = command.Compute(state, now, principal, out var fundChange) switch
         {

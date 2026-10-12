@@ -36,7 +36,11 @@ public sealed class ActorThreadQueues(
     public bool IsAccepting => Volatile.Read(ref _accepting) != 0;
 
     public bool Write(IActorMessage message)
-        => Write(message, message.Subject);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return Write(message, message.Subject);
+    }
 
     public bool Write(
         IActorMessage message,
@@ -44,6 +48,7 @@ public sealed class ActorThreadQueues(
         CancellationToken cancellationToken = default)
         => TryAdmit(message, subject, cancellationToken).Accepted;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
     public ActorAdmissionResult TryAdmit(
         IActorMessage message,
         ActorSubject subject,
@@ -118,7 +123,11 @@ public sealed class ActorThreadQueues(
     public ValueTask<bool> WriteAsync(
         IActorMessage message,
         CancellationToken cancellationToken = default)
-        => WriteAsync(message, message.Subject, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return WriteAsync(message, message.Subject, cancellationToken);
+    }
 
     public ValueTask<bool> WriteAsync(
         IActorMessage message,
@@ -131,6 +140,7 @@ public sealed class ActorThreadQueues(
         return AwaitBooleanResult(pending);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
     public async ValueTask<ActorAdmissionResult> TryAdmitAsync(
         IActorMessage message,
         ActorSubject subject,
@@ -261,17 +271,6 @@ public sealed class ActorThreadQueues(
                 _metrics.GetOrRegister(pair.Key, pair.Value).SetAdmission(false);
     }
 
-    public void ResumeAdmission()
-    {
-        Volatile.Write(ref _accepting, 1);
-        if (_metrics is not null)
-            foreach (var pair in _threadQueues)
-                _metrics.GetOrRegister(pair.Key, pair.Value)
-                    .SetAdmission(!_paused.ContainsKey(pair.Key));
-    }
-    public bool IsAdmissionOpen(ActorThreadId threadId)
-        => IsAccepting && !_paused.ContainsKey(threadId);
-
     public void PauseAdmission(ActorThreadId threadId)
     {
         _paused[threadId] = 0;
@@ -283,12 +282,13 @@ public sealed class ActorThreadQueues(
         }
     }
 
-    /// <summary>Preserves accepted work while preventing new admission after lifecycle failure.</summary>
-    public void QuarantineAdmission(ActorThreadId threadId)
+    public void ResumeAdmission()
     {
-        PauseAdmission(threadId);
-        if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var queue))
-            _metrics.GetOrRegister(threadId, queue).SetLifecycle(ActorMailboxLifecycleState.Quarantined);
+        Volatile.Write(ref _accepting, 1);
+        if (_metrics is not null)
+            foreach (var pair in _threadQueues)
+                _metrics.GetOrRegister(pair.Key, pair.Value)
+                    .SetAdmission(!_paused.ContainsKey(pair.Key));
     }
 
     public void ResumeAdmission(ActorThreadId threadId)
@@ -300,6 +300,16 @@ public sealed class ActorThreadQueues(
             mailbox.SetAdmission(true);
             mailbox.SetLifecycle(ActorMailboxLifecycleState.Running);
         }
+    }
+    public bool IsAdmissionOpen(ActorThreadId threadId)
+        => IsAccepting && !_paused.ContainsKey(threadId);
+
+    /// <summary>Preserves accepted work while preventing new admission after lifecycle failure.</summary>
+    public void QuarantineAdmission(ActorThreadId threadId)
+    {
+        PauseAdmission(threadId);
+        if (_metrics is not null && _threadQueues.TryGetValue(threadId, out var queue))
+            _metrics.GetOrRegister(threadId, queue).SetLifecycle(ActorMailboxLifecycleState.Quarantined);
     }
 
     public async ValueTask<bool> WaitForIdleAsync(

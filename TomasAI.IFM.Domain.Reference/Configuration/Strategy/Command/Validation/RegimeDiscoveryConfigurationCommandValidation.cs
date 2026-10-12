@@ -8,20 +8,28 @@ namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Validation
 public static class RegimeDiscoveryConfigurationCommandValidation
 {
     /// <summary>Checks the parameter-set identity and positive version.</summary>
-    public static List<ValidationError> ValidateRegimeDiscoveryConfigurationId(this List<ValidationError> errors, RegimeDiscoveryParameterSetEntityId id)
+    public static TErrors ValidateRegimeDiscoveryConfigurationId<TErrors>(this TErrors errors, RegimeDiscoveryParameterSetEntityId id)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (id.ParameterSetId == Guid.Empty) errors.Add(new("RegimeDiscovery.ParameterSetId is required."));
         if (id.Version <= 0) errors.Add(new("RegimeDiscovery.Version must be positive."));
         return errors;
     }
 
     /// <summary>Checks all parameter payload rules, creator and payload identity.</summary>
-    public static List<ValidationError> ValidateRegimeDiscoveryCreation(this List<ValidationError> errors, CreateRegimeDiscoveryParameterSetCommand command)
+    public static TErrors ValidateRegimeDiscoveryCreation<TErrors>(this TErrors errors, CreateRegimeDiscoveryParameterSetCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.ParameterSet is null) errors.Add(new("RegimeDiscovery.ParameterSet is required."));
         else
         {
-            errors.AddRange(new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet));
+            foreach (var validationFailure in new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet))
+                errors.Add(validationFailure);
             if (command.EntityId.ParameterSetId != command.ParameterSet.ParameterSetId || command.EntityId.Version != command.ParameterSet.Version)
                 errors.Add(new("RegimeDiscovery.EntityId must match ParameterSet identity."));
         }

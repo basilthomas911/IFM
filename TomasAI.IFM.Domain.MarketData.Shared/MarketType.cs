@@ -11,14 +11,4 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
         Equity,
         Futures
     }
-
-    public static class MarketTypeExtensions
-    {
-        public static string ToStringFast(this MarketType value) => value switch
-        {
-            MarketType.Equity => nameof(MarketType.Equity),
-            MarketType.Futures => nameof(MarketType.Futures),
-            _ => value.ToString()
-        };
-    }
 }

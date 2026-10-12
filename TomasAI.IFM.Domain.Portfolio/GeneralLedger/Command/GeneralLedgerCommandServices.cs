@@ -12,15 +12,3 @@ namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 
 public sealed record GeneralLedgerCommandServices(IGeneralLedgerStore Store, IPortfolioDbReadContext Database,
     FinancialIdentityAllocator Ids, IEventProjector<GeneralLedgerCommandActor> Projector, ILogger<GeneralLedgerCommandActor> Logger);
-
-/// <summary>Projection retry cannot turn a confirmed financial commit into a reported financial failure.</summary>
-public static class NotifyFinancialCompletion
-{
-    public static async ValueTask<ServiceResult<GuidResult>> NotifyAsync<TActor>(this IFinancialCompletedEvent completed,
-        IEventProjector<TActor> projector, ILogger logger) where TActor : ICommandActor<TActor>
-    {
-        try { await projector.DomainEventsProjectionAsync(new DomainEventCollection([completed])); }
-        catch (Exception error) { logger.LogError(error,"{Component}.{Method} "+"Financial operation {OperationId} committed; durable history notification is pending.",nameof(NotifyFinancialCompletion),nameof(NotifyAsync),completed.OperationId); }
-        return new ServiceOk<GuidResult>(new(completed.OperationId));
-    }
-}

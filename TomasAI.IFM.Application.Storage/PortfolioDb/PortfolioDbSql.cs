@@ -2,6 +2,8 @@ namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 
 public static class PortfolioDbSql
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Financial
     {
         public const string ReadBook = "SELECT policy_source_versions::text FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
@@ -13,6 +15,7 @@ public static class PortfolioDbSql
         WHERE b.environment=$1 AND b.execution_account_ref=$2 AND b.status='Active';
         """;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class AccountingExportStore
         {
             public const string Select01 = """
@@ -45,6 +48,7 @@ public static class PortfolioDbSql
             public const string Select04 = "SELECT metadata::text,delivery_status,retry_count,external_receipt,payload_hash FROM portfolio_financial.accounting_export WHERE destination_company=$1 AND export_id=$2";
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class CapacityExpiryDispatchStore
         {
             public const string Select01 = """
@@ -69,6 +73,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class CapacityReservationStore
         {
             public const string Select01 = """
@@ -117,6 +122,7 @@ public static class PortfolioDbSql
         """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class EmulatorExecutionStore
         {
             public const string Select01 = "SELECT operation_id FROM portfolio_financial.emulator_order WHERE execution_id=$1;";
@@ -130,6 +136,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialAuthorityPreparationStore
         {
             public const string Select01 = """
@@ -138,6 +145,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialHistoryJournal
         {
             public const string Select01 = """
@@ -154,6 +162,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialHistoryProjection
         {
             public const string Create01 = """
@@ -172,6 +181,7 @@ public static class PortfolioDbSql
         """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialQueryStore
         {
             public const string Select01 = "SELECT operating_state FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
@@ -260,6 +270,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FinancialWorkflowRecoveryJournal
         {
             public const string With01 = """
@@ -281,6 +292,7 @@ public static class PortfolioDbSql
                 """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class FundRiskAuthorizationStore
         {
             public const string Select01 = """
@@ -289,6 +301,16 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+        public static class LedgerFinancialProjection
+        {
+            public const string InsertCheckpoint = """
+                INSERT INTO portfolio_financial.financial_projection_checkpoint(source_event_id,portfolio_id,event_version,financial_revision)
+                VALUES($1,$2,$3,$4) ON CONFLICT(source_event_id) DO NOTHING;
+                """;
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class GeneralLedgerStore
         {
             public const string Select01 = """
@@ -398,6 +420,16 @@ public static class PortfolioDbSql
         """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+        public static class LedgerConfigurationProjection
+        {
+            public const string ReadMigrationState = "SELECT migration_state FROM portfolio_financial.financial_authority WHERE portfolio_id=$1;";
+            public const string SetAuthority = """
+            UPDATE portfolio_financial.financial_authority SET policy_source_versions=$2,migration_state=$3,
+            operating_state=$4,source_watermark=$5,valuation_watermark=$6,authority_epoch=$7 WHERE portfolio_id=$1;
+            """;
+        }
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class LedgerConfigurationStore
         {
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
@@ -466,6 +498,7 @@ public static class PortfolioDbSql
             """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class PortfolioAuthorityFence
         {
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
@@ -482,6 +515,7 @@ public static class PortfolioDbSql
             public const string Update03 = "UPDATE portfolio_financial.financial_authority SET policy_source_versions=$2 WHERE portfolio_id=$1;";
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class PortfolioFinancialSchema
         {
             public const string Select01 = "SELECT version FROM portfolio_financial.schema_version WHERE singleton=true;";
@@ -501,6 +535,9 @@ public static class PortfolioDbSql
         DROP TABLE IF EXISTS portfolio_financial.ledger_migration CASCADE;
         CREATE TABLE IF NOT EXISTS portfolio_financial.schema_version(singleton boolean PRIMARY KEY CHECK(singleton), version int NOT NULL);
         INSERT INTO portfolio_financial.schema_version VALUES(true,2) ON CONFLICT(singleton) DO UPDATE SET version=EXCLUDED.version;
+        CREATE TABLE IF NOT EXISTS portfolio_financial.financial_projection_checkpoint(
+          source_event_id uuid PRIMARY KEY, portfolio_id int NOT NULL,
+          event_version bigint NOT NULL UNIQUE REFERENCES event_log(eventVersion), financial_revision bigint NOT NULL);
         CREATE TABLE IF NOT EXISTS portfolio_financial.financial_history_receipt(
           event_version bigint PRIMARY KEY REFERENCES event_log(eventVersion), projected_at_utc timestamptz NOT NULL);
         CREATE TABLE IF NOT EXISTS portfolio_financial.financial_operation_receipt(
@@ -747,6 +784,7 @@ public static class PortfolioDbSql
         """;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
         public static class PortfolioDbFinancialSupport
         {
             public const string Select01 = "SELECT pg_advisory_xact_lock(34100,$1);";
@@ -789,6 +827,8 @@ public static class PortfolioDbSql
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Schema
     {
         public const string Create = """
@@ -826,6 +866,8 @@ public static class PortfolioDbSql
         public const string Drop = "DROP SCHEMA IF EXISTS portfolio CASCADE;";
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Portfolio
     {
         public const string Get = "SELECT payload_json::text FROM portfolio.portfolio_by_id WHERE portfolio_id=$1 ORDER BY portfolio_version DESC LIMIT 1;";
@@ -859,6 +901,8 @@ public static class PortfolioDbSql
             """;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Fund
     {
         public const string ByPortfolio = "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id>$2 ORDER BY fund_id,fund_mandate_version DESC LIMIT $3;";
@@ -887,6 +931,7 @@ public static class PortfolioDbSql
         public const string UpsertEnvelope = "INSERT INTO portfolio.fund_risk_envelope(portfolio_id,fund_id,envelope_version,schema_version,aggregate_version,source_event_id,updated_on_utc,payload_json,payload_hash) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9 WHERE NOT EXISTS(SELECT 1 FROM portfolio.projection_tombstone WHERE entity_kind='portfolio' AND entity_key=$1::text AND source_event_id>=$6) ON CONFLICT(portfolio_id,fund_id,envelope_version) DO UPDATE SET schema_version=EXCLUDED.schema_version,aggregate_version=EXCLUDED.aggregate_version,source_event_id=EXCLUDED.source_event_id,updated_on_utc=EXCLUDED.updated_on_utc,payload_json=EXCLUDED.payload_json,payload_hash=EXCLUDED.payload_hash WHERE portfolio.fund_risk_envelope.source_event_id<=EXCLUDED.source_event_id;";
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
     public static class Orders
     {
         public const string Timeline = "SELECT payload_json::text FROM portfolio.fund_order WHERE portfolio_id=$1 AND fund_id=$2 AND order_month=$3 AND created_on_utc<$4 ORDER BY created_on_utc DESC,order_id DESC LIMIT $5;";
@@ -901,6 +946,8 @@ public static class PortfolioDbSql
         public const string DeleteTrade = "DELETE FROM portfolio.fund_order_trade WHERE trade_id=$1 AND source_event_id<=$2;";
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class Policy
     {
         public const string GetCurrent = "SELECT payload_json::text FROM portfolio.portfolio_policy WHERE policy_id=$1 ORDER BY policy_version DESC LIMIT 1;";
@@ -930,6 +977,8 @@ public static class PortfolioDbSql
             """;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public static class OrderComposition
     {
         public const string InsertDecision = "INSERT INTO portfolio.order_composition_decision(operation_id,composition_id,workflow_id,portfolio_id,status,financial_revision,input_hash,receipt,committed_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9);";

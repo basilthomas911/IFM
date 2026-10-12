@@ -11,6 +11,9 @@ public static class GetRegimeDiscoveryParameterSet
     /// <summary>Reads and returns the exact immutable Regime Discovery parameter-set version.</summary>
     public static async ValueTask ExecuteAsync(this GetRegimeDiscoveryParameterSetQuery query, IRegimeDiscoveryConfigurationQueryContext services, IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(services);
         var result = (await services.ConfigurationDb.GetRegimeDiscoveryAsync(query.ParameterSetId, query.Version, cancellationToken).ConfigureAwait(false))?.ParameterSet
             ?? throw new KeyNotFoundException("The requested Regime Discovery parameter set was not found.");
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<RegimeDiscoveryParameterSet>(result)).ConfigureAwait(false);

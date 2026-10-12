@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 /// </summary>
 public sealed class DatabentoLocalQualificationEvaluator
 {
-    readonly IReadOnlyDictionary<string, DatasetSubscriptionManifest> required;
+    readonly Dictionary<string, DatasetSubscriptionManifest> required;
     readonly IReadOnlyDictionary<string, Guid> generations;
     readonly bool synthetic;
     readonly TimeSpan maximumInputAge;
@@ -22,7 +22,7 @@ public sealed class DatabentoLocalQualificationEvaluator
         if (frozen.Count is < 1 or > DatasetDesiredSubscriptionRegistry.MaximumDatasets
             || frozen.Select(item => item.Dataset).Distinct(StringComparer.Ordinal).Count() != frozen.Count
             || generations.Count != frozen.Count || maximumInputAge <= TimeSpan.Zero)
-            throw new ArgumentException("Local qualification requires exact bounded candidate identities.");
+            throw new ArgumentException("Local qualification requires exact bounded candidate identities.",nameof(frozen));
         required = frozen.ToDictionary(item => item.Dataset, StringComparer.Ordinal);
         this.generations = generations;
         this.synthetic = synthetic;
@@ -45,7 +45,7 @@ public sealed class DatabentoLocalQualificationEvaluator
             || worker.GenerationId != expectedGeneration
             || !worker.Running || !worker.ControlResponsive
             || worker.ManifestRevision != manifest.Revision
-            || worker.ManifestFingerprint != manifest.Fingerprint
+            || !string.Equals(worker.ManifestFingerprint,manifest.Fingerprint,StringComparison.Ordinal)
             || worker.Diagnostics is not { } native
             || native.GenerationId != worker.GenerationId
             || !native.DatabentoLocallyReady

@@ -21,8 +21,11 @@ public static class FuturesItiSignalValidation
     /// <param name="contractId">The contract identifier to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateContractId(this List<ValidationError> validationErrors, string contractId, string commandName)
+    public static TErrors ValidateContractId<TErrors>(this TErrors validationErrors, string contractId, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (string.IsNullOrWhiteSpace(contractId))
             validationErrors.Add(new ValidationError($"{commandName}.ContractId is empty"));
         return validationErrors;
@@ -35,9 +38,12 @@ public static class FuturesItiSignalValidation
     /// <param name="timePeriod">The time period to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateTimePeriod(this List<ValidationError> validationErrors, TimeFrameType timePeriod, string commandName)
+    public static TErrors ValidateTimePeriod<TErrors>(this TErrors validationErrors, TimeFrameType timePeriod, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
-        if (!Enum.IsDefined(typeof(TimeFrameType), timePeriod))
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (!Enum.IsDefined(timePeriod))
             validationErrors.Add(new ValidationError($"{commandName}.TimePeriod has an invalid value"));
         return validationErrors;
     }
@@ -49,8 +55,11 @@ public static class FuturesItiSignalValidation
     /// <param name="timestamp">The timestamp to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateTimestamp(this List<ValidationError> validationErrors, DateTime timestamp, string commandName)
+    public static TErrors ValidateTimestamp<TErrors>(this TErrors validationErrors, DateTime timestamp, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (timestamp == default)
             validationErrors.Add(new ValidationError($"{commandName}.Timestamp is not set"));
         else if (timestamp.Year < 1900 || timestamp.Year > 2100)
@@ -65,8 +74,11 @@ public static class FuturesItiSignalValidation
     /// <param name="futuresPrice">The futures price to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateFuturesPrice(this List<ValidationError> validationErrors, double futuresPrice, string commandName)
+    public static TErrors ValidateFuturesPrice<TErrors>(this TErrors validationErrors, double futuresPrice, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (double.IsNaN(futuresPrice))
             validationErrors.Add(new ValidationError($"{commandName}.FuturesPrice is not a number"));
         else if (double.IsInfinity(futuresPrice))
@@ -83,8 +95,11 @@ public static class FuturesItiSignalValidation
     /// <param name="vixFuturesPrice">The VIX futures price to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateVixFuturesPrice(this List<ValidationError> validationErrors, double vixFuturesPrice, string commandName)
+    public static TErrors ValidateVixFuturesPrice<TErrors>(this TErrors validationErrors, double vixFuturesPrice, string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (double.IsNaN(vixFuturesPrice))
             validationErrors.Add(new ValidationError($"{commandName}.VixFuturesPrice is not a number"));
         else if (double.IsInfinity(vixFuturesPrice))

@@ -22,7 +22,7 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     public const string ActorName = "TickAggregationRealtime";
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
-    ITickAggregationRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as ITickAggregationRealtimeContext, nameof(actorContext))!;
+    ITickAggregationRealtimeContext RealtimeContext { get; } = IsArgumentNull.Named(actorContext as ITickAggregationRealtimeContext, nameof(actorContext))!;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -88,37 +88,29 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
 
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<TickAggregationRealtimeActor> context,
-        IEvent domainEvent)
+        IEvent @event)
     {
         ArgumentNullException.ThrowIfNull(context);
         try
         {
-            var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
-            await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
+            var handler = ResolveMappedEventHandler(@event, _receiveMap);
+            await handler(@event, RealtimeContext).ConfigureAwait(false);
         }
         finally
         {
-            if (domainEvent is FuturesTickQuoteDataChangedEvent changed)
+            if (@event is FuturesTickQuoteDataChangedEvent changed)
                 changed.QuoteData.Dispose();
-            else if (domainEvent is FuturesTickQuoteDataInsertedEvent inserted)
+            else if (@event is FuturesTickQuoteDataInsertedEvent inserted)
                 inserted.QuoteData.Dispose();
         }
     }
 
-    static void LogProjectionFailure(TickAggregationFailEvent failed, ILogger logger) =>
-        logger.LogErrorEvent(
-            ActorName,
-            "{EventName} for {EntityId}: {ErrorMessage}",
-            failed.EventName,
-            failed.EntityId,
-            failed.ErrorMessage);
-
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<TickAggregationRealtimeActor> context,
         ActorThreadId threadId,
-        IEvent domainEvent,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
+        IEvent @event,
+        Exception ex) =>
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

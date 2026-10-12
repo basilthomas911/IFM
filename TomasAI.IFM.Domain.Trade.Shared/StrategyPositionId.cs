@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 /// <summary>Identifies a concrete strategy-position stream for an established trade.</summary>
 [MessagePackObject]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct StrategyPositionId(
     [property: Key(0)] TradeEntityId Trade,
     [property: Key(1)] Guid PositionId) : IActorEntityId
@@ -36,17 +37,4 @@ public readonly record struct StrategyPositionId(
     /// <returns>The invariant Portfolio, Fund, Order, Trade, and position identity.</returns>
     public string Format() => string.Create(CultureInfo.InvariantCulture, $"{Trade.Format()}.{PositionId:N}");
     [IgnoreMember] public bool IsValid => Trade.IsValid && PositionId != Guid.Empty;
-}
-
-/// <summary>Intrinsic StrategyPositionId validation used by command actors.</summary>
-public static class StrategyPositionIdValidationExtensions
-{
-    /// <summary>Validates the Trade identity and strategy Position identity.</summary>
-    public static List<TomasAI.IFM.Shared.Validation.ValidationError> ValidateStrategyPositionId(this List<TomasAI.IFM.Shared.Validation.ValidationError> errors, StrategyPositionId id, string commandName)
-    {
-        errors.ValidateTradeEntityId(id.Trade, commandName);
-        if (id.PositionId == Guid.Empty) errors.Add(new($"{commandName}.EntityId.PositionId is required."));
-        return errors;
-    }
-
 }

@@ -45,13 +45,11 @@ public sealed class GeneralLedgerQueryActor(IQueryActorContext<GeneralLedgerQuer
         }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys,
         (query, error) => error is FinancialOperationException financial ? financial.Code : FinancialReasons.PersistenceFailed);
-    protected override IQuery ParseMessage(IQueryActorContext<GeneralLedgerQueryActor> owner, IActorMessage message) => ParseMappedQuery(owner, message, _parseMap);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<GeneralLedgerQueryActor> owner, IQuery query) => ReceiveAsync(owner, query, CancellationToken.None);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<GeneralLedgerQueryActor> owner, IQuery query, CancellationToken token)
-        => ResolveMappedQueryHandler(query, _receiveMap)(query, store, preparation, authority, owner, token);
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<GeneralLedgerQueryActor> owner, ActorThreadId threadId, IQuery query, string verb, Exception error)
-        => ExceptionMappedQueryAsync(owner, threadId, query, verb, error, _exceptionMap);
+    protected override IQuery ParseMessage(IQueryActorContext<GeneralLedgerQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
+    protected override ValueTask ReceiveAsync(IQueryActorContext<GeneralLedgerQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
+    protected override ValueTask ReceiveAsync(IQueryActorContext<GeneralLedgerQueryActor> context, IQuery query, CancellationToken cancellationToken)
+        => ResolveMappedQueryHandler(query, _receiveMap)(query, store, preparation, authority, context, cancellationToken);
+    protected override ValueTask OnExceptionAsync(IQueryActorContext<GeneralLedgerQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }
-public sealed class GeneralLedgerQueryContext(IActorSupervisor supervisor)
-    : QueryActorContext(supervisor, new ActorMailboxId(ActorType.Query, GeneralLedgerQueryActor.ActorName)), IQueryActorContext<GeneralLedgerQueryActor>;
 

@@ -5,7 +5,6 @@ using System.Text;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Validation;
@@ -101,7 +100,7 @@ internal static class FuturesTradeSignalValidation
     /// <returns>The updated list of validation errors.</returns>
     public static List<ValidationError> ValidateTimePeriod(this List<ValidationError> validationErrors, TimeFrameType timePeriod, string commandName)
     {
-        if (!Enum.IsDefined(typeof(TimeFrameType), timePeriod))
+        if (!Enum.IsDefined(timePeriod))
             validationErrors.Add(new ValidationError($"{commandName}.TimePeriod has an invalid value"));
         return validationErrors;
     }

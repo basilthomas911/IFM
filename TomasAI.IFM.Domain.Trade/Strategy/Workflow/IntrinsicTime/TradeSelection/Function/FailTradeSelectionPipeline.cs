@@ -10,29 +10,36 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function;
-
 /// <summary>Maps contract, calculation, transport and lifecycle failures to non-durable terminal events.</summary>
 public static class FailTradeSelectionPipeline
 {
     /// <summary>Classifies a failure and builds its event without persisting incomplete state.</summary>
-    public static FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> Fail(
-        this FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input, TimeProvider clock)
+    public static FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent> Fail(this FunctionEventContext<ExecuteTradeSelectionPipelineCommand> input, TimeProvider clock)
     {
-        if (!input.IsConflict && input.Exception is null) throw new ArgumentException("Failure requires a conflict or exception.");
-        var reason = input.IsConflict ? "TS.CONTRACT.CONFLICTING_DUPLICATE"
-            : input.Exception is TradeSelectionValidationException validation ? validation.ReasonCode
-            : input.Exception is TimeoutException ? "TS.TIME.EXPIRED" : input.Stage switch
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
+        if (!input.IsConflict && input.Exception is null)
+            throw new ArgumentException("Failure requires a conflict or exception.",nameof(input));
+        var reason = ((input.IsConflict) switch
+        {
+            true => "TS.CONTRACT.CONFLICTING_DUPLICATE",
+            _ => (input.Exception switch
             {
-                FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "TS.PERSISTENCE.FAILED",
-                FunctionFailureStage.Projection => "TS.PROJECTION.FAILED",
-                FunctionFailureStage.Execution => "TS.CALCULATION.FAILED",
-                _ => "TS.CONTRACT.INVALID"
-            };
+TradeSelectionValidationException validation=> validation.ReasonCode,
+                _ => input.Exception is TimeoutException ? "TS.TIME.EXPIRED" : input.Stage switch
+                {
+                    FunctionFailureStage.Loading or FunctionFailureStage.Persistence => "TS.PERSISTENCE.FAILED",
+                    FunctionFailureStage.Projection => "TS.PROJECTION.FAILED",
+                    FunctionFailureStage.Execution => "TS.CALCULATION.FAILED",
+                    _ => "TS.CONTRACT.INVALID"
+                }})});
         if (!input.IsConflict && input.Exception is TomasAI.IFM.Shared.Exceptions.CommandValidationException mapped)
         {
-            var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"TS\.[A-Z_]+\.[A-Z_]+");
-            if (code.Success) reason = code.Value;
+            var code = System.Text.RegularExpressions.Regex.Match(mapped.Message, @"TS\.[A-Z_]+\.[A-Z_]+", System.Text.RegularExpressions.RegexOptions.NonBacktracking);
+            if (code.Success)
+                reason = code.Value;
         }
+
         TradeSelectionTelemetry.Failure(reason);
         return FunctionResult<TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>.Fail(CreateFailedEvent(input.Request, reason, clock));
     }

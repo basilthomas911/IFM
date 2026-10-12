@@ -8,11 +8,6 @@ using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
-public sealed record ChainIvObservation(double Volatility, OptionPricingContext Context, OptionPricingQuote Underlying,
-    OptionPricingQuote Option, DateTimeOffset CalculatedAtUtc, string PolicyVersion);
-public sealed record ChainSelectionCalculation(OptionPricingContext Context, OptionPricingQuote Underlying, OptionPricingQuote Option,
-    ChainIvObservation? Iv, double? TheoreticalPrice, double? Delta, DateTimeOffset CalculatedAtUtc, OptionPricingFailure? Failure);
-
 /// <summary>Bounded latest-state ingress with independent selection/risk workers. No calculation or I/O on quote ingress.</summary>
 public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IRetainedOptionTradeEnricher, IAsyncDisposable
 {
@@ -22,7 +17,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     readonly Func<string, OptionPricingQuote?> readUnderlying;
     readonly TimeProvider clock;
     readonly ConcurrentDictionary<string, Entry> entries = new(StringComparer.Ordinal);
-    readonly object registration = new();
+    readonly System.Threading.Lock registration = new();
     readonly object selectionPass = new(), riskPass = new();
     int disposed;
     readonly CancellationTokenSource stopping = new();
@@ -37,6 +32,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     public long IvSolves => Interlocked.Read(ref ivSolves);
     public void Register(DatabentoOptionChainRoute route)
     {
+        ArgumentNullException.ThrowIfNull(route);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         lock (registration)
         {
@@ -50,6 +46,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
         Func<string, OptionPricingQuote?> readUnderlying, TimeProvider? time = null, Action<string>? fault = null,
         IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
+        ArgumentNullException.ThrowIfNull(policy);
         policy.Validate();
         this.inputs = inputs; this.generation = generation; this.policy = policy;
         this.readUnderlying = readUnderlying; clock = time ?? TimeProvider.System; this.fault = fault;
@@ -59,6 +56,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     }
     public OptionGreeksSnapshot EnrichQuote(DatabentoOptionChainRoute route, LastQuoteTickSnapshot tick)
     {
+        ArgumentNullException.ThrowIfNull(route);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (!inputs.TryGet(route.FuturesOptionContractId, out var input) || input is null || input.Context.GenerationId != generation)
             return Pending(route, "PricingContextUnavailable");
@@ -85,12 +83,13 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     // Every trade has its own calculation, independent of the coalesced quote/IV cache.
     public OptionGreeksSnapshot EnrichTrade(DatabentoOptionChainRoute route, LastTradeTickSnapshot tick)
     {
+        ArgumentNullException.ThrowIfNull(route);
         if (!inputs.TryGet(route.FuturesOptionContractId, out var input) || input is null
             || input.Context.GenerationId != generation
             || route.Definition.Instrument.InstrumentId != input.Context.Contract.InstrumentId
             || route.Definition.Instrument.PublisherId != input.Context.Contract.PublisherId
-            || route.Definition.Dataset != input.Context.Contract.Dataset
-            || route.Definition.RawSymbol != input.Context.Contract.RawSymbol)
+            || !string.Equals(route.Definition.Dataset,input.Context.Contract.Dataset,StringComparison.Ordinal)
+            || !string.Equals(route.Definition.RawSymbol,input.Context.Contract.RawSymbol,StringComparison.Ordinal))
             return Pending(route, "PricingContextUnavailable") with { PriceSource = OptionGreeksPriceSource.Trade };
         return OptionTradePricing.Calculate(input.Context, readUnderlying(input.Context.Contract.UnderlyingContractId),
             tick, route.Definition.StrikePrice, route.Definition.Right == OptionRightSelection.Call, clock.GetUtcNow());
@@ -112,15 +111,16 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     public async ValueTask<OptionGreeksSnapshot> EnrichTradeAsync(DatabentoOptionChainRoute route,
         LastTradeTickSnapshot tick, long eventNanoseconds, long receiveNanoseconds, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(route);
         var at = clock.GetUtcNow();
         inputs.TryGet(route.FuturesOptionContractId, out var input);
         var context = input?.Context;
         if (context is not null && (context.GenerationId != generation
-            || context.Contract.Dataset != route.Definition.Dataset
+            || !string.Equals(context.Contract.Dataset,route.Definition.Dataset,StringComparison.Ordinal)
             || context.Contract.PublisherId != route.Definition.Instrument.PublisherId
             || context.Contract.InstrumentId != route.Definition.Instrument.InstrumentId
-            || context.Contract.RawSymbol != route.Definition.RawSymbol
-            || context.Contract.ContractId != tick.ContractId)) context = null;
+            || !string.Equals(context.Contract.RawSymbol,route.Definition.RawSymbol,StringComparison.Ordinal)
+            || !string.Equals(context.Contract.ContractId,tick.ContractId,StringComparison.Ordinal))) context = null;
         var underlying = context is null ? null : readUnderlying(context.Contract.UnderlyingContractId);
         OptionGreeksSnapshot result;
         try
@@ -176,7 +176,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             while (await timer.WaitForNextTickAsync(stopping.Token).ConfigureAwait(false))
                 await ProcessSweepAsync(risk).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         catch (Exception e) { fault?.Invoke("Option pricing scheduler failed: " + e.GetType().Name); throw; }
     }
     /// <summary>Deterministic pass for synthetic-clock verification; production is driven by the owned background loops.</summary>
@@ -196,6 +196,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             await Task.Yield();
         }
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     void ProcessPassCore(bool risk, Entry[]? batch = null, int? maximum = null)
     {
         batch ??= entries.Values.Where(x => !risk || x.RiskRequired).ToArray();
@@ -229,7 +230,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             var invalid = Black76PricingModel.ValidateInputs(context, underlying, quote, strike, call, at);
             if (context.GenerationId != generation || entry.Route.Definition.Instrument.InstrumentId != context.Contract.InstrumentId
                 || entry.Route.Definition.Instrument.PublisherId != context.Contract.PublisherId
-                || entry.Route.Definition.Dataset != context.Contract.Dataset || entry.Route.Definition.RawSymbol != context.Contract.RawSymbol)
+                || !string.Equals(entry.Route.Definition.Dataset,context.Contract.Dataset,StringComparison.Ordinal) || !string.Equals(entry.Route.Definition.RawSymbol,context.Contract.RawSymbol,StringComparison.Ordinal))
                 invalid = Failure(quote.ContractId, "Recovering");
             if (invalid is not null)
             {
@@ -248,7 +249,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             var request = Black76PricingModel.CreateRequest(context.Contract, (double)(underlying.Bid / 2 + underlying.Ask / 2),
                 strike, call, OptionPricingQualification.YearFraction(context.Contract, at), context.Rate.AnnualContinuousRate);
             var iv = entry.Iv;
-            if (iv is null || iv.Context != context || iv.PolicyVersion != policy.Version
+            if (iv is null || iv.Context != context || !string.Equals(iv.PolicyVersion,policy.Version,StringComparison.Ordinal)
                 || (at - iv.Option.EventAtUtc).TotalMilliseconds >= policy.ImpliedVolatilityMilliseconds)
             {
                 Interlocked.Increment(ref ivSolves);
@@ -293,7 +294,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
         OptionPricingQuote Option, OptionPricingPassResult Result);
     sealed class Entry(DatabentoOptionChainRoute route)
     {
-        public readonly object Gate = new();
+        public readonly System.Threading.Lock Gate = new();
         public DatabentoOptionChainRoute Route { get; } = route;
         public LastQuoteTickSnapshot? Latest;
         public ChainIvObservation? Iv;

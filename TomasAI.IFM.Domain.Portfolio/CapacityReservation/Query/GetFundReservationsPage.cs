@@ -11,5 +11,10 @@ public static class GetFundReservationsPage
 {
     /// <summary>Validates, executes, and replies to the mapped financial query.</summary>
     public static ValueTask ExecuteAsync<TActor>(this GetFundReservationsPageQuery query, IFinancialQueryStore dependency, IQueryActorContext<TActor> context, CancellationToken cancellationToken) where TActor : IActor
-        => FinancialQueryReply.ExecuteAsync(query, context, "CapacityReservationQuery", "GetFundReservationsPage", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        return FinancialQueryReply.ExecuteAsync(query, context, "CapacityReservationQuery", "GetFundReservationsPage", () => dependency.ReadAsync(query.Scope, query.Parameters, cancellationToken), cancellationToken);
+    }
 }

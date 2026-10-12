@@ -21,11 +21,8 @@ public static class GetFuturesItiSignal
         this GetFuturesItiSignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod).ConfigureAwait(false);
+        => await dbFactory.MarketDataDb.GetLastFuturesItiSignalAsync(
+                q.ContractId, q.ValueDate, q.TimePeriod, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Reads and replies to the GetFuturesItiSignalQuery message.</summary>
     public static async ValueTask ExecuteAsync(
@@ -34,7 +31,10 @@ public static class GetFuturesItiSignal
         IDbContextFactory db,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesItiSignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetLastFuturesItiSignalAsync(db, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,

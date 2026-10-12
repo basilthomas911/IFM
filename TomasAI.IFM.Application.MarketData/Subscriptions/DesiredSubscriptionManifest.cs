@@ -2,9 +2,6 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Subscriptions;
 
-public enum SubscriptionDatasetAvailability { Recovering, Open, Closed }
-public sealed record DesiredSubscriptionRoute(SubscriptionTickerKey Ticker, int EffectiveOwners);
-
 /// <summary>Immutable host intent only, not the Stage 3 wire manifest or price-qualified realized state.</summary>
 public sealed class DesiredSubscriptionManifest
 {

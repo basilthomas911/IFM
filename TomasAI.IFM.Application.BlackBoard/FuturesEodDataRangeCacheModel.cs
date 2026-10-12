@@ -27,36 +27,37 @@ public class FuturesEodDataRangeCacheModel(IRedisCache redisCache, IJsonSerializ
     /// <returns></returns>
     public async ValueTask<FuturesEodDataV2ReadModel[]> GetAsync(string contractId, DateOnly valueDate, Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>> getFuturesEodDataAsync)
     {
+        ArgumentNullException.ThrowIfNull(getFuturesEodDataAsync);
         var cacheId = FuturesEodDataId.Create(contractId, valueDate);
         var key = $"{CacheName}:{cacheId.Format()}";
-        var value = _redisCache.Get(key);
+        var value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         if (string.IsNullOrEmpty(value))
         {
             var startDate = valueDate.AddYears(-1);
-            var futuresEodData = await getFuturesEodDataAsync.Invoke(contractId, startDate, valueDate);
+            var futuresEodData = await (getFuturesEodDataAsync.Invoke(contractId, startDate, valueDate)).ConfigureAwait(false);
             if (futuresEodData is not null)
             {
                 value = _jsonSerializer.Serialize(futuresEodData);
                 TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
-                _redisCache.Set(key, value);
+                await _redisCache.SetAsync(key, value).ConfigureAwait(false);
             }
         }
         else
         {
             var futuresEodData = _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(value);
-            if (futuresEodData is not null && (futuresEodData.Length == 0 || futuresEodData.First().ValueDate != valueDate))
+            if (futuresEodData is not null && (futuresEodData.Length == 0 || futuresEodData[0].ValueDate != valueDate))
             {
                 var startDate = valueDate.AddYears(-1);
-                futuresEodData = await getFuturesEodDataAsync.Invoke(contractId, startDate, valueDate);
+                futuresEodData = await (getFuturesEodDataAsync.Invoke(contractId, startDate, valueDate)).ConfigureAwait(false);
                 if (futuresEodData is not null)
                 {
                     value = _jsonSerializer.Serialize(futuresEodData);
                     TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
-                _redisCache.Set(key, value);
+                await _redisCache.SetAsync(key, value).ConfigureAwait(false);
                 }
             }
         }
-        value = _redisCache.Get(key);
+        value = await _redisCache.GetAsync(key).ConfigureAwait(false);
         return !string.IsNullOrEmpty(value)
             ? _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(value) ?? []
             : [];

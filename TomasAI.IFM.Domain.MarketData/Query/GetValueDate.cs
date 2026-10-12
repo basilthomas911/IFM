@@ -25,25 +25,26 @@ public static class GetValueDate
             new ScalarReadModel<DateOnly>(authority.Current.OperationalValueDate));
     }
 
-    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTime today)
-    {
-        var unspecified = DateTime.SpecifyKind(today, DateTimeKind.Unspecified);
-        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, FuturesTradingValueDate.MarketTimeZone);
-        return new ScalarReadModel<DateOnly>(FuturesTradingValueDate.GetOperational(utc));
-    }
-
-    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTimeOffset instant)
-        => new(FuturesTradingValueDate.GetOperational(instant));
-
     /// <summary>Reads and replies with the requested market-data result.</summary>
     public static async ValueTask ExecuteAsync(
         this GetValueDateQuery query,
         TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var result = await query.ExecuteAsync(context.MarketSessionAuthority, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
     }
+
+    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTime today)
+    {
+        var unspecified = DateTime.SpecifyKind(today, DateTimeKind.Unspecified);
+        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, FuturesTradingValueDate.MarketTimeZone);
+        return new ScalarReadModel<DateOnly>(FuturesTradingValueDate.GetOperational(new DateTimeOffset(utc, TimeSpan.Zero)));
+    }
+
+    internal static ScalarReadModel<DateOnly> CalculateValueDate(DateTimeOffset instant)
+        => new(FuturesTradingValueDate.GetOperational(instant));
 }

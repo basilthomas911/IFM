@@ -31,6 +31,13 @@ public sealed record PrepareFinancialBookQuery : IFinancialQueryMessage<PrepareF
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public PrepareFinancialBookQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public PrepareFinancialBookQuery(PrepareFinancialBookRequest parameters) => Parameters = parameters;
     public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "PrepareFinancialBook";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -61,11 +68,4 @@ public sealed record PrepareFinancialBookQuery : IFinancialQueryMessage<PrepareF
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public PrepareFinancialBookQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public PrepareFinancialBookQuery(PrepareFinancialBookRequest parameters) => Parameters = parameters;
 }

@@ -10,24 +10,27 @@ public static class CapacityAdmissionModel
     public static void ValidateCommitted(CapacityReservationRequest request, QualifiedCapacityAssessment assessment,
         FinancialBookConfiguration book, decimal availableCash, IReadOnlyList<CapacityUsed> usage, DateTime nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(assessment);
+        ArgumentNullException.ThrowIfNull(book);
+        ArgumentNullException.ThrowIfNull(request);
         var fund = book.Funds.SingleOrDefault(x => x.FundId == request.FundId);
         var deployment = fund?.Deployments.SingleOrDefault(x => x.Reference.DeploymentKey == request.Authority.DeploymentKey);
         var reference = fund?.Deployments.Length > 0 ? deployment?.Reference : fund?.Reference;
         Require(fund is not null && assessment.Eligible && assessment.PortfolioId == book.PortfolioId &&
             assessment.FundId == request.FundId && assessment.InvocationId == request.RiskInvocationId &&
-            assessment.ResultId == request.RiskResultId && assessment.ResultHash == request.RiskAssessmentHash &&
+            assessment.ResultId == request.RiskResultId && string.Equals(assessment.ResultHash,request.RiskAssessmentHash,StringComparison.Ordinal) &&
             assessment.WorkflowId == request.WorkflowId && assessment.WorkflowRevision == request.InputWorkflowRevision &&
-            assessment.CompositionResultId == request.CompositionResultId && assessment.CompositionResultHash == request.CompositionResultHash &&
-            assessment.UnitCandidateHash == request.UnitCandidateHash && assessment.SizedOrderHash == request.SizedOrderHash &&
-            assessment.StrategyUnits == request.StrategyUnits && assessment.Environment == request.ExecutionEnvironment &&
+            assessment.CompositionResultId == request.CompositionResultId && string.Equals(assessment.CompositionResultHash,request.CompositionResultHash,StringComparison.Ordinal) &&
+            string.Equals(assessment.UnitCandidateHash,request.UnitCandidateHash,StringComparison.Ordinal) && string.Equals(assessment.SizedOrderHash,request.SizedOrderHash,StringComparison.Ordinal) &&
+            assessment.StrategyUnits == request.StrategyUnits && string.Equals(assessment.Environment,request.ExecutionEnvironment,StringComparison.Ordinal) &&
             assessment.ValidUntilUtc >= request.ValidUntilUtc && assessment.ValidUntilUtc > nowUtc &&
             assessment.Authority == request.Authority && request.Authority == reference &&
             request.Authority.AuthorityEpoch == book.AuthorityEpoch &&
-            request.Authority.SourceWatermark == book.SourceWatermark && request.Authority.ValuationWatermark == book.ValuationWatermark,
+            string.Equals(request.Authority.SourceWatermark,book.SourceWatermark,StringComparison.Ordinal) && string.Equals(request.Authority.ValuationWatermark,book.ValuationWatermark,StringComparison.Ordinal),
             FinancialReasons.AuthorityDenied, "Reservation does not match committed Risk evidence/current financial authority.");
         var margin = request.MarginEvidenceReference;
         Require(margin == assessment.MarginEvidence && margin.EvidenceId != Guid.Empty && margin.Version > 0 &&
-            margin.ContentHash.Length == 64 && margin.Environment == book.Environment && margin.ObservedAtUtc <= nowUtc &&
+            margin.ContentHash.Length == 64 && string.Equals(margin.Environment,book.Environment,StringComparison.Ordinal) && margin.ObservedAtUtc <= nowUtc &&
             margin.ValidUntilUtc >= request.ValidUntilUtc && margin.ValidUntilUtc > nowUtc,
             FinancialReasons.AuthorityDenied, "Qualified margin evidence must cover the complete reservation lifetime.");
         Require(request.TradeIds.Length > 0 && request.TradeIds.All(x => x > 0) && request.TradeIds.Distinct().Count() == request.TradeIds.Length,
@@ -44,11 +47,16 @@ public static class CapacityAdmissionModel
             deployment is null ? fund!.Limits : [.. fund!.Limits, .. deployment.Limits], usage, nowUtc);
     }
 
-    public static decimal Funding(CapacityRequirements value) => checked(value.SettlementCash + value.MarginFunding + value.FeeReserve + value.VariationReserve);
+    public static decimal Funding(CapacityRequirements value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return checked(value.SettlementCash + value.MarginFunding + value.FeeReserve + value.VariationReserve);
+    }
 
     /// <summary>Prevents an otherwise valid requirement hash from omitting an aggregate cap or charging a different amount.</summary>
     public static void ValidateScopeVector(CapacityRequirements requirements, CapacityScopeKind scope, string key, bool contracts)
     {
+        ArgumentNullException.ThrowIfNull(requirements);
         Check(CapacityMeasure.SettlementCash, CapacityUnit.Usd, Funding(requirements));
         Check(CapacityMeasure.LossCharge, CapacityUnit.Usd, requirements.LossCharge);
         Check(CapacityMeasure.Margin, CapacityUnit.Usd, requirements.MarginRequirement);
@@ -57,7 +65,7 @@ public static class CapacityAdmissionModel
         if (contracts) Check(CapacityMeasure.GrossContracts, CapacityUnit.Contracts, requirements.GrossContracts);
         void Check(CapacityMeasure measure, CapacityUnit unit, decimal amount)
         {
-            var values = requirements.Exposures.Where(x => x.ScopeKind == scope && x.ScopeKey == key && x.Measure == measure && x.Unit == unit).ToArray();
+            var values = requirements.Exposures.Where(x => x.ScopeKind == scope && string.Equals(x.ScopeKey,key,StringComparison.Ordinal) && x.Measure == measure && x.Unit == unit).ToArray();
             Require(values.Length == 1 && values[0].Amount == amount, FinancialReasons.InvalidContract, $"Incomplete or inconsistent {scope}/{measure} exposure.");
         }
     }
@@ -68,14 +76,18 @@ public static class CapacityAdmissionModel
         decimal settledCash, decimal pendingWithdrawals, decimal reservedFunding,
         IReadOnlyList<CapacityLimit> limits, IReadOnlyList<CapacityUsed> usage, DateTime nowUtc)
     {
+        ArgumentNullException.ThrowIfNull(independentlyDerived);
+        ArgumentNullException.ThrowIfNull(limits);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(usage);
         Require(nowUtc.Kind == DateTimeKind.Utc && request.ValidUntilUtc.Kind == DateTimeKind.Utc && nowUtc < request.ValidUntilUtc,
             FinancialReasons.ReservationExpired, "Reservation evidence expired.");
         Require(request.ReservationId != Guid.Empty && request.FundId > 0 && request.BookId > 0 && request.OrderId > 0 && request.StrategyUnits > 0,
             FinancialReasons.InvalidContract, "Reservation identities and whole strategy units are required.");
         var proposed = request.Requirements;
-        Require(proposed.Currency == "USD" && independentlyDerived.Currency == "USD",
+        Require(string.Equals(proposed.Currency,"USD",StringComparison.Ordinal) && string.Equals(independentlyDerived.Currency,"USD",StringComparison.Ordinal),
             FinancialReasons.UnsupportedCurrency, "Only USD capacity is supported.");
-        Require(proposed.AccountingMethodVersion > 0 && proposed.ContentHash == Hash(proposed) && Hash(proposed) == Hash(independentlyDerived),
+        Require(proposed.AccountingMethodVersion > 0 && string.Equals(proposed.ContentHash,Hash(proposed),StringComparison.Ordinal) && string.Equals(Hash(proposed),Hash(independentlyDerived),StringComparison.Ordinal),
             FinancialReasons.RequestMismatch, "Requirement vector must match independent qualified risk/accounting calculation.");
         Require(new[] { proposed.SettlementCash, proposed.MarginFunding, proposed.FeeReserve, proposed.VariationReserve,
             proposed.LossCharge, proposed.MarginRequirement, proposed.GrossNotional }.All(x => x >= 0) &&

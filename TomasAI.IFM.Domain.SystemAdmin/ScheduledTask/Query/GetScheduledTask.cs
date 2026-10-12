@@ -7,12 +7,15 @@ namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query;
 /// <summary>Handles GetScheduledTask without consulting command-state objects.</summary>
 public static class GetScheduledTask
 {
-    /// <summary>Reads persisted projections or previews the supplied timing, then sends a typed response.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation targets a member of the request, but ParamName intentionally identifies the containing method argument so callers can identify the rejected request.")]     /// <summary>Reads persisted projections or previews the supplied timing, then sends a typed response.</summary>
     public static async ValueTask ExecuteAsync(this GetScheduledTaskQuery query, IScheduledTaskReadStore store,
         IQueryActorContext<ScheduledTaskQueryActor> context, TimeProvider clock, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query.Environment);
-        ArgumentException.ThrowIfNullOrWhiteSpace(query.HostId);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentException.ThrowIfNullOrWhiteSpace(query.Environment, nameof(query));
+        ArgumentException.ThrowIfNullOrWhiteSpace(query.HostId, nameof(query));
         var result = await store.GetDefinitionAsync(query.Environment, query.HostId, query.EntityId, cancellationToken).ConfigureAwait(false);
         await context.ReplyAsync<ScheduledTaskDefinition>(query.Subject.ThreadId, query.Subject.Verb,
             result is null ? new ServiceFailed<ScheduledTaskDefinition>(404, "ScheduledTask projection was not found.") : new ServiceOk<ScheduledTaskDefinition>(result)).ConfigureAwait(false);

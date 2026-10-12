@@ -11,10 +11,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime;
 /// <summary>Handles closed observations routed to the stateless MACD realtime actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-    /// <summary>Forwards one MACD command for every matching attached identity.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Forwards one MACD command for every matching attached identity.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSessionBarClosedRealtimeEvent @event,
         IFuturesMacdSignalRealtimeContext context, ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         var observation = IsArgumentNull.Set(@event.Observation);
         if (!observation.IsValid) return true;
         try
@@ -32,9 +33,7 @@ public static class FuturesTradeSessionBarClosed
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;
-                    logger.LogError(
-                        "MACD command rejected observation {ObservationId} for {EntityId}: {ErrorMessage}",
-                        observation.ObservationId, entityId, failed.ErrorMessage);
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write36(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
                 }
             }
             return succeeded;

@@ -6,12 +6,15 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Command.Validation;
 public static class TradeFeedIdentityValidation
 {
     /// <summary>Appends intrinsic Trade ID and subject mismatch errors without throwing.</summary>
-    public static List<ValidationError> ValidateTradeFeedIdentity(
-        this List<ValidationError> errors,
+    public static TErrors ValidateTradeFeedIdentity<TErrors>(
+        this TErrors errors,
         TomasAI.IFM.Domain.Trade.Shared.TradeEntityId entityId,
         ActorSubject subject,
         string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(errors);
         if (!entityId.IsValid)
             errors.Add(new($"{commandName}.EntityId requires positive PortfolioId, FundId, OrderId, and TradeId."));
         if (!StringComparer.Ordinal.Equals(subject.EntityId, entityId.Format()))

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
@@ -7,6 +7,26 @@ namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 /// <summary>Defines mutations supported by the Securities database.</summary>
 public interface ISecuritiesDbWriteContext
 {
+    /// <summary>Materializes accepted futures facts, indexes and immutable reference publication on the source transaction.</summary>
+    Task ProjectFuturesContractAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        FuturesContractV3ReadModel contract, string? originalContractId = null, CancellationToken token = default);
+    /// <summary>Materializes accepted option facts, indexes and immutable reference publication on the source transaction.</summary>
+    Task ProjectOptionContractAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        FuturesOptionContractReadModel contract, string? originalContractId = null, CancellationToken token = default);
+    /// <summary>Removes canonical and symbol rows without deleting immutable reference evidence.</summary>
+    Task RemoveFuturesContractAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        string contractId,CancellationToken token = default);
+    /// <summary>Removes canonical and symbol option rows without deleting immutable reference evidence.</summary>
+    Task RemoveOptionContractAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        string contractId,CancellationToken token = default);
+
+    /// <summary>Inserts immutable bundle JSON without replacing an existing publication.</summary>
+    /// <param name="bundleId">The exact content digest qualified by the caller.</param>
+    /// <param name="payload">The validated bundle JSON.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The asynchronous insertion operation.</returns>
+    Task InsertOptionPricingReferenceBundleAsync(string bundleId, string payload, CancellationToken cancellationToken = default);
+
     Task<PendingReferenceVersion> StageReferenceVersionAsync(
         FuturesContractV3ReadModel value,
         CancellationToken cancellationToken = default);
@@ -29,6 +49,7 @@ public interface ISecuritiesDbWriteContext
     /// drained and the operator has verified that matching processes cannot resume.
     /// Leaving it <see langword="null"/> never removes an unclassified operation.
     /// </remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<SecuritiesProjectionBackfillResult> BackfillSymbolProjectionsAsync(
         int batchSize = 256,
         CancellationToken cancellationToken = default,

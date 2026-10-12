@@ -11,12 +11,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime;
 /// <summary>Handles shared closed observations routed to the stateless ADX realtime actor.</summary>
 public static class FuturesTradeSessionBarClosed
 {
-    /// <summary>Sends one event-sourced ADX Generate command for every matching active ADX identity.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Sends one event-sourced ADX Generate command for every matching active ADX identity.</summary>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesTradeSessionBarClosedRealtimeEvent @event,
         IFuturesAdxSignalRealtimeContext context,
         ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         IsArgumentNull.Check(@event);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(logger);
@@ -46,15 +47,10 @@ public static class FuturesTradeSessionBarClosed
                 if (result is ServiceFailed<GuidResult> failed)
                 {
                     succeeded = false;
-                    logger.LogError(
-                        "ADX command rejected observation {ObservationId} for {EntityId}: {ErrorMessage}",
-                        observation.ObservationId, entityId, failed.ErrorMessage);
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write1(logger, null, observation.ObservationId, entityId, failed.ErrorMessage);
                 }
                 else
-                    logger.LogDebug(
-                        "Forwarded observation {ObservationId} to the ADX command actor for {EntityId}",
-                        observation.ObservationId,
-                        entityId);
+                    global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write2(logger, null, observation.ObservationId, entityId);
             }
             return succeeded;
         }

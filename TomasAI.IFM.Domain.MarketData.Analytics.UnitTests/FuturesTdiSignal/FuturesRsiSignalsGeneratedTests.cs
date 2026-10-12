@@ -23,6 +23,7 @@ public sealed class FuturesRsiSignalsGeneratedTests
                 Arg.Any<GenerateFuturesTdiSignalCommand>())
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
         var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var eventId = Guid.NewGuid();
         var @event = new FuturesRsiSignalsGeneratedEvent
         {
@@ -71,6 +72,7 @@ public sealed class FuturesRsiSignalsGeneratedTests
                 .Select(signal => signal with { TimePeriod = TimeFrameType.FiveMinutes }).ToArray()
         };
         var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
         Assert.True(await @event.ExecuteAsync(context, logger));
         Assert.True(await @event.ExecuteAsync(context, logger));

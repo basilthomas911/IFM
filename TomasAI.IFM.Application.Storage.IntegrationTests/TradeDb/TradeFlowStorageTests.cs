@@ -20,7 +20,7 @@ public sealed class TradeFlowStorageFixture
     {
         var settings = new DbConnectionSettings().Add(
             TradeDbContext.TradeDbConnection,
-            "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db",
+            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_flow"),
             "System.Data.ScyllaDb");
         var contexts = new Dictionary<Type, TradeDbContext>();
         var resolver = new DbContextResolver(type => contexts[type]);

@@ -3,6 +3,7 @@ namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 /// <summary>
 /// Identifies the guarded lifecycle state of an immutable configuration version.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "Preserve the existing serialized byte enum representation.")]
 public enum ConfigurationParameterSetStatus : byte
 {
     /// <summary>The version is being authored and cannot be selected.</summary>

@@ -15,6 +15,7 @@ public static class FuturesVwapAccumulator
         DateTimeOffset sessionStartUtc,
         DateTimeOffset sessionEndUtc)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(source);
         if (source.Version != 1 || source.StreamEpochId == Guid.Empty
             || source.LastTradeOrdinal < 0 || source.CumulativeVolume < 0
@@ -42,11 +43,11 @@ public static class FuturesVwapAccumulator
             StreamEpochId = source.StreamEpochId,
             LastTradeOrdinal = source.LastTradeOrdinal,
             IsValid = source.IsValid && source.IsReplayComplete,
-            InvalidReason = source.IsValid && source.IsReplayComplete
-                ? FuturesVwapInvalidReason.None
-                : source.InvalidReason == FuturesVwapSourceInvalidReason.None
-                    ? FuturesVwapInvalidReason.InvalidTrade
-                    : (FuturesVwapInvalidReason)source.InvalidReason,
+            InvalidReason = (source.IsValid && source.IsReplayComplete) switch
+{
+    true => FuturesVwapInvalidReason.None,
+    false => source.InvalidReason == FuturesVwapSourceInvalidReason.None ? FuturesVwapInvalidReason.InvalidTrade : (FuturesVwapInvalidReason)source.InvalidReason
+},
             RecoveryGenerationId = source.RecoveryGenerationId,
             AsOfUtc = source.AsOfUtc
         };
@@ -117,6 +118,7 @@ public static class FuturesVwapAccumulator
         Guid liveStreamEpochId = default,
         long liveTradeOrdinal = 0)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(trades);
         if (recoveryGenerationId == Guid.Empty) throw new ArgumentException(
             "A recovery generation is required.", nameof(recoveryGenerationId));
@@ -125,19 +127,7 @@ public static class FuturesVwapAccumulator
         var ordered = trades.OrderBy(value => value.EventTimestampUtc)
             .ThenBy(value => value.SourceSequence).ToArray();
         if (isFirstBatch)
-        {
-            checkpoint = new FuturesVwapCheckpoint
-            {
-                SessionStartUtc = ordered.FirstOrDefault()?.SessionStartUtc ?? default,
-                SessionEndUtc = ordered.FirstOrDefault()?.SessionEndUtc ?? default,
-                IsValid = true,
-                IsRecovering = true,
-                InvalidReason = FuturesVwapInvalidReason.RecoveryIncomplete,
-                RecoveryGenerationId = recoveryGenerationId,
-                RecoveryBatchOrdinal = -1,
-                StreamEpochId = recoveryGenerationId
-            };
-        }
+            checkpoint = CreateRecoveryCheckpoint(ordered, recoveryGenerationId);
         if (checkpoint is null)
             throw new InvalidOperationException("Recovery must start with its first batch.");
         if (checkpoint.RecoveryGenerationId != recoveryGenerationId)
@@ -184,6 +174,22 @@ public static class FuturesVwapAccumulator
         if (!isFinalBatch)
             next = next with { IsValid = false, InvalidReason = FuturesVwapInvalidReason.RecoveryIncomplete };
         return new(next, BuildSignal(entityId, next, configuration), true);
+    }
+
+    /// <summary>Starts an incomplete recovery generation from the first batch's session bounds; no live lineage is accepted yet.</summary>
+    static FuturesVwapCheckpoint CreateRecoveryCheckpoint(FuturesVwapTradeObservation[] ordered, Guid recoveryGenerationId)
+    {
+        return new FuturesVwapCheckpoint
+            {
+                SessionStartUtc = ordered.FirstOrDefault()?.SessionStartUtc ?? default,
+                SessionEndUtc = ordered.FirstOrDefault()?.SessionEndUtc ?? default,
+                IsValid = true,
+                IsRecovering = true,
+                InvalidReason = FuturesVwapInvalidReason.RecoveryIncomplete,
+                RecoveryGenerationId = recoveryGenerationId,
+                RecoveryBatchOrdinal = -1,
+                StreamEpochId = recoveryGenerationId
+            };
     }
 
     static FuturesVwapAccumulatorResult Invalidate(
@@ -294,9 +300,3 @@ public static class FuturesVwapAccumulator
             throw new InvalidOperationException("Live VWAP trade lineage is incomplete.");
     }
 }
-
-/// <summary>Contains one VWAP state transition and its projected signal.</summary>
-public sealed record FuturesVwapAccumulatorResult(
-    FuturesVwapCheckpoint FuturesVwapCheckpoint,
-    FuturesVwapSignalReadModel FuturesVwapSignal,
-    bool Changed);

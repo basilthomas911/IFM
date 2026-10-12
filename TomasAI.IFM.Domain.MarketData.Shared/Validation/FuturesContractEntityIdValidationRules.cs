@@ -16,7 +16,7 @@ public class FuturesContractEntityIdValidationRules : BaseValidationRules, IVali
 
     public ValidationError[] Execute(FuturesContractId contractId) => Validate(contractId, new FuturesContractEntityIdValidator());
 
-    class FuturesContractEntityIdValidator : AbstractValidator<FuturesContractId>
+    sealed class FuturesContractEntityIdValidator : AbstractValidator<FuturesContractId>
     {
         public FuturesContractEntityIdValidator()
         {
@@ -26,6 +26,8 @@ public class FuturesContractEntityIdValidationRules : BaseValidationRules, IVali
             RuleFor(x => x.MaturityDate).NotEqual(DateOnly.MaxValue).WithMessage(MaturityDateMaxErrorMessage);
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Validation collects failure details instead of throwing; compatibility lookup helpers preserve their documented fallback when input data is unavailable.")]
         public override ValidationResult Validate(ValidationContext<FuturesContractId> context)
         {
             try

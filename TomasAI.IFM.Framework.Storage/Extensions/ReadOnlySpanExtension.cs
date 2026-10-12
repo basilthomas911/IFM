@@ -18,7 +18,7 @@ public static class ReadOnlySpanExtension
     /// Returns the parsed integer, or 0 if parsing fails.
     /// </summary>
     public static int GetInt(this ReadOnlySpan<char> charBuffer, ref int start)
-        => int.TryParse(charBuffer.ParseSpan(ref start), out var value) ? value : default;
+        => int.TryParse(charBuffer.ParseSpan(ref start), CultureInfo.InvariantCulture, out var value) ? value : default;
 
     /// <summary>
     /// Parses the next segment from the <see cref="ReadOnlySpan{char}"/> as a <see cref="float"/>.
@@ -59,7 +59,7 @@ public static class ReadOnlySpanExtension
     /// Returns the parsed long, or 0 if parsing fails.
     /// </summary>
     public static long GetLong(this ReadOnlySpan<char> charBuffer, ref int start)
-        => long.TryParse(charBuffer.ParseSpan(ref start), out var value) ? value : default;
+        => long.TryParse(charBuffer.ParseSpan(ref start), CultureInfo.InvariantCulture, out var value) ? value : default;
 
     /// <summary>
     /// Parses the next segment from the <see cref="ReadOnlySpan{char}"/> as a <see cref="DateTime"/>.

@@ -19,6 +19,9 @@ public static class RecordSignalStartupReport
     /// <returns>The command acceptance or failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this RecordSignalStartupReportCommand command, IParameterStartupCommandContext context, ParameterStartupCommandState state, ILogger<ParameterStartupCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         context.AccessPolicy.Demand(ParameterCapability.Assign);
         var errorMsg = "ParameterStartup.STATE.APPLY_FAILED: unable to apply RecordSignalStartupReport event";
         var updated = command.Compute(state, out var startupChange) switch

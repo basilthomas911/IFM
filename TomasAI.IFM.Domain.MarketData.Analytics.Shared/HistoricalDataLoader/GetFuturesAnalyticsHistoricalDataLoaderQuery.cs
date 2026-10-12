@@ -23,6 +23,16 @@ public sealed record GetFuturesAnalyticsHistoricalDataLoaderQuery
         EntityId = entityId;
         DataLoadAttemptId = dataLoadAttemptId;
     }
+
+    /// <summary>Initializes an empty serialization instance.</summary>
+    public GetFuturesAnalyticsHistoricalDataLoaderQuery() => EntityId = new FuturesAnalyticsHistoricalDataLoaderEntityId();
+
+    /// <summary>Initializes a query for one attempt.</summary>
+    public GetFuturesAnalyticsHistoricalDataLoaderQuery(Guid dataLoadAttemptId)
+    {
+        DataLoadAttemptId = dataLoadAttemptId;
+        EntityId = new FuturesAnalyticsHistoricalDataLoaderEntityId(dataLoadAttemptId);
+    }
     /// <summary>Gets the Query actor name.</summary>
     public const string Actor = "FuturesAnalyticsHistoricalDataLoaderQuery";
     /// <summary>Gets the query verb.</summary>
@@ -39,14 +49,4 @@ public sealed record GetFuturesAnalyticsHistoricalDataLoaderQuery
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
     [IgnoreMember] public string? QueryParams => DataLoadAttemptId.ToString("D");
-
-    /// <summary>Initializes an empty serialization instance.</summary>
-    public GetFuturesAnalyticsHistoricalDataLoaderQuery() => EntityId = new FuturesAnalyticsHistoricalDataLoaderEntityId();
-
-    /// <summary>Initializes a query for one attempt.</summary>
-    public GetFuturesAnalyticsHistoricalDataLoaderQuery(Guid dataLoadAttemptId)
-    {
-        DataLoadAttemptId = dataLoadAttemptId;
-        EntityId = new FuturesAnalyticsHistoricalDataLoaderEntityId(dataLoadAttemptId);
-    }
 }

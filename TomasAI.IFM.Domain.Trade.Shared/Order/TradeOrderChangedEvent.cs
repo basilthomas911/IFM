@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -7,7 +8,7 @@ using NewTradeOrderId = TomasAI.IFM.Domain.Trade.Shared.TradeOrderId;
 namespace TomasAI.IFM.Domain.Trade.Shared.Order;
 
 [MessagePackObject]
-public sealed record TradeOrderChangedEvent : IEvent<NewTradeOrderId>
+public sealed record TradeOrderChangedEvent : IEvent<NewTradeOrderId>, IRequireDurableProjection
 {
     public const string Actor = "TradeOrderEvent";
     public const string Verb = "TradeOrderChanged";
@@ -22,6 +23,9 @@ public sealed record TradeOrderChangedEvent : IEvent<NewTradeOrderId>
     [Key(8)] public TradeOrderDefinition TradeOrderDefinition { get; init; } = new();
     [Key(9)] public Guid ExecutionAttemptId { get; init; }
     [Key(10)] public ExecutionChannel ExecutionChannel { get; init; }
+    /// <summary>Retains a durable post-commit projection/handoff marker without changing the wire schema.</summary>
+    [IgnoreMember] public bool RequiresDurableProjection => true;
+    [IgnoreMember] public DurableProjectionRequirement RequiredProjection => new("TradeOrderCommandActor","TradeOrderEventProjector",EventProjectorStageType.ApplyProjection);
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(TradeOrderChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

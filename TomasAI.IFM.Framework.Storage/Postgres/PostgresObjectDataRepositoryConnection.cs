@@ -40,10 +40,15 @@ public class PostgresObjectDataRepositoryConnection : IObjectRepositoryConnectio
                 $"PostgreSQL connections cannot be converted to '{typeof(TConnection)}'.");
     }
 
-    static NpgsqlDataSource CreateDataSource(string connectionString)
+    /// <summary>Resolves the host's environment credential without allowing credentials in shared configuration.</summary>
+    /// <remarks>The result is for trusted provider construction only; never log or persist it.</remarks>
+    public static string ResolveHostConnectionString(string connectionString)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         var credentials = DatabaseCredentialResolver.Resolve(DatabaseProvider.Postgres);
-        var resolvedConnectionString = DatabaseCredentialResolver.AddPostgresCredentials(connectionString, credentials);
-        return NpgsqlDataSource.Create(resolvedConnectionString);
+        return DatabaseCredentialResolver.AddPostgresCredentials(connectionString, credentials);
     }
+
+    static NpgsqlDataSource CreateDataSource(string connectionString)
+        => NpgsqlDataSource.Create(ResolveHostConnectionString(connectionString));
 }

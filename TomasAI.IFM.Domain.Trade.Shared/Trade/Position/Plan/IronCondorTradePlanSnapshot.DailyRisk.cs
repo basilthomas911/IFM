@@ -92,6 +92,7 @@ public sealed partial record IronCondorTradePlanSnapshot
     /// <summary>Gets currency shared by all loss, PnL and valuation amounts.</summary>
     [Key(95)] public string? Currency { get; init; }
     /// <summary>Gets the four frozen quote, price and Greek observations used by this snapshot.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(96)] public IronCondorTradePlanLegObservation[] Legs { get; init; } = [];
     /// <summary>Gets the exact versioned risk policy used by this snapshot.</summary>
     [Key(97)] public TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet? StrategyRiskParameterSet { get; init; }

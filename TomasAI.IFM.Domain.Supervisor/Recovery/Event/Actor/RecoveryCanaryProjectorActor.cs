@@ -47,14 +47,13 @@ public sealed class RecoveryCanaryProjectorActor(IEventActorContext<RecoveryCana
         IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(IEventActorContext<RecoveryCanaryProjectorActor> context,
-        IEvent value) => ResolveMappedEventHandler(value, _receiveMap)(Typed(context), value,
+        IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(Typed(context), @event,
             Typed(context).Logger);
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<RecoveryCanaryProjectorActor> context,
-        ActorThreadId threadId, IEvent value, Exception exception)
+        ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        Typed(context).Logger.LogError(exception,
-            "Supervisor recovery canary projector failed for {ActorThreadId}.", threadId);
+        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor recovery canary projector", threadId);
         return ValueTask.CompletedTask;
     }
 

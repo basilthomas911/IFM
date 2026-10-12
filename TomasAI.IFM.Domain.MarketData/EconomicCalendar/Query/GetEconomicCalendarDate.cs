@@ -19,6 +19,7 @@ public static class GetEconomicCalendarDate
         this GetEconomicCalendarDateQuery q,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(q);
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.FromResult(GetEconomicCalendarEventDate(q.TodaysDate, q.CalendarViewType));
     }
@@ -29,7 +30,7 @@ public static class GetEconomicCalendarDate
     /// <param name="todaysDate">The date for which to retrieve calendar data.</param>
     /// <param name="calendarViewType">The type of calendar view.</param>
     /// <returns>The economic calendar event date.</returns>
-    /// <exception cref="NotImplementedException">Thrown when the calendar view type is not implemented.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the calendar view type is invalid.</exception>
     internal static string GetEconomicCalendarEventDate(DateTime todaysDate, EconomicCalendarViewType calendarViewType)
     {
         var calendarDate = calendarViewType switch
@@ -39,7 +40,7 @@ public static class GetEconomicCalendarDate
             EconomicCalendarViewType.Yesterday => todaysDate.AddDays(-1).Date,
             EconomicCalendarViewType.ThisWeek => todaysDate.GetThisWeekStartingDate(),
             EconomicCalendarViewType.NextWeek => todaysDate.GetNextWeekStartingDate(),
-            _ => throw new NotImplementedException($"Invalid CalendarViewType: {calendarViewType}")
+            _ => throw new ArgumentOutOfRangeException(nameof(calendarViewType), calendarViewType, "Invalid calendar view type")
         };
         return $"{calendarDate.DayOfWeek}, {calendarDate:MMMM} {calendarDate:dd}, {calendarDate:yyyy}";
     }

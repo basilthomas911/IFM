@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 internal sealed class SafeDbFeedHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     /// <summary>Initializes a new SafeDbFeedHandle instance.</summary>
-    private SafeDbFeedHandle()
+    public SafeDbFeedHandle()
         : base(ownsHandle: true)
     {
     }

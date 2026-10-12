@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -13,7 +15,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.EventProjector;
 
 /// <summary>
-/// Projects rebuildable VWAP transitions to the ScyllaDB read model.
+/// Projects rebuildable VWAP transitions to the configured read model.
 /// VWAP is recovered from the authoritative trade stream, so individual derived values do not use durable replay.
 /// </summary>
 public sealed class FuturesVwapSignalEventProjector(
@@ -22,7 +24,8 @@ public sealed class FuturesVwapSignalEventProjector(
     IEventSourceActorDbContext dbEventSource,
     IBlackboardService blackboardService,
     ILogger<FuturesVwapSignalEventProjector> logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null)
+    EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesVwapSignalCommandActor>(
         durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
 {
@@ -32,13 +35,12 @@ public sealed class FuturesVwapSignalEventProjector(
             FuturesVwapSignalUpdatedCompleteEvent,
             FuturesVwapSignalUpdatedFailEvent,
             FuturesVwapSignalEntityId>(value =>
-                dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.FuturesVwapSignal),
+                string.Equals(dbFactory.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? Task.CompletedTask : dbFactory.MarketDataDb.InsertFuturesVwapSignalAsync(value.FuturesVwapSignal),
                 useDurableReplay: false)
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(dbFactory,transactions,source,token))
     ];
 
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 }

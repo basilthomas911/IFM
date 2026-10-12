@@ -8,6 +8,8 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 /// </summary>
 public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
 {
+    readonly TimeSpan _hardStallTimeout = hardStallTimeout > TimeSpan.Zero
+        ? hardStallTimeout : throw new ArgumentOutOfRangeException(nameof(hardStallTimeout));
     readonly Dictionary<string, ProgressState> _progress = new(StringComparer.Ordinal);
 
     public DatabentoDatasetEvaluation Evaluate(
@@ -15,8 +17,6 @@ public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
         DateTime observedOnUtc)
     {
         ArgumentNullException.ThrowIfNull(feed);
-        if (hardStallTimeout <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(hardStallTimeout));
 
         if (!_progress.TryGetValue(feed.Dataset, out var previous)
             || previous.GenerationId != feed.GenerationId)
@@ -39,7 +39,7 @@ public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
 
         var sameEpisode = previous.Reason == reason;
         var suspectSince = sameEpisode ? previous.SuspectSinceUtc : observedOnUtc;
-        var down = observedOnUtc - suspectSince >= hardStallTimeout
+        var down = observedOnUtc - suspectSince >= _hardStallTimeout
             || reason == DatabentoDatasetFailureReason.AggregationRecordStalled;
         var next = ProgressState.Create(feed, observedOnUtc) with
         {
@@ -51,7 +51,7 @@ public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
             down ? DatabentoDatasetState.Down : DatabentoDatasetState.Suspect,
             reason, suspectSince,
             down
-                ? $"Dataset pipeline remained stalled for at least {hardStallTimeout}."
+                ? $"Dataset pipeline remained stalled for at least {_hardStallTimeout}."
                 : $"Dataset pipeline has causal evidence of {reason}; confirmation timer is running.");
     }
 
@@ -91,7 +91,7 @@ public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
             return DatabentoDatasetFailureReason.SubscriptionIncomplete;
         if (feed.AggregationMetrics is { } metrics
             && metrics.InFlightRecord is not null
-            && TimeSpan.FromTicks(Math.Max(0, metrics.CurrentProcessingDurationTicks)) >= hardStallTimeout)
+            && TimeSpan.FromTicks(Math.Max(0, metrics.CurrentProcessingDurationTicks)) >= _hardStallTimeout)
             return DatabentoDatasetFailureReason.AggregationRecordStalled;
         return DatabentoDatasetFailureReason.None;
     }
@@ -153,11 +153,3 @@ public sealed class DatabentoDatasetHealthEvaluator(TimeSpan hardStallTimeout)
             null);
     }
 }
-
-public sealed record DatabentoDatasetEvaluation(
-    string Dataset,
-    Guid GenerationId,
-    DatabentoDatasetState State,
-    DatabentoDatasetFailureReason Reason,
-    DateTime? SuspectSinceUtc,
-    string Detail);

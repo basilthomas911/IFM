@@ -27,10 +27,11 @@ public static class FuturesMarketPriceUpdated
                 or NormalizedTradeAction.Clear
                 or NormalizedTradeAction.None)
             return true;
-        var contract = StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Front.ContractId)
-            ? contracts.Front
-            : StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Back.ContractId)
-                ? contracts.Back : null;
+        var contract = (StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Front.ContractId)) switch
+{
+    true => contracts.Front,
+    false => StringComparer.Ordinal.Equals(@event.Price.ContractId, contracts.Back.ContractId) ? contracts.Back : null
+};
         if (contract is null) return true;
         var leg = StringComparer.Ordinal.Equals(contract.ContractId, contracts.Front.ContractId)
             ? FuturesVxTermStructureLeg.Front : FuturesVxTermStructureLeg.Back;
@@ -51,8 +52,7 @@ public static class FuturesMarketPriceUpdated
         var result = await context.UpdateFuturesVxTermStructureSignalAsync(
             entityId, observation, configuration).ConfigureAwait(false);
         if (result is ServiceFailed<GuidResult>)
-            logger.LogError("VX term-structure command rejected {Leg} contract {ContractId} sequence {Sequence}.",
-                leg, contract.ContractId, trade.SourceSequence);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write31(logger, null, leg, contract.ContractId, trade.SourceSequence);
         return result is not ServiceFailed<GuidResult>;
     }
 }

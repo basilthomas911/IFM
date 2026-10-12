@@ -12,20 +12,23 @@ namespace TomasAI.IFM.Framework.SequenceId.Postgres;
 /// Gaps are expected when a process stops before consuming its active ranges.
 /// </remarks>
 public sealed class PostgresSequenceIdGenerator(ISequenceIdDbContext sequenceIdDb)
-    : ISequenceIdGenerator
+    : ISequenceIdGenerator, IDisposable
 {
     readonly ISequenceIdDbContext _sequenceIdDb =
         sequenceIdDb ?? throw new ArgumentNullException(nameof(sequenceIdDb));
-    readonly ConcurrentDictionary<SequenceName, SequenceState> _states = new();
+    readonly ConcurrentDictionary<SequenceName, Lazy<SequenceState>> _states = new();
+
+    int _disposed;
 
     /// <inheritdoc />
     public ValueTask<long> GetSequenceIdAsync(
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var state = _states.GetOrAdd(sequenceName, static _ => new SequenceState());
+        var state = _states.GetOrAdd(sequenceName, static _ => new Lazy<SequenceState>(static () => new SequenceState())).Value;
         var block = Volatile.Read(ref state.ActiveBlock);
         if (block is not null && block.TryGetNext(out var sequenceId))
             return ValueTask.FromResult(sequenceId);
@@ -88,11 +91,20 @@ public sealed class PostgresSequenceIdGenerator(ISequenceIdDbContext sequenceIdD
         }
     }
 
-    sealed class SequenceState
+    /// <summary>Releases refill gates after host consumers have stopped.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        foreach (var state in _states.Values)
+            if (state.IsValueCreated) state.Value.Dispose();
+    }
+
+    sealed class SequenceState : IDisposable
     {
         internal readonly SemaphoreSlim RefillGate = new(1, 1);
         internal SequenceBlock? ActiveBlock;
         internal bool AllocationSizeValidated;
+        public void Dispose() => RefillGate.Dispose();
     }
 
     sealed class SequenceBlock(long rangeStart, long rangeEnd)

@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 
 namespace TomasAI.IFM.Framework.Storage;
 
@@ -8,6 +8,7 @@ public interface IObjectCreateProvider
     IObjectRepositoryParameter CreateParameter();
     IObjectRepositoryContext CreateStoredProcedureContext(string storedProcName);
     IObjectRepositoryContext CreateCommandTextContext(string commandName, string commandText);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Obsolete adapter remains until provider migration completes; callers are directed to validated queue metadata.")]
     [Obsolete("Use CreateQueuedCommandsContext(IReadOnlyCollection<object>) so queue metadata can be validated.")]
     IObjectRepositoryContext CreateQueuedCommandsContext();
     IObjectRepositoryContext CreateQueuedCommandsContext(IReadOnlyCollection<object> queuedCommands)

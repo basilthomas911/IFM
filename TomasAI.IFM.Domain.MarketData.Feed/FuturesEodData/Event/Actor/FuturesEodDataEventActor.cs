@@ -20,7 +20,7 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     public const string Actor = "FuturesEodDataEvent";
 
     /// <summary>Gets the typed event context supplied at construction.</summary>
-    protected IFuturesEodDataEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesEodDataEventContext, nameof(actorContext))!;
+    protected IFuturesEodDataEventContext EventContext { get; } = IsArgumentNull.Named(actorContext as IFuturesEodDataEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesEodDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesEodDataEventParameters _eventParameters = new(
         ((IFuturesEodDataEventContext)actorContext).BlackboardService, ((IFuturesEodDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
@@ -29,17 +29,17 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
         [typeof(FuturesEodDataInsertedEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesEodDataInsertedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(context, eventApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(FuturesEodDataInsertedCompleteEvent)] = async (evt, context, eventApi, eventParams, logger) =>
         {
             var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
+            return await (e.ExecuteAsync(context, eventApi, eventParams, logger)).ConfigureAwait(false);
         },
         [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (evt, context, _, eventParams, logger) =>
         {
             var e = (evt as VixFuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(context, eventParams, logger);
+            return await (e.ExecuteAsync(context, eventParams, logger)).ConfigureAwait(false);
         }
     };
 
@@ -65,7 +65,7 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesEodDataInsertedEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedEvent>()!,
         [FuturesEodDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedCompleteEvent>()!,
@@ -85,9 +85,9 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters, _logger);
+        _ = await (receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters, _logger)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
@@ -106,12 +106,12 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
+            global::TomasAI.IFM.Domain.MarketData.Feed.ActorLifecycleDiagnosticLog.Write1(_logger, innerEx, Actor);
         }
     }
 }

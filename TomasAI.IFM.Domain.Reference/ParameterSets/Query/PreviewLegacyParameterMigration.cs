@@ -15,11 +15,15 @@ public static class PreviewLegacyParameterMigration
         ILogger<ParameterSetQueryActor> logger,
         CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         context.AccessPolicy.Demand(ParameterCapability.Read);
         if (query.SetId == Guid.Empty || query.Version <= 0)
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.LEGACY_IDENTITY_INVALID");
+#pragma warning restore MA0015
 
-        var row = (await context.ConfigurationDb.GetLegacyParameterVersionsAsync(query.SetId, query.Version, cancellationToken: token)).SingleOrDefault()
+        var row = (await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(query.SetId, query.Version, cancellationToken: token)).ConfigureAwait(false)).SingleOrDefault()
             ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
         var json = ParameterLegacyMigrationModel.Expand(row);
         using var doc = JsonDocument.Parse(json);
@@ -34,6 +38,6 @@ public static class PreviewLegacyParameterMigration
             PayloadJson = json,
             LegacySource = row.Reference
         };
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<CreateParameterSetCommand>(command));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<CreateParameterSetCommand>(command))).ConfigureAwait(false);
     }
 }

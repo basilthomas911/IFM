@@ -13,6 +13,8 @@ public static class FuturesEodDataInserted
     /// <summary>Publishes the inserted EOD value to the actor-owned blackboard.</summary>
     public static async ValueTask ExecuteAsync(this FuturesEodDataInsertedEvent domainEvent, IFuturesEodDataRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var latest)
             && latest != domainEvent.FuturesEodData)
             return;
@@ -24,23 +26,23 @@ public static class FuturesEodDataInserted
         if (CurrentFuturesEodCache.Shared.TryGet(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate, out var current)
             && current == domainEvent.FuturesEodData)
         {
-            await context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(new()
+            await (context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(new()
             {
                 Subject = new(ActorType.Notify, FuturesEodDataUpdatedNotifyEvent.Actor, FuturesEodDataUpdatedNotifyEvent.Verb, domainEvent.EntityId.Format()),
                 Id = domainEvent.Id, EntityId = domainEvent.EntityId, CommandId = domainEvent.CommandId,
                 EventSource = nameof(FuturesEodDataInsertedEvent), ReceivedOn = DateTime.UtcNow,
                 FuturesEodData = domainEvent.FuturesEodData, IsPersisted = false
-            });
-            if (domainEvent.FuturesEodData.Symbol == "ES")
+            })).ConfigureAwait(false);
+            if (string.Equals(domainEvent.FuturesEodData.Symbol,"ES",StringComparison.Ordinal))
             {
                 var id = new MarketOutlookEntityId(domainEvent.EntityId.ContractId, domainEvent.EntityId.ValueDate);
-                await context.SendAsync<MarketOutlookEodUpdatedRealtimeEvent, MarketOutlookEntityId>(new()
+                await (context.SendAsync<MarketOutlookEodUpdatedRealtimeEvent, MarketOutlookEntityId>(new()
                 {
                     Subject = new(ActorType.Realtime, MarketOutlookEodUpdatedRealtimeEvent.Actor, MarketOutlookEodUpdatedRealtimeEvent.Verb, id.Format()),
                     Id = domainEvent.Id, EntityId = id, CommandId = domainEvent.CommandId,
                     EventSource = nameof(FuturesEodDataInsertedEvent), ReceivedOn = DateTime.UtcNow,
                     FuturesEodData = domainEvent.FuturesEodData
-                });
+                })).ConfigureAwait(false);
             }
         }
     }

@@ -9,8 +9,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query.Actor;
 
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query.Actor;
 public sealed class RiskQueryActor(IQueryActorContext<RiskQueryActor> context) : BaseQueryActor<RiskQueryActor>(context, Typed(context).Logger)
 {
     public const string ActorName = GetRiskInvocationQuery.Actor;
@@ -28,9 +28,9 @@ public sealed class RiskQueryActor(IQueryActorContext<RiskQueryActor> context) :
         [typeof(GetRiskHistoryPageQuery)] = static (a, c, q, t) => ((GetRiskHistoryPageQuery)q).ExecuteAsync(a.services, c, t),
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
-    protected override IQuery ParseMessage(IQueryActorContext<RiskQueryActor> c, IActorMessage m) => ParseMappedQuery(c, m, _parseMap);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<RiskQueryActor> c, IQuery q) => ReceiveAsync(c, q, CancellationToken.None);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<RiskQueryActor> c, IQuery q, CancellationToken t) => ResolveMappedQueryHandler(q, _receiveMap)(this, c, q, t);
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<RiskQueryActor> c, ActorThreadId id, IQuery q, string verb, Exception ex) => ExceptionMappedQueryAsync(c, id, q, verb, ex, _exceptionMap);
-    static IRiskQueryContext Typed(IQueryActorContext<RiskQueryActor> c) => c as IRiskQueryContext ?? throw new ArgumentException("Typed Risk query context required.");
+    protected override IQuery ParseMessage(IQueryActorContext<RiskQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
+    protected override ValueTask ReceiveAsync(IQueryActorContext<RiskQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
+    protected override ValueTask ReceiveAsync(IQueryActorContext<RiskQueryActor> context, IQuery query, CancellationToken cancellationToken) => ResolveMappedQueryHandler(query, _receiveMap)(this, context, query, cancellationToken);
+    protected override ValueTask OnExceptionAsync(IQueryActorContext<RiskQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
+    static IRiskQueryContext Typed(IQueryActorContext<RiskQueryActor> c) => c as IRiskQueryContext ?? throw new ArgumentException("Typed Risk query context required.", nameof(c));
 }

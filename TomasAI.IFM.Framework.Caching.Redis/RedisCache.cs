@@ -1,4 +1,4 @@
-﻿using StackExchange.Redis;
+using StackExchange.Redis;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Framework.Caching.Redis;
@@ -53,7 +53,7 @@ public class RedisCache(
     public async Task<string?> GetAsync(string key)
     {
         var redisKey = new RedisKey(key);
-        return await _redis.StringGetAsync(redisKey);
+        return await _redis.StringGetAsync(redisKey).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -95,12 +95,9 @@ public class RedisCache(
             }
         }
         long deleted = 0;
-        foreach (var key in seen)
+        foreach (var key in seen.Where(key => _redis.KeyDelete(key)))
         {
-            if (_redis.KeyDelete(key))
-            {
-                ++deleted;
-            }
+            ++deleted;
         }
         return deleted;
     }
@@ -112,11 +109,11 @@ public class RedisCache(
     public async Task RemoveAsync(string key)
     {
         var redisKey = new RedisKey(key);
-        var redisValue = await _redis.StringGetAsync(redisKey);
+        var redisValue = await _redis.StringGetAsync(redisKey).ConfigureAwait(false);
         if (!redisValue.IsNullOrEmpty)
         {
             redisValue = new RedisValue(string.Empty);
-            await _redis.StringSetAsync(redisKey, redisValue);
+            await _redis.StringSetAsync(redisKey, redisValue).ConfigureAwait(false);
         }
     }
 
@@ -177,7 +174,7 @@ public class RedisCache(
     {
         var redisKey = new RedisKey(key);
         var redisValue = new RedisValue(value);
-        await _redis.StringSetAsync(redisKey, redisValue);
+        await _redis.StringSetAsync(redisKey, redisValue).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -190,7 +187,7 @@ public class RedisCache(
     {
         var redisKey = new RedisKey(key);
         var redisValue = new RedisValue(value);
-        await _redis.StringSetAsync(redisKey, redisValue, expiry);
+        await _redis.StringSetAsync(redisKey, redisValue, expiry).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -213,7 +210,7 @@ public class RedisCache(
             redisKey,
             redisValue,
             GetExpiration(absoluteExpiry, ttl),
-            ValueCondition.Always);
+            ValueCondition.Always).ConfigureAwait(false);
     }
 
     /// <summary>

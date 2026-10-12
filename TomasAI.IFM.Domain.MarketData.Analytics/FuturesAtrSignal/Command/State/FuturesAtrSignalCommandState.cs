@@ -5,19 +5,16 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
-
 /// <summary>
 /// Represents the event-sourced state of Futures ATR signal commands within the actor system.
 /// </summary>
 /// <remarks>This class manages the state transitions for Futures ATR signal operations by applying domain events
-/// such as <see cref="FuturesAtrSignalGeneratedEvent"/>. It provides methods to evaluate trend direction using an
-/// internal <see cref="FuturesAtrSignalModel"/>.</remarks>
-public class FuturesAtrSignalCommandState
-    : BaseEventSourceActorState<FuturesAtrSignalCommandState>, IEventSourceActorState<FuturesAtrSignalCommandState>
+/// such as <see cref = "FuturesAtrSignalGeneratedEvent"/>. It provides methods to evaluate trend direction using an
+/// internal <see cref = "FuturesAtrSignalModel"/>.</remarks>
+public class FuturesAtrSignalCommandState : BaseEventSourceActorState<FuturesAtrSignalCommandState>, IEventSourceActorState<FuturesAtrSignalCommandState>
 {
     FuturesAtrAccumulatorCheckpoint? _calculationState;
     FuturesAtrSignalReadModel? _atrSignal;
-
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
     /// </summary>
@@ -26,7 +23,7 @@ public class FuturesAtrSignalCommandState
     /// <summary>
     /// Applies the specified domain event to update the state of the current object.
     /// </summary>
-    /// <param name="domainEvent">The domain event to apply. Must be of a supported type.</param>
+    /// <param name = "domainEvent">The domain event to apply. Must be of a supported type.</param>
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
@@ -38,7 +35,6 @@ public class FuturesAtrSignalCommandState
             FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrCheckpoint, e.FuturesAtrSignal),
             _ => false
         };
-
         bool Reset(bool reset)
         {
             if (reset)
@@ -46,6 +42,7 @@ public class FuturesAtrSignalCommandState
                 _calculationState = null;
                 _atrSignal = null;
             }
+
             return true;
         }
 
@@ -55,8 +52,8 @@ public class FuturesAtrSignalCommandState
                 return false;
             _calculationState = calculationState with
             {
-                SeedTrueRanges = [.. calculationState.SeedTrueRanges],
-                CompletedAtrValues = [.. calculationState.CompletedAtrValues]
+                SeedTrueRanges = [..calculationState.SeedTrueRanges],
+                CompletedAtrValues = [..calculationState.CompletedAtrValues]
             };
             _atrSignal = signal ?? _atrSignal;
             return true;
@@ -65,22 +62,23 @@ public class FuturesAtrSignalCommandState
 
     /// <summary>Gets the replayed Wilder checkpoint for the current aggregate stream.</summary>
     internal FuturesAtrAccumulatorCheckpoint? FuturesAtrCheckpoint => _calculationState;
-
     /// <summary>Gets the latest event-sourced ATR signal restored with the checkpoint.</summary>
     internal FuturesAtrSignalReadModel? AtrSignal => _atrSignal;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Apply accepted facts in order and stop at the first rejection; state mutation must remain explicit rather than becoming a filtering predicate.")]
     /// <summary>Applies the prevalidated lifecycle and historical events through the state event dispatcher.</summary>
-    /// <param name="startedEvent">The accepted start event.</param>
-    /// <param name="historicalSignals">Precomputed historical signal events in observation order.</param>
-    /// <param name="command">The originating start command.</param>
+    /// <param name = "startedEvent">The accepted start event.</param>
+    /// <param name = "historicalSignals">Precomputed historical signal events in observation order.</param>
+    /// <param name = "command">The originating start command.</param>
     /// <returns>True when all events were applied to the owning state.</returns>
-    public bool Update(FuturesAtrSignalStartedEvent startedEvent,
-        IReadOnlyList<FuturesAtrSignalGeneratedEvent> historicalSignals, ICommand command)
+    public bool Update(FuturesAtrSignalStartedEvent startedEvent, IReadOnlyList<FuturesAtrSignalGeneratedEvent> historicalSignals, ICommand command)
     {
-        if (!Update(startedEvent, command)) return false;
+        ArgumentNullException.ThrowIfNull(historicalSignals);
+        if (!Update(startedEvent, command))
+            return false;
         foreach (var historicalSignal in historicalSignals)
-            if (!Update(historicalSignal, command)) return false;
+            if (!Update(historicalSignal, command))
+                return false;
         return true;
     }
-
 }

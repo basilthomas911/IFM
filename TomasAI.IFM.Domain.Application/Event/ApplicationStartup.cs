@@ -67,6 +67,38 @@ public static class ApplicationStartup
             $"Application startup began. ValueDate={workflow.ValueDate:yyyy-MM-dd}; CommandId={workflow.CommandId}; CorrelationId={workflow.CorrelationId}.")
             .ConfigureAwait(false);
 
+        results.AddRange(await ExecutePlanAsync(workflow, context, cancellationToken).ConfigureAwait(false));
+
+        await CompleteStartupAsync(@event, workflow, workflowStarted, results, context, logger).ConfigureAwait(false);
+    }
+
+    /// <summary>Records the final startup snapshot and publishes its terminal result after every activity completes.</summary>
+    static async ValueTask CompleteStartupAsync(ApplicationStartupEvent @event, ApplicationStartupContext workflow,
+        DateTime workflowStarted, List<ApplicationStartupActivityResult> results,
+        IApplicationEventContext context, ILogger<ApplicationEventActor> logger)
+    {
+        var state = ApplicationStartupPlan.Aggregate(results);
+        var summary = CreateSummary(state, results);
+        var completed = context.TimeProvider.GetUtcNow().UtcDateTime;
+        context.StartupStatusStore.Set(new()
+        {
+            State = state,
+            ValueDate = workflow.ValueDate,
+            ProcessBootId = workflow.ProcessBootId,
+            CommandId = workflow.CommandId,
+            CorrelationId = workflow.CorrelationId,
+            StartedAtUtc = workflowStarted,
+            CompletedAtUtc = completed,
+            Activities = [.. results],
+            Summary = summary
+        });
+        await ReportAsync(context.StatusConsoleWriter, logger, summary).ConfigureAwait(false);
+        await SendTerminalAsync(@event, context, state, summary).ConfigureAwait(false);
+    }
+    /// <summary>Starts activities in dependency order and returns results in the plan's stable order.</summary>
+    static async Task<List<ApplicationStartupActivityResult>> ExecutePlanAsync(ApplicationStartupContext workflow,
+        IApplicationEventContext context, CancellationToken cancellationToken)
+    {
         var scheduled = new Dictionary<ApplicationStartupActivity, Task<ApplicationStartupActivityResult>>();
         foreach (var definition in ApplicationStartupPlan.Activities)
         {
@@ -82,8 +114,8 @@ public static class ApplicationStartup
         }
 
         await Task.WhenAll(scheduled.Values).ConfigureAwait(false);
-        results.AddRange(ApplicationStartupPlan.Activities
-            .Select(definition => scheduled[definition.Activity].Result));
+        return ApplicationStartupPlan.Activities
+            .Select(definition => scheduled[definition.Activity].Result).ToList();
 
         async Task<ApplicationStartupActivityResult> ExecuteAfterDependenciesAsync(
             ApplicationStartupActivityDefinition definition,
@@ -103,25 +135,9 @@ public static class ApplicationStartup
                     cancellationToken).ConfigureAwait(false);
         }
 
-        var state = ApplicationStartupPlan.Aggregate(results);
-        var summary = CreateSummary(state, results);
-        var completed = context.TimeProvider.GetUtcNow().UtcDateTime;
-        context.StartupStatusStore.Set(new()
-        {
-            State = state,
-            ValueDate = workflow.ValueDate,
-            ProcessBootId = workflow.ProcessBootId,
-            CommandId = workflow.CommandId,
-            CorrelationId = workflow.CorrelationId,
-            StartedAtUtc = workflowStarted,
-            CompletedAtUtc = completed,
-            Activities = [.. results],
-            Summary = summary
-        });
-        await ReportAsync(context.StatusConsoleWriter, logger, summary).ConfigureAwait(false);
-        await SendTerminalAsync(@event, context, state, summary).ConfigureAwait(false);
     }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Runs one startup activity after dependencies pass and records a classified result.</summary>
     static async ValueTask<ApplicationStartupActivityResult> ExecuteActivityAsync(
         ApplicationStartupActivity activity,
@@ -171,13 +187,7 @@ public static class ApplicationStartup
         catch (Exception exception)
         {
             const int activityFailureCode = 10011;
-            context.Logger.LogError(
-                exception,
-                "Application startup activity {Activity} failed. ValueDate={ValueDate}; CommandId={CommandId}; CorrelationId={CorrelationId}",
-                activity,
-                workflow.ValueDate,
-                workflow.CommandId,
-                workflow.CorrelationId);
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write2(context.Logger, exception, activity, workflow.ValueDate, workflow.CommandId, workflow.CorrelationId);
             var failure = Result(
                 activity,
                 ApplicationStartupActivityOutcome.Failed,
@@ -229,7 +239,7 @@ public static class ApplicationStartup
     /// <summary>Summarizes aggregate activity outcomes for the terminal lifecycle result.</summary>
     static string CreateSummary(
         ApplicationLifecycleState state,
-        IReadOnlyCollection<ApplicationStartupActivityResult> results) =>
+        List<ApplicationStartupActivityResult> results) =>
         $"Application startup {state}. Activities={results.Count}; "
         + $"Satisfied={results.Count(result => result.IsSatisfied)}; "
         + $"Failed={results.Count(result => result.Outcome == ApplicationStartupActivityOutcome.Failed)}; "
@@ -241,22 +251,20 @@ public static class ApplicationStartup
         ApplicationStartupContext workflow,
         ApplicationStartupActivityResult result)
     {
-        context.Logger.LogInformation(
-            "Application startup activity {Activity} returned {Outcome}. Required={Required}; ValueDate={ValueDate}; CommandId={CommandId}; CorrelationId={CorrelationId}; Reason={Reason}",
-            result.Activity,
-            result.Outcome,
-            result.Required,
-            workflow.ValueDate,
-            workflow.CommandId,
-            workflow.CorrelationId,
-            result.Reason);
+        
+            var diagnosticLogger = context.Logger;
+            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                global::TomasAI.IFM.Domain.Application.StorageMigrationDiagnosticLog.Write3(diagnosticLogger, null, result.Activity, result.Outcome, result.Required, workflow.ValueDate, workflow.CommandId, workflow.CorrelationId, result.Reason);
+            }
+        
         await ReportAsync(
             context.StatusConsoleWriter,
             context.Logger,
             $"Application startup: {result.Activity} => {result.Outcome}. {result.Reason}")
             .ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Writes a bounded best-effort informational status-console message.</summary>
     static async ValueTask ReportAsync(
         IStatusConsoleWriter writer,
@@ -271,17 +279,15 @@ public static class ApplicationStartup
         }
         catch (TimeoutException)
         {
-            logger.LogWarning(
-                "Timed out publishing Application lifecycle status to the System Console after {Timeout}.",
-                StatusConsoleWriteTimeout);
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write3(logger, null, StatusConsoleWriteTimeout);
             _ = ObserveLateConsoleWriteAsync(write!, logger);
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to publish Application lifecycle status to the System Console.");
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write4(logger, exception);
         }
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Writes bounded best-effort failure detail to the status console.</summary>
     static async ValueTask ReportErrorAsync(
         IStatusConsoleWriter writer,
@@ -301,17 +307,15 @@ public static class ApplicationStartup
         }
         catch (TimeoutException)
         {
-            logger.LogWarning(
-                "Timed out publishing Application lifecycle failure to the System Console after {Timeout}.",
-                StatusConsoleWriteTimeout);
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write5(logger, null, StatusConsoleWriteTimeout);
             _ = ObserveLateConsoleWriteAsync(write!, logger);
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to publish Application lifecycle failure to the System Console.");
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write6(logger, exception);
         }
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Observes and logs a status-console write that outlived its wait timeout.</summary>
     static async Task ObserveLateConsoleWriteAsync(Task write, ILogger logger)
     {
@@ -321,7 +325,7 @@ public static class ApplicationStartup
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "A timed-out Application lifecycle System Console write later failed.");
+            global::TomasAI.IFM.Domain.Application.ActorLifecycleDiagnosticLog.Write7(logger, exception);
         }
     }
 

@@ -7,26 +7,19 @@ $deploymentRoot = Join-Path $repositoryRoot ".artifacts/scheduled-tasks/developm
 $settingsPath = Join-Path $deploymentRoot "scheduler.settings.json"
 New-Item -ItemType Directory -Force -Path $deploymentRoot | Out-Null
 $settings = Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot "TomasAI.IFM.Application.ServerManager.SchedulerHost/appsettings.json") | ConvertFrom-Json
-if (Test-Path -LiteralPath $settingsPath) {
-    $previous = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
-    $connectionString = $previous.ConnectionStrings.SchedulerDbConnection
-    $password = ([regex]::Match($connectionString, "Password=([a-f0-9]+)")).Groups[1].Value
-    if (-not $password) { throw "Existing credential format requires manual review; credentials were not overwritten." }
+# Use the same PostgreSQL database as the API. Scheduler and Quartz own schemas,
+# not a separate database or independently provisioned database identity.
+$apiSettingsPath = Join-Path $repositoryRoot "TomasAI.IFM.Application.Api.Server/appsettings.Development.json"
+$apiSettings = Get-Content -Raw -LiteralPath $apiSettingsPath | ConvertFrom-Json
+$storageProperty = $apiSettings.PSObject.Properties["Storage"]
+$sharedConnection = if ($null -ne $storageProperty -and $null -ne $storageProperty.Value.PSObject.Properties["PostgresConnection"]) {
+    $storageProperty.Value.PostgresConnection
 } else {
-    $bytes = New-Object byte[] 32
-     $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    try { $random.GetBytes($bytes) } finally { $random.Dispose() }
-    $password = [BitConverter]::ToString($bytes).Replace("-", "").ToLowerInvariant()
+    $apiSettings.ConnectionStrings.EventSourceActorDbConnection
 }
-# Fixed identifiers and generated hexadecimal password; no workstation or AWS credentials are used.
-$sql = @"
-SELECT 'CREATE ROLE ifm_scheduler_app LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname='ifm_scheduler_app')\gexec
-ALTER ROLE ifm_scheduler_app PASSWORD '$password';
-SELECT 'CREATE DATABASE ifm_scheduler OWNER ifm_scheduler_app' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='ifm_scheduler')\gexec
-"@
-$sql | & docker exec -i $PostgresContainer psql -v ON_ERROR_STOP=1 -U postgres -d postgres
-if ($LASTEXITCODE -ne 0) { throw "Scheduler PostgreSQL provisioning failed." }
-$settings.ConnectionStrings.SchedulerDbConnection = "Host=localhost;Port=5432;Database=ifm_scheduler;Username=ifm_scheduler_app;Password=$password;Timeout=5;Command Timeout=10"
+if ([string]::IsNullOrWhiteSpace($sharedConnection)) { throw "The API shared PostgreSQL connection is required." }
+$settings.ConnectionStrings.SchedulerDbConnection = $sharedConnection
+$settings | Add-Member -Force NoteProperty Storage (@{ PostgresConnection = $sharedConnection })
 $settings.SchedulerHost | Add-Member -Force NoteProperty ActorManaged $true
 $settings.SchedulerHost | Add-Member -Force NoteProperty HostId "development"
 $settings.SchedulerHost.SeedInitialSchedules = $false
@@ -38,7 +31,7 @@ $settings | Add-Member -Force NoteProperty Nats (@{ Producer = @{ Url = "nats://
 $telemetry = @{ Logs = @{ Enabled = $true; OtlpEndpoint = "http://localhost:4318/v1/logs"; OtlpProtocol = "http/protobuf" }; Metrics = @{ Enabled = $true; OtlpEndpoint = "http://localhost:4318/v1/metrics"; OtlpProtocol = "http/protobuf" } }
 $settings | Add-Member -Force NoteProperty Telemetry $telemetry
 $settings | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $settingsPath -Encoding UTF8
-# Local credentials are stored only in the ignored deployment directory, restricted to this Windows identity.
+# Deployment settings remain restricted to this Windows identity; database credentials are resolved from POSTGRES_DEV_KEY at runtime.
 & icacls $settingsPath /inheritance:r /grant:r "$([System.Security.Principal.WindowsIdentity]::GetCurrent().Name):(F)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Unable to restrict scheduler settings permissions." }
 if (-not $NoBuild) {

@@ -1,8 +1,9 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 namespace TomasAI.IFM.Shared.EventQueue;
 
-public class ConcurrentEventQueue<TData>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "The established public actor queue/handler contract name describes its role and must remain compatible.")]
+public class ConcurrentEventQueue<TData> : IDisposable
 {
     readonly Action<TData>? _eventQueueReader;
     readonly Func<TData, Task>? _eventAsyncQueueReader;
@@ -10,6 +11,7 @@ public class ConcurrentEventQueue<TData>
     ConcurrentQueue<TData>? _eventQueue;
     SemaphoreSlim? _eventQueueSignal;
     Task? _processingTask;
+    int _disposed;
     readonly CancellationTokenSource _cancellationTokenSource = new();
 
     /// <summary>
@@ -47,6 +49,7 @@ public class ConcurrentEventQueue<TData>
     /// <remarks>This method sets up the internal event queue and starts a background thread with the highest
     /// priority  to process events. The thread will run until the associated cancellation token is triggered.</remarks>
     /// <returns>The current instance of <see cref="ConcurrentEventQueue{TData}"/>, allowing for method chaining.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public ConcurrentEventQueue<TData> Start()
     {
         try
@@ -55,7 +58,7 @@ public class ConcurrentEventQueue<TData>
             _eventQueueSignal = new SemaphoreSlim(0);
             _processingTask = ReadEventQueueAsync(_cancellationTokenSource.Token);
         }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
         return this;
     }
 
@@ -66,6 +69,7 @@ public class ConcurrentEventQueue<TData>
     /// complete,  and disposes of the resources used by the event queue. After calling this method, the event queue 
     /// cannot be restarted, and further operations on it may result in undefined behavior.</remarks>
     /// <returns>The current instance of <see cref="ConcurrentEventQueue{TData}"/> for method chaining.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     public ConcurrentEventQueue<TData> Stop()
     {
         try
@@ -73,12 +77,39 @@ public class ConcurrentEventQueue<TData>
             _cancellationTokenSource.Cancel();
             _eventQueueSignal?.Release();
         }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
         finally
         {
-            _processingTask = null;
+            // The owner retains the task until detached cleanup completes.
         }
         return this;
+    }
+
+    /// <summary>Stops immediately; processing resources are released after the active reader exits.</summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        Stop();
+        _ = DisposeAfterProcessingAsync(_processingTask);
+    }
+
+    async Task DisposeAfterProcessingAsync(Task? processingTask)
+    {
+        try
+        {
+            if (processingTask is not null) await processingTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            _eventQueueSignal?.Dispose();
+            _cancellationTokenSource.Dispose();
+        }
     }
 
     /// <summary>
@@ -153,7 +184,7 @@ public class ConcurrentEventQueue<TData>
             }
         }
         catch (OperationCanceledException) when (cancelToken.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
     }
 }

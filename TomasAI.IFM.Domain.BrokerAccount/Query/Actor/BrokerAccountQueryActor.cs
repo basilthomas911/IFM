@@ -42,10 +42,10 @@ public sealed class BrokerAccountQueryActor(IQueryActorContext<BrokerAccountQuer
         ResolveMappedQueryHandler(query, _receiveMap)(Typed(context), query, cancellationToken);
 
     protected override ValueTask OnExceptionAsync(IQueryActorContext<BrokerAccountQueryActor> context,
-        ActorThreadId threadId, IQuery query, string verb, Exception exception) =>
-        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        ActorThreadId threadId, IQuery query, string verb, Exception ex) =>
+        ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
     private static IBrokerAccountQueryContext Typed(IQueryActorContext<BrokerAccountQueryActor> context) =>
         context as IBrokerAccountQueryContext ??
-        throw new ArgumentException("Typed BrokerAccount query context required.");
+        throw new ArgumentException("Typed BrokerAccount query context required.",nameof(context));
 }

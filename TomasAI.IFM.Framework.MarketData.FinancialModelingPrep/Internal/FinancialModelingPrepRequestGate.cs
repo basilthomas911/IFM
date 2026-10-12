@@ -1,9 +1,9 @@
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 
-internal sealed class FinancialModelingPrepRequestGate
+internal sealed class FinancialModelingPrepRequestGate : IDisposable
 {
     private readonly SemaphoreSlim _semaphore;
-    private readonly object _circuitLock = new();
+    private readonly System.Threading.Lock _circuitLock = new();
     private int _consecutiveFailures;
     private DateTimeOffset? _breakUntilUtc;
 
@@ -14,6 +14,8 @@ internal sealed class FinancialModelingPrepRequestGate
         ArgumentNullException.ThrowIfNull(options);
         _semaphore = new SemaphoreSlim(options.MaximumConcurrentRequests, options.MaximumConcurrentRequests);
     }
+
+    public void Dispose() => _semaphore.Dispose();
 
     internal async ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
     {

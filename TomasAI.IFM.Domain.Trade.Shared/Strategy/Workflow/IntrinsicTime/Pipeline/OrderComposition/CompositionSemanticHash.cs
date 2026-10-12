@@ -45,6 +45,7 @@ public static class CompositionSemanticHash
             JsonSerializerOptions options)
             => reader.GetDateTime();
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3218", Justification = "Preserve the existing public nested validation contract or required JsonConverter override member name.")]
         public override void Write(
             Utf8JsonWriter writer,
             DateTime value,

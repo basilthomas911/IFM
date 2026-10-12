@@ -63,6 +63,8 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     }
 
     /// <inheritdoc/>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async ValueTask<MarketDataHistoricalManifest> AcquireAsync(
         MarketDataHistoricalRequest request,
         HistoricalAcquisitionCheckpoint checkpoint,
@@ -121,8 +123,9 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
                 await _provider.DownloadBatchFileAsync(
                     job.ProviderJobId, file, path, cancellationToken).ConfigureAwait(false);
                 await VerifyFileAsync(path, file, cancellationToken).ConfigureAwait(false);
-                await using var reader = await _provider.OpenFileAsync(
+                var reader = await _provider.OpenFileAsync(
                     path, file.Schema, _options.MaximumBatchRecords, cancellationToken).ConfigureAwait(false);
+                await using var readerDisposal = reader.ConfigureAwait(false);
                 while (await reader.ReadNextAsync(cancellationToken).ConfigureAwait(false) is { } sourceBatch)
                 {
                     if (sourceBatch.BatchOrdinal <= checkpoint.BatchOrdinal
@@ -185,6 +188,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
         return job;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     NormalizedHistoricalBatch NormalizeBatch(
         MarketDataHistoricalRequest request,
         MarketDataHistoricalSeriesRequest series,
@@ -274,8 +278,9 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
         var info = new FileInfo(path);
         if (!info.Exists || info.Length != file.SizeBytes)
             throw new InvalidDataException($"Historical file {file.FileName} has an unexpected size.");
-        await using var stream = new FileStream(
+        var stream = new FileStream(
             path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous);
+        await using var streamDisposal = stream.ConfigureAwait(false);
         var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
         if (!string.Equals(actual, file.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Historical file {file.FileName} failed SHA-256 verification.");
@@ -290,7 +295,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
             canonical.Append(x.ObservationId).Append('|').Append(x.ContractId).Append('|')
                 .Append(x.Close).Append('|').Append(x.Volume).AppendLine();
         foreach (var x in trades)
-            canonical.Append(x.ContractId).Append('|').Append(x.EventTimestampUtc.ToString("O"))
+            canonical.Append(x.ContractId).Append('|').Append(x.EventTimestampUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
                 .Append('|').Append(x.SourceSequence).Append('|').Append(x.Price).Append('|')
                 .Append(x.Size).AppendLine();
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())));
@@ -299,8 +304,8 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     static string ComputeRequestHash(MarketDataHistoricalRequest request)
     {
         var canonical = new StringBuilder()
-            .Append(request.StartDate.ToString("O")).Append('|')
-            .Append(request.EndDate.ToString("O")).Append('|')
+            .Append(request.StartDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
+            .Append(request.EndDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
             .Append(request.NormalizationVersion);
         foreach (var x in request.Series.OrderBy(x => x.SeriesIdentity.Format(), StringComparer.Ordinal))
             canonical.Append('|').Append(x.SeriesIdentity.Format()).Append('|').Append(x.ContractId)
@@ -332,41 +337,24 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     static void ValidateOptions(DatabentoHistoricalOptions options)
     {
         if (options.MaximumBatchRecords is < 1 or > 65_536)
-            throw new ArgumentOutOfRangeException(nameof(options.MaximumBatchRecords));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.PollInterval <= TimeSpan.Zero || options.JobTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options));
         _ = ResolveStagingRoot(options.StagingRoot);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Name the public request owning the invalid nested property.")]
     static void ValidateRequest(MarketDataHistoricalRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.DataLoadAttemptId == Guid.Empty) throw new ArgumentException("DataLoadAttemptId is required.");
-        if (request.Series is not { Length: > 0 }) throw new ArgumentException("At least one series is required.");
-        if (request.StartDate > request.EndDate) throw new ArgumentException("StartDate must not follow EndDate.");
-        if (request.MaximumCostUsd < 0 || request.MaximumBytes < 0) throw new ArgumentException("Budgets cannot be negative.");
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.NormalizationVersion);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.RequestedBy);
+        if (request.DataLoadAttemptId == Guid.Empty) throw new ArgumentException("DataLoadAttemptId is required.",nameof(request));
+        if (request.Series is not { Length: > 0 }) throw new ArgumentException("At least one series is required.",nameof(request));
+        if (request.StartDate > request.EndDate) throw new ArgumentException("StartDate must not follow EndDate.",nameof(request));
+        if (request.MaximumCostUsd < 0 || request.MaximumBytes < 0) throw new ArgumentException("Budgets cannot be negative.",nameof(request));
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.NormalizationVersion, nameof(request));
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.RequestedBy, nameof(request));
     }
 
     static DateOnly Min(DateOnly left, DateOnly right) => left <= right ? left : right;
     static DateOnly Max(DateOnly left, DateOnly right) => left >= right ? left : right;
-}
-
-/// <summary>Thrown before provider submission when an unapproved estimate exceeds request limits.</summary>
-public sealed class HistoricalBudgetExceededException : InvalidOperationException
-{
-    /// <summary>Initializes the budget failure.</summary>
-    public HistoricalBudgetExceededException(
-        MarketDataHistoricalEstimate estimate,
-        decimal maximumCostUsd,
-        long maximumBytes)
-        : base($"Historical estimate {estimate.EstimatedCostUsd:C} / {estimate.EstimatedBytes} bytes exceeds "
-               + $"the approved {maximumCostUsd:C} / {maximumBytes} byte budget.")
-    {
-        Estimate = estimate;
-    }
-
-    /// <summary>Gets the rejected estimate.</summary>
-    public MarketDataHistoricalEstimate Estimate { get; }
 }

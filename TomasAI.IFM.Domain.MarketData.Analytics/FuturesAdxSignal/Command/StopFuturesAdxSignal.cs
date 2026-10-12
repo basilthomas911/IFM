@@ -15,6 +15,8 @@ public static class StopFuturesAdxSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StopFuturesAdxSignalCommand command, FuturesAdxSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "unable to apply ADX stop event";
         var updated = command.EntityId.PeriodLength switch
         {

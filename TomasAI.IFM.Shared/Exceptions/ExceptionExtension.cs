@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Shared.Exceptions
     {
         public static Exception UnWrapException(this Exception ex)
         {
+            ArgumentNullException.ThrowIfNull(ex);
             while (ex.InnerException != null)
                 ex = ex.InnerException;
             return ex;

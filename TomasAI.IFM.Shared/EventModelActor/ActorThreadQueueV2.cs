@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// </remarks>
 public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThreadQueue, IDisposable
 {
-    readonly object retirementGate = new();
+    readonly System.Threading.Lock retirementGate = new();
     int processingOwner;
     bool IScheduledActorThreadQueue.TryClaimProcessing()
     {
@@ -27,13 +27,13 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
     void IScheduledActorThreadQueue.ReleaseProcessing() => Volatile.Write(ref processingOwner, 0);
 
     const int DefaultCapacity = 8192;
-    const int Created = 0;
     const int Active = 1;
     const int Retiring = 2;
     const int Retired = 3;
 
-    readonly object _startLock = new();
+    readonly System.Threading.Lock _startLock = new();
     readonly int _capacity;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Only managed SemaphoreSlim Wait/WaitAsync operations are used, never AvailableWaitHandle. Immediate mailbox retirement leaves the semaphore reachable by outstanding waiters until they finish; disposing it synchronously would race them.")]
     readonly SemaphoreSlim _slots;
     readonly ActorAdmissionController _admissionController;
     Channel<QueuedActorMessage>? _channel;
@@ -58,8 +58,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         int spinDequeue = 32)
     {
         _admissionController = admissionController ?? throw new ArgumentNullException(nameof(admissionController));
-        if (capacity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         _capacity = capacity;
         _slots = new SemaphoreSlim(capacity, capacity);
@@ -193,7 +192,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             if (_admissionController.Mode == ActorAdmissionMode.Enforce)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!_slots.Wait(0))
+                if (!_slots.Wait(0, cancellationToken))
                     return RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
             }
             else
@@ -227,7 +226,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
             if (_admissionController.Mode == ActorAdmissionMode.Enforce)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var result = _slots.Wait(0)
+                var result = _slots.Wait(0, cancellationToken)
                     ? PublishReserved(message, charge)
                     : RejectQueueAdmission(ActorAdmissionReason.MailboxLimit);
                 Interlocked.Decrement(ref _writers);
@@ -273,8 +272,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
 
     static async ValueTask AwaitAccepted(ValueTask<bool> pending)
     {
-        if (!await pending.ConfigureAwait(false))
-            throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
+        ObjectDisposedException.ThrowIf(!await pending.ConfigureAwait(false), typeof(ActorThreadQueueV2));
     }
 
     async ValueTask<bool> AwaitCompatibilityWrite(
@@ -381,6 +379,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         lock (retirementGate) return CompleteDrainCore();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
     bool CompleteDrainCore()
     {
         Volatile.Write(ref processingOwner, 0);
@@ -394,6 +393,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         return Count != 0 && Interlocked.CompareExchange(ref _scheduled, 1, 0) == 0;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
     bool IScheduledActorThreadQueue.TryRetire()
     {
         if (Volatile.Read(ref _scheduled) != 0 || Count != 0)
@@ -422,8 +422,7 @@ public sealed class ActorThreadQueueV2 : IActorThreadQueue, IScheduledActorThrea
         {
             if (_lifecycle == Active)
                 return;
-            if (_lifecycle == Retired)
-                throw new ObjectDisposedException(nameof(ActorThreadQueueV2));
+            ObjectDisposedException.ThrowIf(_lifecycle == Retired, typeof(ActorThreadQueueV2));
 
             _channel = Channel.CreateUnbounded<QueuedActorMessage>(new UnboundedChannelOptions
             {

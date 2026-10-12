@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
@@ -16,6 +16,8 @@ public static class StopFuturesBarDataStreaming
     /// <returns>The command identity on success, or the business rejection or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StopFuturesBarDataStreamingCommand command, FuturesBarDataCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FuturesBarDataStreamingStoppedEvent";
         var updated = command.Compute(out var futuresBarDataStreamingStop) switch
         {

@@ -10,27 +10,32 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Validation;
-
 /// <summary>Deterministic ingress checks for one Regime Discovery Function command.</summary>
 public static class RegimeDiscoveryCommandValidationExtensions
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
     public static List<ValidationError> ValidateRegimeDiscoveryRevision(this List<ValidationError> errors, long value)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        if (value <= 0) errors.Add(new("InputWorkflowRevision must be positive."));
+        if (value <= 0)
+            errors.Add(new("InputWorkflowRevision must be positive."));
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryTraceId(
-        this List<ValidationError> errors, Guid value, string name)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryTraceId(this List<ValidationError> errors, Guid value, string name)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        if (value == Guid.Empty) errors.Add(new($"{name} is required."));
+        if (value == Guid.Empty)
+            errors.Add(new($"{name} is required."));
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryTimestamp(
-        this List<ValidationError> errors, DateTime value, string name)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryTimestamp(this List<ValidationError> errors, DateTime value, string name)
     {
         ArgumentNullException.ThrowIfNull(errors);
         if (value == default || value.Kind != DateTimeKind.Utc)
@@ -38,8 +43,9 @@ public static class RegimeDiscoveryCommandValidationExtensions
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryTargetHorizon(
-        this List<ValidationError> errors, TimeFrameType value)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryTargetHorizon(this List<ValidationError> errors, TimeFrameType value)
     {
         ArgumentNullException.ThrowIfNull(errors);
         if (value is not (TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly))
@@ -47,8 +53,9 @@ public static class RegimeDiscoveryCommandValidationExtensions
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryParameterHash(
-        this List<ValidationError> errors, string? value)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryParameterHash(this List<ValidationError> errors, string? value)
     {
         ArgumentNullException.ThrowIfNull(errors);
         if (!IsSha256(value))
@@ -56,55 +63,56 @@ public static class RegimeDiscoveryCommandValidationExtensions
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryWorkflowView(
-        this List<ValidationError> errors, IntrinsicTimeStrategyWorkflowView? value)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryWorkflowView(this List<ValidationError> errors, IntrinsicTimeStrategyWorkflowView? value)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        if (value is null) errors.Add(new("WorkflowView is required."));
-        else errors.AddRange(new WorkflowViewRules().Execute(value));
+        if (value is null)
+            errors.Add(new("WorkflowView is required."));
+        else
+            errors.AddRange(new WorkflowViewRules().Execute(value));
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryTrigger(
-        this List<ValidationError> errors, FuturesItiSignalGeneratedEvent? value)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryTrigger(this List<ValidationError> errors, FuturesItiSignalGeneratedEvent? value)
     {
         ArgumentNullException.ThrowIfNull(errors);
-        if (value is null) errors.Add(new("TriggerEvent is required."));
-        else errors.AddRange(new TriggerRules().Execute(value));
+        if (value is null)
+            errors.Add(new("TriggerEvent is required."));
+        else
+            errors.AddRange(new TriggerRules().Execute(value));
         return errors;
     }
 
-    public static List<ValidationError> ValidateRegimeDiscoveryConsistency(
-        this List<ValidationError> errors, ExecuteRegimeDiscoveryPipelineCommand request)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "This validation-builder extension preserves the shared List-based fluent validation contract and returns the same mutable error accumulator.")]
+    public static List<ValidationError> ValidateRegimeDiscoveryConsistency(this List<ValidationError> errors, ExecuteRegimeDiscoveryPipelineCommand request)
     {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(errors);
         var view = request.WorkflowView;
-        if (view is not null && (view.EntityId != request.WorkflowEntityId ||
-            view.WorkflowId != request.WorkflowId || view.WorkflowRevision != request.InputWorkflowRevision))
+        if (view is not null && (view.EntityId != request.WorkflowEntityId || view.WorkflowId != request.WorkflowId || view.WorkflowRevision != request.InputWorkflowRevision))
             errors.Add(new("WorkflowView identity and revision must match the Regime Discovery execution."));
         if (request.ExpiresAtUtc <= request.RequestedAtUtc)
             errors.Add(new("ExpiresAtUtc must be later than RequestedAtUtc."));
         if (request.ParameterSet is { } parameters && request.TargetHorizon != parameters.TargetHorizon)
             errors.Add(new("TargetHorizon must match the parameter-set target horizon."));
-        if (request.TriggerEvent?.EntityId is { } triggerId && request.WorkflowEntityId.ItiSignalEntityId is { } workflowTriggerId &&
-            (request.TargetHorizon != triggerId.TimePeriod || workflowTriggerId != triggerId))
+        if (request.TriggerEvent?.EntityId is { } triggerId && request.WorkflowEntityId.ItiSignalEntityId is { } workflowTriggerId && (request.TargetHorizon != triggerId.TimePeriod || workflowTriggerId != triggerId))
             errors.Add(new("TargetHorizon and workflow identity must match the trigger ITI timeframe and identity."));
-        var snapshotInvalid = request.Snapshot is not { SnapshotId: var snapshotId } || snapshotId == Guid.Empty ||
-            request.Snapshot.TargetHorizon != request.TargetHorizon || request.Snapshot.Observations.Length == 0;
-        if (!snapshotInvalid && request.TriggerEvent?.EntityId is { ContractId: { Length: > 0 } contractId } &&
-            request.Snapshot.MarketSeriesIdentity != MarketSeriesIdentity.ForContract(contractId))
+        var snapshotInvalid = request.Snapshot is not { SnapshotId: var snapshotId } || snapshotId == Guid.Empty || request.Snapshot.TargetHorizon != request.TargetHorizon || request.Snapshot.Observations.Length == 0;
+        if (!snapshotInvalid && request.TriggerEvent?.EntityId is { ContractId: { Length: > 0 } contractId } && request.Snapshot.MarketSeriesIdentity != MarketSeriesIdentity.ForContract(contractId))
             snapshotInvalid = true;
         if (snapshotInvalid)
             errors.Add(new("Snapshot must be initialized and match the trigger market series and target horizon."));
-        if (IsSha256(request.ParameterPayloadSha256) && request.ParameterSet is not null &&
-            !string.Equals(request.ParameterPayloadSha256,
-                RegimeDiscoveryParameterPayload.ComputeSha256(request.ParameterSet), StringComparison.OrdinalIgnoreCase))
+        if (IsSha256(request.ParameterPayloadSha256) && request.ParameterSet is not null && !string.Equals(request.ParameterPayloadSha256, RegimeDiscoveryParameterPayload.ComputeSha256(request.ParameterSet), StringComparison.OrdinalIgnoreCase))
             errors.Add(new("ParameterPayloadSha256 must match the canonical parameter payload."));
         return errors;
     }
 
     static bool IsSha256(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-
     // These are command-specific views of structured upstream payloads. Stage snapshots, fund/catalog
     // bindings, provenance and optional signal data retain their full upstream range here; Regime
     // Discovery validates its identity/revision inputs and evaluates signal quality during execution.
@@ -143,8 +151,7 @@ public static class RegimeDiscoveryCommandValidationExtensions
                 {
                     RuleFor(x => x.EntityId.ContractId).NotEmpty();
                     RuleFor(x => x.EntityId.ValueDate).Must(date => date != DateOnly.MinValue && date != DateOnly.MaxValue);
-                    RuleFor(x => x.EntityId.TimePeriod)
-                        .Must(value => value is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly);
+                    RuleFor(x => x.EntityId.TimePeriod).Must(value => value is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly);
                 });
             }
         }

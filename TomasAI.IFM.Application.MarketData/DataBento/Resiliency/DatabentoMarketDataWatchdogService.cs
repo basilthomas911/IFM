@@ -24,7 +24,7 @@ public sealed class DatabentoMarketDataWatchdogService(
 {
     const int MaximumRecoveryAttempts = 3;
     readonly SemaphoreSlim _operations = new(1, 1);
-    readonly object _snapshotSync = new();
+    readonly System.Threading.Lock _snapshotSync = new();
     readonly DatabentoDatasetHealthEvaluator _datasetEvaluator =
         new(options.HardStallTimeout);
     readonly DatabentoStage3Options _stage3 = (stage3Options ?? new()).Validate();
@@ -53,7 +53,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             _ = await Task.WhenAny(interval, terminal).ConfigureAwait(false);
             await cycle.CancelAsync().ConfigureAwait(false);
             try { await Task.WhenAll(interval, terminal).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (cycle.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (cycle.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
             await ProbeAsync(stoppingToken).ConfigureAwait(false);
         }
     }
@@ -74,7 +74,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            logger.LogWarning(exception,"{Component}.{Method} "+"Initial Databento startup qualification failed; entering bounded recovery.",nameof(DatabentoMarketDataWatchdogService),nameof(StartAsync));
+            ApplicationDiagnosticLog.Write20(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(StartAsync));
             if (options.Enabled)
                 await RecoverConfiguredAsync(valueDate, correlationId, DatabentoOperationReason.InitialStartup, token).ConfigureAwait(false);
             else
@@ -100,16 +100,6 @@ public sealed class DatabentoMarketDataWatchdogService(
             DatabentoDisplayHealth.Inactive, false, 0, EmptyNative(), Guid.Empty, token).ConfigureAwait(false);
     }, cancellationToken);
 
-    public Task ResetAsync(DateOnly valueDate, Guid correlationId, CancellationToken cancellationToken = default)
-        => SerializedAsync(async token =>
-        {
-            await RecoverConfiguredAsync(valueDate,
-            correlationId == Guid.Empty ? Guid.CreateVersion7(timeProvider.GetUtcNow()) : correlationId,
-            DatabentoOperationReason.ManualReset, token).ConfigureAwait(false);
-            if (Current.State == DatabentoLifecycleState.Failed)
-                throw new InvalidOperationException(Current.Reason);
-        }, cancellationToken);
-
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
@@ -123,6 +113,18 @@ public sealed class DatabentoMarketDataWatchdogService(
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    public Task ResetAsync(DateOnly valueDate, Guid correlationId, CancellationToken cancellationToken = default)
+        => SerializedAsync(async token =>
+        {
+            await RecoverConfiguredAsync(valueDate,
+            correlationId == Guid.Empty ? Guid.CreateVersion7(timeProvider.GetUtcNow()) : correlationId,
+            DatabentoOperationReason.ManualReset, token).ConfigureAwait(false);
+            if (Current.State == DatabentoLifecycleState.Failed)
+                throw new InvalidOperationException(Current.Reason);
+        }, cancellationToken);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The service boundary returns a classified unavailable or failed result and records diagnostics instead of aborting its supervisor.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public Task ProbeAsync(CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
         if (_stage3.Enabled)
@@ -165,7 +167,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
-                logger.LogWarning(exception,"{Component}.{Method} "+"Scheduled Databento start failed; entering bounded recovery.",nameof(DatabentoMarketDataWatchdogService),nameof(ProbeAsync));
+                ApplicationDiagnosticLog.Write21(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(ProbeAsync));
                 if (!options.Enabled)
                 {
                     Transition(DatabentoLifecycleState.Failed, valueDate, correlationId, 0,
@@ -184,7 +186,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             return;
         }
         var failedDatasets = native.Feeds
-            .Where(feed => feed.FeedKind == "Ticker"
+            .Where(feed => string.Equals(feed.FeedKind,"Ticker",StringComparison.Ordinal)
                 && feed.DatasetState == DatabentoDatasetState.Down)
             .ToArray();
         if (failedDatasets.Length != 0)
@@ -294,7 +296,7 @@ public sealed class DatabentoMarketDataWatchdogService(
 
         var native = await SafeProbeAsync(token).ConfigureAwait(false);
         var datasets = native.Feeds
-            .Where(feed => feed.FeedKind == "Ticker")
+            .Where(feed => string.Equals(feed.FeedKind,"Ticker",StringComparison.Ordinal))
             .GroupBy(feed => feed.Dataset, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToArray();
@@ -354,6 +356,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         return delay;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task HandleStage3DatasetsAsync(
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel session,
         DateOnly valueDate,
@@ -361,7 +364,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         CancellationToken cancellationToken)
     {
         var correlationId = Guid.CreateVersion7(timeProvider.GetUtcNow());
-        foreach (var feed in native.Feeds.Where(feed => feed.FeedKind == "Ticker"))
+        foreach (var feed in native.Feeds.Where(feed => string.Equals(feed.FeedKind,"Ticker",StringComparison.Ordinal)))
         {
             var incident = GetIncident(feed.Dataset, valueDate);
             var healthy = feed.DatasetState == DatabentoDatasetState.Up;
@@ -421,10 +424,7 @@ public sealed class DatabentoMarketDataWatchdogService(
 
         var qualified = EvaluateDatasets(await SafeProbeAsync(cancellationToken).ConfigureAwait(false));
         var evaluation = Evaluate(qualified, session.IsLiveTrading);
-        Transition(evaluation.CoreReady
-                ? evaluation.Health == DatabentoDisplayHealth.Orange
-                    ? DatabentoLifecycleState.Degraded : DatabentoLifecycleState.Healthy
-                : DatabentoLifecycleState.Failed,
+        Transition((evaluation.CoreReady) switch { true => (evaluation.Health == DatabentoDisplayHealth.Orange) switch { true => DatabentoLifecycleState.Degraded, false => DatabentoLifecycleState.Healthy }, false => DatabentoLifecycleState.Failed },
             valueDate, correlationId, 0, evaluation.Reason, qualified.NativeGeneration);
         await RecordAsync(DatabentoOperationReason.WatchdogPoll, evaluation.Major,
             evaluation.Health, evaluation.CoreReady, 0, qualified, correlationId,
@@ -453,6 +453,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
     async Task EnsureIncidentsHydratedAsync(CancellationToken cancellationToken)
     {
         if (Volatile.Read(ref _incidentsHydrated) != 0) return;
@@ -471,7 +472,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (Exception exception) when (exception is not OperationCanceledException
                                            || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception,                "{Component}.{Method} "+"Stage 3 incident hydration failed; recovery continues conservatively in memory.",nameof(DatabentoMarketDataWatchdogService),nameof(EnsureIncidentsHydratedAsync));
+            ApplicationDiagnosticLog.Write22(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(EnsureIncidentsHydratedAsync));
         }
     }
 
@@ -495,7 +496,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (Exception exception) when (exception is not OperationCanceledException
                                            || !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(exception,                "{Component}.{Method} "+"Stage 3 incident transition persistence failed for dataset {Dataset}; live recovery remains active.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordIncidentAsync),                snapshot.Dataset);
+            ApplicationDiagnosticLog.Write23(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(RecordIncidentAsync), snapshot.Dataset);
         }
     }
 
@@ -524,7 +525,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     async Task<bool> TryRecoverNewAsync(DateOnly valueDate, Guid correlationId,
         DatabentoOperationReason reason, CancellationToken cancellationToken)
     {
-        logger.LogWarning("{Component}.{Method} "+"Requesting hard reset recovery from Databento watchdog. CorrelationId={CorrelationId}; ValueDate={ValueDate}; Reason={Reason}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),correlationId,valueDate,reason);
+        ApplicationDiagnosticLog.Write24(logger, null, nameof(DatabentoMarketDataWatchdogService), nameof(TryRecoverNewAsync), correlationId, valueDate, reason);
         var episode = await (_recoveryRequester ?? throw new InvalidOperationException("Hard reset recovery pipeline is not configured."))
             .HardResetRecoveryAsync(new DatabentoHardRecoveryRequest(correlationId, valueDate,
                 Current.NativeGeneration, nameof(DatabentoMarketDataWatchdogService),
@@ -544,13 +545,13 @@ public sealed class DatabentoMarketDataWatchdogService(
                 Transition(DatabentoLifecycleState.Degraded, valueDate, correlationId,
                     attempts, Bound(episode.Detail), hard?.GenerationId ?? Guid.Empty,
                     attemptCompleted: UtcNow());
-                logger.LogWarning("{Component}.{Method} "+"Databento is locally healthy but downstream recovery remains fenced. CorrelationId={CorrelationId}; Detail={Detail}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),                    correlationId,Bound(episode.Detail));
+                ApplicationDiagnosticLog.Write25(logger, null, nameof(DatabentoMarketDataWatchdogService), nameof(TryRecoverNewAsync), correlationId, Bound(episode.Detail));
                 return true;
             case DatabentoRecoveryRequestOutcome.Unrecoverable:
             case DatabentoRecoveryRequestOutcome.ApplicationStopping:
                 Transition(DatabentoLifecycleState.Failed, valueDate, correlationId,
                     attempts, Bound(episode.Detail), attemptCompleted: UtcNow());
-                logger.LogCritical("{Component}.{Method} "+"Databento recovery episode is terminal. CorrelationId={CorrelationId}; Outcome={Outcome}; Detail={Detail}",nameof(DatabentoMarketDataWatchdogService),nameof(TryRecoverNewAsync),                    correlationId,episode.Outcome,Bound(episode.Detail));
+                ApplicationDiagnosticLog.Write26(logger, null, nameof(DatabentoMarketDataWatchdogService), nameof(TryRecoverNewAsync), correlationId, episode.Outcome, Bound(episode.Detail));
                 return true;
             }
         throw new InvalidOperationException("Unknown Databento recovery episode outcome.");
@@ -575,6 +576,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         Measure(MarketDataOperationStage.DatabentoLifecycle, MarketDataOperationOutcome.Completed, correlationId);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The service boundary returns a classified unavailable or failed result and records diagnostics instead of aborting its supervisor.")]
     async ValueTask<DatabentoBulkWatchdogSnapshot> SafeProbeAsync(CancellationToken cancellationToken)
     {
         var correlationId = Current.CorrelationId;
@@ -614,7 +616,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         {
             Feeds = snapshot.Feeds.Select(feed =>
             {
-                if (feed.FeedKind != "Ticker")
+                if (!string.Equals(feed.FeedKind,"Ticker",StringComparison.Ordinal))
                     return feed;
                 var evaluation = _datasetEvaluator.Evaluate(feed, snapshot.ObservedOnUtc);
                 return feed with
@@ -675,6 +677,8 @@ public sealed class DatabentoMarketDataWatchdogService(
         && feed.TerminalStatus == 0
         && feed.ReceivedSubscriptions >= feed.ExpectedSubscriptions;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A diagnostic recorder failure must not abort realtime ingestion or recovery; this boundary isolates the observer.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task RecordAsync(DatabentoOperationReason reason, DatabentoMajorStatus major,
         DatabentoDisplayHealth health, bool coreReady, int attempt, DatabentoBulkWatchdogSnapshot native,
         Guid correlationId, CancellationToken cancellationToken, string failureStage = "", string failureDetail = "")
@@ -711,7 +715,7 @@ public sealed class DatabentoMarketDataWatchdogService(
             catch (Exception exception)
             {
                 persistenceFailure = exception;
-                logger.LogWarning(exception,                    "{Component}.{Method} "+"Databento watchdog observation persistence attempt {Attempt} of {MaximumAttempts} failed.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordAsync),                    persistenceAttempt,MaximumRecoveryAttempts);
+                ApplicationDiagnosticLog.Write27(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(RecordAsync), persistenceAttempt, MaximumRecoveryAttempts);
                 if (persistenceAttempt < MaximumRecoveryAttempts && options.PersistenceRetryDelay > TimeSpan.Zero)
                     await Task.Delay(options.PersistenceRetryDelay, timeProvider, cancellationToken).ConfigureAwait(false);
             }
@@ -732,7 +736,7 @@ public sealed class DatabentoMarketDataWatchdogService(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            logger.LogWarning(exception,"{Component}.{Method} "+"Databento watchdog observation publication failed.",nameof(DatabentoMarketDataWatchdogService),nameof(RecordAsync));
+            ApplicationDiagnosticLog.Write28(logger, exception, nameof(DatabentoMarketDataWatchdogService), nameof(RecordAsync));
             lock (_snapshotSync) _current = _current with
             {
                 State = _current.CoreReady ? DatabentoLifecycleState.Degraded : _current.State,
@@ -765,8 +769,7 @@ public sealed class DatabentoMarketDataWatchdogService(
                 ChangedOnUtc = UtcNow(),
                 AttemptStartedOnUtc = attemptStarted ?? _current.AttemptStartedOnUtc,
                 AttemptCompletedOnUtc = attemptCompleted,
-                NextRetryOnUtc = state == DatabentoLifecycleState.Resetting && attempt < MaximumRecoveryAttempts
-                    ? UtcNow() + (attempt == 1 ? options.AttemptTwoDelay : options.AttemptThreeDelay) : null
+                NextRetryOnUtc = (state == DatabentoLifecycleState.Resetting && attempt < MaximumRecoveryAttempts) switch { true => UtcNow() + (attempt == 1 ? options.AttemptTwoDelay : options.AttemptThreeDelay), false => null }
             };
         }
     }
@@ -795,6 +798,7 @@ public sealed class DatabentoMarketDataWatchdogService(
     };
 
     DateTime UtcNow() => timeProvider.GetUtcNow().UtcDateTime;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "A diagnostic recorder failure must not abort realtime ingestion or recovery; this boundary isolates the observer.")]
     void Measure(MarketDataOperationStage stage, MarketDataOperationOutcome outcome, Guid correlationId)
     {
         try
@@ -802,7 +806,13 @@ public sealed class DatabentoMarketDataWatchdogService(
             recorder.Record(new(stage, outcome, MarketOutlookUpdateKind.FeedHealth,
                 correlationId == Guid.Empty ? Guid.CreateVersion7(timeProvider.GetUtcNow()) : correlationId, UtcNow()));
         }
-        catch { }
+        catch { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
     }
     static string Bound(string value) => string.IsNullOrEmpty(value) ? string.Empty : value[..Math.Min(value.Length, 512)];
+    /// <summary>Releases synchronization resources after the host stops this service.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        _operations.Dispose();
+    }
 }

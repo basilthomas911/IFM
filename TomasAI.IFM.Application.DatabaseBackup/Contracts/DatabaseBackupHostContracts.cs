@@ -7,6 +7,8 @@ public class DatabaseBackupHostOptions
     public const string SectionName = "DatabaseBackup:Host";
 
     public string HostId { get; set; } = $"backup-{Environment.MachineName}";
+    /// <summary>A Windows recovery worker executes only approved cutovers; the native host executes all other work.</summary>
+    public bool CutoverWorkerOnly { get; set; }
     public int DispatcherCount { get; set; } = 1;
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromMilliseconds(250);

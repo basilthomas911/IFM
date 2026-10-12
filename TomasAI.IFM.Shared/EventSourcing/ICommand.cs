@@ -22,29 +22,10 @@ public interface ICommand
 }
 
 /// <summary>
-/// Defines a parameter that can be supplied to a command for execution or configuration.
-/// </summary>
-/// <remarks>Implementations of this interface represent values or settings that influence command behavior. The
-/// specific contract and usage depend on the command system in which this interface is used.</remarks>
-public interface ICommandParameter
-{
-    int ErrorCode { get; }
-}
-
-/// <summary>
-/// Defines a parameter that can be supplied to a command for execution or configuration, associated with a specific entity identifier.
-/// </summary>
-/// <typeparam name="TEntityId"></typeparam>
-public interface ICommandParameter<TEntityId>
-    : ICommandParameter where TEntityId : IActorEntityId
-{
-    TEntityId EntityId { get; }
-}
-
-/// <summary>
 /// Defines a command that targets a specific actor entity identified by its unique identifier.
 /// </summary>
 /// <typeparam name="TEntityId">The type of the actor entity identifier. Must implement <see cref="IActorEntityId"/>.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3246", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface ICommand<TEntityId>
     : ICommand where TEntityId : IActorEntityId
 {

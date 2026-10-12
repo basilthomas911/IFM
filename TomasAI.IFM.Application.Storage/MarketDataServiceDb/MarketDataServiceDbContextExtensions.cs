@@ -12,12 +12,15 @@ namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 
 internal static class MarketDataServiceDbContextExtensions
 {
+    static readonly JsonSerializerOptions JsonOptions = new() { MaxDepth = 32 };
+
     extension(MarketDataServiceDbContext context)
     {
         /// <summary>Gets a watchdog observation by its durable identity.</summary>
         /// <param name="id">The observation identity.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
         /// <returns>The matching observation, or <see langword="null"/> when none exists.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Task<DatabentoWatchdogObservation?> GetObservationByIdentityAsync(Guid id, CancellationToken cancellationToken)
             => context.Database
                 .Use("MarketDataService.GetObservationByIdentity", MarketDataServiceDbSql.GetObservationByIdentity)
@@ -27,6 +30,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>ReadDurableSubscriptionAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<DurableSubscriptionSnapshot> ReadDurableSubscriptionAsync(string scope, string dataset,
             CancellationToken cancellationToken = default)
         {
@@ -39,6 +43,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>FindDurableOperationAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<DurableIntentResult?> FindDurableOperationAsync(string scope, string dataset, Guid operationId,
             CancellationToken cancellationToken = default)
         {
@@ -50,6 +55,9 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>ApplyDurableSubscriptionAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<DurableIntentResult> ApplyDurableSubscriptionAsync(DurableAuthorityMutation mutation,
             CancellationToken cancellationToken = default)
         {
@@ -78,7 +86,7 @@ internal static class MarketDataServiceDbContextExtensions
                 if (prior is not null)
                 {
                     transaction.Commit();
-                    return prior.Digest == requestDigest ? prior.Result
+                    return string.Equals(prior.Digest,requestDigest,StringComparison.Ordinal) ? prior.Result
                         : new(input.OperationId, DurableIntentResultCode.OperationConflict, prior.Result.Revision, null);
                 }
 
@@ -181,7 +189,7 @@ internal static class MarketDataServiceDbContextExtensions
             catch
             {
                 // Preserve the original failure when a broken connection has already rolled back.
-                try { transaction.Rollback(); } catch { }
+                try { transaction.Rollback(); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
                 throw;
             }
             finally
@@ -189,14 +197,17 @@ internal static class MarketDataServiceDbContextExtensions
                 // The shared provider normally closes and clears these in Commit/Rollback. A transport
                 // failure can throw before that cleanup; dispose only this call's remaining owned state.
                 // Never replace the original database/cancellation exception with a cleanup failure.
-                try { transaction.Transaction?.Dispose(); } catch { }
-                try { transaction.Connection?.Dispose(); } catch { }
+                try { if (transaction.Transaction is { } ownedTransaction) await ownedTransaction.DisposeAsync()
+                .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
+                try { if (transaction.Connection is { } ownedConnection) await ownedConnection.DisposeAsync()
+                .ConfigureAwait(false); } catch { /* Preserve the original database failure; cleanup is best effort. */ }
             }
         }
 
         /// <summary>
         /// Performs the <c>ReadPendingDurableOutboxAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<IReadOnlyList<DurableSubscriptionOutboxItem>> ReadPendingDurableOutboxAsync(string scope, string dataset,
             int pageSize = 100, CancellationToken cancellationToken = default)
         {
@@ -212,6 +223,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>AcknowledgeDurableOutboxAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<bool> AcknowledgeDurableOutboxAsync(string scope, string dataset, Guid transitionId,
             CancellationToken cancellationToken = default)
         {
@@ -226,17 +238,18 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>TryApplyDurableSubscription</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DurableIntentResultCode TryApplyDurableSubscription(DurableSubscriptionSnapshot current, DurableAuthorityMutation input,
             string factDigest, out DurableSubscriptionSnapshot next)
         {
             next = current;
-            var source = current.Authorities.SingleOrDefault(value => value.SourceId == input.SourceId);
+            var source = current.Authorities.SingleOrDefault(value => string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal));
             if (source is not null && source.Owner != input.Owner
-                || current.Authorities.Any(value => value.Owner == input.Owner && value.SourceId != input.SourceId))
+                || current.Authorities.Any(value => value.Owner == input.Owner && !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)))
                 return DurableIntentResultCode.AuthorityConflict;
             if (source is not null && input.SourceVersion < source.SourceVersion) return DurableIntentResultCode.StaleAuthority;
             if (source is not null && input.SourceVersion == source.SourceVersion)
-                return source.FactDigest == factDigest ? DurableIntentResultCode.AlreadyApplied : DurableIntentResultCode.AuthorityConflict;
+                return string.Equals(source.FactDigest,factDigest,StringComparison.Ordinal) ? DurableIntentResultCode.AlreadyApplied : DurableIntentResultCode.AuthorityConflict;
             // Deltas require contiguous delivery. A separately identified complete committed snapshot
             // carries the real source watermark and can safely cover intermediate non-ownership events.
             if (!input.CompleteSourceSnapshot && input.SourceVersion != (source?.SourceVersion ?? 0) + 1)
@@ -263,15 +276,15 @@ internal static class MarketDataServiceDbContextExtensions
                         continue;
                     }
                     if (add.LeaseVersion != 1 || leases.Values.Any(value => value.Purpose == add.Purpose && value.Ticker == add.Ticker)
-                        || current.Authorities.Where(value => value.SourceId != input.SourceId)
+                        || current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal))
                             .Any(value => value.Leases.Any(lease => lease.LeaseId == add.LeaseId)))
                         return DurableIntentResultCode.LeaseConflict;
                     leases.Add(add.LeaseId, add);
                 }
             }
             if (leases.Count > DurableSubscriptionContract.MaximumOwnerLeases
-                || current.Authorities.Count(value => value.SourceId != input.SourceId) + 1 > DurableSubscriptionContract.MaximumAuthorities
-                || current.Authorities.Where(value => value.SourceId != input.SourceId).Sum(value => value.Leases.Count) + leases.Count
+                || current.Authorities.Count(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)) + 1 > DurableSubscriptionContract.MaximumAuthorities
+                || current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)).Sum(value => value.Leases.Count) + leases.Count
                     > DurableSubscriptionContract.MaximumLeases)
                 return DurableIntentResultCode.CapacityExceeded;
             var updated = new DurableAuthorityState(input.SourceId, input.SourceVersion, input.SourceEventId, factDigest,
@@ -279,7 +292,7 @@ internal static class MarketDataServiceDbContextExtensions
             next = DurableSubscriptionContract.Freeze(current with
             {
                 Revision = current.Revision + 1,
-                Authorities = current.Authorities.Where(value => value.SourceId != input.SourceId).Append(updated).ToArray()
+                Authorities = current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)).Append(updated).ToArray()
             });
             return DurableIntentResultCode.Committed;
         }
@@ -287,6 +300,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>ReadDurableCurrentAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<DurableSubscriptionSnapshot?> ReadDurableCurrentAsync(MarketDataServiceTransactionRepository repository, string scope, string dataset,
             bool lockRow, CancellationToken cancellationToken)
         {
@@ -299,7 +313,7 @@ internal static class MarketDataServiceDbContextExtensions
             if (row is null) return null;
             var result = DurableSubscriptionContract.Freeze(context.DeserializeDurable<DurableSubscriptionSnapshot>(row.Json,
                 DurableSubscriptionContract.MaximumSnapshotBytes));
-            if (result.Scope != scope || result.Dataset != dataset || result.Revision != row.Revision)
+            if (!string.Equals(result.Scope,scope,StringComparison.Ordinal) || !string.Equals(result.Dataset,dataset,StringComparison.Ordinal) || result.Revision != row.Revision)
                 throw new InvalidDataException("Persisted intent scope or revision does not match its row.");
             return result;
         }
@@ -307,6 +321,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>ReadDurableOperationAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Task<DurableOperationRow?> ReadDurableOperationAsync(MarketDataServiceTransactionRepository repository, string scope, string dataset, Guid operationId,
             CancellationToken cancellationToken) => context.ReadDurableSingleAsync(repository, "Stage4Intent.ReadOperation", MarketDataServiceDbSql.ReadDurableOperation, Values(Text(scope), Text(dataset), Uuid(operationId)),
             row => new DurableOperationRow(row.GetString(0), context.DeserializeDurable<DurableIntentResult>(row.GetString(1), 4096)), cancellationToken);
@@ -314,21 +329,25 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>ReadDurableSingleAsync</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<T?> ReadDurableSingleAsync<T>(MarketDataServiceTransactionRepository repository, string commandName, string sql,
             NpgsqlParameter[] parameters, Func<IObjectDataRecord, T> map, CancellationToken cancellationToken) where T : class
         {
             using var commandContext = repository.Use(commandName, sql)
                 .SetParameters(new DurableSubscriptionParameters(parameters));
-            await using var ambient = repository.InTransaction() as NpgsqlCommand;
+            var ambient = repository.InTransaction() as NpgsqlCommand;
             if (ambient is null) return await commandContext.ExecuteSingleAsync(map, cancellationToken)
                 .ConfigureAwait(false);
+            await using var ambientDisposal = ambient.ConfigureAwait(false);
             // The current shared provider's query methods always open a separate connection, unlike its
             // command methods. Keep these transactional reads on this repository's owned transaction.
             // Do not use CommandBehavior.CloseConnection: only the transaction owner can close it.
             commandContext.SetCommand(ambient);
             ambient.Parameters.AddRange(parameters);
-            await using var reader = await ambient.ExecuteReaderAsync(cancellationToken)
+            var reader = await ambient.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
+        await using var readerDisposal = reader.ConfigureAwait(false);
             return await reader.ReadAsync(cancellationToken)
                 .ConfigureAwait(false) ? map(new AdoNetDataRecord().SetReader(reader)) : null;
         }
@@ -336,27 +355,34 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>
         /// Performs the <c>DeserializeDurable</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Preserve the C# 14 extension receiver contract used by context callers.")]
         internal T DeserializeDurable<T>(string value, int maximumBytes)
         {
             if (Encoding.UTF8.GetByteCount(value) > maximumBytes) throw new InvalidDataException("Persisted payload exceeds its bound.");
-            return JsonSerializer.Deserialize<T>(value, new JsonSerializerOptions { MaxDepth = 32 }) ?? throw new InvalidDataException("Persisted payload is invalid.");
+            return JsonSerializer.Deserialize<T>(value, JsonOptions) ?? throw new InvalidDataException("Persisted payload is invalid.");
         }
 
         /// <summary>
         /// Performs the <c>CreateEmptyDurableSnapshot</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DurableSubscriptionSnapshot CreateEmptyDurableSnapshot(string scope, string dataset) => new(1, scope, dataset, 0, Array.Empty<DurableAuthorityState>());
         /// <summary>
         /// Performs the <c>ValidateDurableIdentity</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal void ValidateDurableIdentity(string scope, string dataset, Guid id)
         {
             DurableSubscriptionContract.ValidateScope(scope, dataset);
-            if (id == Guid.Empty) throw new ArgumentException("A non-empty identifier is required.");
+            if (id == Guid.Empty) throw new ArgumentException("A non-empty identifier is required.",nameof(id));
         }
         /// <summary>
         /// Performs the <c>CreateDurableRepository</c> operation for Market Data Service persistence.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal MarketDataServiceTransactionRepository CreateDurableRepository() => new(context._connection, context._logger);
 
 
@@ -367,6 +393,7 @@ internal static class MarketDataServiceDbContextExtensions
         /// <summary>Builds the PostgreSQL bind values for a contract assignment mutation.</summary>
         /// <param name="expectedRowVersion">The optimistic-concurrency row version.</param>
         /// <returns>The ordered PostgreSQL parameters.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Npgsql.NpgsqlParameter[] BindAssignment(long expectedRowVersion) => Values(
             Text(assignment.ContractRole.ToString()),
             Text(assignment.RootSymbol),
@@ -391,6 +418,7 @@ internal static class MarketDataServiceDbContextExtensions
     {
         /// <summary>Marks a persisted PostgreSQL timestamp as UTC.</summary>
         /// <returns>The timestamp with <see cref="DateTimeKind.Utc"/>.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DateTime AsUtc() => DateTime.SpecifyKind(value, DateTimeKind.Utc);
     }
 }

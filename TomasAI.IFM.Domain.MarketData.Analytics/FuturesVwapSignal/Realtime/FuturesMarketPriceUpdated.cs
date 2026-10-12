@@ -33,8 +33,7 @@ public static class FuturesMarketPriceUpdated
             checkpoint, session.StartUtc, session.EndUtc, configuration).ConfigureAwait(false);
         if (result is ServiceFailed<GuidResult> failed)
         {
-            logger.LogError("VWAP checkpoint rejected for {ContractId} ordinal {TradeOrdinal}: {Error}",
-                entityId.ContractId, checkpoint.LastTradeOrdinal, failed.ErrorMessage);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write33(logger, null, entityId.ContractId, checkpoint.LastTradeOrdinal, failed.ErrorMessage);
             return false;
         }
         return true;

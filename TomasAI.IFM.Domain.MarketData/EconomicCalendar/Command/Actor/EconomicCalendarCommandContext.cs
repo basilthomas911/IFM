@@ -6,24 +6,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="EconomicCalendarCommandActor"/>.</summary>
-public interface IEconomicCalendarCommandContext : ICommandActorContext<EconomicCalendarCommandActor>
-{
-    /// <summary>Gets the database-context factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<EconomicCalendarCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the state factory.</summary>
-    IEventSourceActorStateFactory StateFactory { get; }
-    /// <summary>Gets the actor service.</summary>
-    IActorService ActorService { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="EconomicCalendarCommandActor"/>.</summary>
 public sealed class EconomicCalendarCommandContext : CommandActorContext,
-    ICommandActorContext<EconomicCalendarCommandActor>, IEconomicCalendarCommandContext
+IEconomicCalendarCommandContext
 {
     readonly Lazy<IEventSourceActorDbContext> _dbEventSource;
     readonly Lazy<IEventSourceActorStateFactory> _stateFactory;

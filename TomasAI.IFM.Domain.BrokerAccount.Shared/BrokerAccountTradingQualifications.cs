@@ -9,5 +9,9 @@ public static class BrokerAccountTradingQualifications
     /// <param name="isDevelopment">Whether the trusted API host is Development.</param>
     /// <returns>A temporary query view; qualification evidence and holds are unchanged.</returns>
     public static BrokerAccountDefinition TradingView(BrokerAccountDefinition account, bool isDevelopment)
-        => account with { DevelopmentQualificationsExempt = isDevelopment && account.Environment == BrokerEnvironment.Emulator };
+        
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        return account with { DevelopmentQualificationsExempt = isDevelopment && account.Environment == BrokerEnvironment.Emulator };
+    }
 }

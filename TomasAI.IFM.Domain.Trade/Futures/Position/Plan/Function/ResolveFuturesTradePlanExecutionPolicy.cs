@@ -4,10 +4,11 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Plan.Function;
-
 public static class ResolveFuturesTradePlanExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this UpdateFuturesTradePlanCommand command,
-        FunctionFailureStage stage, IFuturesTradePlanFunctionContext context) =>
-        new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+    public static FunctionExecutionPolicy ResolveExecutionPolicy(this UpdateFuturesTradePlanCommand command, FunctionFailureStage stage, IFuturesTradePlanFunctionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+    }
 }

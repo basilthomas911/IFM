@@ -1,6 +1,7 @@
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
 /// <summary>Defines the authoritative atomic lifecycle of one Strategy Workflow execution.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "Preserve the existing serialized byte enum representation.")]
 public enum WorkflowStrategyMachineStatus : byte
 {
     /// <summary>No authoritative workflow snapshot exists.</summary>

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
@@ -11,5 +11,6 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public class ActorRegistry(Type[] actorTypes)
     : IActorRegistry
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized/configuration array contract and consumer bindings; changing collection types is a separate API migration.")]
     public Type[] ActorTypes { get; } = actorTypes;
 }

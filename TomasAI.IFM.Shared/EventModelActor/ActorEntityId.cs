@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 [MessagePackObject]
 public readonly record struct ActorEntityId : IActorEntityId
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1051", Justification = "The existing MessagePack keyed readonly field is a persisted actor identifier contract.")]
     [Key(0)]
     public readonly string Value;
 

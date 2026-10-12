@@ -5,12 +5,11 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Model;
-
-public sealed record FuturesRsiSeedDecision(FuturesTradeSessionBarReadModel[] Observations, string Reason);
 public static class FuturesRsiHistoricalSeedModel
 {
     public static FuturesRsiSeedDecision Decide(StartFuturesRsiSignalCommand command, FuturesRsiAccumulatorCheckpoint? restored, IMarketSessionCalendar? calendar, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
         if (restored is not null && !command.ForceHistoricalInitialization)
             return new([], "RSI.SEED_CHECKPOINT_PRESERVED");
         if (command.HistoricalSeed is not { } seed) return new([], "RSI.SEED_NOT_REQUESTED");
@@ -21,7 +20,7 @@ public static class FuturesRsiHistoricalSeedModel
         for (var i = 0; i < windows.Length; i++)
         {
             var bar = seed.Observations[i]; var window = windows[i];
-            if (bar is null || !bar.IsComplete || !bar.IsValid || bar.Close <= 0 || bar.ContractId != command.EntityId.ContractId || bar.TimeFrame != command.EntityId.TimePeriod ||
+            if (bar is null || !bar.IsComplete || !bar.IsValid || bar.Close <= 0 || !string.Equals(bar.ContractId,command.EntityId.ContractId,StringComparison.Ordinal) || bar.TimeFrame != command.EntityId.TimePeriod ||
              bar.LastMarketEventUtc < window.StartUtc || bar.LastMarketEventUtc > window.EndUtc || bar.ValueDate != window.ValueDate || bar.IntervalStartUtc != window.StartUtc || bar.IntervalEndUtc != window.EndUtc ||
              new FuturesTradeSessionBarReadModelValidationRules().Execute(bar).Length != 0) return new([], "RSI.SEED_NONCONTIGUOUS_EMPTY");
         }

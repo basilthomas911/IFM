@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
+using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -19,6 +19,8 @@ public static class RemoveLookupType
     /// <returns>The command acceptance or business failure.</returns>
     public static ServiceResult<GuidResult> Execute(this RemoveLookupTypeCommand e, LookupTypeCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "LookupType.STATE.APPLY_FAILED: unable to apply removed lookup event";
         var updated = e.Compute(state, out var lookupChange) switch
         {

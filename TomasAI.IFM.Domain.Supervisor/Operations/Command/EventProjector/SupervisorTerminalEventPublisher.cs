@@ -28,6 +28,7 @@ internal static class SupervisorTerminalEventPublisher
         };
 
     /// <summary>Publishes the Pause terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishPauseAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -60,6 +61,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Drain terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishDrainAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -92,6 +94,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Resume terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishResumeAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -124,6 +127,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Stop terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishStopAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -156,6 +160,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Restart terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishRestartAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -188,6 +193,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Quarantine terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishQuarantineAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -220,6 +226,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Retire terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishRetireAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -252,6 +259,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the Recycle terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishRecycleAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)
@@ -284,6 +292,7 @@ internal static class SupervisorTerminalEventPublisher
     }
 
     /// <summary>Publishes the AcknowledgeIncident terminal event selected by the committed outcome.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S5034", Justification = "The success/failure branches make distinct SendAsync calls; each returned ValueTask is converted to Task exactly once.")]
     static Task PublishAcknowledgeIncidentAsync(ICommandActorContext context, SupervisorActorOperationRecordedEvent outcome)
     {
         if (outcome.Outcome == SupervisorOperationOutcome.Succeeded)

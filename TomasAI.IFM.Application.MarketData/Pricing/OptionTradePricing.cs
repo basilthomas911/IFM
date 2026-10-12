@@ -10,6 +10,7 @@ public static class OptionTradePricing
     public static OptionGreeksSnapshot Calculate(OptionPricingContext context, OptionPricingQuote? underlying,
         LastTradeTickSnapshot trade, decimal strike, bool call, DateTimeOffset calculatedAt)
     {
+        ArgumentNullException.ThrowIfNull(context);
         OptionGreeksSnapshot Failed(OptionPricingFailure failure) => new()
         {
             IsValid = false,

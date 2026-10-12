@@ -18,9 +18,8 @@ public static class FuturesTradeSignalUpdatedComplete
     {
         ServiceId = $"{LogSourceType.FuturesTradeSignalEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Handles the completion of a trade signal updated event.
     /// </summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesTradeSignalUpdatedCompleteEvent e, IEventActorContext<FuturesTradeSignalEventActor> context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)

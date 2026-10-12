@@ -10,7 +10,8 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Subscriptions;
 using TomasAI.IFM.Application.MarketData.Worker;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Application.Storage.OptionPricing;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -42,10 +43,12 @@ public sealed partial class CompositionBusinessProjectionTests
             File.WriteAllText(Path.Combine(directory, "live-pricing-recovery.json"), JsonSerializer.Serialize(evidence, new JsonSerializerOptions { WriteIndented = true }));
         }
         var settings = new DbConnectionSettings()
-            .Add("reference", "Contact Points=localhost;Port=9042;Default Keyspace=reference_test_db", "System.Data.ScyllaDb")
+            .Add(SecuritiesDbContext.SecuritiesDbConnection, "Contact Points=localhost;Port=9042;Default Keyspace=securities_test_db", "System.Data.ScyllaDb")
             .Add("market", "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db", "System.Data.ScyllaDb");
-        var referenceDb = new LiveRepository(settings["reference"]);
-        var bundle = await new OptionPricingReferenceBundleStore(referenceDb).ReadAsync(Environment.GetEnvironmentVariable("IFM_OCP_BUNDLE_ID")!, token);
+        var securitiesFactory = Substitute.For<IDbContextFactory>();
+        var securitiesDb = new SecuritiesDbContext(settings, securitiesFactory, NullLogger<DbProvider>.Instance);
+        securitiesFactory.SecuritiesDb.Returns(securitiesDb);
+        var bundle = await new OptionPricingReferenceBundleStore(securitiesDb).ReadAsync(Environment.GetEnvironmentVariable("IFM_OCP_BUNDLE_ID")!, token);
         Assert.NotNull(bundle);
         var native = new DatabentoFeedFactory();
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Production, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive };
@@ -94,7 +97,7 @@ public sealed partial class CompositionBusinessProjectionTests
         Record(new { Stage = "WorkerStarted", started.ProcessId, started.GenerationId, bundle.BundleId, plan.PlanId, mid, strikes, At = DateTimeOffset.UtcNow });
         using var http = new HttpClient(); using var treasury = new UsTreasuryCurve(http);
         var pricing = new TreasuryPricingProvider(treasury);
-        await using var discovery = new QualifiedCompositionDiscovery(new(new OptionPricingConventionStore(referenceDb)),
+        await using var discovery = new QualifiedCompositionDiscovery(new(securitiesDb),
             new OptionPricingContextProvider(pricing), workers, routePlans: fixture.Plans, desired: desired);
         var acquired = await discovery.AcquireAsync(new(Guid.NewGuid(), started.GenerationId, valueDate, plan.MaturityDate,
             DateTimeOffset.UtcNow.AddSeconds(120), plan.Options, true, plan.Calendar!, plan.Publication!, plan.Conversion!), token, refreshAutomatically: false);

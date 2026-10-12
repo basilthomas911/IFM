@@ -7,5 +7,5 @@ internal sealed record DownloadLogEntry(MarketDataDownloadOutcome Outcome, strin
 {
     /// <summary>Checks exact replay without modifying the previously recorded outcome.</summary>
     public bool Matches(MarketDataDownloadOutcome? recordedOutcome, string? recordedPayloadSha256)
-        => recordedOutcome == Outcome && recordedPayloadSha256 == PayloadSha256;
+        => recordedOutcome == Outcome && string.Equals(recordedPayloadSha256,PayloadSha256,StringComparison.Ordinal);
 }

@@ -6,14 +6,16 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 
 /// <summary>Provides typed runtime properties for <see cref="FuturesEodDataRealtimeActor"/> contexts.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class FuturesEodDataRealtimeRuntimeExtensions
 {
     extension(IRealtimeActorContext<FuturesEodDataRealtimeActor> context)
     {
         /// <summary>Gets the actor supervisor.</summary>
-        public IActorSupervisor Supervisor => IsArgumentNull.Set((context as IFuturesEodDataRealtimeContext)?.Supervisor, nameof(context))!;
+        public IActorSupervisor Supervisor => IsArgumentNull.Named((context as IFuturesEodDataRealtimeContext)?.Supervisor, nameof(context))!;
         /// <summary>Gets the typed actor logger.</summary>
-        public ILogger<FuturesEodDataRealtimeActor> Logger => IsArgumentNull.Set((context as IFuturesEodDataRealtimeContext)?.Logger, nameof(context))!;
+        public ILogger<FuturesEodDataRealtimeActor> Logger => IsArgumentNull.Named((context as IFuturesEodDataRealtimeContext)?.Logger, nameof(context))!;
     }
 }
 

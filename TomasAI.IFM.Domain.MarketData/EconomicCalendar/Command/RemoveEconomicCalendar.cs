@@ -17,6 +17,8 @@ public static class RemoveEconomicCalendar
     /// <returns>The command ID on success, or the guarded/application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this RemoveEconomicCalendarCommand command, EconomicCalendarCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "EconomicCalendar.STATE.APPLY_FAILED";
         var computed = command.Compute(out var economicCalendarId);
         var updated = computed switch

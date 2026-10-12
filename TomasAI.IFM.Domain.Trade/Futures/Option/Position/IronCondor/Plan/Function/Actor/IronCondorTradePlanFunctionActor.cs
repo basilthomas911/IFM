@@ -103,7 +103,7 @@ public sealed class IronCondorTradePlanFunctionActor(IIronCondorTradePlanFunctio
             command.RequestedAtUtc.Kind != DateTimeKind.Utc ||
             command.Subject != new ActorSubject(ActorType.Function, ActorName,
                 UpdateIronCondorTradePlanCommand.Verb, command.EntityId.Format()))
-            throw new ArgumentException("Valid Iron Condor Trade Plan routing and source position are required.");
+            throw new ArgumentException("Valid Iron Condor Trade Plan routing and source position are required.",nameof(command));
         command.Parameters.Validate();
     }
 }

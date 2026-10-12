@@ -1,0 +1,2471 @@
+{
+  "status": "Development provider migration and isolated restore verified; API/UI/Scheduler runtime verified. fsync=on and synchronous_commit=on retained. Extended performance qualification deferred to a weekend, not a migration correctness gate. Local backup-host operational validation awaits its missing vault enrollment.",
+  "tables": [
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.configuration_baseline_application",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.configuration_baseline_application"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.intrinsic_time_strategy_workflow_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.intrinsic_time_strategy_workflow_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.legacy_trade_strategy_family_mapping",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.legacy_trade_strategy_family_mapping"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.lookup_definition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.lookup_definition"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.market_condition_assessment_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.market_condition_assessment_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.market_condition_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.market_condition_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.order_composition_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.order_composition_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_area",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_area"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_assignment",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_assignment"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_assignment_revision",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_assignment_revision"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_component",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_component"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_legacy_reference",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_legacy_reference"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_operation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_operation"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_schema_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_schema_version"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_set_audit",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_set_audit"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_set_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_set_version"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_startup_report",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_startup_report"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.parameter_startup_run",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.parameter_startup_run"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.regime_discovery_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.regime_discovery_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.risk_management_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.risk_management_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_capability_requirement",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_capability_requirement"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_catalog_identity",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_catalog_identity"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_catalog_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_catalog_version"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_deployment_catalog_parameter_binding",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_deployment_catalog_parameter_binding"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_deployment_parameter_binding",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_deployment_parameter_binding"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_deployment_product",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_deployment_product"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_deployment_structure_variant",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_deployment_structure_variant"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_family_membership",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_family_membership"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_position_risk_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_position_risk_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.strategy_structure_assignment",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.strategy_structure_assignment"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.structure_expiry_group",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.structure_expiry_group"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.structure_leg_definition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.structure_leg_definition"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.structure_variant_leg_rule",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.structure_variant_leg_rule"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.trade_selection_parameter_set",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.trade_selection_parameter_set"
+    },
+    {
+      "context": "ConfigurationDb",
+      "table": "reference_configuration.volatility_series_definition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ConfigurationDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference_configuration.volatility_series_definition"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "business_subscription_projection_issue",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.business_subscription_projection_issue"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "business_subscription_projection_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.business_subscription_projection_receipt"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "command_log",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.command_log"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "event_projector_outbox",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_projector_outbox"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "event_projector_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_projector_state"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "event_projector_stream_checkpoint",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_projector_stream_checkpoint"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "historical_data_load_checkpoint",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.historical_data_load_checkpoint"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "historical_data_load_manifest",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.historical_data_load_manifest"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "public.event_log",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_log"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "public.event_name_id",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_name_id"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "public.event_stream_id",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.event_stream_id"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "risk_history_projection_issue",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.risk_history_projection_issue"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "risk_history_projection_progress",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.risk_history_projection_progress"
+    },
+    {
+      "context": "EventSourceDb",
+      "table": "risk_history_projection_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/EventSourceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "public.risk_history_projection_receipt"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.composition_preparation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.composition_preparation"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.economic_calendar",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.economic_calendar"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.economic_calendar_country_code",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.economic_calendar_country_code"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_adx_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_adx_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_atr_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_atr_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_bar_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_bar_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_bollinger_band_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_bollinger_band_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_closing_price",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_closing_price"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_ema_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_ema_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_eod_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_eod_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_eod_data_by_month",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_eod_data_by_month"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_eod_data_index",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_eod_data_index"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_eod_observation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_eod_observation"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_intra_day_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_intra_day_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_signal_by_contract_day",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_signal_by_contract_day"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_signal_by_contract_month",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_signal_by_contract_month"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_signal_by_trend_mode_month",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_signal_by_trend_mode_month"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_signal_index",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_signal_index"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_iti_timeframe_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_iti_timeframe_state"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_macd_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_macd_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_option_chain_quote_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_option_chain_quote_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_option_tick_price_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_option_tick_price_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_rsi_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_rsi_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_tdi_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_tdi_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_trade_session_bar",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_trade_session_bar"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_trade_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_trade_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_trade_signal_lookup_by_scope",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_trade_signal_lookup_by_scope"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_trade_signal_quarantine",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_trade_signal_quarantine"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_traders_dynamic_index_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_traders_dynamic_index_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_vwap_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_vwap_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.futures_vx_term_structure_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.futures_vx_term_structure_signal"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.ifm_recovery_probe",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.ifm_recovery_probe"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_download_log",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_download_log"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_import_ownership",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_import_ownership"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_projection_month",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_projection_month"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_projection_mutation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_projection_mutation"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_projection_scope_mutation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_projection_scope_mutation"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_projection_scope_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_projection_scope_state"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_data_projection_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_data_projection_state"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_holiday",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_holiday"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_outlook_snapshot",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_outlook_snapshot"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.market_outlook_working_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.market_outlook_working_state"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.normal_curve_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.normal_curve_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_iv_latest",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_iv_latest"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_iv_metric_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_iv_metric_history"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_iv_observation_by_id",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_iv_observation_by_id"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_iv_observation_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_iv_observation_history"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_iv_snapshot_by_id",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_iv_snapshot_by_id"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.option_trade_evidence",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.option_trade_evidence"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.rate_of_return",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.rate_of_return"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.strategy_option_chain_parameter_current",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.strategy_option_chain_parameter_current"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.strategy_option_chain_parameter_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.strategy_option_chain_parameter_version"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.trade_live_feed",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.trade_live_feed"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.vix_futures_contract_index",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.vix_futures_contract_index"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.vix_futures_eod_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.vix_futures_eod_data"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.yield_curve_rate_by_date",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.yield_curve_rate_by_date"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.yield_curve_rate_year",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.yield_curve_rate_year"
+    },
+    {
+      "context": "MarketDataDb",
+      "table": "market_data.yield_curve_rates",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data.yield_curve_rates"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.composition_route_plan",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.composition_route_plan"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.dataset_incident_current",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.dataset_incident_current"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.dataset_incident_transition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.dataset_incident_transition"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.futures_rollover_contract_assignment",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.futures_rollover_contract_assignment"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.stage4_authority_watermark",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.stage4_authority_watermark"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.stage4_intent_current",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.stage4_intent_current"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.stage4_intent_operation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.stage4_intent_operation"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.stage4_intent_outbox",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.stage4_intent_outbox"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.stage4_lease_identity",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.stage4_lease_identity"
+    },
+    {
+      "context": "MarketDataServiceDb",
+      "table": "market_data_service.watchdog_status_log",
+      "schemaSource": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "market_data_service.watchdog_status_log"
+    },
+    {
+      "context": "OptionPricerDb",
+      "table": "option_pricer.option_pricer_device",
+      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "option_pricer.option_pricer_device"
+    },
+    {
+      "context": "OptionPricerDb",
+      "table": "option_pricer.spread_distribution",
+      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "option_pricer.spread_distribution"
+    },
+    {
+      "context": "OptionPricerDb",
+      "table": "option_pricer.spread_distribution_job",
+      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "option_pricer.spread_distribution_job"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.accepted_position_close",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.accepted_position_close"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.accepted_trade_order",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.accepted_trade_order"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.accepted_trade_order_capacity",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.accepted_trade_order_capacity"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.accepted_trade_order_leg",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.accepted_trade_order_leg"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.active_fund_by_portfolio_horizon",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.active_fund_by_portfolio_horizon"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.active_portfolio_policy",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.active_portfolio_policy"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.financial_operation_by_portfolio_month",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.financial_operation_by_portfolio_month"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_allocation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_allocation"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_by_portfolio",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_by_portfolio"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_composition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_composition"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_order",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_order"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_order_trade",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_order_trade"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_risk_envelope",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_risk_envelope"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.fund_template_assignment",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.fund_template_assignment"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.order_composition_decision",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.order_composition_decision"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.order_composition_fund_decision",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.order_composition_fund_decision"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.portfolio_by_id",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.portfolio_by_id"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.portfolio_by_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.portfolio_by_state"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.portfolio_policy",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.portfolio_policy"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.projection_tombstone",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.projection_tombstone"
+    },
+    {
+      "context": "PortfolioDb",
+      "table": "portfolio.schema_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio.schema_version"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.accounting_export",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.accounting_export"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.accounting_export_attempt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.accounting_export_attempt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.accounting_export_source",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.accounting_export_source"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.broker_accounting_intent",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.broker_accounting_intent"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.broker_closing_basis_claim",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.broker_closing_basis_claim"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.capacity_expiry_dispatch",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.capacity_expiry_dispatch"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.capacity_funding_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.capacity_funding_receipt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.capacity_lifecycle",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.capacity_lifecycle"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.capacity_reservation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.capacity_reservation"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.capacity_usage",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.capacity_usage"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.emulator_order",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.emulator_order"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_authority",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_authority"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_encumbrance",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_encumbrance"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_history_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_history_receipt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_operation_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_operation_receipt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_projection_checkpoint",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_projection_checkpoint"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.financial_source_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.financial_source_receipt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_account",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_account"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_account_balance",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_account_balance"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_book",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_book"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_entry",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_entry"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_journal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_journal"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_period",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_period"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_posting_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_posting_receipt"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_posting_rule",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_posting_rule"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_reconciliation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_reconciliation"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_transaction",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_transaction"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.ledger_valuation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.ledger_valuation"
+    },
+    {
+      "context": "PortfolioFinancial",
+      "table": "portfolio_financial.schema_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioFinancialSchema.cs",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "portfolio_financial.schema_version"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.instrument_definition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.instrument_definition"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.instrument_definition_product",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.instrument_definition_product"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.instrument_definition_selection",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.instrument_definition_selection"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.instrument_definition_selection_status",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.instrument_definition_selection_status"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.instrument_definition_snapshot",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.instrument_definition_snapshot"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.lookup_type",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.lookup_type"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.mdi_forward_loss_ratio",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.mdi_forward_loss_ratio"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.reference_projection_mutation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.reference_projection_mutation"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.reference_projection_ownership",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.reference_projection_ownership"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.reference_projection_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.reference_projection_state"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.scheduled_job",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.scheduled_job"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.scheduled_job_by_name",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.scheduled_job_by_name"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.scheduled_job_days",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.scheduled_job_days"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.scheduled_job_write_ownership",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.scheduled_job_write_ownership"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.trade_strategy_family",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.trade_strategy_family"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.trade_strategy_family_catalog",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.trade_strategy_family_catalog"
+    },
+    {
+      "context": "ReferenceDb",
+      "table": "reference.trade_strategy_symbol",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ReferenceDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "reference.trade_strategy_symbol"
+    },
+    {
+      "context": "ScheduledTaskDb",
+      "table": "scheduled_task.futures_completed_end_of_day",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ScheduledTaskDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "scheduled_task.futures_completed_end_of_day"
+    },
+    {
+      "context": "ScheduledTaskDb",
+      "table": "scheduled_task.scheduled_task_catalog",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ScheduledTaskDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "scheduled_task.scheduled_task_catalog"
+    },
+    {
+      "context": "ScheduledTaskDb",
+      "table": "scheduled_task.scheduled_task_definition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ScheduledTaskDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "scheduled_task.scheduled_task_definition"
+    },
+    {
+      "context": "ScheduledTaskDb",
+      "table": "scheduled_task.scheduled_task_run",
+      "schemaSource": "TomasAI.IFM.Application.Storage/ScheduledTaskDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "scheduled_task.scheduled_task_run"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.futures_contract",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.futures_contract"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.futures_contract_by_symbol",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.futures_contract_by_symbol"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.futures_contract_rollover",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.futures_contract_rollover"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.futures_option_contract",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.futures_option_contract"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.futures_option_contract_by_symbol",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.futures_option_contract_by_symbol"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.option_contract_expiry_calendar",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.option_contract_expiry_calendar"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.option_contract_expiry_calendar_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.option_contract_expiry_calendar_state"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.option_pricing_reference_bundle",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.option_pricing_reference_bundle"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_projection_operation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_projection_operation"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_projection_operation_scope",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_projection_operation_scope"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_projection_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_projection_state"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_reference_identity",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_reference_identity"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_reference_version",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_reference_version"
+    },
+    {
+      "context": "SecuritiesDb",
+      "table": "securities.securities_symbol_projection_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SecuritiesDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "securities.securities_symbol_projection_state"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_artifact_replica",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_artifact_replica"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_backup_policy",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_backup_policy"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_backup_projection_checkpoint",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_backup_projection_checkpoint"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_backup_projection_receipt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_backup_projection_receipt"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_backup_service_health",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_backup_service_health"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_recovery_error",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_recovery_error"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_recovery_operation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_recovery_operation"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_recovery_phase",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_recovery_phase"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_recovery_run_stats",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_recovery_run_stats"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_restore_point",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_restore_point"
+    },
+    {
+      "context": "SystemAdminDb",
+      "table": "system_admin.database_retention_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/SystemAdminDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "system_admin.database_retention_state"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.broker_account_read_model",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.broker_account_read_model"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.established_trade",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.established_trade"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.established_trade_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.established_trade_history"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow_active",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow_active"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow_by_entity",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow_by_entity"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow_by_status_day",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow_by_status_day"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow_start_attempt",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow_start_attempt"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.intrinsic_time_strategy_workflow_timeline",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.intrinsic_time_strategy_workflow_timeline"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.market_condition",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.market_condition"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.market_condition_assessment",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.market_condition_assessment"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.market_condition_assessment_by_profile",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.market_condition_assessment_by_profile"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.market_condition_by_fund",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.market_condition_by_fund"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.open_position_route",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.open_position_route"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.open_position_route_recovery",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.open_position_route_recovery"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.option_leg",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.option_leg"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.option_leg_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.option_leg_data"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.option_trade",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.option_trade"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.option_trade_spread_bar_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.option_trade_spread_bar_data"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.option_trade_spread_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.option_trade_spread_data"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.order_composition_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.order_composition_history"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.order_composition_invocation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.order_composition_invocation"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.order_execution",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.order_execution"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.order_execution_fill",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.order_execution_fill"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.regime_discovery",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.regime_discovery"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.regime_discovery_invocation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.regime_discovery_invocation"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.risk_management_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.risk_management_history"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.risk_management_invocation",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.risk_management_invocation"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.strategy_position_current",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.strategy_position_current"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.strategy_position_history",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.strategy_position_history"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_fill",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_fill"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_fill_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_fill_data"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_limit",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_limit"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_live_feed",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_live_feed"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_order",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_order"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_placement_signal",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_placement_signal"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_plan",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_plan"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_plan_forward_loss_limit",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_plan_forward_loss_limit"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_plan_forward_loss_ratio",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_plan_forward_loss_ratio"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_position",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_position"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_position_state",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_position_state"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_selection_history_by_fund_date",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_selection_history_by_fund_date"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_selection_invocation_event",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_selection_invocation_event"
+    },
+    {
+      "context": "TradeDb",
+      "table": "trade.trade_type_limit",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade.trade_type_limit"
+    },
+    {
+      "context": "TradePlanDb",
+      "table": "trade_plan.futures_trade_plan",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradePlanDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_plan.futures_trade_plan"
+    },
+    {
+      "context": "TradePlanDb",
+      "table": "trade_plan.iron_condor_trade_plan",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradePlanDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_plan.iron_condor_trade_plan"
+    },
+    {
+      "context": "TradePlanDb",
+      "table": "trade_plan.position_exit_workflow",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradePlanDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_plan.position_exit_workflow"
+    },
+    {
+      "context": "TradePlanDb",
+      "table": "trade_plan.position_trade_plan_activity_by_date",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradePlanDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_plan.position_trade_plan_activity_by_date"
+    },
+    {
+      "context": "TradePlanDb",
+      "table": "trade_plan.vertical_spread_trade_plan",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradePlanDb/Schema",
+      "target": "PostgreSQL",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_plan.vertical_spread_trade_plan"
+    },
+    {
+      "context": "TradeTickQuoteDb",
+      "table": "futures_option_tick_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema",
+      "target": "ScyllaDB",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_tick_quote_test_db.futures_option_tick_data"
+    },
+    {
+      "context": "TradeTickQuoteDb",
+      "table": "futures_tick_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema",
+      "target": "ScyllaDB",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_tick_quote_test_db.futures_tick_data"
+    },
+    {
+      "context": "TradeTickQuoteDb",
+      "table": "futures_tick_data_by_time",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema",
+      "target": "ScyllaDB",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_tick_quote_test_db.futures_tick_data_by_time"
+    },
+    {
+      "context": "TradeTickQuoteDb",
+      "table": "tick_quote_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema",
+      "target": "ScyllaDB",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_tick_quote_test_db.tick_quote_data"
+    },
+    {
+      "context": "TradeTickQuoteDb",
+      "table": "tick_trade_data",
+      "schemaSource": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema",
+      "target": "ScyllaDB",
+      "verifiedRuntimeSchema": true,
+      "stagingSchemaVerified": true,
+      "verifiedStagingTable": "trade_tick_quote_test_db.tick_trade_data"
+    }
+  ],
+  "verificationEvidence": [
+    ".artifacts/storage-cutover/consolidated-isolated-restore-row-proof-20261012.json",
+    ".artifacts/storage-cutover/consolidated-isolated-restore-metadata-proof-20261012.json",
+    ".artifacts/storage-cutover/raw-scylla-final-proof-20261012.json",
+    ".artifacts/storage-cutover/final-development-restore-row-proof-20261012.json",
+    ".artifacts/storage-cutover/final-development-restore-metadata-proof-20261012.json",
+    ".artifacts/storage-cutover/final-isolated-restore-provider-health-20261012.log",
+    ".artifacts/development-consolidated-start-20261012-8.log"
+  ],
+  "performanceQualification": "Deferred by user on 2026-10-12; no scheduled task or long campaign started.",
+  "localBackupHostEnrollment": {
+    "status": "repaired",
+    "date": "2026-10-12",
+    "readinessHttpStatus": 200,
+    "existingJournalPreserved": true,
+    "enrollmentEvidence": ".artifacts/backup-vault-repair/enrollment.log",
+    "pendingBackups": "resumed; completion not asserted"
+  }
+}

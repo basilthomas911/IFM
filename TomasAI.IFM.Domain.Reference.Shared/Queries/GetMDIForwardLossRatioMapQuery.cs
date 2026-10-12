@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.Queries;
 /// <summary>
 /// MessagePack-serializable query to retrieve the MDI forward loss ratio map based on the specified trend direction and trade type.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve the existing message and domain type names used in stored type identities.")]
 [MessagePackObject(AllowPrivate = true)]
 public record GetMDIForwardLossRatioMapQuery : IQuery<MDIForwardLossRatioMap>
 {

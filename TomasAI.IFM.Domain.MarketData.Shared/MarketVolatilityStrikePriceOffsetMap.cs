@@ -9,10 +9,11 @@ namespace TomasAI.IFM.Domain.MarketData.Shared
 {
     public class MarketVolatilityStrikePriceOffsetMap
     {
-        private Dictionary<StrikePriceOffsetKey, MarketVolatilityStrikePriceOffsetReadModel> _strikePriceOffsetMap;
+        private readonly Dictionary<StrikePriceOffsetKey, MarketVolatilityStrikePriceOffsetReadModel> _strikePriceOffsetMap;
 
         public MarketVolatilityStrikePriceOffsetMap(ICollection<MarketVolatilityStrikePriceOffsetReadModel> strikePriceOffsets)
         {
+            ArgumentNullException.ThrowIfNull(strikePriceOffsets);
             _strikePriceOffsetMap = new Dictionary<StrikePriceOffsetKey, MarketVolatilityStrikePriceOffsetReadModel>();
             foreach (var e in strikePriceOffsets)
                 _strikePriceOffsetMap.Add(new StrikePriceOffsetKey(e.MarketTrend, e.MarketVolatility), e);

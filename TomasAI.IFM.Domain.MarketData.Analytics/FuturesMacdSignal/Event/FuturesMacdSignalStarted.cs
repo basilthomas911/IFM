@@ -12,10 +12,12 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 /// <summary>Handles MACD lifecycle start events.</summary>
 public static class FuturesMacdSignalStarted
 {
-    /// <summary>Attaches the MACD identity to shared closed observations.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Attaches the MACD identity to shared closed observations.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStartedEvent @event,
         IFuturesMacdSignalEventContext context, ILogger<FuturesMacdSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(@event.EntityId);
@@ -26,9 +28,9 @@ public static class FuturesMacdSignalStarted
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unable to attach MACD observation identity {EntityId}", @event.EntityId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent,
-                FuturesMacdSignalStartedEvent.ErrorCode, exception.GetErrorMessage());
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write39(logger, exception, @event.EntityId);
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesMacdSignalEvent,
+                FuturesMacdSignalStartedEvent.ErrorCode, exception.GetErrorMessage())).ConfigureAwait(false);
             return false;
         }
     }

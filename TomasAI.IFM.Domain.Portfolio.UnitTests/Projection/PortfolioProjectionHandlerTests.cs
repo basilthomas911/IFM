@@ -22,14 +22,16 @@ public sealed class PortfolioProjectionHandlerTests
         var now = new DateTime(2026, 8, 30, 18, 0, 0, DateTimeKind.Utc);
         var id = new PortfolioFinancialPolicyId(101, 9001);
         var aggregate = new PortfolioFinancialPolicyAggregate();
-        aggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Policy(now), now, "unit");
-        aggregate.Activate(Guid.NewGuid(), 1, 1, now.AddSeconds(1), "unit");
-        aggregate.AddVersion(Guid.NewGuid(), 2, Policy(now) with { PolicyVersion = 2, CreatedOnUtc = now.AddSeconds(2) }, now.AddSeconds(2), "unit");
+        var created = aggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Policy(now), now, "unit");
+        var firstActivation = aggregate.Activate(Guid.NewGuid(), 1, 1, now.AddSeconds(1), "unit");
+        var version = aggregate.AddVersion(Guid.NewGuid(), 2, Policy(now) with { PolicyVersion = 2, CreatedOnUtc = now.AddSeconds(2) }, now.AddSeconds(2), "unit");
         var activated = (PortfolioFinancialPolicyActivatedEvent)aggregate.Activate(Guid.NewGuid(), 3, 2, now.AddSeconds(3), "unit") with
         { EventId = 99, AggregateId = id.Format(), ReceivedOn = now.AddSeconds(3) };
+        // A later committed version must not leak into this older event's projection.
+        var future = aggregate.AddVersion(Guid.NewGuid(),4,Policy(now) with {PolicyVersion=3,CreatedOnUtc=now.AddSeconds(4)},now.AddSeconds(4),"unit");
         var writer = new CapturingWriter();
 
-        await new PortfolioProjectionHandler(new PolicyEventStore(id, aggregate), writer).ApplyAsync(activated);
+        await new PortfolioProjectionHandler(new PolicyEventStore(id, aggregate, [created,firstActivation,version,activated,future]), writer).ApplyAsync(activated);
 
         writer.Policies.Should().HaveCount(2).And.OnlyContain(x => x.SourceEventId == 99 && x.AggregateVersion == 4);
         writer.Policies.OrderBy(x => x.Value.PolicyVersion).Select(x => x.Value.OperatingState).Should().Equal(
@@ -44,7 +46,7 @@ public sealed class PortfolioProjectionHandlerTests
     {
         var now = new DateTime(2026, 8, 30, 18, 0, 0, DateTimeKind.Utc);
         var aggregate = new PortfolioAggregate();
-        aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
+        var created = aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
             PortfolioId = 101,
             Name = "Core",
@@ -56,7 +58,7 @@ public sealed class PortfolioProjectionHandlerTests
         }, now, "unit");
         var deleted = (DraftPortfolioDeletedEvent)aggregate.DeleteDraft(Guid.NewGuid(), 1, "duplicate", now.AddMinutes(1), "unit");
         deleted = deleted with { EventId = 77, AggregateId = "101", ReceivedOn = now.AddMinutes(1) };
-        var events = new DeletionEventStore(aggregate);
+        var events = new DeletionEventStore(aggregate,[created,deleted]);
         var writer = new CapturingWriter();
 
         await new PortfolioProjectionHandler(events, writer).ApplyAsync(deleted);
@@ -131,7 +133,7 @@ public sealed class PortfolioProjectionHandlerTests
         public Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    sealed class DeletionEventStore(PortfolioAggregate aggregate) : IPortfolioEventStore
+    sealed class DeletionEventStore(PortfolioAggregate aggregate,IReadOnlyList<IPortfolioDomainEvent> history) : IPortfolioEventStore
     {
         public Task<PortfolioAggregate> LoadPortfolioAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioId id, CancellationToken cancellationToken = default) => Task.FromResult(aggregate);
         public Task<IReadOnlyList<IPortfolioFundDomainEvent>> LoadFundHistoryAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId id, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<IPortfolioFundDomainEvent>>([]);
@@ -144,11 +146,12 @@ public sealed class PortfolioProjectionHandlerTests
         public Task<IPortfolioFundDomainEvent?> FindCommittedFundCommandAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId id, Guid commandId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PortfolioCreatedEvent?> FindPortfolioCreateByIdempotencyKeyAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<FundMandateCreatedEvent?> FindFundCreateByIdempotencyKeyAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioFundId id, Guid idempotencyKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<IPortfolioDomainEvent>> LoadPortfolioHistoryAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioId id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<IPortfolioDomainEvent>> LoadPortfolioHistoryAsync(TomasAI.IFM.Domain.Portfolio.Shared.Identities.PortfolioId id, CancellationToken cancellationToken = default) => Task.FromResult(history);
     }
 
-    sealed class PolicyEventStore(PortfolioFinancialPolicyId id, PortfolioFinancialPolicyAggregate aggregate) : IPortfolioEventStore
+    sealed class PolicyEventStore(PortfolioFinancialPolicyId id, PortfolioFinancialPolicyAggregate aggregate,IReadOnlyList<IPortfolioFinancialPolicyDomainEvent> history) : IPortfolioEventStore
     {
+        public Task<IReadOnlyList<IPortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId requested, CancellationToken cancellationToken = default) => Task.FromResult(history);
         public Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId requested, CancellationToken cancellationToken = default) =>
             Task.FromResult(requested == id ? aggregate : throw new InvalidOperationException());
         public Task AppendPortfolioAsync(PortfolioId id, IPortfolioDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();

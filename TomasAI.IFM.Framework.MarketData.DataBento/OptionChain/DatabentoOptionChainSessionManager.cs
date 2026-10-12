@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
@@ -7,8 +7,8 @@ using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
 /// <summary>
-/// Owns bounded, transient option-chain sessions. It has no tick-aggregation
-/// event publisher or persistence dependency.
+/// Owns bounded logical discovery sessions sharing one physical connection per
+/// underlying and value date. Explicit option-leg sessions retain dedicated connections.
 /// </summary>
 public sealed class DatabentoOptionChainSessionManager :
     IDatabentoOptionChainSessionManager
@@ -19,7 +19,7 @@ public sealed class DatabentoOptionChainSessionManager :
     private const ushort OpenInterestStatistic = 9;
     private const byte NewStatistic = 1;
     private const long UndefinedStatisticQuantity = long.MaxValue;
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
     private readonly IDatabentoFeedFactory _feeds;
     private readonly DatabentoFeedOptions _feedOptions;
     private readonly ITickAggregationService _aggregation;
@@ -33,6 +33,7 @@ public sealed class DatabentoOptionChainSessionManager :
     private readonly TimeSpan _pollTimeout;
     private readonly TimeProvider _time;
     private readonly Dictionary<OptionChainSessionKey, Session> _sessions = [];
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private int _disposed;
 
     /// <summary>Initializes a new DatabentoOptionChainSessionManager instance.</summary>
@@ -69,8 +70,8 @@ public sealed class DatabentoOptionChainSessionManager :
         _enricher = enricher ?? throw new ArgumentNullException(nameof(enricher));
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         _state = state ?? throw new ArgumentNullException(nameof(state));
-        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
-        _capacity = capacity;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+_capacity = capacity;
         _startTimeout = startTimeout ?? TimeSpan.FromSeconds(30);
         _stopTimeout = stopTimeout ?? TimeSpan.FromSeconds(30);
         _pollTimeout = pollTimeout ?? TimeSpan.FromMilliseconds(50);
@@ -86,69 +87,163 @@ public sealed class DatabentoOptionChainSessionManager :
     /// <param name="request">The parameters identifying the requested provider data or session.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
-    public Task<bool> StartAsync(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
+    public async Task<bool> StartAsync(
         DatabentoOptionChainSessionRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ValidateRequest(request);
         if (!string.IsNullOrEmpty(request.OptionContractId) &&
             (request.Routes.Count != 1 || request.Routes[0].FuturesOptionContractId != request.OptionContractId))
             throw new ArgumentException("An isolated option connection requires exactly its named contract.", nameof(request));
-        var key = new OptionChainSessionKey(
-            request.FuturesContractId, request.Subscription.MaturityDate, request.OptionContractId, request.ConnectionScopeId);
-        var status = _aggregation.GetTickerStatus(request.FuturesContractId);
-        if (!status.ServiceRunning || !status.TickerConfigured || !status.TickerRunning)
-            throw new InvalidOperationException(
-                $"Underlying tick aggregation is not running for '{request.FuturesContractId}'.");
-
-        lock (_sync)
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (_sessions.TryGetValue(key, out var existing))
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            var key = new OptionChainSessionKey(request.FuturesContractId,
+                request.Subscription.MaturityDate, request.OptionContractId, request.ConnectionScopeId);
+            var status = _aggregation.GetTickerStatus(request.FuturesContractId);
+            if (!status.ServiceRunning || !status.TickerConfigured || !status.TickerRunning)
+                throw new InvalidOperationException($"Underlying tick aggregation is not running for '{request.FuturesContractId}'.");
+            Session? shared;
+            lock (_sync)
             {
-                if (existing.HasSameSelection(request.Routes))
-                    return Task.FromResult(false);
-                throw new InvalidOperationException(
-                    $"A conflicting option-chain session already exists for {key}.");
+                if (_sessions.TryGetValue(key, out var existing))
+                {
+                    if (existing.Selections[key].Select(x => x.FuturesOptionContractId).Order(StringComparer.Ordinal)
+                        .SequenceEqual(request.Routes.Select(x => x.FuturesOptionContractId).Order(StringComparer.Ordinal))) return false;
+                    throw new InvalidOperationException($"A conflicting option-chain session already exists for {key}.");
+                }
+                if (_sessions.Count >= _capacity)
+                    throw new InvalidOperationException($"The option-chain session capacity of {_capacity} has been reached.");
+                shared = string.IsNullOrEmpty(request.OptionContractId)
+                    ? _sessions.Values.FirstOrDefault(x => string.IsNullOrEmpty(x.Key.OptionContractId)
+                        && x.Key.FuturesContractId == key.FuturesContractId && x.ValueDate == request.ValueDate)
+                    : null;
             }
-            if (_sessions.Count >= _capacity)
-                throw new InvalidOperationException(
-                    $"The option-chain session capacity of {_capacity} has been reached.");
-
-            var routes = request.Routes.ToDictionary(
-                route => route.Definition.Instrument.InstrumentId,
-                route => route);
             foreach (var route in request.Routes)
-                _lastPrices.RegisterContract(
-                    route.FuturesOptionContractId,
-                    AssetTypeId.FuturesOption);
-            var feed = _feeds.CreateOptionChainFeed(_feedOptions);
+                _lastPrices.RegisterContract(route.FuturesOptionContractId, AssetTypeId.FuturesOption);
+            if (shared is not null && request.Routes.All(x => shared.Routes.TryGetValue(x.Definition.Instrument.InstrumentId, out var route)
+                    && route == x) && (shared.Subscription.DataKinds & request.Subscription.DataKinds) == request.Subscription.DataKinds)
+            {
+                lock (_sync)
+                {
+                    _state.Create(key, request.Routes);
+                    shared.Selections.Add(key, request.Routes);
+                    foreach (var route in request.Routes) shared.InterestedKeys[route.Definition.Instrument.InstrumentId].Add(key);
+                    _sessions.Add(key, shared);
+                    // Populate a newly attached owner from the already accepted current quotes.
+                    foreach (var route in request.Routes)
+                    {
+                        var reader = _lastPrices as IDatabentoLastPriceStore;
+                        if (reader is null) continue;
+                        var prices = reader.GetFuturesOptionReader(route.FuturesOptionContractId, request.ValueDate);
+                        if (prices.TryGetLastQuoteWithGreeks(out var quote)) _state.UpdateQuote(key, route.FuturesOptionContractId, quote);
+                        // Trades are not copied: copying would count their volume a second time.
+                    }
+                }
+                return true;
+            }
+            var selections = shared is null
+                ? new Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>>()
+                : new Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>>(shared.Selections);
+            selections.Add(key, request.Routes);
+            var routes = selections.Values.SelectMany(x => x)
+                .GroupBy(x => x.Definition.Instrument.InstrumentId).ToDictionary(x => x.Key, x => x.First());
+            if (routes.Count > 2048) throw new InvalidOperationException("The shared discovery connection capacity of 2048 contracts has been reached.");
+            foreach (var route in request.Routes)
+                if (shared is not null && shared.Routes.TryGetValue(route.Definition.Instrument.InstrumentId, out var previous) && previous != route)
+                    throw new InvalidOperationException("Conflicting definitions for a shared provider instrument.");
+            var subscription = request.Subscription with
+            {
+                ResolvedContracts = routes.Values.Select(x => x.Definition).ToArray(),
+                Strikes = routes.Values.Select(x => x.Definition.StrikePrice).Distinct().ToArray(),
+                Rights = routes.Values.Aggregate(OptionRightSelection.None, (rights, x) => rights | x.Definition.Right),
+                DataKinds = request.Subscription.DataKinds | (shared?.Subscription.DataKinds ?? MarketDataKinds.None),
+                MultipleMaturities = routes.Values.Select(x => x.Definition.MaturityDate).Distinct().Skip(1).Any()
+            };
+            // Native subscriptions are immutable. Stop before replacement so expansion never
+            // temporarily consumes another account connection. Existing logical states survive.
+            if (shared is not null)
+            {
+                try { await StopPhysicalAsync(shared).ConfigureAwait(false); }
+                catch { RemovePhysical(shared); throw; }
+            }
+            _state.Create(key, request.Routes);
             try
             {
-                feed.Subscribe(request.Subscription, _startTimeout);
-                Session? session = null;
-                using var consumerReady = new ManualResetEventSlim(false);
-                feed.Start(_startTimeout, remaining =>
-                {
-                    session = new Session(key, request.ValueDate, feed, routes);
-                    _state.Create(key, request.Routes);
-                    _sessions.Add(key, session);
-                    session.Worker = Task.Run(() => ProcessAsync(session, consumerReady));
-                    if (!consumerReady.Wait(remaining))
-                        throw new TimeoutException(
-                            "The option-chain consumer did not become ready before feed activation.");
-                });
-                return Task.FromResult(true);
+                StartPhysical(key, request.ValueDate, subscription, routes, selections);
             }
-            catch
+            catch (Exception startupFailure)
             {
-                _sessions.Remove(key);
-                feed.Dispose();
                 _state.Remove(key);
+                if (shared is not null)
+                {
+                    try { StartPhysical(shared.Key, shared.ValueDate, shared.Subscription, shared.Routes, shared.Selections); }
+                    catch (Exception restoreFailure)
+                    {
+                        RemovePhysical(shared);
+                        throw new AggregateException("Discovery expansion and restoration both failed.", startupFailure, restoreFailure);
+                    }
+                }
                 throw;
             }
+            return true;
+        }
+        finally { _lifecycle.Release(); }
+    }
+
+    private void StartPhysical(OptionChainSessionKey key, DateOnly valueDate,
+        OptionChainSubscription subscription, Dictionary<uint, DatabentoOptionChainRoute> routes,
+        Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>> selections)
+    {
+        var feed = _feeds.CreateOptionChainFeed(_feedOptions);
+        Session? session = null;
+        try
+        {
+            feed.Subscribe(subscription, _startTimeout);
+            var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            feed.Start(_startTimeout, remaining =>
+            {
+                session = new Session(key, valueDate, feed, routes, subscription, selections);
+                lock (_sync) foreach (var logicalKey in selections.Keys) _sessions[logicalKey] = session;
+                session.Worker = Task.Run(() => ProcessAsync(session, ready));
+                if (!ready.Task.Wait(remaining)) throw new TimeoutException("The option-chain consumer did not become ready before feed activation.");
+            });
+        }
+        catch
+        {
+            if (session is not null)
+            {
+                session.StopRequested = true;
+                lock (_sync) foreach (var logicalKey in selections.Keys)
+                    if (_sessions.TryGetValue(logicalKey, out var current) && ReferenceEquals(current, session)) _sessions.Remove(logicalKey);
+            }
+            feed.Dispose();
+            throw;
+        }
+    }
+
+    private async Task StopPhysicalAsync(Session session)
+    {
+        session.StopRequested = true;
+        Exception? failure = null;
+        try { session.Feed.Stop(_stopTimeout); }
+        catch (Exception exception) { failure = exception; }
+        try { if (session.Worker is not null) await session.Worker.WaitAsync(_stopTimeout).ConfigureAwait(false); }
+        catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+        finally { session.Feed.Dispose(); }
+        if (failure is not null) throw failure;
+    }
+
+    private void RemovePhysical(Session session)
+    {
+        lock (_sync)
+        {
+            foreach (var key in session.Selections.Keys)
+                if (!_sessions.TryGetValue(key, out var current) || ReferenceEquals(current, session))
+                { _sessions.Remove(key); _state.Remove(key); }
         }
     }
 
@@ -164,48 +259,40 @@ public sealed class DatabentoOptionChainSessionManager :
     /// <param name="maturityDate">The maturity date.</param>
     /// <param name="optionContractId">The isolated leg contract, or empty for the chain connection.</param>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Collect stop and worker failures while completing owned feed cleanup, then rethrow the collected failure.")]
     public async Task<bool> StopAsync(
         string futuresContractId,
         DateOnly maturityDate,
         string optionContractId, string connectionScopeId = "")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);
-        var key = new OptionChainSessionKey(futuresContractId, maturityDate, optionContractId, connectionScopeId);
-        Session? session;
-        lock (_sync)
-        {
-            if (!_sessions.Remove(key, out session)) return false;
-            session.StopRequested = true;
-        }
-
-        Exception? failure = null;
-        try { session.Feed.Stop(_stopTimeout); }
-        catch (Exception exception) { failure = exception; }
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (session.Worker is not null)
-                await session.Worker.ConfigureAwait(false);
+            var key = new OptionChainSessionKey(futuresContractId, maturityDate, optionContractId, connectionScopeId);
+            Session? session;
+            lock (_sync)
+            {
+                if (!_sessions.Remove(key, out session)) return false;
+                session.Selections.Remove(key);
+                foreach (var owners in session.InterestedKeys.Values) owners.Remove(key);
+                _state.Remove(key);
+                if (session.Selections.Count != 0) return true;
+            }
+            await StopPhysicalAsync(session).ConfigureAwait(false);
+            return true;
         }
-        catch (Exception exception)
-        {
-            failure = failure is null
-                ? exception
-                : new AggregateException(failure, exception);
-        }
-        session.Feed.Dispose();
-        _state.Remove(key);
-        if (failure is not null) throw failure;
-        return true;
+        finally { _lifecycle.Release(); }
     }
 
     private async Task ProcessAsync(
         Session session,
-        ManualResetEventSlim? startupReady = null)
+        TaskCompletionSource? startupReady = null)
     {
         try
         {
             var reader = session.Feed.Reader;
-            startupReady?.Set();
+            startupReady?.TrySetResult();
             while (true)
             {
                 if (!reader.TryRead(_pollTimeout, out var batch))
@@ -229,18 +316,13 @@ public sealed class DatabentoOptionChainSessionManager :
         {
             if (!session.StopRequested)
             {
-                lock (_sync)
-                {
-                    if (_sessions.TryGetValue(session.Key, out var current)
-                        && ReferenceEquals(current, session))
-                        _sessions.Remove(session.Key);
-                }
-                _state.Remove(session.Key);
+                RemovePhysical(session);
                 session.Feed.Dispose();
             }
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private async ValueTask ProcessRecordAsync(Session session, MarketRecord64 record)
     {
         if (!session.Routes.TryGetValue(record.Header.InstrumentId, out var route))
@@ -271,11 +353,11 @@ public sealed class DatabentoOptionChainSessionManager :
                         tick, _enricher.EnrichQuote(route, tick));
                     if (!_lastPrices.TryUpdateQuoteWithGreeks(enriched))
                         break;
-                    _state.UpdateQuote(session.Key, route.FuturesOptionContractId, enriched);
+                    UpdateLogicalStates(session, route, key => _state.UpdateQuote(key, route.FuturesOptionContractId, enriched));
                     await _publisher.PublishAsync(new FuturesOptionChainQuoteChangedServiceEvent(
                         Guid.NewGuid(), session.Key.FuturesContractId,
                         route.FuturesOptionContractId, session.ValueDate,
-                        session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
+                        route.Definition.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
                     break;
                 }
             case MarketRecordKind.Trade:
@@ -291,16 +373,16 @@ public sealed class DatabentoOptionChainSessionManager :
                         FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
                     var enriched = new LastTradeTickWithGreeksSnapshot(
                         tick, _enricher is IRetainedOptionTradeEnricher retained
-                            ? await retained.EnrichTradeAsync(route, tick, checked((long)trade.Header.EventTimestampNanoseconds),
+                            ? await retained.EnrichTradeAsync(route, tick, trade.Header.EventTimestampNanoseconds,
                                 trade.Header.ReceiveTimestampNanoseconds, CancellationToken.None).ConfigureAwait(false)
                             : _enricher.EnrichTrade(route, tick));
                     if (!_lastPrices.TryUpdateTradeWithGreeks(enriched))
                         break;
-                    _state.UpdateTrade(session.Key, route.FuturesOptionContractId, enriched);
+                    UpdateLogicalStates(session, route, key => _state.UpdateTrade(key, route.FuturesOptionContractId, enriched));
                     await _publisher.PublishAsync(new FuturesOptionChainTradeChangedServiceEvent(
                         Guid.NewGuid(), session.Key.FuturesContractId,
                         route.FuturesOptionContractId, session.ValueDate,
-                        session.Key.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
+                        route.Definition.MaturityDate, tick, enriched.Greeks)).ConfigureAwait(false);
                     break;
                 }
             case MarketRecordKind.Statistics:
@@ -311,6 +393,7 @@ public sealed class DatabentoOptionChainSessionManager :
 
     /// <summary>Asynchronously stops processing and releases the resources owned by this instance.</summary>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete cleanup of all sessions and rethrow collected disposal failures.")]
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -336,16 +419,25 @@ public sealed class DatabentoOptionChainSessionManager :
             && referenceDate == session.ValueDate ? record.Quantity : null;
         long? interest = record.StatisticType == OpenInterestStatistic ? record.Quantity : null;
         if (volume is null && interest is null) return;
-        _state.UpdateStatistics(session.Key, route.FuturesOptionContractId, volume, interest,
-            FromUnixNanoseconds(record.Header.EventTimestampNanoseconds));
+        UpdateLogicalStates(session, route, key => _state.UpdateStatistics(key, route.FuturesOptionContractId, volume, interest,
+            FromUnixNanoseconds(record.Header.EventTimestampNanoseconds)));
     }
 
+    private void UpdateLogicalStates(Session session, DatabentoOptionChainRoute route, Action<OptionChainSessionKey> update)
+    {
+        lock (_sync)
+            if (session.InterestedKeys.TryGetValue(route.Definition.Instrument.InstrumentId, out var owners))
+                foreach (var key in owners)
+                    if (_sessions.TryGetValue(key, out var current) && ReferenceEquals(current, session)) update(key);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation names the public request that owns the invalid property rather than an inaccessible nested field.")]
     private static void ValidateRequest(DatabentoOptionChainSessionRequest request)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.FuturesContractId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.FuturesContractId, nameof(request));
         if (request.ValueDate == default) throw new ArgumentOutOfRangeException(nameof(request));
-        ArgumentNullException.ThrowIfNull(request.Subscription);
-        ArgumentNullException.ThrowIfNull(request.Routes);
+        ArgumentNullException.ThrowIfNull(request.Subscription, nameof(request));
+        ArgumentNullException.ThrowIfNull(request.Routes, nameof(request));
         if (request.Routes.Count == 0)
             throw new ArgumentException("At least one resolved option route is required.", nameof(request));
         if (request.Routes.Select(route => route.FuturesOptionContractId)
@@ -382,12 +474,19 @@ public sealed class DatabentoOptionChainSessionManager :
         OptionChainSessionKey key,
         DateOnly valueDate,
         IDatabentoOptionChainFeed feed,
-        Dictionary<uint, DatabentoOptionChainRoute> routes)
+        Dictionary<uint, DatabentoOptionChainRoute> routes,
+        OptionChainSubscription subscription,
+        Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>> selections)
     {
         internal OptionChainSessionKey Key { get; } = key;
         internal DateOnly ValueDate { get; } = valueDate;
         internal IDatabentoOptionChainFeed Feed { get; } = feed;
         internal Dictionary<uint, DatabentoOptionChainRoute> Routes { get; } = routes;
+        internal OptionChainSubscription Subscription { get; } = subscription;
+        internal Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>> Selections { get; } = selections;
+        internal Dictionary<uint, HashSet<OptionChainSessionKey>> InterestedKeys { get; } = selections
+            .SelectMany(pair => pair.Value.Select(route => (Instrument: route.Definition.Instrument.InstrumentId, Key: pair.Key)))
+            .GroupBy(x => x.Instrument).ToDictionary(group => group.Key, group => group.Select(x => x.Key).ToHashSet());
         internal Task? Worker;
         internal bool StopRequested;
 

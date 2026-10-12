@@ -19,11 +19,10 @@ internal static class InstrumentDefinitionMaintenance
     {
         using var logs = LoggerFactory.Create(builder => builder.AddSimpleConsole(options => options.SingleLine = true));
         var logger = logs.CreateLogger<DbProvider>();
-        var settings = new DbConnectionSettings()
-            .Add(ReferenceDbContext.ReferenceDbConnection, configuration.GetConnectionString(ReferenceDbContext.ReferenceDbConnection)
-                ?? throw new InvalidOperationException("ReferenceDbConnection is required."), "System.Data.ScyllaDb")
-            .Add(SequenceIdDbContext.SequenceIdDbConnection, configuration.GetConnectionString(SequenceIdDbContext.SequenceIdDbConnection)
-                ?? throw new InvalidOperationException("SequenceIdDbConnection is required."), "System.Data.Postgres");
+        var settings = TomasAI.IFM.Application.Storage.ApplicationStorageConnections.CreatePostgres(
+            configuration["IFM_TEST_POSTGRES_CONNECTION"] ?? configuration["Storage:PostgresConnection"]
+                ?? configuration.GetConnectionString("EventSourceActorDbConnection")
+                ?? throw new InvalidOperationException("The shared PostgreSQL application connection is required."));
         var objects = new Dictionary<Type, object>();
         var factory = new DbContextFactory(new DbContextResolver(type => objects[type]));
         var sequenceDb = new SequenceIdDbContext(settings, factory, logger);
@@ -31,7 +30,7 @@ internal static class InstrumentDefinitionMaintenance
         var referenceDb = new ReferenceDbContext(settings, factory, new PostgresSequenceIdGenerator(sequenceDb), logger);
         objects.Add(typeof(IObjectRepository<ReferenceDbContext>), referenceDb);
         await new ReferenceSchemaDb(settings, logger).CreateAsync(
-            ["instrument_definition", "instrument_definition_product", "instrument_definition_snapshot", "trade_strategy_symbol"], cancellationToken);
+            ["reference"], cancellationToken);
         var options = new DatabentoMarketDataRuntimeOptions
         {
             Contracts = [],

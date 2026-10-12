@@ -20,7 +20,9 @@ public sealed class TradeSelectionFunctionActor(ITradeSelectionFunctionContext a
         TradeSelectionExecutionId, IntrinsicTimeStrategyWorkflowEntityId, TradeSelectionFunctionState,
         TradeSelectionFunctionCompletedEvent, TradeSelectionFunctionFailedEvent>(
             actorContext ?? throw new ArgumentNullException(nameof(actorContext)),
-            actorContext.StateRepository, actorContext.FunctionProjector, actorContext.Logger)
+            actorContext.StateRepository,
+            actorContext.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+                ? null : actorContext.FunctionProjector, actorContext.Logger)
 {
     readonly ITradeSelectionFunctionContext _context = actorContext;
 
@@ -67,7 +69,11 @@ public sealed class TradeSelectionFunctionActor(ITradeSelectionFunctionContext a
 
     /// <summary>Maps lifecycle policy requests without interpreting actor-specific deadlines or settings.</summary>
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ExecuteTradeSelectionPipelineCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, _context, _executionPolicyMap);
+    {
+        var policy=DispatchMappedExecutionPolicy(request,stage,_context,_executionPolicyMap);
+        return _context.StateRepository is TomasAI.IFM.Domain.Trade.Persistence.INativeTradeFunctionRepository { UsesAtomicPersistence: true }
+            ? new FunctionExecutionPolicy(policy.Clock,policy.DeadlineUtc,FunctionCompletionMode.AtomicBusinessAndEvent) : policy;
+    }
 
     protected override ExecuteTradeSelectionPipelineCommand ParseMessage(
         IFunctionActorContext<TradeSelectionFunctionActor> context, IActorMessage message)

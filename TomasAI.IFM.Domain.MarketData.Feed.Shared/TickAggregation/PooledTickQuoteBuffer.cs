@@ -7,7 +7,7 @@ public sealed class PooledTickQuoteBuffer : IDisposable
 {
     const long MaximumIdleBytes = 64L * 1024 * 1024;
     const int MaximumIdlePerLength = 64;
-    static readonly object Gate = new();
+    static readonly System.Threading.Lock Gate = new();
     static readonly Dictionary<int, Stack<byte[]>> Idle = [];
     static long _idleBytes;
     static long _newArrays;
@@ -19,6 +19,7 @@ public sealed class PooledTickQuoteBuffer : IDisposable
     /// <summary>
     /// Gets the owned exact-length byte buffer.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
     public byte[] Buffer => Volatile.Read(ref _buffer)
         ?? throw new ObjectDisposedException(nameof(PooledTickQuoteBuffer));
 
@@ -57,9 +58,11 @@ public sealed class PooledTickQuoteBuffer : IDisposable
     public void Dispose()
     {
         var buffer = Interlocked.Exchange(ref _buffer, null);
-        if (buffer is null)
-            return;
+        if (buffer is not null) ReturnBuffer(buffer);
+    }
 
+    static void ReturnBuffer(byte[] buffer)
+    {
         lock (Gate)
         {
             if (_idleBytes + buffer.Length > MaximumIdleBytes)

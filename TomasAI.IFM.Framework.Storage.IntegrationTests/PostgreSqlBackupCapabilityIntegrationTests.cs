@@ -337,6 +337,48 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
             && value.Arguments.FirstOrDefault() == "start");
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task Full_restore_copy_reuse_requires_matching_manifest_and_native_file_checks(int corruption)
+    {
+        var options = Options();
+        var native = new DeterministicPostgreSqlNativeRunner();
+        var capability = new PostgreSqlBackupCapability(options, native,
+            new SyntheticPostgreSqlTargetValidator("synthetic-gate6-row"));
+        var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var captured = await capability.CreateBaseBackupAsync(new PostgreSqlBackupRequest(backupOperation,
+            new DatabaseProtectionSetId("core-postgresql")), new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(new PostgreSqlVerificationRequest(backupOperation, captured.SafeBoundaryReference), CancellationToken.None);
+        var restoreOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var source = Path.Combine(options.ResolveBackupRoot(), backupOperation.Format(), "data");
+        var target = Path.Combine(options.ResolveRestoreRoot(), "disposable-validation", "gate6", restoreOperation.Format() + ".inprogress", "data");
+        Directory.CreateDirectory(target);
+        foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var destination = Path.Combine(target, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination);
+        }
+        if (corruption == 1) await File.AppendAllTextAsync(Path.Combine(target, "backup_manifest"), "foreign-manifest");
+        if (corruption == 2) await File.AppendAllTextAsync(Path.Combine(target, "base", "synthetic-row.txt"), "corrupt");
+        var action = () => capability.RestoreToFreshTargetAsync(new PostgreSqlRestoreRequest(restoreOperation,
+            new DatabaseRestorePointId(backupOperation.Format()), new DatabaseFreshTargetDescriptor("disposable-validation", "gate6")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None).AsTask();
+        if (corruption == 0)
+        {
+            (await action()).Succeeded.Should().BeTrue();
+            native.Invocations.Should().Contain(value => value.Tool == PostgreSqlNativeTool.Control
+                && value.Arguments.Contains("start") && value.Arguments.Any(argument => argument.Contains("unix_socket_directories=")));
+        }
+        else
+        {
+            if (corruption == 1) await action.Should().ThrowAsync<InvalidDataException>();
+            else await action.Should().ThrowAsync<PostgreSqlNativeOperationException>();
+            native.Invocations.Should().NotContain(value => value.Tool == PostgreSqlNativeTool.Control && value.Arguments.Contains("start"));
+        }
+    }
     PostgreSqlBackupOptions Options(int nativeMajorVersion = 15) => new()
     {
         ToolDirectory = Path.Combine(_root, "tools"),

@@ -7,6 +7,7 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.CapacityR
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
+[Trait("Infrastructure", "SelfContained")]
 [Collection("PortfolioFinancialDatabase"), Trait("Category", "PortfolioFinancial"), Trait("Gate", "PF-FIN-05")]
 public sealed class EmulatorSubmissionIntegrationTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {

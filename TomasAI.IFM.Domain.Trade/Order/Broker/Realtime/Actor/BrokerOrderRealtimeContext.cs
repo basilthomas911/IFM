@@ -4,19 +4,10 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Realtime.Actor;
-
-public interface IBrokerOrderRealtimeContext : IRealtimeActorContext<BrokerOrderRealtimeActor>
+public sealed class BrokerOrderRealtimeContext : EventActorContext, IBrokerOrderRealtimeContext
 {
-    ITradeBroker TradeBroker { get; }
-    ILogger<BrokerOrderRealtimeActor> Logger { get; }
-}
-
-public sealed class BrokerOrderRealtimeContext : EventActorContext,
-    IRealtimeActorContext<BrokerOrderRealtimeActor>, IBrokerOrderRealtimeContext
-{
-    public BrokerOrderRealtimeContext(IActorSupervisor supervisor, ITradeBroker tradeBroker,
-        ILogger<BrokerOrderRealtimeActor> logger)
-        : base(supervisor, new ActorMailboxId(ActorType.Realtime, BrokerOrderRealtimeActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public BrokerOrderRealtimeContext(IActorSupervisor supervisor, ITradeBroker tradeBroker, ILogger<BrokerOrderRealtimeActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Realtime, BrokerOrderRealtimeActor.ActorName))
     {
         TradeBroker = tradeBroker;
         Logger = logger;

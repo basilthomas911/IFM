@@ -25,6 +25,13 @@ public sealed record GetTrialBalanceQuery : IFinancialQueryMessage<GetTrialBalan
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetTrialBalanceQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetTrialBalanceQuery(GetTrialBalanceRequest parameters) => Parameters = parameters;
     public const string Actor = "GeneralLedgerQuery";
     public const string Verb = "GetTrialBalance";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -49,11 +56,4 @@ public sealed record GetTrialBalanceQuery : IFinancialQueryMessage<GetTrialBalan
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetTrialBalanceQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetTrialBalanceQuery(GetTrialBalanceRequest parameters) => Parameters = parameters;
 }

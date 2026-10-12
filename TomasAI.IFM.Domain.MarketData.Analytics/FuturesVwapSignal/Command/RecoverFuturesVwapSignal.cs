@@ -19,6 +19,8 @@ public static class RecoverFuturesVwapSignal
         this RecoverFuturesVwapSignalCommand command,
         FuturesVwapSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         command.Compute(state.FuturesVwapCheckpoint, out var futuresVwapRecoveryChange);
         if (futuresVwapRecoveryChange.Accepted && futuresVwapRecoveryChange.FuturesVwapTransition?.Changed != true)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

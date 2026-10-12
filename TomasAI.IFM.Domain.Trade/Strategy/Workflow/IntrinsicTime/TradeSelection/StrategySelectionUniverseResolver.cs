@@ -5,39 +5,25 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection.TradeSelectionContracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
-
 /// <summary>Freezes the portfolio-neutral catalog universe selected by a workflow activation.</summary>
 public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext configuration)
 {
-    public async Task<TradeSelectionBinding> ResolveAsync(
-        TradeSelectionActivation activation,
-        Guid workflowId,
-        long workflowRevision,
-        Guid correlationId,
-        DateTime frozenAtUtc,
-        DateTime workflowExpiresAtUtc,
-        DateOnly tradeDate,
-        CancellationToken cancellationToken = default)
+    public async Task<TradeSelectionBinding> ResolveAsync(TradeSelectionActivation activation, Guid workflowId, long workflowRevision, Guid correlationId, DateTime frozenAtUtc, DateTime workflowExpiresAtUtc, DateOnly tradeDate, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(activation);
         activation.Validate();
         Require(activation.SchemaVersion == 2, "TS.CONFIG.ACTIVATION", "A portfolio-neutral schema-2 activation is required.");
-        Require(frozenAtUtc.Kind == DateTimeKind.Utc && workflowExpiresAtUtc.Kind == DateTimeKind.Utc &&
-            frozenAtUtc < workflowExpiresAtUtc && workflowId != Guid.Empty && workflowRevision > 0 && correlationId != Guid.Empty,
-            "TS.CONTRACT.IDENTITY", "Invalid strategy-universe execution identity or validity interval.");
-
+        Require(frozenAtUtc.Kind == DateTimeKind.Utc && workflowExpiresAtUtc.Kind == DateTimeKind.Utc && frozenAtUtc < workflowExpiresAtUtc && workflowId != Guid.Empty && workflowRevision > 0 && correlationId != Guid.Empty, "TS.CONTRACT.IDENTITY", "Invalid strategy-universe execution identity or validity interval.");
         var common = activation.SelectionPolicyReference;
-        var resolved = await configuration.GetEffectiveTradeSelectionVersionAsync(
-            common.Id, common.Version, common.PayloadSha256, frozenAtUtc, cancellationToken).ConfigureAwait(false);
+        var resolved = await configuration.GetEffectiveTradeSelectionVersionAsync(common.Id, common.Version, common.PayloadSha256, frozenAtUtc, cancellationToken).ConfigureAwait(false);
         var selectionPolicy = resolved.ParameterSet;
         var deploymentKeys = activation.DeploymentKeys.OrderBy(KeyText, StringComparer.Ordinal).ToArray();
         Require(deploymentKeys.Length <= selectionPolicy.MaximumAssignments, "TS.CONFIG.CANDIDATE_LIMIT", "Too many strategy deployments.");
-
         Dictionary<CatalogKey, SelectionCatalogDefinitionSnapshot> nodes = [];
         Dictionary<(CatalogPipelineParameterKind, Guid, int), SelectionPipelinePolicySnapshot> policies = [];
         List<SelectionDeploymentSnapshot> graphs = [];
         List<SelectionCandidateBinding> candidates = [];
         await AddPolicy(common).ConfigureAwait(false);
-
         for (var deploymentIndex = 0; deploymentIndex < deploymentKeys.Length; deploymentIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -47,7 +33,7 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
             {
                 var node = SelectionCatalogTransport.From(source);
                 if (nodes.TryGetValue(node.Key, out var prior))
-                    Require(EvidenceHash(prior) == EvidenceHash(node), "TS.CONTRACT.HASH", "Conflicting shared catalog node.");
+                    Require(string.Equals(EvidenceHash(prior), EvidenceHash(node), StringComparison.Ordinal), "TS.CONTRACT.HASH", "Conflicting shared catalog node.");
                 else
                     nodes.Add(node.Key, node);
                 Require(nodes.Count <= selectionPolicy.MaximumCatalogDefinitions, "TS.CONFIG.CANDIDATE_LIMIT", "Too many catalog nodes.");
@@ -69,15 +55,13 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
             };
             graphs.Add(frozenGraph);
             _ = SelectionConstructionProfileReference.FromFrozen(policies[(composed.Kind, composed.Id, composed.Version)], composed, key, nodes, frozenAtUtc);
-
-            foreach (var product in deployment.Products.Where(x => x.Symbol == selectionPolicy.InstrumentRoot))
+            foreach (var product in deployment.Products.Where(x => string.Equals(x.Symbol, selectionPolicy.InstrumentRoot, StringComparison.Ordinal)))
                 foreach (var variantKey in deployment.Variants)
                 {
                     var variant = nodes[variantKey];
                     var structure = nodes[variant.Parent!];
-                    var classes = structure.Legs.Select(x => x.InstrumentClass).Distinct().ToArray();
-                    Require(classes.Length == 1 && classes[0] is "Futures" or "FuturesOption",
-                        "TS.CONFIG.CAPABILITY_UNSUPPORTED", "Unsupported traded instrument class.");
+                    var classes = structure.Legs.Select(x => x.InstrumentClass).Distinct(StringComparer.Ordinal).ToArray();
+                    Require(classes.Length == 1 && classes[0] is "Futures" or "FuturesOption", "TS.CONFIG.CAPABILITY_UNSUPPORTED", "Unsupported traded instrument class.");
                     var candidate = new SelectionCandidateBinding
                     {
                         SchemaVersion = 1,
@@ -98,8 +82,7 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
                 }
         }
 
-        var validUntilUtc = policies.Values.Select(value => value.RetiredAtUtc ?? workflowExpiresAtUtc)
-            .Append(workflowExpiresAtUtc).Min();
+        var validUntilUtc = policies.Values.Select(value => value.RetiredAtUtc ?? workflowExpiresAtUtc).Append(workflowExpiresAtUtc).Min();
         var universe = new StrategySelectionUniverse
         {
             WorkflowId = workflowId,
@@ -111,34 +94,22 @@ public sealed class StrategySelectionUniverseResolver(IConfigurationDbContext co
             FrozenAtUtc = frozenAtUtc,
             ValidUntilUtc = validUntilUtc
         };
-        universe = universe with { PayloadSha256 = EvidenceHash(universe) };
-        return Seal(new TradeSelectionBinding
+        universe = universe with
         {
-            SchemaVersion = 2,
-            StrategyUniverse = universe,
-            CatalogDefinitions = [.. nodes.Values],
-            DeploymentSnapshots = [.. graphs],
-            PipelinePolicies = [.. policies.Values],
-            Candidates = [.. candidates],
-            ExcludedAssignments = [],
-            CommonPolicy = common,
-            FrozenAtUtc = frozenAtUtc,
-            ValidUntilUtc = validUntilUtc,
-            RequestedTradeDate = tradeDate,
-            TradeDatePolicy = "UTC.TriggerCreatedDate.v2"
-        });
-
+            PayloadSha256 = EvidenceHash(universe)
+        };
+        return Seal(new TradeSelectionBinding { SchemaVersion = 2, StrategyUniverse = universe, CatalogDefinitions = [..nodes.Values], DeploymentSnapshots = [..graphs], PipelinePolicies = [..policies.Values], Candidates = [..candidates], ExcludedAssignments = [], CommonPolicy = common, FrozenAtUtc = frozenAtUtc, ValidUntilUtc = validUntilUtc, RequestedTradeDate = tradeDate, TradeDatePolicy = "UTC.TriggerCreatedDate.v2" });
         async Task AddPolicy(SelectionPipelinePolicyReference reference)
         {
             var policyKey = (reference.Kind, reference.Id, reference.Version);
             if (policies.TryGetValue(policyKey, out var prior))
             {
-                Require(prior.PayloadSha256 == reference.PayloadSha256, "TS.CONTRACT.HASH", "Conflicting pipeline policy identity.");
+                Require(string.Equals(prior.PayloadSha256, reference.PayloadSha256, StringComparison.Ordinal), "TS.CONTRACT.HASH", "Conflicting pipeline policy identity.");
                 return;
             }
-            var value = await configuration.GetSelectionPipelinePolicyAsync(reference.Kind, reference.Id, reference.Version, cancellationToken).ConfigureAwait(false)
-                ?? throw new TradeSelectionValidationException("TS.CONFIG.MISSING", "Exact pipeline policy is missing.");
-            Require(value.PayloadSha256 == reference.PayloadSha256, "TS.CONTRACT.HASH", "Exact pipeline policy hash mismatch.");
+
+            var value = await configuration.GetSelectionPipelinePolicyAsync(reference.Kind, reference.Id, reference.Version, cancellationToken).ConfigureAwait(false) ?? throw new TradeSelectionValidationException("TS.CONFIG.MISSING", "Exact pipeline policy is missing.");
+            Require(string.Equals(value.PayloadSha256, reference.PayloadSha256, StringComparison.Ordinal), "TS.CONTRACT.HASH", "Exact pipeline policy hash mismatch.");
             policies.Add(policyKey, value);
         }
     }

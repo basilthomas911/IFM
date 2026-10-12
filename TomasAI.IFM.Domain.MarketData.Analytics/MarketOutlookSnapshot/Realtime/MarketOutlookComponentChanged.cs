@@ -41,6 +41,23 @@ public static class MarketOutlookComponentChanged
         var commandId = source.CommandId == Guid.Empty ? source.Id : source.CommandId;
         var submitted = 0;
 
+        submitted += SubmitRsiAndTdi(source, eligible, writer, commandId);
+        submitted += SubmitItiAndVix(source, eligible, writer, commandId);
+        submitted += SubmitEmaAndBollingerBand(source, eligible, writer, commandId);
+        submitted += SubmitTradeAndVwap(source, eligible, writer, commandId);
+        submitted += SubmitAdxAndAtr(source, eligible, writer, commandId);
+        submitted += SubmitMacd(source, eligible, writer, commandId);
+        if (submitted == 0 && !string.IsNullOrWhiteSpace(ignoredReason))
+        {
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write13(typed.Logger, null, source.EventSource, source.EntityId.Format(), ignoredReason);
+        }
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitRsiAndTdi(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesRsiSignal is { } rsi)
         {
             writer.Submit(new RsiMarketOutlookUpdate
@@ -73,6 +90,14 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
+        return submitted;
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitItiAndVix(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesItiSignal is { } iti)
         {
             writer.Submit(new ItiMarketOutlookUpdate
@@ -105,6 +130,14 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
+        return submitted;
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitEmaAndBollingerBand(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesEmaSignal is { } ema)
         {
             writer.Submit(new EmaMarketOutlookUpdate
@@ -137,6 +170,14 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
+        return submitted;
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitTradeAndVwap(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesTradeSignal is { } tradeSignal)
         {
             writer.Submit(new TradeSignalMarketOutlookUpdate
@@ -153,7 +194,6 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
-
         if (eligible.FuturesVwapSignal is { } vwap)
         {
             writer.Submit(new VwapMarketOutlookUpdate
@@ -172,6 +212,14 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
+        return submitted;
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitAdxAndAtr(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesAdxSignal is { } adx)
         {
             writer.Submit(new AdxMarketOutlookUpdate
@@ -204,6 +252,14 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
+        return submitted;
+    }
+
+    /// <summary>Submits eligible component observations in their original order with unchanged source identities.</summary>
+    static int SubmitMacd(MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookComponentChangedRealtimeEvent eligible, IMarketOutlookUpdateWriter writer, Guid commandId)
+    {
+        var submitted = 0;
         if (eligible.FuturesMacdSignal is { } macd)
         {
             writer.Submit(new MacdMarketOutlookUpdate
@@ -220,14 +276,7 @@ public static class MarketOutlookComponentChanged
             });
             submitted++;
         }
-        if (submitted == 0 && !string.IsNullOrWhiteSpace(ignoredReason))
-        {
-            typed.Logger.LogDebug(
-                "Ignored Market Outlook component {EventSource} for {EntityId}: {Reason}",
-                source.EventSource,
-                source.EntityId.Format(),
-                ignoredReason);
-        }
+        return submitted;
     }
 
     static Guid ComponentId(Guid sourceId, MarketOutlookUpdateKind kind)

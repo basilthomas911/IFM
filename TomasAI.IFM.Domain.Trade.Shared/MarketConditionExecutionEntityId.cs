@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 
 /// <summary>Identifies one Market Condition execution within one accepted strategy workflow.</summary>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct MarketConditionExecutionEntityId : IActorEntityId
 {
     [Key(0)] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntityId { get; init; }
@@ -32,13 +33,4 @@ public readonly record struct MarketConditionExecutionEntityId : IActorEntityId
 
     public string Format() => $"{WorkflowEntityId.Format()}.MarketCondition.{WorkflowId}";
     public override string ToString() => Format();
-}
-
-public sealed class MarketConditionExecutionEntityIdValidationRules
-    : IValidationStructRules<MarketConditionExecutionEntityId>
-{
-    public ValidationError[] Execute(MarketConditionExecutionEntityId entityId)
-        => new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(entityId.WorkflowEntityId)
-            .Concat(new StrategyWorkflowIdValidationRules().Execute(entityId.WorkflowId))
-            .ToArray();
 }

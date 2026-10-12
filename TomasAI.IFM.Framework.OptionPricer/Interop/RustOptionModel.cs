@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Framework.OptionPricer.Interop;
 
 internal static class RustOptionModel
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1065", Justification = "Native ABI mismatch must fail before any native pricing call; continuing with an incompatible ABI is unsafe.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3877", Justification = "Native ABI mismatch must fail before any native pricing call; continuing with an incompatible ABI is unsafe.")]
     static RustOptionModel()
     {
         var actualVersion = NativeMethods.GetAbiVersion();
@@ -19,6 +21,7 @@ internal static class RustOptionModel
 
     internal static void EnsureAvailable()
     {
+        // Calling this method forces the native ABI check in the static constructor.
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -60,7 +63,7 @@ internal static class RustOptionModel
             optionType,
             out var result);
         if (status == OptionPricerNativeStatus.InvalidArgument)
-            ThrowPositiveRequired();
+            ThrowPositiveRequired(nameof(forwardPrice));
         if (status != OptionPricerNativeStatus.Ok)
             ThrowInfrastructureFailure(status, nameof(PriceWithGreeks));
         return result;
@@ -92,7 +95,7 @@ internal static class RustOptionModel
         if (status == OptionPricerNativeStatus.NoConvergence)
             return double.NaN;
         if (status == OptionPricerNativeStatus.InvalidArgument)
-            ThrowInvalidSolverArgument();
+            ThrowInvalidSolverArgument(nameof(marketPrice));
         if (status != OptionPricerNativeStatus.Ok)
             ThrowInfrastructureFailure(status, nameof(ImpliedVolatility));
         return result;
@@ -209,19 +212,19 @@ internal static class RustOptionModel
                 resultPointer,
                 out _);
             if (status == OptionPricerNativeStatus.InvalidArgument)
-                ThrowPositiveRequired();
+                ThrowPositiveRequired(nameof(forwardPrices));
             if (status != OptionPricerNativeStatus.Ok)
                 ThrowInfrastructureFailure(status, nameof(PriceWithGreeksBatch));
         }
     }
 
     [DoesNotReturn]
-    private static void ThrowPositiveRequired() =>
-        throw new ArgumentOutOfRangeException("F and K must be positive.");
+    private static void ThrowPositiveRequired(string parameterName) =>
+        throw new ArgumentOutOfRangeException(parameterName, "F and K must be positive.");
 
     [DoesNotReturn]
-    private static void ThrowInvalidSolverArgument() =>
-        throw new ArgumentOutOfRangeException("A required implied-volatility argument is invalid.");
+    private static void ThrowInvalidSolverArgument(string parameterName) =>
+        throw new ArgumentOutOfRangeException(parameterName, "A required implied-volatility argument is invalid.");
 
     [DoesNotReturn]
     private static void ThrowInfrastructureFailure(OptionPricerNativeStatus status, string operation) =>

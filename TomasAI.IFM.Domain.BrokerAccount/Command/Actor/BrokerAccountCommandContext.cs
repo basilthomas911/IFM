@@ -9,16 +9,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.BrokerAccount.Command.Actor;
 
-/// <summary>Services used by BrokerAccount command handlers.</summary>
-public interface IBrokerAccountCommandContext : ICommandActorContext<BrokerAccountCommandActor>
-{
-    IEventProjector<BrokerAccountCommandActor> EventProjector { get; }
-    ITradeBroker TradeBroker { get; }
-    BrokerAccountObservationBridge ObservationBridge { get; }
-    IEventSourceActorStateRepository<BrokerAccountCommandState> StateRepository { get; }
-    ILogger<BrokerAccountCommandActor> Logger { get; }
-}
-
 /// <summary>Typed singleton context for BrokerAccount commands.</summary>
 public sealed class BrokerAccountCommandContext(
     IActorSupervisor supervisor,
@@ -28,7 +18,7 @@ public sealed class BrokerAccountCommandContext(
     IEventSourceActorStateRepository<BrokerAccountCommandState> stateRepository,
     ILogger<BrokerAccountCommandActor> logger)
     : CommandActorContext(supervisor, new(ActorType.Command, BrokerAccountCommandActor.ActorName)),
-      ICommandActorContext<BrokerAccountCommandActor>, IBrokerAccountCommandContext
+IBrokerAccountCommandContext
 {
     public IEventProjector<BrokerAccountCommandActor> EventProjector { get; } = eventProjector;
     public ITradeBroker TradeBroker { get; } = tradeBroker;

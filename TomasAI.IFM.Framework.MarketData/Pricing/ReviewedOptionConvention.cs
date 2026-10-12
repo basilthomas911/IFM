@@ -11,8 +11,9 @@ public static class ReviewedOptionConvention
     /// <returns>The from result.</returns>
     public static OptionPricingConvention From(FuturesOptionContractReadModel value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         var errors = FuturesReferenceQualification.Errors(value);
-        if (errors.Count != 0) throw new ArgumentException("Unqualified option reference: " + string.Join(", ", errors));
+        if (errors.Count != 0) throw new ArgumentException("Unqualified option reference: " + string.Join(", ", errors), nameof(value));
         var result = new OptionPricingConvention
         {
             SchemaVersion = 3,
@@ -46,7 +47,7 @@ public static class ReviewedOptionConvention
             Right = (PricingOptionRight)value.OptionRight
         };
         var invalid = OptionPricingQualification.Validate(result, result.EffectiveFromUtc);
-        if (invalid is not null) throw new ArgumentException(invalid.Code);
+        if (invalid is not null) throw new ArgumentException(invalid.Code, nameof(value));
         return result;
     }
 }

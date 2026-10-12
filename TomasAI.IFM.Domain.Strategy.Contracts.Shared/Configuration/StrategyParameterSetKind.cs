@@ -3,6 +3,8 @@ namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 /// <summary>
 /// Identifies a supported strategy parameter-set family.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1008", Justification = "Zero is intentionally invalid; preserve the published enum values.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "Preserve the existing serialized byte enum representation.")]
 public enum StrategyParameterSetKind : byte
 {
     /// <summary>Intrinsic Time Strategy Workflow parameters.</summary>

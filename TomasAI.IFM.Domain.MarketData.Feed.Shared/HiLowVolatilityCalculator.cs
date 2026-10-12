@@ -11,8 +11,7 @@ public sealed class HiLowVolatilityCalculator
     public HiLowVolatilityCalculator(int windowSize, IEodBarData[] eodBarData)
     {
         ArgumentNullException.ThrowIfNull(eodBarData);
-        if (windowSize <= 0)
-            throw new ArgumentOutOfRangeException(nameof(windowSize));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSize);
         if (eodBarData.Length < windowSize * 2)
             throw new ArgumentException("Two complete windows are required.", nameof(eodBarData));
 

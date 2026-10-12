@@ -22,14 +22,11 @@ public class SpreadDistributionJobValidationRules : BaseValidationRules, IValida
             RuleFor(x => x.OrderId).GreaterThan(0).WithMessage(OrderIdErrorMessage);
             RuleFor(x => x.TradeId).GreaterThan(0).WithMessage(TradeIdErrorMessage);
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Validation targets a member of the request, but ParamName intentionally identifies the containing method argument so callers can identify the rejected request.")] 
         public override ValidationResult Validate(ValidationContext<SpreadDistributionJobReadModel> context)
         {
-            try
-            {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
-            }
-            catch
+            ArgumentNullException.ThrowIfNull(context);
+            if (context.InstanceToValidate is null)
             {
                 var validationResult = new ValidationResult();
                 validationResult.Errors.Add(new ValidationFailure("SpreadDistributionJob", InstanceErrorMessage));

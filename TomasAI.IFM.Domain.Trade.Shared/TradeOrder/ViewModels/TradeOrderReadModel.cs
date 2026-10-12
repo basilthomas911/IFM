@@ -169,6 +169,7 @@ public partial record TradeOrderReadModel
     public bool IsValid => FundId > 0 && OrderId > 0 && TradeId > 0;
 
     /// <summary>Project legs as an array for JSON (excluded from MessagePack).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [IgnoreMember]
     public OptionTradeLegReadModel[] OptionLegs
@@ -187,6 +188,7 @@ public partial record TradeOrderReadModel
     }
 
     /// <summary>Trade type limits projection for JSON (excluded from MessagePack).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [IgnoreMember]
     public TradeTypeLimitReadModel[] TradeTypeLimits
@@ -196,6 +198,7 @@ public partial record TradeOrderReadModel
     }
 
     /// <summary>Trade fills projection for JSON (excluded from MessagePack).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [IgnoreMember]
     public TradeFillReadModel[] TradeFills
@@ -286,6 +289,7 @@ public partial record TradeOrderReadModel
     }
 
     /// <summary>Converts order action to trade action.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve this existing public model method API.")]
     public TradeAction GetTradeAction()
         => OrderAction switch
         {

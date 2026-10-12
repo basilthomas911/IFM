@@ -25,7 +25,7 @@ public static class FuturesEodDataInsertedComplete
         IEventActorContext eventApi,
         FuturesEodDataEventParameters parameters, ILogger<FuturesEodDataEventActor> logger)
         => ExecuteCoreAsync(@event, context, eventApi, parameters, logger);
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Runs the shared notification behavior for Event and Realtime ownership.</summary>
     internal static async ValueTask<bool> ExecuteCoreAsync(
         FuturesEodDataInsertedCompleteEvent @event,

@@ -492,9 +492,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var secondary = MarketInformationRow();
         AddMarketMetric(secondary, "DAILY STD DEV:", _dailyStandardDeviationValue, 82);
         AddMarketMetric(secondary, "LAST:", _lastPriceValue, 90);
-        AddMarketMetric(secondary, "CHG:", _changeValue, 145);
+        AddMarketMetric(secondary, "Daily Price Change:", _changeValue, 145);
         AddMarketMetric(secondary, "IV:", _ivValue, 62);
-        AddMarketMetric(secondary, "IV RANK:", _ivRankValue, 50);
+        AddMarketMetric(secondary, "IV RANK:", _ivRankValue, 112);
         AddMarketMetric(secondary, "QUOTE AGE:", _quoteAgeValue, 74, fixedWidth: true);
         var tertiary = MarketInformationRow();
         if (_strategy == TradeBlotterStrategy.IronCondor)
@@ -741,17 +741,6 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         {
             SetExpiryState("Underlying symbol unavailable");
             return;
-        }
-        if (!string.IsNullOrWhiteSpace(_underlyingContractId))
-        {
-            var eod = await appRoot.Services.MarketDataQueries.QueryFuturesEodDataAsync(
-                _underlyingContractId, _tradeDate);
-            if (eod.Success && eod.Value is { ClosePrice: > 0, DailyStdDevAmount: > 0 } value
-                && double.IsFinite(value.DailyStdDevAmount))
-            {
-                _standardDeviationAmount = (decimal)value.DailyStdDevAmount;
-                _dailyStandardDeviationValue.Text = $"ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±{_standardDeviationAmount:0.00}";
-            }
         }
         var valueDateResult = await appRoot.Services.MarketDataQueries.QueryValueDateAsync();
         var expiryRangeStart = valueDateResult.Success && valueDateResult.Value is { } valueDate
@@ -1216,8 +1205,18 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             UiExceptionReporter.ReportOptionChainReady(_chainSubscriptionOwner, chain.ExpiryDate,
                 string.Join(',', _selectedMarketContractIds), System.Diagnostics.Stopwatch.GetElapsedTime(_chainSelectionStarted).TotalMilliseconds);
         }
+        _standardDeviationAmount = chain.BollingerStandardDeviation20;
+        SetTextIfChanged(_dailyStandardDeviationValue, chain.BollingerStandardDeviation20?.ToString("0.00") ?? "N/A");
+        _dailyStandardDeviationValue.AccessibleDescription = $"EMA20 Bollinger estimate, futures points, as of {chain.BollingerAsOfUtc:O}";
+        SetTextIfChanged(_ivRankValue, chain.IvRank?.ToString("0.0") ?? (chain.IvRankStatus.StartsWith("InsufficientHistory", StringComparison.Ordinal) ? "History needed" : "N/A"));
+        _ivRankValue.AccessibleDescription = chain.IvRankStatus;
         if (chain.UnderlyingPrice is { } underlyingPrice)
+        {
             SetTextIfChanged(_lastPriceValue, underlyingPrice.ToString("0.00"));
+            SetTextIfChanged(_changeValue, chain.PreviousSessionClose is > 0
+                ? $"{underlyingPrice - chain.PreviousSessionClose.Value:+0.00;-0.00;0.00} ({(underlyingPrice / chain.PreviousSessionClose.Value - 1):+0.00%;-0.00%;0.00%})" : "N/A");
+            _changeValue.AccessibleDescription = "Underlying futures points and percent versus previous completed session close";
+        }
         var representativeIv = RepresentativeImpliedVolatility(chain);
         if (representativeIv is not null)
             SetTextIfChanged(_ivValue, representativeIv.Value.ToString("P1", System.Globalization.CultureInfo.InvariantCulture));
@@ -1242,8 +1241,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
 
     private void TryApplyDefaultOptionSpreadSelection(EvaluatedOptionChainReadModel chain)
     {
-        if (!_spreadDefaultsLoaded || _marketSelectionEditedManually
-            || _defaultSelectionExpiry == chain.ExpiryDate && _selectedMarketContracts.Count == MaximumSelectedLegs) return;
+        if (!_spreadDefaultsLoaded || _marketSelectionEditedManually) return;
         if (_strategy == TradeBlotterStrategy.VerticalSpread)
         {
             TryApplyDefaultVerticalSelection(chain);
@@ -1252,16 +1250,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         if (_tradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor)
             || _strategy != TradeBlotterStrategy.IronCondor)
             return;
-        var calls = chain.Contracts
-            .Where(value => value.IsCall && value.Delta is > 0 and < 0.5)
-            .OrderBy(value => Math.Abs(value.Delta!.Value - (double)(_shortCallDelta.Value / 100m)))
-            .ThenBy(value => chain.UnderlyingPrice is { } price
-                ? Math.Abs(value.Strike - price) : 0m);
-        var puts = chain.Contracts
-            .Where(value => !value.IsCall && value.Delta is < 0 and > -0.5)
-            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - (double)(_shortPutDelta.Value / 100m)))
-            .ThenBy(value => chain.UnderlyingPrice is { } price
-                ? Math.Abs(value.Strike - price) : 0m);
+        var calls = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, true,
+            _shortCallDelta.Value / 100m, chain.UnderlyingPrice);
+        var puts = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, false,
+            _shortPutDelta.Value / 100m, chain.UnderlyingPrice);
         var shortCondor = _tradeType == TradeType.ShortIronCondor;
         var callPair = calls.Select(call => (Call: call, Wing: FindWingContract(chain,
                 call.Strike + (shortCondor ? _callSpreadWidth.Value : -_callSpreadWidth.Value), true, call.Strike)))
@@ -1269,7 +1261,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var putPair = puts.Select(put => (Put: put, Wing: FindWingContract(chain,
                 put.Strike + (shortCondor ? -_putSpreadWidth.Value : _putSpreadWidth.Value), false, put.Strike)))
             .FirstOrDefault(pair => pair.Wing is not null);
-        if (callPair.Call is null || putPair.Put is null) return;
+        if (callPair.Call is null || putPair.Put is null) { ClearAutomaticSpreadSelection(); return; }
 
         _selectedMarketContracts.Clear();
         _selectedMarketRoles.Clear();
@@ -1292,17 +1284,16 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var isCall = _tradeType is TradeType.CallCreditSpread or TradeType.CallDebitSpread;
         var isPut = _tradeType is TradeType.PutCreditSpread or TradeType.PutDebitSpread;
         if (!isCall && !isPut) return;
-        var shortLeg = chain.Contracts
-            .Where(value => value.IsCall == isCall && value.Delta is not null
-                && (isCall ? value.Delta is > 0 and < 0.5 : value.Delta is < 0 and > -0.5))
-            .OrderBy(value => Math.Abs(Math.Abs(value.Delta!.Value) - (double)(_shortLegDelta.Value / 100m)))
-            .ThenBy(value => chain.UnderlyingPrice is { } price ? Math.Abs(value.Strike - price) : 0m)
-            .FirstOrDefault();
-        if (shortLeg is null) return;
         var credit = _tradeType is TradeType.CallCreditSpread or TradeType.PutCreditSpread;
         var longDirection = isCall ? (credit ? 1m : -1m) : (credit ? -1m : 1m);
-        var longLeg = FindWingContract(chain, shortLeg.Strike + longDirection * _spreadWidth.Value, isCall);
-        if (longLeg is null) return;
+        var pair = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, isCall,
+                _shortLegDelta.Value / 100m, chain.UnderlyingPrice)
+            .Select(shortLeg => (Short: shortLeg, Wing: FindWingContract(chain,
+                shortLeg.Strike + longDirection * _spreadWidth.Value, isCall, shortLeg.Strike)))
+            .FirstOrDefault(x => x.Wing is not null);
+        if (pair.Short is null) { ClearAutomaticSpreadSelection(); return; }
+        var shortLeg = pair.Short;
+        var longLeg = pair.Wing!;
         _selectedMarketContracts.Clear();
         _selectedMarketRoles.Clear();
         _selectedMarketContracts.Add(shortLeg.ContractId);
@@ -1313,29 +1304,23 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         UpdateMarketSelectionStatus();
     }
 
-    private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall,
-        decimal? shortStrike = null)
+    private void ClearAutomaticSpreadSelection()
     {
-        var live = chain.Contracts.FirstOrDefault(value => value.IsCall == isCall && value.Strike == strike);
-        if (live is not null) return live.ContractId;
-        var exact = _availableOptionContracts
-            .Where(value => GetOptionExpiry(value) == chain.ExpiryDate
-                && (decimal)value.StrikePrice == strike
-                && value.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(value => value.ContractId, StringComparer.Ordinal)
-            .Select(value => value.ContractId)
-            .FirstOrDefault();
-        if (exact is not null || shortStrike is null) return exact;
-        var outward = strike > shortStrike.Value;
-        return _availableOptionContracts
-            .Where(value => GetOptionExpiry(value) == chain.ExpiryDate
-                && value.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase)
-                && (outward ? (decimal)value.StrikePrice > shortStrike.Value
-                    : (decimal)value.StrikePrice < shortStrike.Value))
-            .OrderBy(value => Math.Abs((decimal)value.StrikePrice - strike))
-            .ThenBy(value => value.ContractId, StringComparer.Ordinal)
-            .Select(value => value.ContractId)
-            .FirstOrDefault();
+        _selectedMarketContracts.Clear();
+        _selectedMarketRoles.Clear();
+        _defaultSelectionExpiry = null;
+        UpdateMarketSelectionStatus();
+    }
+
+    private string? FindWingContract(EvaluatedOptionChainReadModel chain, decimal strike, bool isCall,
+        decimal shortStrike)
+    {
+        var candidates = chain.Contracts.Where(x => x.IsCall == isCall)
+            .Select(x => (x.ContractId, x.Strike))
+            .Concat(_availableOptionContracts.Where(x => GetOptionExpiry(x) == chain.ExpiryDate
+                && x.OptionType.StartsWith(isCall ? "C" : "P", StringComparison.OrdinalIgnoreCase))
+                .Select(x => (x.ContractId, (decimal)x.StrikePrice)));
+        return OptionSpreadLegSelection.Wing(candidates, shortStrike, Math.Abs(strike - shortStrike), strike > shortStrike);
     }
 
     private string SelectedLabel(OptionChainDisplayRow row, bool callSide)

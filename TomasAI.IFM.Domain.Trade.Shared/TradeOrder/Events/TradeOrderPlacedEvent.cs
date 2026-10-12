@@ -68,25 +68,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
             SubmittedOn = SubmittedOn,
             SubmittedBy = SubmittedBy
         }.RoutedFrom(this);
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradeOrderPlacedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradeOrderPlacedFailEvent
         {
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         }.RoutedFrom(this);
-    }
-
-
-    public record TradeOrderPlacedCompleteEvent : CompleteEvent
-    {
-        public TradeOrderReadModel TradeOrder { get; init; }
-        public DateTime SubmittedOn { get; init; }
-        public string SubmittedBy { get; init; }
-
-    }
-
-    public record TradeOrderPlacedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

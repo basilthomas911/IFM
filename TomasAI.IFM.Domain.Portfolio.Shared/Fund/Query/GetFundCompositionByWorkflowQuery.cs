@@ -20,7 +20,7 @@ public sealed record GetFundCompositionByWorkflowQuery : IQuery<FundCompositionW
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public ActorEntityId EntityId { get; init; } = ActorEntityId.Default;
-    [Key(2)] public Guid WorkflowId { get; init; } = default!;
+    [Key(2)] public Guid WorkflowId { get; init; } = Guid.Empty;
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedOnUtc { get; init; }
     [Key(5)] public PortfolioAccessContext Access { get; init; } = new();

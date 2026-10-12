@@ -4,13 +4,6 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 namespace TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.Engine;
-public sealed record OfflineFillSimulationOptions
-{
-    public bool Enabled { get; init; } = true;
-    public TimeSpan CompletionTime { get; init; } = TimeSpan.FromSeconds(30);
-    public int MaximumUnitsPerFill { get; init; } = 3;
-    public int RandomSeed { get; init; } = 1;
-}
 /// <summary>Timed development fills through the normal emulator ledger, never a real broker.</summary>
 public sealed class OfflineFillSimulation : IDisposable
 {
@@ -19,19 +12,26 @@ public sealed class OfflineFillSimulation : IDisposable
     readonly OfflineFillSimulationOptions options;
     readonly Func<bool> marketClosed;
     readonly CancellationTokenSource lifetime = new();
+    readonly CancellationToken token;
+    int disposed;
     readonly ConcurrentDictionary<string, Lazy<Task>> runs = new(StringComparer.Ordinal);
     public OfflineFillSimulation(EmulatorLedger ledger, OfflineFillSimulationOptions options, Func<bool> marketClosed, ILogger? logger = null)
     {
+        ArgumentNullException.ThrowIfNull(options);
         if (options.CompletionTime <= TimeSpan.Zero || options.MaximumUnitsPerFill <= 0)
             throw new ArgumentOutOfRangeException(nameof(options));
+        token = lifetime.Token;
         this.logger = logger ?? NullLogger.Instance; this.ledger = ledger; this.options = options; this.marketClosed = marketClosed;
     }
     public bool Enabled => options.Enabled;
     public void Start(string id)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (options.Enabled) _ = runs.GetOrAdd(id, key => new(() => RunAsync(key))).Value;
     }
     public Task CompletionAsync(string id) => runs.TryGetValue(id, out var run) ? run.Value : Task.CompletedTask;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The background emulator boundary reports its terminal failure through OfflineSimulationLogging.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA5394", Justification = "Seeded randomness is required for reproducible offline test fills and has no security role.")]
     async Task RunAsync(string id)
     {
         try
@@ -53,8 +53,8 @@ public sealed class OfflineFillSimulation : IDisposable
             for (var i = 0; i < times.Length; i++)
             {
                 var delay = TimeSpan.FromMilliseconds(times[i]) - started.Elapsed;
-                if (delay > TimeSpan.Zero) await Task.Delay(delay, lifetime.Token).ConfigureAwait(false);
-                lifetime.Token.ThrowIfCancellationRequested();
+                if (delay > TimeSpan.Zero) await Task.Delay(delay, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
                 if (ledger.RemainingStrategyUnits(id) == 0) return;
                 if (!marketClosed() && ledger.HasFreshMarketQuotes(id)) continue;
                 var quantity = i == times.Length - 1 ? ledger.RemainingStrategyUnits(id) : quantities[i];
@@ -65,8 +65,13 @@ public sealed class OfflineFillSimulation : IDisposable
                 } while (i == times.Length - 1 && ledger.RemainingStrategyUnits(id) > 0);
             }
         }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         catch (Exception exception) { OfflineSimulationLogging.Failed(logger, id, exception); }
     }
-    public void Dispose() => lifetime.Cancel();
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
 }

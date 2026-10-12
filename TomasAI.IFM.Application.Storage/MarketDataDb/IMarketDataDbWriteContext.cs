@@ -19,6 +19,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    /// <summary>Materializes a committed download outcome on the caller-owned source-event transaction.</summary>
+    Task ProjectDownloadLogAsync(TomasAI.IFM.Application.Storage.EventSourceDb.IEnlistedPostgresTransaction transaction,
+        MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default);
+
     /// <summary>Preserves every buffered history row and coalesces current EOD snapshots.</summary>
     /// <summary>Allocates stable retry IDs before the history outbox is submitted to storage.</summary>
     Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows);
@@ -66,6 +70,7 @@ public interface IMarketDataDbWriteContext
     Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar);
     Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e);
     Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<MarketDataProjectionBackfillReadModel> BackfillQueryProjectionsV2Async(
         int batchSize = 256,
         CancellationToken cancellationToken = default,
@@ -101,10 +106,10 @@ public interface IMarketDataDbWriteContext
     Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel e);
     Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> e);
     Task InsertFuturesOptionTickDataAsync(FuturesOptionTickDataV2ReadModel e);
+    Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> e);
     Task UpsertFuturesOptionChainQuoteDataAsync(string underlyingContractId, FuturesOptionTickDataV2ReadModel tick);
     Task UpdateFuturesOptionChainQuoteGreeksAsync(string underlyingContractId, DateOnly expiryDate, ICollection<FuturesOptionTickDataV2ReadModel> quotes);
     Task InsertFuturesOptionTickPriceDataAsync(FuturesOptionTickDataV2ReadModel e);
-    Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> e);
     Task InsertFuturesItiSignalAsync(FuturesItiSignalV2ReadModel e);
     Task InsertFuturesRsiSignalAsync(FuturesRsiSignalReadModel e);
     /// <summary>Persists one EMA10/20/50/200 signal projection.</summary>
@@ -138,9 +143,9 @@ public interface IMarketDataDbWriteContext
     Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e);
 
     Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e);
-    Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e);
     Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData);
     Task<long> InsertFuturesEodDataAsync(IEnumerable<FuturesEodDataV2ReadModel> futuresEodData);
+    Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e);
     Task InsertVixFuturesEodDataAsync(
         FuturesTickDataV2ReadModel e,
         FuturesSessionStatisticsSnapshot? sessionStatistics = null);

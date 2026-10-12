@@ -8,22 +8,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Actor;
 
-/// <summary>Defines readonly services required by the historical data-load Command actor.</summary>
-public interface IFuturesAnalyticsHistoricalDataLoaderCommandContext
-    : ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>
-{
-    /// <summary>Gets the typed state repository.</summary>
-    IEventSourceActorStateRepository<FuturesAnalyticsHistoricalDataLoaderCommandState> Repository { get; }
-    /// <summary>Gets the durable event projector.</summary>
-    IEventProjector<FuturesAnalyticsHistoricalDataLoaderCommandActor> EventProjector { get; }
-    /// <summary>Gets the typed logger.</summary>
-    ILogger<FuturesAnalyticsHistoricalDataLoaderCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the closed generic context for the historical data-load Command actor.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesAnalyticsHistoricalDataLoaderCommandContext
     : CommandActorContext,
-      ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>,
       IFuturesAnalyticsHistoricalDataLoaderCommandContext
 {
     /// <summary>Initializes the readonly context.</summary>

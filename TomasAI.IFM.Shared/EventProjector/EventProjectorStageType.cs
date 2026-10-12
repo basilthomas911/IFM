@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Shared.EventProjector;
 /// The numeric values describe the normal processing order and are suitable for recording progress
 /// and selecting a resume point.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "The byte-backed enum is an existing persisted/wire contract; preserve its representation.")]
 public enum EventProjectorStageType : byte
 {
     /// <summary>

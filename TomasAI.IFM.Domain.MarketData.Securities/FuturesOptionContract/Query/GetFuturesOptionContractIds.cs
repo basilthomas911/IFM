@@ -15,5 +15,10 @@ public static class GetFuturesOptionContractIds
         this GetFuturesOptionContractIdsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => dbFactory.GetFuturesOptionContractIdsAsync(q.ContractIds, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return dbFactory.GetFuturesOptionContractIdsAsync(q.ContractIds, cancellationToken);
+    }
 }

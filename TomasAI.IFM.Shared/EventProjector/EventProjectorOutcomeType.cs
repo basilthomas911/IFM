@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Shared.EventProjector;
 /// <summary>
 /// Specifies the final outcome of an event-projection execution.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "The byte-backed enum is an existing persisted/wire contract; preserve its representation.")]
 public enum EventProjectorOutcomeType : byte
 {
     /// <summary>

@@ -26,9 +26,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
 
     /// <summary>Gets the typed query context supplied at construction.</summary>
     protected IFuturesBarDataQueryContext QueryContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesBarDataQueryContext, nameof(actorContext))!;
-
-    readonly ILogger<FuturesBarDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+        IsArgumentNull.Named(actorContext as IFuturesBarDataQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -44,7 +42,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetFuturesBarDataQuery.Verb] = msg => msg.AsQuery<GetFuturesBarDataQuery, FuturesBarDataReadModel[]>()!,
         [GetLastFuturesBarDataQuery.Verb] = msg => msg.AsQuery<GetLastFuturesBarDataQuery, FuturesBarDataReadModel>()!
@@ -74,16 +72,16 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
         [typeof(GetFuturesBarDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesBarDataQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
-                new ServiceResult<FuturesBarDataReadModel[]>(result));
+            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
+                new ServiceResult<FuturesBarDataReadModel[]>(result))).ConfigureAwait(false);
         },
         [typeof(GetLastFuturesBarDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesBarDataQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
-                new ServiceResult<FuturesBarDataReadModel>(result));
+            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
+                new ServiceResult<FuturesBarDataReadModel>(result))).ConfigureAwait(false);
         }
     };
 
@@ -103,6 +101,6 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

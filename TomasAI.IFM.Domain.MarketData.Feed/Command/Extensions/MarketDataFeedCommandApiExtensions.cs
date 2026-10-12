@@ -19,8 +19,14 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 /// persistence commands before dispatching them through the captured <see cref="IEventActorContext"/>.
 /// Operations execute directly against the supplied event actor context.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class MarketDataFeedCommandApiExtensions
 {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3398", Justification = "This ordinary static helper is shared by C# 14 extension members; it is not a local function that can be moved into the lowered extension type.")]
+    static ActorSubject Subject(string actor, string verb, IActorEntityId entityId)
+        => new(ActorType.Command, actor, verb, entityId.Format());
+
     extension(IEventActorContext context)
     {
 
@@ -39,7 +45,7 @@ public static class MarketDataFeedCommandApiExtensions
             TurnTradeLiveFeedOffCommand command = new(tradeId, valueDate)
             {
                 CommandId = commandId,
-                Subject = context.Subject<TurnTradeLiveFeedOffCommand>(
+                Subject = Subject(
                     TurnTradeLiveFeedOffCommand.Actor,
                     TurnTradeLiveFeedOffCommand.Verb,
                     tradeId),
@@ -64,7 +70,7 @@ public static class MarketDataFeedCommandApiExtensions
             TurnTradeLiveFeedOnCommand command = new(tradeId, valueDate)
             {
                 CommandId = commandId,
-                Subject = context.Subject<TurnTradeLiveFeedOnCommand>(
+                Subject = Subject(
                     TurnTradeLiveFeedOnCommand.Actor,
                     TurnTradeLiveFeedOnCommand.Verb,
                     tradeId),
@@ -84,7 +90,7 @@ public static class MarketDataFeedCommandApiExtensions
             var entityId = new FuturesBarDataStreamingId(valueDate);
             StopFuturesBarDataStreamingCommand command = new(valueDate)
             {
-                Subject = context.Subject<StopFuturesBarDataStreamingCommand>(
+                Subject = Subject(
                     StopFuturesBarDataStreamingCommand.Actor,
                     StopFuturesBarDataStreamingCommand.Verb,
                     entityId),
@@ -106,10 +112,11 @@ public static class MarketDataFeedCommandApiExtensions
             FuturesOptionTickEntityId entityId,
             string contractId)
         {
+            ArgumentNullException.ThrowIfNull(entityId);
             StopFuturesOptionTickDataStreamingCommand command = new(entityId, contractId)
             {
                 CommandId = commandId,
-                Subject = context.Subject<StopFuturesOptionTickDataStreamingCommand>(
+                Subject = Subject(
                     StopFuturesOptionTickDataStreamingCommand.Actor,
                     StopFuturesOptionTickDataStreamingCommand.Verb,
                     entityId),
@@ -133,9 +140,10 @@ public static class MarketDataFeedCommandApiExtensions
             bool resetStream,
             FuturesDataId entityId)
         {
+            ArgumentNullException.ThrowIfNull(entityId);
             StartFuturesTickDataStreamingCommand command = new(futuresContract, valueDate, resetStream)
             {
-                Subject = context.Subject<StartFuturesTickDataStreamingCommand>(
+                Subject = Subject(
                     StartFuturesTickDataStreamingCommand.Actor,
                     StartFuturesTickDataStreamingCommand.Verb,
                     entityId),
@@ -157,9 +165,10 @@ public static class MarketDataFeedCommandApiExtensions
             DateOnly valueDate,
             FuturesBarDataStreamingId entityId)
         {
+            ArgumentNullException.ThrowIfNull(entityId);
             StartFuturesBarDataStreamingCommand command = new(futuresContracts, valueDate)
             {
-                Subject = context.Subject<StartFuturesBarDataStreamingCommand>(
+                Subject = Subject(
                     StartFuturesBarDataStreamingCommand.Actor,
                     StartFuturesBarDataStreamingCommand.Verb,
                     entityId),
@@ -189,6 +198,7 @@ public static class MarketDataFeedCommandApiExtensions
             DateOnly maturityDate,
             double riskFreeRate)
         {
+            ArgumentNullException.ThrowIfNull(entityId);
             StartFuturesOptionTickDataStreamingCommand command = new(
                 entityId,
                 contract,
@@ -198,7 +208,7 @@ public static class MarketDataFeedCommandApiExtensions
                 riskFreeRate)
             {
                 CommandId = commandId,
-                Subject = context.Subject<StartFuturesOptionTickDataStreamingCommand>(
+                Subject = Subject(
                     StartFuturesOptionTickDataStreamingCommand.Actor,
                     StartFuturesOptionTickDataStreamingCommand.Verb,
                     entityId),
@@ -215,10 +225,11 @@ public static class MarketDataFeedCommandApiExtensions
         /// <returns>A value task containing the typed command result returned by the target actor.</returns>
         public ValueTask<ServiceResult<GuidResult>> InsertFuturesBarDataAsync(FuturesBarDataReadModel futuresBarData)
         {
+            ArgumentNullException.ThrowIfNull(futuresBarData);
             InsertFuturesBarDataCommand command = new(futuresBarData)
             {
                 CommandId = Guid.NewGuid(),
-                Subject = context.Subject<InsertFuturesBarDataCommand>(
+                Subject = Subject(
                     InsertFuturesBarDataCommand.Actor,
                     InsertFuturesBarDataCommand.Verb,
                     futuresBarData.Id),
@@ -235,9 +246,10 @@ public static class MarketDataFeedCommandApiExtensions
         /// <returns>A value task containing the typed command result returned by the target actor.</returns>
         public ValueTask<ServiceResult<GuidResult>> DeleteStreamingRequestIdAsync(FeedId feedId)
         {
+            ArgumentNullException.ThrowIfNull(feedId);
             DeleteStreamingRequestIdCommand command = new(feedId)
             {
-                Subject = context.Subject<DeleteStreamingRequestIdCommand>(
+                Subject = Subject(
                     DeleteStreamingRequestIdCommand.Actor,
                     DeleteStreamingRequestIdCommand.Verb,
                     feedId),
@@ -269,6 +281,7 @@ public static class MarketDataFeedCommandApiExtensions
             int windowSize,
             ICollection<VixFuturesEodDataReadModel> vixEodData)
         {
+            ArgumentNullException.ThrowIfNull(futuresContract);
             var entityId = new FuturesEodDataId(futuresContract.ContractId, valueDate);
             InsertFuturesEodDataCommand command = new(
                 valueDate,
@@ -280,7 +293,7 @@ public static class MarketDataFeedCommandApiExtensions
                 windowSize,
                 vixEodData)
             {
-                Subject = context.Subject<InsertFuturesEodDataCommand>(
+                Subject = Subject(
                     InsertFuturesEodDataCommand.Actor,
                     InsertFuturesEodDataCommand.Verb,
                     entityId),
@@ -298,10 +311,11 @@ public static class MarketDataFeedCommandApiExtensions
         public ValueTask<ServiceResult<GuidResult>> InsertVixFuturesEodDataAsync(
             FuturesTickDataV2ReadModel futuresTickData)
         {
+            ArgumentNullException.ThrowIfNull(futuresTickData);
             var entityId = new FuturesEodDataId(futuresTickData.ContractId, futuresTickData.ValueDate);
             InsertVixFuturesEodDataCommand command = new(futuresTickData)
             {
-                Subject = context.Subject<InsertVixFuturesEodDataCommand>(
+                Subject = Subject(
                     InsertVixFuturesEodDataCommand.Actor,
                     InsertVixFuturesEodDataCommand.Verb,
                     entityId),
@@ -321,10 +335,12 @@ public static class MarketDataFeedCommandApiExtensions
             FuturesContractV3ReadModel futuresContract,
             FuturesTickDataV2ReadModel futuresTickData)
         {
+            ArgumentNullException.ThrowIfNull(futuresContract);
+            ArgumentNullException.ThrowIfNull(futuresTickData);
             var entityId = new FuturesDataId(futuresContract.ContractId, futuresTickData.ValueDate);
             InsertFuturesTickDataCommand command = new(futuresContract, futuresTickData)
             {
-                Subject = context.Subject<InsertFuturesTickDataCommand>(
+                Subject = Subject(
                     InsertFuturesTickDataCommand.Actor,
                     InsertFuturesTickDataCommand.Verb,
                     entityId),
@@ -344,10 +360,11 @@ public static class MarketDataFeedCommandApiExtensions
             FuturesContractV3ReadModel underlyingContract,
             FuturesOptionTickDataV2ReadModel optionContract)
         {
+            ArgumentNullException.ThrowIfNull(optionContract);
             var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);
             InsertFuturesOptionTickPriceDataCommand command = new(underlyingContract, optionContract)
             {
-                Subject = context.Subject<InsertFuturesOptionTickPriceDataCommand>(
+                Subject = Subject(
                     InsertFuturesOptionTickPriceDataCommand.Actor,
                     InsertFuturesOptionTickPriceDataCommand.Verb,
                     entityId),
@@ -367,10 +384,11 @@ public static class MarketDataFeedCommandApiExtensions
             FuturesContractV3ReadModel underlyingContract,
             FuturesOptionTickDataV2ReadModel optionContract)
         {
+            ArgumentNullException.ThrowIfNull(optionContract);
             var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);
             InsertFuturesOptionTickDataCommand command = new(underlyingContract, optionContract)
             {
-                Subject = context.Subject<InsertFuturesOptionTickDataCommand>(
+                Subject = Subject(
                     InsertFuturesOptionTickDataCommand.Actor,
                     InsertFuturesOptionTickDataCommand.Verb,
                     entityId),
@@ -393,13 +411,11 @@ public static class MarketDataFeedCommandApiExtensions
             }
             command.CheckForEmptyCommandId();
 
-            var result = await context.RequestAsync<TCommand, TEntityId>(command);
+            var result = await (context.RequestAsync<TCommand, TEntityId>(command)).ConfigureAwait(false);
             if (result?.Success != true)
                 throw new InvalidOperationException(result?.ErrorMessage);
             return result;
         }
 
-        ActorSubject Subject<TCommand>(string actor, string verb, IActorEntityId entityId)
-            => new(ActorType.Command, actor, verb, entityId.Format());
     }
 }

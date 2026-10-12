@@ -72,6 +72,7 @@ public sealed record IntrinsicTimeStrategyWorkflowContinuedEvent : IEvent<Intrin
     /// <summary>Gets the continuation rule-set version.</summary>
     [Key(21)] public int ContinuationRuleSetVersion { get; init; }
     /// <summary>Gets a defensive copy of the continuation reason codes.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(22)]
     public string[] ContinuationReasonCodes
     {

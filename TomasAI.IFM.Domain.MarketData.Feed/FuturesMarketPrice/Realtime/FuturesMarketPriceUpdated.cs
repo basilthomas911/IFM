@@ -36,6 +36,8 @@ public static class FuturesMarketPriceUpdated
         IEventActorContext context,
         ILogger<FuturesMarketPriceRealtimeActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(logger);
         try
         {
@@ -43,7 +45,7 @@ public static class FuturesMarketPriceUpdated
             IsArgumentNull.Check(context);
             if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade
                 && @event.VwapCheckpoint is null
-                && @event.Subject.Name == FuturesMarketPriceUpdatedRealtimeEvent.Actor
+                && string.Equals(@event.Subject.Name,FuturesMarketPriceUpdatedRealtimeEvent.Actor,StringComparison.Ordinal)
                 && @event.SourceTrade is { } trade)
             {
                 await context.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(

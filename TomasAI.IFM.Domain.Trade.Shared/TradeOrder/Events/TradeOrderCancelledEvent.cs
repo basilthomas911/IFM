@@ -68,24 +68,16 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events
             CancelledOn = CancelledOn,
             CancelledBy = CancelledBy
         }.RoutedFrom(this);
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradeOrderCancelledFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradeOrderCancelledFailEvent
         {
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         }.RoutedFrom(this);
-    }
-
-
-    public record TradeOrderCancelledCompleteEvent : CompleteEvent
-    {
-        public TradeOrderEntityId TradeOrderId { get; init; }
-        public DateTime CancelledOn { get; init; }
-        public string CancelledBy { get; init; }
-    }
-
-    public record TradeOrderCancelledFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

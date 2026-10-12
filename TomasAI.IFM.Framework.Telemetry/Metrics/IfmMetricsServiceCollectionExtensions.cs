@@ -47,10 +47,26 @@ public static class IfmMetricsServiceCollectionExtensions
             .AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: ProcessGcRunIdentity.InstanceId)
                 .AddAttributes([new KeyValuePair<string, object>("process.pid", Environment.ProcessId),
-                    new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O"))]))
+                    new("process.start_time", ProcessGcRunIdentity.StartedUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture))]))
             .WithMetrics(metrics =>
             {
-                metrics
+                AddMeters(metrics)
+.AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
+            });
+
+        if (configuration.GetValue("Telemetry:Traces:Enabled", false))
+            telemetry.WithTracing(tracing =>
+            {
+                tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
+                    .AddSource(PortfolioInstrumentationName)
+                    .AddSource(PortfolioFinancialInstrumentationName)
+.AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));
+            });
+
+        return services;
+    }
+    static MeterProviderBuilder AddMeters(MeterProviderBuilder metrics)
+        => metrics
                     .AddMeter("TomasAI.IFM.MarketData.Eod")
                     .AddMeter("TomasAI.IFM.OptionChainCache")
                 .AddMeter("TomasAI.IFM.Logging")
@@ -69,50 +85,17 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
                     .AddMeter("System.Net.Http")
-                    .AddMeter("System.Net.NameResolution")
-                    .AddOtlpExporter(options =>
-                    {
-                        if (!string.IsNullOrWhiteSpace(endpointText))
-                        {
-                            if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
-                            {
-                                throw new InvalidOperationException(
-                                    $"Telemetry:Metrics:OtlpEndpoint '{endpointText}' is not an absolute URI.");
-                            }
+                    .AddMeter("System.Net.NameResolution");
 
-                            options.Endpoint = endpoint;
-                        }
-
-                        options.Protocol = string.Equals(
-                            protocolText,
-                            "http/protobuf",
-                            StringComparison.OrdinalIgnoreCase)
-                            ? OtlpExportProtocol.HttpProtobuf
-                            : OtlpExportProtocol.Grpc;
-                    });
-            });
-
-        if (configuration.GetValue("Telemetry:Traces:Enabled", false))
-            telemetry.WithTracing(tracing =>
-            {
-                tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
-                    .AddSource(PortfolioInstrumentationName)
-                    .AddSource(PortfolioFinancialInstrumentationName)
-                    .AddOtlpExporter(options =>
-                    {
-                        if (!string.IsNullOrWhiteSpace(endpointText))
-                        {
-                            if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
-                                throw new InvalidOperationException(
-                                    $"Telemetry:Metrics:OtlpEndpoint '{endpointText}' is not an absolute URI.");
-                            options.Endpoint = endpoint;
-                        }
-                        options.Protocol = string.Equals(protocolText, "http/protobuf",
-                            StringComparison.OrdinalIgnoreCase)
-                            ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
-                    });
-            });
-
-        return services;
+    static void ConfigureExporter(OtlpExporterOptions options, string? endpointText, string? protocolText)
+    {
+        if (!string.IsNullOrWhiteSpace(endpointText))
+        {
+            if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
+                throw new InvalidOperationException($"Telemetry:Metrics:OtlpEndpoint '{endpointText}' is not an absolute URI.");
+            options.Endpoint = endpoint;
+        }
+        options.Protocol = string.Equals(protocolText, "http/protobuf", StringComparison.OrdinalIgnoreCase)
+            ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
     }
 }

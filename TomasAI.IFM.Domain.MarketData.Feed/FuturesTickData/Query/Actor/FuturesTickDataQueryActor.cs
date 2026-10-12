@@ -26,9 +26,7 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
 
     /// <summary>Gets the typed query context supplied at construction.</summary>
     protected IFuturesTickDataQueryContext QueryContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesTickDataQueryContext, nameof(actorContext))!;
-
-    readonly ILogger<FuturesTickDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+        IsArgumentNull.Named(actorContext as IFuturesTickDataQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -44,7 +42,7 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
     /// corresponding query instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLastFuturesTickDataQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTickDataQuery, FuturesTickDataV2ReadModel>()!,
         [GetLastFuturesTickDataByTickDateQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTickDataByTickDateQuery, FuturesTickDataV2ReadModel>()!
@@ -74,16 +72,16 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
         [typeof(GetLastFuturesTickDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesTickDataQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb,
-                new ServiceResult<FuturesTickDataV2ReadModel?>(result));
+            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb,
+                new ServiceResult<FuturesTickDataV2ReadModel?>(result))).ConfigureAwait(false);
         },
         [typeof(GetLastFuturesTickDataByTickDateQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesTickDataByTickDateQuery)!;
-            var result = await query.ExecuteAsync(ctx.DbFactory);
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb,
-                new ServiceResult<FuturesTickDataV2ReadModel?>(result));
+            var result = await (query.ExecuteAsync(ctx.DbFactory)).ConfigureAwait(false);
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb,
+                new ServiceResult<FuturesTickDataV2ReadModel?>(result))).ConfigureAwait(false);
         }
     };
 
@@ -103,6 +101,6 @@ public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryAc
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

@@ -13,7 +13,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Extensions;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 
@@ -47,7 +46,13 @@ public class FuturesEodDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask<FuturesEodDataCommandState> LoadStateAsync(ICommand command)
-        => await LoadEmptyStateAsync<FuturesEodDataCommandState>();
+        => await LoadStateAsync(command,CancellationToken.None).ConfigureAwait(false);
+
+    /// <summary>Loads the single latest accepted source and its committed stream version.</summary>
+    public async ValueTask<FuturesEodDataCommandState> LoadStateAsync(ICommand command,CancellationToken cancellationToken)
+        => command is TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands.InsertVixFuturesEodDataCommand
+            ? await LoadStateFromSnapshotAsync<FuturesEodDataCommandState,VixFuturesEodDataInsertedEvent>(command,cancellationToken).ConfigureAwait(false)
+            : await LoadStateFromSnapshotAsync<FuturesEodDataCommandState,FuturesEodDataInsertedEvent>(command,cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// save futures eod data state changes
@@ -57,7 +62,41 @@ public class FuturesEodDataStateRepository(
     /// <param name="command"></param>
     /// <returns></returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesEodDataCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context,state,command,CancellationToken.None).ConfigureAwait(false);
+
+    /// <summary>Commits accepted source facts and required read rows on the same PostgreSQL transaction.</summary>
+    public async ValueTask SaveStateAsync(ICommandActorContext context, FuturesEodDataCommandState state, ICommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
+        var database = actorContext.DbFactory.MarketDataDb;
+        if (!string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            await SaveStateAndDenormalizeEventsAsync(context,state,command,cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (state.Events.Count == 0) return;
+        if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+            PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+            throw new InvalidOperationException("Feed source facts and observations must share one PostgreSQL database/security identity.");
+        var pending = new DomainEventCollection(state.Events);
+        var committed = await context.Container.Resolve<IPostgresEventTransaction>().ExecuteAsync(async (transaction,token) =>
+        {
+            var accepted = new DomainEventCollection();
+            var version = state.CommittedStreamVersion;
+            foreach (var source in pending)
+            {
+                IEvent fact = source;
+                if (source is VixFuturesEodDataInsertedEvent vix) fact = await PostgresMarketSignalStore.AcceptVixAsync(transaction,vix,token).ConfigureAwait(false);
+                await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
+                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
+                accepted.Add(fact);
+            }
+            return accepted;
+        },cancellationToken).ConfigureAwait(false);
+        state.AcceptChanges();
+        await DenormalizeEventsAsync(context,committed).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the futures EOD data state

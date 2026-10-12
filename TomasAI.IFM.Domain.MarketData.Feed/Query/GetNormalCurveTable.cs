@@ -10,7 +10,7 @@ public static class GetNormalCurveTable
 {
     internal static async ValueTask<NormalCurveTableReadModel> ExecuteAsync(
         this GetNormalCurveTableQuery q, IDbContextFactory dbFactory)
-        => await dbFactory.MarketDataDb.GetNormalCurveTableAsync();
+        => await (dbFactory.MarketDataDb.GetNormalCurveTableAsync()).ConfigureAwait(false);
 
     /// <summary>Reads and replies with the requested market-data feed result.</summary>
     public static async ValueTask ExecuteAsync(
@@ -18,6 +18,9 @@ public static class GetNormalCurveTable
         TomasAI.IFM.Domain.MarketData.Feed.Query.Actor.IMarketDataFeedQueryContext context,
         MarketDataFeedQueryParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(parameters.DbFactory).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new TomasAI.IFM.Shared.EventSourcing.ServiceResult<NormalCurveTableReadModel>(result)).ConfigureAwait(false);

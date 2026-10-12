@@ -5,19 +5,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public interface ICurrentFuturesContractCatalog
-{
-    Task<ICollection<FuturesContractV3ReadModel>> GetFuturesContractsBySymbolAsync(
-        string symbol,
-        CancellationToken cancellationToken);
-}
-
-public interface IDatabentoContractAuthority
-{
-    Task<IReadOnlyList<FuturesRolloverContractAssignment>> ReconcileAsync(DateOnly valueDate,
-        string changedBy, CancellationToken cancellationToken);
-}
-
 /// <summary>Reconciles the three required PostgreSQL roles from the read-only source catalog.</summary>
 public sealed class DatabentoContractAuthority(
     IMarketDataServiceStore store,
@@ -28,7 +15,7 @@ public sealed class DatabentoContractAuthority(
     public async Task<IReadOnlyList<FuturesRolloverContractAssignment>> ReconcileAsync(
         DateOnly valueDate, string changedBy, CancellationToken cancellationToken)
     {
-        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         ArgumentException.ThrowIfNullOrWhiteSpace(changedBy);
         var persisted = await store.ListAssignmentsAsync(cancellationToken).ConfigureAwait(false);
         if (CanReuse(persisted, valueDate))
@@ -82,10 +69,10 @@ public sealed class DatabentoContractAuthority(
                 && value.LastTradeDate > valueDate
                 && !string.IsNullOrWhiteSpace(value.ContractId)
                 && !string.IsNullOrWhiteSpace(value.LocalSymbol))
-            && assignments.Single(value => value.ContractRole == DatabentoContractRole.EsQuarterly).RootSymbol == "ES"
+            && string.Equals(assignments.Single(value => value.ContractRole == DatabentoContractRole.EsQuarterly).RootSymbol,"ES",StringComparison.Ordinal)
             && assignments.Where(value => value.ContractRole is DatabentoContractRole.VxFrontMonth
                     or DatabentoContractRole.VxSecondMonth)
-                .All(value => value.RootSymbol == "VX");
+                .All(value => string.Equals(value.RootSymbol,"VX",StringComparison.Ordinal));
 
     void PublishRegistrations(IReadOnlyCollection<FuturesRolloverContractAssignment> assignments)
     {
@@ -154,11 +141,16 @@ public sealed class DatabentoContractAuthority(
     }
 
     static bool Equivalent(FuturesRolloverContractAssignment? left, FuturesRolloverContractAssignment right)
-        => left is not null && left.ContractId == right.ContractId
-            && left.SourceContractHash == right.SourceContractHash && left.NextRolloverDate == right.NextRolloverDate;
+        => left is not null && string.Equals(left.ContractId,right.ContractId,StringComparison.Ordinal)
+            && string.Equals(left.SourceContractHash,right.SourceContractHash,StringComparison.Ordinal) && left.NextRolloverDate == right.NextRolloverDate;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase digest text is a persisted content identity, not a case-insensitive comparison key.")]
     public static string Hash(FuturesContractV3ReadModel source)
-        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\u001f",
+        
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\u001f",
             source.ContractId, source.Description, source.Symbol, source.LocalSymbol, source.SecurityType,
             source.Currency, source.Exchange, source.Multiplier, source.LastTradeDate)))).ToLowerInvariant();
+    }
 }

@@ -11,7 +11,7 @@ public class FuturesTradeSignalValidationRules : BaseValidationRules, IValidatio
 
     public ValidationError[] Execute(FuturesTradeSignalV2ReadModel futuresTradeSignal) => Validate(futuresTradeSignal, Validator);
 
-    private class FuturesTradeSignalValidator : AbstractValidator<FuturesTradeSignalV2ReadModel>
+    private sealed class FuturesTradeSignalValidator : AbstractValidator<FuturesTradeSignalV2ReadModel>
     {
         public FuturesTradeSignalValidator()
         {
@@ -24,6 +24,8 @@ public class FuturesTradeSignalValidationRules : BaseValidationRules, IValidatio
             RuleFor(x => x.RSISlope).Must(downTrendLimit => !double.IsNaN(downTrendLimit)).WithMessage("FuturesTradeSignqal.RSISlope is NaN");
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Return aggregated validation failures for malformed external models rather than allowing exceptions to escape.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The validation diagnostic intentionally identifies the validated model property.")]
         public override ValidationResult Validate(ValidationContext<FuturesTradeSignalV2ReadModel> context)
         {
             try

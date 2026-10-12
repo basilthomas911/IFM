@@ -11,29 +11,9 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesEodDataRealtimeActor"/>.</summary>
-public interface IFuturesEodDataRealtimeContext : IRealtimeActorContext<FuturesEodDataRealtimeActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesEodDataRealtimeActor> Logger { get; }
-    /// <summary>Gets the Projector service.</summary>
-    IRealtimeProjector<FuturesEodDataRealtimeActor> Projector { get; }
-    /// <summary>Gets the MarketDataApi service.</summary>
-    IMarketDataApi MarketDataApi { get; }
-    /// <summary>Gets the BlackboardService service.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the StatusConsoleWriter service.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-    /// <summary>Enables the bounded, process-local trade handoff for basic latency testing.</summary>
-    bool EnableAsyncTradeWorker { get; }
-    /// <summary>Gets the per-contract worker and trade-cache state.</summary>
-    FuturesEodTradeDispatchState TradeDispatch { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesEodDataRealtimeActor"/>.</summary>
-public sealed class FuturesEodDataRealtimeContext : EventActorContext, IRealtimeActorContext<FuturesEodDataRealtimeActor>, IFuturesEodDataRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesEodDataRealtimeContext : EventActorContext, IFuturesEodDataRealtimeContext
 {
     /// <summary>Initializes the typed realtime context.</summary>
     public FuturesEodDataRealtimeContext(

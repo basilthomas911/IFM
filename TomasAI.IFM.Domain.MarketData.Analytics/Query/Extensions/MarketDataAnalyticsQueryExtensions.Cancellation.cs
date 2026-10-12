@@ -15,19 +15,15 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesTradeSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb
-                .GetLastFuturesTradeSignalAsync(contractId, valueDate, cancellationToken))!);
+            GetFuturesTradeSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                .GetLastFuturesTradeSignalAsync(contractId, valueDate, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetLastFuturesTradeSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync(this IFuturesTradeSignalQueryContext context,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetLastFuturesTradeSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb
-                .GetLastFuturesTradeSignalAsync(cancellationToken))!);
+            GetLastFuturesTradeSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                .GetLastFuturesTradeSignalAsync(cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesTradeSignalBySymbolAsync operation.</summary>
     public static Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalBySymbolAsync(this IFuturesTradeSignalQueryContext context,
@@ -35,20 +31,16 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesTradeSignalBySymbolQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb
-                .GetLastFuturesTradeSignalBySymbolAsync(symbol, valueDate, cancellationToken))!);
+            GetFuturesTradeSignalBySymbolQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                .GetLastFuturesTradeSignalBySymbolAsync(symbol, valueDate, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesTradeSignalIdsAsync operation.</summary>
     public static Task<ServiceResult<FuturesTradeSignalId[]>> GetFuturesTradeSignalIdsAsync(this IFuturesTradeSignalQueryContext context,
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync<FuturesTradeSignalId[]>(
-            GetFuturesTradeSignalIdsQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await context.DbFactory.MarketDataDb
-                .GetFuturesTradeSignalIdByValueDateAsync(valueDate, cancellationToken)]);
+            GetFuturesTradeSignalIdsQuery.ErrorId, async () => [.. await (context.DbFactory.MarketDataDb
+                .GetFuturesTradeSignalIdByValueDateAsync(valueDate, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
     /// <summary>Executes the GetFuturesRsiSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -58,10 +50,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesRsiSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
-                contractId, valueDate, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesRsiSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesRsiSignalAsync(
+                contractId, valueDate, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesRsiDailySignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesRsiSignalReadModel>> GetFuturesRsiDailySignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -70,10 +60,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesRsiDailySignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
-                contractId, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesRsiDailySignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesRsiDailySignalAsync(
+                contractId, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesTrendDirectionFromRSISignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesTrendDirectionReadModel>> GetFuturesTrendDirectionFromRSISignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -87,11 +75,9 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateTime endTime,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesTrendDirectionFromRSISignalQuery.ErrorId,
-            cancellationToken,
-            () => context.DbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+            GetFuturesTrendDirectionFromRSISignalQuery.ErrorId, () => context.DbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
                 contractId, valueDate, timePeriod, periodLength,
-                timestamp, loopbackInterval, startTime, endTime, cancellationToken));
+                timestamp, loopbackInterval, startTime, endTime, cancellationToken), cancellationToken);
 
     /// <summary>Executes the GetFuturesTdiSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesTdiSignalReadModel>> GetFuturesTdiSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -101,15 +87,13 @@ public static partial class MarketDataAnalyticsQueryExtensions
         string configurationId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesTdiSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb
+            GetFuturesTdiSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
                 .GetLastFuturesTdiSignalAsync(
                     contractId,
                     valueDate,
                     timePeriod,
                     configurationId,
-                    cancellationToken))!);
+                    cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesItiSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -118,10 +102,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         TimeFrameType timePeriod,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesItiSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb
-                .GetLastFuturesItiSignalAsync(contractId, valueDate, timePeriod, cancellationToken))!);
+            GetFuturesItiSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb
+                .GetLastFuturesItiSignalAsync(contractId, valueDate, timePeriod, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesItiTrendDirectionChangedSignalsAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(this IFuturesTradeSignalQueryContext context,
@@ -130,10 +112,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         TimeFrameType timePeriod,
         CancellationToken cancellationToken)
         => ExecuteAsync<FuturesItiSignalV2ReadModel[]>(
-            GetFuturesItiTrendDirectionChangedSignalsQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await context.DbFactory.MarketDataDb
-                .GetFuturesItiTrendDirectionChangedSignalsAsync(contractId, valueDate, cancellationToken)]);
+            GetFuturesItiTrendDirectionChangedSignalsQuery.ErrorId, async () => [.. await (context.DbFactory.MarketDataDb
+                .GetFuturesItiTrendDirectionChangedSignalsAsync(contractId, valueDate, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
     /// <summary>Executes the GetFuturesItiSignalDataAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiSignalDataReadModel>> GetFuturesItiSignalDataAsync(this IFuturesTradeSignalQueryContext context,
@@ -142,9 +122,7 @@ public static partial class MarketDataAnalyticsQueryExtensions
         TimeFrameType timePeriod,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesItiSignalDataQuery.ErrorId,
-            cancellationToken,
-            async () =>
+            GetFuturesItiSignalDataQuery.ErrorId, async () =>
             {
                 var directionTask = context.DbFactory.MarketDataDb
                     .GetLastFuturesItiSignalTrendDirectionChangeAsync(contractId, valueDate, cancellationToken);
@@ -157,7 +135,7 @@ public static partial class MarketDataAnalyticsQueryExtensions
                     await directionTask.ConfigureAwait(false),
                     await extremeTask.ConfigureAwait(false),
                     await reversalTask.ConfigureAwait(false));
-            });
+            }, cancellationToken);
 
     /// <summary>Executes the GetFuturesItiMDIDistributionAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionAsync(this IFuturesTradeSignalQueryContext context,
@@ -165,11 +143,9 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesItiMDIDistributionQuery.ErrorId,
-            cancellationToken,
-            async () => new FuturesItiMDIDistributionReadModel(
-                [.. await context.DbFactory.MarketDataDb
-                    .GetFuturesItiSignalMDIAsync(contractId, valueDate, cancellationToken)]));
+            GetFuturesItiMDIDistributionQuery.ErrorId, async () => new FuturesItiMDIDistributionReadModel(
+                [.. await (context.DbFactory.MarketDataDb
+                    .GetFuturesItiSignalMDIAsync(contractId, valueDate, cancellationToken)).ConfigureAwait(false)]), cancellationToken);
 
     /// <summary>Executes the GetFuturesItiMDIDistributionByTrendAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiMDIDistributionReadModel>> GetFuturesItiMDIDistributionByTrendAsync(this IFuturesTradeSignalQueryContext context,
@@ -177,9 +153,7 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesItiMDIDistributionByTrendQuery.ErrorId,
-            cancellationToken,
-            async () =>
+            GetFuturesItiMDIDistributionByTrendQuery.ErrorId, async () =>
             {
                 var signal = await context.DbFactory.MarketDataDb
                     .GetLastFuturesItiSignalAsync(contractId, valueDate, cancellationToken)
@@ -190,7 +164,7 @@ public static partial class MarketDataAnalyticsQueryExtensions
                     signal?.IntrinsicTimeGroupId ?? 0,
                     cancellationToken).ConfigureAwait(false);
                 return new FuturesItiMDIDistributionReadModel(values);
-            });
+            }, cancellationToken);
 
     /// <summary>Executes the GetFuturesItiSignalMDIAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIAsync(this IFuturesTradeSignalQueryContext context,
@@ -198,10 +172,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync<FuturesItiSignalMDIV2ReadModel[]>(
-            GetFuturesItiSignalMDIQuery.ErrorId,
-            cancellationToken,
-            async () => [.. await context.DbFactory.MarketDataDb
-                .GetFuturesItiSignalMDIAsync(contractId, valueDate, cancellationToken)]);
+            GetFuturesItiSignalMDIQuery.ErrorId, async () => [.. await (context.DbFactory.MarketDataDb
+                .GetFuturesItiSignalMDIAsync(contractId, valueDate, cancellationToken)).ConfigureAwait(false)], cancellationToken);
 
     /// <summary>Executes the GetFuturesItiSignalMDIByTrendAsync operation.</summary>
     public static Task<ServiceResult<FuturesItiSignalMDIV2ReadModel[]>> GetFuturesItiSignalMDIByTrendAsync(this IFuturesTradeSignalQueryContext context,
@@ -210,10 +182,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int groupId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesItiSignalMDIByTrendQuery.ErrorId,
-            cancellationToken,
-            () => GetFuturesItiSignalMDIByTrendCoreAsync(context,
-                contractId, valueDate, groupId, cancellationToken));
+            GetFuturesItiSignalMDIByTrendQuery.ErrorId, () => GetFuturesItiSignalMDIByTrendCoreAsync(context,
+                contractId, valueDate, groupId, cancellationToken), cancellationToken);
 
     /// <summary>Executes the GetFuturesAtrSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -223,10 +193,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesAtrSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
-                contractId, valueDate, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesAtrSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesAtrSignalAsync(
+                contractId, valueDate, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesAtrDailySignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesAtrSignalReadModel>> GetFuturesAtrDailySignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -235,10 +203,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesAtrDailySignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
-                contractId, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesAtrDailySignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                contractId, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesAdxSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -248,10 +214,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesAdxSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
-                contractId, valueDate, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesAdxSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesAdxSignalAsync(
+                contractId, valueDate, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesAdxDailySignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesAdxSignalReadModel>> GetFuturesAdxDailySignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -260,10 +224,8 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int periodLength,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesAdxDailySignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
-                contractId, timePeriod, periodLength, cancellationToken))!);
+            GetFuturesAdxDailySignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesAdxDailySignalAsync(
+                contractId, timePeriod, periodLength, cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesMacdSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdSignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -292,16 +254,14 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int slowEmaPeriod,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesMacdSignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
+            GetFuturesMacdSignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesMacdSignalAsync(
                 contractId,
                 valueDate,
                 timePeriod,
                 signalEmaPeriod,
                 fastEmaPeriod,
                 slowEmaPeriod,
-                cancellationToken))!);
+                cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     /// <summary>Executes the GetFuturesMacdDailySignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesMacdSignalReadModel>> GetFuturesMacdDailySignalAsync(this IFuturesTradeSignalQueryContext context,
@@ -327,15 +287,13 @@ public static partial class MarketDataAnalyticsQueryExtensions
         int slowEmaPeriod,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetFuturesMacdDailySignalQuery.ErrorId,
-            cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+            GetFuturesMacdDailySignalQuery.ErrorId, async () => (await (context.DbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
                 contractId,
                 timePeriod,
                 signalEmaPeriod,
                 fastEmaPeriod,
                 slowEmaPeriod,
-                cancellationToken))!);
+                cancellationToken)).ConfigureAwait(false))!, cancellationToken);
 
     static async Task<FuturesItiSignalMDIV2ReadModel[]> GetFuturesItiSignalMDIByTrendCoreAsync(
         IFuturesTradeSignalQueryContext context,
@@ -353,11 +311,11 @@ public static partial class MarketDataAnalyticsQueryExtensions
         var downTrend = await downTrendTask.ConfigureAwait(false);
         return [.. upTrend, .. downTrend];
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     static async Task<ServiceResult<T>> ExecuteAsync<T>(
         int errorId,
-        CancellationToken cancellationToken,
-        Func<Task<T>> operation)
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
     {
         try
         {

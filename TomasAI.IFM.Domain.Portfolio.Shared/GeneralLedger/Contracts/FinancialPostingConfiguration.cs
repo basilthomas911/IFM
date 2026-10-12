@@ -1,8 +1,6 @@
 using MessagePack;
 namespace TomasAI.IFM.Domain.Portfolio.Shared.Financial;
-
-[MessagePackObject]
-public sealed record GetFinancialPostingConfigurationRequest([property: Key(0)] DateOnly AccountingDate);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public financial model contract.")]
 [MessagePackObject]
 public sealed record FinancialPostingConfiguration([property: Key(0)] int BookId, [property: Key(1)] int FundId,
     [property: Key(2)] FinancialAuthorityReference Authority, [property: Key(3)] LedgerPostingRule[] Rules,

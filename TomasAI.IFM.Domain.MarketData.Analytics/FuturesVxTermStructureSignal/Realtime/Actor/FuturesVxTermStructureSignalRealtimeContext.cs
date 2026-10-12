@@ -6,17 +6,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 
-/// <summary>Defines readonly services required by the VX term-structure Realtime actor.</summary>
-public interface IFuturesVxTermStructureSignalRealtimeContext
-    : IRealtimeActorContext<FuturesVxTermStructureSignalRealtimeActor>
-{
-    IMarketDataApi MarketDataApi { get; }
-    ILogger<FuturesVxTermStructureSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed VX term-structure Realtime context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVxTermStructureSignalRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesVxTermStructureSignalRealtimeActor>,
     IFuturesVxTermStructureSignalRealtimeContext
 {
     /// <summary>Initializes the typed context.</summary>

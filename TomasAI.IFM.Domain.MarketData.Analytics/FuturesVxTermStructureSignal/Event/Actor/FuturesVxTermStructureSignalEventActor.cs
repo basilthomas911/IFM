@@ -17,8 +17,7 @@ public sealed class FuturesVxTermStructureSignalEventActor(
     /// <summary>Identifies the VX term-structure Event mailbox.</summary>
     public const string ActorName = FuturesVxTermStructureSignalUpdatedEvent.Actor;
     /// <summary>Gets the typed Event context supplied through open-generic registration.</summary>
-    IFuturesVxTermStructureSignalEventContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesVxTermStructureSignalEventContext, nameof(actorContext))!;
+    IFuturesVxTermStructureSignalEventContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesVxTermStructureSignalEventContext, nameof(actorContext))!;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
@@ -50,8 +49,8 @@ public sealed class FuturesVxTermStructureSignalEventActor(
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesVxTermStructureSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

@@ -43,6 +43,20 @@ public sealed record RecordFundOrderRiskOutcomeCommand : ICommand<PortfolioFundI
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public RecordFundOrderRiskOutcomeCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="orderId">The OrderId command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    /// <param name="result">The Result command value.</param>
+    public RecordFundOrderRiskOutcomeCommand(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result)
+    {
+        OrderId = orderId;
+        ExpectedVersion = expectedVersion;
+        Result = result;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "RecordFundOrderRiskOutcome";
     public const int ErrorId = 34000;
@@ -63,20 +77,6 @@ public sealed record RecordFundOrderRiskOutcomeCommand : ICommand<PortfolioFundI
     [IgnoreMember] public string CommandName => nameof(RecordFundOrderRiskOutcomeCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public RecordFundOrderRiskOutcomeCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="orderId">The OrderId command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    /// <param name="result">The Result command value.</param>
-    public RecordFundOrderRiskOutcomeCommand(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result)
-    {
-        OrderId = orderId;
-        ExpectedVersion = expectedVersion;
-        Result = result;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

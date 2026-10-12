@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Shared.Util
         public CsvDataReader(Stream stream, bool firstRowColName = true)
             : base(stream)
         {
-            _columns = new Dictionary<string, int>();
+            _columns = new Dictionary<string, int>(StringComparer.Ordinal);
             _rows = new List<string[]>();
             ReadCsv(firstRowColName);
         }
@@ -23,14 +23,14 @@ namespace TomasAI.IFM.Shared.Util
         public CsvDataReader(string filename, bool firstRowColName = true)
             : base(filename)
         {
-            _columns = new Dictionary<string, int>();
+            _columns = new Dictionary<string, int>(StringComparer.Ordinal);
             _rows = new List<string[]>();
             ReadCsv(firstRowColName);
         }
 
-        public object this[int i] => throw new NotImplementedException();
+        public object this[int i] => GetValue(i);
 
-        public object this[string name] => throw new NotImplementedException();
+        public object this[string name] => GetValue(GetOrdinal(name));
 
         public bool IsEmpty => _rows.Count == 0;
 
@@ -42,37 +42,37 @@ namespace TomasAI.IFM.Shared.Util
 
         public int FieldCount => _columns.Count;
 
-        public bool GetBoolean(int i) => Convert.ToBoolean(GetValue(i));
+        public bool GetBoolean(int i) => Convert.ToBoolean(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public byte GetByte(int i) => throw new NotImplementedException();
+        public byte GetByte(int i) => throw new NotSupportedException();
 
-        public long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length) => throw new NotImplementedException();
+        public long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length) => throw new NotSupportedException();
 
-        public char GetChar(int i) => throw new NotImplementedException();
+        public char GetChar(int i) => throw new NotSupportedException();
 
-        public long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length) => throw new NotImplementedException();
+        public long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length) => throw new NotSupportedException();
 
-        public IDataReader GetData(int i) => throw new NotImplementedException();
+        public IDataReader GetData(int i) => throw new NotSupportedException();
 
-        public string GetDataTypeName(int i) => throw new NotImplementedException();
+        public string GetDataTypeName(int i) => throw new NotSupportedException();
 
-        public DateTime GetDateTime(int i) => Convert.ToDateTime(GetValue(i));
+        public DateTime GetDateTime(int i) => Convert.ToDateTime(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public decimal GetDecimal(int i) => Convert.ToDecimal(GetValue(i));
+        public decimal GetDecimal(int i) => Convert.ToDecimal(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public double GetDouble(int i) => Convert.ToDouble(GetValue(i));
+        public double GetDouble(int i) => Convert.ToDouble(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public Type GetFieldType(int i) => throw new NotImplementedException();
+        public Type GetFieldType(int i) => throw new NotSupportedException();
 
-        public float GetFloat(int i) => Convert.ToSingle(GetValue(i));
+        public float GetFloat(int i) => Convert.ToSingle(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public Guid GetGuid(int i) => throw new NotImplementedException();
+        public Guid GetGuid(int i) => throw new NotSupportedException();
 
-        public short GetInt16(int i) => Convert.ToInt16(GetValue(i));
+        public short GetInt16(int i) => Convert.ToInt16(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public int GetInt32(int i) => Convert.ToInt32(GetValue(i));
+        public int GetInt32(int i) => Convert.ToInt32(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
-        public long GetInt64(int i) => Convert.ToInt64(GetValue(i));
+        public long GetInt64(int i) => Convert.ToInt64(GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
 
         public string GetName(int i) => _columns.Where(e => e.Value == i).Select(e => e.Key).Single();
 
@@ -83,16 +83,19 @@ namespace TomasAI.IFM.Shared.Util
             return _columns[name];
         }
 
-        public DataTable GetSchemaTable() => throw new NotImplementedException();
+        public DataTable GetSchemaTable() => throw new NotSupportedException();
 
         public string GetString(int i) => GetValue(i)?.ToString();
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0012", Justification = "IDataRecord.GetValue preserves the specified invalid-column IndexOutOfRangeException contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2201", Justification = "The IDataRecord compatibility contract reports an invalid column ordinal with IndexOutOfRangeException.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S112", Justification = "The IDataRecord compatibility contract reports an invalid column ordinal with IndexOutOfRangeException.")]
         public object GetValue(int i)
         {
             if (_rowIndex < 0 || _rows.Count == 0)
                 throw new InvalidOperationException("No rows found in Csv Data");
             if (_rowIndex >= _rows.Count)
-                throw new IndexOutOfRangeException("Csv Data row index out of range");
+                throw new InvalidOperationException("Csv Data reader is past the last row");
             if (i < 0 || i >= _columns.Count)
                 throw new IndexOutOfRangeException("Csv Data column index out of range");
             return _rows[_rowIndex][i];
@@ -100,6 +103,7 @@ namespace TomasAI.IFM.Shared.Util
 
         public int GetValues(object[] values)
         {
+            ArgumentNullException.ThrowIfNull(values);
             for (var i = 0; i < values.Length; i++)
                 values[i] = GetValue(i);
             return values.Length;
@@ -126,82 +130,82 @@ namespace TomasAI.IFM.Shared.Util
             else
                 _rowIndex = -1;
             ReadAllRows();
-            return;
 
-            void ReadAllRows()
-            {
-                var rowData = default(string[]);
-                while ((rowData = ReadRow(ReadLine())) != null)
-                    _rows.Add(rowData);
-            }
+        }
 
-            string[] ReadRow(string rowData)
+        private void ReadAllRows()
+        {
+            var rowData = default(string[]);
+            while ((rowData = ReadRow(ReadLine())) != null)
+                _rows.Add(rowData);
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1168", Justification = "A null row is the CSV parser EOF/blank-line sentinel; an empty array would keep the reading loop running.")]
+        private static string[] ReadRow(string rowData)
+        {
+            if (string.IsNullOrWhiteSpace(rowData))
+                return default(string[]);
+            var pos = 0;
+            var fieldData = new List<string>();
+            while (pos < rowData.Length)
             {
-                if (string.IsNullOrWhiteSpace(rowData))
-                    return default(string[]);
-                var pos = 0;
-                var fieldData = new List<string>();
-                while (pos < rowData.Length)
+                string value;
+
+                // Special handling for quoted field
+                if (rowData[pos] == '"')
                 {
-                    string value;
+                    // Skip initial quote
+                    pos++;
 
-                    // Special handling for quoted field
-                    if (rowData[pos] == '"')
+                    // Parse quoted value
+                    int start = pos;
+                    while (pos < rowData.Length)
                     {
-                        // Skip initial quote
-                        pos++;
-
-                        // Parse quoted value
-                        int start = pos;
-                        while (pos < rowData.Length)
+                        // Test for quote character
+                        if (rowData[pos] == '"')
                         {
-                            // Test for quote character
-                            if (rowData[pos] == '"')
+                            // Found one
+                            pos++;
+
+                            // If two quotes together, keep one
+                            // Otherwise, indicates end of value
+                            if (pos >= rowData.Length || rowData[pos] != '"')
                             {
-                                // Found one
-                                pos++;
-
-                                // If two quotes together, keep one
-                                // Otherwise, indicates end of value
-                                if (pos >= rowData.Length || rowData[pos] != '"')
-                                {
-                                    pos--;
-                                    break;
-                                }
+                                pos--;
+                                break;
                             }
-                            pos++;
                         }
-                        value = rowData.Substring(start, pos - start);
-                        value = value.Replace("\"\"", "\"");
+                        pos++;
                     }
-                    else
-                    {
-                        // Parse unquoted value
-                        int start = pos;
-                        while (pos < rowData.Length && rowData[pos] != ',')
-                            pos++;
-                        value = rowData.Substring(start, pos - start);
-                    }
-
-                    // Add field to list
-                    fieldData.Add(value);
-
-                    // Eat up to and including next comma
+                    value = rowData.Substring(start, pos - start);
+                    value = value.Replace("\"\"", "\"", StringComparison.Ordinal);
+                }
+                else
+                {
+                    // Parse unquoted value
+                    int start = pos;
                     while (pos < rowData.Length && rowData[pos] != ',')
                         pos++;
-                    if (pos < rowData.Length)
-                        pos++;
+                    value = rowData.Substring(start, pos - start);
                 }
-                return fieldData.ToArray();
-            }
 
-            void SetColumnNames(string rowData)
-            {
-                var colNames = ReadRow(rowData);
-                for (var fieldIndex = 0; fieldIndex < colNames.Length; fieldIndex++)
-                    _columns.Add(colNames[fieldIndex], fieldIndex);
-            }
+                // Add field to list
+                fieldData.Add(value);
 
+                // Eat up to and including next comma
+                while (pos < rowData.Length && rowData[pos] != ',')
+                    pos++;
+                if (pos < rowData.Length)
+                    pos++;
+            }
+            return fieldData.ToArray();
+        }
+
+        private void SetColumnNames(string rowData)
+        {
+            var colNames = ReadRow(rowData);
+            for (var fieldIndex = 0; fieldIndex < colNames.Length; fieldIndex++)
+                _columns.Add(colNames[fieldIndex], fieldIndex);
         }
     }
 }

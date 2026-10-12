@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// evidence, not proof that a downstream projector persisted data.</remarks>
 public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly TimeProvider clock = time ?? TimeProvider.System;
     RealtimeActorCompletionTarget? target;
     long completed;
@@ -14,6 +14,7 @@ public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
     /// <summary>Arms one exact dataset, generation, and actor route; prior evidence is discarded.</summary>
     public void Arm(RealtimeActorCompletionTarget value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         if (string.IsNullOrWhiteSpace(value.Dataset) || value.Dataset.Length > 64
             || value.GenerationId == Guid.Empty || string.IsNullOrWhiteSpace(value.ActorName)
             || string.IsNullOrWhiteSpace(value.Verb) || value.ActorType != ActorType.Realtime)
@@ -47,20 +48,12 @@ public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
     {
         lock (gate)
         {
-            if (target is not { } expected || expected.Dataset != dataset
-                || expected.GenerationId != generationId || expected.ActorType != subject.ActorType
-                || expected.ActorName != subject.Name || expected.Verb != subject.Verb)
+            if (target is not { } expected || !string.Equals(expected.Dataset, dataset
+, StringComparison.Ordinal) || expected.GenerationId != generationId || expected.ActorType != subject.ActorType
+                || !string.Equals(expected.ActorName, subject.Name, StringComparison.Ordinal) || !string.Equals(expected.Verb, subject.Verb, StringComparison.Ordinal))
                 return;
             completed++;
             lastCompletedUtc = clock.GetUtcNow();
         }
     }
 }
-
-/// <summary>Exact supervised generation and actor route whose completed messages are observed.</summary>
-public sealed record RealtimeActorCompletionTarget(string Dataset, Guid GenerationId,
-    ActorType ActorType, string ActorName, string Verb);
-
-/// <summary>Bounded actor completion evidence. This alone does not qualify downstream admission.</summary>
-public sealed record RealtimeActorCompletionSnapshot(RealtimeActorCompletionTarget? Target,
-    long Completed, DateTimeOffset? LastCompletedUtc);

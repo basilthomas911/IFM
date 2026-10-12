@@ -53,24 +53,32 @@ internal static class ActorRuntimeMetrics
         "{mailbox}",
         "Current scheduled mailboxes waiting for an actor worker.");
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1823", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1144", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
     static readonly ObservableGauge<long> WorkerCapacity = Meter.CreateObservableGauge(
         "ifm.actor.worker.capacity",
         ObserveWorkerCapacity,
         "{worker}",
         "Configured logical actor-worker concurrency capacity.");
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1823", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1144", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
     static readonly ObservableGauge<long> WorkerBusy = Meter.CreateObservableGauge(
         "ifm.actor.worker.busy",
         ObserveWorkerBusy,
         "{worker}",
         "Logical actor workers currently owning a mailbox batch, including asynchronous handler waits.");
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1823", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1144", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
     static readonly ObservableGauge<long> WorkerAvailable = Meter.CreateObservableGauge(
         "ifm.actor.worker.available",
         ObserveWorkerAvailable,
         "{worker}",
         "Logical actor workers currently available to take a scheduled mailbox.");
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1823", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1144", Justification = "The field initializer registers an observable instrument with Meter; collectors consume its callback without reading this field.")]
     static readonly ObservableGauge<double> WorkerUtilization = Meter.CreateObservableGauge(
         "ifm.actor.worker.utilization",
         ObserveWorkerUtilization,
@@ -230,16 +238,14 @@ internal static class ActorRuntimeMetrics
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void RegisterWorkerPool(int workerCount)
     {
-        if (workerCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(workerCount));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workerCount);
         Interlocked.Add(ref _workerCapacity, workerCount);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void UnregisterWorkerPool(int workerCount)
     {
-        if (workerCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(workerCount));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(workerCount);
         Interlocked.Add(ref _workerCapacity, -workerCount);
     }
 

@@ -20,11 +20,3 @@ public sealed record FunctionEventContext<TRequest>(
     bool IsConflict = false,
     FunctionEventPhase Phase = FunctionEventPhase.Outcome)
     where TRequest : class, ICommand;
-
-/// <summary>Local lifecycle meaning of a Function event-map callback; never serialized on the wire.</summary>
-public enum FunctionEventPhase : byte
-{
-    Outcome,
-    Committed,
-    Replayed
-}

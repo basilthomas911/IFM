@@ -53,27 +53,28 @@ public class YieldCurveRateStateRepository(
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
+        ArgumentNullException.ThrowIfNull(domainEvents);
         var db = actorContext.DbFactory.MarketDataDb;
         foreach (var domainEvent in domainEvents)
         {
             _ = domainEvent switch
             {
-                YieldCurveRateAddedEvent e => await UpdateReadModelAsync<YieldCurveRateAddedEvent, YieldCurveRateAddedCompleteEvent, YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(
-                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
-                YieldCurveRateChangedEvent e => await UpdateReadModelAsync<YieldCurveRateChangedEvent, YieldCurveRateChangedCompleteEvent, YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(
-                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate)),
-                YieldCurveRateRemovedEvent e => await UpdateReadModelAsync<YieldCurveRateRemovedEvent, YieldCurveRateRemovedCompleteEvent, YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(
-                    context, e, () => DeleteYieldCurveRateAsync(db, e.ValueDate)),
-                YieldCurveRatesImportedEvent e => await PostEventAsync<YieldCurveRatesImportedEvent, YieldCurveRateEntityId>(context, e),
+                YieldCurveRateAddedEvent e => await (UpdateReadModelAsync<YieldCurveRateAddedEvent, YieldCurveRateAddedCompleteEvent, YieldCurveRateAddedFailEvent, YieldCurveRateEntityId>(
+                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate))).ConfigureAwait(false),
+                YieldCurveRateChangedEvent e => await (UpdateReadModelAsync<YieldCurveRateChangedEvent, YieldCurveRateChangedCompleteEvent, YieldCurveRateChangedFailEvent, YieldCurveRateEntityId>(
+                    context, e, () => InsertYieldCurveRateAsync(db, e.YieldCurveRate))).ConfigureAwait(false),
+                YieldCurveRateRemovedEvent e => await (UpdateReadModelAsync<YieldCurveRateRemovedEvent, YieldCurveRateRemovedCompleteEvent, YieldCurveRateRemovedFailEvent, YieldCurveRateEntityId>(
+                    context, e, () => DeleteYieldCurveRateAsync(db, e.ValueDate))).ConfigureAwait(false),
+                YieldCurveRatesImportedEvent e => await (PostEventAsync<YieldCurveRatesImportedEvent, YieldCurveRateEntityId>(context, e)).ConfigureAwait(false),
                 _ => false
             };
         }
 
         static async ValueTask InsertYieldCurveRateAsync(IMarketDataDbContext db, YieldCurveRateReadModel yieldCurveRate)
-            => await db.InsertYieldCurveRateAsync(yieldCurveRate);
+            => await (db.InsertYieldCurveRateAsync(yieldCurveRate)).ConfigureAwait(false);
 
         static async ValueTask DeleteYieldCurveRateAsync(IMarketDataDbContext db, DateOnly valueDate)
-            => await db.DeleteYieldCurveRateAsync(valueDate);
+            => await (db.DeleteYieldCurveRateAsync(valueDate)).ConfigureAwait(false);
 
     }
 }

@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(true)]
 public record FuturesTradeSignalLLMReadModel(
         string ContractId,

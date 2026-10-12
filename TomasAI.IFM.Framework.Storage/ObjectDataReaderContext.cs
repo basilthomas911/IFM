@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Framework.Storage.Csv;
 using TomasAI.IFM.Framework.Storage.Json;
 
@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Framework.Storage;
 /// <param name="options"></param>
 public class ObjectDataReaderContext : IObjectDataReaderContext
 {
+    private static readonly string[] LineSeparators = ["\r\n", "\r", "\n"];
     readonly IDataReaderOptions _options;
 
     public ObjectDataReaderContext(IObjectRepository db, IDataReaderOptions options)
@@ -40,9 +41,9 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
         var resultSet = default(ICollection<TResult>);
         return _options.DataReaderType switch
         {
-            DataReaderType.Csv => await GetCsvDataAsync(),
-            DataReaderType.JSON => await GetJsonDataAsync(),
-            _ => throw new NotImplementedException()
+            DataReaderType.Csv => await (GetCsvDataAsync()).ConfigureAwait(false),
+            DataReaderType.JSON => await (GetJsonDataAsync()).ConfigureAwait(false),
+            _ => throw new NotSupportedException()
         };
 
         async ValueTask<ICollection<TResult>> GetCsvDataAsync()
@@ -74,6 +75,6 @@ public class ObjectDataReaderContext : IObjectDataReaderContext
         }
 
         static IEnumerable<string> SplitLines(string value)
-            => value.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            => value.Split(LineSeparators, StringSplitOptions.None);
     }
 }

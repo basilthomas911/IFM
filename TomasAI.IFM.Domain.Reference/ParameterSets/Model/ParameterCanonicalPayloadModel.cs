@@ -11,10 +11,14 @@ public static class ParameterCanonicalPayloadModel
     {
         ArgumentNullException.ThrowIfNull(payload);
         if (System.Text.Encoding.UTF8.GetByteCount(payload) > MaximumBytes)
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.PAYLOAD_TOO_LARGE");
+#pragma warning restore MA0015
         using var document = JsonDocument.Parse(payload, new JsonDocumentOptions { MaxDepth = 32 });
         if (document.RootElement.ValueKind != JsonValueKind.Object)
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.OBJECT_REQUIRED");
+#pragma warning restore MA0015
         var buffer = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(buffer)) Write(writer, document.RootElement);
         return System.Text.Encoding.UTF8.GetString(buffer.WrittenSpan);
@@ -28,7 +32,9 @@ public static class ParameterCanonicalPayloadModel
             case JsonValueKind.Object:
                 var properties = element.EnumerateObject().ToArray();
                 if (properties.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count() != properties.Length)
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
                     throw new ArgumentException("PARAM.DUPLICATE_PROPERTY");
+#pragma warning restore MA0015
                 writer.WriteStartObject();
                 foreach (var p in properties.OrderBy(x => x.Name, StringComparer.Ordinal))
                 { writer.WritePropertyName(p.Name); Write(writer, p.Value); }

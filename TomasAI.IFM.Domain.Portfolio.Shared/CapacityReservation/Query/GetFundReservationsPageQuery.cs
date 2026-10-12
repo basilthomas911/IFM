@@ -29,6 +29,13 @@ public sealed record GetFundReservationsPageQuery : IFinancialQueryMessage<GetFu
         CorrelationId = correlationId;
         RequestedAtUtc = requestedAtUtc;
     }
+
+    /// <summary>Initializes an empty query for serialization.</summary>
+    public GetFundReservationsPageQuery() { }
+
+    /// <summary>Initializes the query from its request values.</summary>
+    /// <param name="parameters">The query request.</param>
+    public GetFundReservationsPageQuery(GetFundReservationsPageRequest parameters) => Parameters = parameters;
     public const string Actor = "CapacityReservationQuery";
     public const string Verb = "GetFundReservationsPage";
     public const int ErrorId = FinancialReasons.PersistenceFailed;
@@ -57,11 +64,4 @@ public sealed record GetFundReservationsPageQuery : IFinancialQueryMessage<GetFu
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => EntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => EntityId;
-
-    /// <summary>Initializes an empty query for serialization.</summary>
-    public GetFundReservationsPageQuery() { }
-
-    /// <summary>Initializes the query from its request values.</summary>
-    /// <param name="parameters">The query request.</param>
-    public GetFundReservationsPageQuery(GetFundReservationsPageRequest parameters) => Parameters = parameters;
 }

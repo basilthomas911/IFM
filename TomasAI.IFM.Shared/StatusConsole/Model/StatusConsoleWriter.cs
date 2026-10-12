@@ -44,8 +44,8 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
             )
         };
         if (!StatusConsole.IsRunning)
-            await StatusConsole.StartAsync(logEvent.Subject.ActorId);
-        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent);
+            await StatusConsole.StartAsync(logEvent.Subject.ActorId).ConfigureAwait(false);
+        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public class StatusConsoleWriter(IStatusConsoleEventProducer statusConsole)
             )
         };
         if (!StatusConsole.IsRunning)
-            await StatusConsole.StartAsync(logEvent.Subject.ActorId);
-        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent);
+            await StatusConsole.StartAsync(logEvent.Subject.ActorId).ConfigureAwait(false);
+        await StatusConsole.SendAsync<StatusConsoleLoggedEvent, ActorEntityId>(logEvent.Subject, logEvent).ConfigureAwait(false);
     }
 }

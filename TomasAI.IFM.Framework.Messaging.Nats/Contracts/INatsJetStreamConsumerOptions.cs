@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 /// including the server URL, stream name, and durable consumer name.</remarks>
 public interface INatsJetStreamConsumerOptions
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1056", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     string Url { get; set; }
     string StreamName { get; set; }
     string DurableConsumerName { get; set; }

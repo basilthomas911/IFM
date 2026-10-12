@@ -5,16 +5,6 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
-public sealed record DatabentoHardAttemptResult(
-    bool Succeeded,
-    bool SafeToRetry,
-    string Stage,
-    Exception? Failure,
-    IReadOnlyList<DatasetWorkerProcessSnapshot> Workers)
-{
-    public Exception? CleanupFailure { get; init; }
-}
-
 /// <summary>
 /// Owns one Databento-only attempt. It never reconciles contracts, starts the host publisher,
 /// publishes status, or admits candidate records downstream.
@@ -57,8 +47,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntime(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(frozen);
-        if (maximumManifestAge <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(maximumManifestAge));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maximumManifestAge, TimeSpan.Zero);
         var age = timeProvider.GetUtcNow() - frozen.CapturedAtUtc;
         if (age < TimeSpan.Zero || age > maximumManifestAge)
             return Task.FromResult(new DatabentoHardAttemptResult(false, true, "FrozenManifest",
@@ -72,6 +61,7 @@ public sealed class SupervisedDatabentoHardRecoveryRuntime(
             qualificationTimeout, maximumInputAge, cancellationToken);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     public async Task<DatabentoHardAttemptResult> AttemptAsync(
         IReadOnlyList<DatasetSubscriptionManifest> frozen,
         bool liveTrading,

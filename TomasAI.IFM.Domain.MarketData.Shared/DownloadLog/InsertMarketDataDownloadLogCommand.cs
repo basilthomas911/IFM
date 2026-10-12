@@ -30,6 +30,20 @@ public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId
         Outcome = outcome;
         PayloadSha256 = payloadSha256;
     }
+
+    /// <summary>Creates an empty command for deserialization.</summary>
+    public InsertMarketDataDownloadLogCommand() { }
+    /// <summary>Creates a deterministic logging command for a completed import.</summary>
+    /// <param name="outcome">The completed import outcome to record.</param>
+    public InsertMarketDataDownloadLogCommand(MarketDataDownloadOutcome outcome)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+        Outcome = outcome;
+        PayloadSha256 = outcome.ComputeHash();
+        CommandId = MarketDataDownloadOutcome.LoggingCommandId(outcome.ImportCommandId);
+        EntityId = new(outcome.ImportCommandId);
+        Subject = new(ActorType.Command, Actor, Verb, EntityId.Format());
+    }
     public const string Actor = "DownloadLogCommand";
     public const string Verb = "InsertMarketDataDownloadLog";
     public const int ErrorId = 6050;
@@ -45,31 +59,20 @@ public sealed record InsertMarketDataDownloadLogCommand : ICommand<DownloadLogId
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => "DownloadLogCommandActor";
     [IgnoreMember] public DateTime OriginatedOn => Outcome.RequestedAtUtc;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserve the established instance event, read-model or validation API used by existing consumers.")]
     [IgnoreMember] public string OriginatedBy => "MarketDataImport";
 
-    /// <summary>Creates an empty command for deserialization.</summary>
-    public InsertMarketDataDownloadLogCommand() { }
-    /// <summary>Creates a deterministic logging command for a completed import.</summary>
-    /// <param name="outcome">The completed import outcome to record.</param>
-    public InsertMarketDataDownloadLogCommand(MarketDataDownloadOutcome outcome)
-    {
-        Outcome = outcome;
-        PayloadSha256 = outcome.ComputeHash();
-        CommandId = MarketDataDownloadOutcome.LoggingCommandId(outcome.ImportCommandId);
-        EntityId = new(outcome.ImportCommandId);
-        Subject = new(ActorType.Command, Actor, Verb, EntityId.Format());
-    }
-
     /// <summary>Rejects an outcome whose identity, route, or payload hash differs from this command.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(Outcome);
         if (CommandId != MarketDataDownloadOutcome.LoggingCommandId(Outcome.ImportCommandId)
             || EntityId?.ImportCommandId != Outcome.ImportCommandId
-            || RouteTo != BoundedContextName.DownloadLogBoundedContext
-            || Subject.ActorType != ActorType.Command || Subject.Name != Actor
-            || Subject.Verb != Verb || Subject.EntityId != EntityId.Format()
-            || PayloadSha256 != Outcome.ComputeHash())
+            || ((RouteTo)!=(BoundedContextName.DownloadLogBoundedContext))
+            || ((Subject.ActorType)!=(ActorType.Command)) || !string.Equals(Subject.Name,Actor,StringComparison.Ordinal)
+            || (!string.Equals((Subject.Verb),(Verb),StringComparison.Ordinal)) || !string.Equals(Subject.EntityId,EntityId.Format(),StringComparison.Ordinal)
+            || !string.Equals(PayloadSha256,Outcome.ComputeHash(),StringComparison.Ordinal))
             throw new ArgumentException("DownloadLog identity, route or payload hash does not match its outcome.");
     }
 }

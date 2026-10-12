@@ -5,14 +5,9 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Application.Query.Actor;
 
-public interface IApplicationQueryContext : IQueryActorContext<ApplicationQueryActor>
-{
-    IApplicationStartupStatusStore StatusStore { get; }
-    ILogger<ApplicationQueryActor> Logger { get; }
-}
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ApplicationQueryContext : QueryActorContext,
-    IQueryActorContext<ApplicationQueryActor>, IApplicationQueryContext
+IApplicationQueryContext
 {
     public ApplicationQueryContext(
         IActorSupervisor supervisor,

@@ -65,8 +65,8 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
     static IRegimeDiscoveryConfigurationQueryContext Typed(
         IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context)

@@ -113,6 +113,7 @@ public sealed class PortfolioQueryService(
     public async Task<ServiceResult<FundTradeTemplateAssignmentReadModel[]>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, CancellationToken cancellationToken = default) =>
         new ServiceOk<FundTradeTemplateAssignmentReadModel[]>([.. await _db.GetAssignmentsAsync(Positive(portfolioId), Positive(fundId), Positive(mandateVersion), 200, cancellationToken).ConfigureAwait(false)]);
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1994", Justification = "The explicit page == 50 throw bounds enumeration and rejects excess configuration; retain that rejection instead of silently terminating enumeration.")]
     public async Task<ServiceResult<PortfolioFundStrategySnapshot>> ResolveForSelectionAsync(int portfolioId, int? fundId, int tradingYear, string decisionHorizon, string underlyingRoot, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default)
     {
         try
@@ -138,7 +139,7 @@ public sealed class PortfolioQueryService(
                 {
                     if (page == 50) throw new PortfolioResolutionException("FundResolutionLimit", "Fund enumeration exceeded the bounded resolution limit; pin a Fund explicitly.");
                     var rows = await _db.GetFundsByPortfolioAsync(portfolioId, after, 200, cancellationToken).ConfigureAwait(false);
-                    matching.AddRange(rows.Where(x => x.TradingYear == tradingYear && x.DecisionHorizon == decisionHorizon
+                    matching.AddRange(rows.Where(x => x.TradingYear == tradingYear && string.Equals(x.DecisionHorizon,decisionHorizon,StringComparison.Ordinal)
                         && x.UnderlyingUniverse.Contains(underlyingRoot, StringComparer.OrdinalIgnoreCase)
                         && x.EffectiveFromUtc <= asOfUtc && (x.EffectiveUntilUtc is null || asOfUtc < x.EffectiveUntilUtc)));
                     if (matching.Count > 1) throw new PortfolioResolutionException("FundAmbiguous", "Pin the Fund when multiple effective mandates match.");
@@ -183,7 +184,7 @@ public sealed class PortfolioQueryService(
                 foreach (var assignment in assignments.Where(x => x.Enabled))
                 {
                     var key = assignment.TradeStrategyFamily?.CatalogDeployment ?? throw new PortfolioResolutionException("LegacyAssignment", "Legacy strategy assignments must be migrated to ConfigurationDb before workflow use.");
-                    try { await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, key, true, cancellationToken); }
+                    try { await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, key, true, cancellationToken)).ConfigureAwait(false); }
                     catch (Exception ex) when (ex is not OperationCanceledException) { throw new PortfolioResolutionException("StrategyDeploymentUnavailable", ex.Message); }
                 }
             return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.Resolve(workflowId, workflowRevision, correlationId, portfolio, financialPolicy, eligible, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope], assignments, tradingYear, decisionHorizon, underlyingRoot, assetType, asOfUtc));
@@ -241,7 +242,7 @@ public sealed class PortfolioQueryService(
                     if (catalogQueries is null) { eligible = false; reason = "CatalogValidationUnavailable"; }
                     else try
                         {
-                            await TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, assignment.TradeStrategyFamily!.CatalogDeployment!, true, cancellationToken);
+                            await (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogPermissionValidation.ValidateDeploymentAsync(catalogQueries, assignment.TradeStrategyFamily!.CatalogDeployment!, true, cancellationToken)).ConfigureAwait(false);
                             reason = "Eligible";
                         }
                         catch (Exception ex) when (ex is not OperationCanceledException) { eligible = false; reason = "StrategyDeploymentUnavailable"; }
@@ -294,26 +295,5 @@ public sealed class PortfolioQueryService(
     static long Positive(long value) => value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
     static int Page(int value) => value is >= 1 and <= 200 ? value : throw new ArgumentOutOfRangeException(nameof(value), "Page size must be 1..200.");
     static int PortfolioBucket(int portfolioId) => checked((Positive(portfolioId) - 1) / 1000);
-    static void Utc(DateTime value) { if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC."); }
-}
-
-public static class PortfolioPageToken
-{
-    public static string EncodeInteger(int value) => Encode($"i:{value.ToString(CultureInfo.InvariantCulture)}");
-    public static int DecodeInteger(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return 0;
-        var value = Decode(token);
-        return value.StartsWith("i:", StringComparison.Ordinal) && int.TryParse(value.AsSpan(2), CultureInfo.InvariantCulture, out var parsed) && parsed >= 0 ? parsed : throw new FormatException("Page token is invalid.");
-    }
-    public static string EncodeTimestamp(DateTime value) { Utc(value); return Encode($"t:{value.Ticks.ToString(CultureInfo.InvariantCulture)}"); }
-    public static DateTime? DecodeTimestamp(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return null;
-        var value = Decode(token);
-        return value.StartsWith("t:", StringComparison.Ordinal) && long.TryParse(value.AsSpan(2), CultureInfo.InvariantCulture, out var ticks) ? new DateTime(ticks, DateTimeKind.Utc) : throw new FormatException("Page token is invalid.");
-    }
-    static string Encode(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
-    static string Decode(string value) { try { return Encoding.UTF8.GetString(Convert.FromBase64String(value)); } catch (Exception ex) when (ex is FormatException or ArgumentException) { throw new FormatException("Page token is invalid.", ex); } }
-    static void Utc(DateTime value) { if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC."); }
+    static void Utc(DateTime value) { if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC.",nameof(value)); }
 }

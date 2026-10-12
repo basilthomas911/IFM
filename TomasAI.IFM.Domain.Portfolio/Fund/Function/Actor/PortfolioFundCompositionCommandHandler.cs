@@ -23,6 +23,7 @@ public sealed class PortfolioFundCompositionCommandHandler(
         Guid commandId, ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot,
         DateTime nowUtc, string principal, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         var fundId = new PortfolioFundId(request.PortfolioId, request.FundId);
         var aggregate = await _eventStore.LoadFundAsync(fundId, cancellationToken).ConfigureAwait(false);
         if (aggregate.TryComposition(request.IdempotencyKey, out var prior))
@@ -38,43 +39,54 @@ public sealed class PortfolioFundCompositionCommandHandler(
         for (var i = 0; i < tradeIds.Length; i++)
             tradeIds[i] = await _allocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false);
         var domainEvent = aggregate.ReserveComposition(commandId, aggregate.Revision, request, snapshot, orderId, tradeIds, nowUtc, principal);
+        TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, aggregate);
         await _eventStore.AppendFundAsync(fundId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         return ((FundCompositionReservedEvent)domainEvent).Reservation;
     }
 
     public Task<FundOrderProjectionReadModel> MarkComposingAsync(Guid commandId, PortfolioFundOrderId id, long expectedOrderVersion,
-        DateTime nowUtc, string principal, CancellationToken cancellationToken = default) =>
-        TransitionAsync(commandId, id, nowUtc, principal,
-            aggregate => aggregate.MarkCompositionComposing(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, nowUtc, principal), cancellationToken);
+        DateTime nowUtc, string principal, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return TransitionAsync(commandId, id, aggregate => aggregate.MarkCompositionComposing(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, nowUtc, principal), cancellationToken);
+    }
 
     public Task<FundOrderProjectionReadModel> RecordComposedAsync(Guid commandId, PortfolioFundOrderId id, long expectedOrderVersion,
-        OrderCompositionResultReference result, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) =>
-        TransitionAsync(commandId, id, nowUtc, principal,
-            aggregate => aggregate.RecordCompositionResult(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, result, nowUtc, principal), cancellationToken);
+        OrderCompositionResultReference result, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return TransitionAsync(commandId, id, aggregate => aggregate.RecordCompositionResult(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, result, nowUtc, principal), cancellationToken);
+    }
 
     public Task<FundOrderProjectionReadModel> RecordRiskAsync(Guid commandId, PortfolioFundOrderId id, long expectedOrderVersion,
-        RiskManagementResultReference result, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) =>
-        TransitionAsync(commandId, id, nowUtc, principal,
-            aggregate => aggregate.RecordRiskResult(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, result, nowUtc, principal), cancellationToken);
+        RiskManagementResultReference result, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return TransitionAsync(commandId, id, aggregate => aggregate.RecordRiskResult(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, result, nowUtc, principal), cancellationToken);
+    }
 
     public Task<FundOrderProjectionReadModel> CancelAsync(Guid commandId, PortfolioFundOrderId id, long expectedOrderVersion,
-        string reason, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) =>
-        TransitionAsync(commandId, id, nowUtc, principal,
-            aggregate => aggregate.CancelComposition(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, reason, nowUtc, principal), cancellationToken);
+        string reason, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return TransitionAsync(commandId, id, aggregate => aggregate.CancelComposition(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, reason, nowUtc, principal), cancellationToken);
+    }
 
     public Task<FundOrderProjectionReadModel> ExpireAsync(Guid commandId, PortfolioFundOrderId id, long expectedOrderVersion,
-        string reason, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) =>
-        TransitionAsync(commandId, id, nowUtc, principal,
-            aggregate => aggregate.ExpireComposition(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, reason, nowUtc, principal), cancellationToken);
+        string reason, DateTime nowUtc, string principal, CancellationToken cancellationToken = default) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return TransitionAsync(commandId, id, aggregate => aggregate.ExpireComposition(commandId, aggregate.Revision, id.OrderId, expectedOrderVersion, reason, nowUtc, principal), cancellationToken);
+    }
 
-    async Task<FundOrderProjectionReadModel> TransitionAsync(Guid commandId, PortfolioFundOrderId id, DateTime nowUtc, string principal,
-        Func<State.PortfolioFundAggregate, IPortfolioFundDomainEvent> transition, CancellationToken cancellationToken)
+    async Task<FundOrderProjectionReadModel> TransitionAsync(Guid commandId, PortfolioFundOrderId id, Func<State.PortfolioFundAggregate, IPortfolioFundDomainEvent> transition, CancellationToken cancellationToken)
     {
         var fundId = new PortfolioFundId(id.PortfolioId, id.FundId);
         var aggregate = await _eventStore.LoadFundAsync(fundId, cancellationToken).ConfigureAwait(false);
         if (await _eventStore.FindCommittedFundCommandAsync(fundId, commandId, cancellationToken).ConfigureAwait(false) is FundCompositionStateChangedEvent committed)
             return committed.Order;
         var domainEvent = transition(aggregate);
+        TomasAI.IFM.Domain.Portfolio.Projection.PortfolioAcceptedProjection.Capture(domainEvent, aggregate);
         await _eventStore.AppendFundAsync(fundId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         return ((FundCompositionStateChangedEvent)domainEvent).Order;
     }

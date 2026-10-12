@@ -11,25 +11,9 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="MarketDataFeedEventActor"/>.</summary>
-public interface IMarketDataFeedEventContext : IEventActorContext<MarketDataFeedEventActor>
-{
-    /// <summary>Gets the actor supervisor.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<MarketDataFeedEventActor> Logger { get; }
-    /// <summary>Gets the sole lifecycle-owner request boundary.</summary>
-    IMarketDataLifecycleRequests MarketDataLifecycle { get; }
-    /// <summary>Gets the OptionTradeLiveFeedMap service.</summary>
-    IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; }
-    /// <summary>Gets the BlackboardService service.</summary>
-    IBlackboardService BlackboardService { get; }
-    /// <summary>Gets the StatusConsoleWriter service.</summary>
-    IStatusConsoleWriter StatusConsoleWriter { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="MarketDataFeedEventActor"/>.</summary>
-public sealed class MarketDataFeedEventContext : EventActorContext, IEventActorContext<MarketDataFeedEventActor>, IMarketDataFeedEventContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataFeedEventContext
 {
     /// <summary>Initializes the typed event context.</summary>
     public MarketDataFeedEventContext(

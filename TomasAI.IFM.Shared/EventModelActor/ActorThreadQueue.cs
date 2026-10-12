@@ -13,15 +13,16 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <remarks>This class implements the IActorThreadQueue interface and IDisposable, ensuring proper resource
 /// management. It must be initialized before any message operations can be performed, and it supports both synchronous
 /// and asynchronous message reading and writing.</remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1711", Justification = "The established public actor queue/handler contract name describes its role and must remain compatible.")]
 public sealed class ActorThreadQueue()
     : IActorThreadQueue, IDisposable
 {
     const int QueueCapacity = 8192;
-    volatile bool _started = false;
-    bool _disposed = false;
+    volatile bool _started;
+    bool _disposed;
     ActorThreadId _id;
     Channel<IActorMessage> _messageChannel;
-    readonly object _startedLock = new();
+    readonly System.Threading.Lock _startedLock = new();
 
     /// <summary>
     /// Gets the unique identifier for the actor thread.

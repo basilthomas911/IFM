@@ -11,5 +11,3 @@ public interface IRequireDurableProjection
 
     DurableProjectionRequirement RequiredProjection { get; }
 }
-
-public sealed record DurableProjectionRequirement(string ActorName, string ProjectorName, EventProjectorStageType InitialStage);

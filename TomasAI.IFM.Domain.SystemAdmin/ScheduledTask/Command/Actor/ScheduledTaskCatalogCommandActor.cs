@@ -15,7 +15,7 @@ public sealed class ScheduledTaskCatalogCommandActor(ICommandActorContext<Schedu
     public const string Actor = "ScheduledTaskCatalogCommand";
     private readonly ScheduledTaskCatalogCommandContext _owner = context as ScheduledTaskCatalogCommandContext ?? throw new ArgumentException("Typed scheduled-task context required.", nameof(context));
     /// <summary>Gets the complete set of routed concrete command types.</summary>
-    public static IReadOnlyCollection<Type> SupportedCommandTypes => _receiveMap.Keys.ToArray();
+    public static IReadOnlyCollection<Type> SupportedCommandTypes =>CachedSupportedCommandTypes.Value;
     private static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
             [RegisterScheduledTaskProjectCommand.Verb] = message => message.AsCommand<RegisterScheduledTaskProjectCommand>()!,
@@ -59,5 +59,11 @@ public sealed class ScheduledTaskCatalogCommandActor(ICommandActorContext<Schedu
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<ScheduledTaskCatalogCommandActor> context, IActorState state, ICommand command) => ResolveMappedCommandHandler(command, _receiveMap)(command, _owner, (ScheduledTaskCatalogCommandState)state);
     /// <inheritdoc />
-    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ScheduledTaskCatalogCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception) => ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, $"ScheduledTaskCatalog.EXCEPTION;{exception.GetType().Name};{exception.Message}"));
+    protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<ScheduledTaskCatalogCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command.ErrorCode, $"ScheduledTaskCatalog.EXCEPTION;{ex.GetType().Name};{ex.Message}"));
+    }
+private static readonly System.Lazy<IReadOnlyCollection<Type>> CachedSupportedCommandTypes = new(() => System.Array.AsReadOnly(_receiveMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 }

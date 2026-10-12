@@ -15,6 +15,7 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers;
 /// <summary>
 /// option trade position opened event handler
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711", Justification = "Existing event service handler identity is used by service registration.")]
 public class OptionTradePositionOpenedEventHandler : BaseEventServiceHandler,
     IAsyncEventHandler<OptionTradePositionOpenedEvent>
 {
@@ -45,19 +46,21 @@ public class OptionTradePositionOpenedEventHandler : BaseEventServiceHandler,
     /// </summary>
     /// <param name="e">option trade position opened event</param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
     public async Task ExecuteAsync(OptionTradePositionOpenedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
-            var serviceResult = await _tradeQueryApi.GetOptionTradeAsync(e.OptionTradeId.OrderId, e.OptionTradeId.TradeId);
+            var serviceResult = await (_tradeQueryApi.GetOptionTradeAsync(e.OptionTradeId.OrderId, e.OptionTradeId.TradeId)).ConfigureAwait(false);
             if (serviceResult.Success)
                 _blackboardService.Trade.OptionTrade.Set(e.OptionTradeId, serviceResult.Value);
         }
         catch (Exception ex)
         {
             var errorMessage = $"{e.GetType().Name}: option trade {e.OptionTradeId.OrderId}:{e.OptionTradeId.TradeId} position open failed due to: {ex.GetErrorMessage()}";
-            await WriteConsoleAsync(LogSourceType.TradePosition, OptionTradePositionOpenedEvent.ErrorCode, errorMessage);
-            _logger.LogError(ex, errorMessage);
+            await (WriteConsoleAsync(LogSourceType.TradePosition, OptionTradePositionOpenedEvent.ErrorCode, errorMessage)).ConfigureAwait(false);
+            TradePositionDiagnosticLog.Failed(_logger, ex, errorMessage);
         }
     }
 

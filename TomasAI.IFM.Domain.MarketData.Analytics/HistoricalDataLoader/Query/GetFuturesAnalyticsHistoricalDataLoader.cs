@@ -16,22 +16,28 @@ public static class GetFuturesAnalyticsHistoricalDataLoader
         IQueryActorContext<FuturesAnalyticsHistoricalDataLoaderQueryActor> context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var state = await context.DataLoaderStore.GetAsync(
             query.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
-        var result = state is null ? null : new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
-        {
-            DataLoadAttemptId = state.DataLoadAttemptId,
-            RequestSha256 = state.RequestSha256,
-            Status = state.Status.ToString(),
-            ManifestId = state.Manifest?.ManifestId,
-            LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
-            LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, out var ordinal) ? ordinal : -1,
-            ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
-            GapCount = state.Audit?.Gaps.Count ?? 0,
-            RollCount = state.Audit?.Rolls.Count ?? 0,
-            ErrorMessage = state.ErrorMessage,
-            UpdatedAtUtc = state.UpdatedAtUtc
-        };
+        var result = (state is null) switch
+{
+    true => null,
+    false => new FuturesAnalyticsHistoricalDataLoaderDiagnosticsReadModel
+    {
+        DataLoadAttemptId = state.DataLoadAttemptId,
+        RequestSha256 = state.RequestSha256,
+        Status = state.Status.ToString(),
+        ManifestId = state.Manifest?.ManifestId,
+        LastCompletedBatchOrdinal = checked((int)state.Checkpoint.BatchOrdinal),
+        LastCompletedRecordOrdinal = long.TryParse(state.Checkpoint.SourcePosition, System.Globalization.CultureInfo.InvariantCulture, out var ordinal) ? ordinal : -1,
+        ValidSessionCount = state.Audit?.ValidSessionCount ?? 0,
+        GapCount = state.Audit?.Gaps.Count ?? 0,
+        RollCount = state.Audit?.Rolls.Count ?? 0,
+        ErrorMessage = state.ErrorMessage,
+        UpdatedAtUtc = state.UpdatedAtUtc
+    }
+};
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId,
             GetFuturesAnalyticsHistoricalDataLoaderQuery.Verb,

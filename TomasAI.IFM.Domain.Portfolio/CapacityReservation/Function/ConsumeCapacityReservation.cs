@@ -14,6 +14,8 @@ public static class ConsumeCapacityReservation
     public static ValueTask<FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> ExecuteAsync(this ConsumeCapacityReservationCommand request, ICapacityConsumptionFunctionContext context,
         Func<FunctionEventContext<ConsumeCapacityReservationCommand>, FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>> dispatch, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dispatch);
         token.ThrowIfCancellationRequested();
         FinancialRequestValidation.Demand(request, "CapacityConsume", context.TimeProvider.GetUtcNow().UtcDateTime);
         return ValueTask.FromResult(dispatch(new(typeof(CapacityConsumptionCompletedEvent), request, new CapacityLifecycleReceipt())));

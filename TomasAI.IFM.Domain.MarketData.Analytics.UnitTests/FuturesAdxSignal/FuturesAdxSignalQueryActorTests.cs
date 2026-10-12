@@ -79,6 +79,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -107,6 +108,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -132,6 +134,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -157,6 +160,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateDailyQuery();
@@ -184,6 +188,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -317,10 +322,11 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(SampleData.FuturesAdxSignal));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -334,7 +340,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesAdxSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength);
+        await marketDataDb.Received(1).GetLastFuturesAdxSignalAsync(query.ContractId, query.ValueDate, query.TimePeriod, query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAdxSignalQuery.Verb,
@@ -348,10 +354,11 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxDailySignalAsync(Arg.Any<string>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(SampleData.FuturesAdxSignal));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateDailyQuery();
@@ -365,7 +372,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeReceiveAsync(context, query);
 
         // Assert
-        await marketDataDb.Received(1).GetLastFuturesAdxDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength);
+        await marketDataDb.Received(1).GetLastFuturesAdxDailySignalAsync(query.ContractId, query.TimePeriod, query.PeriodLength, CancellationToken.None);
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetFuturesAdxDailySignalQuery.Verb,
@@ -379,10 +386,11 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var dbFactory = Substitute.For<IDbContextFactory>();
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>())
+        marketDataDb.GetLastFuturesAdxSignalAsync(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<TimeFrameType>(), Arg.Any<int>(), CancellationToken.None)
             .Returns(Task.FromResult<FuturesAdxSignalReadModel?>(null));
 
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -466,6 +474,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -493,6 +502,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var threadId = new ActorThreadId(ActorType.Query, FuturesAdxSignalQueryActor.ActorName, "test-thread");
@@ -611,6 +621,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         // Arrange
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesAdxSignalQueryActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAdxQueryActor(dbFactory, logger);
 
         var query = CreateQuery();
@@ -626,12 +637,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         // Assert
         await act.Should().NotThrowAsync();
-        logger.Received(1).Log(
-            LogLevel.Error,
-            Arg.Any<EventId>(),
-            Arg.Any<object>(),
-            Arg.Any<Exception>(),
-            Arg.Any<Func<object, Exception?, string>>());
+        logger.ReceivedCalls().Should().ContainSingle(call => call.GetMethodInfo().Name == "Log" && (LogLevel)call.GetArguments()[0]! == LogLevel.Error);
     }
 
     #endregion

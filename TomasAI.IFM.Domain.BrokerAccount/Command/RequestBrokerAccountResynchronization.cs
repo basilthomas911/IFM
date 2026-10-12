@@ -18,6 +18,9 @@ public static class RequestBrokerAccountResynchronization
     /// <exception cref="Exception">Broker resynchronization failures propagate to the actor exception boundary.</exception>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this RequestBrokerAccountResynchronizationCommand command, IBrokerAccountCommandContext context, BrokerAccountCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         var snapshot = await context.TradeBroker.ResynchronizeAccountAsync().ConfigureAwait(false);
         var errorMsg = "BrokerAccount.STATE.APPLY_FAILED;unable to apply broker account change event";
         var updated = command.Compute(state.BrokerAccountDefinition, context.TradeBroker.Environment, BrokerAccountSnapshotEvidence.From(snapshot), out var brokerAccountChange) switch

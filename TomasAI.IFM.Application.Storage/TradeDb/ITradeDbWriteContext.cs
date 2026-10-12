@@ -19,7 +19,16 @@ public interface ITradeDbWriteContext
     Task UpsertMarketConditionAssessmentAsync(MarketConditionAssessmentCompletedEvent completed, CancellationToken cancellationToken = default);
     Task UpsertTradeSelectionAsync(TradeSelectionFunctionCompletedEvent completed, CancellationToken cancellationToken = default);
     Task<RiskHistoryProjectionResult> UpsertRiskHistoryAsync(WorkflowStrategyStateUpdatedEvent snapshot, CancellationToken token = default);
+    /// <summary>Projects a whole-trade limit and its spread limits as one accepted configuration.</summary>
+    Task ProjectMonitoringLimitsAsync(TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel limit,
+        IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel> spreads,CancellationToken token=default)
+        => Task.WhenAll(InsertTradeLimitAsync(limit),InsertTradeTypeLimitsAsync((ICollection<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel>)spreads.ToArray()));
+
     Task UpsertTradeOrderAsync(TradeOrderDefinition order, CancellationToken token = default);
+    /// <summary>Projects an accepted order with the timestamp recorded in its source event.</summary>
+    Task UpsertTradeOrderAsync(TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default)
+        => UpsertTradeOrderAsync(order, token);
+
     Task UpsertOrderExecutionAsync(OrderExecutionDefinition execution, CancellationToken token = default);
     Task UpsertEstablishedTradeAsync(EstablishedTradeDefinition trade, CancellationToken token = default);
     Task UpsertStrategyPositionAsync(StrategyPositionSnapshot position, CancellationToken token = default);

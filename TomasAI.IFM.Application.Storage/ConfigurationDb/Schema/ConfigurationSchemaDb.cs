@@ -6,9 +6,28 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 
 /// <summary>Creates the PostgreSQL strategy-configuration schema and versioned strategy parameter tables.</summary>
-public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
-    : SchemaDbContext<ConfigurationSchemaDb>(connectionSettings[ConfigurationDbContext.ConfigurationDbConnection], logger)
+public sealed class ConfigurationSchemaDb : SchemaDbContext<ConfigurationSchemaDb>
 {
+    /// <summary>Creates the normal configuration schema with its lookup defaults.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S6672", Justification = "SchemaDbContext shares the storage provider logger category.")]
+    public ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
+        : this(connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings)), logger, true) { }
+
+    /// <summary>Creates structure only for an isolated source-event rebuild or offline migration.</summary>
+    public static ConfigurationSchemaDb WithoutLookupDefaults(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
+    {
+        ArgumentNullException.ThrowIfNull(connectionSettings);
+        return new(connectionSettings, logger, false);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S6672", Justification = "SchemaDbContext shares the storage provider logger category.")]
+    private ConfigurationSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger, bool seedLookupDefaults)
+        : base(connectionSettings[ConfigurationDbContext.ConfigurationDbConnection], logger)
+    {
+        definitions = seedLookupDefaults ? Objects : Objects.Select(definition =>
+            string.Equals(definition.Name, "lookup_definition", StringComparison.Ordinal)
+                ? definition with { CreateStatement = LookupDefinitionSchemaSql.CreateStructure } : definition).ToArray();
+    }
     static readonly string[] Tables =
     [
         "intrinsic_time_strategy_workflow_parameter_set",
@@ -30,7 +49,7 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
         .Concat(new[] { "trade_selection_parameter_set", "intrinsic_time_strategy_workflow_parameter_set", "order_composition_parameter_set", "strategy_position_risk_parameter_set" }
             .Select(table => new SchemaObjectDefinition(table + "_lifecycle_guard",
                 (ConfigurationSchemaSql.EnsureMarketConditionLifecycleConstraints + ConfigurationSchemaSql.CreateMarketConditionLifecycleGuard)
-                    .Replace("market_condition_parameter_set", table).Replace("MarketCondition", table),
+                    .Replace("market_condition_parameter_set", table,System.StringComparison.Ordinal).Replace("MarketCondition", table, StringComparison.Ordinal),
                 $"DROP TRIGGER IF EXISTS trg_guard_{table} ON reference_configuration.{table}; DROP FUNCTION IF EXISTS reference_configuration.guard_{table}();")))
         .Append(new SchemaObjectDefinition("ix_market_condition_parameter_set_effective",
             ConfigurationSchemaSql.CreateMarketConditionEffectiveIndex,
@@ -61,8 +80,12 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
             "DROP TABLE IF EXISTS reference_configuration.parameter_schema_version; DROP TABLE IF EXISTS reference_configuration.parameter_component; DROP TABLE IF EXISTS reference_configuration.parameter_area;"))
         .Append(new SchemaObjectDefinition("parameter_sets", ParameterSets.ParameterSetSchemaSql.Create,
             "DROP TABLE IF EXISTS reference_configuration.parameter_assignment_revision; DROP TABLE IF EXISTS reference_configuration.parameter_assignment; DROP TABLE IF EXISTS reference_configuration.parameter_operation; DROP TABLE IF EXISTS reference_configuration.parameter_set_version; DROP TABLE IF EXISTS reference_configuration.parameter_set;"))
+        .Append(new SchemaObjectDefinition("configuration_baseline_application", ConfigurationProjectionBaseline.CreateCompletion,
+            "DROP TABLE IF EXISTS reference_configuration.configuration_baseline_application;"))
         .ToArray();
 
+    readonly SchemaObjectDefinition[] definitions;
+
     /// <inheritdoc />
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => definitions;
 }

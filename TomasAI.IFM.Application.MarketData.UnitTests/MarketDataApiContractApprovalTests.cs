@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 
@@ -11,8 +11,9 @@ public sealed class MarketDataApiContractApprovalTests
     {
         var methods = typeof(IMarketDataApi).GetMethods();
 
-        methods.Should().HaveCount(40);
+        methods.Should().HaveCount(41);
         methods.Select(method => method.Name).Should().BeEquivalentTo(
+            "get_OptionChainCache",
             "TryGetMarketInstrumentId",
             "GetFuturesMarketHealth",
             "GetTradeStrategySymbolsAsync",

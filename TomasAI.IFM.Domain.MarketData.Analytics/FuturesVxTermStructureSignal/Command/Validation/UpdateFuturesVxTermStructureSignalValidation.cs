@@ -8,9 +8,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.C
 public static class UpdateFuturesVxTermStructureSignalValidation
 {
     /// <summary>Adds deterministic ingress errors for invalid VX observations.</summary>
-    public static List<ValidationError> ValidateInputs(
-        this List<ValidationError> errors, UpdateFuturesVxTermStructureSignalCommand command)
+    public static TErrors ValidateInputs<TErrors>(
+        this TErrors errors, UpdateFuturesVxTermStructureSignalCommand command)
+
+        where TErrors : class, ICollection<ValidationError>
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(errors);
         if (command.Observation is not { } leg)
             errors.Add(new("VX.LEG.NULL", "A VX leg observation is required."));
         else
@@ -27,9 +31,9 @@ public static class UpdateFuturesVxTermStructureSignalValidation
         if (command.Configuration is not { } config
             || config.FlatEpsilon < 0 || config.MaximumSourceSkew < TimeSpan.Zero
             || string.IsNullOrWhiteSpace(config.ConfigurationId)
-            || config.ConfigurationId != command.EntityId.ConfigurationId)
+            || !string.Equals(config.ConfigurationId,command.EntityId.ConfigurationId,StringComparison.Ordinal))
             errors.Add(new("VX.CONFIG.INVALID", "The VX configuration is invalid or does not match the stream."));
-        if (command.Subject.EntityId != command.EntityId.Format())
+        if (!string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
             errors.Add(new("VX.ROUTE", "Command routing identity must match the VX stream."));
         return errors;
     }

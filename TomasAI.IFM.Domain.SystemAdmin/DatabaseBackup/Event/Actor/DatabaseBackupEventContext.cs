@@ -13,17 +13,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="DatabaseBackupEventActor"/>.</summary>
-public interface IDatabaseBackupEventContext : IEventActorContext<DatabaseBackupEventActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<DatabaseBackupEventActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="DatabaseBackupEventActor"/>.</summary>
-public sealed class DatabaseBackupEventContext : EventActorContext, IEventActorContext<DatabaseBackupEventActor>, IDatabaseBackupEventContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class DatabaseBackupEventContext : EventActorContext, IDatabaseBackupEventContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public DatabaseBackupEventContext(

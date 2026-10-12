@@ -7,11 +7,10 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace TomasAI.IFM.Application.MarketData.Historical;
-
 /// <summary>
 /// Ensures sufficient historical coverage and replays stored Daily observations in order.
 /// </summary>
-public sealed class HistoricalAnalyticsWarmupService
+public sealed class HistoricalAnalyticsWarmupService : IDisposable
 {
     readonly ILogger logger;
     readonly HistoricalAnalyticsWarmupOptions options;
@@ -22,14 +21,7 @@ public sealed class HistoricalAnalyticsWarmupService
     readonly TimeProvider timeProvider;
     readonly SemaphoreSlim gate = new(1, 1);
     string lastCompletedReplayKey = string.Empty;
-
-    public HistoricalAnalyticsWarmupService(
-        HistoricalAnalyticsWarmupOptions options,
-        HistoricalDataLoader loader,
-        IHistoricalObservationStore observationStore,
-        IHistoricalDailyReplayPublisher dailyReplayPublisher,
-        IMarketSessionCalendar calendar,
-        TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null)
+    public HistoricalAnalyticsWarmupService(HistoricalAnalyticsWarmupOptions options, HistoricalDataLoader loader, IHistoricalObservationStore observationStore, IHistoricalDailyReplayPublisher dailyReplayPublisher, IMarketSessionCalendar calendar, TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null)
     {
         this.logger = logger ?? NullLogger<HistoricalAnalyticsWarmupService>.Instance;
         this.options = (options ?? throw new ArgumentNullException(nameof(options))).Validate();
@@ -47,131 +39,71 @@ public sealed class HistoricalAnalyticsWarmupService
         try
         {
             var result = await EnsureCoreAsync(template, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation("{Component}.{Method} completed; DataLoadAttemptId={DataLoadAttemptId}; StartDate={StartDate}; EndDate={EndDate}; SeriesCount={SeriesCount}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}",
-                nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId,
-                template.StartDate, template.EndDate, template.Series.Length, result.Outcome,
-                System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                var seriesCount = template.Series.Length;
+                var elapsedMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                RemainingApplicationDiagnosticLog.Write1(logger, null, nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId, template.StartDate, template.EndDate, seriesCount, result.Outcome, elapsedMilliseconds);
+            }
             return result;
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "{Component}.{Method} failed; DataLoadAttemptId={DataLoadAttemptId}; StartDate={StartDate}; EndDate={EndDate}",
-                nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId, template.StartDate, template.EndDate);
+            ApplicationDiagnosticLog.Write1(logger, exception, nameof(HistoricalAnalyticsWarmupService), nameof(EnsureAsync), template.DataLoadAttemptId, template.StartDate, template.EndDate);
             throw;
         }
     }
 
-    async ValueTask<HistoricalAnalyticsWarmupResult> EnsureCoreAsync(
-        MarketDataHistoricalRequest template,
-        CancellationToken cancellationToken)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
+    async ValueTask<HistoricalAnalyticsWarmupResult> EnsureCoreAsync(MarketDataHistoricalRequest template, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(template);
         if (!options.Enabled)
             return new(HistoricalAnalyticsWarmupOutcome.Disabled, default, default, 0, 0, null);
-
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var endDate = LastCompletedTradingDate(template.EndDate);
             var startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
             var expected = TradingDates(startDate, endDate);
-            var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken)
-                .ConfigureAwait(false);
-            var insufficientSeries = template.Series
-                .Select(series => new
-                {
-                    Series = series,
-                    ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity])
-                })
-                .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions)
-                .ToArray();
-
+            var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
+            var insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) }).Where(value => value.ValidSessionCount < options.MinimumValidDailySessions).ToArray();
             HistoricalDataLoaderState? loaded = null;
             if (insufficientSeries.Length > 0)
             {
                 foreach (var insufficient in insufficientSeries)
                 {
-                    loaded = await loader.ExecuteAsync(template with
-                    {
-                        DataLoadAttemptId = AttemptId(
-                            insufficient.Series.SeriesIdentity,
-                            startDate,
-                            endDate,
-                            options.NormalizationVersion),
-                        Series = [insufficient.Series],
-                        StartDate = startDate,
-                        EndDate = endDate,
-                        MaximumCostUsd = options.MaximumCostUsd,
-                        MaximumBytes = options.MaximumBytes,
-                        NormalizationVersion = options.NormalizationVersion
-                    }, cancellationToken).ConfigureAwait(false);
+                    loaded = await loader.ExecuteAsync(template with { DataLoadAttemptId = AttemptId(insufficient.Series.SeriesIdentity, startDate, endDate, options.NormalizationVersion), Series = [insufficient.Series], StartDate = startDate, EndDate = endDate, MaximumCostUsd = options.MaximumCostUsd, MaximumBytes = options.MaximumBytes, NormalizationVersion = options.NormalizationVersion }, cancellationToken).ConfigureAwait(false);
                 }
-                coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken)
-                    .ConfigureAwait(false);
+
+                coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
             }
 
-            var remainingInsufficient = template.Series
-                .Select(series => new
-                {
-                    series.SeriesIdentity,
-                    ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity])
-                })
-                .Where(value => value.ValidSessionCount < options.MinimumValidDailySessions)
-                .ToArray();
+            var remainingInsufficient = template.Series.Select(series => new { series.SeriesIdentity, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) }).Where(value => value.ValidSessionCount < options.MinimumValidDailySessions).ToArray();
             if (remainingInsufficient.Length > 0)
-                throw new InvalidDataException(
-                    "Historical coverage remains insufficient after the one-year acquisition: "
-                    + string.Join(", ", remainingInsufficient.Select(value =>
-                        $"{value.SeriesIdentity.Format()} has {value.ValidSessionCount}/{options.MinimumValidDailySessions} valid Daily sessions"))
-                    + ".");
-
-            var remainingMissing = template.Series.Sum(series => expected.Count(date =>
-                !coverage[series.SeriesIdentity].Any(value =>
-                    value.ValueDate == date && value.IsComplete && value.IsValid)));
-
-            var ordered = coverage
-                .OrderBy(static pair => pair.Key.Format(), StringComparer.Ordinal)
-                .SelectMany(static pair => pair.Value
-                    .Where(static value => value.IsComplete && value.IsValid)
-                    .GroupBy(static value => value.ValueDate)
-                    .Select(static group => group.OrderByDescending(value => value.LastMarketEventUtc).First())
-                    .OrderBy(static value => value.ValueDate))
-                .ToArray();
-            var esCount = coverage
-                .Where(static pair => pair.Key.FuturesSeriesId is { } series
-                    && series.RootSymbol.Equals("ES", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(static pair => pair.Value)
-                .Where(static value => value.IsComplete && value.IsValid)
-                .Select(static value => value.ValueDate)
-                .Distinct()
-                .Count();
+                throw new InvalidDataException("Historical coverage remains insufficient after the one-year acquisition: " + string.Join(", ", remainingInsufficient.Select(value => $"{value.SeriesIdentity.Format()} has {value.ValidSessionCount}/{options.MinimumValidDailySessions} valid Daily sessions")) + ".");
+            var remainingMissing = template.Series.Sum(series => expected.Count(date => !coverage[series.SeriesIdentity].Any(value => value.ValueDate == date && value.IsComplete && value.IsValid)));
+            var ordered = coverage.OrderBy(static pair => pair.Key.Format(), StringComparer.Ordinal).SelectMany(static pair => pair.Value.Where(static value => value.IsComplete && value.IsValid).GroupBy(static value => value.ValueDate).Select(static group => group.OrderByDescending(value => value.LastMarketEventUtc).First()).OrderBy(static value => value.ValueDate)).ToArray();
+            var esCount = coverage.Where(static pair => pair.Key.FuturesSeriesId is { } series && series.RootSymbol.Equals("ES", StringComparison.OrdinalIgnoreCase)).SelectMany(static pair => pair.Value).Where(static value => value.IsComplete && value.IsValid).Select(static value => value.ValueDate).Distinct().Count();
             if (esCount < options.MinimumValidDailySessions)
-                throw new InvalidDataException(
-                    $"ES historical coverage has {esCount} valid Daily sessions; {options.MinimumValidDailySessions} are required.");
-
+                throw new InvalidDataException($"ES historical coverage has {esCount} valid Daily sessions; {options.MinimumValidDailySessions} are required.");
             var replayKey = ReplayKey(startDate, endDate, ordered);
             var replayed = !string.Equals(lastCompletedReplayKey, replayKey, StringComparison.Ordinal);
             if (replayed)
             {
-                await dailyReplayPublisher.PublishAsync(
-                    ordered,
-                    template.EndDate,
-                    template.AnalyticsTargetContractId,
-                    cancellationToken).ConfigureAwait(false);
+                await dailyReplayPublisher.PublishAsync(ordered, template.EndDate, template.AnalyticsTargetContractId, cancellationToken).ConfigureAwait(false);
                 lastCompletedReplayKey = replayKey;
             }
 
-            return new(
-                insufficientSeries.Length > 0
-                    ? HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed
-                    : replayed
-                        ? HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage
-                        : HistoricalAnalyticsWarmupOutcome.AlreadyCurrent,
-                startDate,
-                endDate,
-                esCount,
-                remainingMissing,
-                loaded);
+            return new((insufficientSeries.Length > 0) switch
+            {
+                true => HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed,
+                false => (replayed) switch
+                {
+                    true => HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage,
+                    false => HistoricalAnalyticsWarmupOutcome.AlreadyCurrent
+                }}, startDate, endDate, esCount, remainingMissing, loaded);
         }
         finally
         {
@@ -179,39 +111,18 @@ public sealed class HistoricalAnalyticsWarmupService
         }
     }
 
-    static int ValidSessionCount(IReadOnlyList<FuturesEodObservationReadModel> observations) =>
-        observations
-            .Where(static value => value.IsComplete && value.IsValid)
-            .Select(static value => value.ValueDate)
-            .Distinct()
-            .Count();
-
-    static Guid AttemptId(
-        MarketSeriesIdentity series,
-        DateOnly startDate,
-        DateOnly endDate,
-        string normalizationVersion)
+    static int ValidSessionCount(IReadOnlyList<FuturesEodObservationReadModel> observations) => observations.Where(static value => value.IsComplete && value.IsValid).Select(static value => value.ValueDate).Distinct().Count();
+    static Guid AttemptId(MarketSeriesIdentity series, DateOnly startDate, DateOnly endDate, string normalizationVersion)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"62a4051d-7d1f-5b6d-9768-c2b076732dd0|{series.Format()}|{startDate:O}|{endDate:O}|{normalizationVersion}"));
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"62a4051d-7d1f-5b6d-9768-c2b076732dd0|{series.Format()}|{startDate:O}|{endDate:O}|{normalizationVersion}"));
         return new Guid(hash.AsSpan(0, 16));
     }
 
-    string ReplayKey(
-        DateOnly startDate,
-        DateOnly endDate,
-        IReadOnlyList<FuturesEodObservationReadModel> observations)
+    string ReplayKey(DateOnly startDate, DateOnly endDate, IReadOnlyList<FuturesEodObservationReadModel> observations)
     {
-        var content = new StringBuilder()
-            .Append(startDate.ToString("O"))
-            .Append('|').Append(endDate.ToString("O"))
-            .Append('|').Append(options.CalculationConfigurationVersion);
+        var content = new StringBuilder().Append(startDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('|').Append(endDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('|').Append(options.CalculationConfigurationVersion);
         foreach (var value in observations)
-            content.Append('|').Append(value.MarketSeriesIdentity.Format())
-                .Append('|').Append(value.ValueDate.ToString("O"))
-                .Append('|').Append(value.ContractId)
-                .Append('|').Append(value.Close)
-                .Append('|').Append(value.LastSourceSequence);
+            content.Append('|').Append(value.MarketSeriesIdentity.Format()).Append('|').Append(value.ValueDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture)).Append('|').Append(value.ContractId).Append('|').Append(value.Close.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|').Append(value.LastSourceSequence.ToString(System.Globalization.CultureInfo.InvariantCulture));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content.ToString())));
     }
 
@@ -228,21 +139,27 @@ public sealed class HistoricalAnalyticsWarmupService
     {
         List<DateOnly> dates = [];
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
-            if (calendar.IsTradingDate(date)) dates.Add(date);
-        return [.. dates];
+            if (calendar.IsTradingDate(date))
+                dates.Add(date);
+        return[..dates];
     }
 
-    async ValueTask<Dictionary<MarketSeriesIdentity, IReadOnlyList<FuturesEodObservationReadModel>>>
-        ReadCoverageAsync(
-            IReadOnlyCollection<MarketDataHistoricalSeriesRequest> series,
-            DateOnly startDate,
-            DateOnly endDate,
-            CancellationToken cancellationToken)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    async ValueTask<Dictionary<MarketSeriesIdentity, IReadOnlyList<FuturesEodObservationReadModel>>> ReadCoverageAsync(IReadOnlyCollection<MarketDataHistoricalSeriesRequest> series, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken)
     {
         var result = new Dictionary<MarketSeriesIdentity, IReadOnlyList<FuturesEodObservationReadModel>>();
         foreach (var item in series)
-            result[item.SeriesIdentity] = await observationStore.GetRawEodRangeAsync(
-                item.SeriesIdentity, startDate, endDate, cancellationToken).ConfigureAwait(false);
+            result[item.SeriesIdentity] = await observationStore.GetRawEodRangeAsync(item.SeriesIdentity, startDate, endDate, cancellationToken).ConfigureAwait(false);
         return result;
+    }
+
+    private int disposedGateOwner;
+    /// <summary>Releases the owned synchronization gate after the host has stopped its operations.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposedGateOwner, 1) != 0)
+            return;
+        gate.Dispose();
+        GC.SuppressFinalize(this);
     }
 }

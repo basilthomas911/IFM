@@ -12,7 +12,7 @@ public sealed class DatasetIncidentStateMachine(
     DatabentoStage3Options options,
     TimeProvider timeProvider)
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly DatabentoStage3Options policy = options.Validate();
     long? openedTimestamp;
     long? healthyTimestamp;
@@ -24,6 +24,7 @@ public sealed class DatasetIncidentStateMachine(
     Guid generationId;
     int attempts;
     int replacements;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1450", Justification = "Retain the explicit supervisor incident state and hydration/reset symmetry; this count is manipulated under the incident lock.")]
     int replacementFailures;
     int replacementLatched;
     DatabentoDatasetFailureReason reason;

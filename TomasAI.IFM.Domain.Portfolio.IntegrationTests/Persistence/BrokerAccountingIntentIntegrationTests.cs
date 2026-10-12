@@ -7,11 +7,12 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLe
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
+[Trait("Infrastructure", "SelfContained")]
 [Collection("PortfolioFinancialDatabase"), Trait("Category", "PortfolioFinancial")]
 public sealed class BrokerAccountingIntentIntegrationTests(PortfolioEventStoreFixture fixture)
     : IClassFixture<PortfolioEventStoreFixture>
 {
-    private static async Task<PostFundTransactionsCommand> Command()
+    internal static async Task<PostFundTransactionsCommand> Command()
     {
         var book = await CreateBook();
         var single = Request(book, LedgerTransactionKind.DepositConfirmed, 123.4500m, 0);

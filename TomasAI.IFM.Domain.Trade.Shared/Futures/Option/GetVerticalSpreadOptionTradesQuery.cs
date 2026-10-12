@@ -43,6 +43,7 @@ public sealed record GetVerticalSpreadOptionTradesQuery : IQuery<EstablishedTrad
     [Key(4)] public DateTime FromUtc { get; init; }
     [Key(5)] public DateTime ToUtc { get; init; }
     [Key(6)] public int PageSize { get; init; } = 100;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(7)] public byte[]? PagingState { get; init; }
     [IgnoreMember] public int ErrorCode => 25206;
     [IgnoreMember] public string? QueryParams => null;

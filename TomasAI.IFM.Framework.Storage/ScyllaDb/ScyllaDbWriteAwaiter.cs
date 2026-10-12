@@ -17,6 +17,7 @@ internal static class ScyllaDbWriteAwaiter
     /// Retains a bound value owner until the driver really finishes, including
     /// when the caller stops awaiting a non-cancellable submitted request.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Retains the existing cancellation/lifetime overload used by provider call sites.")]
     public static async Task<TResult> AwaitAsync<TResult>(
         Task<TResult> pendingExecution,
         CancellationToken cancellationToken,
@@ -63,6 +64,7 @@ internal static class ScyllaDbWriteAwaiter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The caller has already observed cancellation; background drain must observe any driver failure and release resources without replacing the original cancellation.")]
     public static async Task DrainAndDisposeAsync(Task pendingExecution, IDisposable ownedResult)
     {
         ArgumentNullException.ThrowIfNull(pendingExecution);
@@ -89,6 +91,7 @@ internal static class ScyllaDbWriteAwaiter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The caller has already observed cancellation; background drain must observe any driver failure and release resources without replacing the original cancellation.")]
     public static async Task DrainAsync(Task pendingExecution, object lifetimeAnchor)
     {
         ArgumentNullException.ThrowIfNull(pendingExecution);
@@ -108,6 +111,7 @@ internal static class ScyllaDbWriteAwaiter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The caller has already observed cancellation; background drain must observe any driver failure and release resources without replacing the original cancellation.")]
     static async Task DrainCancelledAsync<TResult>(Task<TResult> pendingExecution)
         where TResult : IDisposable
     {
@@ -122,6 +126,7 @@ internal static class ScyllaDbWriteAwaiter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The caller has already observed cancellation; background drain must observe any driver failure and release resources without replacing the original cancellation.")]
     static async Task DrainCancelledWithLifetimeAsync<TResult>(
         Task<TResult> pendingExecution,
         IDisposable bindLifetime)

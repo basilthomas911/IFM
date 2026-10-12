@@ -7,30 +7,26 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public readonly record struct DatasetWorkerAdmission(
-    string Dataset,
-    DateOnly ValueDate,
-    Guid WorkerInstanceId,
-    Guid GenerationId,
-    long ManifestRevision);
-
 /// <summary>Atomic host-side gate preventing stale worker generations from mutating current state.</summary>
 public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<string, AdmissionState> admissions = new(StringComparer.Ordinal);
     readonly Dictionary<(string Dataset, Guid Generation), AdmissionState> draining = new();
     readonly Dictionary<string, ProbeState> probes = new(StringComparer.Ordinal);
     bool managedRealtimeSources;
     long rejected;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1003", Justification = "Preserve the existing worker exit and status subscriber delegate contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0046", Justification = "Preserve the existing worker exit and status subscriber delegate contract.")]
     public event Action? Changed;
 
     public long RejectedPublications => Interlocked.Read(ref rejected);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Name the public request owning the invalid nested property.")]
     public void Admit(DatasetWorkerAdmission admission)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(admission.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(admission.Dataset, nameof(admission));
         if (admission.ValueDate == default || admission.WorkerInstanceId == Guid.Empty
             || admission.GenerationId == Guid.Empty || admission.ManifestRevision < 1)
             throw new ArgumentException("Dataset worker admission identity is invalid.", nameof(admission));
@@ -157,19 +153,19 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
 
     static bool IsSupervisedRealtimeRoute(ActorSubject subject) =>
         subject.ActorType == ActorType.Realtime
-        && (subject.Name == FuturesTickTradeDataChangedEvent.Actor
+        && (string.Equals(subject.Name,FuturesTickTradeDataChangedEvent.Actor,StringComparison.Ordinal)
             && subject.Verb is FuturesTickTradeDataChangedEvent.Verb
                 or FuturesTickQuoteDataChangedEvent.Verb
                 or FuturesSessionStatisticsUpdatedRealtimeEvent.Verb
-            || subject.Name == FuturesMarketPriceUpdatedRealtimeEvent.Actor
+            || string.Equals(subject.Name,FuturesMarketPriceUpdatedRealtimeEvent.Actor,StringComparison.Ordinal)
             && subject.Verb is FuturesMarketPriceUpdatedRealtimeEvent.Verb
                 or FuturesTradeReplayBatchRealtimeEvent.Verb
-            || subject.Name == FuturesVwapSourceCheckpoint.Actor
-            && subject.Verb == FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+            || string.Equals(subject.Name,FuturesVwapSourceCheckpoint.Actor,StringComparison.Ordinal)
+            && string.Equals(subject.Verb,FuturesMarketPriceUpdatedRealtimeEvent.Verb,StringComparison.Ordinal));
 
     static bool IsProbeRoute(ActorSubject subject) =>
         subject.ActorType == ActorType.Realtime
-        && subject.Name == FuturesTickTradeDataChangedEvent.Actor
+        && string.Equals(subject.Name,FuturesTickTradeDataChangedEvent.Actor,StringComparison.Ordinal)
         && subject.Verb is FuturesTickTradeDataChangedEvent.Verb
             or FuturesTickQuoteDataChangedEvent.Verb;
 
@@ -194,7 +190,7 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
     public async Task EndProbeAsync(DatasetWorkerAdmission identity, TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
-        if (timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         Task drained;
         lock (gate)
         {
@@ -230,10 +226,11 @@ public sealed class DatasetWorkerAdmissionRegistry : IRealtimeSourceAdmission
         _ = CompleteRetirementAsync(state.Stopping, state.Stopping.CancelAsync());
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     static async Task CompleteRetirementAsync(CancellationTokenSource stopping, Task callbacks)
     {
         try { await callbacks.ConfigureAwait(false); }
-        catch (Exception) { /* External cancellation callbacks cannot prevent containment. */ }
+        catch (Exception error) { System.Diagnostics.Trace.TraceError("External cancellation callback failed during containment: {0}", error); }
         finally { stopping.Dispose(); }
     }
 

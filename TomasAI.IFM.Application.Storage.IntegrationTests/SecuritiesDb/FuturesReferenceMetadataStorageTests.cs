@@ -229,6 +229,9 @@ public sealed class FuturesReferenceMetadataStorageTests
             await raw.Use("ReferenceMetadata.InterruptedPublication",
                 "UPDATE securities_reference_version SET published=false WHERE contract_id='ES20260918' AND version='fixture/v1';")
                 .ExecuteCommandAsync(token);
+            // A crash restarts the context too; discard pre-crash immutable-version cache entries.
+            db = Open();
+            versions = db;
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.UpdateFuturesOptionContractAsync(
                 option.ContractId, second with { MappingVersion = "fixture/v3" }));
             var repair = await versions.StageReferenceVersionAsync(reviewedFuture, token);

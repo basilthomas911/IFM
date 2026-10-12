@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// Represents information about an actor message, including the associated command and event.
 /// </summary>
 /// <remarks>This is a zero-allocation value type that avoids heap allocation per message.</remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1815", Justification = "Preserve the existing message-carrier value-type API and equality behavior; it is not used as an equality key.")]
 public readonly struct ActorMessageInfo
 {
     public ActorMessageInfo(NatsMsg<byte[]> actorMessage, ICommand command)

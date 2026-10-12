@@ -6,6 +6,8 @@ public sealed record Stage4SubscriptionOptions
     public bool Enabled { get; init; }
     public TickerLeasePolicy Leases { get; init; } = new();
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Instance validation reports the configuration property captured by this object.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Instance validation reports the configuration property captured by this object.")]
     public Stage4SubscriptionOptions ValidateForApplicationStartup()
     {
         ArgumentNullException.ThrowIfNull(Leases);

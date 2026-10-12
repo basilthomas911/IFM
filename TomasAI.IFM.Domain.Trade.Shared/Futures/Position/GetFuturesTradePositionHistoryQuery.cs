@@ -40,6 +40,7 @@ public sealed record GetFuturesTradePositionHistoryQuery : IQuery<StrategyPositi
     [Key(3)] public DateTime FromUtc { get; init; }
     [Key(4)] public DateTime ToUtc { get; init; }
     [Key(5)] public int PageSize { get; init; } = 100;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(6)] public byte[]? PagingState { get; init; }
     [IgnoreMember] public int ErrorCode => 25212;
     [IgnoreMember] public string? QueryParams => null;

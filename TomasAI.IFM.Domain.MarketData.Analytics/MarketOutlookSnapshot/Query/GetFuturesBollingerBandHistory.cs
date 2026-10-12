@@ -24,6 +24,9 @@ public static class GetFuturesBollingerBandHistory
         IMarketOutlookSnapshotQueryContext domainContext,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainContext);
+        ArgumentNullException.ThrowIfNull(query);
         ServiceResult<FuturesBbSignalReadModel[]> result;
         if (string.IsNullOrWhiteSpace(query.RootSymbol) || query.ValueDate == default
             || query.MaxDays is <= 0 or > MaximumChartHistoryDays)

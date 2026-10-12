@@ -21,9 +21,7 @@ public class FuturesAdxSignalRealtimeActor(
     public const string ActorName = "FuturesAdxSignal";
 
     /// <summary>Gets the typed realtime context supplied when this actor is constructed.</summary>
-    protected IFuturesAdxSignalRealtimeContext FuturesAdxSignalRealtimeContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesAdxSignalRealtimeContext,
-        nameof(actorContext))!;
+    protected IFuturesAdxSignalRealtimeContext FuturesAdxSignalRealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesAdxSignalRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId ObservationRoute = new(
         ActorType.Realtime,
@@ -53,6 +51,7 @@ public class FuturesAdxSignalRealtimeActor(
     /// <summary>Registers the shared closed-observation route.</summary>
     protected override ValueTask OnStartup(IEventActorContext<FuturesAdxSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         context.AddRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
@@ -61,6 +60,7 @@ public class FuturesAdxSignalRealtimeActor(
     /// <summary>Removes the shared closed-observation route.</summary>
     protected override ValueTask OnShutdown(IEventActorContext<FuturesAdxSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         context.RemoveRealtimeRouter(ObservationRoute, Id);
         return ValueTask.CompletedTask;
@@ -90,8 +90,8 @@ public class FuturesAdxSignalRealtimeActor(
         IEventActorContext<FuturesAdxSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
+        Exception ex) =>
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

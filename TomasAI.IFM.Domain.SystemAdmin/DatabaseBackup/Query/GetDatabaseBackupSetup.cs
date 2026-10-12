@@ -11,7 +11,8 @@ public static class GetDatabaseBackupSetup
     /// <summary>Replies with configured host references or explicit unavailable metadata.</summary>
     public static async ValueTask ExecuteAsync(this GetDatabaseBackupSetupQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupQueryActor> context, CancellationToken cancellationToken)
     {
-        var metadata = (context as IDatabaseBackupQueryContext)?.OutputReader is { } reader ? await reader.ReadSetupAsync(query.Source, cancellationToken) : new DatabaseBackupSetupReadModel();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupSetupReadModel>(metadata));
+        ArgumentNullException.ThrowIfNull(query);
+        var metadata = (context as IDatabaseBackupQueryContext)?.OutputReader is { } reader ? await (reader.ReadSetupAsync(query.Source, cancellationToken)).ConfigureAwait(false) : new DatabaseBackupSetupReadModel();
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<DatabaseBackupSetupReadModel>(metadata))).ConfigureAwait(false);
     }
 }

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -16,7 +17,8 @@ namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Command.State;
 /// Provides the state factory, event-source database context, actor service, logger, and DownloadLog event projector.
 /// </param>
 public sealed class DownloadLogStateRepository(
-    ICommandActorContext<DownloadLogCommandActor> actorContext)
+    ICommandActorContext<DownloadLogCommandActor> actorContext,
+    IPostgresEventTransaction? transactions = null)
     : BaseEventSourceActorRepository(
         actorContext.StateFactory,
         actorContext.DbEventSource,
@@ -50,7 +52,32 @@ public sealed class DownloadLogStateRepository(
 
     public async ValueTask SaveStateAsync(ICommandActorContext context, DownloadLogCommandState state, ICommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(state);
         if (state.Events.Count == 0) return;
+        var database = actorContext.DbFactory.MarketDataDb;
+        if (string.Equals(database.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            if (!string.Equals(EventSourceDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ||
+                PostgresDatabaseIdentity.Parse(database.ConnectionString) != PostgresDatabaseIdentity.Parse(EventSourceDb.ConnectionString))
+                throw new InvalidOperationException("DownloadLog and EventSourceDb must share the same PostgreSQL database/security identity.");
+            var owner = transactions ?? throw new InvalidOperationException("DownloadLog requires the PostgreSQL event transaction service.");
+            var pending = new DomainEventCollection(state.Events);
+            await owner.ExecuteAsync(async (transaction, token) =>
+            {
+                long version = 0;
+                foreach (var source in pending)
+                {
+                    if (source is not MarketDataDownloadLogInsertedEvent inserted)
+                        throw new InvalidOperationException("Unexpected DownloadLog source event.");
+                    await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
+                    await database.ProjectDownloadLogAsync(transaction,inserted.Outcome,inserted.CommandId,inserted.PayloadSha256,token).ConfigureAwait(false);
+                }
+                return true;
+            },cancellationToken).ConfigureAwait(false);
+            state.AcceptChanges();
+            await DenormalizeEventsAsync(context,pending).ConfigureAwait(false);
+            return;
+        }
         // A terminal attempt can commit only once, including competing host instances.
         var events = await SaveStateEventsAsync(state, command, 0L, cancellationToken).ConfigureAwait(false);
         await DenormalizeEventsAsync(context, events).ConfigureAwait(false);

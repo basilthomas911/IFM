@@ -9,10 +9,12 @@ public static class GetParameterStartupRuns
 {
     public static async ValueTask ExecuteAsync(this GetParameterStartupRunsQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
         var id = ParameterStartupEntityId.Registry;
         var address = new ApplySignalStartupPlanCommand { EntityId = id, Subject = new ActorSubject(ActorType.Command, ApplySignalStartupPlanCommand.Actor, ApplySignalStartupPlanCommand.Verb, id.Format()) };
-        var state = await context.Startups.LoadStateAsync(address); token.ThrowIfCancellationRequested();
+        var state = await (context.Startups.LoadStateAsync(address, token)).ConfigureAwait(false); token.ThrowIfCancellationRequested();
         var limit = Math.Clamp(query.Limit, 1, 25);
         var runs = state.ActiveRuns.Values
          .Where(x => query.AfterCreatedAtUtc is null
@@ -23,6 +25,6 @@ public static class GetParameterStartupRuns
          .ThenBy(x => x.RunId)
          .Take(limit)
          .ToArray();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterStartupRun[]>(runs));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterStartupRun[]>(runs))).ConfigureAwait(false);
     }
 }

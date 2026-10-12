@@ -22,5 +22,11 @@ public static class GetFunds
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetFundsQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetFundsAsync(query.PortfolioId, query.State is null ? null : (FundOperatingState)query.State, query.PageSize, query.PageToken, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetFundsAsync(query.PortfolioId, query.State is null ? null : (FundOperatingState)query.State, query.PageSize, query.PageToken, cancellationToken));
+    }
 }

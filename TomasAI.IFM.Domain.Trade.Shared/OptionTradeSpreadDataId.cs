@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared;
 /// "OrderId.TradeId.ValueDate.TradeType.SequenceId" where ValueDate = yyyyMMdd.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public record struct OptionTradeSpreadDataId(
     /// <summary>The parent order identifier.</summary>
     [property: Key(0)] int OrderId,

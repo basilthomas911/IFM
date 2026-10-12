@@ -15,9 +15,8 @@ public static class MarketDataFeedStoppedComplete
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// 
     /// </summary>
     /// <param name="e"></param>
@@ -27,18 +26,19 @@ public static class MarketDataFeedStoppedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this MarketDataFeedStoppedCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"MarketDataFeedStoppedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            //await state.StopFuturesBarDataStreamingAsync(context, e.ValueDate);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Futures bar data streaming stopped");
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, "Futures bar data streaming stopped")).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}: futures bar data streaming stopped", source);
             return true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: stopping futures bar data feed failed", source);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage());
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, MarketDataFeedStoppedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

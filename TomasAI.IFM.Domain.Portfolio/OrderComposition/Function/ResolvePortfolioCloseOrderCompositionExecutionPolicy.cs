@@ -13,6 +13,8 @@ public static class ResolvePortfolioCloseOrderCompositionExecutionPolicy
         FunctionFailureStage stage,
         IPortfolioCloseOrderCompositionFunctionContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(request);
         var deadline = stage == FunctionFailureStage.Loading
             ? context.TimeProvider.GetUtcNow().UtcDateTime.AddSeconds(1)
             : request.ExpiresAtUtc;

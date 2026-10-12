@@ -24,10 +24,13 @@ static class CsvDataExportWriter
         var temporary = Path.Combine(directory, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
-                FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await using (var writer = new StreamWriter(stream, new UTF8Encoding(true)) { NewLine = "\r\n" })
+            var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            await using (stream.ConfigureAwait(false))
             {
+                var writer = new StreamWriter(stream, new UTF8Encoding(true)) { NewLine = "\r\n" };
+                await using (writer.ConfigureAwait(false))
+                {
                 await WriteRowAsync(writer, headers, cancellationToken).ConfigureAwait(false);
                 foreach (var item in results)
                 {
@@ -39,6 +42,7 @@ static class CsvDataExportWriter
                     await WriteRowAsync(writer, values, cancellationToken).ConfigureAwait(false);
                 }
                 await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }
             }
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, target, overwrite);

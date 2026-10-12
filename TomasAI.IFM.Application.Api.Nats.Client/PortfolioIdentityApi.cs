@@ -26,6 +26,7 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
     public Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) =>
         AllocateAsync(PortfolioBusinessIdentityKind.Policy, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(
         PortfolioBusinessIdentityKind kind,
         CancellationToken cancellationToken)

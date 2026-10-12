@@ -57,15 +57,18 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         if (!_resident.IsEmpty)
             ActorRuntimeMetrics.ResidentStateCount.Add(-_resident.Count);
         _resident.Clear();
-        while (_residentOrder.TryDequeue(out _)) { }
+        while (_residentOrder.TryDequeue(out _)) { /* Discard the shutdown eviction order. */ }
         await OnInMemoryShutdownAsync(context).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public sealed override async ValueTask HandleMessageAsync(
         IActorMessage message,
         ActorThreadId threadId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(message);
         if (!_options.OptionTradeLegDataEnabled || !IsResidentMessage(message.Subject))
         {
             await BarrierAsync(threadId).ConfigureAwait(false);
@@ -83,7 +86,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
             if (command.CommandId == Guid.Empty)
             {
                 await message.ReplyAsync<ServiceResult<GuidResult>>(
-                    new ServiceFailed<GuidResult>(command.ErrorCode, $"{command.CommandName}.CommandId is empty"));
+                    new ServiceFailed<GuidResult>(command.ErrorCode, $"{command.CommandName}.CommandId is empty")).ConfigureAwait(false);
                 return;
             }
 
@@ -92,7 +95,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
             {
                 await message.ReplyAsync<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(
                     command.ErrorCode,
-                    string.Join(Environment.NewLine, validationErrors.Select(static error => error.ErrorMessage))));
+                    string.Join(Environment.NewLine, validationErrors.Select(static error => error.ErrorMessage)))).ConfigureAwait(false);
                 return;
             }
             await OnValidateAsync(Context, threadId, command, cancellationToken).ConfigureAwait(false);
@@ -241,6 +244,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async Task CompleteResidentCommandAsync(
         ResidentSlot slot,
         Task persistence,
@@ -311,6 +315,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     static async ValueTask AwaitSlotAsync(ResidentSlot slot)
     {
         Task[] pending;

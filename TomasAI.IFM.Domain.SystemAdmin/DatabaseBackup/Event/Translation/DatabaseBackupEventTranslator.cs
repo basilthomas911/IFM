@@ -54,11 +54,28 @@ public static class DatabaseBackupEventTranslator
         };
     }
 
+    /// <summary>Recovers a missing terminal retention display from a trusted service observation without execution.</summary>
+    public static ReconcileDatabaseBackupServiceStateCommand ReconcileTerminalRetention(DatabaseBackupServiceEventContract serviceEvent)
+    {
+        _ = Translate(serviceEvent); // Apply the same envelope and producing-host validation.
+        if (serviceEvent.Source.Source != BackupSource.AwsCloud
+            || serviceEvent.Source.OperationKind != DatabaseRecoveryOperationKind.Retention
+            || serviceEvent.Source.Phase is not (DatabaseRecoveryPhase.Completed or DatabaseRecoveryPhase.Failed))
+            throw new InvalidOperationException("Only terminal AWS retention observations can recover missing retention display state.");
+        var id = new Guid(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
+            "restored-retention-display:v2:" + serviceEvent.Source.SourceEventId)).AsSpan(0, 16));
+        return Build<ReconcileDatabaseBackupServiceStateCommand>(serviceEvent) with
+        {
+            CommandId = id,
+            Source = serviceEvent.Source with { SourceEventId = id }
+        };
+    }
+
     static TCommand Build<TCommand>(DatabaseBackupServiceEventContract source)
         where TCommand : DatabaseBackupInternalCommand, new()
     {
         var template = new TCommand();
-        return (TCommand)(template with
+        return (template with
         {
             CommandId = source.Source.SourceEventId,
             EntityId = source.Source.OperationId,

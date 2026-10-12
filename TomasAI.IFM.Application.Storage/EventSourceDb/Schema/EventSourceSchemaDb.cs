@@ -15,12 +15,14 @@ public sealed class EventSourceSchemaDb
 {
     readonly SchemaObjectDefinition[] objects;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "The database provider owns this injected logger; retain its category and constructor contract while the context supplies structured component names.")]
     public EventSourceSchemaDb(
         IDbConnectionSettings connectionSettings,
         ILogger<DbProvider> logger,
         EventLogPersistenceOptions? eventLogPersistenceOptions = null)
-        : base(connectionSettings[EventSourceActorDbContext.EventSourceActorDbConnection], logger)
+        : base((connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings)))[EventSourceActorDbContext.EventSourceActorDbConnection], logger)
     {
+        ArgumentNullException.ThrowIfNull(connectionSettings);
         var options = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
         var projectorState = EventSourceSchemaSql.CreateEventProjectorState.Replace("""
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version

@@ -4,22 +4,10 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Position.Workflow.Realtime.Actor;
-
-public interface IFuturesExitPositionWorkflowRealtimeContext :
-    IRealtimeActorContext<FuturesExitPositionWorkflowRealtimeActor>
+public sealed class FuturesExitPositionWorkflowRealtimeContext : EventActorContext, IFuturesExitPositionWorkflowRealtimeContext
 {
-    IDbContextFactory DbFactory { get; }
-    TimeProvider TimeProvider { get; }
-    ILogger<FuturesExitPositionWorkflowRealtimeActor> Logger { get; }
-}
-
-public sealed class FuturesExitPositionWorkflowRealtimeContext : EventActorContext,
-    IRealtimeActorContext<FuturesExitPositionWorkflowRealtimeActor>,
-    IFuturesExitPositionWorkflowRealtimeContext
-{
-    public FuturesExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor,
-        IDbContextFactory dbFactory, ILogger<FuturesExitPositionWorkflowRealtimeActor> logger)
-        : base(supervisor, new(ActorType.Realtime, FuturesExitPositionWorkflowRealtimeActor.ActorName))
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public FuturesExitPositionWorkflowRealtimeContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<FuturesExitPositionWorkflowRealtimeActor> logger) : base(supervisor, new(ActorType.Realtime, FuturesExitPositionWorkflowRealtimeActor.ActorName))
     {
         DbFactory = dbFactory;
         Logger = logger;

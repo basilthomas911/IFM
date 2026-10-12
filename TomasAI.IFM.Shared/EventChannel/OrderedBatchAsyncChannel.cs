@@ -4,23 +4,6 @@ using Microsoft.Extensions.Logging;
 namespace TomasAI.IFM.Shared.EventChannel;
 
 /// <summary>
-/// Describes the operating state of a bounded, lossless, ordered batch channel.
-/// </summary>
-public readonly record struct OrderedBatchChannelMetrics(
-    long AcceptedCount,
-    long ProcessedCount,
-    long BatchCount,
-    long BackpressuredWriteCount,
-    long FailureCount,
-    double AcceptedPerSecond,
-    int Capacity,
-    TimeSpan LastQueueDelay,
-    TimeSpan MaximumQueueDelay,
-    TimeSpan LastBatchDuration,
-    TimeSpan MaximumBatchDuration,
-    bool IsOpen);
-
-/// <summary>
 /// Processes lossless events in arrival order through a bounded asynchronous channel.
 /// </summary>
 /// <remarks>
@@ -30,6 +13,7 @@ public readonly record struct OrderedBatchChannelMetrics(
 /// </remarks>
 public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
 {
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     readonly record struct QueuedValue(T Value, long EnqueuedTimestamp);
 
     readonly Channel<QueuedValue> _channel;
@@ -43,7 +27,7 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
     readonly int _maximumBatchSize;
     readonly int _readerRetryCount;
     readonly TimeSpan _readerRetryDelay;
-    readonly object _stopGate = new();
+    readonly System.Threading.Lock _stopGate = new();
     readonly long _startedTimestamp;
     long _acceptedCount;
     long _processedCount;
@@ -183,19 +167,21 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
     /// </summary>
     public async ValueTask CancelAsync()
     {
+        Task cancellation;
         lock (_stopGate)
         {
             if (Interlocked.Exchange(ref _acceptingWrites, 0) == 1)
                 _channel.Writer.TryComplete();
-            _cancelSource.Cancel();
+            cancellation = _cancelSource.CancelAsync();
         }
 
         try
         {
+            await cancellation.ConfigureAwait(false);
             await _processingTask.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_cancelSource.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
         finally
         {
@@ -237,17 +223,18 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
         catch (Exception exception)
         {
             Interlocked.Exchange(ref _acceptingWrites, 0);
             _channel.Writer.TryComplete(exception);
-            _logger?.LogError(exception, "Ordered batch channel failed for {ValueType}", typeof(T).Name);
+            if (_logger is not null) SharedActorDiagnosticLog.OrderedBatchFailed(_logger, exception, typeof(T).Name);
             throw;
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1994", Justification = "The retry counter is intentionally checked in the exception filter; the loop exits on success or exhausted retries.")]
     async ValueTask ProcessBatchWithRetryAsync(
         IReadOnlyList<QueuedValue> batch,
         CancellationToken cancellationToken)
@@ -267,12 +254,8 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
             catch (Exception exception) when (attempt < _readerRetryCount)
             {
                 Interlocked.Increment(ref _failureCount);
-                _logger?.LogWarning(
-                    exception,
-                    "Ordered batch channel reader failed for {ValueType}; retry {Retry}/{MaximumRetries}",
-                    typeof(T).Name,
-                    attempt + 1,
-                    _readerRetryCount);
+                if (_logger is not null)
+                    SharedActorDiagnosticLog.OrderedBatchRetry(_logger, exception, typeof(T).Name, attempt + 1, _readerRetryCount);
                 if (_readerRetryDelay > TimeSpan.Zero)
                     await Task.Delay(_readerRetryDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
             }
@@ -284,6 +267,7 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Diagnostic failures must not interrupt actor processing or replace the original failure.")]
     void PublishMetrics()
     {
         try
@@ -292,7 +276,7 @@ public sealed class OrderedBatchAsyncChannel<T> : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            _logger?.LogError(exception, "Ordered batch channel metrics observer failed for {ValueType}", typeof(T).Name);
+            if (_logger is not null) SharedActorDiagnosticLog.OrderedBatchMetricsFailed(_logger, exception, typeof(T).Name);
         }
     }
 

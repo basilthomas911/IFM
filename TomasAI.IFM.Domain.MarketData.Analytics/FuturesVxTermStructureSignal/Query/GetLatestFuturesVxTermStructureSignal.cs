@@ -17,6 +17,8 @@ public static class GetLatestFuturesVxTermStructureSignal
         IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await context.DbFactory.MarketDataDb.GetLatestFuturesVxTermStructureSignalAsync(
             query.ValueDate, query.ConfigurationId, cancellationToken).ConfigureAwait(false);
         await context.ReplyAsync(query.Subject.ThreadId,

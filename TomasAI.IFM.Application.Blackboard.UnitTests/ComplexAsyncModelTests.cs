@@ -32,7 +32,7 @@ public class FuturesEodDataRangeModelTests
         var key = "FuturesEodDataRange:ESZ4.20240615";
         var eodData = new[] { new FuturesEodDataV2ReadModel(contractId, valueDate, "ES", 5000m, 5100m, 4900m, 5050m, 1000) };
         var serialized = "{\"data\"}";
-        _redisCache.Get(key).Returns(string.Empty, serialized);
+        _redisCache.GetAsync(key).Returns(string.Empty, serialized);
         var callback = Substitute.For<Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>>>();
         callback(contractId, Arg.Any<DateOnly>(), valueDate).Returns(new ValueTask<FuturesEodDataV2ReadModel[]>(eodData));
         _jsonSerializer.Serialize(eodData).Returns(serialized);
@@ -43,7 +43,7 @@ public class FuturesEodDataRangeModelTests
 
         // Assert
         result.Should().BeEquivalentTo(eodData);
-        _redisCache.Received(1).Set(key, serialized);
+        await _redisCache.Received(1).SetAsync(key, serialized);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class FuturesEodDataRangeModelTests
     {
         // Arrange
         const string key = "FuturesEodDataRange:ESZ4.20240615";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>>>();
         callback(Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<DateOnly>())
             .Returns(new ValueTask<FuturesEodDataV2ReadModel[]>((FuturesEodDataV2ReadModel[]?)null));
@@ -72,7 +72,7 @@ public class FuturesEodDataRangeModelTests
         var key = "FuturesEodDataRange:ESZ4.20240615";
         var eodData = new[] { new FuturesEodDataV2ReadModel(contractId, valueDate, "ES", 5000m, 5100m, 4900m, 5050m, 1000) };
         var serialized = "{\"data\"}";
-        _redisCache.Get(key).Returns(serialized);
+        _redisCache.GetAsync(key).Returns(serialized);
         _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(serialized).Returns(eodData);
         var callback = Substitute.For<Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>>>();
 
@@ -97,7 +97,7 @@ public class FuturesEodDataRangeModelTests
         var staleJson = "{\"stale\"}";
         var freshJson = "{\"fresh\"}";
 
-        _redisCache.Get(key).Returns(staleJson, freshJson);
+        _redisCache.GetAsync(key).Returns(staleJson, freshJson);
         _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(staleJson).Returns(staleData);
         _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(freshJson).Returns(freshData);
         var callback = Substitute.For<Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>>>();
@@ -124,7 +124,7 @@ public class FuturesEodDataRangeModelTests
         var emptyJson = "{\"empty\"}";
         var freshJson = "{\"fresh\"}";
 
-        _redisCache.Get(key).Returns(emptyJson, freshJson);
+        _redisCache.GetAsync(key).Returns(emptyJson, freshJson);
         _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(emptyJson).Returns(emptyData);
         _jsonSerializer.Deserialize<FuturesEodDataV2ReadModel[]>(freshJson).Returns(freshData);
         var callback = Substitute.For<Func<string, DateOnly, DateOnly, ValueTask<FuturesEodDataV2ReadModel[]>>>();
@@ -177,7 +177,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
         var key = "FuturesItiSignalAveragePredictedTrendDelta:ESZ4. 20240615";
         var cachedJson = "{\"cached\"}";
         var expected = new FuturesItiSignalAveragePredictedTrendDeltaDataModel(contractId, valueDate, 1.5, -0.8, 55.0, 45.0);
-        _redisCache.Get(key).Returns(cachedJson);
+        _redisCache.GetAsync(key).Returns(cachedJson);
         _jsonSerializer.Deserialize<FuturesItiSignalAveragePredictedTrendDeltaDataModel>(cachedJson).Returns(expected);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalAveragePredictedTrendDeltaDataModel>>>();
 
@@ -198,7 +198,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
         var key = "FuturesItiSignalAveragePredictedTrendDelta:ESZ4. 20240615";
         var callbackResult = new FuturesItiSignalAveragePredictedTrendDeltaDataModel(contractId, valueDate, 2.0, -1.0, 60.0, 40.0);
         var serialized = "{\"serialized\"}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalAveragePredictedTrendDeltaDataModel>>>();
         callback(contractId, valueDate).Returns(Task.FromResult(callbackResult));
         _jsonSerializer.Serialize(callbackResult).Returns(serialized);
@@ -209,7 +209,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
 
         // Assert
         result.Should().Be(callbackResult);
-        _redisCache.Received(1).Set(key, serialized);
+        await _redisCache.Received(1).SetAsync(key, serialized);
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
     {
         // Arrange
         const string key = "FuturesItiSignalAveragePredictedTrendDelta:ESZ4. 20240101";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalAveragePredictedTrendDeltaDataModel>>>();
         callback(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns(Task.FromResult<FuturesItiSignalAveragePredictedTrendDeltaDataModel>(null!));
@@ -227,7 +227,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaModelTests
 
         // Assert
         result.Should().BeNull();
-        _redisCache.DidNotReceive().Set(Arg.Any<string>(), Arg.Any<string>());
+        await _redisCache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
         var key = "FuturesItiSignalAveragePredictedTrendDeltaRange:ES.20240101.20240615";
         var cachedJson = "{\"cached\"}";
         var expected = new FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel(symbol, new DateOnly(2024, 1, 1), new DateOnly(2024, 6, 15), 1.2, -0.5);
-        _redisCache.Get(key).Returns(cachedJson);
+        _redisCache.GetAsync(key).Returns(cachedJson);
         _jsonSerializer.Deserialize<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>(cachedJson).Returns(expected);
         var callback = Substitute.For<Func<string, DateTime, DateTime, Task<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>>>();
 
@@ -288,7 +288,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
         var key = "FuturesItiSignalAveragePredictedTrendDeltaRange:ES.20240101.20240615";
         var callbackResult = new FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel(symbol, new DateOnly(2024, 1, 1), new DateOnly(2024, 6, 15), 1.5, -0.7);
         var serialized = "{\"serialized\"}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateTime, DateTime, Task<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>>>();
         callback(symbol, startDate, endDate).Returns(Task.FromResult(callbackResult));
         _jsonSerializer.Serialize(callbackResult).Returns(serialized);
@@ -299,7 +299,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
 
         // Assert
         result.Should().Be(callbackResult);
-        _redisCache.Received(1).Set(key, serialized);
+        await _redisCache.Received(1).SetAsync(key, serialized);
     }
 
     [Fact]
@@ -309,7 +309,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
         var startDate = new DateTime(2024, 1, 1);
         var endDate = new DateTime(2024, 6, 15);
         const string key = "FuturesItiSignalAveragePredictedTrendDeltaRange:ES.20240101.20240615";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateTime, DateTime, Task<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>>>();
         callback(Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<DateTime>())
             .Returns(Task.FromResult<FuturesItiSignalAveragePredictedTrendDeltaRangeReadModel>(null!));
@@ -319,7 +319,7 @@ public class FuturesItiSignalAveragePredictedTrendDeltaRangeModelTests
 
         // Assert
         result.Should().BeNull();
-        _redisCache.DidNotReceive().Set(Arg.Any<string>(), Arg.Any<string>());
+        await _redisCache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -357,7 +357,7 @@ public class FuturesItiSignalMDIModelTests
         var key = "FuturesItiSignalMDI:ESZ4. 20240615";
         var cachedJson = "{\"cached\"}";
         var expected = new[] { new FuturesItiSignalMDIV2ReadModel(contractId, valueDate, DateTime.Now, IntrinsicTimeTrendType.UpTrend, 1.5) };
-        _redisCache.Get(key).Returns(cachedJson);
+        _redisCache.GetAsync(key).Returns(cachedJson);
         _jsonSerializer.Deserialize<FuturesItiSignalMDIV2ReadModel[]>(cachedJson).Returns(expected);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalMDIV2ReadModel[]>>>();
 
@@ -378,7 +378,7 @@ public class FuturesItiSignalMDIModelTests
         var key = "FuturesItiSignalMDI:ESZ4. 20240615";
         var callbackResult = new[] { new FuturesItiSignalMDIV2ReadModel(contractId, valueDate, DateTime.Now, IntrinsicTimeTrendType.DownTrend, -0.8) };
         var serialized = "{\"serialized\"}";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalMDIV2ReadModel[]>>>();
         callback(contractId, valueDate).Returns(Task.FromResult(callbackResult));
         _jsonSerializer.Serialize(callbackResult).Returns(serialized);
@@ -389,7 +389,7 @@ public class FuturesItiSignalMDIModelTests
 
         // Assert
         result.Should().BeEquivalentTo(callbackResult);
-        _redisCache.Received(1).Set(key, serialized);
+        await _redisCache.Received(1).SetAsync(key, serialized);
     }
 
     [Fact]
@@ -397,7 +397,7 @@ public class FuturesItiSignalMDIModelTests
     {
         // Arrange
         const string key = "FuturesItiSignalMDI:ESZ4. 20240101";
-        _redisCache.Get(key).Returns(string.Empty);
+        _redisCache.GetAsync(key).Returns(string.Empty);
         var callback = Substitute.For<Func<string, DateOnly, Task<FuturesItiSignalMDIV2ReadModel[]>>>();
         callback(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns(Task.FromResult<FuturesItiSignalMDIV2ReadModel[]>(null!));

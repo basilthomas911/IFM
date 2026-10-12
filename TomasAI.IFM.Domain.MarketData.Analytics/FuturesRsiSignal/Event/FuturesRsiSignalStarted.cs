@@ -27,9 +27,8 @@ public static class FuturesRsiSignalStarted
         _serviceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
 
-    static string _serviceId { get; } = default!;
-
-    /// <summary>
+    static string _serviceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Executes the start operation for a Futures RSI signal timer, initiating the generation of RSI signals for the specified contract and value date.
     /// </summary>
     /// <param name="e">The event containing details about the futures RSI signal to be processed, including the contract ID and value date.</param>
@@ -43,11 +42,12 @@ public static class FuturesRsiSignalStarted
         IFuturesRsiSignalEventContext context,
         ILogger<FuturesRsiSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
         {
-            logger.LogInformation("RSI startup {EntityId}: seed count {SeedCount}, disposition {SeedReason}",
-                e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write46(logger, null, e.EntityId, e.HistoricalSeedCount, e.HistoricalSeedReason);
             if (e.RestoredSignal is { IsWarm: true, Metadata.IsValid: true } restored)
             {
                 TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery.RegimeDiscoverySignalCacheAdapter.Publish(restored);
@@ -59,7 +59,7 @@ public static class FuturesRsiSignalStarted
         catch (Exception ex)
         {
             logger.LogErrorEvent(_serviceId, ex, "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
 

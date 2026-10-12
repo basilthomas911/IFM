@@ -2,12 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 
 namespace TomasAI.IFM.Domain.Trade.Shared.DataExport;
 
-public interface IRegimeDiscoveryDecisionReferenceCsvAdapter
-{
-    Task ExportAsync(IReadOnlyCollection<RegimeDiscoveryDecisionReferenceDto> results, string fileName,
-        bool overwrite = true, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Exports typed Regime Discovery reference rows to deterministic Excel-compatible CSV.</summary>
 public sealed class RegimeDiscoveryDecisionReferenceCsvAdapter
     : IRegimeDiscoveryDecisionReferenceCsvAdapter

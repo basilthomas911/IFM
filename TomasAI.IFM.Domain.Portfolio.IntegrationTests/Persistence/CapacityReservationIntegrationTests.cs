@@ -10,6 +10,7 @@ using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLe
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 
 [Trait("Category", "PortfolioFinancial"), Trait("Gate", "PF-FIN-04")]
+[Trait("Infrastructure", "SelfContained")]
 [Collection("PortfolioFinancialDatabase")]
 public sealed class CapacityReservationIntegrationTests(PortfolioEventStoreFixture fixture) : IClassFixture<PortfolioEventStoreFixture>
 {

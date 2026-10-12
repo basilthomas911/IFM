@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Shared.EventSourcing;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -9,26 +11,11 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 
 namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
-public sealed record PortfolioProjectionRebuildRequest(
-    IReadOnlyList<PortfolioId> Portfolios,
-    IReadOnlyList<PortfolioFundId> Funds,
-    IReadOnlyList<PortfolioFinancialPolicyId>? Policies = null);
-
-public sealed record PortfolioProjectionRebuildResult(
-    int EventCount,
-    long LastSourceEventId,
-    string SourceCatalogSha256);
-
-public interface IPortfolioProjectionRebuilder
-{
-    Task<PortfolioProjectionRebuildResult> RebuildAsync(PortfolioProjectionRebuildRequest request, CancellationToken cancellationToken = default);
-}
-
 /// <summary>
-/// Controlled replay of authoritative PostgreSQL Portfolio streams into an empty or existing idempotent Scylla projection.
+/// Controlled replay of authoritative PostgreSQL Portfolio streams into an empty or existing idempotent PostgreSQL projection.
 /// The caller owns destructive table reset; this service only replays explicitly named aggregate streams.
 /// </summary>
-public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IPortfolioDbWriteContext projections)
+public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IPortfolioDbWriteContext projections, IPostgresEventTransaction? transactions = null)
     : IPortfolioProjectionRebuilder
 {
     readonly IPortfolioEventStore _events = events ?? throw new ArgumentNullException(nameof(events));
@@ -62,12 +49,25 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             history.AddRange(await _events.LoadPolicyHistoryAsync(id, cancellationToken).ConfigureAwait(false));
         }
         var ordered = history.OrderBy(SourceEventId).ThenBy(x => x.GetType().FullName, StringComparer.Ordinal).ToArray();
-        if (ordered.Count(x => SourceEventId(x) <= 0) != 0)
+        if (ordered.Any(x => SourceEventId(x) <= 0))
             throw new InvalidOperationException("Only committed authoritative events can be rebuilt.");
         var handler = new PortfolioProjectionHandler(_events, _projections);
         foreach (var item in ordered)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var facts=item switch {
+                IPortfolioDomainEvent portfolio => portfolio.ProjectionFacts,
+                IPortfolioFundDomainEvent fund => fund.ProjectionFacts,
+                IPortfolioFinancialPolicyDomainEvent policy => policy.ProjectionFacts,
+                _ => null };
+            if (facts is not null)
+            {
+                await (transactions ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (db,ct) => {
+                    await PostgresPortfolioProjectionStore.ApplyAsync(db,(IEvent)item,facts,ct).ConfigureAwait(false);
+                    return true;
+                },cancellationToken).ConfigureAwait(false);
+                continue;
+            }
             switch (item)
             {
                 case IPortfolioFinancialPolicyDomainEvent policy: await handler.ApplyAsync(policy, cancellationToken).ConfigureAwait(false); break;
@@ -77,7 +77,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             }
         }
         var manifest = string.Join('\n', ordered.Select(x => $"{SourceEventId(x)}:{x.GetType().FullName}"));
-        return new(ordered.Length, ordered.Length == 0 ? 0 : SourceEventId(ordered[^1]), Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(manifest))).ToLowerInvariant());
+        return new(ordered.Length, ordered.Length == 0 ? 0 : SourceEventId(ordered[^1]), Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(manifest))));
     }
 
     static long SourceEventId(object value) => value switch

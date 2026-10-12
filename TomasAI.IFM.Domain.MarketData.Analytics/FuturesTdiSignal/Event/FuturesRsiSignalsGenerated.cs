@@ -46,8 +46,7 @@ public static class FuturesRsiSignalsGenerated
 
         if (signals.Length < configuration.RequiredRsiSamples)
         {
-            logger.LogWarning("{Method} cannot initialize TDI for {ContractId}, {ValueDate}, {TimePeriod}: {AvailableSamples}/{RequiredSamples} RSI samples.",
-                nameof(ExecuteAsync), e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write51(logger, null, nameof(ExecuteAsync), e.EntityId.ContractId, e.EntityId.ValueDate, e.EntityId.TimePeriod, signals.Length, configuration.RequiredRsiSamples);
             return true;
         }
 

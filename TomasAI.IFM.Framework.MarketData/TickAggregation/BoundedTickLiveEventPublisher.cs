@@ -23,7 +23,7 @@ public sealed class BoundedTickLiveEventPublisher :
     public BoundedTickLiveEventPublisher(ITickLiveEventSink sink, int capacity = 1024)
     {
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
-        if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _channel = Channel.CreateBounded<Publication>(new BoundedChannelOptions(capacity)
         {
             SingleReader = true,
@@ -97,6 +97,7 @@ public sealed class BoundedTickLiveEventPublisher :
     /// <param name="Quote">The bid and ask snapshot, when available.</param>
     /// <param name="Trade">The last trade snapshot, when available.</param>
     /// <param name="CancellationToken">The token used to cancel processing of this publication.</param>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     private readonly record struct Publication(
         LiveTickQuoteServiceEvent? Quote,
         LiveTickTradeServiceEvent? Trade,

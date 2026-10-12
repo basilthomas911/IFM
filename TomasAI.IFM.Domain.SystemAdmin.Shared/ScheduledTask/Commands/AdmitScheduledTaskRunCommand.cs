@@ -12,14 +12,14 @@ public sealed record AdmitScheduledTaskRunCommand : ICommand<ScheduledTaskId>
 {
     public const string Actor = "ScheduledTaskCommand";
     public const string Verb = "AdmitScheduledTaskRun";
-    [Key(0)] public Guid CommandId { get; init; } = default;
+    [Key(0)] public Guid CommandId { get; init; } = Guid.Empty;
     [Key(1)] public ActorSubject Subject { get; init; } = default!;
     [Key(2)] public ScheduledTaskId EntityId { get; init; } = default;
     [Key(3)] public long ExpectedRevision { get; init; } = 0;
     [Key(4)] public string Operator { get; init; } = "";
     [Key(5)] public string Reason { get; init; } = "";
-    [Key(6)] public Guid OperationCommandId { get; init; } = default;
-    [Key(7)] public Guid RunId { get; init; } = default;
+    [Key(6)] public Guid OperationCommandId { get; init; } = Guid.Empty;
+    [Key(7)] public Guid RunId { get; init; } = Guid.Empty;
     [Key(8)] public long DefinitionRevision { get; init; } = 0;
     [Key(9)] public DateTimeOffset IntendedFireTimeUtc { get; init; } = default;
     [Key(10)] public bool Manual { get; init; } = false;

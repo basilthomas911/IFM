@@ -7,10 +7,13 @@ public sealed record EconomicCalendarPageRequest
 {
     [Key(0)] public DateTime StartDateUtc { get; init; }
     [Key(1)] public DateTime EndDateUtc { get; init; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(2)] public string[] CountryCodes { get; init; } = [];
     [Key(3)] public int PageSize { get; init; } = 100;
     [Key(4)] public string? ContinuationToken { get; init; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The existing model/command Validate method validates object properties, not method parameters. Preserve ArgumentException and property-specific diagnostic labels consumed by validation/error adapters.")]
     public void Validate()
     {
         if (StartDateUtc.Kind != DateTimeKind.Utc)

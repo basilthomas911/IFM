@@ -39,9 +39,9 @@ public sealed class ParameterStartupActorTests
     {
         var data = Assigned(); var sets = new ParameterSetCommandState(); sets.Versions.Add(1, data.Version);
         var context = Substitute.For<IParameterStartupCommandContext>(); var logger = Substitute.For<ILogger<ParameterStartupCommandActor>>();
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>()).Returns(call => new ValueTask<ParameterAssignmentCommandState>(
+        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(call => new ValueTask<ParameterAssignmentCommandState>(
          ((AssignParameterVersionCommand)call.Arg<ICommand>()).Scope == data.Assignment.Assignment!.Scope ? data.Assignment : new()));
-        context.ParameterSets.LoadStateAsync(Arg.Any<ICommand>()).Returns(new ValueTask<ParameterSetCommandState>(sets));
+        context.ParameterSets.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(new ValueTask<ParameterSetCommandState>(sets));
         var state = new ParameterStartupCommandState(); var runId = Guid.NewGuid();
         var command = new ApplySignalStartupPlanCommand { CommandId = runId, RunId = runId, EntityId = ParameterStartupEntityId.Registry };
         command = MessagePackSerializer.Deserialize<ApplySignalStartupPlanCommand>(MessagePackSerializer.Serialize(command));
@@ -65,7 +65,8 @@ public sealed class ParameterStartupActorTests
         var startups = new ParameterStartupCommandState(); startups.ActiveRuns.Add(runId, run);
         var context = Substitute.For<IParameterSetCommandContext>();
         context.Startups.LoadStateAsync(Arg.Any<ICommand>()).Returns(new ValueTask<ParameterStartupCommandState>(startups));
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>()).Returns(new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
+        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
+        context.Assignments.LoadStateAsync(Arg.Any<ICommand>()).Returns(call => context.Assignments.LoadStateAsync(call.Arg<ICommand>(), CancellationToken.None));
         var state = new ParameterSetCommandState(); state.Versions.Add(1, data.Version);
         var retire = new RetireParameterVersionCommand { CommandId = Guid.NewGuid(), EntityId = new(data.Version.Reference.SetId), Version = 1, ExpectedRevision = 0 };
         var runtime = new ParameterRuntimeSnapshotModel(true); runtime.Apply(run);
@@ -80,7 +81,7 @@ public sealed class ParameterStartupActorTests
     public async Task Repeated_startups_need_no_release_and_keep_a_bounded_recent_history()
     {
         var context = Substitute.For<IParameterStartupCommandContext>();
-        context.Assignments.LoadStateAsync(Arg.Any<ICommand>()).Returns(_ => new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
+        context.Assignments.LoadStateAsync(Arg.Any<ICommand>(), Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<ParameterAssignmentCommandState>(new ParameterAssignmentCommandState()));
         var state = new ParameterStartupCommandState(); var first = Guid.Empty; var last = Guid.Empty;
         for (var index = 0; index < 105; index++)
         {

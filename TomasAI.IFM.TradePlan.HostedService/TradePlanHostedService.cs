@@ -19,39 +19,37 @@ namespace TomasAI.IFM.TradePlan.HostedService
             _logger = logger;
         }
 
-        public async Task StartAsync(CancellationToken stoppingToken)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional legacy consumer startup reports exceptions without bringing down the API host.")]
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
             try
             {
                 await _tradePlanEventConsumer.StartAsync().ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Trade-plan event consumer startup was cancelled by API shutdown.");
+                LifecycleLog.Log1(_logger, exception);
             }
             catch (Exception exception)
             {
-                _logger.LogError(
-                    exception,
-                    "Trade-plan event consumer failed to start; the API host will remain running.");
+                LifecycleLog.Log2(_logger, exception);
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional consumer stop reports errors while allowing API shutdown to continue.")]
         public async Task StopAsync(CancellationToken cancellationToken)
         {
             try
             {
                 await _tradePlanEventConsumer.StopAsync().ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Trade-plan event consumer reached the API shutdown deadline.");
+                LifecycleLog.Log3(_logger, exception);
             }
             catch (Exception exception)
             {
-                _logger.LogError(
-                    exception,
-                    "Trade-plan event consumer failed while stopping; API shutdown will continue.");
+                LifecycleLog.Log4(_logger, exception);
             }
         }
 

@@ -18,7 +18,9 @@ public static class GetEconomicCalendarAll
     /// <returns>A value task that completes after the reply has been posted.</returns>
     public static async ValueTask<EconomicCalendarReadModel[]> ExecuteAsync(
         this GetEconomicCalendarAllQuery q, IDbContextFactory dbFactory, CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.MarketDataDb.GetEconomicCalendarAllAsync(cancellationToken)
-            : dbFactory.MarketDataDb.GetEconomicCalendarAllAsync())];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return [.. await (dbFactory.MarketDataDb.GetEconomicCalendarAllAsync(cancellationToken)).ConfigureAwait(false)];
+    }
 }

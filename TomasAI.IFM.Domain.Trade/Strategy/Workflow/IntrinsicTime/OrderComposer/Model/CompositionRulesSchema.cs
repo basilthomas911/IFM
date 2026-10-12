@@ -7,12 +7,13 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer
 /// <summary>Authors the complete strict catalog schema, including bounded optional adjustment arrays.</summary>
 public static class CompositionRulesSchema
 {
+    static readonly JsonSerializerOptions SettingsSerializerOptions = new() { MaxDepth = 96 };
     public static CatalogParameterShape Create()
     {
         var parameters = Enum.GetValues<CompositionParameter>().ToDictionary(x => x.ToString(), x =>
             Number(x is CompositionParameter.LoadingMilliseconds or CompositionParameter.ExecutionMilliseconds
                 or CompositionParameter.CandidateLifetimeMilliseconds or CompositionParameter.MaximumQuoteAgeMilliseconds
-                or CompositionParameter.MaximumQuoteSkewMilliseconds or CompositionParameter.MaximumAdverseMoveTicks));
+                or CompositionParameter.MaximumQuoteSkewMilliseconds or CompositionParameter.MaximumAdverseMoveTicks),StringComparer.Ordinal);
         var key = Object(("Kind", Number(true)), ("Id", Text()), ("Version", Number(true)));
         var bounds = Object(("Parameter", Number(true)), ("Minimum", Number()), ("Maximum", Number()), ("Grid", Number()));
         var adjustment = Object(("Code", Text()), ("Priority", Number(true)), ("Predicate", Predicate(1)),
@@ -25,7 +26,7 @@ public static class CompositionRulesSchema
         return Object(("SchemaVersion", Number(true)), ("AlgorithmVersion", Text()), ("PricerVersion", Text()),
             ("SupportedHorizon", Number(true)), ("InstrumentRoot", Text()), ("Currency", Text()), ("VariantRules", Array(variant, 12)));
     }
-    public static JsonElement Settings() => JsonSerializer.SerializeToElement(Create(), new JsonSerializerOptions { MaxDepth = 96 });
+    public static JsonElement Settings() => JsonSerializer.SerializeToElement(Create(), SettingsSerializerOptions);
     static CatalogParameterShape Predicate(int depth) => Object(("Comparison", Number(true)), ("Feature", Number(true)),
         ("Values", Array(Number(), 64)), ("Children", depth == 8 ? Array(Object(), 0) : Array(Predicate(depth + 1), 64)), ("Required", Boolean()));
     static CatalogParameterShape Object(params (string Name, CatalogParameterShape Shape)[] properties) => new()

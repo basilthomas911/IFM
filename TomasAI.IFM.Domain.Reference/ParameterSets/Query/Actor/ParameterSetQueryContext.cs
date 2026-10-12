@@ -10,25 +10,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.ParameterSets.Query.Actor;
 
-/// <summary>Defines readonly services owned by the strategy-configuration Query actor.</summary>
-public interface IParameterSetQueryContext
-    : IQueryActorContext<ParameterSetQueryActor>
-{
-    IRegimeDiscoveryMarketSignalSnapshotProvider SignalSnapshots { get; }
-    IParameterAccessPolicy AccessPolicy { get; }
-    IEventSourceActorStateRepository<ParameterStartupCommandState> Startups { get; }
-    /// <summary>Gets ConfigurationDb.</summary>
-    IConfigurationDbContext ConfigurationDb { get; }
-    IEventSourceActorStateRepository<ParameterSetCommandState> StateRepository { get; }
-    IEventSourceActorStateRepository<ParameterAssignmentCommandState> Assignments { get; }
-    /// <summary>Gets the logger.</summary>
-    ILogger<ParameterSetQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the closed-generic strategy-configuration Query context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ParameterSetQueryContext
     : QueryActorContext,
-      IQueryActorContext<ParameterSetQueryActor>,
       IParameterSetQueryContext
 {
     readonly Lazy<IEventSourceActorStateRepository<ParameterStartupCommandState>> startups;

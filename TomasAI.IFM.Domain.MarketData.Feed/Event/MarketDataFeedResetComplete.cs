@@ -16,9 +16,8 @@ public static class MarketDataFeedResetComplete
         ServiceId = $"{LogSourceType.MarketDataFeedEvent}";
     }
 
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// Announces a completed hard recovery. The recovery pipeline has already restored and
     /// qualified worker subscriptions, actors, and durable publication; this handler must not
     /// start another legacy in-process stream or lifecycle operation.
@@ -35,17 +34,20 @@ public static class MarketDataFeedResetComplete
         IEventActorContext eventApi,
         MarketDataFeedEventParameters p, ILogger<MarketDataFeedEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"MarketDataFeedResetCompleteEvent for EntityId: {e.EntityId}";
         try
         {
             // Recovery owns restoration; completion only notifies its consumers.
-            await eventApi.SendResetStreamingEventAsync(e);
+            await (eventApi.SendResetStreamingEventAsync(e)).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: data feed reset notification failed", source);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage());
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, -1, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

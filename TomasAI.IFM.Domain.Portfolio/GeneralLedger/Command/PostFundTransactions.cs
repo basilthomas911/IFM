@@ -17,28 +17,34 @@ public static class PostFundTransactions
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this PostFundTransactionsCommand command, GeneralLedgerCommandServices services, CancellationToken cancellationToken)
     {
-        var replay = await services.Database.ReadOperationAsync<LedgerPostingBatchCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken);
-        if (replay is not null) return await replay.NotifyAsync(services.Projector, services.Logger);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
+        var replay = await (services.Database.ReadOperationAsync<LedgerPostingBatchCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         FinancialRequestValidation.Demand(command, "LedgerPost", DateTime.UtcNow);
         if (command.Body.Items.Length is < 1 or > 100 || command.Body.Items.Any(x => x.BookId != command.Body.BookId) ||
-            command.Body.ManifestHash != FinancialCanonicalHash.Compute(command.Body.Items))
+            !string.Equals(command.Body.ManifestHash,FinancialCanonicalHash.Compute(command.Body.Items),StringComparison.Ordinal))
             throw new FinancialOperationException(FinancialReasons.InvalidContract, "Batch book/count/manifest is invalid.");
         var items = new List<PreparedLedgerPosting>(command.Body.Items.Length);
         foreach (var body in command.Body.Items)
         {
             FinancialRequestValidation.DemandPosting(command, body, DateTime.UtcNow);
-            items.Add(new(await services.Ids.TransactionAsync(cancellationToken), await services.Ids.JournalAsync(cancellationToken), body));
+            items.Add(new(await (services.Ids.TransactionAsync(cancellationToken)).ConfigureAwait(false), await (services.Ids.JournalAsync(cancellationToken)).ConfigureAwait(false), body));
         }
-        var completed = await services.Store.PostAsync(command, items, (body, rule, prior, original, remaining) =>
+        var completed = await (services.Store.PostAsync(command, items, (body, rule, prior, original, remaining) =>
             command.Compute(body, rule, prior, original, remaining, body.TransactionKind is LedgerTransactionKind.Adjustment or LedgerTransactionKind.OpeningBalance),
-            ledgerCommit => command.Complete(ledgerCommit), cancellationToken);
-        return await completed.NotifyAsync(services.Projector, services.Logger);
+            ledgerCommit => command.Complete(ledgerCommit), cancellationToken)).ConfigureAwait(false);
+        return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
     }
     /// <summary>Handles Complete at the command boundary.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="ledgerCommit">The verified committed ledger revision and posting identities.</param>
     /// <returns>The operation result.</returns>
-    public static LedgerPostingBatchCompletedEvent Complete(this PostFundTransactionsCommand command, LedgerCommitInfo ledgerCommit) => new()
+    public static LedgerPostingBatchCompletedEvent Complete(this PostFundTransactionsCommand command, LedgerCommitInfo ledgerCommit) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ledgerCommit);
+        return new()
     {
         Id = ledgerCommit.EventId,
         Subject = new(ActorType.Event, PostFundTransactionsCommand.Actor, nameof(LedgerPostingBatchCompletedEvent), command.EntityId.Format()),
@@ -65,6 +71,7 @@ public static class PostFundTransactions
             CompletedEventId = ledgerCommit.EventId
         }
     };
+    }
     /// <summary>Calculates a ledger posting from the business state read under the financial transaction fence.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="ledgerPosting">The ledger posting business input.</param>

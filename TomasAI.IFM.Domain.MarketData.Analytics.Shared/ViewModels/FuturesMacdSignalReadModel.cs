@@ -86,6 +86,7 @@ public record FuturesMacdSignalReadModel
     /// </remarks>
     [Key(17)] public int ObservationCount { get; init; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Retain this historical serialized event type for existing event-log deserialization.")]
     [JsonIgnore]
     [IgnoreMember]
     [Obsolete("Use SignalEmaPeriod, FastEmaPeriod, and SlowEmaPeriod.")]

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Shared.StatusConsole;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1027", Justification = "Historical log categories are individual persisted enum values, not bit flags; preserve all numeric identities.")]
 public enum ServerLogType
 {
     Command = 0,
@@ -13,17 +14,4 @@ public enum ServerLogType
     Event = 2,
     Nats = 4,
     Telemetry = 5
-}
-
-public static class ServerLogTypeExtensions
-{
-    public static string ToStringFast(this ServerLogType value) => value switch
-    {
-        ServerLogType.Command => nameof(ServerLogType.Command),
-        ServerLogType.Query => nameof(ServerLogType.Query),
-        ServerLogType.Event => nameof(ServerLogType.Event),
-        ServerLogType.Nats => nameof(ServerLogType.Nats),
-        ServerLogType.Telemetry => nameof(ServerLogType.Telemetry),
-        _ => value.ToString()
-    };
 }

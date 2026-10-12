@@ -19,4 +19,8 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

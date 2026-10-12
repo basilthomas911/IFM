@@ -22,9 +22,8 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     : BaseQueryActor<YieldCurveRateQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "YieldCurveRateQuery";
-    readonly ILogger<YieldCurveRateQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IYieldCurveRateQueryContext YieldCurveRateContext { get; } =
-        IsArgumentNull.Set(actorContext as IYieldCurveRateQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IYieldCurveRateQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -40,7 +39,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     protected override IQuery ParseMessage(IQueryActorContext<YieldCurveRateQueryActor> context, IActorMessage message)
         => ParseMappedQuery(context, message, _parseMap);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetLastYieldCurveRateQuery.Verb] = message =>
             message.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>()!,
@@ -151,7 +150,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
 }

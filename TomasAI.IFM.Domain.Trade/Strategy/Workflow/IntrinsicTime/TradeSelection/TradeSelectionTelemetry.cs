@@ -1,7 +1,7 @@
 using System.Diagnostics.Metrics;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
-namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection;
 public static class TradeSelectionTelemetry
 {
     static readonly Meter Meter = new("TomasAI.IFM.TradeSelection");
@@ -16,14 +16,21 @@ public static class TradeSelectionTelemetry
     static readonly Histogram<int> Candidates = Meter.CreateHistogram<int>("trade_selection.candidates");
     public static void Record(TradeSelectionResult result, double elapsed)
     {
+        ArgumentNullException.ThrowIfNull(result);
         KeyValuePair<string, object?>[] tags = [new("horizon", result.DecisionHorizon.ToString()), new("outcome", result.Outcome.ToString())];
-        Duration.Record(elapsed, tags); Completions.Add(1, tags); Candidates.Record(result.CandidateDecisions.Length, tags);
+        Duration.Record(elapsed, tags);
+        Completions.Add(1, tags);
+        Candidates.Record(result.CandidateDecisions.Length, tags);
     }
+
     public static void Failure(string reason)
     {
-        if (reason == "TS.CONTRACT.CONFLICTING_DUPLICATE") Conflicts.Add(1);
+        ArgumentNullException.ThrowIfNull(reason);
+        if (string.Equals(reason, "TS.CONTRACT.CONFLICTING_DUPLICATE", StringComparison.Ordinal))
+            Conflicts.Add(1);
         var category = reason.Split('.').ElementAtOrDefault(1);
-        if (category is not ("CONTRACT" or "CONFIG" or "TIME" or "PROJECTION" or "PERSISTENCE" or "UPSTREAM" or "RESULT" or "TRANSPORT")) category = "OTHER";
+        if (category is not ("CONTRACT" or "CONFIG" or "TIME" or "PROJECTION" or "PERSISTENCE" or "UPSTREAM" or "RESULT" or "TRANSPORT"))
+            category = "OTHER";
         Failures.Add(1, new KeyValuePair<string, object?>("category", category));
     }
 }

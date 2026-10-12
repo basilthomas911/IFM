@@ -16,6 +16,8 @@ public sealed class RegimeDiscoveryExecutionOptions
     public TimeSpan MaximumExecutionDuration { get; set; } = DefaultMaximumExecutionDuration;
 
     /// <summary>Rejects missing, non-positive, or operationally unbounded timeout values at startup.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Validates this options instance's configured properties; there is no method argument to name.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "The error identifies the invalid configuration property on this self-validating options instance.")]
     public void Validate()
     {
         if (MaximumExecutionDuration < MinimumExecutionDuration ||

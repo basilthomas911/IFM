@@ -78,11 +78,7 @@ public sealed class MarketDataDbContextConventionTests
     [Fact]
     public void Public_context_methods_are_read_or_write_contract_implementations()
     {
-        var contractMethods = new[]
-            {
-                typeof(IMarketDataDbReadContext),
-                typeof(IMarketDataDbWriteContext)
-            }
+        var contractMethods = typeof(IMarketDataDbContext).GetInterfaces().Append(typeof(IMarketDataDbContext))
             .SelectMany(type => type.GetMethods())
             .ToArray();
         var publicMethods = typeof(MarketDataDbContext)
@@ -148,10 +144,8 @@ public sealed class MarketDataDbContextConventionTests
         Assert.DoesNotContain(lines, line => line.Contains("(this ", StringComparison.Ordinal));
         Assert.All(declarations, declaration =>
         {
-            Assert.True(declaration.Index >= 3,
-                $"Missing XML documentation for declaration: {declaration.Text.Trim()}");
-            Assert.Equal("/// <summary>", lines[declaration.Index - 3].Trim());
-            Assert.Equal("/// </summary>", lines[declaration.Index - 1].Trim());
+            Assert.True(DbContextConventionSource.HasXmlSummary(lines, declaration.Index),
+                $"Missing XML summary for {declaration.Text.Trim()}");
         });
     }
 

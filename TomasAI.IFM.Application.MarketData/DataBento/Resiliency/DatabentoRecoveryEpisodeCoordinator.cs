@@ -1,56 +1,9 @@
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
-public sealed record DatabentoHardRecoveryRequest(Guid CorrelationId, DateOnly ValueDate,
-    Guid ExpectedGenerationId, string Source, string Reason);
-
-public enum DatabentoHardRecoveryOutcome
-{
-    DatabentoHealthy = 1,
-    Unrecoverable = 2,
-    ApplicationStopping = 3
-}
-
-public sealed record DatabentoHardRecoveryResult(Guid CorrelationId, Guid GenerationId,
-    int Attempts, DatabentoHardRecoveryOutcome Outcome, string FailedStage, string Detail)
-{
-    public IReadOnlyDictionary<string, Guid> DatasetGenerations { get; init; } =
-        new Dictionary<string, Guid>(StringComparer.Ordinal);
-    public IReadOnlyList<DatabentoHardAttemptEvidence> AttemptEvidence { get; init; } = [];
-    public IReadOnlyList<string> ContributingReasons { get; init; } = [];
-}
-
-public sealed record DatabentoHardAttemptEvidence(int Attempt, bool SafeToRetry,
-    string Stage, string FailureType, string Detail, IReadOnlyList<int> WorkerProcessIds)
-{
-    public Guid AttemptId { get; init; }
-    public DateTimeOffset StartedUtc { get; init; }
-    public TimeSpan Elapsed { get; init; }
-    public IReadOnlyDictionary<string, Guid> DatasetGenerations { get; init; } =
-        new Dictionary<string, Guid>(StringComparer.Ordinal);
-    public string CleanupFailureType { get; init; } = string.Empty;
-    public string CleanupDetail { get; init; } = string.Empty;
-}
-
-public enum DatabentoRecoveryEpisodeState { Idle, Running, Healthy, Unrecoverable, ApplicationStopping }
-
-public sealed record DatabentoRecoveryEpisodePolicy
-{
-    public TimeSpan EpisodeTimeout { get; init; } = TimeSpan.FromMinutes(5);
-    public int MaximumContributingReasons { get; init; } = 16;
-
-    public DatabentoRecoveryEpisodePolicy Validate()
-    {
-        if (EpisodeTimeout <= TimeSpan.Zero || EpisodeTimeout > TimeSpan.FromHours(1)
-            || MaximumContributingReasons is < 1 or > 256)
-            throw new InvalidOperationException("Recovery episode policy requires a finite deadline and bounded reasons.");
-        return this;
-    }
-}
-
 /// <summary>Joins concurrent requests to one recovery episode and closes after a terminal result.</summary>
 public sealed class DatabentoRecoveryEpisodeCoordinator
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Func<DatabentoHardRecoveryRequest, CancellationToken, Task<DatabentoHardRecoveryResult>> execute;
     readonly CancellationToken applicationStopping;
     readonly TimeProvider time;
@@ -64,6 +17,7 @@ public sealed class DatabentoRecoveryEpisodeCoordinator
     public DatabentoRecoveryEpisodeState State { get { lock (gate) return state; } }
     public IReadOnlyList<string> ContributingReasons { get { lock (gate) return contributingReasons.ToArray(); } }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     public DatabentoRecoveryEpisodeCoordinator(
         Func<DatabentoHardRecoveryRequest, CancellationToken, Task<DatabentoHardRecoveryResult>> execute,
         CancellationToken applicationStopping = default, TimeProvider? time = null,
@@ -118,6 +72,7 @@ public sealed class DatabentoRecoveryEpisodeCoordinator
         return callerCancellation.CanBeCanceled ? episode.WaitAsync(callerCancellation) : episode;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     async Task RunAsync(DatabentoHardRecoveryRequest request,
         TaskCompletionSource<DatabentoHardRecoveryResult> completion)
     {

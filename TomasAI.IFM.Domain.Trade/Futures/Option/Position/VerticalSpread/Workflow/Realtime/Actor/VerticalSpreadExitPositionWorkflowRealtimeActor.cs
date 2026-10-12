@@ -7,43 +7,26 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Workflow.Realtime.Actor;
-
-public sealed class VerticalSpreadExitPositionWorkflowRealtimeActor(
-    IRealtimeActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> actorContext)
-    : BaseEventActor<VerticalSpreadExitPositionWorkflowRealtimeActor>(actorContext, Typed(actorContext).Logger)
+public sealed class VerticalSpreadExitPositionWorkflowRealtimeActor(IRealtimeActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> actorContext) : BaseEventActor<VerticalSpreadExitPositionWorkflowRealtimeActor>(actorContext, Typed(actorContext).Logger)
 {
     public const string ActorName = "VerticalSpreadExitPositionWorkflowRealtime";
     readonly IVerticalSpreadExitPositionWorkflowRealtimeContext services = Typed(actorContext);
-
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
-        {
-            [ExitPositionWorkflowStartedEvent.Verb] = static message =>
-                message.AsEvent<ExitPositionWorkflowStartedEvent>()!
-        }.ToFrozenDictionary(StringComparer.Ordinal);
-    static readonly IReadOnlyDictionary<Type, Func<ExitPositionWorkflowStartedEvent,
-        IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<ExitPositionWorkflowStartedEvent,
-            IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>>
-        {
-            [typeof(ExitPositionWorkflowStartedEvent)] = static (started, context) =>
-                started.ExecuteAsync(context)
-        }.ToFrozenDictionary();
-
-    protected override IEvent ParseMessage(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
-    protected override ValueTask ReceiveAsync(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context,
-        IEvent domainEvent) => ResolveMappedEventHandler(domainEvent, _receiveMap)(
-            (ExitPositionWorkflowStartedEvent)domainEvent, services);
-    protected override ValueTask OnExceptionAsync(
-        IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context, ActorThreadId threadId,
-        IEvent domainEvent, Exception exception)
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
-        ExitWorkflowLogging.Failed(services.Logger, exception, "VerticalSpread", domainEvent.AggregateId);
+        [ExitPositionWorkflowStartedEvent.Verb] = static message => message.AsEvent<ExitPositionWorkflowStartedEvent>()!
+    }.ToFrozenDictionary(StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<Type, Func<ExitPositionWorkflowStartedEvent, IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>> _receiveMap = new Dictionary<Type, Func<ExitPositionWorkflowStartedEvent, IVerticalSpreadExitPositionWorkflowRealtimeContext, ValueTask>>
+    {
+        [typeof(ExitPositionWorkflowStartedEvent)] = static (started, context) => started.ExecuteAsync(context)
+    }.ToFrozenDictionary();
+    protected override IEvent ParseMessage(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context, IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
+    protected override ValueTask ReceiveAsync(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)((ExitPositionWorkflowStartedEvent)@event, services);
+    protected override ValueTask OnExceptionAsync(IEventActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        ExitWorkflowLogging.Failed(services.Logger, ex, "VerticalSpread", @event.AggregateId);
         return ValueTask.CompletedTask;
     }
-    static IVerticalSpreadExitPositionWorkflowRealtimeContext Typed(
-        IRealtimeActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context) =>
-        context as IVerticalSpreadExitPositionWorkflowRealtimeContext ??
-        throw new ArgumentException("Typed Vertical Spread exit-workflow realtime context required.");
+
+    static IVerticalSpreadExitPositionWorkflowRealtimeContext Typed(IRealtimeActorContext<VerticalSpreadExitPositionWorkflowRealtimeActor> context) => context as IVerticalSpreadExitPositionWorkflowRealtimeContext ?? throw new ArgumentException("Typed Vertical Spread exit-workflow realtime context required.", nameof(context));
 }

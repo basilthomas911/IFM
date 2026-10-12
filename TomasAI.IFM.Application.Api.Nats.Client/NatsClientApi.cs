@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
@@ -12,7 +12,11 @@ public class NatsClientApi(IActorProducer actorProducer)
     /// <summary>Sends a standard typed Function request without changing its financial operation identity.</summary>
     protected ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(TCommand command, TEntityId entityId, CancellationToken token)
         where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class
-        => _actorProducer.RequestFunctionAsync<TCommand, TEntityId, TResult>(command.Subject, command, entityId, token);
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return _actorProducer.RequestFunctionAsync<TCommand, TEntityId, TResult>(command.Subject, command, entityId, token);
+    }
 
     /// <summary>
     /// Sends a command to an actor and waits for its domain result.
@@ -24,21 +28,24 @@ public class NatsClientApi(IActorProducer actorProducer)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var actorResult = await _actorProducer
+        ArgumentNullException.ThrowIfNull(command);
+        var actorResult = await (_actorProducer
             .RequestAsync<TCommand, TEntityId, GuidResult>(
                 command.Subject,
                 command,
                 entityId,
-                cancellationToken);
+                cancellationToken)).ConfigureAwait(false);
         return new ServiceResult<Guid>
         {
             Success = actorResult.Success,
-            ErrorCode = actorResult.ErrorCode != 0 ? actorResult.ErrorCode : actorResult.Success ? 0 : command.ErrorCode,
+            ErrorCode = actorResult.ErrorCode != 0 ? actorResult.ErrorCode : DefaultErrorCode(actorResult.Success, command.ErrorCode),
             ErrorMessage = actorResult.ErrorMessage,
             ErrorEvent = actorResult.ErrorEvent,
             Value = command.CommandId
         };
     }
+
+    static int DefaultErrorCode(bool success, int commandErrorCode) => success ? 0 : commandErrorCode;
 
     protected async ValueTask<ServiceResult<TResult>> RequestCommandResultAsync<TCommand, TEntityId, TResult>(
         TCommand command,
@@ -48,7 +55,8 @@ public class NatsClientApi(IActorProducer actorProducer)
         where TEntityId : IActorEntityId
         where TResult : class
     {
-        return await _actorProducer.RequestAsync<TCommand, TEntityId, TResult>(command.Subject, command, entityId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(command);
+        return await (_actorProducer.RequestAsync<TCommand, TEntityId, TResult>(command.Subject, command, entityId, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -63,14 +71,14 @@ public class NatsClientApi(IActorProducer actorProducer)
         where TQuery : class, IQuery<TResult>
         where TResult : class
     {
-        return await _actorProducer.RequestAsync<TResult, TQuery>(subject, query);
+        return await (_actorProducer.RequestAsync<TResult, TQuery>(subject, query)).ConfigureAwait(false);
     }
 
     protected async ValueTask<ServiceResult<TResult>> RequestAsync<TQuery, TResult>(ActorSubject subject, TQuery query, CancellationToken cancellationToken)
         where TQuery : class, IQuery<TResult>
         where TResult : class
     {
-        return await _actorProducer.RequestAsync<TResult, TQuery>(subject, query, cancellationToken);
+        return await (_actorProducer.RequestAsync<TResult, TQuery>(subject, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -81,11 +89,15 @@ public class NatsClientApi(IActorProducer actorProducer)
     /// <param name="errorCode"></param>
     /// <returns></returns>
     static protected ServiceResult<Guid> OnError(Exception ex, Guid cmdId, int errorCode)
-        => new()
+        
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new()
         {
             Success = false,
             Value = cmdId,
             ErrorCode = errorCode,
             ErrorMessage = ex.Message
         };
+    }
 }

@@ -31,14 +31,24 @@ public class NatsJetStreamActorProducer(
     INatsJetStreamProducerOptions options,
     ILogger<NatsJetStreamActorProducer> logger,
     NatsConnectionManager? connectionManager = null)
-    : IJSActorProducer
+    : IJSActorProducer, IAsyncDisposable
 {
     readonly INatsJetStreamProducerOptions _options = IsArgumentNull.Set(options);
     readonly ILogger<NatsJetStreamActorProducer> _logger = IsArgumentNull.Set(logger);
     readonly NatsConnectionManager _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
+    int _disposeStarted;
+
+    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try { await StopAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
-    NatsClient _nc;
     INatsJSContext _js;
     CancellationTokenSource? _operationStopping;
     bool _isRunning;
@@ -68,7 +78,6 @@ public class NatsJetStreamActorProducer(
         {
             if (_isRunning)
                 return;
-            _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             _js = await _connectionManager.GetJetStreamContextAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             _operationStopping?.Dispose();
             _operationStopping = new CancellationTokenSource();
@@ -108,9 +117,8 @@ public class NatsJetStreamActorProducer(
             }
             if (_ownsConnectionManager)
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
-            _nc = default!;
             _js = default!;
-            _logger.LogInformation("{Component}.{Method} "+"NATS JetStream producer stopped.",nameof(NatsJetStreamActorProducer),nameof(StopAsync));
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write14(_logger, null, nameof(NatsJetStreamActorProducer), nameof(StopAsync));
         }
         finally
         {
@@ -135,6 +143,7 @@ public class NatsJetStreamActorProducer(
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(@event);
         subject.ActorType.EnsureDeliveryType(
             ActorDeliveryType.NatsJetStream,
             nameof(NatsJetStreamActorProducer));
@@ -146,11 +155,11 @@ public class NatsJetStreamActorProducer(
             IsArgumentNull.Check(@event);
             await PublishAsync(subject.ToString(), @event.ToEvent<TEvent>(), cancellationToken).ConfigureAwait(false);
             if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug("{Component}.{Method} "+"Published event to JetStream subject {Subject} CommandId={CommandId}",nameof(NatsJetStreamActorProducer),nameof(SendAsync),subject,@event.CommandId);
+                global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write15(_logger, null, nameof(NatsJetStreamActorProducer), nameof(SendAsync), subject, @event.CommandId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,"{Component}.{Method} "+"Failed to publish event to JetStream subject {Subject}",nameof(NatsJetStreamActorProducer),nameof(SendAsync),subject);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write16(_logger, ex, nameof(NatsJetStreamActorProducer), nameof(SendAsync), subject);
             throw;
         }
     }

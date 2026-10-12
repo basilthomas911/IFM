@@ -56,7 +56,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared
 
         public override string ToString() => JsonConvert.SerializeObject(new TradeDiaryId(OrderId, TradeId, ValueDate, TradeStatus, ActionSource, ActionType, ActionSubType, ActionState, ActionReason), Formatting.None);
 
-        public override bool Equals(object obj) => (obj != null) && (obj is TradeDiaryId id)
+        public override bool Equals(object obj) => obj is TradeDiaryId id
             && id.OrderId == _orderId
             && id.TradeId == _tradeId
             && id.ValueDate == _valueDate
@@ -65,8 +65,8 @@ namespace TomasAI.IFM.Domain.Trade.Shared
             && id.ActionType == _actionType
             && id.ActionSubType == _actionSubType
             && id.ActionState == _actionState
-            && id.ActionReason == _actionReason;
+            && string.Equals(id.ActionReason,_actionReason,StringComparison.Ordinal);
 
-        public override int GetHashCode() => $"{this}".GetHashCode();
+        public override int GetHashCode() => StringComparer.Ordinal.GetHashCode($"{this}");
     }
 }

@@ -20,12 +20,10 @@ public static class GetTradingDays
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
     {
-        var tradingDayCount = cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetTradingDayCountAsync(
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var tradingDayCount = await dbFactory.MarketDataDb.GetTradingDayCountAsync(
                 q.StartDate, q.EndDate, q.MarketType, q.CurrencyType, cancellationToken)
-                .ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetTradingDayCountAsync(
-                q.StartDate, q.EndDate, q.MarketType, q.CurrencyType)
                 .ConfigureAwait(false);
         return new ScalarReadModel<int>(tradingDayCount);
     }
@@ -36,6 +34,8 @@ public static class GetTradingDays
         TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await query.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,

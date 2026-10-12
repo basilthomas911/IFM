@@ -16,9 +16,8 @@ public static class FuturesRsiSignalGenerated
     {
         ServiceId = $"{LogSourceType.FuturesRsiSignalEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// 
     /// </summary>
@@ -30,6 +29,8 @@ public static class FuturesRsiSignalGenerated
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalGeneratedEvent e, IFuturesRsiSignalEventContext context, ILogger<FuturesRsiSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         var source = $"FuturesRsiSignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
         try
         {
@@ -44,7 +45,7 @@ public static class FuturesRsiSignalGenerated
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}:  event handler failed", source);
-            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalsGeneratedEvent.ErrorCode, ex.GetErrorMessage());
+            await (context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalsGeneratedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

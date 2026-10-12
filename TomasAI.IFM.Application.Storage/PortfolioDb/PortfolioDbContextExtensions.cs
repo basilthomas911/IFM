@@ -13,6 +13,7 @@ internal static class PortfolioDbContextExtensions
     extension(PortfolioDbContext context)
     {
         /// <summary>Gets the required PostgreSQL event transaction coordinator.</summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal IPostgresEventTransaction RequiredTransactions
             => context._transactions
                 ?? throw new InvalidOperationException(
@@ -25,6 +26,7 @@ internal static class PortfolioDbContextExtensions
         /// <param name="parameters">The SQL parameters.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
         /// <returns>The matching model, or <see langword="null"/> when none exists.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<T?> ReadOneAsync<T>(
             string name,
             string sql,
@@ -45,6 +47,7 @@ internal static class PortfolioDbContextExtensions
         /// <param name="map">The result-set mapper.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
         /// <returns>The matching value, or <see langword="null"/> when none exists.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<T?> ReadOneValueAsync<T>(
             string name,
             string sql,
@@ -65,6 +68,7 @@ internal static class PortfolioDbContextExtensions
         /// <param name="parameters">The SQL parameters.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
         /// <returns>The matching models.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal async Task<IReadOnlyList<T>> ReadManyAsync<T>(
             string name,
             string sql,
@@ -83,6 +87,7 @@ internal static class PortfolioDbContextExtensions
         /// <param name="parameters">The SQL parameters.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous command.</param>
         /// <returns>A task representing the asynchronous command.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Task WriteAsync(
             string name,
             string sql,
@@ -96,6 +101,8 @@ internal static class PortfolioDbContextExtensions
         /// <summary>Creates a Portfolio PostgreSQL parameter binding from positional values.</summary>
         /// <param name="values">The positional persistence values.</param>
         /// <returns>The Portfolio parameter binding.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal PortfolioParameters ToParameters(params object?[] values)
             => values.ToPortfolioParameters();
 
@@ -107,6 +114,7 @@ internal static class PortfolioDbContextExtensions
         /// <param name="periodEnd">The accounting-period end date.</param>
         /// <param name="cancellationToken">The token used to cancel the asynchronous operation.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal Task CreateBookAsync(
             FinancialBookConfiguration book,
             IReadOnlyList<LedgerAccountDefinition> accounts,
@@ -134,6 +142,14 @@ internal static class PortfolioDbContextExtensions
 
     extension<T>(PortfolioProjection<T> projection)
     {
+        /// <summary>Validates the projection wrapper and returns its domain value.</summary>
+        /// <returns>The accepted domain read model.</returns>
+        internal T RequiredValue()
+        {
+            ArgumentNullException.ThrowIfNull(projection);
+            return projection.Value;
+        }
+
         /// <summary>Creates the common persisted metadata values for a domain projection.</summary>
         /// <returns>The common persistence values.</returns>
         internal object?[] ToCommonValues()
@@ -146,6 +162,30 @@ internal static class PortfolioDbContextExtensions
                 new PortfolioJson(JsonSerializer.Serialize(projection.Value)),
                 projection.PayloadHash
             ];
+    }
+
+    extension(DraftPolicyProjectionDeletion deletion)
+    {
+        /// <summary>Validates a policy deletion and binds its accepted identifiers.</summary>
+        /// <returns>The canonical policy deletion parameters.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "The C# 14 extension member reads and validates its declared receiver.")]
+        internal object?[] ToDeletionValues()
+        {
+            ArgumentNullException.ThrowIfNull(deletion);
+            return [deletion.PortfolioId, deletion.PolicyId, deletion.SourceEventId];
+        }
+    }
+
+    extension(DraftPortfolioProjectionDeletion deletion)
+    {
+        /// <summary>Validates a portfolio deletion and binds its accepted identifiers.</summary>
+        /// <returns>The canonical portfolio deletion parameters.</returns>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "The C# 14 extension member reads and validates its declared receiver.")]
+        internal object?[] ToDeletionValues()
+        {
+            ArgumentNullException.ThrowIfNull(deletion);
+            return [deletion.PortfolioId, deletion.SourceEventId];
+        }
     }
 
     extension(object?[] values)

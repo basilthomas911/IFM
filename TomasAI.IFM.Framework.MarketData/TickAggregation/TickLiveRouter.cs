@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 /// <param name="publisher">The destination used to publish tick or option-chain events.</param>
 public sealed class TickLiveRouter(ITickLiveEventPublisher publisher) : ITickLiveRouter
 {
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
     private readonly HashSet<string> _active = new(StringComparer.Ordinal);
     private readonly ITickLiveEventPublisher _publisher =
         publisher ?? throw new ArgumentNullException(nameof(publisher));
@@ -93,33 +93,4 @@ public sealed class TickLiveRouter(ITickLiveEventPublisher publisher) : ITickLiv
     {
         lock (_sync) _active.Clear();
     }
-}
-public sealed class NullTickLiveEventPublisher : ITickLiveEventPublisher
-{
-    /// <summary>Discards the supplied live event without publishing it; observes an already-cancelled token when provided.</summary>
-    /// <param name="event">The market data event to publish.</param>
-    /// <returns>An already-completed task, or a canceled task when the supplied token is already canceled.</returns>
-    public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event) =>
-        ValueTask.CompletedTask;
-    /// <summary>Discards the supplied live event without publishing it; observes an already-cancelled token when provided.</summary>
-    /// <param name="event">The market data event to publish.</param>
-    /// <returns>An already-completed task, or a canceled task when the supplied token is already canceled.</returns>
-    public ValueTask PublishAsync(LiveTickTradeServiceEvent @event) =>
-        ValueTask.CompletedTask;
-    /// <summary>Discards the supplied live event without publishing it; observes an already-cancelled token when provided.</summary>
-    /// <param name="event">The market data event to publish.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>An already-completed task, or a canceled task when the supplied token is already canceled.</returns>
-    public ValueTask PublishAsync(LiveTickQuoteServiceEvent @event, CancellationToken cancellationToken) =>
-        cancellationToken.IsCancellationRequested
-            ? ValueTask.FromCanceled(cancellationToken)
-            : ValueTask.CompletedTask;
-    /// <summary>Discards the supplied live event without publishing it; observes an already-cancelled token when provided.</summary>
-    /// <param name="event">The market data event to publish.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>An already-completed task, or a canceled task when the supplied token is already canceled.</returns>
-    public ValueTask PublishAsync(LiveTickTradeServiceEvent @event, CancellationToken cancellationToken) =>
-        cancellationToken.IsCancellationRequested
-            ? ValueTask.FromCanceled(cancellationToken)
-            : ValueTask.CompletedTask;
 }

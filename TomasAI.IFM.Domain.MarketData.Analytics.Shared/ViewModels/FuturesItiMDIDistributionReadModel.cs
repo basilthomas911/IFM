@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 /// new MDI observations into trend regimes. Limits are derived (not serialized). Use <see cref="GetTrendType(double)"/>
 /// or <see cref="GetTrendType(double,double)"/> to classify an observation.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(AllowPrivate = true)]
 public class FuturesItiMDIDistributionReadModel
 {

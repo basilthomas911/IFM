@@ -36,7 +36,9 @@ public record DeleteSpreadDistributionJobsInProgressCommand
     [IgnoreMember] public string CommandName => nameof(DeleteSpreadDistributionJobsInProgressCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => EventSourceValue;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Preserves the existing instance/interface API used by dependency-injected callers.")]
     [IgnoreMember] public string OriginatedBy => OriginatedByValue;
 
     /// <summary>The option trade identifier whose in-progress jobs should be deleted.</summary>

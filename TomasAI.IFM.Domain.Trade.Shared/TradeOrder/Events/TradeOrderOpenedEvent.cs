@@ -67,22 +67,14 @@ public record TradeOrderOpenedEvent : IEvent
         OpenedOn = OpenedOn,
         OpenedBy = OpenedBy
     }.RoutedFrom(this);
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradeOrderOpenedFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradeOrderOpenedFailEvent
     {
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     }.RoutedFrom(this);
-}
-
-
-public record TradeOrderOpenedCompleteEvent : CompleteEvent
-{
-    public TradeOrderEntityId TradeOrderId { get; init; }
-    public DateTime OpenedOn { get; init; }
-    public string OpenedBy { get; init; }
-}
-
-public record TradeOrderOpenedFailEvent : ErrorEvent
-{
+    }
 }

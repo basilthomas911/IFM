@@ -61,23 +61,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Events
             CommandId = this.CommandId,
             TradePlanAction = this.TradePlanAction
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new TradePlanActionUpdatedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new TradePlanActionUpdatedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record TradePlanActionUpdatedCompleteEvent : CompleteEvent
-    {
-        public TradePlanActionReadModel TradePlanAction { get; init; }
-    }
-
-    public record TradePlanActionUpdatedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

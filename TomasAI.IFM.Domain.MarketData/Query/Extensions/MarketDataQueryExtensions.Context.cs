@@ -1,3 +1,4 @@
+#pragma warning disable CA1034 // C# 14 extension blocks generate nested metadata types; no public nested type is declared here.
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
@@ -7,6 +8,7 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.MarketData.Query.Extensions;
 
 /// <summary>Exposes market-data query services and operations.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
 public static partial class MarketDataQueryExtensions
 {
     extension(IQueryActorContext<MarketDataQueryActor> context)
@@ -19,3 +21,5 @@ public static partial class MarketDataQueryExtensions
         public ILogger<MarketDataQueryActor> Logger => context.MarketDataContext.Logger;
     }
 }
+
+#pragma warning restore CA1034

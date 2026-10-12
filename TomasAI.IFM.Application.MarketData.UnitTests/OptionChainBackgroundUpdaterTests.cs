@@ -77,6 +77,25 @@ public sealed class OptionChainBackgroundUpdaterTests
     }
 
     [Fact]
+    public void Coverage_batch_unions_overlapping_policies_but_keeps_expiries_and_underlyings_separate()
+    {
+        var plan = Plan(); var option = plan.Options.Single();
+        var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(Guid.NewGuid(), Guid.NewGuid(), 1);
+        var first = new PreparedOptionUniverse("first", "first-policy", plan, ["Monthly"]) { Parameters = policy };
+        var second = first with { ScopeId = "second", ConfigurationDigest = "second-policy",
+            MarketData = plan with { Options = [option with { ContractId = "other-strike", Definition = option.Definition with { StrikePrice = 5050 } }] } };
+        var nextExpiry = first with { ScopeId = "next-expiry", MarketData = plan with { MaturityDate = plan.MaturityDate.AddDays(7) } };
+        var otherUnderlying = first with { ScopeId = "other-underlying", MarketData = plan with
+            { Options = [option with { ContractId = "other-underlying", Definition = option.Definition with { Underlying = "other-future" } }] } };
+        var batch = OptionChainBackgroundUpdater.CoalesceCoverage([first, second, nextExpiry, otherUnderlying]);
+        Assert.Equal(2, batch[0].MarketData.Options.Length);
+        Assert.Equal(PricingSemanticHash.Compute(batch[0].MarketData), PricingSemanticHash.Compute(batch[1].MarketData));
+        Assert.Single(batch[2].MarketData.Options); Assert.Single(batch[3].MarketData.Options);
+        Assert.Equal("first-policy", batch[0].ConfigurationDigest); Assert.Equal("second-policy", batch[1].ConfigurationDigest);
+        Assert.Same(policy, batch[0].Parameters);
+    }
+
+    [Fact]
     public async Task Cached_preparation_freezes_first_evidence_without_provider_calls_or_recapture()
     {
         var clock = new Clock(At); var market = Substitute.For<ICompositionMarketDataApi>();

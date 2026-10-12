@@ -11,24 +11,15 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Query.Actor;
+public sealed class RiskQueryContext : QueryActorContext, IRiskQueryContext
+{
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
+    public RiskQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<RiskQueryActor> logger) : base(supervisor, new ActorMailboxId(ActorType.Query, RiskQueryActor.ActorName))
+    {
+        DbFactory = IsArgumentNull.Set(dbFactory);
+        Logger = IsArgumentNull.Set(logger);
+    }
 
-public interface IRiskQueryContext : IQueryActorContext<RiskQueryActor>
-{
-    IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository { get; }
-    RiskHistoryJournal Journal { get; }
-    IPortfolioEventStore Funds { get; }
-    IFinancialQueryStore Financial { get; }
-    IDbContextFactory DbFactory { get; }
-    IPortfolioQueryApi PortfolioQueries { get; }
-    ILogger<RiskQueryActor> Logger { get; }
-}
-public sealed class RiskQueryContext : QueryActorContext,
-    IQueryActorContext<RiskQueryActor>, IRiskQueryContext
-{
-    public RiskQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        ILogger<RiskQueryActor> logger)
-        : base(supervisor, new ActorMailboxId(ActorType.Query, RiskQueryActor.ActorName))
-    { DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public RiskHistoryJournal Journal => Container.Resolve<RiskHistoryJournal>();

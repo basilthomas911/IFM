@@ -41,6 +41,18 @@ public sealed record RetirePortfolioCommand : ICommand<PortfolioId>, ICommandRet
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public RetirePortfolioCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    /// <param name="reason">The Reason command value.</param>
+    public RetirePortfolioCommand(long expectedVersion, string reason)
+    {
+        ExpectedVersion = expectedVersion;
+        Reason = reason;
+    }
     public const string Actor = "PortfolioCommand";
     public const string Verb = "RetirePortfolio";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record RetirePortfolioCommand : ICommand<PortfolioId>, ICommandRet
     [IgnoreMember] public string CommandName => nameof(RetirePortfolioCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public RetirePortfolioCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    /// <param name="reason">The Reason command value.</param>
-    public RetirePortfolioCommand(long expectedVersion, string reason)
-    {
-        ExpectedVersion = expectedVersion;
-        Reason = reason;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

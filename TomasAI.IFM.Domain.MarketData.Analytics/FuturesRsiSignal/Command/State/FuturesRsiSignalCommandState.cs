@@ -5,22 +5,18 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
-
 /// <summary>
 /// Represents the event-sourced state of Futures RSI signal commands within the actor system.
 /// </summary>
 /// <remarks>This class manages the state transitions for Futures RSI signal operations by applying domain events
-/// such as <see cref="FuturesRsiSignalGeneratedEvent"/>. It provides methods to check signal existence, retrieve
+/// such as <see cref = "FuturesRsiSignalGeneratedEvent"/>. It provides methods to check signal existence, retrieve
 /// RSI values, and manage the collection of RSI signals.</remarks>
-public class FuturesRsiSignalCommandState
-    : BaseEventSourceActorState<FuturesRsiSignalCommandState>, IEventSourceActorState<FuturesRsiSignalCommandState>
+public class FuturesRsiSignalCommandState : BaseEventSourceActorState<FuturesRsiSignalCommandState>, IEventSourceActorState<FuturesRsiSignalCommandState>
 {
     const int MaxSignalHistory = 256;
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
-
     /// <summary>Gets the current event-sourced Wilder RSI accumulator state.</summary>
     public FuturesRsiAccumulatorCheckpoint? FuturesRsiCheckpoint { get; private set; }
-
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
     /// </summary>
@@ -29,7 +25,7 @@ public class FuturesRsiSignalCommandState
     /// <summary>
     /// Applies the specified domain event to update the state of the current object.
     /// </summary>
-    /// <param name="domainEvent">The domain event to apply. Must be of a supported type.</param>
+    /// <param name = "domainEvent">The domain event to apply. Must be of a supported type.</param>
     /// <returns><see langword="true"/> if the domain event was successfully applied; otherwise, <see langword="false"/>.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
@@ -43,7 +39,6 @@ public class FuturesRsiSignalCommandState
             FuturesRsiDailySignalsGeneratedEvent => true,
             _ => false
         };
-
         bool OnStarted(FuturesRsiSignalStartedEvent e)
         {
             if (e.ResetForHistoricalSeed)
@@ -51,6 +46,7 @@ public class FuturesRsiSignalCommandState
                 FuturesRsiCheckpoint = null;
                 _futuresRsiSignals.Clear();
             }
+
             FuturesRsiCheckpoint = e.RestoredCheckpoint ?? FuturesRsiCheckpoint;
             if (_futuresRsiSignals.Count == 0 && e.HistoricalWarmSignals is { Length: > 0 })
                 _futuresRsiSignals.AddRange(e.HistoricalWarmSignals.TakeLast(MaxSignalHistory));
@@ -69,6 +65,7 @@ public class FuturesRsiSignalCommandState
                     _futuresRsiSignals.RemoveAt(0);
                 return true;
             }
+
             return false;
         }
 
@@ -81,6 +78,7 @@ public class FuturesRsiSignalCommandState
                     _futuresRsiSignals.RemoveAt(0);
                 return true;
             }
+
             return false;
         }
     }
@@ -88,13 +86,13 @@ public class FuturesRsiSignalCommandState
     /// <summary>
     /// Gets the collection of generated futures RSI signals.
     /// </summary>
-    internal IReadOnlyCollection<FuturesRsiSignalReadModel> FuturesRsiSignals
-        => _futuresRsiSignals;
+    internal IReadOnlyCollection<FuturesRsiSignalReadModel> FuturesRsiSignals => _futuresRsiSignals;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")]
     /// <summary>
     /// Determines whether futures RSI signals can be generated based on the specified window size.
     /// </summary>
-    /// <param name="windowSize">The number of valid RSI signals required.</param>
+    /// <param name = "windowSize">The number of valid RSI signals required.</param>
     /// <returns><see langword="true"/> if there are valid RSI signals within the window; otherwise, <see langword="false"/>.</returns>
     internal bool CanGenerateFuturesRsiSignals(int windowSize)
     {
@@ -106,17 +104,21 @@ public class FuturesRsiSignalCommandState
             if (signal.RSI != -1 && ++validSignals >= windowSize)
                 return true;
         }
+
         return false;
     }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Apply accepted facts in order and stop at the first rejection; state mutation must remain explicit rather than becoming a filtering predicate.")]
     /// <summary>Applies precomputed RSI lifecycle, checkpoint, and collection events through event dispatch.</summary>
-    /// <param name="rsiEvents">The accepted events in causal order.</param>
-    /// <param name="command">The originating command to preserve on every applied event.</param>
+    /// <param name = "rsiEvents">The accepted events in causal order.</param>
+    /// <param name = "command">The originating command to preserve on every applied event.</param>
     /// <returns>True when every event has been applied.</returns>
     public bool Update(IReadOnlyList<IEvent> rsiEvents, ICommand command)
     {
+        ArgumentNullException.ThrowIfNull(rsiEvents);
         foreach (var rsiEvent in rsiEvents)
-            if (!Update(rsiEvent, command)) return false;
+            if (!Update(rsiEvent, command))
+                return false;
         return true;
     }
-
 }

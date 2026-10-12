@@ -46,7 +46,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetTradeStrategyFamiliesQuery.Actor, GetTradeStrategyFamiliesQuery.Verb, ActorEntityId.Default.Format()),
         };
-        return await RequestAsync<GetTradeStrategyFamiliesQuery, TradeStrategyFamilyReadModel[]>(query.Subject, query, cancellationToken);
+        return await (RequestAsync<GetTradeStrategyFamiliesQuery, TradeStrategyFamilyReadModel[]>(query.Subject, query, cancellationToken)).ConfigureAwait(false);
     }
     /// <summary>
     /// Returns default futures contract definitions.
@@ -58,7 +58,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetDefaultFuturesContractDefinitionsQuery.Actor, GetDefaultFuturesContractDefinitionsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetDefaultFuturesContractDefinitionsQuery, DefaultFuturesContractDefinitionsReadModel>(query.Subject, query);
+        return await (RequestAsync<GetDefaultFuturesContractDefinitionsQuery, DefaultFuturesContractDefinitionsReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypesQuery.Actor, GetLookupTypesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypesQuery, LookupTypeCollection>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypesQuery, LookupTypeCollection>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeQuery.Actor, GetLookupTypeQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeNamesQuery.Actor, GetLookupTypeNamesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeNamesQuery, string[]>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeNamesQuery, string[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeShortCodesQuery.Actor, GetLookupTypeShortCodesQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeShortCodesQuery, LookupTypeShortCodeReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeShortCodesQuery, LookupTypeShortCodeReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeQuery.Actor, GetLookupTypeQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeQuery.Actor, GetLookupTypeQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -149,7 +149,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeQuery.Actor, GetLookupTypeQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeQuery, LookupTypeCollection>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -162,7 +162,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetNextSeedIdQuery.Actor, GetNextSeedIdQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetNextSeedIdQuery, ScalarReadModel<int>>(query.Subject, query);
+        return await (RequestAsync<GetNextSeedIdQuery, ScalarReadModel<int>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetCurrentSeedIdQuery.Actor, GetCurrentSeedIdQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetCurrentSeedIdQuery, ScalarReadModel<int>>(query.Subject, query);
+        return await (RequestAsync<GetCurrentSeedIdQuery, ScalarReadModel<int>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -188,7 +188,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesOptionStrikePriceDefinitionsQuery.Actor, GetFuturesOptionStrikePriceDefinitionsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesOptionStrikePriceDefinitionsQuery, FuturesOptionStrikePriceReadModel>(query.Subject, query);
+        return await (RequestAsync<GetFuturesOptionStrikePriceDefinitionsQuery, FuturesOptionStrikePriceReadModel>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -201,7 +201,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetLookupTypeShortCodeExistsQuery.Actor, GetLookupTypeShortCodeExistsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetLookupTypeShortCodeExistsQuery, ScalarReadModel<bool>>(query.Subject, query);
+        return await (RequestAsync<GetLookupTypeShortCodeExistsQuery, ScalarReadModel<bool>>(query.Subject, query)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -214,7 +214,7 @@ public class ReferenceQueryApi(IActorProducer actorProducer)
         {
             Subject = new ActorSubject(ActorType.Query, GetMDIForwardLossRatiosQuery.Actor, GetMDIForwardLossRatiosQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>(query.Subject, query);
+        return await (RequestAsync<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>(query.Subject, query)).ConfigureAwait(false);
     }
 
 }

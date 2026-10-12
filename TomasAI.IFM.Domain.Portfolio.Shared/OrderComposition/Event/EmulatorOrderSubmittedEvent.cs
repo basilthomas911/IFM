@@ -25,6 +25,7 @@ public sealed record EmulatorOrderSubmittedEvent : ICompleteEvent<LedgerPortfoli
     [Key(13)] public string AggregateId { get; init; } = string.Empty;
     [Key(14)] public string EventSource { get; init; } = "EmulatorExecutionCommand";
     [Key(15)] public DateTime ReceivedOn { get; init; }
+    [Key(16)] public SubmitEmulatorOrderCommand? ProjectionRequest { get; init; }
     [IgnoreMember] public string UserName => "PortfolioFinancial";
     [IgnoreMember] public string EventName => nameof(EmulatorOrderSubmittedEvent);
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;

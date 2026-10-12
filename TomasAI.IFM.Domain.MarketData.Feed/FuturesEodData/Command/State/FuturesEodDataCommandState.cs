@@ -22,20 +22,8 @@ public class FuturesEodDataCommandState
     /// <returns></returns>
     protected override bool Apply(IEvent domainEvent) => domainEvent switch
     {
-        FuturesEodDataInsertedEvent e => On(e),
-        VixFuturesEodDataInsertedEvent e => On(e),
+        FuturesEodDataInsertedEvent => true,
+        VixFuturesEodDataInsertedEvent => true,
         _ => false
     };
-
-    /// <summary>
-    /// futures eod data inserted
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(FuturesEodDataInsertedEvent e) => true;
-
-    /// <summary>
-    /// vix futures eod data inserted
-    /// </summary>
-    /// <param name="e"></param>
-    bool On(VixFuturesEodDataInsertedEvent e) => true;
 }

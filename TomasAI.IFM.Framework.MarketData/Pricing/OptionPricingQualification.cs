@@ -26,7 +26,7 @@ public static class OptionPricingQualification
             return Fail("ContractMetadataUnavailable", "Definition/Mapping");
         if (c.ExerciseStyle == OptionExerciseStyle.Unknown)
             return Fail("ContractMetadataUnavailable", "ExerciseStyle");
-        if (c.SchemaVersion < 3 && (c.Root != "ES" || c.Dataset != "GLBX.MDP3" || c.Currency != "USD"
+        if (c.SchemaVersion < 3 && (!string.Equals(c.Root,"ES",StringComparison.Ordinal) || !string.Equals(c.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !string.Equals(c.Currency,"USD",StringComparison.Ordinal)
             || c.ExerciseStyle != OptionExerciseStyle.European
             || c.SettlementStyle != OptionSettlementStyle.DeliveryOfFuture))
             return Fail("PricingModelUnsupported", "Product/Exercise/Settlement");
@@ -36,7 +36,7 @@ public static class OptionPricingQualification
                 || c.PremiumStyle == OptionPremiumStyle.Unknown || c.UnderlyingKind == PricingUnderlyingKind.Unknown
                 || string.IsNullOrWhiteSpace(c.Root) || string.IsNullOrWhiteSpace(c.Dataset))
                 return Fail("ContractMetadataUnavailable", "EconomicTerms");
-            if (c.UnderlyingKind != PricingUnderlyingKind.Futures || c.Currency != "USD"
+            if (c.UnderlyingKind != PricingUnderlyingKind.Futures || !string.Equals(c.Currency,"USD",StringComparison.Ordinal)
                 || c.ExerciseStyle is not (OptionExerciseStyle.European or OptionExerciseStyle.American)
                 || c.PremiumStyle is not (OptionPremiumStyle.PaidUpfront or OptionPremiumStyle.FuturesStyle)
                 || c.SettlementStyle is not (OptionSettlementStyle.DeliveryOfFuture or OptionSettlementStyle.Cash))
@@ -67,10 +67,11 @@ public static class OptionPricingQualification
     /// <returns>The count trading days result.</returns>
     public static int CountTradingDays(OptionPricingCalendar calendar, OptionPricingConvention contract, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(calendar);
         if (calendar.TradingDates.IsDefault || calendar.TradingDates.Length > 2000
             || string.IsNullOrWhiteSpace(calendar.TimeZoneId)
-            || calendar.Version != contract.CalendarVersion || string.IsNullOrWhiteSpace(calendar.Version)
+            || !string.Equals(calendar.Version,contract.CalendarVersion,StringComparison.Ordinal) || string.IsNullOrWhiteSpace(calendar.Version)
             || calendar.CoverageFrom > calendar.CoverageUntil
             || calendar.TradingDates.Any(x => x < calendar.CoverageFrom || x > calendar.CoverageUntil)
             || !calendar.TradingDates.SequenceEqual(calendar.TradingDates.Distinct().Order()))

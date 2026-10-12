@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Futures;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
@@ -11,12 +11,12 @@ public sealed class EstablishedTradeQueryApi(TomasAI.IFM.Shared.EventModelActor.
     : NatsClientApi(producer), IEstablishedTradeQueryApi
 {
     /// <inheritdoc />
-    public Task<ServiceResult<EstablishedTradeDefinition>> GetAsync(TradeEntityId id, TradeStrategyKind strategyKind,
+    public Task<ServiceResult<EstablishedTradeDefinition>> GetAsync(TradeEntityId tradeId, TradeStrategyKind strategyKind,
         CancellationToken cancellationToken = default) => strategyKind switch
     {
-        TradeStrategyKind.IronCondor => IronCondorAsync(id, cancellationToken),
-        TradeStrategyKind.VerticalSpread => VerticalAsync(id, cancellationToken),
-        TradeStrategyKind.FuturesOutright => FuturesAsync(id, cancellationToken),
+        TradeStrategyKind.IronCondor => IronCondorAsync(tradeId, cancellationToken),
+        TradeStrategyKind.VerticalSpread => VerticalAsync(tradeId, cancellationToken),
+        TradeStrategyKind.FuturesOutright => FuturesAsync(tradeId, cancellationToken),
         _ => throw new ArgumentOutOfRangeException(nameof(strategyKind))
     };
     /// <summary>Reads the iron condor projection for the supplied identity.</summary>

@@ -79,6 +79,25 @@ public static class AwsCloudServiceCollectionExtensions
         services.AddSingleton<S3DatabaseRestoreSourceCapability>();
         services.AddSingleton<AwsRecoverySourceQualificationService>();
         services.AddSingleton<AwsRetentionPlanAuthorizationService>();
+        services.AddSingleton(provider =>
+        {
+            var source = provider.GetRequiredService<AWSCredentials>();
+            AWSCredentials deletion = string.IsNullOrWhiteSpace(options.RetentionExecutionRoleArn)
+                ? source
+                : new AssumeRoleAWSCredentials(source, options.RetentionExecutionRoleArn, $"ifm-retention-{Environment.ProcessId}");
+            return new AwsRetentionExecutionClients(
+                new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)),
+                new AmazonS3Client(deletion, ServiceConfig<AmazonS3Config>(options.RecoveryRegion, options)));
+        });
+        services.AddSingleton(provider =>
+        {
+            var source = provider.GetRequiredService<AWSCredentials>();
+            AWSCredentials read = string.IsNullOrWhiteSpace(options.RetentionReadRoleArn)
+                ? source
+                : new AssumeRoleAWSCredentials(source, options.RetentionReadRoleArn, $"ifm-retention-read-{Environment.ProcessId}");
+            return new AwsRetentionReadClient(new AmazonS3Client(read, ServiceConfig<AmazonS3Config>(options.PrimaryRegion, options)));
+        });
+        services.AddSingleton<AwsCloudRetentionCapability>();
         services.AddSingleton<AwsRecoveryEvidenceStore>();
         services.AddSingleton<AwsDatabaseRecoveryEngineSelector>();
         services.AddSingleton<AwsCloudDatabaseRecoveryProcessor>();

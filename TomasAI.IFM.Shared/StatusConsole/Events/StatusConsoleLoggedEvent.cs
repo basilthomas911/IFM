@@ -53,6 +53,7 @@ public record StatusConsoleLoggedEvent : IEvent<ActorEntityId>
         StatusConsoleLog = statusConsoleLog;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "This instance member is part of the established command/event/validation contract consumed through instances.")]
     [IgnoreMember]
     public bool IsValid
         => true;

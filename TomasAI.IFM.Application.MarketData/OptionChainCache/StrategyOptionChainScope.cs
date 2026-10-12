@@ -8,7 +8,7 @@ public static class StrategyOptionChainScope
     {
         if (parameterSetId == Guid.Empty || version < 1 || valueDate == default
             || bias is not ("Neutral" or "Bullish" or "Bearish") || horizon is not ("Daily" or "Weekly" or "Monthly"))
-            throw new ArgumentException("Invalid strategy option chain scope.");
+            throw new ArgumentException("Invalid strategy option chain scope.",nameof(parameterSetId));
         return PricingSemanticHash.Compute(new { ParameterSetId = parameterSetId, Version = version, ValueDate = valueDate, Bias = bias, Horizon = horizon });
     }
 }

@@ -1,4 +1,5 @@
-﻿using TomasAI.IFM.Application.Storage;
+#pragma warning disable CA1034 // C# 14 extension blocks generate nested metadata types; no public nested type is declared here.
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
@@ -18,11 +19,12 @@ namespace TomasAI.IFM.Domain.MarketData.Query.Extensions;
 /// query owns its typed success/failure mapping. The implementation does not capture actor context and may
 /// be registered as a singleton.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
 public static partial class MarketDataQueryExtensions
 {
     extension(IMarketDataQueryContext context)
     {
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets currently traded futures contract.
         /// </summary>
@@ -34,7 +36,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesContractV3ReadModel result =
-                    (await context.DbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(symbol))!;
+                    (await (context.DbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(symbol)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesContractV3ReadModel>(result);
             }
             catch (Exception ex)
@@ -44,7 +46,7 @@ public static partial class MarketDataQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets currently traded futures contracts.
         /// </summary>
@@ -56,7 +58,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesContractV3ReadModel[] result =
-                    [.. await context.DbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(symbol)];
+                    [.. await (context.DbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(symbol)).ConfigureAwait(false)];
                 return new ServiceOk<FuturesContractV3ReadModel[]>(result);
             }
             catch (Exception ex)
@@ -66,7 +68,7 @@ public static partial class MarketDataQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures contract.
         /// </summary>
@@ -77,7 +79,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesContractV3ReadModel result =
-                    (await context.DbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))!;
+                    (await (context.DbFactory.SecuritiesDb.GetFuturesContractAsync(contractId)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesContractV3ReadModel>(result);
             }
             catch (Exception ex)
@@ -85,7 +87,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<FuturesContractV3ReadModel>(GetFuturesContractQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures contract symbol.
         /// </summary>
@@ -96,7 +98,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 string result =
-                    (await context.DbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))?.Symbol ?? string.Empty;
+                    (await (context.DbFactory.SecuritiesDb.GetFuturesContractAsync(contractId)).ConfigureAwait(false))?.Symbol ?? string.Empty;
                 return new ServiceOk<string>(result);
             }
             catch (Exception ex)
@@ -104,7 +106,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<string>(GetFuturesContractSymbolQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option contract.
         /// </summary>
@@ -116,7 +118,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesOptionContractReadModel result =
-                    (await context.DbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId))!;
+                    (await (context.DbFactory.SecuritiesDb.GetFuturesOptionContractAsync(contractId)).ConfigureAwait(false))!;
                 return new ServiceOk<FuturesOptionContractReadModel>(result);
             }
             catch (Exception ex)
@@ -126,7 +128,7 @@ public static partial class MarketDataQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures contracts.
         /// </summary>
@@ -136,7 +138,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesContractV3ReadModel[] result =
-                    [.. await context.DbFactory.SecuritiesDb.GetFuturesContractsAsync()];
+                    [.. await (context.DbFactory.SecuritiesDb.GetFuturesContractsAsync()).ConfigureAwait(false)];
                 return new ServiceOk<FuturesContractV3ReadModel[]>(result);
             }
             catch (Exception ex)
@@ -144,7 +146,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<FuturesContractV3ReadModel[]>(GetFuturesContractsQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option contracts.
         /// </summary>
@@ -156,7 +158,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 FuturesOptionContractReadModel[] result =
-                    [.. await context.DbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)];
+                    [.. await (context.DbFactory.SecuritiesDb.GetFuturesOptionContractsAsync(symbol)).ConfigureAwait(false)];
                 return new ServiceOk<FuturesOptionContractReadModel[]>(result);
             }
             catch (Exception ex)
@@ -166,7 +168,7 @@ public static partial class MarketDataQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets futures option contract IDs.
         /// </summary>
@@ -177,8 +179,8 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 var uniqueContractIds = contractIds.Distinct(StringComparer.Ordinal).ToArray();
-                var contracts = await context.DbFactory.SecuritiesDb
-                    .GetFuturesOptionContractsByIdsAsync(uniqueContractIds);
+                var contracts = await (context.DbFactory.SecuritiesDb
+                    .GetFuturesOptionContractsByIdsAsync(uniqueContractIds)).ConfigureAwait(false);
                 var existingContractIds = contracts
                     .Select(static contract => contract.ContractId)
                     .ToHashSet(StringComparer.Ordinal);
@@ -192,7 +194,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<string[]>(GetFuturesOptionContractIdsQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last yield curve rate.
         /// </summary>
@@ -202,7 +204,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 YieldCurveRateReadModel result =
-                    (await context.DbFactory.MarketDataDb.GetLastYieldCurveRateAsync())!;
+                    (await (context.DbFactory.MarketDataDb.GetLastYieldCurveRateAsync()).ConfigureAwait(false))!;
                 return new ServiceOk<YieldCurveRateReadModel>(result);
             }
             catch (Exception ex)
@@ -210,7 +212,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<YieldCurveRateReadModel>(GetLastYieldCurveRateQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets last rate of return.
         /// </summary>
@@ -222,7 +224,7 @@ public static partial class MarketDataQueryExtensions
         {
             try
             {
-                RateOfReturnReadModel result = await context.DbFactory.MarketDataDb.GetLastRateOfReturnAsync(symbol);
+                RateOfReturnReadModel result = await (context.DbFactory.MarketDataDb.GetLastRateOfReturnAsync(symbol)).ConfigureAwait(false);
                 return new ServiceOk<RateOfReturnReadModel>(result);
             }
             catch (Exception ex)
@@ -230,7 +232,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<RateOfReturnReadModel>(GetLastRateOfReturnQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets trading days.
         /// </summary>
@@ -244,11 +246,11 @@ public static partial class MarketDataQueryExtensions
         {
             try
             {
-                var result = new ScalarReadModel<int>(await context.DbFactory.MarketDataDb.GetTradingDayCountAsync(
+                var result = new ScalarReadModel<int>(await (context.DbFactory.MarketDataDb.GetTradingDayCountAsync(
                     startDate,
                     endDate,
                     marketType,
-                    currencyType));
+                    currencyType)).ConfigureAwait(false));
                 return new ServiceOk<ScalarReadModel<int>>(result);
             }
             catch (Exception ex)
@@ -256,7 +258,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<ScalarReadModel<int>>(GetTradingDaysQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets trading dates.
         /// </summary>
@@ -270,11 +272,11 @@ public static partial class MarketDataQueryExtensions
         {
             try
             {
-                DateOnly[] result = await context.DbFactory.MarketDataDb.GetTradingDatesAsync(
+                DateOnly[] result = await (context.DbFactory.MarketDataDb.GetTradingDatesAsync(
                     startDate,
                     endDate,
                     marketType,
-                    currencyType);
+                    currencyType)).ConfigureAwait(false);
                 return new ServiceOk<DateOnly[]>(result);
             }
             catch (Exception ex)
@@ -282,7 +284,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<DateOnly[]>(GetTradingDatesQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets yield curve rates.
         /// </summary>
@@ -295,7 +297,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 YieldCurveRateReadModel[] result =
-                    [.. await context.DbFactory.MarketDataDb.GetYieldCurveRatesAsync(startDate, endDate)];
+                    [.. await (context.DbFactory.MarketDataDb.GetYieldCurveRatesAsync(startDate, endDate)).ConfigureAwait(false)];
                 return new ServiceOk<YieldCurveRateReadModel[]>(result);
             }
             catch (Exception ex)
@@ -303,7 +305,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<YieldCurveRateReadModel[]>(GetYieldCurveRatesQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets yield curve rate years.
         /// </summary>
@@ -313,7 +315,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 var result = new YieldCurveRateYearsReadModel(
-                    [.. await context.DbFactory.MarketDataDb.GetYieldCurveRateYearsAsync()]);
+                    [.. await (context.DbFactory.MarketDataDb.GetYieldCurveRateYearsAsync()).ConfigureAwait(false)]);
                 return new ServiceOk<YieldCurveRateYearsReadModel>(result);
             }
             catch (Exception ex)
@@ -323,7 +325,7 @@ public static partial class MarketDataQueryExtensions
                     ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Determines whether yield curve rate exists.
         /// </summary>
@@ -334,7 +336,7 @@ public static partial class MarketDataQueryExtensions
             try
             {
                 var result = new ScalarReadModel<bool>(
-                    await context.DbFactory.MarketDataDb.GetYieldCurveRateExistsAsync(valueDate));
+                    await (context.DbFactory.MarketDataDb.GetYieldCurveRateExistsAsync(valueDate)).ConfigureAwait(false));
                 return new ServiceOk<ScalarReadModel<bool>>(result);
             }
             catch (Exception ex)
@@ -342,7 +344,7 @@ public static partial class MarketDataQueryExtensions
                 return new ServiceFailed<ScalarReadModel<bool>>(GetYieldCurveRateExistsQuery.ErrorId, ex.Message);
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets value date.
         /// </summary>
@@ -362,7 +364,7 @@ public static partial class MarketDataQueryExtensions
                     new ServiceFailed<ScalarReadModel<DateOnly>>(GetValueDateQuery.ErrorId, ex.Message));
             }
         }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
         /// <summary>
         /// Gets iron condor market data.
         /// </summary>
@@ -404,13 +406,13 @@ public static partial class MarketDataQueryExtensions
                 var tradingDayCountTask = context.DbFactory.MarketDataDb.GetTradingDayCountAsync(
                     startDate, endDate, marketType, currencyType);
 
-                await Task.WhenAll(
-                    underlyingTask, optionsTask, yieldCurveTask, tradingDayCountTask);
+                await (Task.WhenAll(
+                    underlyingTask, optionsTask, yieldCurveTask, tradingDayCountTask)).ConfigureAwait(false);
 
-                var underlying = await underlyingTask;
-                var options = await optionsTask;
-                var yieldCurve = await yieldCurveTask;
-                var tradingDayCount = await tradingDayCountTask;
+                var underlying = await (underlyingTask).ConfigureAwait(false);
+                var options = await (optionsTask).ConfigureAwait(false);
+                var yieldCurve = await (yieldCurveTask).ConfigureAwait(false);
+                var tradingDayCount = await (tradingDayCountTask).ConfigureAwait(false);
                 var optionMap = options.ToDictionary(
                     static option => option.ContractId,
                     StringComparer.Ordinal);
@@ -435,3 +437,5 @@ public static partial class MarketDataQueryExtensions
 
     }
 }
+
+#pragma warning restore CA1034

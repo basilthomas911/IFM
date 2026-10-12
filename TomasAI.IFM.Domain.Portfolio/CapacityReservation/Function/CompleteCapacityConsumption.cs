@@ -10,6 +10,7 @@ public static class CompleteCapacityConsumption
 {
     public static FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent> Complete(this FunctionEventContext<ConsumeCapacityReservationCommand> input)
     {
+        ArgumentNullException.ThrowIfNull(input);
         if (input.Outcome is CapacityConsumptionCompletedEvent committed) return FunctionResult<CapacityConsumptionCompletedEvent, CapacityConsumptionFailedEvent>.Complete(committed);
         var request = input.Request ?? throw new InvalidOperationException("Completion requires a request.");
         var receipt = input.Outcome as CapacityLifecycleReceipt ?? throw new InvalidOperationException("Completion requires a typed receipt.");

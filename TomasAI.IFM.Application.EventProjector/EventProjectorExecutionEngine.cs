@@ -79,6 +79,7 @@ internal sealed class EventProjectorExecutionEngine(
             ?? throw new InvalidOperationException($"Unable to initialize projector state for event {domainEvent.EventId}.");
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     public async Task<EventProjectorDeliveryResult> ExecuteAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -198,6 +199,8 @@ internal sealed class EventProjectorExecutionEngine(
         return EventProjectorDeliveryResult.Completed;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the stage transition, claim fencing and cleanup together so the transaction and error boundary remain reviewable as one operation.")]
     public async Task<EventProjectorDeliveryResult> HandleMaximumAttemptsAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -281,11 +284,7 @@ internal sealed class EventProjectorExecutionEngine(
             return await TransitionWithOutboxAsync(
                 state,
                 executionToken,
-                descriptor.PublishProcessingAfterApply
-                    ? descriptor.PublishTerminalEvent
-                        ? EventProjectorStageType.PublishCompletedEvent
-                        : EventProjectorStageType.PersistCompletion
-                    : EventProjectorStageType.ApplyProjection,
+                StageAfterProcessing(descriptor),
                 EventProjectorStageType.PublishProcessingEvent,
                 domainEvent,
                 EventProjectorEffectKind.ProcessingPublication,
@@ -296,11 +295,7 @@ internal sealed class EventProjectorExecutionEngine(
         return await TransitionAsync(
             state,
             executionToken,
-            descriptor.PublishProcessingAfterApply
-                ? descriptor.PublishTerminalEvent
-                    ? EventProjectorStageType.PublishCompletedEvent
-                    : EventProjectorStageType.PersistCompletion
-                : EventProjectorStageType.ApplyProjection,
+            StageAfterProcessing(descriptor),
             EventProjectorStageType.PublishProcessingEvent,
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
@@ -325,7 +320,7 @@ internal sealed class EventProjectorExecutionEngine(
             cancellationToken,
             state.StreamVersion);
         var result = await descriptor.ApplyAsync(domainEvent, context).ConfigureAwait(false);
-        ArgumentNullException.ThrowIfNull(result);
+        if (result is null) throw new InvalidOperationException("Projection returned no apply result.");
         EventProjectorMetrics.RecordEvent(_projectorName, result.Outcome switch
         {
             EventProjectionApplyOutcome.Applied => "applied",
@@ -359,18 +354,13 @@ internal sealed class EventProjectorExecutionEngine(
         return await TransitionAsync(
             state,
             executionToken,
-            result.Success
-                ? descriptor.PublishProcessingEvent && descriptor.PublishProcessingAfterApply
-                    ? EventProjectorStageType.PublishProcessingEvent
-                    : descriptor.PublishTerminalEvent
-                        ? EventProjectorStageType.PublishCompletedEvent
-                        : EventProjectorStageType.PersistCompletion
-                : EventProjectorStageType.PublishFailedEvent,
+            StageAfterApply(result.Success, descriptor),
             EventProjectorStageType.ApplyProjection,
             result.ErrorMessage,
             cancellationToken).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task<EventProjectorExecutionStateReadModel> PublishCompletedAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -414,6 +404,7 @@ internal sealed class EventProjectorExecutionEngine(
             cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task<EventProjectorExecutionStateReadModel> PublishFailedAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
@@ -590,6 +581,7 @@ internal sealed class EventProjectorExecutionEngine(
         return result;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async Task TryReleaseAsync(
         EventProjectorExecutionStateReadModel state,
         Guid executionToken,
@@ -622,8 +614,7 @@ internal sealed class EventProjectorExecutionEngine(
         }
         catch (Exception releaseException)
         {
-            _logger.LogWarning(
-                releaseException,                "{Component}.{Method} "+"Unable to release projection claim for event {EventId} and projector {ProjectorName}.",nameof(EventProjectorExecutionEngine),nameof(TryReleaseAsync),                state.EventId,                state.ProjectorName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write9(_logger, releaseException, nameof(EventProjectorExecutionEngine), nameof(TryReleaseAsync), state.EventId, state.ProjectorName);
         }
     }
 
@@ -651,6 +642,7 @@ internal sealed class EventProjectorExecutionEngine(
         return EventProjectorDeliveryResult.Deferred("claim-not-ready");
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Published metric outcome labels are existing lowercase telemetry identities.")]
     void RecordTerminalOutcome(EventProjectorOutcomeType outcome, string blockedReason)
     {
         EventProjectorMetrics.RecordEvent(_projectorName, outcome switch
@@ -670,6 +662,19 @@ internal sealed class EventProjectorExecutionEngine(
         return TimeSpan.FromMilliseconds(Math.Min(milliseconds, TimeSpan.FromMinutes(2).TotalMilliseconds));
     }
 
+    static EventProjectorStageType StageAfterProcessing(EventProjectionDescriptor descriptor)
+    {
+        if (!descriptor.PublishProcessingAfterApply) return EventProjectorStageType.ApplyProjection;
+        return descriptor.PublishTerminalEvent ? EventProjectorStageType.PublishCompletedEvent : EventProjectorStageType.PersistCompletion;
+    }
+
+    static EventProjectorStageType StageAfterApply(bool success, EventProjectionDescriptor descriptor)
+    {
+        if (!success) return EventProjectorStageType.PublishFailedEvent;
+        if (descriptor.PublishProcessingEvent && descriptor.PublishProcessingAfterApply) return EventProjectorStageType.PublishProcessingEvent;
+        return descriptor.PublishTerminalEvent ? EventProjectorStageType.PublishCompletedEvent : EventProjectorStageType.PersistCompletion;
+    }
+
     static bool IsTerminal(EventProjectorExecutionStateReadModel state)
         => state.Stage == EventProjectorStageType.Completed
             || state.Outcome is EventProjectorOutcomeType.Completed
@@ -678,12 +683,12 @@ internal sealed class EventProjectorExecutionEngine(
                 or EventProjectorOutcomeType.Superseded
                 or EventProjectorOutcomeType.AlreadyCompleted;
 
-    InvalidOperationException LostFence(EventProjectorExecutionStateReadModel state)
+    static InvalidOperationException LostFence(EventProjectorExecutionStateReadModel state)
         => new($"Projection fence was lost for event {state.EventId}, projector '{state.ProjectorName}', stage {state.Stage}, revision {state.Revision}.");
 
     static string RequireName(string value, string parameterName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Name is required.", parameterName);
         return value;
     }
 }

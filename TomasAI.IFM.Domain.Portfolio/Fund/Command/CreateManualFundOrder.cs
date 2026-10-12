@@ -36,6 +36,10 @@ public static class CreateManualFundOrder
         string principal,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(allocator);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(state);
 
         if (state.TryComposition(command.Request.IdempotencyKey, out var prior))
         {

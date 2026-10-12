@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -10,8 +10,6 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
-        new("option_pricing_convention", OptionPricingConventionStore.CreateTable, "DROP TABLE IF EXISTS option_pricing_convention;"),
-        new("option_pricing_reference_bundle", OptionPricingReferenceBundleStore.CreateTable, "DROP TABLE IF EXISTS option_pricing_reference_bundle;"),
         new("instrument_definition", InstrumentDefinitionStore.CreateTable, "DROP TABLE IF EXISTS instrument_definition;"),
         new("instrument_definition_product", InstrumentDefinitionStore.CreateProductTable, "DROP TABLE IF EXISTS instrument_definition_product;"),
         new("instrument_definition_snapshot", InstrumentDefinitionStore.CreateSnapshotTable, "DROP TABLE IF EXISTS instrument_definition_snapshot;"),
@@ -31,5 +29,8 @@ public sealed class ReferenceSchemaDb(IDbConnectionSettings connectionSettings, 
         new("trade_strategy_family", ReferenceSchemaCql.CreateTradeStrategyFamilyTable, "DROP TABLE IF EXISTS trade_strategy_family;")
     ];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    static readonly SchemaObjectDefinition[] PostgresObjects =
+        [new("reference",ReferenceSchemaSql.Create,"DROP SCHEMA IF EXISTS reference CASCADE;")];
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
+        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
 }

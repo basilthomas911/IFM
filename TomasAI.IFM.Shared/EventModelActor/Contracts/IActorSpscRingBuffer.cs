@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -52,5 +52,6 @@ public interface IActorSpscRingBuffer<TMessage>
     /// </summary>
     /// <remarks>This method ensures that all resources, such as buffers and synchronization primitives,  are
     /// properly disposed. Once called, the instance cannot be reused.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     void Stop();
 }

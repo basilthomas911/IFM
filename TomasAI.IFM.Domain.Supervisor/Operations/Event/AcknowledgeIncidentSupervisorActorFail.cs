@@ -11,7 +11,13 @@ public static class AcknowledgeIncidentSupervisorActorFail
     /// <summary>Records the AcknowledgeIncident fail outcome in Supervisor operation history.</summary>
     public static ValueTask ExecuteAsync(this AcknowledgeIncidentSupervisorActorFailEvent value,
         ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        => SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(value);
+        return SupervisorTerminalProjection.Fail(context, logger, value.CommandId, value.Target,
             value.ExpectedGeneration, SupervisorActorOperationKind.AcknowledgeIncident, value.Requester,
             value.Reason, value.TimeoutTicks, value.Outcome, value.Stage, value.ErrorMessage);
+    }
 }

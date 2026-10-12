@@ -10,25 +10,12 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesTradeSignalQueryActor"/>.</summary>
-public interface IFuturesTradeSignalQueryContext : IQueryActorContext<FuturesTradeSignalQueryActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the DbFactory service supplied to the actor context.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesTradeSignalQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesTradeSignalQueryActor"/>.</summary>
-public sealed class FuturesTradeSignalQueryContext : QueryActorContext, IQueryActorContext<FuturesTradeSignalQueryActor>, IFuturesTradeSignalQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesTradeSignalQueryContext : QueryActorContext, IFuturesTradeSignalQueryContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesTradeSignalQueryContext(

@@ -31,6 +31,9 @@ public sealed record FundAddedToPortfolioEvent : IPortfolioDomainEvent
     [Key(13)] public DateTime OriginatedOnUtc { get; init; }
     [Key(14)] public PortfolioFundId FundId { get; init; } = default!;
 
+    /// <summary>Full accepted projection values; populated before durable append for event-only materialization.</summary>
+    [Key(15)] public TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.PortfolioProjectionFacts? ProjectionFacts { get; init; }
+
     [IgnoreMember] public string UserName => Principal;
     [IgnoreMember] public string EventName => nameof(FundAddedToPortfolioEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

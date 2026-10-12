@@ -63,7 +63,7 @@ internal static class FuturesItiSignalUpdatedNotification
             source.EventName,
             context,
             logger).ConfigureAwait(false);
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     static async ValueTask<bool> PublishAsync<TActor>(
         FuturesItiSignalEntityId entityId,
         Guid sourceEventId,
@@ -81,9 +81,7 @@ internal static class FuturesItiSignalUpdatedNotification
 
         if (signal is not { IsValid: true })
         {
-            logger.LogWarning(
-                "Skipping invalid Futures ITI notification for {EntityId}",
-                entityId);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write52(logger, null, entityId);
             return false;
         }
 

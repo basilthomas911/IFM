@@ -20,5 +20,11 @@ public static class GetFundRiskEnvelope
     /// <returns>The asynchronous reply operation.</returns>
     public static ValueTask ExecuteAsync<TActor>(this GetFundRiskEnvelopeQuery query, IQueryActorContext<TActor> context, PortfolioQueryParameters parameters, CancellationToken cancellationToken)
         where TActor : IActor
-        => PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetFundRiskEnvelopeAsync(query.PortfolioId, query.FundId, query.AsOfUtc, cancellationToken));
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(query);
+        return PortfolioQueryHandlerModel.ReplyAsync(context, query, parameters.Service.GetFundRiskEnvelopeAsync(query.PortfolioId, query.FundId, query.AsOfUtc, cancellationToken));
+    }
 }

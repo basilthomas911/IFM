@@ -19,14 +19,6 @@ internal sealed record FundManualOrderDeletedCompute : IPortfolioFundChange
     public string RejectionReason { get; init; } = string.Empty;
     /// <summary>Creates a rejected computation without a business payload or pending event.</summary>
     internal FundManualOrderDeletedCompute() { }
-
-    public Guid Id { get; init; }
-    public Guid CommandId { get; init; }
-    public long Revision { get; init; }
-    public DateTime OccurredOnUtc { get; init; }
-    public string Principal { get; init; } = string.Empty;
-    public int OrderId { get; init; } = default!;
-    public int[] RemovedTradeIds { get; init; } = [];
     /// <summary>Initializes accepted immutable business values.</summary>
     /// <param name="id">The id value.</param>
     /// <param name="commandId">The commandId value.</param>
@@ -45,4 +37,12 @@ internal sealed record FundManualOrderDeletedCompute : IPortfolioFundChange
         OrderId = orderId;
         RemovedTradeIds = removedTradeIds is null ? [] : [.. removedTradeIds];
     }
+
+    public Guid Id { get; init; }
+    public Guid CommandId { get; init; }
+    public long Revision { get; init; }
+    public DateTime OccurredOnUtc { get; init; }
+    public string Principal { get; init; } = string.Empty;
+    public int OrderId { get; init; } = default!;
+    public int[] RemovedTradeIds { get; init; } = [];
 }

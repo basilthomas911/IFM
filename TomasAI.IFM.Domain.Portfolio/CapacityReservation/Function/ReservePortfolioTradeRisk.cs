@@ -14,6 +14,8 @@ public static class ReservePortfolioTradeRisk
     public static ValueTask<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> ExecuteAsync(this ReservePortfolioTradeRiskCommand request, ICapacityReservationFunctionContext context,
         Func<FunctionEventContext<ReservePortfolioTradeRiskCommand>, FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> dispatch, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dispatch);
         token.ThrowIfCancellationRequested();
         FinancialRequestValidation.Demand(request, "CapacityReserve", context.TimeProvider.GetUtcNow().UtcDateTime);
         return ValueTask.FromResult(dispatch(new(typeof(CapacityReservationCompletedEvent), request, new CapacityReservationReceipt())));

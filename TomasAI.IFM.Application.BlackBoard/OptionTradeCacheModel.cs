@@ -24,6 +24,7 @@ public class OptionTradeCacheModel(IRedisCache redisCache, IJsonSerializer jsonS
     /// <returns></returns>
     public OptionTradeReadModel? Get(OptionTradeEntityId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -38,6 +39,7 @@ public class OptionTradeCacheModel(IRedisCache redisCache, IJsonSerializer jsonS
     /// <param name="optionTrade"></param>
     public void Set(OptionTradeEntityId id, OptionTradeReadModel optionTrade)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         var value = _jsonSerializer.Serialize(optionTrade);
         _redisCache.Set(key, value);
@@ -49,6 +51,7 @@ public class OptionTradeCacheModel(IRedisCache redisCache, IJsonSerializer jsonS
     /// <param name="id"></param>
     public void Remove(OptionTradeEntityId id)
     {
+        ArgumentNullException.ThrowIfNull(id);
         var key = $"{CacheName}:{id.Format()}";
         _redisCache.Remove(key);
     }

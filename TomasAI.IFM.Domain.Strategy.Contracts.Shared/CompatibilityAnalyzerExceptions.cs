@@ -1,0 +1,3 @@
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog", Justification = "Preserve existing persisted CLR namespace identities.")]
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Reference.Shared.ViewModels", Justification = "Preserve existing persisted CLR namespace identities.")]
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration", Justification = "Preserve existing persisted CLR namespace identities.")]

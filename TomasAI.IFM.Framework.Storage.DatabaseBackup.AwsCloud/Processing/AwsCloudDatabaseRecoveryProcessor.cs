@@ -25,7 +25,9 @@ public sealed class AwsCloudDatabaseRecoveryProcessor
         S3DatabaseBackupCatalog catalog,
         AwsDatabaseRecoveryEngineSelector selector,
         AwsCloudDatabaseBackupOptions options,
-        DatabaseBackupHostOptions hostOptions)
+        DatabaseBackupHostOptions hostOptions,
+        AwsCloudRetentionCapability retention,
+        IDatabaseCutoverCapability? cutover = null)
     {
         _options = options;
         _selector = selector;
@@ -34,7 +36,7 @@ public sealed class AwsCloudDatabaseRecoveryProcessor
                 TimeSpan.FromDays(options.MaximumBaseAgeDays)));
         _orchestrator = new DatabaseRecoveryOperationOrchestrator(
             BackupSource.AwsCloud, journal, postgreSql, scylla, selector, hostOptions,
-            publication, restoreSources, evidence, chainPlanner);
+            publication, restoreSources, evidence, chainPlanner, retention, options.AutomaticRetentionEnabled ? options.AutomaticRetentionApprovalReference : "", cutover);
     }
 
     public BackupSource Source => BackupSource.AwsCloud;

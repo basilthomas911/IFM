@@ -50,7 +50,7 @@ public sealed record MarketDecisionEvidence
     }
 
     /// <summary>Rehydrates verified typed inputs for replay/audit without consulting realtime state.</summary>
-    public T Read<T>() => IsValid && Encoding == "messagepack/base64" && Source == typeof(T).FullName
+    public T Read<T>() => IsValid && string.Equals(Encoding,"messagepack/base64",StringComparison.Ordinal) && string.Equals(Source,typeof(T).FullName,StringComparison.Ordinal)
         ? MessagePackSerializer.Deserialize<T>(Convert.FromBase64String(Payload))
         : throw new InvalidDataException("Market decision evidence does not match the requested type or integrity hash.");
 }

@@ -11,11 +11,12 @@ public static class GetYieldCurveRateExists
         this GetYieldCurveRateExistsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => new(cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        return new(await dbFactory.MarketDataDb
                 .GetYieldCurveRateExistsAsync(q.ValueDate, cancellationToken)
-                .ConfigureAwait(false)
-            : await dbFactory.MarketDataDb
-                .GetYieldCurveRateExistsAsync(q.ValueDate)
                 .ConfigureAwait(false));
+    }
 }

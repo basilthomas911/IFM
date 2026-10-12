@@ -35,11 +35,11 @@ public sealed class RegimeDiscoveryConfigurationCommandState
                 ParameterSet = created.ParameterSet;
                 Status = "Draft";
                 return true;
-            case RegimeDiscoveryParameterSetPublishedEvent published when Status == "Draft":
+            case RegimeDiscoveryParameterSetPublishedEvent published when string.Equals(Status,"Draft",StringComparison.Ordinal):
                 EffectiveFromUtc = published.EffectiveFromUtc;
                 Status = "Published";
                 return true;
-            case RegimeDiscoveryParameterSetRetiredEvent retired when Status == "Published":
+            case RegimeDiscoveryParameterSetRetiredEvent retired when string.Equals(Status,"Published",StringComparison.Ordinal):
                 RetiredAtUtc = retired.RetiredAtUtc;
                 Status = "Retired";
                 return true;

@@ -3,12 +3,9 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Portfolio.Workflow;
 
-public sealed class PortfolioResolutionException(string reasonCode, string message) : InvalidOperationException(message)
-{
-    public string ReasonCode { get; } = reasonCode;
-}
-
 /// <summary>Deterministically freezes the single eligible Portfolio/Fund configuration used by one workflow.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "These public instance methods are the injected resolver contract; calculation helpers remain static.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "These public instance methods are the injected resolver contract; calculation helpers remain static.")]
 public sealed class PortfolioFundStrategyResolver
 {
     public PortfolioFundStrategySnapshot Resolve(
@@ -62,31 +59,8 @@ public sealed class PortfolioFundStrategyResolver
     {
         ArgumentNullException.ThrowIfNull(portfolio);
         ArgumentNullException.ThrowIfNull(financialPolicy);
-        ArgumentNullException.ThrowIfNull(funds);
-        ArgumentNullException.ThrowIfNull(allocations);
-        ArgumentNullException.ThrowIfNull(envelopes);
-        ArgumentNullException.ThrowIfNull(assignments);
-        if (workflowId == Guid.Empty || workflowRevision <= 0)
-            throw new PortfolioResolutionException("WorkflowIdentityInvalid", "A workflow identity and positive revision are required.");
-        if (asOfUtc.Kind != DateTimeKind.Utc)
-            throw new PortfolioResolutionException("AsOfInvalid", "Resolution time must be UTC.");
-        ArgumentException.ThrowIfNullOrWhiteSpace(decisionHorizon);
-        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingRoot);
-        if (!forSelection) ArgumentException.ThrowIfNullOrWhiteSpace(assetType);
-        if (forSelection && decisionHorizon is not ("Daily" or "Weekly" or "Monthly"))
-            throw new PortfolioResolutionException("DecisionHorizonInvalid", "Selection requires Daily, Weekly or Monthly.");
-        if (!Enum.IsDefined(portfolio.OperatingState) || portfolio.OperatingState == PortfolioOperatingState.Unknown)
-            throw new PortfolioResolutionException("PortfolioStateInvalid", "Portfolio operating state must be known.");
-
-        if ((!forSelection && portfolio.OperatingState != PortfolioOperatingState.Active) || !IsEffective(portfolio.EffectiveFromUtc, portfolio.EffectiveUntilUtc, asOfUtc))
-            throw new PortfolioResolutionException("PortfolioNotActive", "The Portfolio is not active and effective at the requested time.");
-        if (financialPolicy.PortfolioId != portfolio.PortfolioId
-            || financialPolicy.PolicyId != portfolio.ActivePolicyId
-            || financialPolicy.PolicyVersion != portfolio.ActivePolicyVersion
-            || financialPolicy.OperatingState != PortfolioFinancialPolicyState.Active)
-            throw new PortfolioResolutionException("FinancialPolicyMismatch", "The exact Active Portfolio financial policy was not resolved.");
-        if (financialPolicy.Validate(forActivation: true).Count != 0 || !IsEffective(financialPolicy.EffectiveFromUtc, financialPolicy.EffectiveUntilUtc, asOfUtc))
-            throw new PortfolioResolutionException("FinancialPolicyInvalid", "The selected financial policy is invalid or not effective.");
+        ValidateResolutionInputs(workflowId, workflowRevision, portfolio, financialPolicy, funds, allocations,
+            envelopes, assignments, decisionHorizon, underlyingRoot, assetType, asOfUtc, forSelection);
 
         var matches = funds
             .Where(x => x.PortfolioId == portfolio.PortfolioId
@@ -124,29 +98,19 @@ public sealed class PortfolioFundStrategyResolver
         if (!forSelection && !envelope.PermitsNewExposureAt(asOfUtc))
             throw new PortfolioResolutionException("FundRiskEnvelopeBlocked", "The current Fund risk envelope does not permit new exposure.");
 
-        var compatibleAssignments = assignments
-            .Where(x => x.PortfolioId == portfolio.PortfolioId && x.PortfolioVersion == portfolio.PortfolioVersion
-                        && x.FundId == fund.FundId && x.FundMandateVersion == fund.FundMandateVersion
-                        && string.Equals(x.DecisionHorizon, decisionHorizon, StringComparison.OrdinalIgnoreCase)
-                        && (forSelection || string.Equals(x.AssetType, assetType, StringComparison.OrdinalIgnoreCase))
-                        && x.UnderlyingUniverse.Contains(underlyingRoot, StringComparer.OrdinalIgnoreCase)
-                        && (forSelection ? IsEffective(x.EffectiveFromUtc, x.EffectiveUntilUtc, asOfUtc) : x.IsEffectiveAt(asOfUtc)))
-            .OrderBy(x => x.Priority)
-            .ThenBy(x => x.TradeTemplateId)
-            .ThenBy(x => x.AssignmentVersion)
-            .Select(x => x.DefensiveCopy())
-            .ToArray();
-        if (forSelection) compatibleAssignments = compatibleAssignments.OrderBy(x => x.Priority).ThenBy(x => x.TradeTemplateId.ToString("D"), StringComparer.Ordinal).ThenBy(x => x.AssignmentVersion).ToArray();
-        if (!forSelection && compatibleAssignments.Length == 0)
-            throw new PortfolioResolutionException("TemplateAssignmentMissing", "No enabled and effective template assignment matches the resolved Fund.");
-        if (forSelection && compatibleAssignments.Length > 16)
-            throw new PortfolioResolutionException("SelectionAssignmentsTooMany", "At most sixteen effective assignments may be frozen; assignments are never truncated.");
-        if (forSelection && compatibleAssignments.GroupBy(x => x.TradeStrategyFamily?.CatalogDeployment).Any(x => x.Key is not null && x.Count() > 1))
-            throw new PortfolioResolutionException("SelectionAssignmentAmbiguous", "An exact deployment has more than one effective assignment.");
-        if (compatibleAssignments.Any(x => x.TradeSelectionHintProfileId == Guid.Empty || x.TradeSelectionHintProfileVersion <= 0
-                                           || x.OrderCompositionProfileId == Guid.Empty || x.OrderCompositionProfileVersion <= 0))
-            throw new PortfolioResolutionException("ProfileReferenceInvalid", "Every resolved assignment requires versioned selection-hint and composition profiles.");
+        var compatibleAssignments = SelectAssignments(assignments, portfolio, fund, decisionHorizon,
+            underlyingRoot, assetType, asOfUtc, forSelection);
 
+        return FreezeSnapshot(workflowId, workflowRevision, correlationId, portfolio, financialPolicy,
+            fund, allocation, envelope, compatibleAssignments, asOfUtc);
+    }
+
+    /// <summary>Copies the resolved configuration and hashes it with the earliest expiry of its constituent facts.</summary>
+    static PortfolioFundStrategySnapshot FreezeSnapshot(Guid workflowId, long workflowRevision, Guid correlationId,
+        PortfolioReadModel portfolio, PortfolioFinancialPolicyReadModel financialPolicy, FundMandateReadModel fund,
+        FundAllocationReadModel allocation, FundRiskEnvelopeReadModel envelope,
+        FundTradeTemplateAssignmentReadModel[] compatibleAssignments, DateTime asOfUtc)
+    {
         var validUntil = new[]
         {
             portfolio.EffectiveUntilUtc ?? DateTime.MaxValue,
@@ -172,6 +136,72 @@ public sealed class PortfolioFundStrategyResolver
             ValidUntilUtc = validUntil,
         };
         return unhashed with { PayloadSha256 = PortfolioCanonicalHash.Compute(unhashed) };
+    }
+
+    /// <summary>Validates the frozen workflow identity, UTC decision time and exact active portfolio policy before resolving a fund.</summary>
+    static void ValidateResolutionInputs(Guid workflowId, long workflowRevision, PortfolioReadModel portfolio,
+        PortfolioFinancialPolicyReadModel financialPolicy, IEnumerable<FundMandateReadModel> funds,
+        IEnumerable<FundAllocationReadModel> allocations, IEnumerable<FundRiskEnvelopeReadModel> envelopes,
+        IEnumerable<FundTradeTemplateAssignmentReadModel> assignments, string decisionHorizon, string underlyingRoot,
+        string assetType, DateTime asOfUtc, bool forSelection)
+    {
+        ArgumentNullException.ThrowIfNull(funds);
+        ArgumentNullException.ThrowIfNull(allocations);
+        ArgumentNullException.ThrowIfNull(envelopes);
+        ArgumentNullException.ThrowIfNull(assignments);
+        if (workflowId == Guid.Empty || workflowRevision <= 0)
+            throw new PortfolioResolutionException("WorkflowIdentityInvalid", "A workflow identity and positive revision are required.");
+        if (asOfUtc.Kind != DateTimeKind.Utc)
+            throw new PortfolioResolutionException("AsOfInvalid", "Resolution time must be UTC.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(decisionHorizon);
+        ArgumentException.ThrowIfNullOrWhiteSpace(underlyingRoot);
+        if (!forSelection) ArgumentException.ThrowIfNullOrWhiteSpace(assetType);
+        if (forSelection && decisionHorizon is not ("Daily" or "Weekly" or "Monthly"))
+            throw new PortfolioResolutionException("DecisionHorizonInvalid", "Selection requires Daily, Weekly or Monthly.");
+        if (!Enum.IsDefined(portfolio.OperatingState) || portfolio.OperatingState == PortfolioOperatingState.Unknown)
+            throw new PortfolioResolutionException("PortfolioStateInvalid", "Portfolio operating state must be known.");
+
+        if ((!forSelection && portfolio.OperatingState != PortfolioOperatingState.Active) || !IsEffective(portfolio.EffectiveFromUtc, portfolio.EffectiveUntilUtc, asOfUtc))
+            throw new PortfolioResolutionException("PortfolioNotActive", "The Portfolio is not active and effective at the requested time.");
+        if (financialPolicy.PortfolioId != portfolio.PortfolioId
+            || financialPolicy.PolicyId != portfolio.ActivePolicyId
+            || financialPolicy.PolicyVersion != portfolio.ActivePolicyVersion
+            || financialPolicy.OperatingState != PortfolioFinancialPolicyState.Active)
+            throw new PortfolioResolutionException("FinancialPolicyMismatch", "The exact Active Portfolio financial policy was not resolved.");
+        if (financialPolicy.Validate(forActivation: true).Count != 0 || !IsEffective(financialPolicy.EffectiveFromUtc, financialPolicy.EffectiveUntilUtc, asOfUtc))
+            throw new PortfolioResolutionException("FinancialPolicyInvalid", "The selected financial policy is invalid or not effective.");
+
+    }
+
+    /// <summary>Selects every effective versioned assignment in deterministic priority order and rejects ambiguous, excessive or incomplete selections.</summary>
+    static FundTradeTemplateAssignmentReadModel[] SelectAssignments(IEnumerable<FundTradeTemplateAssignmentReadModel> assignments,
+        PortfolioReadModel portfolio, FundMandateReadModel fund, string decisionHorizon, string underlyingRoot,
+        string assetType, DateTime asOfUtc, bool forSelection)
+    {
+        var compatibleAssignments = assignments
+            .Where(x => x.PortfolioId == portfolio.PortfolioId && x.PortfolioVersion == portfolio.PortfolioVersion
+                        && x.FundId == fund.FundId && x.FundMandateVersion == fund.FundMandateVersion
+                        && string.Equals(x.DecisionHorizon, decisionHorizon, StringComparison.OrdinalIgnoreCase)
+                        && (forSelection || string.Equals(x.AssetType, assetType, StringComparison.OrdinalIgnoreCase))
+                        && x.UnderlyingUniverse.Contains(underlyingRoot, StringComparer.OrdinalIgnoreCase)
+                        && (forSelection ? IsEffective(x.EffectiveFromUtc, x.EffectiveUntilUtc, asOfUtc) : x.IsEffectiveAt(asOfUtc)))
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.TradeTemplateId)
+            .ThenBy(x => x.AssignmentVersion)
+            .Select(x => x.DefensiveCopy())
+            .ToArray();
+        if (forSelection) compatibleAssignments = compatibleAssignments.OrderBy(x => x.Priority).ThenBy(x => x.TradeTemplateId.ToString("D"), StringComparer.Ordinal).ThenBy(x => x.AssignmentVersion).ToArray();
+        if (!forSelection && compatibleAssignments.Length == 0)
+            throw new PortfolioResolutionException("TemplateAssignmentMissing", "No enabled and effective template assignment matches the resolved Fund.");
+        if (forSelection && compatibleAssignments.Length > 16)
+            throw new PortfolioResolutionException("SelectionAssignmentsTooMany", "At most sixteen effective assignments may be frozen; assignments are never truncated.");
+        if (forSelection && compatibleAssignments.GroupBy(x => x.TradeStrategyFamily?.CatalogDeployment).Any(x => x.Key is not null && x.Count() > 1))
+            throw new PortfolioResolutionException("SelectionAssignmentAmbiguous", "An exact deployment has more than one effective assignment.");
+        if (compatibleAssignments.Any(x => x.TradeSelectionHintProfileId == Guid.Empty || x.TradeSelectionHintProfileVersion <= 0
+                                           || x.OrderCompositionProfileId == Guid.Empty || x.OrderCompositionProfileVersion <= 0))
+            throw new PortfolioResolutionException("ProfileReferenceInvalid", "Every resolved assignment requires versioned selection-hint and composition profiles.");
+
+        return compatibleAssignments;
     }
 
     static bool IsEffective(DateTime from, DateTime? until, DateTime at) => from <= at && (until is null || at < until);

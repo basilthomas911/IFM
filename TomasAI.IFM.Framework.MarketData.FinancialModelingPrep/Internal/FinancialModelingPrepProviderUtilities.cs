@@ -84,6 +84,7 @@ internal static class FinancialModelingPrepProviderUtilities
     /// <param name="operation">The provider operation to execute.</param>
     /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
     /// <returns>An awaitable that completes when the operation finishes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public static async Task<T> RunBoundedAsync<T>(
         FinancialModelingPrepOptions options,
         CancellationToken callerToken,

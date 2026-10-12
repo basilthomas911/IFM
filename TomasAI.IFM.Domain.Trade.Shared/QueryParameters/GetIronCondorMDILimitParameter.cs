@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.QueryParameters;
 /// <summary>
 /// Represents the parameters required to retrieve the iron condor MDI limit for a specific order, trade and value date.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 [MessagePackObject(false)]
 public record GetIronCondorMDILimitParameter : IActorEntityId, IQueryParameter
 {

@@ -17,61 +17,17 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
-public sealed class DatabentoMarketDataEpochFactory : IDatabentoMarketDataEpochFactory
-{
-    private readonly IDatabentoFeedFactory _feeds;
-    private readonly ITickAggregationEventPublisher _publisher;
-    private readonly DatabentoMarketDataRuntimeOptions _options;
-    private readonly TimeProvider _timeProvider;
-    private readonly ITickLiveEventPublisher _livePublisher;
-    private readonly DatabentoTerminalFaultSignal? _terminalFaultSignal;
-    private readonly ILoggerFactory? _loggerFactory;
-    private readonly Pricing.IOptionTradeEvidenceWriter? _tradeEvidence;
-
-    public DatabentoMarketDataEpochFactory(
-        IDatabentoFeedFactory feeds,
-        ITickAggregationEventPublisher publisher,
-        DatabentoMarketDataRuntimeOptions options,
-        TimeProvider? timeProvider = null,
-        ITickLiveEventPublisher? livePublisher = null,
-        DatabentoTerminalFaultSignal? terminalFaultSignal = null,
-        ILoggerFactory? loggerFactory = null, Pricing.IOptionTradeEvidenceWriter? tradeEvidence = null)
-    {
-        _feeds = feeds ?? throw new ArgumentNullException(nameof(feeds));
-        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _livePublisher = livePublisher ?? new NullTickLiveEventPublisher();
-        _terminalFaultSignal = terminalFaultSignal;
-        _loggerFactory = loggerFactory;
-        _tradeEvidence = tradeEvidence;
-    }
-
-    public IDatabentoMarketDataEpoch Create(DateOnly valueDate)
-    {
-        var contracts = _options.Contracts is IDatabentoContractRegistrationRegistry registry
-            ? registry.Snapshot()
-            : _options.Contracts.ToArray();
-        var snapshot = _options with { Contracts = contracts };
-        return
-        new DatabentoMarketDataEpoch(
-            valueDate, _feeds, _publisher, snapshot, _timeProvider, _livePublisher,
-            _terminalFaultSignal is null ? null : detail => _terminalFaultSignal.Notify(detail),
-            _loggerFactory, _tradeEvidence);
-    }
-}
-
 internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 {
     private readonly ITickAggregationEventPublisher _optionObservations;
     private readonly Pricing.IOptionTradeEvidenceWriter? _tradeEvidence;
     private readonly IDatabentoFeedFactory _feeds;
-    private readonly ITickAggregationEventPublisher _publisher;
+    private readonly ReferenceCountedTickAggregationEventPublisher _publisher;
     private readonly DatabentoMarketDataRuntimeOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly DatabentoOptionRouteRegistry _optionRoutes;
-    private readonly ITickLiveRouter _liveRouter;
+    private readonly TickLiveRouter _liveRouter;
     private readonly ITickerStreamRouteController _streamRoutes;
     private readonly Action<string>? _terminalFaultHandler;
     private readonly ILoggerFactory? _loggerFactory;
@@ -98,7 +54,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         Action<string>? terminalFaultHandler = null,
         ILoggerFactory? loggerFactory = null, Pricing.IOptionTradeEvidenceWriter? tradeEvidence = null)
     {
-        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
         ValueDate = valueDate;
         _feeds = feeds;
         _publisher = new ReferenceCountedTickAggregationEventPublisher(publisher);
@@ -176,6 +132,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         Volatile.Read(ref _aggregationByContractId)
             .GetValueOrDefault(contractId)?.IsTickDataStreamActive(contractId) == true;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This health or identity probe returns its documented unavailable result rather than failing the caller.")]
     public bool IsFeedUp(TimeSpan timeout)
     {
         if (timeout <= TimeSpan.Zero || Volatile.Read(ref _started) == 0 || Volatile.Read(ref _optionChainFault) != 0)
@@ -202,6 +160,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "The quote pool is disposed in the constructor failure branch; successful construction transfers ownership to TickAggregationService, which disposes the pool.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3267", Justification = "Keep this bounded explicit loop to avoid additional iterator allocations and preserve early-exit or sequential asynchronous processing in the market-data path.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -285,6 +247,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                                     FuturesTradingValueDate.GetSessionStartUtc(ValueDate))
                         });
                     TickAggregationService? aggregation = null;
+                    TickQuoteBufferPool? quotePool = null;
                     try
                     {
                         var subscriptions = contracts.Select(resolved => new TickerSubscription(
@@ -293,16 +256,17 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                             GetTickerDataKinds(resolved)))
                             .ToArray();
                         feed.Subscribe(subscriptions, _options.ProviderQueryTimeout);
-                        aggregation = new TickAggregationService(
-                            feed,
-                            mappings,
-                            _publisher,
-                            new TickQuoteBufferPool(contracts.GroupBy(resolved =>
+                        quotePool = new TickQuoteBufferPool(contracts.GroupBy(resolved =>
                                     resolved.Registration.AssetTypeId == AssetTypeId.FuturesOption
                                         ? _options.FuturesOptionQuoteBatchCapacity
                                         : _options.FuturesQuoteBatchCapacity)
                                 .Select(group => (Capacity: group.Key,
-                                    Slots: checked(group.Count() + 8)))),
+                                    Slots: checked(group.Count() + 8))));
+                        aggregation = new TickAggregationService(
+                            feed,
+                            mappings,
+                            _publisher,
+                            quotePool,
                             new EpochValueDateProvider(ValueDate),
                             new TickAggregationOptions
                             {
@@ -326,7 +290,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     {
                         try
                         {
-                            if (aggregation is null) feed.Dispose();
+                            if (aggregation is null) { quotePool?.Dispose(); feed.Dispose(); }
                             else await aggregation.DisposeAsync().ConfigureAwait(false);
                         }
                         catch
@@ -360,6 +324,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         finally { _lifecycle.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     public async Task StopAsync()
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
@@ -404,12 +369,15 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         finally { _lifecycle.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Name the public request owning the invalid nested property.")]
     public async Task<DatabentoDatasetResetResult> ResetDatasetAsync(
         DatabentoDatasetResetRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Dataset, nameof(request));
         if (request.TeardownTimeout <= TimeSpan.Zero
             || request.QualificationTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(request),
@@ -544,6 +512,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "The quote pool is disposed in the constructor failure branch; successful construction transfers ownership to TickAggregationService, which disposes the pool.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task<TickAggregationService> CreateDatasetAggregationAsync(
         string dataset,
         Guid generation,
@@ -563,22 +534,24 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 FuturesTradingValueDate.GetSessionStartUtc(ValueDate))
         });
         TickAggregationService? aggregation = null;
+                    TickQuoteBufferPool? quotePool = null;
         try
         {
             feed.Subscribe(contracts.Select(contract => new TickerSubscription(
                 contract.Detail.RawSymbol,
                 DatabentoInputSymbology.RawSymbol,
                 GetTickerDataKinds(contract))).ToArray(), _options.ProviderQueryTimeout);
-            aggregation = new TickAggregationService(
-                feed,
-                _mappings!,
-                _publisher,
-                new TickQuoteBufferPool(contracts.GroupBy(resolved =>
+            quotePool = new TickQuoteBufferPool(contracts.GroupBy(resolved =>
                         resolved.Registration.AssetTypeId == AssetTypeId.FuturesOption
                             ? _options.FuturesOptionQuoteBatchCapacity
                             : _options.FuturesQuoteBatchCapacity)
                     .Select(group => (Capacity: group.Key,
-                        Slots: checked(group.Count() + 8)))),
+                        Slots: checked(group.Count() + 8))));
+                        aggregation = new TickAggregationService(
+                feed,
+                _mappings!,
+                _publisher,
+                quotePool,
                 new EpochValueDateProvider(ValueDate),
                 new TickAggregationOptions
                 {
@@ -601,11 +574,11 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         }
         catch
         {
-            if (aggregation is null) feed.Dispose();
+            if (aggregation is null) { quotePool?.Dispose(); feed.Dispose(); }
             else
             {
                 try { await aggregation.DisposeAsync().ConfigureAwait(false); }
-                catch { }
+                catch { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
             }
             throw;
         }
@@ -787,6 +760,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         return Task.FromResult(_optionRoutes.ReleaseChain(futuresContractId, maturityDate));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -860,17 +834,17 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     private static void ValidateRuntimeOptions(DatabentoMarketDataRuntimeOptions options)
     {
         if (options.QueryConcurrency <= 0)
-            throw new ArgumentOutOfRangeException(nameof(options.QueryConcurrency));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.QueryQueueCapacity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(options.QueryQueueCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.LastPriceCapacity < options.Contracts.Count)
-            throw new ArgumentOutOfRangeException(nameof(options.LastPriceCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.MaximumConcurrentOptionChains <= 0)
-            throw new ArgumentOutOfRangeException(nameof(options.MaximumConcurrentOptionChains));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.FuturesQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
-            throw new ArgumentOutOfRangeException(nameof(options.FuturesQuoteBatchCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
         if (options.FuturesOptionQuoteBatchCapacity is 0 or > FuturesTickQuoteDataSegment.MaximumCount)
-            throw new ArgumentOutOfRangeException(nameof(options.FuturesOptionQuoteBatchCapacity));
+            throw new ArgumentOutOfRangeException(nameof(options));
     }
 
     private sealed class EpochValueDateProvider(DateOnly valueDate) : ITickValueDateProvider

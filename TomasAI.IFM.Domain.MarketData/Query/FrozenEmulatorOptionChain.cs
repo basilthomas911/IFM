@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Query;
 internal static class FrozenEmulatorOptionChain
 {
     private const double DefaultEmulatorVolatility = 0.20;
-    internal static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")]     internal static async Task<ServiceResult<EvaluatedOptionChainReadModel>> ExecuteAsync(
         GetEvaluatedOptionChainQuery query, IMarketDataQueryContext context, CancellationToken token)
     {
         var timer = Stopwatch.StartNew();
@@ -39,7 +39,7 @@ internal static class FrozenEmulatorOptionChain
                 query.UnderlyingContractId, query.ExpiryDate, date, token).ConfigureAwait(false)
             : [];
         var byContract = storedQuotes.ToDictionary(quote => quote.ContractId, StringComparer.Ordinal);
-        await Parallel.ForEachAsync(Enumerable.Range(0, contracts.Length), new ParallelOptions
+        await (Parallel.ForEachAsync(Enumerable.Range(0, contracts.Length), new ParallelOptions
         {
             CancellationToken = token,
             MaxDegreeOfParallelism = 8
@@ -48,7 +48,7 @@ internal static class FrozenEmulatorOptionChain
             var definition = window.Contracts[index];
             byContract.TryGetValue(definition.ContractId, out var stored);
             contracts[index] = Evaluate(definition, stored, inputs.Price.Value, inputs.Deviation, at);
-        });
+        })).ConfigureAwait(false);
         // Upgrade legacy stored snapshots that lack Greeks. Conditional writes cannot replace a newer tick.
         var enriched = contracts.Where(x => x.GreeksValid && byContract.TryGetValue(x.ContractId, out var quote)
                 && quote.Vega == 0 && x.Vega is > 0)
@@ -59,12 +59,15 @@ internal static class FrozenEmulatorOptionChain
             await context.DbFactory.MarketDataDb.UpdateFuturesOptionChainQuoteGreeksAsync(
                 query.UnderlyingContractId, query.ExpiryDate, enriched).ConfigureAwait(false);
         var evaluationMs = timer.Elapsed.TotalMilliseconds - definitionsMs - inputsMs;
-        context.Logger.LogInformation(
-            "{Component}.{Method} frozen option chain UnderlyingContractId={UnderlyingContractId} {Expiry}: {Count} contracts, projected quotes {QuoteCount}; definitions {DefinitionsMs:F1} ms, inputs/window {InputsMs:F1} ms, bulk quotes/pricing {EvaluationMs:F1} ms, total {TotalMs:F1} ms.",
-            nameof(FrozenEmulatorOptionChain), nameof(ExecuteAsync), query.UnderlyingContractId, query.ExpiryDate, contracts.Length, storedQuotes.Count,
-            definitionsMs, inputsMs, evaluationMs, timer.Elapsed.TotalMilliseconds);
+        
+            var diagnosticLogger = context.Logger;
+            if (diagnosticLogger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                global::TomasAI.IFM.Domain.MarketData.StorageMigrationDiagnosticLog.Write6(diagnosticLogger, null, nameof(FrozenEmulatorOptionChain), nameof(ExecuteAsync), query.UnderlyingContractId, query.ExpiryDate, contracts.Length, storedQuotes.Count, definitionsMs, inputsMs, evaluationMs, timer.Elapsed.TotalMilliseconds);
+            }
+        
 
-        var source = observationDate?.ToString("yyyy-MM-dd") ?? "stored inputs";
+        var source = observationDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "stored inputs";
         var modelNote = inputs.Deviation is > 0 ? "historical/model quotes" : "historical/model quotes; 20% default IV";
         FrozenEmulatorQuoteStore.Publish(contracts, at);
         return new ServiceOk<EvaluatedOptionChainReadModel>(new(query.UnderlyingContractId,
@@ -72,6 +75,7 @@ internal static class FrozenEmulatorOptionChain
             $"Frozen emulator preview ({source}; {modelNote})", at, contracts));
     }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1867", Justification = "The char overload cannot express the existing OrdinalIgnoreCase comparison; preserve the option-type interpretation.")]
     internal static EvaluatedOptionContractReadModel Evaluate(FuturesOptionContractReadModel definition,
         FuturesOptionTickDataV2ReadModel? stored, decimal underlyingPrice, decimal? dailyDeviation,
         DateTimeOffset at)
@@ -83,10 +87,11 @@ internal static class FrozenEmulatorOptionChain
         var years = Math.Max((expiry - at).TotalDays / 365.25, 0);
         var observedQuote = stored is { BidPrice: > 0, AskPrice: > 0 }
             && stored.AskPrice >= stored.BidPrice;
-        var volatility = stored is { ImpliedVolatility: > 0 and < 4 } ? stored.ImpliedVolatility
-            : dailyDeviation is > 0
-                ? Math.Clamp((double)(dailyDeviation.Value / underlyingPrice) * Math.Sqrt(252), 0.05, 2.0)
-                : DefaultEmulatorVolatility;
+        var volatility = (stored is { ImpliedVolatility: > 0 and < 4 }) switch
+{
+    true => stored.ImpliedVolatility,
+    false => dailyDeviation is> 0 ? Math.Clamp((double)(dailyDeviation.Value / underlyingPrice) * Math.Sqrt(252), 0.05, 2.0) : DefaultEmulatorVolatility
+};
         var calculator = new OptionCalculator();
         var request = new OptionPricingRequest(UnderlyingKind.Futures,
             definition.ExerciseStyle == ReferenceExerciseStyle.American ? ExerciseKind.American : ExerciseKind.European,

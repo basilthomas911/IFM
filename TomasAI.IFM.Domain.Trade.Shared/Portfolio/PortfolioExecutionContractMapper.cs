@@ -6,7 +6,10 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Portfolio;
 /// <summary>Maps Portfolio-owned execution instructions at the Trade boundary.</summary>
 public static class PortfolioExecutionContractMapper
 {
-    public static TradeOrderDefinition ToTradeOrder(this PortfolioExecutionOrderInstruction value) => new()
+    public static TradeOrderDefinition ToTradeOrder(this PortfolioExecutionOrderInstruction value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new()
     {
         SchemaVersion = 4,
         Id = new(value.Id.PortfolioId, value.Id.FundId, value.Id.OrderId),
@@ -36,8 +39,12 @@ public static class PortfolioExecutionContractMapper
         TimeInForce = value.TimeInForce,
         AlgorithmPace = value.AlgorithmPace,
     };
+    }
 
-    public static PortfolioExecutionOrderInstruction ToPortfolioInstruction(this TradeOrderDefinition value) => new()
+    public static PortfolioExecutionOrderInstruction ToPortfolioInstruction(this TradeOrderDefinition value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new()
     {
         Id = new(value.Id.PortfolioId, value.Id.FundId, value.Id.OrderId),
         Revision = value.Revision,
@@ -66,8 +73,12 @@ public static class PortfolioExecutionContractMapper
         TimeInForce = value.TimeInForce,
         AlgorithmPace = value.AlgorithmPace,
     };
+    }
 
-    public static PortfolioExecutionComponent ToPortfolioComponent(this TradeOrderComponentDefinition value) => new()
+    public static PortfolioExecutionComponent ToPortfolioComponent(this TradeOrderComponentDefinition value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new()
     {
         ComponentId = value.ComponentId,
         StrategyKind = (PortfolioExecutionStrategyKind)value.StrategyKind,
@@ -79,8 +90,12 @@ public static class PortfolioExecutionContractMapper
         MaximumSignedNetDebitLimit = value.MaximumSignedNetDebitLimit,
         TickIncrement = value.TickIncrement,
     };
+    }
 
-    public static TradeOrderComponentDefinition ToTradeComponent(this PortfolioExecutionComponent value) => new()
+    public static TradeOrderComponentDefinition ToTradeComponent(this PortfolioExecutionComponent value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new()
     {
         ComponentId = value.ComponentId,
         StrategyKind = (TradeStrategyKind)value.StrategyKind,
@@ -92,8 +107,12 @@ public static class PortfolioExecutionContractMapper
         MaximumSignedNetDebitLimit = value.MaximumSignedNetDebitLimit,
         TickIncrement = value.TickIncrement,
     };
+    }
 
-    public static PortfolioPositionSnapshot ToPortfolioPosition(this StrategyPositionSnapshot value) => new()
+    public static PortfolioPositionSnapshot ToPortfolioPosition(this StrategyPositionSnapshot value) 
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new()
     {
         Id = ToPortfolioPosition(value.Id),
         StrategyKind = (PortfolioExecutionStrategyKind)value.StrategyKind,
@@ -106,6 +125,7 @@ public static class PortfolioExecutionContractMapper
             AssetFamily = (PortfolioExecutionAssetFamily)x.AssetFamily,
         })],
     };
+    }
 
     public static PortfolioExitWorkflowId ToPortfolioWorkflow(this ExitPositionWorkflowId value) =>
         new(ToPortfolioPosition(value.Position), value.ValueDate, value.ExitDecisionId);

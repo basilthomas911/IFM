@@ -20,6 +20,19 @@ namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests.DatabaseBackup;
 public sealed class DatabaseBackupProjectorTests
 {
     [Fact]
+    public async Task Every_backup_descriptor_exposes_only_read_projection_materialization()
+    {
+        var db=Substitute.For<ISystemAdminDbContext>();var projector=CreateProjector(db);
+        foreach(var descriptor in projector.ProjectionDescriptors)
+        {
+            db.ClearReceivedCalls();var source=(DatabaseBackupEventContract)Activator.CreateInstance(descriptor.SourceEventType)!;
+            descriptor.RebuildReadModelAsync.Should().NotBeNull();await descriptor.RebuildReadModelAsync!(source,CancellationToken.None);
+            var call=Assert.Single(db.ReceivedCalls());call.GetMethodInfo().Name.Should().Be(nameof(ISystemAdminDbContext.ApplyDatabaseBackupEventAsync));
+            call.GetArguments()[0].Should().Be(nameof(DatabaseBackupEventProjector));call.GetArguments()[1].Should().BeSameAs(source);
+        }
+    }
+
+    [Fact]
     public void Projector_registers_every_authoritative_domain_event_once_with_durable_receipts()
     {
         var projector = CreateProjector(Substitute.For<ISystemAdminDbContext>());

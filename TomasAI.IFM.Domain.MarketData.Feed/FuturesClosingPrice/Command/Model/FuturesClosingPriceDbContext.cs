@@ -13,7 +13,7 @@ internal static class FuturesClosingPriceDbContext
     /// <param name="e">The closing price read model to persist.</param>
     internal static async ValueTask InsertFuturesClosingPriceAsync(
         this IDbContextFactory dbFactory, FuturesClosingPriceReadModel e)
-        => await dbFactory.MarketDataDb
+        => await (dbFactory.MarketDataDb
             .Use($"{nameof(FuturesClosingPriceDbCql)}.{nameof(FuturesClosingPriceDbCql.InsertFuturesClosingPrice)}", FuturesClosingPriceDbCql.InsertFuturesClosingPrice)
             .SetParameters(new InsertFuturesClosingPrice(
                 contractId: e.ContractId,
@@ -21,7 +21,7 @@ internal static class FuturesClosingPriceDbContext
                 closingPrice: e.ClosingPrice,
                 createdOn: e.CreatedOn,
                 createdBy: e.CreatedBy))
-            .ExecuteCommandAsync();
+            .ExecuteCommandAsync()).ConfigureAwait(false);
 
     internal readonly record struct InsertFuturesClosingPrice(
         string contractId,

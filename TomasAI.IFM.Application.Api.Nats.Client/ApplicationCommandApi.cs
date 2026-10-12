@@ -23,6 +23,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="cp"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> StartApplicationAsync(DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -37,7 +38,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
                 EntityId = entityId,
                 ErrorCode = StartApplicationCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, entityId);
+            serviceResult = await (RequestCommandAsync(cmd, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -51,6 +52,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
     /// </summary>
     /// <param name="cp"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
     public async Task<ServiceResult<Guid>> ShutdownApplicationAsync(DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -64,7 +66,7 @@ public class ApplicationCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, ShutdownApplicationCommand.Actor, ShutdownApplicationCommand.Verb, entityId.Format()),
                 ErrorCode = ShutdownApplicationCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd!, entityId);
+            serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Framework.Caching;
+using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -60,6 +60,7 @@ public class StreamingRequestIdCacheModel(IRedisCache redisCache, IJsonSerialize
     /// contract and request identifiers.</param>
     public void Set(StreamingRequestId requestId)
     {
+        ArgumentNullException.ThrowIfNull(requestId);
         var key = $"{CacheName}:{requestId.OptionContract.ContractId}";
         var value = _jsonSerializer.Serialize(requestId);
         var expiry = TimeSpan.FromDays(1);
@@ -75,6 +76,7 @@ public class StreamingRequestIdCacheModel(IRedisCache redisCache, IJsonSerialize
     /// <param name="requestIdKey">The unique key identifying the streaming request to remove. Cannot be null or empty.</param>
     public void Remove(StreamingRequestId requestId)
     {
+        ArgumentNullException.ThrowIfNull(requestId);
         var key = $"{CacheName}:{requestId.OptionContract.ContractId}";
         _redisCache.Remove(key);
         key = $"{CacheName}:{requestId.RequestId}";

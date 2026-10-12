@@ -16,6 +16,7 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]
 public interface ITradeDbReadContext
 {
     Task<OrderCompositionFunctionCompletedEvent?> GetOrderCompositionInvocationAsync(StrategyWorkflowId workflowId, Guid invocationId, CancellationToken token = default);
@@ -95,9 +96,9 @@ public interface ITradeDbReadContext
     Task<ICollection<TradeFillReadModel>> GetTradeFillsAsync();
     Task<ICollection<TradePlanReadModel>> GetTradePlansAsync();
     Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId);
-    Task<ICollection<TradePlanReadModel>> GetLastTradePlansAsync(int orderId, int tradeId);
     Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId, int tradeId, DateOnly valueDate);
     Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId, int tradeId, DateOnly startDate, DateOnly endDate);
+    Task<ICollection<TradePlanReadModel>> GetLastTradePlansAsync(int orderId, int tradeId);
     Task<ICollection<TradePlanForwardLossRatioReadModel>> GetTradePlanForwardLossRatiosAsync(DateOnly startDate, DateOnly endDate);
     Task<TradePlanForwardLossRatioReadModel?> GetTradePlanForwardLossRatioAsync(DateOnly valueDate);
     Task<ICollection<TradeFillDataReadModel>> GetTradeFillDataAsync(int tradeId);

@@ -1,7 +1,9 @@
-﻿namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 
 internal static class SecuritiesSchemaCql
 {
+    public const string CreateOptionPricingReferenceBundleTable = "CREATE TABLE IF NOT EXISTS option_pricing_reference_bundle (bundle_id text PRIMARY KEY, payload text);";
+
     public const string CreateOptionContractExpiryCalendarTable = """
     CREATE TABLE IF NOT EXISTS option_contract_expiry_calendar (
     symbol text,

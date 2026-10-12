@@ -31,7 +31,7 @@ public class SpreadDistributionCommandActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected ISpreadDistributionCommandContext ActorContext =>
-        IsArgumentNull.Set(Context as ISpreadDistributionCommandContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as ISpreadDistributionCommandContext, nameof(Context))!;
 
     public const string ActorName = "SpreadDistributionCommand";
     IEventSourceActorStateRepository<SpreadDistributionCommandState> _repo = default!;
@@ -46,6 +46,7 @@ public class SpreadDistributionCommandActor(
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<SpreadDistributionCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<SpreadDistributionCommandState>>());
         await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
@@ -74,7 +75,7 @@ public class SpreadDistributionCommandActor(
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [InsertSpreadDistributionCommand.Verb] = msg => msg.AsCommand<InsertSpreadDistributionCommand>()!,
         [DeleteSpreadDistributionCommand.Verb] = msg => msg.AsCommand<DeleteSpreadDistributionCommand>()!
@@ -90,15 +91,15 @@ public class SpreadDistributionCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<SpreadDistributionCommandActor> context, IActorState state, ICommand cmd)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<SpreadDistributionCommandActor> context, IActorState state, ICommand command)
     {
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var spreadDistributionState = IsArgumentNull.Set((state as SpreadDistributionCommandState)!);
-        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return await ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, spreadDistributionState));
+        var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
+        return await (ValueTask.FromResult(receiveFunc.Invoke(command, dispatchContext, spreadDistributionState))).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -121,16 +122,17 @@ public class SpreadDistributionCommandActor(
     /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
     /// <param name="cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override ValueTask OnValidateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand cmd)
-        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
+    protected override ValueTask OnValidateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand command)
+        => OnValidateAsync(context, threadId, command, CancellationToken.None);
 
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType();
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        _=command.GetType();
+        ValidateMappedCommand(command, _validationMap);
     }
 
     /// <summary>
@@ -162,32 +164,12 @@ public class SpreadDistributionCommandActor(
     /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation. The task result contains the
     /// loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
-    }
-
-    /// <summary>
-    /// Asynchronously saves the current state of the spread distribution actor in response to a command.
-    /// </summary>
-    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
-    /// null.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
-    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
-    /// cref="SpreadDistributionCommandState"/>.</param>
-    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var spreadDistributionState = IsArgumentNull.Set((state as SpreadDistributionCommandState)!);
-        await _repo.SaveStateAsync(context, spreadDistributionState, cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -199,28 +181,49 @@ public class SpreadDistributionCommandActor(
     /// <param name="command">The command that encountered the exception.</param>
     /// <param name="ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
+        => await _repo.LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
 
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.SaveStateAsync(context, (SpreadDistributionCommandState)state, cmd, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Asynchronously saves the current state of the spread distribution actor in response to a command.
+    /// </summary>
+    /// <param name="context">The context for the actor command execution, providing access to actor metadata and runtime services. Cannot be
+    /// null.</param>
+    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
+    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
+    /// cref="SpreadDistributionCommandState"/>.</param>
+    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(command);
+        var spreadDistributionState = IsArgumentNull.Set((state as SpreadDistributionCommandState)!);
+        await (_repo.SaveStateAsync(context, spreadDistributionState, command)).ConfigureAwait(false);
+    }
 
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
+        => await _repo.SaveStateAsync(context, (SpreadDistributionCommandState)state, command, cancellationToken).ConfigureAwait(false);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<SpreadDistributionCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+            var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
         {
-            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.HandlingFailed(Context.Logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

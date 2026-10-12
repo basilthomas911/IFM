@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,16 +8,19 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
     public class OptionValues
     {
-        private double[,] _value;
-        private double[,] _assetPrice;
-        private int _maxBatchSize;
-        private int _maxDaysToMaturity;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1814", Justification = "Rectangular pricing matrices preserve the existing pricing layout and indexing contract.")]
+        private readonly double[,] _value;
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1814", Justification = "Rectangular pricing matrices preserve the existing pricing layout and indexing contract.")]
+        private readonly double[,] _assetPrice;
+        private readonly int _maxBatchSize;
+        private readonly int _maxDaysToMaturity;
 
         /// <summary>
         /// create option values object to hold value/asset price for complete credit spread batch
         /// </summary>
         /// <param name="batchSize"></param>
         /// <param name="daysToMaturity"></param>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1814", Justification = "Rectangular pricing matrices preserve the existing pricing layout and indexing contract.")]
         public OptionValues(int batchSize, int daysToMaturity)
         {
             _value = new double[batchSize, daysToMaturity];
@@ -34,6 +37,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// <param name="value"></param>
         public OptionValues SetValues(int daysToMaturity, double[] values)
         {
+            ArgumentNullException.ThrowIfNull(values);
             var batchSize = values.Length;
             if (batchSize < 0 || batchSize > _maxBatchSize)
                 throw new InvalidOperationException("OptionValues.SetValues => Invalid batch size parameter");
@@ -59,6 +63,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
             return _value[batchSize, daysToMaturity];
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Enumeration method intentionally creates values on demand.")]
         public IEnumerable<double[]> GetValues()
         {
             for (var i = 0; i < _maxBatchSize; i++)
@@ -78,6 +83,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
         /// <param name="value"></param>
         public OptionValues SetAssetPrices(int daysToMaturity, double[] values)
         {
+            ArgumentNullException.ThrowIfNull(values);
             var batchSize = values.Length;
             if (batchSize < 0 || batchSize > _maxBatchSize)
                 throw new InvalidOperationException("OptionValues.SetAssetPrices => Invalid batch size parameter");

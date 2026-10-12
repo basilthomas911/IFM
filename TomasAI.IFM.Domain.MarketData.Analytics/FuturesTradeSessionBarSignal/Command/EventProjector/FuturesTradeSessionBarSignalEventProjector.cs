@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
@@ -14,7 +16,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.EventProjector;
 
-/// <summary>Projects committed trade-session bars to ScyllaDB before publishing terminal events.</summary>
+/// <summary>Publishes committed trade-session bars and supports materialization-only PostgreSQL reconstruction.</summary>
 public sealed class FuturesTradeSessionBarSignalEventProjector(
     IHistoricalObservationStore store,
     IMarketSessionCalendar calendar,
@@ -22,7 +24,9 @@ public sealed class FuturesTradeSessionBarSignalEventProjector(
     IEventSourceActorDbContext eventSource,
     IBlackboardService blackboard,
     ILogger<FuturesTradeSessionBarSignalEventProjector> logger,
-    EventProjectorReliabilityOptions? reliabilityOptions = null)
+    EventProjectorReliabilityOptions? reliabilityOptions = null,
+    IDbContextFactory? databases = null,
+    IPostgresEventTransaction? transactions = null)
     : ConventionalEventProjector<FuturesTradeSessionBarSignalCommandActor>(
         durableReplayQueue, eventSource, blackboard, logger, reliabilityOptions)
 {
@@ -32,22 +36,28 @@ public sealed class FuturesTradeSessionBarSignalEventProjector(
             FuturesTradeSessionBarPublishedEvent,
             FuturesTradeSessionBarPublishedCompleteEvent,
             FuturesTradeSessionBarPublishedFailEvent,
-            FuturesTradeSessionBarEntityId>(published => PersistAsync(published, store, calendar))
+            FuturesTradeSessionBarEntityId>(published => PersistAsync(published, store, calendar, databases))
+            .WithReadModelRebuild((source,token) => AcceptedSignalRebuild.MaterializeAsync(
+                databases ?? throw new InvalidOperationException("Session-bar reconstruction requires database contexts."),transactions,source,token))
     ];
 
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
 
     /// <inheritdoc />
-    public override IReadOnlyCollection<Type> ProjectedEventTypes =>
-        descriptors.Select(static descriptor => descriptor.SourceEventType).ToArray();
 
     static async ValueTask PersistAsync(
         FuturesTradeSessionBarPublishedEvent published,
         IHistoricalObservationStore store,
-        IMarketSessionCalendar calendar)
+        IMarketSessionCalendar calendar,
+        IDbContextFactory? databases)
     {
         var bar = published.Bar;
+        if (string.Equals(databases?.MarketDataDb.ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
+        {
+            RegimeDiscoverySignalCacheAdapter.Publish(bar);
+            return;
+        }
         _ = await store.TryWriteObservationAsync(bar, CancellationToken.None).ConfigureAwait(false);
         RegimeDiscoverySignalCacheAdapter.Publish(bar);
         if (bar.TimeFrame != TimeFrameType.Daily) return;

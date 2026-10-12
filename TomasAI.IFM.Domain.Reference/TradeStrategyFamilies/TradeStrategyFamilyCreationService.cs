@@ -14,15 +14,15 @@ public sealed class TradeStrategyFamilyCreationService(IMarketDataApi marketData
     public async Task<TradeStrategyFamilyReadModel> ChangeAsync(ChangeTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()));
+        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()),nameof(request));
         return await store.ChangeAsync(request, await CandidateAsync(request.Definition, principal, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
     }
 
     public Task<TradeStrategyFamilyReadModel> RemoveAsync(RemoveTradeStrategyFamilyRequest request, string principal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()));
-        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Audit principal is required.");
+        if (request.Validate().Count != 0) throw new ArgumentException(string.Join("; ", request.Validate()),nameof(request));
+        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Audit principal is required.",nameof(principal));
         return store.RemoveAsync(request, timeProvider.GetUtcNow().UtcDateTime, principal, cancellationToken);
     }
 
@@ -30,12 +30,12 @@ public sealed class TradeStrategyFamilyCreationService(IMarketDataApi marketData
     {
         ArgumentNullException.ThrowIfNull(request);
         var errors = request.Validate();
-        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors));
-        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Audit principal is required.");
+        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors), nameof(request));
+        if (string.IsNullOrWhiteSpace(principal)) throw new ArgumentException("Audit principal is required.",nameof(principal));
         var symbols = await marketData.GetTradeStrategySymbolsAsync(request.Family, cancellationToken).ConfigureAwait(false);
         if (!symbols.Success || symbols.Value is null) throw new InvalidOperationException(symbols.ErrorMessage ?? "Symbol catalog is unavailable.");
         var product = symbols.Value.SingleOrDefault(x => x.Id == request.TradeStrategySymbolId)
-            ?? throw new ArgumentException("The selected product is not available for this family.");
+            ?? throw new ArgumentException("The selected product is not available for this family.", nameof(request));
         if (product.Validate().Count != 0) throw new InvalidOperationException("Incomplete product metadata cannot create a family.");
         var candidate = new TradeStrategyFamilyReadModel
         {

@@ -19,13 +19,25 @@ public static class GetMarketSession
         return ValueTask.FromResult(authority.Current);
     }
 
+    /// <summary>Reads and replies with the requested market-data result.</summary>
+    public static async ValueTask ExecuteAsync(
+        this GetMarketSessionQuery query,
+        TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var result = await query.ExecuteAsync(context.MarketSessionAuthority, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<MarketSessionReadModel>(result)).ConfigureAwait(false);
+    }
+
     internal static MarketSessionReadModel Calculate(DateTimeOffset instant)
         => Calculate(instant, FuturesTradingValueDate.GetOperational(instant));
 
     internal static MarketSessionReadModel Calculate(DateTimeOffset instant, DateOnly operationalValueDate)
     {
-        if (operationalValueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(operationalValueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(operationalValueDate, default(DateOnly));
 
         var isOpen = FuturesTradingValueDate.TryGet(instant, out var activeValueDate);
         var endOfDayPending = isOpen && activeValueDate != operationalValueDate;
@@ -44,17 +56,5 @@ public static class GetMarketSession
             IsEndOfDayPending = endOfDayPending,
             NextTransitionUtc = FuturesMarketSessionPolicy.GetNextTransitionUtc(instant).UtcDateTime
         };
-    }
-
-    /// <summary>Reads and replies with the requested market-data result.</summary>
-    public static async ValueTask ExecuteAsync(
-        this GetMarketSessionQuery query,
-        TomasAI.IFM.Domain.MarketData.Query.Actor.IMarketDataQueryContext context,
-        CancellationToken cancellationToken)
-    {
-        var result = await query.ExecuteAsync(context.MarketSessionAuthority, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<MarketSessionReadModel>(result)).ConfigureAwait(false);
     }
 }

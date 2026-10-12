@@ -18,6 +18,8 @@ public static class RecordScheduledTaskRunAdmission
     public static ServiceResult<GuidResult> Execute(this RecordScheduledTaskRunAdmissionCommand command,
         ScheduledTaskRunCommandState state, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTaskRun.STATE.APPLY_FAILED;unable to apply RecordScheduledTaskRunAdmission event";
         var updated = command.Compute(state.ScheduledTaskRun, now, out var model) switch
         {

@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 [MessagePackObject(false)]
 public record GetFuturesOptionContractIdsParameter : IActorEntityId, IQueryParameter
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve array-valued serialized message and query contracts, including their MessagePack slots.")]
     [Key(0)] public string[] ContractIds { get; init; } = [];
 
     [IgnoreMember]

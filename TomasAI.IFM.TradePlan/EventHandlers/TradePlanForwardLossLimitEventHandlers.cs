@@ -31,11 +31,12 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitWarningUpdatedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
             if (forwardTradeLossLimit is not null)
                 _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
             _blackboardService.Trade.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
-            await Task.CompletedTask;
+            await (Task.CompletedTask).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -45,11 +46,12 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitReachedUpdatedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.TradePlanForwardLossLimit.EntityId);
             if (forwardTradeLossLimit is not null)
                 _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.TradePlanForwardLossLimit.EntityId);
             _blackboardService.Trade.TradePlanForwardLossLimit.Set(e.TradePlanForwardLossLimit.EntityId, e.TradePlanForwardLossLimit);
-            await Task.CompletedTask;
+            await (Task.CompletedTask).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -59,10 +61,11 @@ namespace TomasAI.IFM.TradePlan.EventHandlers
         /// <returns></returns>
         public async Task ExecuteAsync(TradePlanForwardLossLimitClearedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             var forwardTradeLossLimit = _blackboardService.Trade.TradePlanForwardLossLimit.Get(e.ForwardLossLimitId);
             if (forwardTradeLossLimit is not null)
                 _blackboardService.Trade.TradePlanForwardLossLimit.Remove(e.ForwardLossLimitId);
-            await Task.CompletedTask;
+            await (Task.CompletedTask).ConfigureAwait(false);
         }
 
     }

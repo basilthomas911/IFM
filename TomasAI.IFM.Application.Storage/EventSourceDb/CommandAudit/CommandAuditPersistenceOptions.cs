@@ -1,17 +1,5 @@
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 
-public enum CommandAuditWriteMode : byte
-{
-    SequentialJsonLegacy = 0,
-    SequentialMessagePack = 1,
-    WindowedMessagePack = 2
-}
-
-public enum CommandAuditPayloadFormat : short
-{
-    MessagePack = 1
-}
-
 public sealed class CommandAuditPersistenceOptions
 {
     public const string SectionName = "CommandAuditPersistence";
@@ -24,6 +12,8 @@ public sealed class CommandAuditPersistenceOptions
     public TimeSpan MaximumOldestRequestDelay { get; set; } = TimeSpan.FromMilliseconds(1);
     public TimeSpan ShutdownDrainTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "This existing options validator reports the invalid configuration property by name; preserve its established exception type and diagnostic property name.")]
     public CommandAuditPersistenceOptions Validate()
     {
         if (!Enum.IsDefined(WriteMode)) throw new ArgumentOutOfRangeException(nameof(WriteMode));

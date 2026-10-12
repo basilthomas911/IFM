@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
@@ -14,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 
 public static class FuturesSessionStatisticsUpdated
 {
-    public static async ValueTask<bool> ExecuteAsync(
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality is required for persisted observation deduplication, exact contract strikes and defined zero/uninitialized sentinels; an epsilon would change these decisions.")]     public static async ValueTask<bool> ExecuteAsync(
         this FuturesSessionStatisticsUpdatedRealtimeEvent source,
         IEventActorContext context,
         IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
@@ -38,27 +39,7 @@ public static class FuturesSessionStatisticsUpdated
                 source.EntityId.ValueDate)
             .ConfigureAwait(false);
         if (current is null)
-        {
-            var vxRows = await context.GetVixFuturesEodDataAsync(
-                    source.EntityId.ContractId,
-                    source.EntityId.ValueDate)
-                .ConfigureAwait(false);
-            var vxCurrent = vxRows.SingleOrDefault(row =>
-                StringComparer.Ordinal.Equals(row.ContractId, source.EntityId.ContractId)
-                && row.ValueDate == source.EntityId.ValueDate);
-            if (vxCurrent is null)
-                return true;
-            var tick = new FuturesTickDataV2ReadModel(
-                vxCurrent.ContractId,
-                vxCurrent.ValueDate,
-                statistics.SourceSequence,
-                TimeOnly.FromDateTime(DateTime.UtcNow),
-                vxCurrent.ClosePrice,
-                0);
-            return await projector.ProcessRealtimeEventAsync(
-                    VxFuturesEodDataEventFactory.Create(source, tick, statistics))
-                .ConfigureAwait(false);
-        }
+            return await ProjectVxStatisticsAsync(source, context, projector).ConfigureAwait(false);
 
         // Mixed-schema delivery can momentarily place a trade ahead of its matching
         // official high/low update. Wait for the next statistics observation rather
@@ -95,8 +76,43 @@ public static class FuturesSessionStatisticsUpdated
             DailyPercentChange = dailyPercentChange,
             PriceDirection = priceDirection
         };
+        var projected = CreateStatisticsEvent(source, current, updated);
+        return await projector.ProcessRealtimeEventAsync(projected)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Projects official VX session statistics only when a current VX row exists.</summary>
+    static async ValueTask<bool> ProjectVxStatisticsAsync(FuturesSessionStatisticsUpdatedRealtimeEvent source,
+        IEventActorContext context, IRealtimeProjector<FuturesEodDataRealtimeActor> projector)
+    {
+        var statistics = source.Statistics;
+            var vxRows = await context.GetVixFuturesEodDataAsync(
+                    source.EntityId.ContractId,
+                    source.EntityId.ValueDate)
+                .ConfigureAwait(false);
+            var vxCurrent = vxRows.SingleOrDefault(row =>
+                StringComparer.Ordinal.Equals(row.ContractId, source.EntityId.ContractId)
+                && row.ValueDate == source.EntityId.ValueDate);
+            if (vxCurrent is null)
+                return true;
+            var tick = new FuturesTickDataV2ReadModel(
+                vxCurrent.ContractId,
+                vxCurrent.ValueDate,
+                statistics.SourceSequence,
+                TimeOnly.FromDateTime(DateTime.UtcNow),
+                vxCurrent.ClosePrice,
+                0);
+            return await projector.ProcessRealtimeEventAsync(
+                    VxFuturesEodDataEventFactory.Create(source, tick, statistics))
+                .ConfigureAwait(false);
+    }
+
+    /// <summary>Creates the realtime statistics observation with its originating command identity.</summary>
+    static FuturesEodSessionStatisticsUpdatedEvent CreateStatisticsEvent(FuturesSessionStatisticsUpdatedRealtimeEvent source,
+        FuturesEodDataV2ReadModel current, FuturesEodDataV2ReadModel updated)
+    {
         var entityId = new FuturesEodDataId(current.ContractId, current.ValueDate);
-        var projected = new FuturesEodSessionStatisticsUpdatedEvent
+        return new FuturesEodSessionStatisticsUpdatedEvent
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
@@ -113,8 +129,6 @@ public static class FuturesSessionStatisticsUpdated
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
         };
-        return await projector.ProcessRealtimeEventAsync(projected)
-            .ConfigureAwait(false);
     }
 
 }

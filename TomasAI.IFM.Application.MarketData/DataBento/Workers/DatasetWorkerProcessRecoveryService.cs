@@ -4,9 +4,6 @@ using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
-public sealed record HardWorkerContainmentResult(
-    bool Isolated, IReadOnlyList<int> ProcessIds, Exception? Failure);
-
 /// <summary>
 /// Owns every supervised child by exact process handle.  It never decides when recovery is due;
 /// the serialized watchdog is the only caller allowed to request replacement.
@@ -14,6 +11,7 @@ public sealed record HardWorkerContainmentResult(
 public sealed class DatasetWorkerProcessRecoveryService :
     IDatabentoDatasetProcessRecovery, IAsyncDisposable, Pricing.ICompositionMarketDataApi
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The containing recovery service owns entries and disposes each Lifecycle semaphore after disposing its supervisor.")]
     sealed class Entry(
         DatasetWorkerStartRequest request,
         DatasetWorkerProcessSupervisor supervisor)
@@ -23,9 +21,10 @@ public sealed class DatasetWorkerProcessRecoveryService :
         internal readonly SemaphoreSlim Lifecycle = new(1, 1);
     }
 
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<string, Entry> entries = new(StringComparer.Ordinal);
     readonly SemaphoreSlim shutdown = new(1, 1);
+    Task? disposal;
     bool stopping;
     bool hardContainmentUnverified;
     readonly DatabentoStage3Options options;
@@ -46,6 +45,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         DatasetWorkerCurrentValues? currentValues = null,
         IDurableSubscriptionIntentStore? durableIntent = null)
     {
+        ArgumentNullException.ThrowIfNull(options);
         this.options = options.Validate();
         this.admissions = admissions ?? throw new ArgumentNullException(nameof(admissions));
         this.terminalFaultSignal = terminalFaultSignal;
@@ -65,6 +65,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
             ?? (value => new DatasetWorkerProcessSupervisor(value, ingress));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "This published diagnostic property returns an isolated snapshot rather than mutable internal state.")]
     public IReadOnlyList<DatasetWorkerProcessSnapshot> Current
     {
         get
@@ -75,17 +76,26 @@ public sealed class DatasetWorkerProcessRecoveryService :
     }
 
     public Task<Pricing.WorkerOptionChainResult> AcquireAsync(string dataset, Pricing.WorkerOptionChainRequest request, CancellationToken cancellationToken)
-        => UseGenerationAsync(dataset, request.GenerationId, worker => worker.AcquireOptionChainAsync(request, cancellationToken), cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return UseGenerationAsync(dataset, request.GenerationId, worker => worker.AcquireOptionChainAsync(request, cancellationToken), cancellationToken);
+    }
 
     public Task<Pricing.WorkerOptionChainResult> ReleaseAsync(string dataset, Pricing.WorkerOptionChainRelease request, CancellationToken cancellationToken)
-        => request.Ownership is not null
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return request.Ownership is not null
             ? throw new UnauthorizedAccessException("Business ownership must be read from committed intent by the parent adapter.")
             : UseGenerationAsync(dataset, request.GenerationId, worker => worker.ReleaseOptionChainAsync(request, cancellationToken), cancellationToken);
+    }
 
     /// <summary>Derives worker ownership from committed PostgreSQL rows. Callers supply no owner, purpose or lease claim.</summary>
     public async Task<Pricing.WorkerOptionChainResult> ApplyBusinessOwnershipAsync(string authorityScope, string dataset,
         Pricing.WorkerOptionChainRequest chain, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(chain);
         var store = durableIntent ?? throw new InvalidOperationException("Durable subscription persistence is unavailable.");
         var snapshot = await store.ReadAsync(authorityScope, dataset, cancellationToken).ConfigureAwait(false);
         var update = Pricing.CommittedOptionChainOwnership.Create(snapshot, chain);
@@ -94,7 +104,11 @@ public sealed class DatasetWorkerProcessRecoveryService :
     }
 
     public Task<Pricing.CompositionSnapshotResult> CaptureAsync(string dataset, Pricing.CompositionSnapshotRequest request, CancellationToken cancellationToken)
-        => UseGenerationAsync(dataset, request.GenerationId, worker => worker.CaptureCompositionSnapshotAsync(request, cancellationToken), cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return UseGenerationAsync(dataset, request.GenerationId, worker => worker.CaptureCompositionSnapshotAsync(request, cancellationToken), cancellationToken);
+    }
 
     async Task<T> UseGenerationAsync<T>(string dataset, Guid generation, Func<DatasetWorkerProcessSupervisor, Task<T>> operation, CancellationToken cancellationToken)
     {
@@ -127,7 +141,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     public async Task<IReadOnlyList<DatasetWorkerProcessSnapshot>> GetHealthAsync(
         TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (timeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
         Entry[] snapshot;
         lock (gate) snapshot = entries.Values.ToArray();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -140,7 +154,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
             }
             catch (Exception exception) when (exception is not OperationCanceledException
                                                || !cancellationToken.IsCancellationRequested)
-            { }
+            { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
             var current = entry.Supervisor.Current;
             currentValues?.SetDatasetHealth(new(current.Dataset, entry.Request.ValueDate,
                 current.WorkerInstanceId, current.GenerationId, current.ManifestRevision), current.Healthy);
@@ -158,6 +172,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         DatasetWorkerStartRequest request, CancellationToken cancellationToken = default) =>
         StartOwnedCoreAsync(request, admit: false, cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     async Task<DatasetWorkerProcessSnapshot> StartOwnedCoreAsync(
         DatasetWorkerStartRequest request,
         bool admit,
@@ -166,14 +181,14 @@ public sealed class DatasetWorkerProcessRecoveryService :
         ArgumentNullException.ThrowIfNull(request);
         var supplied = request.Manifest?.Validate()
             ?? throw new ArgumentException("A parent-owned subscription manifest is required.", nameof(request));
-        if (supplied.Dataset != request.Dataset || supplied.ValueDate != request.ValueDate)
+        if (!string.Equals(supplied.Dataset,request.Dataset,StringComparison.Ordinal) || supplied.ValueDate != request.ValueDate)
             throw new ArgumentException("The requested dataset/value date and manifest differ.", nameof(request));
         if (!DesiredSubscriptions.TryGet(request.Dataset, request.ValueDate, out var desired))
         {
             if (!admit) throw new InvalidOperationException("Frozen recovery manifest is no longer current.");
             desired = DesiredSubscriptions.Set(request.Dataset, request.ValueDate, supplied.GetRegistrations());
         }
-        if (!admit && desired.Fingerprint != supplied.Fingerprint)
+        if (!admit && !string.Equals(desired.Fingerprint,supplied.Fingerprint,StringComparison.Ordinal))
             throw new InvalidOperationException("Candidate cannot replace its frozen recovery manifest.");
         request = WithManifest(request, desired) with
         { PrefixArguments = Array.AsReadOnly(request.PrefixArguments.ToArray()) };
@@ -241,7 +256,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsOwned(entry) || entry.Request.GenerationId != expectedGenerationId
                 || entry.Request.ValueDate != frozen.ValueDate
-                || entry.Request.Manifest?.Fingerprint != frozen.Fingerprint)
+                || !string.Equals(entry.Request.Manifest?.Fingerprint,frozen.Fingerprint,StringComparison.Ordinal))
                 throw new InvalidOperationException("Candidate identity differs from the frozen manifest.");
             if (!DesiredSubscriptions.TryWithCurrent(frozen, () =>
             {
@@ -253,7 +268,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
                     var current = entry.Supervisor.Current;
                     if (!current.Running || !current.Healthy || current.GenerationId != expectedGenerationId
                         || current.ManifestRevision != frozen.Revision
-                        || current.ManifestFingerprint != frozen.Fingerprint)
+                        || !string.Equals(current.ManifestFingerprint,frozen.Fingerprint,StringComparison.Ordinal))
                         throw new InvalidOperationException("Candidate has not qualified the frozen manifest.");
                     var admission = ToAdmission(entry.Request);
                     currentValues?.ActivateDataset(admission, frozen.GetRegistrations());
@@ -266,10 +281,12 @@ public sealed class DatasetWorkerProcessRecoveryService :
         finally { entry.Lifecycle.Release(); }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<DatabentoDatasetResetResult> ReplaceProcessAsync(
         DatabentoDatasetResetRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         Entry? entry;
         lock (gate)
         {
@@ -339,6 +356,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     public async Task<DatabentoDatasetResetResult> ResetOwnedAsync(
         DatabentoDatasetResetRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
         Entry? entry;
         lock (gate)
         {
@@ -391,7 +409,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         {
             if (!IsOwned(entry)) throw new InvalidOperationException("The dataset owner has stopped.");
             var desired = GetDesired(entry);
-            if (desired.Fingerprint == entry.Request.Manifest?.Fingerprint
+            if (string.Equals(desired.Fingerprint,entry.Request.Manifest?.Fingerprint,StringComparison.Ordinal)
                 && admissions.TryGet(dataset, out var admitted) && admitted == ToAdmission(entry.Request))
                 return entry.Supervisor.Current;
             CloseAdmission(dataset, entry.Request.GenerationId);
@@ -417,7 +435,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         {
             deadline.Token.ThrowIfCancellationRequested();
             var desired = GetDesired(entry);
-            if (entry.Request.Manifest?.Fingerprint != desired.Fingerprint)
+            if (!string.Equals(entry.Request.Manifest?.Fingerprint,desired.Fingerprint,StringComparison.Ordinal))
             {
                 var applied = await entry.Supervisor.ApplyManifestAsync(desired, deadline.Token).ConfigureAwait(false);
                 entry.Request = WithManifest(entry.Request, desired) with { GenerationId = applied.GenerationId };
@@ -432,7 +450,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
                     var current = entry.Supervisor.Current;
                     if (!current.Running || !current.Healthy
                         || current.ManifestRevision != desired.Revision
-                        || current.ManifestFingerprint != desired.Fingerprint)
+                        || !string.Equals(current.ManifestFingerprint,desired.Fingerprint,StringComparison.Ordinal))
                         throw new InvalidOperationException("Worker has not qualified the complete current manifest.");
                     var admission = ToAdmission(entry.Request);
                     currentValues?.ActivateDataset(admission, desired.GetRegistrations());
@@ -443,6 +461,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     public async Task StopAllAsync(CancellationToken cancellationToken = default)
     {
         await shutdown.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -493,10 +512,11 @@ public sealed class DatasetWorkerProcessRecoveryService :
     /// Fences every current generation before bounded hard-recovery containment. A timeout is
     /// unsafe: the caller must not start a replacement while an owned worker may still exist.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete owned-resource cleanup and containment across failures; retain the original or aggregate diagnostic cause.")]
     public async Task<HardWorkerContainmentResult> ContainForHardRecoveryAsync(
         TimeSpan deadline, CancellationToken cancellationToken)
     {
-        if (deadline <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(deadline));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, TimeSpan.Zero);
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         DatasetWorkerProcessSnapshot[] before;
         lock (gate)
@@ -510,11 +530,11 @@ public sealed class DatasetWorkerProcessRecoveryService :
         }
         try
         {
-            var stopping = StopAllAsync(cancellationToken);
-            try { await stopping.WaitAsync(deadline, cancellationToken).ConfigureAwait(false); }
+            var stopOperation = StopAllAsync(cancellationToken);
+            try { await stopOperation.WaitAsync(deadline, cancellationToken).ConfigureAwait(false); }
             catch
             {
-                _ = stopping.ContinueWith(task => _ = task.Exception, CancellationToken.None,
+                _ = stopOperation.ContinueWith(task => _ = task.Exception, CancellationToken.None,
                     TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
                 throw;
             }
@@ -565,10 +585,17 @@ public sealed class DatasetWorkerProcessRecoveryService :
             lock (gate) CloseAdmission(snapshot.Dataset, snapshot.GenerationId);
             terminalFaultSignal?.Notify(
             $"Dataset worker exited: dataset={snapshot.Dataset}; pid={snapshot.ProcessId}; "
-            + $"generation={snapshot.GenerationId:D}; exitCode={snapshot.ExitCode?.ToString() ?? "unknown"}.");
+            + $"generation={snapshot.GenerationId:D}; exitCode={snapshot.ExitCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"}.");
         };
 
-    public async ValueTask DisposeAsync()
+    /// <summary>Shares one cleanup operation across all DI aliases and concurrent disposal callers.</summary>
+    public ValueTask DisposeAsync()
+    {
+        lock (gate)
+            return new ValueTask(disposal ??= DisposeCoreAsync());
+    }
+
+    async Task DisposeCoreAsync()
     {
         await StopAllAsync().ConfigureAwait(false);
         Entry[] snapshot;
@@ -582,5 +609,6 @@ public sealed class DatasetWorkerProcessRecoveryService :
             await entry.Supervisor.DisposeAsync().ConfigureAwait(false);
             entry.Lifecycle.Dispose();
         }
+        shutdown.Dispose();
     }
 }

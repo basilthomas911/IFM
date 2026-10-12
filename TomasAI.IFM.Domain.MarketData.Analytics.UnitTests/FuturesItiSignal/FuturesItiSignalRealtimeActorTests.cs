@@ -327,6 +327,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         context.HealthEvidence.Returns(new LivePipelineEvidence(TimeProvider.System));
         var logger = Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>();
         logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         context.Logger.Returns(logger);
         var es = Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
         var vx = Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));

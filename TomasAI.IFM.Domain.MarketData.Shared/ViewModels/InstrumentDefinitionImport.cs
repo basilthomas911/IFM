@@ -11,7 +11,7 @@ public static class InstrumentDefinitionImport
             || source.Deleted || source.ExpirationUtc is null || source.ExpirationUtc <= at || source.ActivationUtc > at
             || string.IsNullOrWhiteSpace(source.RawSymbol) || source.DefinitionDigest.Length != 64
             || string.IsNullOrWhiteSpace(source.RawDefinitionReference))
-            throw new ArgumentException("A current, complete provider definition is required.");
+            throw new ArgumentException("A current, complete provider definition is required.", nameof(source));
         _ = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
     }
     static DateOnly ExpiryDate(InstrumentDefinitionSelection source, string timeZone) =>
@@ -20,11 +20,12 @@ public static class InstrumentDefinitionImport
 
     public static FuturesContractV3ReadModel Future(InstrumentDefinitionSelection source, string timeZone, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(source);
         Validate(source, at, timeZone);
-        if (source.InstrumentClass != "F" || string.IsNullOrWhiteSpace(source.Root)
-            || source.Root.Any(c => !char.IsAsciiLetterOrDigit(c))) throw new ArgumentException("A futures definition is required.");
+        if (!string.Equals(source.InstrumentClass,"F",StringComparison.Ordinal) || string.IsNullOrWhiteSpace(source.Root)
+            || source.Root.Any(c => !char.IsAsciiLetterOrDigit(c))) throw new ArgumentException("A futures definition is required.", nameof(source));
         var date = ExpiryDate(source, timeZone);
-        return new(FormattableString.Invariant($"{source.Root}{date:yyyyMMdd}"), source.RawSymbol, source.Root,
+        return new(string.Create(CultureInfo.InvariantCulture, $"{source.Root}{date:yyyyMMdd}"), source.RawSymbol, source.Root,
             source.RawSymbol, "FUT", source.Currency, source.Exchange,
             source.Multiplier?.ToString(CultureInfo.InvariantCulture) ?? "", date, false)
         {
@@ -48,16 +49,18 @@ public static class InstrumentDefinitionImport
     public static FuturesOptionContractReadModel Option(InstrumentDefinitionSelection source, FuturesContractV3ReadModel underlying,
         string timeZone, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(underlying);
         Validate(source, at, timeZone);
         if (source.InstrumentClass is not ("C" or "P") || source.Strike is not > 0)
-            throw new ArgumentException("A call or put with an exact strike is required.");
-        if (underlying.SecurityType != "FUT" || underlying.SchemaVersion != 1
+            throw new ArgumentException("A call or put with an exact strike is required.", nameof(source));
+        if (!string.Equals(underlying.SecurityType,"FUT",StringComparison.Ordinal) || underlying.SchemaVersion != 1
             || underlying.InstrumentId != source.UnderlyingInstrumentId || source.UnderlyingInstrumentId == 0
-            || underlying.Dataset != source.Dataset || underlying.PublisherId != source.PublisherId
+            || !string.Equals(underlying.Dataset,source.Dataset,StringComparison.Ordinal) || underlying.PublisherId != source.PublisherId
             || underlying.ExpirationUtc is null || underlying.ExpirationUtc < source.ExpirationUtc)
-            throw new ArgumentException("Import/select the exact provider underlying future before saving the option.");
+            throw new ArgumentException("Import/select the exact provider underlying future before saving the option.", nameof(underlying));
         var date = ExpiryDate(source, timeZone);
-        var call = source.InstrumentClass == "C";
+        var call = string.Equals(source.InstrumentClass,"C",StringComparison.Ordinal);
         var strike = source.Strike.Value;
         return new(FuturesOptionContractId.Create(underlying.Symbol, date, call ? OptionType.Call : OptionType.Put, strike),
             source.RawSymbol, underlying.Symbol, source.RawSymbol, "FOP", source.Currency, source.Exchange,

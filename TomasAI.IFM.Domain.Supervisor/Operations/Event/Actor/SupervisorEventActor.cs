@@ -101,13 +101,13 @@ public sealed class SupervisorEventActor(IEventActorContext<SupervisorEventActor
         IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(IEventActorContext<SupervisorEventActor> context,
-        IEvent value) => ResolveMappedEventHandler(value, _receiveMap)(Typed(context), value,
+        IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(Typed(context), @event,
             Typed(context).Logger);
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<SupervisorEventActor> context,
-        ActorThreadId threadId, IEvent value, Exception exception)
+        ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        Typed(context).Logger.LogError(exception, "Supervisor event failed for {ActorThreadId}.", threadId);
+        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor event", threadId);
         return ValueTask.CompletedTask;
     }
 

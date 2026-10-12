@@ -7,7 +7,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.LookupType.Command.State;
-
 /// <summary>
 /// Represents the persisted state and event application logic for a lookup type actor, including tracking lookup type
 /// entities within the actor's lifecycle.
@@ -16,11 +15,9 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 /// lookup types. It provides methods to check for the existence of lookup type entities and to apply state changes in
 /// response to domain events. This type is intended for use within the actor framework and is not typically used
 /// directly by application code.</remarks>
-public class LookupTypeCommandState
-    : BaseEventSourceActorState<LookupTypeCommandState>, IEventSourceActorState<LookupTypeCommandState>
+public class LookupTypeCommandState : BaseEventSourceActorState<LookupTypeCommandState>, IEventSourceActorState<LookupTypeCommandState>
 {
     readonly Dictionary<LookupTypeId, LookupTypeReadModel> _lookupTypes = [];
-
     public override ActorThreadId Id { get; set; } = default!;
 
     /// <summary>
@@ -29,7 +26,7 @@ public class LookupTypeCommandState
     /// <remarks>This method processes domain events and applies the corresponding state changes. Supported events
     /// include adding, changing, and removing lookup types. Events that do not match any known type are ignored and
     /// return false.</remarks>
-    /// <param name="domainEvent">The domain event to apply to the state. Cannot be null.</param>
+    /// <param name = "domainEvent">The domain event to apply to the state. Cannot be null.</param>
     /// <returns>true if the event was successfully applied; otherwise, false.</returns>
     protected override bool Apply(IEvent domainEvent)
     {
@@ -45,17 +42,15 @@ public class LookupTypeCommandState
     /// <summary>
     /// Determines whether the specified lookup type exists in the current state.
     /// </summary>
-    /// <param name="lookupTypeId">The unique identifier of the lookup type to check.</param>
+    /// <param name = "lookupTypeId">The unique identifier of the lookup type to check.</param>
     /// <returns>true if the lookup type exists in the state; otherwise, false.</returns>
-    public bool LookupTypeExists(LookupTypeId lookupTypeId)
-        => _lookupTypes.ContainsKey(lookupTypeId);
-
+    public bool LookupTypeExists(LookupTypeId lookupTypeId) => _lookupTypes.ContainsKey(lookupTypeId);
     /// <summary>
     /// Applies a lookup type added event to the state.
     /// </summary>
     /// <remarks>This method attempts to add the lookup type from the event to the internal dictionary.
     /// If the lookup type already exists or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the lookup type to add. Cannot be null.</param>
+    /// <param name = "e">The event containing the lookup type to add. Cannot be null.</param>
     /// <returns>true if the lookup type was successfully added to the state; otherwise, false.</returns>
     bool On(LookupTypeAddedEvent e)
     {
@@ -63,6 +58,7 @@ public class LookupTypeCommandState
         {
             return _lookupTypes.TryAdd(e.EntityId, e.LookupType);
         }
+
         return false;
     }
 
@@ -71,18 +67,16 @@ public class LookupTypeCommandState
     /// </summary>
     /// <remarks>This method updates the lookup type in the internal dictionary if it exists.
     /// If the lookup type does not exist or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the updated lookup type. Cannot be null.</param>
+    /// <param name = "e">The event containing the updated lookup type. Cannot be null.</param>
     /// <returns>true if the lookup type was successfully updated in the state; otherwise, false.</returns>
     bool On(LookupTypeChangedEvent e)
     {
-        if (e is not null && e.LookupType is not null)
+        if (e is not null && e.LookupType is not null && (_lookupTypes.ContainsKey(e.EntityId)))
         {
-            if (_lookupTypes.ContainsKey(e.EntityId))
-            {
                 _lookupTypes[e.EntityId] = e.LookupType;
                 return true;
-            }
         }
+
         return false;
     }
 
@@ -91,7 +85,7 @@ public class LookupTypeCommandState
     /// </summary>
     /// <remarks>This method removes the lookup type from the internal dictionary using the provided identifier.
     /// If the lookup type does not exist or if the event data is null, the operation fails.</remarks>
-    /// <param name="e">The event containing the identifier of the lookup type to remove. Cannot be null.</param>
+    /// <param name = "e">The event containing the identifier of the lookup type to remove. Cannot be null.</param>
     /// <returns>true if the lookup type was successfully removed from the state; otherwise, false.</returns>
     bool On(LookupTypeRemovedEvent e)
     {
@@ -99,6 +93,7 @@ public class LookupTypeCommandState
         {
             return _lookupTypes.Remove(e.LookupTypeId);
         }
+
         return false;
     }
 }

@@ -7,12 +7,16 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
 
 public sealed class ParameterSetCommandState : BaseEventSourceActorState<ParameterSetCommandState>, IEventSourceActorState<ParameterSetCommandState>
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, ParameterAuditEntry> Audit { get; } = [];
 
     public override ActorThreadId Id { get; set; } = default!;
     public long CatalogRevision { get; private set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<int, ParameterSetVersion> Versions { get; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, string> Operations { get; } = [];
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Actor reducers and command models share this mutable state dictionary; preserve the published state contract during the persistence refactor.")]
     public Dictionary<Guid, ParameterOperationReceipt> Receipts { get; } = [];
     protected override bool Apply(IEvent domainEvent)
     {

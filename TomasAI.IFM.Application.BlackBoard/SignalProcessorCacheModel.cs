@@ -24,6 +24,7 @@ public class SignalProcessorCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// <returns></returns>
     public SignalProcessor<TSignal>? Get<TSignal>(OptionTradeEntityId optionTradeId)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -38,6 +39,7 @@ public class SignalProcessorCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// <param name="signalProcessor"></param>
     public void Set<TSignal>(OptionTradeEntityId optionTradeId, SignalProcessor<TSignal> signalProcessor)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         var value = _jsonSerializer.Serialize(signalProcessor);
         _redisCache.Set(key, value);
@@ -50,6 +52,7 @@ public class SignalProcessorCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// <returns></returns>
     public bool Exists(OptionTradeEntityId optionTradeId)
     {
+        ArgumentNullException.ThrowIfNull(optionTradeId);
         var key = $"{CacheName}:{optionTradeId.Format()}";
         return _redisCache.TryGet(key, out _);
     }

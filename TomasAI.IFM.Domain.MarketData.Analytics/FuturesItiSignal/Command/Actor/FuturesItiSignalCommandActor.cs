@@ -11,90 +11,79 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Validatio
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
-
 /// <summary>
 /// Represents an actor responsible for managing futures ITI signal commands and state within an event-sourced system.
 /// </summary>
-/// <remarks>The <see cref="FuturesItiSignalCommandActor"/> is a specialized command actor designed to handle operations
+/// <remarks>The <see cref = "FuturesItiSignalCommandActor"/> is a specialized command actor designed to handle operations
 /// related to futures ITI signals. It processes commands such as generating signals, setting hold-trade state, and
 /// clearing hold-trade state. It validates the commands, and manages the actor's state. This actor relies on an
 /// event-sourced repository for state persistence and uses dependency injection to resolve required services.</remarks>
-/// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
-public class FuturesItiSignalCommandActor(
-    ICommandActorContext<FuturesItiSignalCommandActor> actorContext)
-    : BaseEventSourceCommandActor<FuturesItiSignalCommandActor>(actorContext, actorContext.Logger)
+/// <param name = "dbEventSource">The event source database context used for logging and persisting command events.</param>
+/// <param name = "logger">The logger used to record diagnostic and operational information for the actor.</param>
+public class FuturesItiSignalCommandActor(ICommandActorContext<FuturesItiSignalCommandActor> actorContext) : BaseEventSourceCommandActor<FuturesItiSignalCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesItiSignalCommandContext ActorContext =>
-        IsArgumentNull.Set(Context as IFuturesItiSignalCommandContext, nameof(Context))!;
+    protected IFuturesItiSignalCommandContext ActorContext => IsArgumentNull.Named(Context as IFuturesItiSignalCommandContext, nameof(Context))!;
 
     public const string ActorName = "FuturesItiSignalCommand";
     IEventProjector<FuturesItiSignalCommandActor> EventProjector => ActorContext.EventProjector;
-    IEventSourceActorStateRepository<FuturesItiSignalCommandState> _repo = default!;
 
+    IEventSourceActorStateRepository<FuturesItiSignalCommandState> _repo = default!;
     /// <summary>
     /// Performs initialization logic when the actor starts up.
     /// </summary>
-    /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <param name = "context">The <see cref = "ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
+    /// <returns>A <see cref = "ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext<FuturesItiSignalCommandActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>());
         await EventProjector.StartAsync(context).ConfigureAwait(false);
     }
 
-    protected override async ValueTask OnShutdown(ICommandActorContext<FuturesItiSignalCommandActor> context)
-        => await EventProjector.StopAsync().ConfigureAwait(false);
-
+    protected override async ValueTask OnShutdown(ICommandActorContext<FuturesItiSignalCommandActor> context) => await EventProjector.StopAsync().ConfigureAwait(false);
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
     /// </summary>
-    /// <param name="context">The actor context used to resolve and process the command. Cannot be null.</param>
-    /// <param name="message">The NATS message containing the command data to be parsed.</param>
-    /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(
-        ICommandActorContext<FuturesItiSignalCommandActor> context,
-        IActorMessage message)
-        => ParseMappedCommand(context, message, _parseMap);
-
+    /// <param name = "context">The actor context used to resolve and process the command. Cannot be null.</param>
+    /// <param name = "message">The NATS message containing the command data to be parsed.</param>
+    /// <returns>An <see cref = "ICommand"/> instance representing the parsed command from the message.</returns>
+    /// <exception cref = "InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesItiSignalCommandActor> context, IActorMessage message) => ParseMappedCommand(context, message, _parseMap);
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
     {
         [GenerateFuturesItiSignalCommand.Verb] = msg => msg.AsCommand<GenerateFuturesItiSignalCommand>()!,
         [ClearFuturesItiSignalHoldTradeCommand.Verb] = msg => msg.AsCommand<ClearFuturesItiSignalHoldTradeCommand>()!,
         [SetFuturesItiSignalHoldTradeCommand.Verb] = msg => msg.AsCommand<SetFuturesItiSignalHoldTradeCommand>()!
     };
-
     /// <summary>
     /// Processes the specified command asynchronously within the given actor context and state, and returns a result
     /// containing the command's unique identifier.
     /// </summary>
-    /// <param name="context">The actor context in which the command is received. Cannot be null.</param>
-    /// <param name="state">The current state of the actor. Must be a valid instance of <see cref="FuturesItiSignalCommandState"/>. Cannot be null.</param>
-    /// <param name="cmd">The command to be processed. Cannot be null.</param>
+    /// <param name = "context">The actor context in which the command is received. Cannot be null.</param>
+    /// <param name = "state">The current state of the actor. Must be a valid instance of <see cref = "FuturesItiSignalCommandState"/>. Cannot be null.</param>
+    /// <param name = "cmd">The command to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, IActorState state, ICommand cmd)
+    /// <exception cref = "InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, IActorState state, ICommand command)
     {
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
+        IsArgumentNull.Check(command);
         var itiSignalState = IsArgumentNull.Set((state as FuturesItiSignalCommandState)!);
-        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, itiSignalState));
+        var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receiveFunc.Invoke(command, dispatchContext, itiSignalState));
     }
 
     /// <summary>
@@ -111,148 +100,128 @@ public class FuturesItiSignalCommandActor(
         [typeof(ClearFuturesItiSignalHoldTradeCommand)] = (cmd, context, state) => (cmd as ClearFuturesItiSignalHoldTradeCommand)!.Execute(state),
         [typeof(SetFuturesItiSignalHoldTradeCommand)] = (cmd, context, state) => (cmd as SetFuturesItiSignalHoldTradeCommand)!.Execute(state)
     };
-
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
     /// </summary>
-    /// <param name="context">The context in which the command is being executed.</param>
-    /// <param name="threadId">The identifier of the actor thread for which validation is being performed.</param>
-    /// <param name="cmd">The command to be validated. Cannot be null.</param>
+    /// <param name = "context">The context in which the command is being executed.</param>
+    /// <param name = "threadId">The identifier of the actor thread for which validation is being performed.</param>
+    /// <param name = "cmd">The command to be validated. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous validation operation.</returns>
-    protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd)
-        => OnValidateAsync(context, threadId, cmd, CancellationToken.None);
-
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
+    protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
+    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        var cmdName = cmd.GetType();
-        ValidateMappedCommand(cmd, _validationMap);
+        IsArgumentNull.Check(command);
+        _ = command.GetType();
+        ValidateMappedCommand(command, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
-        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
+    {
+        [typeof(GenerateFuturesItiSignalCommand)] = cmd =>
         {
-            [typeof(GenerateFuturesItiSignalCommand)] = cmd =>
-            {
-                var e = (GenerateFuturesItiSignalCommand)cmd; return new List<ValidationError>()
-                    .ValidateCommandId(e.CommandId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateContractId(e.ContractId, e.CommandName)
-                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                    .ValidateDateOnly(e.TimeFrameStartValueDate, e.CommandName, "ValueDate")
-                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                    .ValidateTimestamp(e.Timestamp, e.CommandName)
-                    .ValidateFuturesPrice(e.FuturesPrice, e.CommandName)
-                    .ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName);
-            },
-            [typeof(ClearFuturesItiSignalHoldTradeCommand)] = cmd =>
-            {
-                var e = (ClearFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
-                    .ValidateCommandId(e.CommandId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateContractId(e.ContractId, e.CommandName)
-                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                    .ValidateTimestamp(e.Timestamp, e.CommandName);
-            },
-            [typeof(SetFuturesItiSignalHoldTradeCommand)] = cmd =>
-            {
-                var e = (SetFuturesItiSignalHoldTradeCommand)cmd; return new List<ValidationError>()
-                    .ValidateCommandId(e.CommandId, e.CommandName)
-                    .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateContractId(e.ContractId, e.CommandName)
-                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                    .ValidateTimePeriod(e.TimePeriod, e.CommandName)
-                    .ValidateTimestamp(e.Timestamp, e.CommandName);
-            }
-        };
-
+            var e = (GenerateFuturesItiSignalCommand)cmd;
+            return new List<ValidationError>().ValidateCommandId(e.CommandId, e.CommandName).ValidateEntityId(e.EntityId, e.CommandName).ValidateContractId(e.ContractId, e.CommandName).ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate").ValidateDateOnly(e.TimeFrameStartValueDate, e.CommandName, "ValueDate").ValidateTimePeriod(e.TimePeriod, e.CommandName).ValidateTimestamp(e.Timestamp, e.CommandName).ValidateFuturesPrice(e.FuturesPrice, e.CommandName).ValidateVixFuturesPrice(e.VixFuturesPrice, e.CommandName);
+        },
+        [typeof(ClearFuturesItiSignalHoldTradeCommand)] = cmd =>
+        {
+            var e = (ClearFuturesItiSignalHoldTradeCommand)cmd;
+            return new List<ValidationError>().ValidateCommandId(e.CommandId, e.CommandName).ValidateEntityId(e.EntityId, e.CommandName).ValidateContractId(e.ContractId, e.CommandName).ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate").ValidateTimePeriod(e.TimePeriod, e.CommandName).ValidateTimestamp(e.Timestamp, e.CommandName);
+        },
+        [typeof(SetFuturesItiSignalHoldTradeCommand)] = cmd =>
+        {
+            var e = (SetFuturesItiSignalHoldTradeCommand)cmd;
+            return new List<ValidationError>().ValidateCommandId(e.CommandId, e.CommandName).ValidateEntityId(e.EntityId, e.CommandName).ValidateContractId(e.ContractId, e.CommandName).ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate").ValidateTimePeriod(e.TimePeriod, e.CommandName).ValidateTimestamp(e.Timestamp, e.CommandName);
+        }
+    };
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
     /// </summary>
-    /// <param name="context">The context of the command actor.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the state is being loaded.</param>
-    /// <param name="cmd">The command for which state is being loaded. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask{TResult}"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd)
+    /// <param name = "context">The context of the command actor.</param>
+    /// <param name = "threadId">The identifier of the actor thread on which the state is being loaded.</param>
+    /// <param name = "cmd">The command for which state is being loaded. Cannot be null.</param>
+    /// <returns>A <see cref = "ValueTask{TResult}"/> that represents the asynchronous operation.</returns>
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(cmd);
-        return await _repo.LoadStateAsync(cmd);
-    }
-
-    /// <summary>
-    /// Asynchronously saves the current state of the futures ITI signal actor in response to a command.
-    /// </summary>
-    /// <param name="context">The context for the actor command execution. Cannot be null.</param>
-    /// <param name="threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
-    /// <param name="state">The current state of the actor to be persisted. Must be a non-null instance of <see
-    /// cref="FuturesItiSignalCommandState"/>.</param>
-    /// <param name="cmd">The command that triggered the state save operation. Cannot be null.</param>
-    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous save operation.</returns>
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(state);
-        IsArgumentNull.Check(cmd);
-        var itiSignalState = IsArgumentNull.Set((state as FuturesItiSignalCommandState)!);
-        await _repo.SaveStateAsync(context, itiSignalState, cmd);
+        IsArgumentNull.Check(command);
+        return await (_repo.LoadStateAsync(command)).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Handles exceptions that occur during command execution and returns a failed service result containing error
     /// event information.
     /// </summary>
-    /// <param name="context">The command actor context in which the exception occurred.</param>
-    /// <param name="threadId">The identifier of the actor thread where the exception was encountered.</param>
-    /// <param name="command">The command that encountered the exception.</param>
-    /// <param name="ex">The exception that was thrown during command processing.</param>
+    /// <param name = "context">The command actor context in which the exception occurred.</param>
+    /// <param name = "threadId">The identifier of the actor thread where the exception was encountered.</param>
+    /// <param name = "command">The command that encountered the exception.</param>
+    /// <param name = "ex">The exception that was thrown during command processing.</param>
     /// <returns>A failed service result containing a GUID result and error event details describing the failure.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand cmd, CancellationToken cancellationToken)
-        => await _repo.LoadStateAsync(cmd, cancellationToken).ConfigureAwait(false);
-
-    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd, CancellationToken cancellationToken)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) => await _repo.LoadStateAsync(command, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Asynchronously saves the current state of the futures ITI signal actor in response to a command.
+    /// </summary>
+    /// <param name = "context">The context for the actor command execution. Cannot be null.</param>
+    /// <param name = "threadId">The identifier of the actor thread on which the command is being executed. Cannot be null.</param>
+    /// <param name = "state">The current state of the actor to be persisted. Must be a non-null instance of <see 
+    ///cref = "FuturesItiSignalCommandState"/>.</param>
+    /// <param name = "cmd">The command that triggered the state save operation. Cannot be null.</param>
+    /// <returns>A <see cref = "ValueTask"/> that represents the asynchronous save operation.</returns>
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
     {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(threadId);
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(command);
+        var itiSignalState = IsArgumentNull.Set((state as FuturesItiSignalCommandState)!);
+        await (_repo.SaveStateAsync(context, itiSignalState, command)).ConfigureAwait(false);
+    }
+
+    protected override async ValueTask OnSaveStateAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(state);
         var itiState = (FuturesItiSignalCommandState)state;
-        var generated = cmd is GenerateFuturesItiSignalCommand &&
-            itiState.Events.Any(static item => item is FuturesItiSignalGeneratedEvent);
-        await _repo.SaveStateAsync(context, itiState, cmd, cancellationToken).ConfigureAwait(false);
-        if (generated && cmd is GenerateFuturesItiSignalCommand command)
+        var generated = command is GenerateFuturesItiSignalCommand && itiState.Events.Any(static item => item is FuturesItiSignalGeneratedEvent);
+        await _repo.SaveStateAsync(context, itiState, command, cancellationToken).ConfigureAwait(false);
+        if (generated && command is GenerateFuturesItiSignalCommand generatedCommand)
         {
             ActorContext.Telemetry.RecordEventCommitted();
-            FuturesItiSignalCommandLogging.EventCommitted(
-                ActorContext.Logger, command.CommandId, command.EntityId.Format(), command.ContractId,
-                command.ValueDate, command.TimePeriod);
+            if (ActorContext.Logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information))
+            {
+                var logValue1 = generatedCommand.EntityId.Format();
+FuturesItiSignalCommandLogging.EventCommitted(ActorContext.Logger, generatedCommand.CommandId, logValue1, generatedCommand.ContractId, generatedCommand.ValueDate, generatedCommand.TimePeriod);
+            }
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")]
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<FuturesItiSignalCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(ex);
         (context as IFuturesItiSignalCommandContext)?.Telemetry?.RecordFailure(ex.Message);
-        FuturesItiSignalCommandLogging.CommandFailed(
-            ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty, threadId.ToString(),
-            command?.CommandName ?? "Unknown", ex.GetType().Name);
+        var logValue2 = threadId.ToString();
+var logValue1 = ex.GetType().Name;
+FuturesItiSignalCommandLogging.CommandFailed(ActorContext.Logger, ex, command?.CommandId ?? Guid.Empty, logValue2, command?.CommandName ?? "Unknown", logValue1);
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(command);
-            var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+            var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
             return new ServiceFailed<GuidResult>(cmdErrorEvent);
         }
         catch (Exception innerEx)
         {
-            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write55(Context.Logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
-                var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);
+                var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);
                 return new ServiceFailed<GuidResult>(cmdErrorEvent);
             }
             catch (Exception fatalEx)

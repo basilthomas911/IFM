@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared
 {
     public class ProbabilityValue
     {
-        private double _value;
+        private readonly double _value;
 
         public double Value => _value;
         public double Probability { get; set; }

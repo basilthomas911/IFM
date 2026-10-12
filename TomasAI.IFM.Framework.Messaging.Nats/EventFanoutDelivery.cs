@@ -59,8 +59,7 @@ internal sealed class EventFanoutDelivery
             if (logger is not null)
             {
                 var metadata = message.Metadata;
-                logger.LogError(exception,
-                    "{Component}.{Method} settlement failed; Subject={Subject}; Action={Action}; Stream={Stream}; Consumer={Consumer}; StreamSequence={StreamSequence}; ConsumerSequence={ConsumerSequence}; DeliveryAttempt={DeliveryAttempt}; ElapsedMilliseconds={ElapsedMilliseconds}",
+                NatsAdditionalDiagnosticLog.SettlementFailed(logger, exception,
                     nameof(EventFanoutDelivery), nameof(SettleAsync), message.Subject, negative ? "NAK" : "ACK",
                     metadata?.Stream, metadata?.Consumer, metadata?.Sequence.Stream, metadata?.Sequence.Consumer,
                     metadata?.NumDelivered, Stopwatch.GetElapsedTime(started).TotalMilliseconds);

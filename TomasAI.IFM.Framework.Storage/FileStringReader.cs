@@ -16,7 +16,7 @@ public class FileStringReader : IStringReader
     /// <exception cref="ArgumentException">Thrown if the URI scheme is not 'file'.</exception>
     public FileStringReader(Uri dataSourceUri)
     {
-        ArgumentNullException.ThrowIfNull(dataSourceUri, nameof(dataSourceUri));
+        ArgumentNullException.ThrowIfNull(dataSourceUri);
         if (!dataSourceUri.IsFile)
             throw new ArgumentException("The URI scheme must be 'file'.", nameof(dataSourceUri));
         _dataSourceUri = dataSourceUri;
@@ -35,7 +35,7 @@ public class FileStringReader : IStringReader
     public async IAsyncEnumerable<string> ReadLinesAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var line in File.ReadLinesAsync(_dataSourceUri.LocalPath, cancellationToken))
+        await foreach (var line in File.ReadLinesAsync(_dataSourceUri.LocalPath, cancellationToken).ConfigureAwait(false))
         {
             yield return line;
         }

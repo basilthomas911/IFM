@@ -264,7 +264,8 @@ public static class RegimeDiscoveryResultContent
             var length = Encoding.UTF8.GetByteCount(value);
             Number(length);
             byte[]? rented = null;
-            Span<byte> bytes = length <= 256 ? stackalloc byte[length] : (rented = ArrayPool<byte>.Shared.Rent(length)).AsSpan(0, length);
+            if (length > 256) rented = ArrayPool<byte>.Shared.Rent(length);
+            Span<byte> bytes = rented is null ? stackalloc byte[length] : rented.AsSpan(0, length);
             try { Encoding.UTF8.GetBytes(value, bytes); Bytes(bytes); }
             finally { if (rented is not null) ArrayPool<byte>.Shared.Return(rented); }
         }

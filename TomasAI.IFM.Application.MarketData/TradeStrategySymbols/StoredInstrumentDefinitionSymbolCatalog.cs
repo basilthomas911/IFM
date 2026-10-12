@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.TradeStrategySymbols;
 /// <summary>Two small ReferenceDb reads; no provider download, full-table scan or ID allocation on the UI path.</summary>
 public sealed class StoredInstrumentDefinitionSymbolCatalog(IInstrumentDefinitionStore store) : ITradeStrategySymbolCatalog
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The service boundary returns a classified unavailable or failed result and records diagnostics instead of aborting its supervisor.")]
     public async Task<ServiceResult<TradeStrategySymbolReadModel[]>> GetAsync(TradeStrategyFamilyType family, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

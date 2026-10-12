@@ -11,9 +11,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 
 /// <summary>Maps the CapacityReservation Function lifecycle; financial decisions and persistence remain outside the actor.</summary>
-public sealed class CapacityReservationFunctionActor(ICapacityReservationFunctionContext context)
+public sealed class CapacityReservationFunctionActor(ICapacityReservationFunctionContext services)
     : BaseEventSourceFunctionActor<CapacityReservationFunctionActor, ReservePortfolioTradeRiskCommand, FinancialExecutionId, FinancialExecutionId, CapacityReservationFunctionState, CapacityReservationCompletedEvent, CapacityReservationFailedEvent>(
-        context, context.StateRepository, null, context.Logger)
+        services, services.StateRepository, null, services.Logger)
 {
     public const string ActorName = ReservePortfolioTradeRiskCommand.Actor;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ReservePortfolioTradeRiskCommand>> _parseMap =
@@ -22,7 +22,7 @@ public sealed class CapacityReservationFunctionActor(ICapacityReservationFunctio
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(ReservePortfolioTradeRiskCommand)] = command => new List<ValidationError>().ValidateFinancialRequest<ReservePortfolioTradeRiskCommand, CapacityReservationRequest>(
+            [typeof(ReservePortfolioTradeRiskCommand)] = command => new List<ValidationError>().ValidateFinancialRequest<ReservePortfolioTradeRiskCommand, CapacityReservationRequest, List<ValidationError>>(
             (ReservePortfolioTradeRiskCommand)command, ActorType.Function, ActorName, ReservePortfolioTradeRiskCommand.Verb)
         }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, Func<ReservePortfolioTradeRiskCommand, ICapacityReservationFunctionContext,
@@ -40,21 +40,21 @@ public sealed class CapacityReservationFunctionActor(ICapacityReservationFunctio
         new Dictionary<Type, Func<ReservePortfolioTradeRiskCommand, FunctionFailureStage, ICapacityReservationFunctionContext, FunctionExecutionPolicy>>
         { [typeof(ReservePortfolioTradeRiskCommand)] = (request, stage, owner) => request.ResolveExecutionPolicy(stage, owner) }.ToFrozenDictionary();
 
-    protected override ReservePortfolioTradeRiskCommand ParseMessage(IFunctionActorContext<CapacityReservationFunctionActor> owner, IActorMessage message)
-        => ParseMappedFunction(owner, message, _parseMap);
-    protected override ValueTask ValidateAsync(IFunctionActorContext<CapacityReservationFunctionActor> owner, ActorThreadId threadId, ReservePortfolioTradeRiskCommand request, CancellationToken token)
+    protected override ReservePortfolioTradeRiskCommand ParseMessage(IFunctionActorContext<CapacityReservationFunctionActor> context, IActorMessage message)
+        => ParseMappedFunction(context, message, _parseMap);
+    protected override ValueTask ValidateAsync(IFunctionActorContext<CapacityReservationFunctionActor> context, ActorThreadId threadId, ReservePortfolioTradeRiskCommand request, CancellationToken cancellationToken)
     {
-        token.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
         ValidateMappedCommand(request, _validationMap);
         return ValueTask.CompletedTask;
     }
     protected override FunctionExecutionPolicy ResolveExecutionPolicy(ReservePortfolioTradeRiskCommand request, FunctionFailureStage stage)
-        => DispatchMappedExecutionPolicy(request, stage, context, _executionPolicyMap);
+        => DispatchMappedExecutionPolicy(request, stage, services, _executionPolicyMap);
     protected override ValueTask<FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>> ExecuteFunctionAsync(
-        IFunctionActorContext<CapacityReservationFunctionActor> owner, CapacityReservationFunctionState state, ReservePortfolioTradeRiskCommand request, CancellationToken token)
-        => ResolveMappedFunctionHandler(request, _receiveMap)(request, context, input => HandleFunctionEvent(owner, input), token);
-    protected override FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent> HandleFunctionEvent(IFunctionActorContext<CapacityReservationFunctionActor> owner, FunctionEventContext<ReservePortfolioTradeRiskCommand> input)
-        => MapEvent(input, context.TimeProvider);
+        IFunctionActorContext<CapacityReservationFunctionActor> context, CapacityReservationFunctionState state, ReservePortfolioTradeRiskCommand request, CancellationToken cancellationToken)
+        => ResolveMappedFunctionHandler(request, _receiveMap)(request, services, input => HandleFunctionEvent(context, input), cancellationToken);
+    protected override FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent> HandleFunctionEvent(IFunctionActorContext<CapacityReservationFunctionActor> context, FunctionEventContext<ReservePortfolioTradeRiskCommand> input)
+        => MapEvent(input, services.TimeProvider);
     internal static FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent> MapEvent(FunctionEventContext<ReservePortfolioTradeRiskCommand> input, TimeProvider clock)
         => DispatchMappedFunctionEvent(input, clock, _eventMap);
 }

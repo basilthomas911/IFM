@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -41,11 +43,9 @@ public sealed class EconomicCalendarsImportedHandlerTests
 
         result.Should().BeTrue();
         receivedCountries.Should().BeEquivalentTo(["US", "CA"]);
-        await db.Received(1).InsertEconomicCalendarsAsync(
-            Arg.Is<EconomicCalendarReadModel[]>(rows =>
-                rows.Length == 1 && rows[0].EventName == "CPI" && rows[0].CreatedBy == "FinancialModelingPrep"),
-            ImportDuplicatePolicy.Reject,
-            request.CommandId);
+        await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
+            Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
         completed.Should().NotBeNull();
         completed!.EconomicCalendars.Should().ContainSingle();
         completed.CountryCodes.Should().Equal(" us ", "CA");
@@ -70,10 +70,9 @@ public sealed class EconomicCalendarsImportedHandlerTests
         await request.ExecuteAsync(
             context, api, dbFactory, NullLogger<EconomicCalendarEventActor>.Instance);
 
-        await db.Received(1).InsertEconomicCalendarsAsync(
-            Arg.Is<EconomicCalendarReadModel[]>(rows => rows.Length == 0),
-            ImportDuplicatePolicy.Overwrite,
-            request.CommandId);
+        await context.Container.Resolve<IPostgresEventTransaction>().Received(1).ExecuteAsync(
+            Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>());
+        await db.DidNotReceiveWithAnyArgs().InsertEconomicCalendarsAsync(default!, default, default);
         await context.Received(1).SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(
             Arg.Is<EconomicCalendarsImportedCompleteEvent>(value => value.EconomicCalendars.Length == 0));
     }
@@ -88,9 +87,9 @@ public sealed class EconomicCalendarsImportedHandlerTests
         var (api, calendar, dbFactory, db, context) = Dependencies();
         calendar.GetAsync(date, date, Arg.Any<IReadOnlySet<string>?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<EconomicCalendarEntry>>([entry]));
-        db.InsertEconomicCalendarsAsync(
-                Arg.Any<EconomicCalendarReadModel[]>(), Arg.Any<ImportDuplicatePolicy>(), Arg.Any<Guid>())
-            .Returns(Task.FromException(new InvalidOperationException("storage unavailable")));
+        context.Container.Resolve<IPostgresEventTransaction>().ExecuteAsync(
+                Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<bool>(new InvalidOperationException("storage unavailable")));
         var request = Request(date, ["US"], ImportDuplicatePolicy.Overwrite);
 
         var result = await request.ExecuteAsync(
@@ -145,6 +144,7 @@ public sealed class EconomicCalendarsImportedHandlerTests
                 Arg.Any<ImportDuplicatePolicy>(),
                 Arg.Any<Guid>())
             .Returns(Task.CompletedTask);
+        PostgresImportBoundary.Configure(dbFactory, context);
         return (api, calendar, dbFactory, db, context);
     }
 

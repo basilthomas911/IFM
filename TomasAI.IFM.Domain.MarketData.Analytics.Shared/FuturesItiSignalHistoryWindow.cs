@@ -1,6 +1,7 @@
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 /// <summary>Defines the inclusive trading-value-date range represented by a Futures ITI timeframe.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 public readonly record struct FuturesItiSignalHistoryWindow(
     DateOnly StartValueDate,
     DateOnly EndValueDate)
@@ -10,8 +11,7 @@ public readonly record struct FuturesItiSignalHistoryWindow(
         DateOnly valueDate,
         TimeFrameType timePeriod)
     {
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
 
         return timePeriod switch
         {

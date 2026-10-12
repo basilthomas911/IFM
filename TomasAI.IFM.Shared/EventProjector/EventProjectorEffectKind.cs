@@ -3,6 +3,7 @@ namespace TomasAI.IFM.Shared.EventProjector;
 /// <summary>
 /// Identifies a durable side effect produced while projecting one source event.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1028", Justification = "The byte-backed enum is an existing persisted/wire contract; preserve its representation.")]
 public enum EventProjectorEffectKind : byte
 {
     None = 0,

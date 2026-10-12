@@ -19,6 +19,7 @@ public static class MarketOutlookDailyPreviewCalculator
         out FuturesEmaSignalReadModel ema,
         out FuturesBbSignalReadModel bb)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ema = default!;
         bb = default!;
         if (source.UpdateSource != FuturesMarketPriceUpdateSource.Trade
@@ -39,9 +40,33 @@ public static class MarketOutlookDailyPreviewCalculator
         var intervalEnd = marketTime > emaBaseline.LastIntervalEndUtc
             ? marketTime.AddTicks(1)
             : emaBaseline.LastIntervalEndUtc.AddTicks(1);
+        var observation = CreateObservation(source, trade, committedEma.Metadata.MarketSeriesIdentity, marketTime, intervalEnd);
+        var emaResult = FuturesEmaAccumulator.Apply(emaBaseline, observation);
+        if (emaResult.FuturesEmaSignal is not { } previewEma)
+            return false;
+        var bbResult = FuturesBbAccumulator.Apply(bbBaseline, observation, previewEma);
+        if (bbResult.FuturesBbSignal is not { } previewBb)
+            return false;
+        ema = previewEma with
+        {
+            IsProvisional = true,
+            BaselineValueDate = committedEma.Metadata.ValueDate,
+            LivePriceAsOfUtc = marketTime
+        };
+        bb = previewBb with
+        {
+            IsProvisional = true,
+            BaselineValueDate = committedEma.Metadata.ValueDate,
+            LivePriceAsOfUtc = marketTime
+        };
+        return true;
+    }
+    /// <summary>Creates one provisional daily bar from the current trade without changing committed daily state.</summary>
+    static FuturesTradeSessionBarReadModel CreateObservation(FuturesMarketPriceUpdatedRealtimeEvent source,
+        FuturesMarketTradeSnapshot trade, MarketSeriesIdentity series, DateTimeOffset marketTime, DateTimeOffset intervalEnd)
+    {
         var intervalStart = intervalEnd.AddDays(-1);
-        var series = committedEma.Metadata.MarketSeriesIdentity;
-        var observation = new FuturesTradeSessionBarReadModel
+        return new FuturesTradeSessionBarReadModel
         {
             MarketSeriesIdentity = series,
             ObservationId = FuturesTradeSessionBarId.Create(
@@ -73,24 +98,6 @@ public static class MarketOutlookDailyPreviewCalculator
             CalculationMethod = MarketSignalCalculationMethod.ExactTrades,
             StreamEpochId = trade.StreamEpochId
         };
-        var emaResult = FuturesEmaAccumulator.Apply(emaBaseline, observation);
-        if (emaResult.FuturesEmaSignal is not { } previewEma)
-            return false;
-        var bbResult = FuturesBbAccumulator.Apply(bbBaseline, observation, previewEma);
-        if (bbResult.FuturesBbSignal is not { } previewBb)
-            return false;
-        ema = previewEma with
-        {
-            IsProvisional = true,
-            BaselineValueDate = committedEma.Metadata.ValueDate,
-            LivePriceAsOfUtc = marketTime
-        };
-        bb = previewBb with
-        {
-            IsProvisional = true,
-            BaselineValueDate = committedEma.Metadata.ValueDate,
-            LivePriceAsOfUtc = marketTime
-        };
-        return true;
     }
+
 }

@@ -25,6 +25,18 @@ public abstract class ConventionalEventProjector<TActor>(
         reliabilityOptions)
     where TActor : ICommandActor<TActor>
 {
+    IReadOnlyCollection<Type>? _projectedTypes;
+
+    /// <summary>Gets the immutable event-type set calculated once from this projector's fixed descriptors.</summary>
+    public override IReadOnlyCollection<Type> ProjectedEventTypes
+        => Volatile.Read(ref _projectedTypes) ?? GetProjectedTypes();
+
+    IReadOnlyCollection<Type> GetProjectedTypes()
+    {
+        var types = Array.AsReadOnly(ProjectionDescriptors.Select(static descriptor => descriptor.SourceEventType).ToArray());
+        return Interlocked.CompareExchange(ref _projectedTypes, types, null) ?? types;
+    }
+
     public override string ActorName => typeof(TActor).Name;
     public override string ProjectorName => GetType().Name;
     public override string DurableProcessQueueName => $"{ActorName}.{ProjectorName}.ProcessQueue";

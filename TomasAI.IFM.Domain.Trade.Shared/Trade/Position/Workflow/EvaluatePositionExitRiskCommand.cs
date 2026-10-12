@@ -19,6 +19,8 @@ public sealed record EvaluatePositionExitRiskCommand : ICommand<ExitPositionWork
     [Key(5)] public ExitOrderComposition Composition { get; init; } = new();
     [Key(6)] public Guid CompositionEventId { get; init; }
     [Key(7)] public string InputHash { get; init; } = string.Empty;
+    /// <summary>The accepted workflow start carried through composition for a self-contained risk-stage snapshot.</summary>
+    [Key(8)] public ExitPositionWorkflowStartedEvent? Started { get; init; }
     [IgnoreMember] public string CommandName => nameof(EvaluatePositionExitRiskCommand);
     [IgnoreMember] public BoundedContextName RouteTo => BoundedContextName.StrategyPositionExitWorkflowBoundedContext;
     [IgnoreMember] public string StreamId => Subject.StreamId;

@@ -15,6 +15,7 @@ public sealed record OptionSelectionValue(
 {
     public static OptionSelectionValue From(ChainSelectionCalculation value, int ivAgeMilliseconds)
     {
+        ArgumentNullException.ThrowIfNull(value);
         if (value.Failure is not null || value.TheoreticalPrice is null || value.Delta is null || value.Iv is null)
             throw new InvalidOperationException("Qualified selection calculation is required.");
         var c = value.Context;

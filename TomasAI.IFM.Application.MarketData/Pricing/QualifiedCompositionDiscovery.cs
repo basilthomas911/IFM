@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -7,145 +7,157 @@ using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
-
-public sealed record CompositionDiscoveryRequest(Guid LeaseId, Guid GenerationId, DateOnly ValueDate,
-    DateOnly MaturityDate, DateTimeOffset DeadlineUtc, IReadOnlyList<OptionDefinitionCandidate> Definitions,
-    bool ScopeComplete, OptionPricingCalendar Calendar, TreasuryPublicationPolicy Publication,
-    TreasuryRateConversionPolicy Conversion, bool SeparateContractConnection = false, bool IndependentChainConnection = false);
-
-public sealed record CompositionDiscoveryResult(WorkerOptionChainRequest? Lease,
-    ImmutableArray<OptionPricingFailure> Exclusions, bool CompleteEmpty, OptionPricingFailure? Failure);
-
-public sealed record CompositionContextRefreshResult(WorkerOptionChainRequest? Lease, WorkerOptionChainResult Result);
-
 /// <summary>
 /// Application entry point from a complete definition scope to a worker-owned qualified chain.
 /// Reference lookup and Treasury I/O run here, never inside a worker quote callback.
 /// </summary>
-public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe,
-    IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null,
-    ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null,
-    DatasetDesiredSubscriptionRegistry? desired = null) : IAsyncDisposable
+public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null) : IAsyncDisposable
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, RefreshRegistration> registrations = new();
     readonly CancellationTokenSource stopping = new();
-    readonly object lifecycle = new();
+    readonly System.Threading.Lock lifecycle = new();
     Task? refreshLoop;
     int disposed;
-
-    public async Task<CompositionDiscoveryResult> AcquireAsync(CompositionDiscoveryRequest request, CancellationToken cancellationToken,
-        bool refreshAutomatically = true, bool renewAutomatically = false)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
+    public async Task<CompositionDiscoveryResult> AcquireAsync(CompositionDiscoveryRequest request, CancellationToken cancellationToken, bool refreshAutomatically = true, bool renewAutomatically = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         var now = clock.GetUtcNow();
         if (request.SeparateContractConnection && request.Definitions?.Count != 1)
             return Failed("IndividualOptionRequired");
-        if (request.LeaseId == Guid.Empty || request.GenerationId == Guid.Empty || request.ValueDate == default
-            || request.DeadlineUtc.Offset != TimeSpan.Zero || request.DeadlineUtc <= now || request.Definitions is null)
+        if (request.LeaseId == Guid.Empty || request.GenerationId == Guid.Empty || request.ValueDate == default || request.DeadlineUtc.Offset != TimeSpan.Zero || request.DeadlineUtc <= now || request.Definitions is null)
             return Failed("InvalidDiscoveryRequest");
         var wait = request.DeadlineUtc - now;
-        var maximumDiscoveryWait = request.Definitions.Count > 80
-            ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10);
-        if (wait > maximumDiscoveryWait) wait = maximumDiscoveryWait;
+        var maximumDiscoveryWait = request.Definitions.Count > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10);
+        if (wait > maximumDiscoveryWait)
+            wait = maximumDiscoveryWait;
         using var timeout = new CancellationTokenSource(wait, clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
         {
             var discoveryTimer = Stopwatch.StartNew();
             // Copy before awaiting any external operation, so a caller cannot change enumeration mid-discovery.
-            if (request.Definitions.Count > 2048) return Failed("SnapshotLimit");
+            if (request.Definitions.Count > 2048)
+                return Failed("SnapshotLimit");
             var definitions = request.Definitions.ToArray();
             var qualified = await universe.QualifyAsync(definitions, request.ScopeComplete, now, linked.Token).ConfigureAwait(false);
-            logger?.LogInformation("Composition discovery reference qualification: contracts={Count}, elapsedMs={ElapsedMs}",
-                definitions.Length, discoveryTimer.ElapsedMilliseconds);
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
+            {
+                OptionalApplicationDiagnosticLog.Write2(logger, null, definitions.Length, discoveryTimer.ElapsedMilliseconds);
+            }
+
             if (qualified.Failure is not null)
             {
-                logger?.LogWarning(
-                    "Composition discovery reference qualification rejected: code={Code}, contract={ContractId}, detail={Detail}, elapsedMs={ElapsedMs}",
-                    qualified.Failure.Code, qualified.Failure.ContractId, qualified.Failure.Detail,
-                    discoveryTimer.ElapsedMilliseconds);
+                if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+                {
+                    OptionalApplicationDiagnosticLog.Write3(logger, null, qualified.Failure.Code, qualified.Failure.ContractId, qualified.Failure.Detail, discoveryTimer.ElapsedMilliseconds);
+                }
+
                 return new(null, qualified.Exclusions, false, qualified.Failure);
             }
-            if (qualified.Definitions.IsEmpty) return new(null, qualified.Exclusions, true, null);
+
+            if (qualified.Definitions.IsEmpty)
+                return new(null, qualified.Exclusions, true, null);
             var options = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(qualified.Definitions.Length);
             foreach (var option in qualified.Definitions)
             {
-                var context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication,
-                    request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                var context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication, request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
                 // A just-completed HTTP refresh cannot be admitted before its response; the next valuation may use it.
                 if (context.Failure?.Code is "TreasuryUnavailable" or "TreasuryStale")
-                    context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication,
-                        request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
-                if (context.Failure is not null) return new(null, qualified.Exclusions, false, context.Failure);
+                    context = await contexts.PrepareAsync(option.Convention, request.Calendar, request.Publication, request.Conversion, request.GenerationId, Black76PricingModel.EngineFor(option.Convention), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+                if (context.Failure is not null)
+                    return new(null, qualified.Exclusions, false, context.Failure);
                 options.Add(new(context.Context!, option.Strike, option.IsCall));
             }
+
             var resolved = options.MoveToImmutable();
-            logger?.LogInformation("Composition discovery context preparation: contracts={Count}, elapsedMs={ElapsedMs}",
-                resolved.Length, discoveryTimer.ElapsedMilliseconds);
-            var scopeId = PricingSemanticHash.Compute(new
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
             {
-                request.ValueDate,
-                request.MaturityDate,
-                request.SeparateContractConnection,
-                Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved)
-            });
-            if (request.IndependentChainConnection) scopeId = PricingSemanticHash.Compute(new { ScopeId = scopeId, IndependentChainConnection = true });
+                OptionalApplicationDiagnosticLog.Write4(logger, null, resolved.Length, discoveryTimer.ElapsedMilliseconds);
+            }
+
+            var scopeId = PricingSemanticHash.Compute(new { request.ValueDate, request.MaturityDate, request.SeparateContractConnection, Contracts = WorkerOptionChainRuntime.PhysicalDigest(resolved) });
+            if (request.IndependentChainConnection)
+                scopeId = PricingSemanticHash.Compute(new { ScopeId = scopeId, IndependentChainConnection = true });
             if (routePlans is not null)
             {
                 var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
-                var routes = CompositionRoutePlan.ResolveNative(desired ?? throw new InvalidOperationException("Native route registry is unavailable."),
-                    "GLBX.MDP3", request.ValueDate, resolved.Select(x => x.Pricing.Contract.UnderlyingContractId));
-                var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", request.MaturityDate,
-                    definitions.Where(x => ids.Contains(x.ContractId)).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(),
-                    [], routes, request.Calendar, request.Publication, request.Conversion)
-                { SeparateContractConnection = request.SeparateContractConnection, IndependentChainConnection = request.IndependentChainConnection }.Seal();
+                var routes = CompositionRoutePlan.ResolveNative(desired ?? throw new InvalidOperationException("Native route registry is unavailable."), "GLBX.MDP3", request.ValueDate, resolved.Select(x => x.Pricing.Contract.UnderlyingContractId));
+                var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", request.MaturityDate, definitions.Where(x => ids.Contains(x.ContractId)).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(), [], routes, request.Calendar, request.Publication, request.Conversion)
+                {
+                    SeparateContractConnection = request.SeparateContractConnection,
+                    IndependentChainConnection = request.IndependentChainConnection
+                }.Seal();
                 await routePlans.SaveAsync(plan, linked.Token).ConfigureAwait(false);
                 scopeId = plan.PlanId;
             }
+
             var expiry = request.DeadlineUtc < clock.GetUtcNow().AddSeconds(120) ? request.DeadlineUtc : clock.GetUtcNow().AddSeconds(120);
-            var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate,
-                request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection, IndependentChainConnection: request.IndependentChainConnection);
+            var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate, request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection, IndependentChainConnection: request.IndependentChainConnection);
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
-            logger?.LogInformation("Composition discovery first worker acquire: contracts={Count}, elapsedMs={ElapsedMs}, failure={Failure}",
-                resolved.Length, discoveryTimer.ElapsedMilliseconds, acquired.Failure?.Code);
-            while (acquired.Failure?.Code == "UnderlyingQuoteUnavailable")
+            if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
+            {
+                OptionalApplicationDiagnosticLog.Write5(logger, null, resolved.Length, discoveryTimer.ElapsedMilliseconds, acquired.Failure?.Code);
+            }
+
+            while (string.Equals(acquired.Failure?.Code, "UnderlyingQuoteUnavailable", StringComparison.Ordinal))
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(25), clock, linked.Token).ConfigureAwait(false);
                 acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             }
+
             if (acquired.Failure is not null)
             {
-                logger?.LogWarning("Composition discovery worker acquire rejected: code={Code}, detail={Detail}, elapsedMs={ElapsedMs}",
-                    acquired.Failure.Code, acquired.Failure.Detail, discoveryTimer.ElapsedMilliseconds);
+                if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+                {
+                    OptionalApplicationDiagnosticLog.Write6(logger, null, acquired.Failure.Code, acquired.Failure.Detail, discoveryTimer.ElapsedMilliseconds);
+                }
+
                 return new(null, qualified.Exclusions, false, acquired.Failure);
             }
-            if (!acquired.Active) return Failed("ChainUnavailable");
+
+            if (!acquired.Active)
+                return Failed("ChainUnavailable");
             if (refreshAutomatically)
             {
                 registrations[lease.LeaseId] = new(lease, request.Calendar, request.Publication, request.Conversion, clock.GetUtcNow(), renewAutomatically);
-                lock (lifecycle) refreshLoop ??= Task.Run(RefreshLoopAsync);
+                lock (lifecycle)
+                    refreshLoop ??= Task.Run(RefreshLoopAsync);
             }
+
             return new(lease, qualified.Exclusions, false, null);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Failed("DiscoveryTimeout"); }
-        catch (CompositionMarketSourceException ex) { return Failed(ex.Code); }
+        catch (OperationCanceledException)when (!cancellationToken.IsCancellationRequested)
+        {
+            return Failed("DiscoveryTimeout");
+        }
+        catch (CompositionMarketSourceException ex)
+        {
+            return Failed(ex.Code);
+        }
     }
 
     public Task<WorkerOptionChainResult> ReleaseAsync(WorkerOptionChainRequest lease, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(lease);
         registrations.TryRemove(lease.LeaseId, out _);
         return market.ReleaseAsync("GLBX.MDP3", new(lease.ScopeId, lease.LeaseId, lease.GenerationId), cancellationToken);
     }
 
-    public async Task<WorkerOptionChainRequest?> RenewAsync(WorkerOptionChainRequest lease,
-        DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
+    public async Task<WorkerOptionChainRequest?> RenewAsync(WorkerOptionChainRequest lease, DateTimeOffset expiresAtUtc, CancellationToken cancellationToken)
     {
-        if (!registrations.TryGetValue(lease.LeaseId, out var registration)) return null;
-        var renewed = registration.Lease with { LeaseExpiresAtUtc = expiresAtUtc };
+        ArgumentNullException.ThrowIfNull(lease);
+        if (!registrations.TryGetValue(lease.LeaseId, out var registration))
+            return null;
+        var renewed = registration.Lease with
+        {
+            LeaseExpiresAtUtc = expiresAtUtc
+        };
         var result = await market.AcquireAsync("GLBX.MDP3", renewed, cancellationToken).ConfigureAwait(false);
-        if (!result.Active || result.Failure is not null) return null;
+        if (!result.Active || result.Failure is not null)
+            return null;
         registrations.TryUpdate(lease.LeaseId, registration with { Lease = renewed }, registration);
         return renewed;
     }
@@ -154,48 +166,32 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
     /// Rebuilds all pricing contexts outside tick callbacks and atomically replaces the expected worker batch.
     /// Failure leaves the old contexts subject to their original expiry; it never extends stale evidence.
     /// </summary>
-    public async Task<CompositionContextRefreshResult> RefreshAsync(WorkerOptionChainRequest lease,
-        OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion,
-        CancellationToken cancellationToken)
+    public async Task<CompositionContextRefreshResult> RefreshAsync(WorkerOptionChainRequest lease, OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, CancellationToken cancellationToken)
     {
-        using var timeout = new CancellationTokenSource(
-            lease.Options.Length > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10), clock);
+        ArgumentNullException.ThrowIfNull(lease);
+        using var timeout = new CancellationTokenSource(lease.Options.Length > 80 ? TimeSpan.FromSeconds(45) : TimeSpan.FromSeconds(10), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         var values = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(lease.Options.Length);
         foreach (var option in lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal))
         {
-            var prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion,
-                lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+            var prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion, lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
             if (prepared.Failure?.Code is "TreasuryUnavailable" or "TreasuryStale")
-                prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion,
-                    lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
-            if (prepared.Failure is not null) return new(null, new(false, prepared.Failure));
-            values.Add(option with
-            {
-                Pricing = prepared.Context! with
-                {
-                    MaximumQuoteAgeMilliseconds = Math.Min(prepared.Context!.MaximumQuoteAgeMilliseconds, option.Pricing.MaximumQuoteAgeMilliseconds),
-                    MaximumQuoteSkewMilliseconds = Math.Min(prepared.Context.MaximumQuoteSkewMilliseconds, option.Pricing.MaximumQuoteSkewMilliseconds)
-                }
-            });
+                prepared = await contexts.PrepareAsync(option.Pricing.Contract, calendar, publication, conversion, lease.GenerationId, Black76PricingModel.EngineFor(option.Pricing.Contract), clock.GetUtcNow(), linked.Token).ConfigureAwait(false);
+            if (prepared.Failure is not null)
+                return new(null, new(false, prepared.Failure));
+            values.Add(option with { Pricing = prepared.Context!with { MaximumQuoteAgeMilliseconds = Math.Min(prepared.Context!.MaximumQuoteAgeMilliseconds, option.Pricing.MaximumQuoteAgeMilliseconds), MaximumQuoteSkewMilliseconds = Math.Min(prepared.Context.MaximumQuoteSkewMilliseconds, option.Pricing.MaximumQuoteSkewMilliseconds) } });
         }
+
         var refreshed = lease with
         {
             Options = values.MoveToImmutable(),
-            ExpectedContextDigest = PricingSemanticHash.Compute(new
-            {
-                lease.MaturityDate,
-                lease.SeparateContractConnection,
-                Options = lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray()
-            })
+            ExpectedContextDigest = PricingSemanticHash.Compute(new { lease.MaturityDate, lease.SeparateContractConnection, Options = lease.Options.OrderBy(x => x.Pricing.Contract.ContractId, StringComparer.Ordinal).ToImmutableArray() })
         };
         var result = await market.AcquireAsync("GLBX.MDP3", refreshed, linked.Token).ConfigureAwait(false);
         return new(result.Active && result.Failure is null ? refreshed with { ExpectedContextDigest = null } : null, result);
     }
 
-    static CompositionDiscoveryResult Failed(string code) => new(null, [], false,
-        new(code, "Discovery", "", "Complete qualified discovery inputs are unavailable."));
-
+    static CompositionDiscoveryResult Failed(string code) => new(null, [], false, new(code, "Discovery", "", "Complete qualified discovery inputs are unavailable."));
     async Task RefreshLoopAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), clock);
@@ -204,67 +200,83 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             while (await timer.WaitForNextTickAsync(stopping.Token).ConfigureAwait(false))
                 await RefreshRegisteredAsync(stopping.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
+        catch (OperationCanceledException)when (stopping.IsCancellationRequested)
+        { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */
+        }
     }
 
     /// <summary>Refreshes registered pricing batches away from quote callbacks; rejected/failed refresh never extends old validity.</summary>
     public async Task RefreshRegisteredAsync(CancellationToken cancellationToken)
     {
-        foreach (var (id, registration) in registrations.ToArray())
+        foreach (var(id, registration)in registrations.ToArray())
         {
             var now = clock.GetUtcNow();
             // An explicitly attached monitoring owner keeps its lease alive until ReleaseAsync. Discovery-only
             // scopes retain their original TTL. Renewal changes transport ownership, never quote/reference validity.
-            if (registration.RenewAutomatically && registration.Lease.LeaseExpiresAtUtc > now
-                && registration.Lease.LeaseExpiresAtUtc <= now.AddSeconds(30))
+            if (registration.RenewAutomatically && registration.Lease.LeaseExpiresAtUtc > now && registration.Lease.LeaseExpiresAtUtc <= now.AddSeconds(30))
             {
                 try
                 {
                     using var renewalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     renewalTimeout.CancelAfter(TimeSpan.FromSeconds(3));
-                    if (await RenewAsync(registration.Lease, now.AddSeconds(60), renewalTimeout.Token).ConfigureAwait(false) is null)
-                        logger?.LogWarning("Monitoring lease renewal rejected; MethodName={MethodName} ScopeId={ScopeId} LeaseId={LeaseId} GenerationId={GenerationId}",
-                            nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                    if ((await RenewAsync(registration.Lease, now.AddSeconds(60), renewalTimeout.Token).ConfigureAwait(false)is null) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true))
+                    {
+                        OptionalApplicationDiagnosticLog.Write7(logger, null, nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                    }
                 }
-                catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                catch (Exception error)when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
-                    logger?.LogWarning(error, "Monitoring lease renewal failed; MethodName={MethodName} ScopeId={ScopeId} LeaseId={LeaseId} GenerationId={GenerationId}",
-                        nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                    if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+                    {
+                        OptionalApplicationDiagnosticLog.Write8(logger, error, nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                    }
                 }
+
                 // Never put an old expiry/context back after a concurrent release or successful renewal.
                 continue;
             }
-            if (registration.Lease.LeaseExpiresAtUtc <= now) { registrations.TryRemove(id, out _); continue; }
-            if (registration.CheckedAtUtc.AddSeconds(30) > now
-                && registration.Lease.Options.All(x => x.Pricing.ValidUntilUtc > now.AddSeconds(2)
-                    && Black76PricingModel.ValidateContext(x.Pricing, now) is null)) continue;
+
+            if (registration.Lease.LeaseExpiresAtUtc <= now)
+            {
+                registrations.TryRemove(id, out _);
+                continue;
+            }
+
+            if (registration.CheckedAtUtc.AddSeconds(30) > now && registration.Lease.Options.All(x => x.Pricing.ValidUntilUtc > now.AddSeconds(2) && Black76PricingModel.ValidateContext(x.Pricing, now)is null))
+                continue;
             try
             {
-                var refreshed = await RefreshAsync(registration.Lease, registration.Calendar, registration.Publication,
-                    registration.Conversion, cancellationToken).ConfigureAwait(false);
-                registrations.TryUpdate(id, registration with
-                { Lease = refreshed.Lease ?? registration.Lease, CheckedAtUtc = now }, registration);
-                if (refreshed.Result.Failure is { } failure)
-                    logger?.LogWarning("Composition context refresh rejected for scope {Scope}: {Reason}", registration.Lease.ScopeId, failure.Code);
+                var refreshed = await RefreshAsync(registration.Lease, registration.Calendar, registration.Publication, registration.Conversion, cancellationToken).ConfigureAwait(false);
+                registrations.TryUpdate(id, registration with { Lease = refreshed.Lease ?? registration.Lease, CheckedAtUtc = now }, registration);
+                if ((refreshed.Result.Failure is { } failure) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true))
+                {
+                    OptionalApplicationDiagnosticLog.Write9(logger, null, registration.Lease.ScopeId, failure.Code);
+                }
             }
-            catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            catch (Exception error)when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 registrations.TryUpdate(id, registration with { CheckedAtUtc = now }, registration);
-                logger?.LogWarning("Composition context refresh failed for scope {Scope}: {ErrorType}", registration.Lease.ScopeId, error.GetType().Name);
+                if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
+                {
+                    OptionalApplicationDiagnosticLog.Write10(logger, error, registration.Lease.ScopeId, error.GetType().Name);
+                }
             }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+            return;
         await stopping.CancelAsync().ConfigureAwait(false);
-        Task? pending; lock (lifecycle) pending = refreshLoop;
-        if (pending is not null) await pending.ConfigureAwait(false);
+        Task? pending;
+        lock (lifecycle)
+            pending = refreshLoop;
+        if (pending is not null)
+            await pending.ConfigureAwait(false);
         registrations.Clear();
         stopping.Dispose();
     }
 
-    sealed record RefreshRegistration(WorkerOptionChainRequest Lease, OptionPricingCalendar Calendar,
-        TreasuryPublicationPolicy Publication, TreasuryRateConversionPolicy Conversion, DateTimeOffset CheckedAtUtc, bool RenewAutomatically);
+    sealed record RefreshRegistration(WorkerOptionChainRequest Lease, OptionPricingCalendar Calendar, TreasuryPublicationPolicy Publication, TreasuryRateConversionPolicy Conversion, DateTimeOffset CheckedAtUtc, bool RenewAutomatically);
 }

@@ -45,7 +45,26 @@ public static class PortfolioCloseOrderCompositionModel
         ValidateReduceOnly(candidate.Component, position);
 
         var orderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-        var order = new PortfolioExecutionOrderInstruction
+        var order = CreateCloseOrder(request, openingOrder, position, orderId);
+
+        return new PortfolioCloseOrderCompositionReceipt
+        {
+            CompositionId = candidate.CompositionId,
+            WorkflowId = candidate.WorkflowId,
+            Status = PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder,
+            TradeOrder = order,
+            FinancialRevision = nextRevision,
+            PortfolioId = request.PortfolioId,
+            ReasonCode = "Accepted"
+        };
+    }
+
+    /// <summary>Copies the approved opening execution profile and reverses only the validated target position components.</summary>
+    static PortfolioExecutionOrderInstruction CreateCloseOrder(EvaluatePortfolioCloseOrderCompositionCommand request,
+        PortfolioExecutionOrderInstruction openingOrder, PortfolioPositionSnapshot position, int orderId)
+    {
+        var candidate = request.Body;
+        return new PortfolioExecutionOrderInstruction
         {
             Id = new(request.PortfolioId, position.Id.FundId, orderId),
             Revision = 1,
@@ -71,17 +90,6 @@ public static class PortfolioCloseOrderCompositionModel
             BrokerAlgorithm = openingOrder.BrokerAlgorithm,
             TimeInForce = openingOrder.TimeInForce,
             AlgorithmPace = openingOrder.AlgorithmPace
-        };
-
-        return new PortfolioCloseOrderCompositionReceipt
-        {
-            CompositionId = candidate.CompositionId,
-            WorkflowId = candidate.WorkflowId,
-            Status = PortfolioCloseOrderCompositionStatus.ExecuteTradeOrder,
-            TradeOrder = order,
-            FinancialRevision = nextRevision,
-            PortfolioId = request.PortfolioId,
-            ReasonCode = "Accepted"
         };
     }
 

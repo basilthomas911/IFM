@@ -19,13 +19,6 @@ internal sealed record PortfolioFinancialPolicyActivatedCompute : IPortfolioFina
     public string RejectionReason { get; init; } = string.Empty;
     /// <summary>Creates a rejected computation without a business payload or pending event.</summary>
     internal PortfolioFinancialPolicyActivatedCompute() { }
-
-    public Guid Id { get; init; }
-    public Guid CommandId { get; init; }
-    public long Revision { get; init; }
-    public DateTime OccurredOnUtc { get; init; }
-    public string Principal { get; init; } = string.Empty;
-    public long PolicyVersion { get; init; } = default!;
     /// <summary>Initializes accepted immutable business values.</summary>
     /// <param name="id">The id value.</param>
     /// <param name="commandId">The commandId value.</param>
@@ -42,4 +35,11 @@ internal sealed record PortfolioFinancialPolicyActivatedCompute : IPortfolioFina
         Principal = principal;
         PolicyVersion = policyVersion;
     }
+
+    public Guid Id { get; init; }
+    public Guid CommandId { get; init; }
+    public long Revision { get; init; }
+    public DateTime OccurredOnUtc { get; init; }
+    public string Principal { get; init; } = string.Empty;
+    public long PolicyVersion { get; init; } = default!;
 }

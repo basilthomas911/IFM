@@ -24,7 +24,7 @@ public class FuturesTdiSignalEventActor(
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesTdiSignalEventContext ActorContext =>
-        IsArgumentNull.Set(Context as IFuturesTdiSignalEventContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IFuturesTdiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesTdiSignalEvent";
     static readonly ActorTypeId RsiSignalsRoute = new(
@@ -37,17 +37,18 @@ public class FuturesTdiSignalEventActor(
         [typeof(FuturesTdiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTdiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await (e.ExecuteAsync(context, statusConsoleWriter, logger)).ConfigureAwait(false);
         },
         [typeof(FuturesRsiSignalsGeneratedEvent)] = async (evt, context, _, logger) =>
         {
             var e = (evt as FuturesRsiSignalsGeneratedEvent)!;
-            return await e.ExecuteAsync(context, logger);
+            return await (e.ExecuteAsync(context, logger)).ConfigureAwait(false);
         }
     };
 
     protected override ValueTask OnStartup(IEventActorContext<FuturesTdiSignalEventActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         _ = context;
         context.AddEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
@@ -55,6 +56,7 @@ public class FuturesTdiSignalEventActor(
 
     protected override ValueTask OnShutdown(IEventActorContext<FuturesTdiSignalEventActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -72,7 +74,7 @@ public class FuturesTdiSignalEventActor(
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesTdiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!,
         [FuturesRsiSignalsGeneratedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
@@ -91,9 +93,9 @@ public class FuturesTdiSignalEventActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
-        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
+        _ = await (receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger)).ConfigureAwait(false);
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing
     /// error details.
@@ -110,12 +112,19 @@ public class FuturesTdiSignalEventActor(
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            try
+            {
+                await (innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context ?? Context)).ConfigureAwait(false);
+            }
+            catch (Exception publicationException)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write5(Context.Logger, publicationException, Actor);
+            }
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write54(Context.Logger, innerEx, Actor);
         }
     }
 }

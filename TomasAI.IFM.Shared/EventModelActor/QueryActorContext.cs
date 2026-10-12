@@ -114,8 +114,8 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
             var msgInfo = TakeMessageInfo(threadId, verb)
                 ?? throw new InvalidOperationException(
                     $"Query reply context not found for thread {threadId} and verb {verb}.");
-            var message = msgInfo.Message
-                ?? new LegacyNatsActorMessage(msgInfo.ActorMessage);
+            using var adapter = msgInfo.Message is null ? new LegacyNatsActorMessage(msgInfo.ActorMessage) : null;
+            var message = msgInfo.Message ?? adapter!;
             await message.ReplyAsync(replyResult).ConfigureAwait(false);
         }
         catch

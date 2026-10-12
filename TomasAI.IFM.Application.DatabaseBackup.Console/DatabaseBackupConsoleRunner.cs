@@ -47,6 +47,10 @@ internal sealed class DatabaseBackupConsoleRunner(
                     PageSize = options.PageSize
                 }, cancellationToken).ConfigureAwait(false)),
             "show-operation" => await ShowOperationAsync(options, cancellationToken).ConfigureAwait(false),
+            "show-restore" => await WriteQueryAsync(await _queryApi.GetRestoreOperationAsync(
+                new GetDatabaseRestoreOperationQuery { Request = CreateRequest(options), Source = options.Source,
+                    OperationId = new DatabaseRecoveryOperationId(options.RequireGuid("operation-id")) },
+                cancellationToken).ConfigureAwait(false)),
             "list-restore-points" => await WriteQueryAsync(
                 await _queryApi.ListRestorePointsAsync(new ListDatabaseRestorePointsQuery
                 {

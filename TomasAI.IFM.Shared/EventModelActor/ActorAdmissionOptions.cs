@@ -16,12 +16,15 @@ public sealed class ActorAdmissionOptions
     public int MaximumPayloadBytes { get; set; }
     public long DefaultActorTypeMessageLimit { get; set; }
     public long DefaultActorTypeByteLimit { get; set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2227", Justification = "Configuration binding replaces the collection from appsettings; the setter is part of the options binding contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection type in the existing configuration/message/actor listener contract.")]
     public Dictionary<ActorType, ActorTypeAdmissionOptions> ActorTypes { get; set; } = [];
     public int DefaultMailboxMessageLimit { get; set; } = ExistingMailboxMessageLimit;
     public int RetainedIdleMailboxesPerActor { get; set; } = ExistingRetainedIdleMailboxesPerActor;
     public int JetStreamNakDelayMilliseconds { get; set; } = 250;
     public int OverloadErrorCode { get; set; } = -429;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "This parameterless configuration validation deliberately identifies the invalid bound configuration property in the exception.")]
     public void Validate()
     {
         ActorTypes ??= [];
@@ -126,10 +129,4 @@ public sealed class ActorAdmissionOptions
         if (value > 0 && parent > 0 && value > parent)
             throw new InvalidOperationException($"{name} cannot exceed its process-wide limit.");
     }
-}
-
-public sealed class ActorTypeAdmissionOptions
-{
-    public long MessageLimit { get; set; }
-    public long ByteLimit { get; set; }
 }

@@ -41,6 +41,18 @@ public sealed record DeleteDraftPortfolioFinancialPolicyCommand : ICommand<Portf
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public DeleteDraftPortfolioFinancialPolicyCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="expectedRevision">The ExpectedRevision command value.</param>
+    /// <param name="reason">The Reason command value.</param>
+    public DeleteDraftPortfolioFinancialPolicyCommand(long expectedRevision, string reason)
+    {
+        ExpectedRevision = expectedRevision;
+        Reason = reason;
+    }
     public const string Actor = "PortfolioFinancialPolicyCommand";
     public const string Verb = "DeleteDraftPortfolioFinancialPolicy";
     public const int ErrorId = 34000;
@@ -60,18 +72,6 @@ public sealed record DeleteDraftPortfolioFinancialPolicyCommand : ICommand<Portf
     [IgnoreMember] public string CommandName => nameof(DeleteDraftPortfolioFinancialPolicyCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public DeleteDraftPortfolioFinancialPolicyCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="expectedRevision">The ExpectedRevision command value.</param>
-    /// <param name="reason">The Reason command value.</param>
-    public DeleteDraftPortfolioFinancialPolicyCommand(long expectedRevision, string reason)
-    {
-        ExpectedRevision = expectedRevision;
-        Reason = reason;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

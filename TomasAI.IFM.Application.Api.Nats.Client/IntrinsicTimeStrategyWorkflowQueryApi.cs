@@ -129,8 +129,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
             ".",
             symbol,
             timePeriod,
-            fromUtc.ToString("yyyyMMddHHmmss"),
-            toUtc.ToString("yyyyMMddHHmmss"),
+            fromUtc.ToString("yyyyMMddHHmmss",System.Globalization.CultureInfo.InvariantCulture),
+            toUtc.ToString("yyyyMMddHHmmss",System.Globalization.CultureInfo.InvariantCulture),
             pageNumber);
         var subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowHistoryPageQuery.Verb, entity);
         return RequestAsync<GetIntrinsicTimeStrategyWorkflowHistoryPageQuery,

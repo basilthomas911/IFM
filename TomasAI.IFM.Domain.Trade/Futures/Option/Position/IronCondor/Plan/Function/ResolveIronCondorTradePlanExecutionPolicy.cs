@@ -4,10 +4,11 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function;
-
 public static class ResolveIronCondorTradePlanExecutionPolicy
 {
-    public static FunctionExecutionPolicy ResolveExecutionPolicy(this UpdateIronCondorTradePlanCommand command,
-        FunctionFailureStage stage, IIronCondorTradePlanFunctionContext context) =>
-        new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+    public static FunctionExecutionPolicy ResolveExecutionPolicy(this UpdateIronCondorTradePlanCommand command, FunctionFailureStage stage, IIronCondorTradePlanFunctionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new(context.TimeProvider, null, FunctionCompletionMode.EventThenProjection);
+    }
 }

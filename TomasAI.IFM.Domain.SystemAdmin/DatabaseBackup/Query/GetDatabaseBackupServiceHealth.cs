@@ -13,7 +13,10 @@ public static class GetDatabaseBackupServiceHealth
     /// <summary>Reads the requested Database Backup projection and sends its typed response.</summary>
     public static async ValueTask ExecuteAsync(this GetDatabaseBackupServiceHealthQuery query, ISystemAdminDbContext dbContext, IQueryActorContext<DatabaseBackupQueryActor> context, CancellationToken cancellationToken)
     {
-        var result = await dbContext.GetServiceHealthAsync(query, cancellationToken);
-        await DatabaseBackupQueryReply.RequiredAsync(context, query, result);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(query);
+        var result = await (dbContext.GetServiceHealthAsync(query, cancellationToken)).ConfigureAwait(false);
+        await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
     }
 }

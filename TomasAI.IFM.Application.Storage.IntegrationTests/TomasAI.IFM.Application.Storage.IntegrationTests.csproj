@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
     <PackageReference Include="FluentAssertions" Version="8.10.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="Moq" Version="4.20.72" />
@@ -30,6 +31,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
@@ -38,4 +40,12 @@
     <ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/MarketCondition/AssessmentFixture.cs" Link="TradeDb/AssessmentFixture.cs" />
+  </ItemGroup>
+  <!-- This assembly contains both MSTest and xUnit tests. MSTest is explicitly imported
+       by its fixtures; a generated global import makes xUnit Assert ambiguous. -->
+  <Target Name="RemoveMSTestGlobalUsing" BeforeTargets="GenerateGlobalUsings">
+    <ItemGroup><Using Remove="Microsoft.VisualStudio.TestTools.UnitTesting" /></ItemGroup>
+  </Target>
 </Project>

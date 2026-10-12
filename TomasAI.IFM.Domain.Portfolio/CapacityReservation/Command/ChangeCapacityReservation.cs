@@ -12,9 +12,6 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command;
 
-public sealed record CapacityReservationCommandServices(ICapacityReservationStore Store, IPortfolioDbReadContext Database,
-    IEventProjector<CapacityReservationCommandActor> Projector, ILogger<CapacityReservationCommandActor> Logger);
-
 public static class ChangeCapacityReservation
 {
     /// <summary>Handles Execute Async at the command boundary.</summary>
@@ -25,17 +22,23 @@ public static class ChangeCapacityReservation
     /// <exception cref="OperationCanceledException">Cancellation interrupts pre-commit work; committed or uncertain operations require reconciliation.</exception>
     public static async ValueTask<ServiceResult<GuidResult>> ExecuteAsync(this ChangeCapacityReservationCommand command, CapacityReservationCommandServices services, CancellationToken cancellationToken)
     {
-        var replay = await services.Database.ReadOperationAsync<CapacityLifecycleCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken);
-        if (replay is not null) return await replay.NotifyAsync(services.Projector, services.Logger);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(services);
+        var replay = await (services.Database.ReadOperationAsync<CapacityLifecycleCompletedEvent>(command.PortfolioId, command.OperationId, command.InputSha256, cancellationToken)).ConfigureAwait(false);
+        if (replay is not null) return await (replay.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
         FinancialRequestValidation.Demand(command, "CapacityLifecycle", DateTime.UtcNow);
-        var completed = await services.Store.ChangeAsync(command, false, command.Compute, receipt => command.Complete(receipt), cancellationToken);
-        return await completed.NotifyAsync(services.Projector, services.Logger);
+        var completed = await (services.Store.ChangeAsync(command, false, command.Compute, receipt => command.Complete(receipt), cancellationToken)).ConfigureAwait(false);
+        return await (completed.NotifyAsync(services.Projector, services.Logger)).ConfigureAwait(false);
     }
     /// <summary>Handles Complete at the command boundary.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="receipt">The verified committed financial receipt.</param>
     /// <returns>The operation result.</returns>
-    public static CapacityLifecycleCompletedEvent Complete(this ChangeCapacityReservationCommand command, CapacityLifecycleReceipt receipt) => new()
+    public static CapacityLifecycleCompletedEvent Complete(this ChangeCapacityReservationCommand command, CapacityLifecycleReceipt receipt) 
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(receipt);
+        return new()
     {
         Id = receipt.CompletedEventId,
         Subject = new(ActorType.Event, ChangeCapacityReservationCommand.Actor, nameof(CapacityLifecycleCompletedEvent), command.EntityId.Format()),
@@ -51,6 +54,7 @@ public static class ChangeCapacityReservation
         AggregateId = command.EntityId.Format(),
         Receipt = receipt
     };
+    }
     /// <summary>Calculates a capacity transition from the reservation read inside the financial fence.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>
     /// <param name="reservation">The reservation business input.</param>

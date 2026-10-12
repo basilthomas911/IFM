@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -24,6 +24,7 @@ public static class StringExtension
     /// <param name="text">The input string to convert to camel case. Can be null or empty.</param>
     /// <returns>A camel case version of the input string with spaces and underscores removed. Returns the original string if it
     /// is null or empty.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "The method implements camel-case text formatting, which requires lowercase characters rather than uppercase identifier normalization.")]
     public static string ToCamelCase(this string text)
     {
         if (string.IsNullOrEmpty(text))

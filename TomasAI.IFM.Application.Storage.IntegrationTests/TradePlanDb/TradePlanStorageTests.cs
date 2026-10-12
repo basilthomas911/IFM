@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -22,8 +22,7 @@ public sealed class TradePlanStorageFixture
     {
         var settings = new DbConnectionSettings().Add(
             TradePlanDbContext.TradePlanDbConnection,
-            Environment.GetEnvironmentVariable("IFM_TEST_TRADE_PLAN_CONNECTION")
-                ?? "Contact Points=localhost;Port=9042;Default Keyspace=trade_test_db",
+            LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_trade_plan"),
             "System.Data.ScyllaDb");
         var logger = Substitute.For<ILogger<DbProvider>>();
         var schema = new TradePlanSchemaDb(settings, logger);
@@ -231,7 +230,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
             .WithMessage("*conflicts with a different payload*");
     }
 
-    static StrategyTradePlanSnapshot Plan(int suffix, long revision, decimal pnl, bool material)
+    internal static StrategyTradePlanSnapshot Plan(int suffix, long revision, decimal pnl, bool material)
     {
         var now = DateTime.UtcNow;
         var position = new StrategyPositionSnapshot

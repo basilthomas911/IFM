@@ -4,19 +4,6 @@ using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
-/// <summary>Specifies which provider-neutral market-series identity is populated.</summary>
-public enum MarketSeriesIdentityKind : byte
-{
-    /// <summary>No market series is identified.</summary>
-    Unknown = 0,
-
-    /// <summary>The identity refers to one specific futures contract.</summary>
-    Contract = 1,
-
-    /// <summary>The identity refers to a roll-aware futures continuation.</summary>
-    FuturesContinuation = 2
-}
-
 /// <summary>
 /// Discriminates a specific contract from a roll-aware futures continuation without inspecting string shape.
 /// </summary>
@@ -92,7 +79,7 @@ public readonly record struct MarketSeriesIdentity
     {
         identity = default;
         if (string.IsNullOrWhiteSpace(value)) return false;
-        var separator = value.IndexOf(':');
+        var separator = value.IndexOf(':', StringComparison.Ordinal);
         if (separator <= 0) return false;
         try
         {
@@ -115,36 +102,4 @@ public readonly record struct MarketSeriesIdentity
 
     /// <summary>Returns the stable formatted identity.</summary>
     public override string ToString() => Format();
-}
-
-/// <summary>Validates the discriminator and payload of a market-series identity.</summary>
-public sealed class MarketSeriesIdentityValidationRules
-    : BaseValidationRules, IValidationStructRules<MarketSeriesIdentity>
-{
-    static readonly Validator Rules = new();
-
-    /// <summary>Validates the supplied market-series identity.</summary>
-    /// <param name="value">Identity to validate.</param>
-    /// <returns>All validation errors, or an empty array when valid.</returns>
-    public ValidationError[] Execute(MarketSeriesIdentity value) => Validate(value, Rules);
-
-    sealed class Validator : AbstractValidator<MarketSeriesIdentity>
-    {
-        public Validator()
-        {
-            RuleFor(x => x).Must(IsValid).WithMessage(
-                "MarketSeriesIdentity must contain exactly the payload selected by Kind.");
-        }
-
-        static bool IsValid(MarketSeriesIdentity value) => value.Kind switch
-        {
-            MarketSeriesIdentityKind.Contract =>
-                !string.IsNullOrWhiteSpace(value.ContractId) && value.FuturesSeriesId is null,
-            MarketSeriesIdentityKind.FuturesContinuation =>
-                string.IsNullOrEmpty(value.ContractId)
-                && value.FuturesSeriesId is { } series
-                && new FuturesSeriesIdValidationRules().Execute(series).Length == 0,
-            _ => false
-        };
-    }
 }

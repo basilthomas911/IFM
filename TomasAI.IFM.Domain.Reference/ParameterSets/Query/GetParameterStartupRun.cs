@@ -16,10 +16,14 @@ public static class GetParameterStartupRun
         ILogger<ParameterSetQueryActor> logger,
         CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         context.AccessPolicy.Demand(ParameterCapability.Read);
         token.ThrowIfCancellationRequested();
         if (query.RunId == Guid.Empty)
-            throw new ArgumentException("PARAM.STARTUP_RUN_ID_REQUIRED", nameof(query));
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
+            throw new ArgumentException("PARAM.STARTUP_RUN_ID_REQUIRED");
+#pragma warning restore MA0015
 
         var id = ParameterStartupEntityId.Registry;
         var address = new ApplySignalStartupPlanCommand
@@ -31,14 +35,14 @@ public static class GetParameterStartupRun
                 ApplySignalStartupPlanCommand.Verb,
                 id.Format())
         };
-        var state = await context.Startups.LoadStateAsync(address);
+        var state = await (context.Startups.LoadStateAsync(address, token)).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         if (!state.ActiveRuns.TryGetValue(query.RunId, out var run))
             throw new InvalidOperationException("PARAM.STARTUP_NOT_FOUND");
 
-        await context.ReplyAsync(
+        await (context.ReplyAsync(
             query.Subject.ThreadId,
             query.Subject.Verb,
-            new ServiceOk<ParameterStartupRun>(run));
+            new ServiceOk<ParameterStartupRun>(run))).ConfigureAwait(false);
     }
 }

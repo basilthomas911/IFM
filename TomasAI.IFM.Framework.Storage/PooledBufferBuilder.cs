@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace TomasAI.IFM.Framework.Storage;
@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Framework.Storage;
 /// are added. Callers must dispose the instance when finished to release the pooled memory. After calling
 /// MoveToResult, MoveToArray, or Dispose, the instance should not be used.</remarks>
 /// <typeparam name="T">The type of value elements stored in the buffer.</typeparam>
-internal struct PooledBufferBuilder<T> where T : struct
+internal struct PooledBufferBuilder<T> : IDisposable where T : struct
 {
     private IMemoryOwner<T>? _owner;
     private int _count;

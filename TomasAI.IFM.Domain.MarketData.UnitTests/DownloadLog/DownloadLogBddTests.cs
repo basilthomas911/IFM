@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -93,8 +95,9 @@ public sealed class DownloadLogBddTests
         provider.GetRangeAsync(date, date, Arg.Any<CancellationToken>()).Returns(scenario == "provider-failed"
             ? Task.FromException<IReadOnlyList<TreasuryCurveSnapshot>>(new InvalidOperationException("acquisition failed"))
             : Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([]));
-        db.InsertYieldCurveRatesAsync(Arg.Any<YieldCurveRateReadModel[]>(), Arg.Any<ImportDuplicatePolicy>(), Arg.Any<Guid>())
-            .Returns(scenario == "write-failed" ? Task.FromException(new InvalidOperationException("partial write")) : Task.CompletedTask);
+        var transaction = PostgresImportBoundary.Configure(factory, context);
+        transaction.ExecuteAsync(Arg.Any<Func<EnlistedEventTransaction, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>())
+            .Returns(scenario == "write-failed" ? Task.FromException<bool>(new InvalidOperationException("commit unavailable")) : Task.FromResult(true));
         YieldCurveRatesImportedCompleteEvent? completed = null; YieldCurveRatesImportedFailEvent? failed = null;
         context.SendAsync<YieldCurveRatesImportedCompleteEvent, YieldCurveRateEntityId>(Arg.Do<YieldCurveRatesImportedCompleteEvent>(e => completed = e))
             .Returns(_ => scenario == "notification-failed" ? ValueTask.FromException(new InvalidOperationException("notification unavailable")) : ValueTask.CompletedTask);

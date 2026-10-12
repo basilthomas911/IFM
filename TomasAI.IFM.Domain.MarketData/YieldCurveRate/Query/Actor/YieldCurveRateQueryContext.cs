@@ -6,17 +6,8 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="YieldCurveRateQueryActor"/>.</summary>
-public interface IYieldCurveRateQueryContext : IQueryActorContext<YieldCurveRateQueryActor>
-{
-    /// <summary>Gets the database factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<YieldCurveRateQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="YieldCurveRateQueryActor"/>.</summary>
-public sealed class YieldCurveRateQueryContext : QueryActorContext, IQueryActorContext<YieldCurveRateQueryActor>, IYieldCurveRateQueryContext
+public sealed class YieldCurveRateQueryContext : QueryActorContext, IYieldCurveRateQueryContext
 {
     /// <summary>Initializes the context.</summary>
     public YieldCurveRateQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<YieldCurveRateQueryActor> logger)

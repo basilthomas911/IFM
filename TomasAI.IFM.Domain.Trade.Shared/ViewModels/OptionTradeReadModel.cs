@@ -138,11 +138,13 @@ public partial record OptionTradeReadModel
     public OptionTradeEntityId EntityId => new(OrderId, TradeId);
 
     /// <summary>Option legs.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [Key(16)]
     public OptionTradeLegReadModel[]? OptionLegs { get; private set; }
 
     /// <summary>Trade positions.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [Key(17)]
     public TradePositionReadModel[]? TradePositions { get; private set; }
@@ -153,11 +155,13 @@ public partial record OptionTradeReadModel
     public TradeLimitReadModel? TradeLimit { get; private set; }
 
     /// <summary>Trade type limits.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [Key(19)]
     public TradeTypeLimitReadModel[]? TradeTypeLimits { get; private set; }
 
     /// <summary>Trade fills.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [JsonProperty]
     [Key(20)]
     public TradeFillReadModel[]? TradeFills { get; private set; }

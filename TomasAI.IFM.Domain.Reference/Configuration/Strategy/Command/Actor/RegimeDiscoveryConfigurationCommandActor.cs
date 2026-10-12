@@ -116,8 +116,12 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context,
         ActorThreadId threadId, ICommand command, Exception ex)
-        => ValueTask.FromResult<ServiceResult<GuidResult>>(
+        
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceResult<GuidResult>(command?.ErrorCode ?? 33000, ex.Message));
+    }
 
     static IRegimeDiscoveryConfigurationCommandContext Typed(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context)

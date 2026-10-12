@@ -16,6 +16,8 @@ public static class InsertMarketOutlookSnapshot
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this InsertMarketOutlookSnapshotCommand command, MarketOutlookSnapshotCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         if (Equals(state.Snapshot, command.MarketOutlook))
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
         var errorMsg = "unable to apply MarketOutlookSnapshot event";

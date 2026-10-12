@@ -19,16 +19,19 @@ public static class ReviewedEsOptionReference
             .Select(i => new DateOnly(2026, 9, 1).AddDays(i))
             .Where(d => d.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && d != new DateOnly(2026, 9, 7)).ToImmutableArray());
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public static (OptionDefinitionCandidate Candidate, OptionPricingConvention Convention) Create(ContractDetail option, ContractDetail future)
     {
-        if (option.Dataset != "GLBX.MDP3" || future.Dataset != option.Dataset || future.ContractKind != ContractKind.Future
-            || future.Ticker != "ES" || option.Underlying != future.RawSymbol || option.UnderlyingInstrumentId != future.Instrument.InstrumentId
-            || option.Currency != "USD" || future.Currency != "USD" || option.Exchange != "XCME" || future.Exchange != "XCME"
-            || option.SecurityType != "OOF" || option.UnitOfMeasure != "IPNT"
-            || !Regex.IsMatch(option.Ticker, "^E[1-5][BD]$", RegexOptions.CultureInvariant)
+        ArgumentNullException.ThrowIfNull(future);
+        ArgumentNullException.ThrowIfNull(option);
+        if (!string.Equals(option.Dataset,"GLBX.MDP3",StringComparison.Ordinal) || !string.Equals(future.Dataset,option.Dataset,StringComparison.Ordinal) || future.ContractKind != ContractKind.Future
+            || !string.Equals(future.Ticker,"ES",StringComparison.Ordinal) || !string.Equals(option.Underlying,future.RawSymbol,StringComparison.Ordinal) || option.UnderlyingInstrumentId != future.Instrument.InstrumentId
+            || !string.Equals(option.Currency,"USD",StringComparison.Ordinal) || !string.Equals(future.Currency,"USD",StringComparison.Ordinal) || !string.Equals(option.Exchange,"XCME",StringComparison.Ordinal) || !string.Equals(future.Exchange,"XCME",StringComparison.Ordinal)
+            || !string.Equals(option.SecurityType,"OOF",StringComparison.Ordinal) || !string.Equals(option.UnitOfMeasure,"IPNT",StringComparison.Ordinal)
+            || !Regex.IsMatch(option.Ticker, "^E[1-5][BD]$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)
             || !option.RawSymbol.StartsWith(option.Ticker, StringComparison.Ordinal)
             || option.ContractKind is not (ContractKind.CallOption or ContractKind.PutOption)
-            || option.Cfi != (option.ContractKind == ContractKind.CallOption ? "OCEFPS" : "OPEFPS")
+            || !string.Equals(option.Cfi,(option.ContractKind == ContractKind.CallOption ? "OCEFPS" : "OPEFPS"),StringComparison.Ordinal)
             || option.ContractMultiplier is not (null or 50) || future.ContractMultiplier is not (null or 50)
             || option.StrikePrice is not > 0 || option.StrikePrice % 1_000_000_000 != 0
             || option.MaturityDate is not { } expiry || expiry < Calendar.CoverageFrom || expiry > Calendar.CoverageUntil

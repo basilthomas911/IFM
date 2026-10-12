@@ -17,6 +17,8 @@ public static class DeleteSpreadDistribution
     /// <returns>The command identity on success, otherwise the business or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this DeleteSpreadDistributionCommand command, SpreadDistributionCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionDeletedEvent";
         var updated = command.Compute(out var spreadDistributionChange) switch
         {

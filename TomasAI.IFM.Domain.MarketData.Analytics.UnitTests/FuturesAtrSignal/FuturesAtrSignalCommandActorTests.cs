@@ -98,6 +98,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -108,7 +109,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -127,7 +128,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
-            Arg.Any<string>());
+            Arg.Any<string>(), CancellationToken.None);
     }
 
     [Fact]
@@ -136,6 +137,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrDailyCommand();
@@ -146,7 +148,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -165,7 +167,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
-            Arg.Any<string>());
+            Arg.Any<string>(), CancellationToken.None);
     }
 
     [Fact]
@@ -174,6 +176,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
@@ -185,7 +188,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -202,6 +205,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -212,7 +216,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -233,6 +237,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -257,6 +262,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -281,6 +287,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -301,6 +308,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -310,7 +318,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -326,6 +334,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -335,7 +344,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.CompletedTask);
 
         // Act
@@ -351,6 +360,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -360,7 +370,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var context = Substitute.For<ICommandActorContext<FuturesAtrSignalCommandActor>>();
 
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
+        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>(), CancellationToken.None)
             .Returns(Task.FromException(new Exception("Database connection failed")));
 
         // Act
@@ -381,6 +391,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -402,6 +413,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrDailyCommand();
@@ -427,6 +439,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -445,6 +458,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -463,6 +477,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var state = new FuturesAtrSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesAtrSignalCommandActor.ActorName, "test-thread") };
@@ -481,6 +496,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var unknownCmd = Substitute.For<ICommand>();
@@ -500,6 +516,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -524,6 +541,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -543,6 +561,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrDailyCommand();
@@ -566,6 +585,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand() with { CommandId = Guid.Empty };
@@ -586,6 +606,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrDailyCommand(Guid.Empty);
@@ -606,6 +627,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var unknownCmd = Substitute.For<ICommand>();
@@ -626,6 +648,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -644,6 +667,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesAtrSignalCommandActor.ActorName, "test-thread");
@@ -662,6 +686,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -684,6 +709,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -720,6 +746,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -738,6 +765,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesAtrSignalCommandActor.ActorName, "test-thread");
@@ -756,6 +784,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -778,6 +807,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -813,6 +843,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -832,6 +863,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -851,6 +883,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -870,6 +903,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesAtrSignalCommandActor.ActorName, "test-thread");
@@ -889,6 +923,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var cmd = CreateAtrCommand();
@@ -921,6 +956,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -950,6 +986,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -980,6 +1017,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var expectedCommandId = Guid.NewGuid();
@@ -1012,6 +1050,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -1032,6 +1071,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();
@@ -1060,6 +1100,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesAtrSignalCommandActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateAtrCommandActor(dbEventSource, logger);
 
         var command = CreateAtrCommand();

@@ -41,9 +41,9 @@ public sealed class ParameterSetQueryActor(IQueryActorContext<ParameterSetQueryA
         [typeof(ValidateParameterCandidateQuery)] = (q, ctx, ct) => ((ValidateParameterCandidateQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
         [typeof(CreateParameterDraftPreviewQuery)] = (q, ctx, ct) => ((CreateParameterDraftPreviewQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
     };
-    protected override IQuery ParseMessage(IQueryActorContext<ParameterSetQueryActor> ctx, IActorMessage msg) => ParseMappedQuery(ctx, msg, _parseMap);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<ParameterSetQueryActor> ctx, IQuery q) => ReceiveAsync(ctx, q, CancellationToken.None);
-    protected override async ValueTask ReceiveAsync(IQueryActorContext<ParameterSetQueryActor> ctx, IQuery q, CancellationToken token) => await ResolveMappedQueryHandler(q, _receiveMap)(q, (IParameterSetQueryContext)ctx, token);
+    protected override IQuery ParseMessage(IQueryActorContext<ParameterSetQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
+    protected override ValueTask ReceiveAsync(IQueryActorContext<ParameterSetQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<ParameterSetQueryActor> context, IQuery query, CancellationToken cancellationToken) => await (ResolveMappedQueryHandler(query, _receiveMap)(query, (IParameterSetQueryContext)context, cancellationToken)).ConfigureAwait(false);
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<ParameterSetQueryActor> ctx, ActorThreadId id, IQuery q, string verb, Exception error) => ExceptionMappedQueryAsync(ctx, id, q, verb, error, _exceptionMap);
+    protected override ValueTask OnExceptionAsync(IQueryActorContext<ParameterSetQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

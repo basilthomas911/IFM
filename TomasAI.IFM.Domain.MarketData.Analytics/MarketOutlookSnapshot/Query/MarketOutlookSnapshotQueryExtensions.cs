@@ -12,8 +12,12 @@ public static class MarketOutlookSnapshotQueryExtensions
         string contractId,
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
-        => GetLatestAsync(context, contractId, valueDate, cancellationToken);
-
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return GetLatestAsync(context, contractId, valueDate, cancellationToken);
+    }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This message boundary converts arbitrary provider failures into the typed failed reply; failures must not escape the actor protocol.")] 
     internal static async Task<ServiceResult<MarketOutlookReadModel>> GetLatestAsync(
         IMarketOutlookSnapshotQueryContext context,
         string contractId,

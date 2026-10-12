@@ -8,23 +8,12 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Supervisor.Operations.Command.Actor;
 
-/// <summary>Exposes only lifecycle, incident, authorization, and logging capabilities to Supervisor commands.</summary>
-public interface ISupervisorCommandActorContext : ICommandActorContext<SupervisorCommandActor>
-{
-    ISupervisorManagedActorLifecycle ManagedActors { get; }
-    ISupervisorIncidentReadStore Incidents { get; }
-    ISupervisorOperatorAuthorizer Authorizer { get; }
-    IEventSourceActorStateRepository<SupervisorCommandState> StateRepository { get; }
-    IEventProjector<SupervisorCommandActor> EventProjector { get; }
-    ILogger<SupervisorCommandActor> Logger { get; }
-}
-
 /// <summary>Provides the closed-generic, privileged Supervisor command context.</summary>
 public sealed class SupervisorCommandActorContext(IActorSupervisor actorSupervisor,
     ISupervisorManagedActorLifecycle managedActors, ISupervisorIncidentStore incidents,
     ISupervisorOperatorAuthorizer authorizer, ILogger<SupervisorCommandActor> logger)
     : CommandActorContext(actorSupervisor, new(ActorType.Command, SupervisorCommandActor.ActorName)),
-        ICommandActorContext<SupervisorCommandActor>, ISupervisorCommandActorContext
+ISupervisorCommandActorContext
 {
     readonly Lazy<IEventSourceActorStateRepository<SupervisorCommandState>> _repository =
         new(() => actorSupervisor.Container.Resolve<IEventSourceActorStateRepository<SupervisorCommandState>>());

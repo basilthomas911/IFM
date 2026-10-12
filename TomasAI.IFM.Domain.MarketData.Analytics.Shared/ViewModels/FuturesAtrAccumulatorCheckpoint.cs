@@ -16,12 +16,14 @@ public sealed record FuturesAtrAccumulatorCheckpoint
     [Key(1)] public decimal? PreviousClose { get; init; }
 
     /// <summary>Gets the initial true ranges retained until the first ATR is formed.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(2)] public decimal[] SeedTrueRanges { get; init; } = [];
 
     /// <summary>Gets the latest fully formed Wilder ATR.</summary>
     [Key(3)] public decimal? CurrentAtr { get; init; }
 
     /// <summary>Gets at most twenty previously completed ATR values used by the volatility baseline.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
     [Key(4)] public decimal[] CompletedAtrValues { get; init; } = [];
 
     /// <summary>Gets the last accepted closed-observation identity.</summary>

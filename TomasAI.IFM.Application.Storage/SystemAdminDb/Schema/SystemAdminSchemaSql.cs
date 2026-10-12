@@ -205,4 +205,14 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_receipt (
     PRIMARY KEY (projector_name, event_id)
 );
 """;
+    /// <summary>Committed execution intents reference complete authoritative source bytes.</summary>
+    public const string CreateExecutionOutbox = """
+CREATE TABLE IF NOT EXISTS system_admin.database_backup_execution_outbox (
+    event_id bigint PRIMARY KEY REFERENCES event_log(eventversion),
+    event_uuid uuid NOT NULL UNIQUE,
+    published_utc timestamptz NULL
+);
+CREATE INDEX IF NOT EXISTS ix_database_backup_execution_pending
+    ON system_admin.database_backup_execution_outbox(event_id) WHERE published_utc IS NULL;
+""";
 }

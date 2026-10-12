@@ -6,8 +6,8 @@ namespace TomasAI.IFM.Domain.OptionPricer.Shared;
 
 public class SpreadDistribution
 {
-    int _daysToMaturity;
-    double _forwardPrice;
+    readonly int _daysToMaturity;
+    readonly double _forwardPrice;
 
     public SpreadDistribution(int daysToMaturity, double forwardPrice)
     {
@@ -16,7 +16,10 @@ public class SpreadDistribution
     }
 
     public SpreadDistributionReadModel ToViewModel(int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, LossProbabilityDataModel lossProbability)
-        => new SpreadDistributionReadModel(
+        
+    {
+        ArgumentNullException.ThrowIfNull(lossProbability);
+        return new SpreadDistributionReadModel(
             id: 0,
             tradeId: tradeId,
             tradeType: tradeType,
@@ -32,5 +35,6 @@ public class SpreadDistribution
             forwardLossRatio: 0,
             createdOn: DateTime.Now
         );
+    }
 
 }

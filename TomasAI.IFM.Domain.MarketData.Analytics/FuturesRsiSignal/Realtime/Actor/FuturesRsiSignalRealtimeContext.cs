@@ -7,17 +7,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 
-/// <summary>Defines the readonly runtime services required by <see cref="FuturesRsiSignalRealtimeActor"/>.</summary>
-public interface IFuturesRsiSignalRealtimeContext : IRealtimeActorContext<FuturesRsiSignalRealtimeActor>
-{
-    /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
-    IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the Logger service supplied to the actor context.</summary>
-    ILogger<FuturesRsiSignalRealtimeActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesRsiSignalRealtimeActor"/>.</summary>
-public sealed class FuturesRsiSignalRealtimeContext : EventActorContext, IRealtimeActorContext<FuturesRsiSignalRealtimeActor>, IFuturesRsiSignalRealtimeContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesRsiSignalRealtimeContext : EventActorContext, IFuturesRsiSignalRealtimeContext
 {
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesRsiSignalRealtimeContext(

@@ -24,6 +24,7 @@ public class FuturesRsiDailySignalCacheModel(IRedisCache redisCache, IJsonSerial
     /// <returns></returns>
     public FuturesRsiSignalReadModel? Get(FuturesRsiDailySignalEntityId rsiSignalId)
     {
+        ArgumentNullException.ThrowIfNull(rsiSignalId);
         var key = $"{CacheName}:{rsiSignalId.Format()}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
@@ -38,6 +39,7 @@ public class FuturesRsiDailySignalCacheModel(IRedisCache redisCache, IJsonSerial
     /// <param name="futuresRsiSignal"></param>
     public void Set(FuturesRsiDailySignalEntityId rsiSignalId, FuturesRsiSignalReadModel futuresRsiSignal)
     {
+        ArgumentNullException.ThrowIfNull(rsiSignalId);
         TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.ThrowIfRetired();
         var key = $"{CacheName}:{rsiSignalId.Format()}";
         var value = _jsonSerializer.Serialize(futuresRsiSignal);

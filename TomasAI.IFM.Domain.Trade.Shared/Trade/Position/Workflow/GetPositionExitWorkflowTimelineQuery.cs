@@ -39,6 +39,7 @@ public sealed record GetPositionExitWorkflowTimelineQuery : IQuery<PositionExitW
     [Key(2)] public StrategyPositionId PositionId { get; init; }
     [Key(3)] public DateOnly ValueDate { get; init; }
     [Key(4)] public int PageSize { get; init; } = 100;
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(5)] public byte[]? PagingState { get; init; }
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => null;

@@ -14,6 +14,8 @@ public static class GetMarketOutlookSnapshot
         IMarketOutlookSnapshotQueryContext domainContext,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         var result = await domainContext.GetMarketOutlookSnapshotAsync(
             query.ContractId, query.ValueDate, cancellationToken).ConfigureAwait(false);
         await context.ReplyAsync(

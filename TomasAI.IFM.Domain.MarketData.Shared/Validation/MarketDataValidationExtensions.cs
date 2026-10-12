@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -26,8 +26,11 @@ public static class MarketDataValidationExtensions
     /// <param name="refLookupService">A service used to retrieve reference data required for validation rules.</param>
     /// <returns>The updated list of validation errors, including any errors found during the validation of the provided
     /// contracts.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The established validation/read-model API exposes a mutable List to collect results; changing it would break consumers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection contract consumed by existing query, event and validation adapters.")]
     public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV3ReadModel[] contracts, IReferenceLookupService refLookupService)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (contracts is null || contracts.Length == 0)
         {
             validationErrors.Add(new ValidationError(ContractsErrorMessage));
@@ -56,8 +59,11 @@ public static class MarketDataValidationExtensions
     /// <param name="refLookupService">A reference lookup service used to retrieve validation rules and reference data. This parameter must not be
     /// null.</param>
     /// <returns>The original list of validation errors, with any additional errors from the validation process appended.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The established validation/read-model API exposes a mutable List to collect results; changing it would break consumers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection contract consumed by existing query, event and validation adapters.")]
     public static List<ValidationError> ValidateFuturesContract(this List<ValidationError> validationErrors, FuturesContractV3ReadModel contract, IReferenceLookupService refLookupService)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new FuturesContractValidationRules().Execute(contract);
         if (ruleErrors is not null)
             validationErrors.AddRange(ruleErrors);
@@ -75,8 +81,12 @@ public static class MarketDataValidationExtensions
     /// <param name="validationErrors">The list of validation errors to which any detected errors will be added.</param>
     /// <param name="entityId">The entity ID to validate. Must not be null or empty.</param>
     /// <returns>The updated list of validation errors, including any errors related to the entity ID validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The established validation/read-model API exposes a mutable List to collect results; changing it would break consumers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection contract consumed by existing query, event and validation adapters.")]
     public static List<ValidationError> ValidateEntityId(this List<ValidationError> validationErrors, FuturesOptionContractId entityId)
     {
+        ArgumentNullException.ThrowIfNull(entityId);
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (entityId is null && entityId!.IsEmpty)
             validationErrors.Add(new ValidationError(EntityIdErrorMessage));
         return validationErrors;
@@ -94,8 +104,11 @@ public static class MarketDataValidationExtensions
     /// cannot be null.</param>
     /// <param name="futuresContractId">The <see cref="FuturesContractIdParser"/> to validate. This parameter cannot be null.</param>
     /// <returns>The updated list of <see cref="ValidationError"/> objects, including any errors found during validation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The established validation/read-model API exposes a mutable List to collect results; changing it would break consumers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection contract consumed by existing query, event and validation adapters.")]
     public static List<ValidationError> ValidateFuturesContractEntityId(this List<ValidationError> validationErrors, FuturesContractId futuresContractId)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         var ruleErrors = new FuturesContractEntityIdValidationRules().Execute(futuresContractId);
         if (ruleErrors is not null && ruleErrors.Length > 0)
             validationErrors.AddRange(ruleErrors);

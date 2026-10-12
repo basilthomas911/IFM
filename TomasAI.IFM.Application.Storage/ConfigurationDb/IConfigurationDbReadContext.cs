@@ -168,5 +168,6 @@ public interface IConfigurationDbReadContext
     /// <param name="afterSetId">The exclusive set-identifier cursor.</param>
     /// <param name="afterVersion">The exclusive version cursor.</param>
     /// <returns>The parameter-set versions.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<ParameterSetVersion[]> GetParameterSetsAsync(string componentCode, Guid? setId = null, CancellationToken cancellationToken = default, int limit = 100, string afterName = "", Guid? afterSetId = null, int afterVersion = 0);
 }

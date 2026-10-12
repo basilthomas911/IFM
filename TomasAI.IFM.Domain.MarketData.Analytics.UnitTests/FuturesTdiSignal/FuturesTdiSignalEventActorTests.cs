@@ -63,6 +63,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var supervisor = Substitute.For<IActorSupervisor>();
         var statusConsoleWriter = Substitute.For<IStatusConsoleWriter>();
         var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateActor(supervisor, statusConsoleWriter, logger);
         var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
         return new Scenario(actor, supervisor, statusConsoleWriter, logger, context);

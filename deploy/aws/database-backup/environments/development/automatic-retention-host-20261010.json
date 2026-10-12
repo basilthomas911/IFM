@@ -1,0 +1,50 @@
+{
+    "schemaVersion":  1,
+    "environment":  "Development",
+    "observedUtc":  "2026-10-11T05:19:06.4676108+00:00",
+    "status":  "CompletedBothEnginesBothVaults",
+    "tests":  {
+                  "awsUnitTestsPassed":  101,
+                  "domainBackupTestsPassed":  69,
+                  "liveAdmissionTestPassed":  true,
+                  "liveCompletionVerified":  true,
+                  "interval":  "24 hours",
+                  "ageBoundaryDays":  35,
+                  "protectionSets":  [
+                                         "core-postgresql",
+                                         "read-model-scylla"
+                                     ],
+                  "replicas":  [
+                                   "aws-primary",
+                                   "aws-recovery"
+                               ],
+                  "hostImage":  "sha256:47d8fbe392a45d0d9e7aa97646e489aa06113164e04e59328d3fca55862fc828",
+                  "hostReadiness":  "Healthy",
+                  "iamChangeSet":  "ifm-backup-development-20261010123359",
+                  "iamStackStatus":  "UPDATE_COMPLETE",
+                  "sourceEventPersistenceVerified":  true,
+                  "duplicateCommandAdmissionVerified":  true,
+                  "systemAdminSchemaCreated":  true,
+                  "protectionBypassEnabled":  false,
+                  "evidence":  ".artifacts/aws-qualification-20261010/automatic-retention-host-live.json",
+                  "nonLiveIntegrationTestsPassed":  11,
+                  "apiBuildWarnings":  0,
+                  "apiBuildErrors":  0
+              },
+    "firstScheduledCompletion":  "Historical first Scylla scheduled completions are preserved. Current PostgreSQL and Scylla retention runs have now completed on both vaults; application queries show Completed at 100%.",
+    "temporaryPolicyRemoval":  "Owner reported removed",
+    "productionQualified":  false,
+    "existingLocalWorkstationIssue":  "Seven preexisting operations report missing vault/enrollment/media.json; outside AWS retention wiring scope.",
+    "currentQualification":  {
+                                 "postgreSqlPrimary":  "00c6f4736296c754dcb49fb62be8d34d",
+                                 "postgreSqlRecovery":  "12dfacd9860369429066d7917e5fc87c",
+                                 "scyllaPrimary":  "78cbadec683da915fcab77434fe15afa",
+                                 "scyllaRecovery":  "e8b40991518343d5de5e3ba6761756b9",
+                                 "allCompleted":  true,
+                                 "applicationQueriesVerified":  true,
+                                 "deletedObjects":  0,
+                                 "protectedBackupsRetained":  true,
+                                 "finalHostImage":  "sha256:041a3ce031813f9d180ff96f16be6c3d918c0b0a66ae7a483807a02469aad64a",
+                                 "evidence":  ".artifacts/database-recovery/retention-current-observation.json"
+                             }
+}

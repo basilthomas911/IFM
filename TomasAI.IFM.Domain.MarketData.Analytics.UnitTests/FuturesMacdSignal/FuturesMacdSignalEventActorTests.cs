@@ -180,7 +180,9 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         // Arrange
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger1 = Substitute.For<ILogger<FuturesMacdSignalEventActor>>();
+        mockLogger1.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var mockLogger2 = Substitute.For<ILogger<FuturesMacdSignalEventActor>>();
+        mockLogger2.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
 
         var actor1 = _fixture.CreateMacdEventActor(mockSupervisor, logger: mockLogger1);
         var actor2 = _fixture.CreateMacdEventActor(mockSupervisor, logger: mockLogger2);
@@ -636,6 +638,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
     {
         // Arrange
         var logger = Substitute.For<ILogger<FuturesMacdSignalEventActor>>();
+        logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
         var actor = _fixture.CreateMacdEventActor(logger: logger);
         var mockContext = Substitute.For<IEventActorContext<FuturesMacdSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesMacdSignalEventActor.Actor, "1");

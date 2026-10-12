@@ -29,6 +29,8 @@ public static class OptionPricerCommandApiExtensions
         this IEventActorContext context,
         SpreadDistributionJobReadModel spreadDistributionJob)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(spreadDistributionJob);
         var entityId = spreadDistributionJob.EntityId;
         SubmitSpreadDistributionJobCommand command = new(spreadDistributionJob)
         {
@@ -57,6 +59,7 @@ public static class OptionPricerCommandApiExtensions
         DateTime jobCompleted,
         SpreadDistributionJobStatus jobStatus)
     {
+        ArgumentNullException.ThrowIfNull(context);
         CompleteSpreadDistributionJobCommand command = new(entityId, jobCompleted, jobStatus)
         {
             CommandId = Guid.NewGuid(),
@@ -86,6 +89,7 @@ public static class OptionPricerCommandApiExtensions
         SpreadDistributionJobStatus jobStatus,
         string errorMessage)
     {
+        ArgumentNullException.ThrowIfNull(context);
         FailSpreadDistributionJobCommand command = new(entityId, jobFailed, jobStatus, errorMessage)
         {
             CommandId = Guid.NewGuid(),
@@ -104,7 +108,7 @@ public static class OptionPricerCommandApiExtensions
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
-        var result = await context.RequestAsync<TCommand, TEntityId>(command);
+        var result = await (context.RequestAsync<TCommand, TEntityId>(command)).ConfigureAwait(false);
         if (result?.Success != true)
             throw new InvalidOperationException(result?.ErrorMessage);
         return result;

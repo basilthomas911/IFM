@@ -23,20 +23,13 @@ public static class GetFuturesMacdDailySignal
         this GetFuturesMacdDailySignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
+        => await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
                 q.ContractId,
                 q.TimePeriod,
                 q.SignalEmaPeriod,
                 q.FastEmaPeriod,
                 q.SlowEmaPeriod,
-                cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesMacdDailySignalAsync(
-                q.ContractId,
-                q.TimePeriod,
-                q.SignalEmaPeriod,
-                q.FastEmaPeriod,
-                q.SlowEmaPeriod).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
 
 
     /// <summary>Reads and replies to the GetFuturesMacdDailySignalQuery message.</summary>
@@ -46,7 +39,10 @@ public static class GetFuturesMacdDailySignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesMacdDailySignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetLastFuturesMacdDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesMacdSignalReadModel>(result);

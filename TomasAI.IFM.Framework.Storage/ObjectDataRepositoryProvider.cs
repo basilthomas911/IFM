@@ -1,11 +1,11 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Framework.Storage.ScyllaDb;
 using TomasAI.IFM.Framework.Storage.SqlServer;
 
 namespace TomasAI.IFM.Framework.Storage
 {
-    public class ObjectDataRepositoryProvider
+    public static class ObjectDataRepositoryProvider
     {
         /// <summary>
         /// Create a new instance of the ObjectDataRepositoryProvider   

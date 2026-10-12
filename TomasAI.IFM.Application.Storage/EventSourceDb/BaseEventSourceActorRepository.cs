@@ -21,9 +21,9 @@ public abstract class BaseEventSourceActorRepository
     readonly IEventSourceActorStateFactory _stateFactory;
     readonly IEventSourceActorDbContext _dbEventSource;
     protected IEventSourceActorDbContext EventSourceDb => _dbEventSource;
-    readonly IActorService _actorService;
+    
     readonly ILogger _logger;
-    string _serviceId;
+    readonly string _serviceId;
 
     /// <summary>
     /// Initializes a new instance of the BaseEventSourceActorRepository class with the specified dependencies required
@@ -35,7 +35,7 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="dbEventSource">The database context used to access event source actor data. This parameter cannot be null.</param>
     /// <param name="actorService">The service responsible for managing actor instances. This parameter cannot be null.</param>
     /// <param name="logger">The logger used to record events and errors. This parameter cannot be null.</param>
-    public BaseEventSourceActorRepository(
+    protected BaseEventSourceActorRepository(
         IEventSourceActorStateFactory stateFactory,
         IEventSourceActorDbContext dbEventSource,
         IActorService actorService,
@@ -43,7 +43,7 @@ public abstract class BaseEventSourceActorRepository
     {
         _stateFactory = IsArgumentNull.Set(stateFactory);
         _dbEventSource = IsArgumentNull.Set(dbEventSource);
-        _actorService = IsArgumentNull.Set(actorService);
+        ArgumentNullException.ThrowIfNull(actorService);
         _logger = IsArgumentNull.Set(logger);
         _serviceId = $"{GetType().Name}";
     }
@@ -60,7 +60,7 @@ public abstract class BaseEventSourceActorRepository
         {
             return cancellationToken.CanBeCanceled
                 ? await _dbEventSource.GetEventStreamIdAsync(streamIdValue, cancellationToken).ConfigureAwait(false)
-                : await _dbEventSource.GetEventStreamIdAsync(streamIdValue).ConfigureAwait(false);
+                : await _dbEventSource.GetEventStreamIdAsync(streamIdValue, CancellationToken.None).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -84,6 +84,7 @@ public abstract class BaseEventSourceActorRepository
     protected async Task<TState> LoadStateAsync<TState>(ICommand command, CancellationToken cancellationToken = default)
        where TState : IEventSourceActorState<TState>
     {
+        ArgumentNullException.ThrowIfNull(command);
         try
         {
             // load event stream from event storage filtered by stream id...
@@ -100,7 +101,7 @@ public abstract class BaseEventSourceActorRepository
             {
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState>(
                     streamId,
-                    state.ReplayEvents).ConfigureAwait(false);
+                    state.ReplayEvents, CancellationToken.None).ConfigureAwait(false);
             }
             return state;
         }
@@ -131,10 +132,16 @@ public abstract class BaseEventSourceActorRepository
         CancellationToken cancellationToken = default)
         where TState : IEventSourceActorState<TState> where TEvent : IEvent
     {
+        ArgumentNullException.ThrowIfNull(command);
         try
         {
             // load event stream from event storage from last N range of events...
             var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+            // Capture the source version before replay. A concurrent writer still causes the
+            // existing append version check to reject stale state; no version is guessed at save.
+            var committedVersion = string.Equals(_dbEventSource.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                ? await _dbEventSource.GetCommittedStreamVersionAsync(streamId, cancellationToken).ConfigureAwait(false)
+                : 0;
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
 
@@ -151,8 +158,9 @@ public abstract class BaseEventSourceActorRepository
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState, TEvent>(
                     streamId,
                     lastNRange,
-                    state.ReplayEvents).ConfigureAwait(false);
+                    state.ReplayEvents, CancellationToken.None).ConfigureAwait(false);
             }
+            state.RestoreCommittedStreamVersion(committedVersion);
             _logger.LogInformationEvent($"{GetType().Name}","{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from event stream: {StreamId} with domain events in last: {LastNRange}",nameof(BaseEventSourceActorRepository),nameof(LoadStateAsync),                typeof(TState).Name,command.CommandName,streamId,lastNRange);
             return state;
         }
@@ -182,7 +190,7 @@ public abstract class BaseEventSourceActorRepository
         {
             // no domain events to load, so return empty state...
             _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"loading empty bounded context: {StateName} with no domain events",nameof(BaseEventSourceActorRepository),nameof(LoadEmptyStateAsync),stateName);
-            return await Task.FromResult((TState)_stateFactory.CreateState<TState>());
+            return await (Task.FromResult((TState)_stateFactory.CreateState<TState>())).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -205,12 +213,16 @@ public abstract class BaseEventSourceActorRepository
         CancellationToken cancellationToken = default)
          where TState : IEventSourceActorState<TState> where TSnapshotEvent : IEvent
     {
+        ArgumentNullException.ThrowIfNull(command);
         var stateName = typeof(TState).Name;
         var snapshotEventName = typeof(TSnapshotEvent).Name;
         try
         {
             // load bounded context event stream from most recent snapshot in event storage...
             var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+            var committedVersion = string.Equals(_dbEventSource.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                ? await _dbEventSource.GetCommittedStreamVersionAsync(streamId, cancellationToken).ConfigureAwait(false)
+                : 0;
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
             if (cancellationToken.CanBeCanceled)
@@ -224,10 +236,11 @@ public abstract class BaseEventSourceActorRepository
             {
                 await _dbEventSource.MapReduceActorEventStreamAsync<TState, TSnapshotEvent>(
                     streamId,
-                    state.ReplayEvents).ConfigureAwait(false);
+                    state.ReplayEvents, CancellationToken.None).ConfigureAwait(false);
             }
 
             _logger.LogInformationEvent(_serviceId,"{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} in event stream: {StreamId}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotAsync),                    stateName,command.CommandName,snapshotEventName,streamId);
+            state.RestoreCommittedStreamVersion(committedVersion);
             return state;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -254,12 +267,16 @@ public abstract class BaseEventSourceActorRepository
         where TSnapshotEvent : IEvent
         where TRangeEvent : IEvent
     {
+        ArgumentNullException.ThrowIfNull(command);
         var stateName = typeof(TState).Name;
         var snapshotEventName = typeof(TSnapshotEvent).Name;
         var rangeEventName = typeof(TRangeEvent).Name;
         try
         {
             var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+            var committedVersion = string.Equals(_dbEventSource.ProviderName, "System.Data.Postgres", StringComparison.Ordinal)
+                ? await _dbEventSource.GetCommittedStreamVersionAsync(streamId, cancellationToken).ConfigureAwait(false)
+                : 0;
             var state = (TState)_stateFactory.CreateState<TState>();
             state.Id = command.Subject.ThreadId;
             if (cancellationToken.CanBeCanceled)
@@ -275,11 +292,12 @@ public abstract class BaseEventSourceActorRepository
                 await _dbEventSource.MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshotEvent, TRangeEvent>(
                     streamId,
                     lastNRange,
-                    state.ReplayEvents).ConfigureAwait(false);
+                    state.ReplayEvents, CancellationToken.None).ConfigureAwait(false);
             }
 
             _logger.LogInformationEvent(
                 _serviceId,                "{Component}.{Method} "+"loading state: {StateName} for command: {CommandName} from snapshot: {SnapshotEventName} and last {LastNRange} {RangeEventName} events in stream: {StreamId}",nameof(BaseEventSourceActorRepository),nameof(LoadStateFromSnapshotLastNRangeAsync),                stateName,                command.CommandName,                snapshotEventName,                Math.Max(0, lastNRange),                rangeEventName,                streamId);
+            state.RestoreCommittedStreamVersion(committedVersion);
             return state;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -366,7 +384,7 @@ public abstract class BaseEventSourceActorRepository
             : await _dbEventSource.SaveEventsAsync(
                 invocation.StreamId,
                 invocation.CommandId,
-                state.Events).ConfigureAwait(false);
+                state.Events, CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -421,12 +439,16 @@ public abstract class BaseEventSourceActorRepository
     /// <param name="postDenormalizeEvent">true to post the denormalization event before executing the denormalizer action; otherwise, false. The default
     /// is true.</param>
     /// <returns>A ValueTask that represents the asynchronous operation. The result is true when the operation completes.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The projection failure is logged and converted to the explicit failure event contract.")]
     protected async ValueTask<bool> UpdateReadModelAsync<TEvent, TComplete, TFail, TEntityId>(ICommandActorContext context, TEvent dernomalizeEvent, Func<ValueTask> denormalizerAction, bool postDenormalizeEvent = true)
         where TEvent : class, IEvent<TEntityId>
         where TComplete : class, ICompleteEvent<TEntityId>
         where TFail : class, IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(denormalizerAction);
+        ArgumentNullException.ThrowIfNull(dernomalizeEvent);
         try
         {
             dernomalizeEvent.CheckForEmptyCommandId();
@@ -434,13 +456,13 @@ public abstract class BaseEventSourceActorRepository
             {
                 EventInitHelper.SetProperty(dernomalizeEvent, nameof(IEvent.Subject), new ActorSubject(ActorType.Event, dernomalizeEvent.Subject.Name
                     , dernomalizeEvent.Subject.Verb, dernomalizeEvent.EntityId.Format()));
-                await context.SendAsync<TEvent, TEntityId>(dernomalizeEvent);
+                await (context.SendAsync<TEvent, TEntityId>(dernomalizeEvent)).ConfigureAwait(false);
             }
-            await denormalizerAction();
+            await (denormalizerAction()).ConfigureAwait(false);
             var completedEvent = dernomalizeEvent.ToCompleteEvent<TComplete, TEntityId>() as TComplete;
             if (completedEvent is not null)
             {
-                await context.SendAsync<TComplete, TEntityId>(completedEvent);
+                await (context.SendAsync<TComplete, TEntityId>(completedEvent)).ConfigureAwait(false);
             }
             return true;
         }
@@ -450,7 +472,7 @@ public abstract class BaseEventSourceActorRepository
             var failedEvent = dernomalizeEvent.ToFailEvent<TFail, TEntityId>(ex) as TFail;
             if (failedEvent is not null)
             {
-                await context.SendAsync<TFail, TEntityId>(failedEvent);
+                await (context.SendAsync<TFail, TEntityId>(failedEvent)).ConfigureAwait(false);
             }
             return false;
         }
@@ -461,16 +483,20 @@ public abstract class BaseEventSourceActorRepository
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
     protected async ValueTask<bool> PostEventAsync<TEvent, TEntityId>(ICommandActorContext context, TEvent e)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(e);
         e.CheckForEmptyCommandId();
         EventInitHelper.SetProperty(e, nameof(IEvent.Subject), new ActorSubject(ActorType.Event,
-            e.Subject.Name.Replace("Denormalizer", "Event"),
+            e.Subject.Name.Replace("Denormalizer", "Event",System.StringComparison.Ordinal),
             e.Subject.Verb,
             e.EntityId.Format()));
-        await context.SendAsync<TEvent, TEntityId>(e);
+        await (context.SendAsync<TEvent, TEntityId>(e)).ConfigureAwait(false);
         return true;
     }
 

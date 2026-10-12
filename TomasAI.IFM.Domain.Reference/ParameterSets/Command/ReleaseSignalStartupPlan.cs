@@ -19,6 +19,9 @@ public static class ReleaseSignalStartupPlan
     /// <returns>The command acceptance or failure.</returns>
     public static Task<ServiceResult<GuidResult>> ExecuteAsync(this ReleaseSignalStartupPlanCommand command, IParameterStartupCommandContext context, ParameterStartupCommandState state, ILogger<ParameterStartupCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(state);
         context.AccessPolicy.Demand(ParameterCapability.Assign);
         if (!state.ActiveRuns.ContainsKey(command.RunId)) return Task.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new(command.CommandId)));
         var errorMsg = "ParameterStartup.STATE.APPLY_FAILED: unable to apply ReleaseSignalStartupPlan event";

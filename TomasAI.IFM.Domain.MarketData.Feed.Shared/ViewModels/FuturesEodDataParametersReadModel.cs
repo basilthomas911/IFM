@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Retains the existing array-shaped serialization and application contract.")]
 [MessagePackObject(AllowPrivate = true)]
 public record FuturesEodDataParametersReadModel(
     [property: Key(0)] FuturesEodDataV2ReadModel FuturesEodDataToday,

@@ -24,9 +24,8 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     : BaseQueryActor<EconomicCalendarQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "EconomicCalendarQuery";
-    readonly ILogger<EconomicCalendarQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IEconomicCalendarQueryContext EconomicCalendarContext { get; } =
-        IsArgumentNull.Set(actorContext as IEconomicCalendarQueryContext, nameof(actorContext))!;
+        IsArgumentNull.Named(actorContext as IEconomicCalendarQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -50,7 +49,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// their verb. Each entry associates a specific query verb with a function that converts a NATS message payload
     /// into a strongly typed query object implementing the IQuery interface. The mapping is intended for internal
     /// use in query deserialization and routing scenarios.</remarks>
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetEconomicCalendarPageQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarPageQuery, EconomicCalendarPageReadModel>()!,
         [GetEconomicCalendarAllQuery.Verb] = msg => msg.AsQuery<GetEconomicCalendarAllQuery, EconomicCalendarReadModel[]>()!,
@@ -77,7 +76,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
-        await receiveFunc.Invoke(EconomicCalendarContext, query, cancellationToken);
+        await (receiveFunc.Invoke(EconomicCalendarContext, query, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -92,42 +91,42 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         [typeof(GetEconomicCalendarPageQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (GetEconomicCalendarPageQuery)q;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
-                new ServiceResult<EconomicCalendarPageReadModel>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
+                new ServiceResult<EconomicCalendarPageReadModel>(result))).ConfigureAwait(false);
         },
         [typeof(GetEconomicCalendarAllQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
-                new ServiceResult<EconomicCalendarReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
+                new ServiceResult<EconomicCalendarReadModel[]>(result))).ConfigureAwait(false);
         },
         [typeof(GetEconomicCalendarQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarQuery;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
-                new ServiceResult<EconomicCalendarReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
+                new ServiceResult<EconomicCalendarReadModel[]>(result))).ConfigureAwait(false);
         },
         [typeof(GetEconomicCalendarDateQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarDateQuery;
-            var result = await query.ExecuteAsync(cancellationToken);
+            var result = await (query.ExecuteAsync(cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
-                new ServiceResult<string>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
+                new ServiceResult<string>(result))).ConfigureAwait(false);
         },
         [typeof(GetEconomicCalendarCountryCodesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarCountryCodesQuery;
-            var result = await query.ExecuteAsync(ctx.DbFactory, cancellationToken);
+            var result = await (query.ExecuteAsync(ctx.DbFactory, cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
-                new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result));
+            await (ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
+                new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result))).ConfigureAwait(false);
         }
     };
 
@@ -152,6 +151,6 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception)
-        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 }

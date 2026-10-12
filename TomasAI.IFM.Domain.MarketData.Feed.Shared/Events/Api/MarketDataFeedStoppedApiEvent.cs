@@ -20,22 +20,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api
             StoppedBy = this.StoppedBy
         };
 
-        public IErrorEvent ToFailedEvent(Exception ex) => new MarketDataFeedStoppedFailApiEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new MarketDataFeedStoppedFailApiEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-    public record MarketDataFeedStoppedCompleteApiEvent : CompleteEvent
-    {
-        public DateTime StoppedOn { get; init; }
-        public string StoppedBy { get; init; }
-    }
-
-    public record MarketDataFeedStoppedFailApiEvent : ErrorEvent
-    {
+        }
     }
 }

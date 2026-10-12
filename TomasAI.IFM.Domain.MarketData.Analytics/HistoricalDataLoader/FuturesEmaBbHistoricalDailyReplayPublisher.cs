@@ -36,6 +36,41 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
             .OrderBy(static value => value.MarketSeriesIdentity.Format(), StringComparer.Ordinal)
             .ThenBy(static value => value.ValueDate)
             .ToArray();
+        var baseline = CalculateDailyBaseline(ordered, cancellationToken);
+        PublishDailyBaseline(baseline.Ema, baseline.Bb, baseline.EmaCheckpoint, baseline.BbCheckpoint,
+            baseline.ContractId, targetValueDate, targetContractId);
+
+        foreach (var source in ordered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var observation = FuturesEodObservationMapper.ToDailyBar(source);
+            var entityId = new FuturesTradeSessionBarEntityId(
+                observation.MarketSeriesIdentity,
+                TimeFrameType.Daily);
+            var command = new GenerateFuturesEmaSignalCommand
+            {
+                CommandId = Guid.NewGuid(),
+                Subject = new(
+                    ActorType.Command,
+                    GenerateFuturesEmaSignalCommand.Actor,
+                    GenerateFuturesEmaSignalCommand.Verb,
+                    entityId.Format()),
+                EntityId = entityId,
+                Observation = observation
+            };
+            var result = await actorService.RequestAsync<GenerateFuturesEmaSignalCommand,
+                FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
+            if (!result.Success)
+                throw new InvalidOperationException(
+                    $"EMA historical replay was rejected for {source.ValueDate:O}: {result.ErrorMessage}");
+        }
+    }
+
+    /// <summary>Calculates the latest ES daily EMA and Bollinger checkpoints from ordered complete historical sessions.</summary>
+    static (FuturesEmaSignalReadModel? Ema, FuturesBbSignalReadModel? Bb, FuturesEmaAccumulatorCheckpoint? EmaCheckpoint,
+        FuturesBbAccumulatorCheckpoint? BbCheckpoint, string ContractId) CalculateDailyBaseline(
+        FuturesEodObservationReadModel[] ordered, CancellationToken cancellationToken)
+    {
         FuturesEmaSignalReadModel? latestEsEma = null;
         FuturesBbSignalReadModel? latestEsBb = null;
         FuturesEmaAccumulatorCheckpoint? latestEsEmaCheckpoint = null;
@@ -68,6 +103,14 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
             }
         }
 
+        return (latestEsEma, latestEsBb, latestEsEmaCheckpoint, latestEsBbCheckpoint, latestEsContractId);
+    }
+
+    /// <summary>Publishes a warm daily calculation before durable actor reconciliation using the same target contract fallback.</summary>
+    void PublishDailyBaseline(FuturesEmaSignalReadModel? latestEsEma, FuturesBbSignalReadModel? latestEsBb,
+        FuturesEmaAccumulatorCheckpoint? latestEsEmaCheckpoint, FuturesBbAccumulatorCheckpoint? latestEsBbCheckpoint,
+        string latestEsContractId, DateOnly targetValueDate, string targetContractId)
+    {
         if (latestEsEma is { IsWarm: true }
             && latestEsBb is { IsWarm: true }
             && latestEsEmaCheckpoint is not null
@@ -103,30 +146,6 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
             }
         }
 
-        foreach (var source in ordered)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observation = FuturesEodObservationMapper.ToDailyBar(source);
-            var entityId = new FuturesTradeSessionBarEntityId(
-                observation.MarketSeriesIdentity,
-                TimeFrameType.Daily);
-            var command = new GenerateFuturesEmaSignalCommand
-            {
-                CommandId = Guid.NewGuid(),
-                Subject = new(
-                    ActorType.Command,
-                    GenerateFuturesEmaSignalCommand.Actor,
-                    GenerateFuturesEmaSignalCommand.Verb,
-                    entityId.Format()),
-                EntityId = entityId,
-                Observation = observation
-            };
-            var result = await actorService.RequestAsync<GenerateFuturesEmaSignalCommand,
-                FuturesTradeSessionBarEntityId>(command).ConfigureAwait(false);
-            if (!result.Success)
-                throw new InvalidOperationException(
-                    $"EMA historical replay was rejected for {source.ValueDate:O}: {result.ErrorMessage}");
-        }
     }
 
     static bool IsEsSeries(MarketSeriesIdentity series) =>

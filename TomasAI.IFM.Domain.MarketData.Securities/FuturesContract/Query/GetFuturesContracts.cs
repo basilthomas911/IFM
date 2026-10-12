@@ -12,7 +12,9 @@ public static class GetFuturesContracts
         this GetFuturesContractsQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => [.. await (cancellationToken.CanBeCanceled
-            ? dbFactory.SecuritiesDb.GetFuturesContractsAsync(cancellationToken)
-            : dbFactory.SecuritiesDb.GetFuturesContractsAsync())];
+        
+    {
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        return [.. await (dbFactory.SecuritiesDb.GetFuturesContractsAsync(cancellationToken)).ConfigureAwait(false)];
+    }
 }

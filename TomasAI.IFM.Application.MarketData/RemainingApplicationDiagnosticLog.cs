@@ -1,0 +1,23 @@
+namespace TomasAI.IFM.Application.MarketData;
+
+/// <summary>Cached structured log delegates for application lifecycle diagnostics.</summary>
+internal static partial class RemainingApplicationDiagnosticLog
+{
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2001, Level = global::Microsoft.Extensions.Logging.LogLevel.Information, Message = "{Component}.{Method} completed; DataLoadAttemptId={DataLoadAttemptId}; StartDate={StartDate}; EndDate={EndDate}; SeriesCount={SeriesCount}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}")]
+    internal static partial void Write1(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string Component, string Method, global::System.Guid DataLoadAttemptId, global::System.DateOnly StartDate, global::System.DateOnly EndDate, int SeriesCount, global::TomasAI.IFM.Application.MarketData.Historical.HistoricalAnalyticsWarmupOutcome Outcome, double ElapsedMilliseconds);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2002, Level = global::Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Soft recovery starting; Method={Method}; Target={Target}; Attempt={Attempt}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}")]
+    internal static partial void Write2(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string Method, string Target, int Attempt, global::System.DateOnly ValueDate, string HealthComponent, string Scope, string HealthStatus, string Reason, global::System.DateTime ObservedUtc, global::System.DateTime? LastProgressUtc);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2003, Level = global::Microsoft.Extensions.Logging.LogLevel.Information, Message = "Soft recovery health confirmed; Method={Method}; Target={Target}; Attempts={Attempts}; Component={HealthComponent}; Scope={Scope}; Reason={Reason}; LastProgressUtc={LastProgressUtc}")]
+    internal static partial void Write3(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string Method, string Target, int Attempts, string HealthComponent, string Scope, string Reason, global::System.DateTime? LastProgressUtc);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2004, Level = global::Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Live pipeline check unhealthy; Method={Method}; ValueDate={ValueDate}; Component={HealthComponent}; Scope={Scope}; Status={HealthStatus}; Required={Required}; Reason={Reason}; ObservedUtc={ObservedUtc}; LastProgressUtc={LastProgressUtc}; RecoveryAttempts={RecoveryAttempts}; RecoveryState={RecoveryState}; NextRecoveryUtc={NextRecoveryUtc}")]
+    internal static partial void Write4(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string Method, global::System.DateOnly? ValueDate, string HealthComponent, string Scope, string HealthStatus, bool Required, string Reason, global::System.DateTime ObservedUtc, global::System.DateTime? LastProgressUtc, int RecoveryAttempts, string RecoveryState, global::System.DateTime? NextRecoveryUtc);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2005, Level = global::Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Individual option risk unavailable; MethodName={MethodName} ContractId={ContractId} ValueDate={ValueDate} GenerationId={GenerationId} ScopeId={ScopeId} FailureCode={FailureCode} Input={Input} Detail={Detail}")]
+    internal static partial void Write5(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string MethodName, string ContractId, global::System.DateOnly ValueDate, global::System.Guid GenerationId, string ScopeId, string FailureCode, string Input, string Detail);
+
+    [global::Microsoft.Extensions.Logging.LoggerMessage(EventId = 2006, Level = global::Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{Component}.{Method} Databento hard recovery attempt completed. CorrelationId={CorrelationId}; AttemptId={AttemptId}; Attempt={Attempt}; Succeeded={Succeeded}; SafeToRetry={SafeToRetry}; Stage={Stage}; ElapsedMs={ElapsedMs}")]
+    internal static partial void Write6(global::Microsoft.Extensions.Logging.ILogger logger, global::System.Exception? exception, string Component, string Method, global::System.Guid CorrelationId, global::System.Guid AttemptId, int Attempt, bool Succeeded, bool SafeToRetry, string Stage, double ElapsedMs);
+}

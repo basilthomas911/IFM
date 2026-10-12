@@ -61,23 +61,17 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradePlan.Events
             CommandId = this.CommandId,
             TradePlan = this.TradePlan
         };
-        public IErrorEvent ToFailedEvent(Exception ex) => new IronCondorTradePlanUpdatedFailEvent
+        public IErrorEvent ToFailedEvent(Exception ex) 
+        {
+            ArgumentNullException.ThrowIfNull(ex);
+            return new IronCondorTradePlanUpdatedFailEvent
         {
             CommandId = this.CommandId,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
             ErrorCode = ErrorCode
         };
-    }
-
-
-    public record IronCondorTradePlanUpdatedCompleteEvent : CompleteEvent
-    {
-        public IronCondorTradePlanReadModel TradePlan { get; init; }
-    }
-
-    public record IronCondorTradePlanUpdatedFailEvent : ErrorEvent
-    {
+        }
     }
 
 }

@@ -20,7 +20,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     public const string ActorName = FuturesMarketPriceUpdatedRealtimeEvent.Actor;
 
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
-    protected IFuturesMarketPriceRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesMarketPriceRealtimeContext, nameof(actorContext))!;
+    protected IFuturesMarketPriceRealtimeContext RealtimeContext { get; } = IsArgumentNull.Named(actorContext as IFuturesMarketPriceRealtimeContext, nameof(actorContext))!;
 
     /// <summary>Maps supported realtime verbs to their concrete MessagePack deserializers.</summary>
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
@@ -79,8 +79,8 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
         IEventActorContext<FuturesMarketPriceRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
+        Exception ex) =>
+        await ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

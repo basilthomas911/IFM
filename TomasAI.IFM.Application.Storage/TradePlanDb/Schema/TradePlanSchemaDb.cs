@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -117,5 +117,9 @@ public sealed class TradePlanSchemaDb(IDbConnectionSettings settings, ILogger<Db
             "DROP TABLE IF EXISTS position_exit_workflow;")
     ];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
+    static readonly SchemaObjectDefinition[] PostgresObjects =
+    [new("trade_plan", TradePlanSchemaSql.Create, "DROP SCHEMA IF EXISTS trade_plan CASCADE;")];
+
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
+        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
 }

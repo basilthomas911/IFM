@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -6,14 +6,6 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesItiSignal;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 namespace TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
-
-[MessagePackObject]
-public sealed record ParameterSchemaDefinition(
-    [property: Key(0)] string ComponentCode,
-    [property: Key(1)] int Version,
-    [property: Key(2)] string Codec,
-    [property: Key(3)] string JsonSchema,
-    [property: Key(4)] string SchemaSha256);
 
 /// <summary>Compiled schema authority shared by authoring, queries and database registration.</summary>
 public sealed class ParameterSchemaRegistry
@@ -72,38 +64,43 @@ public sealed class ParameterSchemaRegistry
         return registry;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase hexadecimal digests and catalog keys are persisted contract values.")]
     void RegisterStrict(string component, int version, Type payloadType)
     {
         var shape = ShapeWithNullability(payloadType, version);
         shape["$schema"] = "https://json-schema.org/draft/2020-12/schema";
         shape["required"] = new[] { "SchemaVersion" };
         var properties = (Dictionary<string, object?>)shape["properties"]!;
-        properties["SchemaVersion"] = new Dictionary<string, object?> { { "type", "integer" }, { "const", version } };
+        properties["SchemaVersion"] = new Dictionary<string, object?>(StringComparer.Ordinal) { { "type", "integer" }, { "const", version } };
         var json = JsonSerializer.Serialize(shape);
         var definition = new ParameterSchemaDefinition(component, version, "sorted-json-v1", json,
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant());
-        if (!schemas.TryAdd((component, version), (payloadType, definition))) throw new ArgumentException("Duplicate schema registration.");
+        if (!schemas.TryAdd((component, version), (payloadType, definition))) throw new ArgumentException("Duplicate schema registration.",nameof(component));
         strictNullabilitySchemas.Add((component, version));
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase hexadecimal digests and catalog keys are persisted contract values.")]
     public ParameterSchemaRegistry(IEnumerable<(string Component, int Version, Type PayloadType)> registrations)
     {
+        ArgumentNullException.ThrowIfNull(registrations);
         foreach (var item in registrations)
         {
-            if (string.IsNullOrWhiteSpace(item.Component) || item.Version <= 0) throw new ArgumentException("Invalid schema registration.");
+            if (string.IsNullOrWhiteSpace(item.Component) || item.Version <= 0) throw new ArgumentException("Invalid schema registration.",nameof(registrations));
             var shape = Shape(item.PayloadType, item.Version);
             shape["$schema"] = "https://json-schema.org/draft/2020-12/schema";
             shape["required"] = new[] { "SchemaVersion" };
             var properties = (Dictionary<string, object?>)shape["properties"]!;
-            properties["SchemaVersion"] = new Dictionary<string, object?> { { "type", "integer" }, { "const", item.Version } };
+            properties["SchemaVersion"] = new Dictionary<string, object?>(StringComparer.Ordinal) { { "type", "integer" }, { "const", item.Version } };
             var json = JsonSerializer.Serialize(shape);
             var definition = new ParameterSchemaDefinition(item.Component, item.Version, "sorted-json-v1", json,
                 Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant());
-            if (!schemas.TryAdd((item.Component, item.Version), (item.PayloadType, definition))) throw new ArgumentException("Duplicate schema registration.");
+            if (!schemas.TryAdd((item.Component, item.Version), (item.PayloadType, definition))) throw new ArgumentException("Duplicate schema registration.",nameof(registrations));
         }
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "The published registry property exposes a detached immutable-by-convention snapshot.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "The published serialization contract uses arrays; preserve its wire shape.")]
     public ParameterSchemaDefinition[] Definitions => schemas.Values.Select(x => x.Definition).OrderBy(x => x.ComponentCode, StringComparer.Ordinal).ThenBy(x => x.Version).ToArray();
     public ParameterSchemaDefinition Get(string component, int version) => schemas.TryGetValue((component, version), out var schema)
-        ? schema.Definition : throw new ArgumentException("PARAM.SCHEMA_UNSUPPORTED");
+        ? schema.Definition : throw new ArgumentException("PARAM.SCHEMA_UNSUPPORTED",nameof(component));
     public ParameterValidationIssue[] ValidateStructure(string component, int version, string json)
     {
         if (!schemas.TryGetValue((component, version), out var schema)) return [new("PARAM.SCHEMA_UNSUPPORTED", "SchemaVersion", "The schema is not registered.")];
@@ -129,8 +126,7 @@ public sealed class ParameterSchemaRegistry
         }
         catch (JsonException) { return false; }
     }
-    static Type? CollectionElement(Type type) => type.IsArray ? type.GetElementType()
-        : type.IsGenericType && type.GetGenericTypeDefinition() == typeof(System.Collections.Immutable.ImmutableArray<>) ? type.GetGenericArguments()[0] : null;
+    static Type? CollectionElement(Type type) => (type.IsArray) switch { true => type.GetElementType(), false => (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(System.Collections.Immutable.ImmutableArray<>)) switch { true => type.GetGenericArguments()[0], false => null } };
     static bool Known(JsonElement value, Type type, int schemaVersion, NullabilityInfo? nullability = null)
     {
         var nullable = Nullable.GetUnderlyingType(type);
@@ -144,34 +140,34 @@ public sealed class ParameterSchemaRegistry
     static PropertyInfo[] Properties(Type type, int schemaVersion) => type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(x => x.GetIndexParameters().Length == 0 && (x.GetCustomAttribute<ParameterSchemaSinceAttribute>() is not { } since || since.Version <= schemaVersion)).OrderBy(x => x.Name, StringComparer.Ordinal).ToArray();
     static Dictionary<string, object?> Shape(Type type, int schemaVersion)
     {
-        if (Nullable.GetUnderlyingType(type) is { } underlying) return new() { { "anyOf", new object[] { Shape(underlying, schemaVersion), new { type = "null" } } } };
-        if (type.IsEnum) return new() { { "type", "integer" }, { "enum", Enum.GetValues(type).Cast<object>().Select(Convert.ToInt64).ToArray() } };
-        if (type == typeof(string) || type == typeof(Guid) || type == typeof(DateTime)) return new() { { "type", "string" } };
-        if (type == typeof(bool)) return new() { { "type", "boolean" } };
-        if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) return new() { { "type", "number" } };
-        if (type.IsPrimitive) return new() { { "type", "integer" } };
-        if (CollectionElement(type) is { } element) return new() { { "type", "array" }, { "items", Shape(element, schemaVersion) } };
-        return new() { { "type", "object" }, { "additionalProperties", true }, { "properties", Properties(type, schemaVersion).ToDictionary(x => x.Name, x => (object?)Shape(x.PropertyType, schemaVersion), StringComparer.Ordinal) } };
+        if (Nullable.GetUnderlyingType(type) is { } underlying) return new(StringComparer.Ordinal) { { "anyOf", new object[] { Shape(underlying, schemaVersion), new { type = "null" } } } };
+        if (type.IsEnum) return new(StringComparer.Ordinal) { { "type", "integer" }, { "enum", Enum.GetValues(type).Cast<object>().Select(Convert.ToInt64).ToArray() } };
+        if (type == typeof(string) || type == typeof(Guid) || type == typeof(DateTime)) return new(StringComparer.Ordinal) { { "type", "string" } };
+        if (type == typeof(bool)) return new(StringComparer.Ordinal) { { "type", "boolean" } };
+        if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) return new(StringComparer.Ordinal) { { "type", "number" } };
+        if (type.IsPrimitive) return new(StringComparer.Ordinal) { { "type", "integer" } };
+        if (CollectionElement(type) is { } element) return new(StringComparer.Ordinal) { { "type", "array" }, { "items", Shape(element, schemaVersion) } };
+        return new(StringComparer.Ordinal) { { "type", "object" }, { "additionalProperties", true }, { "properties", Properties(type, schemaVersion).ToDictionary(x => x.Name, x => (object?)Shape(x.PropertyType, schemaVersion), StringComparer.Ordinal) } };
     }
     static Dictionary<string, object?> ShapeWithNullability(Type type, int schemaVersion, NullabilityInfo? nullability = null)
     {
         var nullable = Nullable.GetUnderlyingType(type);
         if (nullable is not null) return NullableShape(ShapeWithNullability(nullable, schemaVersion));
         Dictionary<string, object?> shape;
-        if (type.IsEnum) shape = new() { { "type", "integer" }, { "enum", Enum.GetValues(type).Cast<object>().Select(Convert.ToInt64).ToArray() } };
-        else if (type == typeof(string) || type == typeof(Guid) || type == typeof(DateTime)) shape = new() { { "type", "string" } };
-        else if (type == typeof(bool)) shape = new() { { "type", "boolean" } };
-        else if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) shape = new() { { "type", "number" } };
-        else if (type.IsPrimitive) shape = new() { { "type", "integer" } };
-        else if (CollectionElement(type) is { } element) shape = new() { { "type", "array" }, { "items", ShapeWithNullability(element, schemaVersion, nullability?.ElementType) } };
-        else shape = new(){{"type","object"},{"additionalProperties",true},{"properties",Properties(type,schemaVersion).ToDictionary(property=>property.Name,
+        if (type.IsEnum) shape = new(StringComparer.Ordinal) { { "type", "integer" }, { "enum", Enum.GetValues(type).Cast<object>().Select(Convert.ToInt64).ToArray() } };
+        else if (type == typeof(string) || type == typeof(Guid) || type == typeof(DateTime)) shape = new(StringComparer.Ordinal) { { "type", "string" } };
+        else if (type == typeof(bool)) shape = new(StringComparer.Ordinal) { { "type", "boolean" } };
+        else if (type == typeof(decimal) || type == typeof(double) || type == typeof(float)) shape = new(StringComparer.Ordinal) { { "type", "number" } };
+        else if (type.IsPrimitive) shape = new(StringComparer.Ordinal) { { "type", "integer" } };
+        else if (CollectionElement(type) is { } element) shape = new(StringComparer.Ordinal) { { "type", "array" }, { "items", ShapeWithNullability(element, schemaVersion, nullability?.ElementType) } };
+        else shape = new(StringComparer.Ordinal) {{"type","object"},{"additionalProperties",true},{"properties",Properties(type,schemaVersion).ToDictionary(property=>property.Name,
             property=>(object?)ShapeWithNullability(property.PropertyType,schemaVersion,Nullability.GetOrAdd(property,p=>new NullabilityInfoContext().Create(p))),StringComparer.Ordinal)}};
         return nullability?.ReadState == NullabilityState.Nullable ? NullableShape(shape) : shape;
     }
-    static Dictionary<string, object?> NullableShape(Dictionary<string, object?> shape) => new()
-    {
-        {"anyOf",new object[] {shape,new Dictionary<string,object?> {{"type","null"}}}}
+    static Dictionary<string, object?> NullableShape(Dictionary<string, object?> shape) => new(StringComparer.Ordinal) {
+        {"anyOf",new object[] {shape,new Dictionary<string, object?>(StringComparer.Ordinal) {{"type","null"}}}}
     };
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1075", Justification = "This is a JSON pointer separator, not an operating system file path.")]
     static void Check(JsonElement value, Type type, string path, List<ParameterValidationIssue> issues, int schemaVersion, bool strictNullability = false, NullabilityInfo? nullability = null)
     {
         var nullable = Nullable.GetUnderlyingType(type);

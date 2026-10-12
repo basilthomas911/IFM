@@ -19,14 +19,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <param name="messageReader">A delegate that processes actor messages. Cannot be <see langword="null"/>.</param>
 /// <param name="logger">An optional logger instance for logging diagnostic information. Can be <see langword="null"/>.</param>
 public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, ILogger logger)
-        : IActorThreadScheduler
+        : IActorThreadScheduler, IDisposable
 {
+    /// <summary>Releases the resources owned by the scheduler lifecycle.</summary>
+    public void Dispose() { Dispose(true); GC.SuppressFinalize(this); }
+    protected virtual void Dispose(bool disposing) { if (disposing) Stop(); }
+
     readonly Func<IActorMessage, ValueTask> _messageReader = IsArgumentNull.Set(messageReader);
     readonly CancellationTokenSource _cancellationTokenSource = new();
     readonly ILogger _logger = logger;
     readonly string _serviceId = "ActorThreadScheduler";
     string _channelName = string.Empty;
-    Thread? _messageChannelThread;
     IActorThreadQueue? _threadQueue;
 
     /// <summary>
@@ -42,6 +45,7 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
     /// <remarks>This method initializes an unbounded message channel and starts a background thread with the
     /// highest priority  to process messages from the channel. If the scheduler is already running, this method does
     /// nothing.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     public void Start(IActorThreadQueue threadQueue)
     {
         IsArgumentNull.Check(threadQueue);
@@ -52,13 +56,8 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
                 _threadQueue = threadQueue;
                 _threadQueue.Start();
                 _channelName = $"{threadQueue.Id}";
-                /*
-                _messageChannelThread = threadQueue.Id.ActorType == ActorType.Query
-                    ? new Thread(ProcessQueryMessagesFromMessageChannel) { Priority = ThreadPriority.Highest, IsBackground = true }
-                    : new Thread(ProcessMessagesFromMessageChannel) { Priority = ThreadPriority.Highest, IsBackground = true };
-                */
-                _messageChannelThread = new Thread(ProcessMessagesFromMessageChannel) { Priority = ThreadPriority.Highest, IsBackground = true };
-                _messageChannelThread.Start();
+                var messageChannelThread = new Thread(ProcessMessagesFromMessageChannel) { Priority = ThreadPriority.Highest, IsBackground = true };
+                messageChannelThread.Start();
                 _logger?.LogInformationEvent(_serviceId, "{ChannelName} - started successfully.", _channelName);
             }
         }
@@ -74,6 +73,7 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
     /// <remarks>This method cancels any ongoing operations, completes the message channel, and disposes of
     /// internal resources.  After calling this method, the thread scheduler cannot be restarted, and any pending
     /// messages in the channel will be discarded.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
     public void Stop()
     {
         try
@@ -81,11 +81,10 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
             _cancellationTokenSource.Cancel();
             _threadQueue!.Stop();
         }
-        catch { }
+        catch { /* Best-effort lifecycle cleanup must allow the remaining shutdown steps to execute. */  }
         finally
         {
             _cancellationTokenSource.Dispose();
-            _messageChannelThread = null;
             _threadQueue = null;
         }
         _logger?.LogInformationEvent(_serviceId, "{ChannelName} - stopped successfully.", _channelName);
@@ -99,9 +98,7 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
     /// <param name="message">The message to be written. Contains the payload and associated metadata to be enqueued.</param>
     /// <returns>true if the message was successfully written to the thread queue; otherwise, false.</returns>
     public bool WriteData(IActorMessage message)
-        => _threadQueue is not null
-                ? _threadQueue.Write(message)
-                : false;
+        => _threadQueue?.Write(message) ?? false;
 
     /// <summary>
     /// Processes messages from the message channel using a single-threaded task scheduler.
@@ -110,21 +107,21 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
     /// the provided message reader.  It ensures that message processing occurs on a single thread and handles any
     /// exceptions that occur during processing. If the message channel is empty or the processing is stopped, the
     /// method exits gracefully.</remarks>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     void ProcessMessagesFromMessageChannel()
     {
         try
         {
             var messageCount = 0;
             _logger?.LogInformationEvent(_serviceId, "{channelName} - message processing started up.", _channelName!);
-            //SingleThreadTaskScheduler.Run(async () =>
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 /// wait for messages to be available...
-                await foreach (var message in _threadQueue!.ReadAllAsync(_cancellationTokenSource.Token))
+                await foreach (var message in _threadQueue!.ReadAllAsync(_cancellationTokenSource.Token).ConfigureAwait(false))
                 {
                     try
                     {
-                        await _messageReader(message);
+                        await _messageReader(message).ConfigureAwait(false);
                         messageCount++;
                     }
                     catch (Exception ex)
@@ -140,23 +137,23 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     void ProcessQueryMessagesFromMessageChannel()
     {
         try
         {
             var messageCount = 0;
             _logger?.LogInformationEvent(_serviceId, "{channelName} - query message processing started up.", _channelName!);
-            //SingleThreadTaskScheduler.Run(async () =>
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 try
                 {
                     /// wait for messages to be available...
-                    foreach (var message in _threadQueue!.ReadAll(_cancellationTokenSource.Token))
+                    await foreach (var message in _threadQueue!.ReadAllAsync(_cancellationTokenSource.Token).ConfigureAwait(false))
                     {
                         try
                         {
-                            await _messageReader(message);
+                            await _messageReader(message).ConfigureAwait(false);
                             messageCount++;
                         }
                         catch (Exception ex)
@@ -169,7 +166,7 @@ public class ActorThreadScheduler(Func<IActorMessage, ValueTask> messageReader, 
                 {
                     _logger?.LogInformationEvent(_serviceId, "{channelName} - query message processing canceled.", _channelName!);
                 }
-                await Task.Delay(TimeSpan.FromSeconds(2));
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
                 this.Stop();
             });
         }

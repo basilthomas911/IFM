@@ -29,14 +29,13 @@ public sealed class ActorThreadPoolV2(
     int _initialized;
     int _disposed;
 
-    public IActorThreadPool Initialize(int initialThreadCount)
+    public IActorThreadPool Initialize(int threadCount)
     {
-        if (initialThreadCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(initialThreadCount));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
         if (Interlocked.CompareExchange(ref _initialized, 1, 0) != 0)
             throw new InvalidOperationException("The actor thread pool has already been initialized.");
 
-        var workers = new ActorThreadV2[initialThreadCount];
+        var workers = new ActorThreadV2[threadCount];
         for (var index = 0; index < workers.Length; index++)
         {
             var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState,
@@ -101,10 +100,8 @@ public sealed class ActorThreadPoolV2(
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
-        if (quietPeriod < TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(quietPeriod));
-        if (timeout <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThan(quietPeriod, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
 
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         long? idleStarted = null;
@@ -143,8 +140,7 @@ public sealed class ActorThreadPoolV2(
     {
         if (Volatile.Read(ref _initialized) == 0)
             throw new InvalidOperationException("The actor thread pool has not been initialized.");
-        if (Volatile.Read(ref _disposed) != 0)
-            throw new ObjectDisposedException(nameof(ActorThreadPoolV2));
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, typeof(ActorThreadPoolV2));
     }
 
     public async ValueTask DisposeAsync()
@@ -165,31 +161,5 @@ public sealed class ActorThreadPoolV2(
             ActorRuntimeMetrics.UnregisterWorkerPool(workers.Length);
         Volatile.Write(ref _workers, []);
         GC.SuppressFinalize(this);
-    }
-}
-
-sealed class ActorThreadPoolMetricsState
-{
-    long _drainedMessageCount;
-    int _activeMailboxCount;
-    int _measureDrain;
-
-    public long DrainedMessageCount => Volatile.Read(ref _drainedMessageCount);
-    public int ActiveMailboxCount => Math.Max(0, Volatile.Read(ref _activeMailboxCount));
-
-    public void RecordMailboxStarted() => Interlocked.Increment(ref _activeMailboxCount);
-
-    public void RecordMailboxCompleted() => Interlocked.Decrement(ref _activeMailboxCount);
-
-    public void BeginDrainMeasurement()
-    {
-        Interlocked.Exchange(ref _drainedMessageCount, 0);
-        Volatile.Write(ref _measureDrain, 1);
-    }
-
-    public void RecordMessageCompleted()
-    {
-        if (Volatile.Read(ref _measureDrain) != 0)
-            Interlocked.Increment(ref _drainedMessageCount);
     }
 }

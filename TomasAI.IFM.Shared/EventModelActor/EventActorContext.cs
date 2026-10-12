@@ -85,6 +85,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TQuery : class, IQuery<TResult>
         where TResult : class
     {
+        ArgumentNullException.ThrowIfNull(query);
         EnsureCurrentGeneration();
         return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TResult, TQuery>(query.Subject, query);
@@ -101,6 +102,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(command);
         EnsureCurrentGeneration();
         return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
@@ -114,6 +116,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TEntityId : IActorEntityId
         where TResult : class
     {
+        ArgumentNullException.ThrowIfNull(command);
         EnsureCurrentGeneration();
         return (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestFunctionAsync<TCommand, TEntityId, TResult>(
@@ -163,6 +166,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(command);
         EnsureCurrentGeneration();
         var result = await (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(
@@ -180,8 +184,8 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     /// enabling communication between actors.</remarks>
     /// <param name="fromActorTypeId">The identifier of the source actor type from which events are routed.</param>
     /// <param name="actorVerb">The verb associated with the actor for which the event router is being added.</param>
-    public void AddEventRouter(ActorTypeId routeFrom, ActorMailboxId toMailboxId)
-        => _supervisor.AddEventRouter(routeFrom, toMailboxId);
+    public void AddEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+        => _supervisor.AddEventRouter(fromActorTypeId, toMailboxId);
 
     /// <summary>
     /// Removes the event router that routes events from one mailbox to another.

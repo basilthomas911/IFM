@@ -65,7 +65,7 @@ public class TradePlacementEventProducer : NatsEventProducer, ITradePlacementEve
             StatusConsoleLoggedEvent e => SendEventAsync(e.CommandId, e),
             CommandExceptionEvent e => SendEventAsync(e.CommandId, e),
             _ => Task.CompletedTask
-        });
+        }).ConfigureAwait(false);
     }
 
 }

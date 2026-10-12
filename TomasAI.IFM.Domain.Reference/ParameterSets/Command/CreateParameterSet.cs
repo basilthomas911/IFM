@@ -20,19 +20,23 @@ public static class CreateParameterSet
     /// <returns>The command acceptance or business failure.</returns>
     public static async Task<ServiceResult<GuidResult>> ExecuteAsync(this CreateParameterSetCommand command, IParameterSetCommandContext context, ParameterSetCommandState state, ILogger<ParameterSetCommandActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Author);
         var hash = ParameterMutationModel.RequestHash(command);
         if (state.Operations.TryGetValue(command.CommandId, out var previous))
         {
-            if (previous != hash) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
+            if (!string.Equals(previous,hash,StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         if (command.LegacySource is { } source)
         {
-            if (source.Kind != ParameterLegacyMigrationModel.RegimeKind || command.EntityId.SetId != ParameterLegacyMigrationModel.TargetId(source)) throw new ArgumentException("PARAM.LEGACY_IDENTITY_MISMATCH");
-            var stored = (await context.ConfigurationDb.GetLegacyParameterVersionsAsync(source.SetId, source.Version)).SingleOrDefault() ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
-            if (stored.Reference != source || ParameterLegacyMigrationModel.Expand(stored) != ParameterCanonicalPayloadModel.Canonicalize(command.PayloadJson)) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
+#pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
+            if (!string.Equals(source.Kind,ParameterLegacyMigrationModel.RegimeKind,StringComparison.Ordinal) || command.EntityId.SetId != ParameterLegacyMigrationModel.TargetId(source)) throw new ArgumentException("PARAM.LEGACY_IDENTITY_MISMATCH");
+#pragma warning restore MA0015
+            var stored = (await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(source.SetId, source.Version)).ConfigureAwait(false)).SingleOrDefault() ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
+            if (stored.Reference != source || !string.Equals(ParameterLegacyMigrationModel.Expand(stored),ParameterCanonicalPayloadModel.Canonicalize(command.PayloadJson),StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply CreateParameterSet event";
         var updated = command.Compute(state, hash, out var parameterChange) switch

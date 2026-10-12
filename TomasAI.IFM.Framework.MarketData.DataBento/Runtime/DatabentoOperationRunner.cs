@@ -2,20 +2,13 @@ using System.Threading.Channels;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
-public interface IDatabentoOperationRunner : IAsyncDisposable
-{
-    Task<T> RunAsync<T>(
-        Func<IDatabentoMarketDataQueries, T> operation,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Executes synchronous native query calls on a fixed set of observed workers
 /// behind bounded admission. It never creates a task or thread per request.
 /// </summary>
 public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
 {
-    private readonly Channel<WorkItem> _queue;
+    private readonly Channel<IWorkItem> _queue;
     private readonly IDatabentoMarketDataQueries[] _queries;
     private readonly Task[] _workers;
     private readonly CancellationTokenSource _shutdown = new();
@@ -31,11 +24,9 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         ArgumentNullException.ThrowIfNull(queries);
         if (queries.Count == 0)
             throw new ArgumentException("At least one provider query worker is required.", nameof(queries));
-        if (queueCapacity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(queueCapacity));
-
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(queueCapacity);
         _queries = queries.ToArray();
-        _queue = Channel.CreateBounded<WorkItem>(new BoundedChannelOptions(queueCapacity)
+        _queue = Channel.CreateBounded<IWorkItem>(new BoundedChannelOptions(queueCapacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = queries.Count == 1,
@@ -81,6 +72,7 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
+            // The owned worker exits when its shutdown token is canceled.
         }
     }
 
@@ -95,9 +87,9 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
         finally { _shutdown.Dispose(); }
     }
 
-    private abstract class WorkItem
+    private interface IWorkItem
     {
-        internal abstract void Execute(IDatabentoMarketDataQueries queries);
+        void Execute(IDatabentoMarketDataQueries queries);
     }
 
     /// <summary>Initializes a new WorkItem instance.</summary>
@@ -106,14 +98,15 @@ public sealed class DatabentoOperationRunner : IDatabentoOperationRunner
     /// <typeparam name="T">The type of the operation result or provider record.</typeparam>
     private sealed class WorkItem<T>(
         Func<IDatabentoMarketDataQueries, T> operation,
-        CancellationToken cancellationToken) : WorkItem
+        CancellationToken cancellationToken) : IWorkItem
     {
         private readonly TaskCompletionSource<T> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         internal Task<T> Task => _completion.Task;
 
-        internal override void Execute(IDatabentoMarketDataQueries queries)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Complete the queued operation task with the original failure so its caller observes it.")]
+        public void Execute(IDatabentoMarketDataQueries queries)
         {
             if (cancellationToken.IsCancellationRequested)
             {

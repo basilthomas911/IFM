@@ -18,8 +18,7 @@ public sealed class StdDevCalculator
     {
         ArgumentNullException.ThrowIfNull(futuresEodData);
         ArgumentNullException.ThrowIfNull(estimatorFunc);
-        if (windowSize <= 0)
-            throw new ArgumentOutOfRangeException(nameof(windowSize));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowSize);
 
         _windowSize = windowSize;
         var count = Math.Min(windowSize, futuresEodData.Length);

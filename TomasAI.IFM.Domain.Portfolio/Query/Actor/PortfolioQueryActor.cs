@@ -37,13 +37,6 @@ using GetPortfoliosQuery = TomasAI.IFM.Domain.Portfolio.Shared.Queries.GetPortfo
 
 namespace TomasAI.IFM.Domain.Portfolio.Query.Actor;
 
-public interface IPortfolioQueryContext : IQueryActorContext<PortfolioQueryActor>
-{
-    IDbContextFactory DbFactory { get; }
-    IPortfolioBusinessIdAllocator IdentityAllocator { get; }
-    ILogger<PortfolioQueryActor> Logger { get; }
-}
-
 /// <summary>NATS-only public query boundary over PortfolioDb projections.</summary>
 public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> actorContext, IPortfolioOperationalGuard operationalGuard)
     : BaseQueryActor<PortfolioQueryActor>(actorContext, RequireContext(actorContext).Logger)
@@ -94,6 +87,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(query);
         dynamic request = query;
         using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request.CorrelationId);
         var allocatesIdentity = query is AllocatePortfolioBusinessIdQuery;
@@ -118,7 +112,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception exception) =>
-        ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
+        Exception ex) =>
+        ExceptionMappedQueryAsync(context, threadId, query, verb, ex, _exceptionMap);
 
 }

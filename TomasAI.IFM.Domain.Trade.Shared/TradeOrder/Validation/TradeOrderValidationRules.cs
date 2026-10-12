@@ -9,7 +9,7 @@ public class TradeOrderValidationRules : BaseValidationRules, IValidationRules<T
 {
     public ValidationError[] Execute(TradeOrderReadModel tradeOrder) => Validate(tradeOrder, new TradeOrderValidator());
 
-    class TradeOrderValidator : AbstractValidator<TradeOrderReadModel>
+    sealed class TradeOrderValidator : AbstractValidator<TradeOrderReadModel>
     {
         public TradeOrderValidator()
         {
@@ -26,11 +26,13 @@ public class TradeOrderValidationRules : BaseValidationRules, IValidationRules<T
             RuleFor(x => x.TotalAmount).NotEmpty().WithMessage("TradeOrder.TotalAmount is empty");
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Convert malformed model exceptions into the existing aggregated validation failures.")]
         public override ValidationResult Validate(ValidationContext<TradeOrderReadModel> context)
         {
             try
             {
-                ArgumentNullException.ThrowIfNull(context.InstanceToValidate);
+                if (context.InstanceToValidate is null)
+                    throw new ArgumentNullException(nameof(context));
             }
             catch
             {

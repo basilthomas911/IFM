@@ -7,17 +7,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesBarDataQueryActor"/>.</summary>
-public interface IFuturesBarDataQueryContext : IQueryActorContext<FuturesBarDataQueryActor>
-{
-    /// <summary>Gets the database-context factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesBarDataQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesBarDataQueryActor"/>.</summary>
-public sealed class FuturesBarDataQueryContext : QueryActorContext, IQueryActorContext<FuturesBarDataQueryActor>, IFuturesBarDataQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesBarDataQueryContext : QueryActorContext, IFuturesBarDataQueryContext
 {
     /// <summary>Initializes the typed query context.</summary>
     public FuturesBarDataQueryContext(

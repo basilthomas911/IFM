@@ -46,6 +46,7 @@ public sealed class FmpMarketDataImportCoordinator(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     private async Task<FmpMarketDataImportResult> ImportCoreAsync(
         FmpMarketDataImportRequest request,
         CancellationToken cancellationToken)
@@ -105,8 +106,7 @@ public sealed class FmpMarketDataImportCoordinator(
                     null,
                     result.ErrorCode,
                     result.ErrorMessage));
-                _logger.LogError(
-                    "{Component}.{Method} "+"FMP import command failed for dataset {Dataset} with error code {ErrorCode}.",nameof(FmpMarketDataImportCoordinator),nameof(ImportCoreAsync),                    operation.Dataset,                    result.ErrorCode);
+                ApplicationDiagnosticLog.Write2(_logger, null, nameof(FmpMarketDataImportCoordinator), nameof(ImportCoreAsync), operation.Dataset, result.ErrorCode);
                 break;
             }
 

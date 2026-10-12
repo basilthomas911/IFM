@@ -126,6 +126,7 @@ public sealed class DispatcherResilienceIntegrationTests
         public ValueTask RecordCheckpointAsync(JournalCheckpoint checkpoint, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ValueTask EnqueueServiceEventAsync(DatabaseServiceEventEnvelope envelope, CancellationToken cancellationToken) => throw new NotSupportedException();
         public async IAsyncEnumerable<PendingServiceEvent> ReadPendingServiceEventsAsync(int maximumCount, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken) { await Task.CompletedTask; yield break; }
+        public ValueTask<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(DatabaseRecoveryOperationId id, CancellationToken ct) => ValueTask.FromResult<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.DatabaseBackupServiceEventContract?>(null);
         public ValueTask MarkServiceEventPublishedAsync(Guid eventId, DateTimeOffset publishedUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ValueTask MarkCoreAcknowledgedAsync(DatabaseRecoveryOperationId operationId, long domainRevision, CancellationToken cancellationToken) => throw new NotSupportedException();
     }

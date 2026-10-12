@@ -15,6 +15,7 @@ public static class FuturesRsiSignalGeneratedComplete
         IFuturesRsiSignalEventContext context,
         ILogger<FuturesRsiSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(completed);
         ArgumentNullException.ThrowIfNull(logger);
         if (completed.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
             && completed.FuturesRsiSignal.Metadata is { IsValid: true })

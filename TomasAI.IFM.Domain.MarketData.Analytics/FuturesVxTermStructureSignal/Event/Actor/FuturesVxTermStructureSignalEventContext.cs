@@ -5,16 +5,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Event.Actor;
 
-/// <summary>Defines readonly services required by the VX term-structure Event actor.</summary>
-public interface IFuturesVxTermStructureSignalEventContext
-    : IEventActorContext<FuturesVxTermStructureSignalEventActor>
-{
-    ILogger<FuturesVxTermStructureSignalEventActor> Logger { get; }
-}
-
 /// <summary>Provides the typed stateless VX term-structure Event context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVxTermStructureSignalEventContext : EventActorContext,
-    IEventActorContext<FuturesVxTermStructureSignalEventActor>,
     IFuturesVxTermStructureSignalEventContext
 {
     /// <summary>Initializes the typed context.</summary>

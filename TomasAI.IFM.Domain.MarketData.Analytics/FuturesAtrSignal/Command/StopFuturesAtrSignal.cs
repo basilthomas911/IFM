@@ -15,6 +15,8 @@ public static class StopFuturesAtrSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this StopFuturesAtrSignalCommand command, FuturesAtrSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var updated = state.Update(command.CreateFuturesAtrSignalStoppedEvent(), command);
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))

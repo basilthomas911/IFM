@@ -6,26 +6,35 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 
-/// <summary>Result of bounded background coverage planning. Capacity failures never truncate an apparently complete scope.</summary>
-public sealed record OptionUniversePlanResult(ImmutableArray<PreparedOptionUniverse> Universes, string ReasonCode);
-
-/// <summary>Background-only normalized coverage planner; it performs no network or storage operations.</summary>
-public interface IOptionUniversePlanner
-{
-    /// <summary>Plans the union of enabled biases from a complete definition scope using current volatility coverage.</summary>
-    OptionUniversePlanResult Plan(StrategyOptionChainParameterSet parameters, DateOnly valueDate,
-        ImmutableArray<OptionDefinitionCandidate> definitions, bool complete, decimal futuresPrice, double impliedVolatility,
-        OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IReadOnlyDictionary<string, decimal>? underlyingPrices = null);
-}
-
 /// <summary>Expands a volatility envelope by the largest permitted wing and retains every matching expiry/right/strike.</summary>
 public sealed class OptionUniversePlanner : IOptionUniversePlanner
 {
+    readonly System.Threading.Lock coverageLock = new();
+    readonly Dictionary<string, (decimal Lower, decimal Upper)> envelopes = new(StringComparer.Ordinal);
+
+    /// <summary>Retains buffered physical coverage while the complete requested envelope fits. Rebuilds only when coverage is exceeded.</summary>
+    private (decimal Lower, decimal Upper) CoverageEnvelope(string key, decimal forward, decimal distance)
+    {
+        lock (coverageLock)
+        {
+            if (envelopes.TryGetValue(key, out var existing) && forward - distance >= existing.Lower && forward + distance <= existing.Upper)
+                return existing;
+            if (envelopes.Count >= 512) envelopes.Clear();
+            // Twenty percent extra coverage amortizes small market moves without changing strategy risk limits.
+            var buffered = distance * 1.2m;
+            var result = (forward - buffered, forward + buffered);
+            envelopes[key] = result;
+            return result;
+        }
+    }
+
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public OptionUniversePlanResult Plan(StrategyOptionChainParameterSet parameters, DateOnly valueDate,
         ImmutableArray<OptionDefinitionCandidate> definitions, bool complete, decimal futuresPrice, double impliedVolatility,
         OptionPricingCalendar calendar, TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IReadOnlyDictionary<string, decimal>? underlyingPrices = null)
     {
+        ArgumentNullException.ThrowIfNull(calendar);
         ArgumentNullException.ThrowIfNull(parameters); parameters.Validate();
         if (!parameters.Enabled || !parameters.BiasRows.Any(x => x.Enabled)) return new([], "StrategyDisabled");
         if (!complete || definitions.IsDefault) return new([], "IncompleteDefinitions");
@@ -43,7 +52,7 @@ public sealed class OptionUniversePlanner : IOptionUniversePlanner
             return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(at, timezone).DateTime);
         }
         var rows = parameters.BiasRows.Where(x => x.Enabled).ToArray();
-        var expiryScopes = definitions.Where(x => x.Definition.Ticker == parameters.InstrumentRoot)
+        var expiryScopes = definitions.Where(x => string.Equals(x.Definition.Ticker,parameters.InstrumentRoot,StringComparison.Ordinal))
             .Select(x => (Definition: x, Expiry: Expiry(x))).Where(x => x.Expiry != default)
             .GroupBy(x => (x.Expiry, Underlying: x.Definition.Definition.Underlying)).Where(g => rows.Any(r => g.Key.Expiry.DayNumber - valueDate.DayNumber >= r.MinimumDte
                 && g.Key.Expiry.DayNumber - valueDate.DayNumber <= r.MaximumDte)).OrderBy(g => g.Key).ToArray();
@@ -68,13 +77,24 @@ public sealed class OptionUniversePlanner : IOptionUniversePlanner
             var active = rows.Where(r => scope.Key.Expiry.DayNumber - valueDate.DayNumber >= r.MinimumDte
                 && scope.Key.Expiry.DayNumber - valueDate.DayNumber <= r.MaximumDte).ToArray();
             var wing = active.SelectMany(r => r.PutWingWidths.Concat(r.CallWingWidths)).DefaultIfEmpty().Max();
-            var distance = CoverageDistance(futuresPrice, impliedVolatility, scope.Key.Expiry.DayNumber - valueDate.DayNumber,
+            var forward = futuresPrice;
+            if (underlyingPrices is not null && (!underlyingPrices.TryGetValue(scope.Key.Underlying, out forward) || forward <= 0))
+                return new([], "CoverageInputsUnavailable");
+            var distance = CoverageDistance(forward, impliedVolatility, scope.Key.Expiry.DayNumber - valueDate.DayNumber,
                 parameters.CacheRangeMultiplier, wing);
-            var options = scope.Where(x => underlyingPrices is null ? Math.Abs(x.Definition.Definition.StrikePrice - futuresPrice) <= distance
-                    : underlyingPrices.TryGetValue(x.Definition.Definition.Underlying, out var actualForward) && actualForward > 0
-                        && Math.Abs(x.Definition.Definition.StrikePrice - actualForward) <= CoverageDistance(actualForward, impliedVolatility,
-                            scope.Key.Expiry.DayNumber - valueDate.DayNumber, parameters.CacheRangeMultiplier, wing))
+            var coverageKey = PricingSemanticHash.Compute(new { parameters.ParameterSetId, parameters.Version,
+                Hash = parameters.Hash(), valueDate, scope.Key.Expiry, scope.Key.Underlying });
+            var envelope = CoverageEnvelope(coverageKey, forward, distance);
+            var options = scope.Where(x => x.Definition.Definition.StrikePrice >= envelope.Lower
+                    && x.Definition.Definition.StrikePrice <= envelope.Upper)
                 .Select(x => x.Definition).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray();
+            if (count + options.Length > parameters.MaximumContracts)
+            {
+                // Optional buffering must not prevent an otherwise admissible universe from loading.
+                options = scope.Where(x => Math.Abs(x.Definition.Definition.StrikePrice - forward) <= distance)
+                    .Select(x => x.Definition).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray();
+                lock (coverageLock) envelopes.Remove(coverageKey);
+            }
             if (options.IsEmpty) return new([], "StrikeCoverageUnavailable");
             count += options.Length;
             if (count > parameters.MaximumContracts) return new([], "ContractCapacityExceeded");
@@ -94,7 +114,7 @@ public sealed class OptionUniversePlanner : IOptionUniversePlanner
     {
         if (futuresPrice <= 0 || calendarDte <= 0 || !double.IsFinite(impliedVolatility) || impliedVolatility <= 0
             || !double.IsFinite(multiplier) || multiplier is < 1 or > 5 || maximumWingWidth < 0)
-            throw new ArgumentException("Invalid volatility coverage inputs.");
+            throw new ArgumentException("Invalid volatility coverage inputs.",nameof(futuresPrice));
         return checked((decimal)((double)futuresPrice * impliedVolatility * Math.Sqrt(calendarDte / 365d) * multiplier) + maximumWingWidth);
     }
 }

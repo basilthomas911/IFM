@@ -17,6 +17,8 @@ public static class InsertSpreadDistribution
     /// <returns>The command identity on success, otherwise the business or application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this InsertSpreadDistributionCommand command, SpreadDistributionCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply SpreadDistributionInsertedEvent";
         var updated = command.Compute(out var spreadDistributionChange) switch
         {

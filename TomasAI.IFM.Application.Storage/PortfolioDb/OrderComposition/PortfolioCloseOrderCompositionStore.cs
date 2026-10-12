@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
+using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -10,6 +11,7 @@ namespace TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
 /// <summary>Atomically accepts one reduce-only order and its canonical completed event.</summary>
 public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public Task<PortfolioCloseOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioCloseOrderCompositionCommand request,
         Func<EvaluatePortfolioCloseOrderCompositionCommand, FinancialBookConfiguration, long,
@@ -55,7 +57,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
             var receipt = await evaluate(
                 request, authority.Book, checked(authority.Revision + 1), openingOrder, token)
                 .ConfigureAwait(false);
-            var order = receipt.TradeOrder
+            _ = receipt.TradeOrder
                 ?? throw new InvalidOperationException("An accepted close decision requires a Trade Order.");
             var completed = new PortfolioCloseOrderCompositionCompletedEvent
             {
@@ -71,19 +73,34 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                 ReceivedOn = now,
                 InputHash = request.InputSha256,
                 AggregateId = request.EntityId.Format(),
-                Receipt = receipt
+                Receipt = receipt,
+                SchemaVersion = 2,
+                ProjectionFacts = new(request.Subject.Name,positionId.Format(),positionId.OrderId,positionId.TradeId,positionId.FundId)
             };
 
+            await (ProjectMaterialAsync(db,completed,token)).ConfigureAwait(false);
+            await PortfolioDbFinancialSupport.SaveOutcomeAsync(
+                db, request, completed, receipt.FinancialRevision, true, token).ConfigureAwait(false);
+            await (LedgerFinancialProjection.RecordAppliedAsync(db,completed,receipt.FinancialRevision,token)).ConfigureAwait(false);
+            return completed;
+        }, cancellationToken);
+
+    /// <summary>Restores the recorded reduce-only order and exact close claim without invoking execution.</summary>
+    internal static async Task ProjectMaterialAsync(EnlistedEventTransaction db,PortfolioCloseOrderCompositionCompletedEvent completed,CancellationToken token)
+    {
+        var receipt=completed.Receipt;
+        var facts=completed.ProjectionFacts ?? throw new InvalidDataException("Close source lacks accepted target-position facts.");
+        var order=receipt.TradeOrder ?? throw new InvalidDataException("Accepted close source lacks its order.");
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertDecision,
-                [request.OperationId, receipt.CompositionId, receipt.WorkflowId.ExitDecisionId,
-                    request.PortfolioId, (short)receipt.Status, receipt.FinancialRevision,
-                    request.InputSha256, PortfolioDbFinancialSupport.Json(receipt), now], token)
+                [completed.OperationId, receipt.CompositionId, receipt.WorkflowId.ExitDecisionId,
+                    completed.PortfolioId, (short)receipt.Status, receipt.FinancialRevision,
+                    completed.InputHash, PortfolioDbFinancialSupport.Json(receipt), completed.CommittedAtUtc], token)
                 .ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertFundDecision,
-                [request.OperationId, positionId.FundId, true, receipt.ReasonCode, order.Id.OrderId], token)
+                [completed.OperationId, facts.TargetFundId, true, receipt.ReasonCode, order.Id.OrderId], token)
                 .ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertOrder,
-                [order.Id.OrderId, request.OperationId, order.Id.PortfolioId, order.Id.FundId,
+                [order.Id.OrderId, completed.OperationId, order.Id.PortfolioId, order.Id.FundId,
                     (short)order.Status, order.DefinitionHash, PortfolioDbFinancialSupport.Json(order),
                     order.ValidUntilUtc], token).ConfigureAwait(false);
             var ordinal = 0;
@@ -93,10 +110,7 @@ public sealed class PortfolioCloseOrderCompositionStore(IPostgresEventTransactio
                         [order.Id.OrderId, component.ComponentId, leg.TradeLegId, ordinal++,
                             PortfolioDbFinancialSupport.Json(leg)], token).ConfigureAwait(false);
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertAcceptedClose,
-                [request.OperationId, positionId.Format(), positionId.OrderId,
-                    positionId.TradeId, order.Id.OrderId, now], token).ConfigureAwait(false);
-            await PortfolioDbFinancialSupport.SaveOutcomeAsync(
-                db, request, completed, receipt.FinancialRevision, true, token).ConfigureAwait(false);
-            return completed;
-        }, cancellationToken);
+                [completed.OperationId, facts.TargetPositionId, facts.TargetOrderId,
+                    facts.TargetTradeId, order.Id.OrderId, completed.CommittedAtUtc], token).ConfigureAwait(false);
+    }
 }

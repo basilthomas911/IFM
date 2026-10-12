@@ -10,6 +10,8 @@ public static class FuturesTickQuoteDataInsertedFail
     /// <summary>Logs the failure without replaying the realtime observation.</summary>
     public static ValueTask ExecuteAsync(this FuturesTickQuoteDataInsertedFailEvent domainEvent, ITickAggregationRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         context.Logger.LogErrorEvent(Actor.TickAggregationRealtimeActor.ActorName,
             "{EventName} for {EntityId}: {ErrorMessage}",
             domainEvent.EventName, domainEvent.EntityId, domainEvent.ErrorMessage);

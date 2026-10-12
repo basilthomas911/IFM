@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.SystemAdmin.ScheduledTask.Query.Actor;
 /// <summary>Supplies persisted read models and a clock to the query actor.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class ScheduledTaskQueryContext : QueryActorContext, IQueryActorContext<ScheduledTaskQueryActor>
 {
     /// <summary>Initializes the query actor's readonly services.</summary>

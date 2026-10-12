@@ -6,7 +6,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
@@ -41,9 +41,9 @@ public sealed class TickStorageGenerationNatsIntegrationTests
             var generation = Guid.NewGuid();
             var evidence = new TickStorageGenerationEvidence();
             evidence.Arm(new("GLBX.MDP3", generation));
-            var db = Substitute.For<IMarketDataDbContext>();
+            var db = Substitute.For<ITradeTickQuoteDbContext>();
             var factory = Substitute.For<IDbContextFactory>();
-            factory.MarketDataDb.Returns(db);
+            factory.TradeTickQuoteDb.Returns(db);
             var written = new TaskCompletionSource<FuturesTickTradeDataInsertedEvent>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             var delivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

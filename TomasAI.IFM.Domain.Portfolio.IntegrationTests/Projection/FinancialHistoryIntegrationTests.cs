@@ -73,6 +73,8 @@ public sealed class FinancialHistoryIntegrationTests(PortfolioEventStoreFixture 
     {
         public TaskCompletionSource Prepared { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<T> ExecuteOnceAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation, CancellationToken token = default)
+            => inner.ExecuteOnceAsync(async (db, ct) => { var result = await operation(db, ct); Prepared.TrySetResult(); await Release.Task.WaitAsync(TimeSpan.FromSeconds(5), ct); return result; }, token);
         public Task<T> ExecuteAsync<T>(Func<EnlistedEventTransaction, CancellationToken, Task<T>> operation, CancellationToken token = default)
             => inner.ExecuteAsync(async (db, ct) => { var result = await operation(db, ct); Prepared.TrySetResult(); await Release.Task.WaitAsync(TimeSpan.FromSeconds(5), ct); return result; }, token);
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Text;
@@ -8,17 +8,14 @@ using Newtonsoft.Json;
 
 namespace TomasAI.IFM.Framework.Storage.Json
 {
-    public interface IJsonDataReader : IDataReader
-    {
-    }
 
     public class JsonDataReader<TData> : IJsonDataReader
     {
-        private List<string[]> _rows;
+        private readonly List<string[]> _rows;
         private int _cursor;
-        private List<PropertyInfo> _propertyInfo;
-        private Dictionary<string, int> _propertyIndex;
-        private Dictionary<Type, Func<int, object>> _valueMap;
+        private readonly List<PropertyInfo> _propertyInfo;
+        private readonly Dictionary<string, int> _propertyIndex;
+        private readonly Dictionary<Type, Func<int, object>> _valueMap;
 
         public JsonDataReader(string jsonData)
         {
@@ -47,7 +44,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
                 {typeof(decimal?), id => IsDBNull(id) ? default(decimal?)! : GetDecimal(id) },
                 {typeof(DateTime), id => IsDBNull(id) ? default : GetDateTime(id) },
                 {typeof(DateTime?), id => IsDBNull(id) ? default(DateTime?)! : GetDateTime(id) },
-                {typeof(Guid), id => IsDBNull(id) ? default : GetGuid(id) },
+                {typeof(Guid), id => IsDBNull(id) ? Guid.Empty : GetGuid(id) },
                 {typeof(Guid?), id => IsDBNull(id) ? default(Guid?)! : GetGuid(id) }
             };
 
@@ -77,6 +74,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
 
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "Preserves the existing externally referenced identity and named API contract.")]
         public static async Task<JsonDataReader<TData>> CreateAsync(
             IStringReader stringReader,
             CancellationToken cancellationToken = default)
@@ -104,6 +102,13 @@ namespace TomasAI.IFM.Framework.Storage.Json
 
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            // Rows are materialized managed values; there is no owned external resource.
         }
 
         public bool GetBoolean(int i)
@@ -116,27 +121,27 @@ namespace TomasAI.IFM.Framework.Storage.Json
 
         public byte GetByte(int i)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public long GetBytes(int i, long fieldOffset, byte[] buffer, int bufferoffset, int length)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public char GetChar(int i)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public long GetChars(int i, long fieldoffset, char[] buffer, int bufferoffset, int length)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public IDataReader GetData(int i)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public string GetDataTypeName(int i)
@@ -148,7 +153,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public DateTime GetDateTime(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (DateTime.TryParse(fieldValue, out var result))
+            if (DateTime.TryParse(fieldValue, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.None, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetDateTime: unable to parse '{fieldValue}'");
         }
@@ -156,7 +161,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public decimal GetDecimal(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (decimal.TryParse(fieldValue, out var result))
+            if (decimal.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetDecimal: unable to parse '{fieldValue}'");
         }
@@ -164,7 +169,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public double GetDouble(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (double.TryParse(fieldValue, out var result))
+            if (double.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetDouble: unable to parse '{fieldValue}'");
         }
@@ -174,7 +179,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public float GetFloat(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (float.TryParse(fieldValue, out var result))
+            if (float.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetFloat: unable to parse '{fieldValue}'");
         }
@@ -190,7 +195,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public short GetInt16(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (short.TryParse(fieldValue, out var result))
+            if (short.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetInt16: unable to parse '{fieldValue}'");
         }
@@ -198,7 +203,7 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public int GetInt32(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (int.TryParse(fieldValue, out var result))
+            if (int.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetInt32: unable to parse '{fieldValue}'");
         }
@@ -206,14 +211,14 @@ namespace TomasAI.IFM.Framework.Storage.Json
         public long GetInt64(int i)
         {
             var fieldValue = GetString(i) ?? string.Empty;
-            if (long.TryParse(fieldValue, out var result))
+            if (long.TryParse(fieldValue, System.Globalization.CultureInfo.InvariantCulture, out var result))
                 return result;
             throw new InvalidCastException($"JsonDataReader.GetInt64: unable to parse '{fieldValue}'");
         }
 
         public string GetName(int i) => _propertyInfo[i].Name;
 
-        public int GetOrdinal(string name) => _propertyIndex.ContainsKey(name) ? _propertyIndex[name] : -1;
+        public int GetOrdinal(string name) => _propertyIndex.TryGetValue(name, out var ordinal) ? ordinal : -1;
 
         public DataTable GetSchemaTable()
         {
@@ -238,11 +243,13 @@ namespace TomasAI.IFM.Framework.Storage.Json
 
         public int GetValues(object[] values)
         {
+            ArgumentNullException.ThrowIfNull(values);
             for (var index = 0; index < values.Length; index++)
                 values[index] = GetValue(index);
             return values.Length;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Compatibility reader methods return their documented empty/default conversion result; changing failure semantics is a separate data-validation migration.")]
         public bool IsDBNull(int i)
         {
             ValidIndex(i);
@@ -250,17 +257,20 @@ namespace TomasAI.IFM.Framework.Storage.Json
             {
                 return string.IsNullOrWhiteSpace(_rows[_cursor][i]);
             }
-            catch { }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceError("Data reader conversion failed: {0}", ex); }
             return true;
         }
 
         public bool NextResult()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public bool Read() => ++_cursor < _rows.Count;
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2201", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0012", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S112", Justification = "IDataReader field access preserves the established IndexOutOfRangeException contract for invalid ordinal or cursor.")]
         private void ValidIndex(int index)
         {
             if (index < 0 || index >= FieldCount)

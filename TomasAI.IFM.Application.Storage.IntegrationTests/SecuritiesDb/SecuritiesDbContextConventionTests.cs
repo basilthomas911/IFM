@@ -17,6 +17,20 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 public sealed class SecuritiesDbContextConventionTests
 {
     [Fact]
+    public void Pricing_publication_has_one_database_owner()
+    {
+        var assembly = typeof(SecuritiesDbContext).Assembly;
+        Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.OptionPricingConventionStore"));
+        Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.OptionPricingReferenceBundleStore"));
+        Assert.DoesNotContain(typeof(TomasAI.IFM.Application.Storage.ReferenceDb.IReferenceDbContext).GetProperties(),
+            property => property.Name.StartsWith("OptionPricing", StringComparison.Ordinal));
+        Assert.Contains(typeof(ISecuritiesDbReadContext).GetMethods(),
+            method => method.Name == nameof(ISecuritiesDbReadContext.GetOptionPricingReferenceBundlePayloadAsync));
+        Assert.Contains(typeof(ISecuritiesDbWriteContext).GetMethods(),
+            method => method.Name == nameof(ISecuritiesDbWriteContext.InsertOptionPricingReferenceBundleAsync));
+    }
+
+    [Fact]
     public void Context_contract_exposes_repository_read_write_and_rollover_capabilities()
     {
         Assert.True(typeof(IObjectRepository<SecuritiesDbContext>).IsAssignableFrom(typeof(ISecuritiesDbContext)));

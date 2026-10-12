@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Service.TradePosition.EventHandlers;
 /// <summary>
 /// option trade position closed event handler
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711", Justification = "Existing event service handler identity is used by service registration.")]
 public class OptionTradePositionClosedEventHandler : BaseEventServiceHandler,
     IAsyncEventHandler<OptionTradePositionClosedEvent>
 {
@@ -41,8 +42,10 @@ public class OptionTradePositionClosedEventHandler : BaseEventServiceHandler,
     /// </summary>
     /// <param name="e">option trade position opened event</param>
     /// <returns></returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
     public async Task ExecuteAsync(OptionTradePositionClosedEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             _blackboardService.Trade.OptionTrade.Remove(e.OptionTradeId);
@@ -50,8 +53,8 @@ public class OptionTradePositionClosedEventHandler : BaseEventServiceHandler,
         catch (Exception ex)
         {
             var errorMessage = $"{e.GetType().Name}: option trade {e.OptionTradeId.OrderId}:{e.OptionTradeId.TradeId} position close failed due to: {ex.GetErrorMessage()}";
-            await WriteConsoleAsync(LogSourceType.TradePosition, OptionTradePositionClosedEvent.ErrorCode, errorMessage);
-            _logger.LogError(ex, errorMessage);
+            await (WriteConsoleAsync(LogSourceType.TradePosition, OptionTradePositionClosedEvent.ErrorCode, errorMessage)).ConfigureAwait(false);
+            TradePositionDiagnosticLog.Failed(_logger, ex, errorMessage);
         }
     }
 

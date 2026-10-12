@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 
@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 /// <summary>Projects available legacy scalar fields for the current disposable snapshot, with no replay or repair.</summary>
 internal static class IronCondorTradePlanProjection
 {
-    const string UpdateScalars = "UPDATE iron_condor_trade_plan SET sequenceId=?,actionDate=?,tradeDate=?,maturityDate=?,tradeType=?,actionType=?,actionSubType=?,actionState=?,actionReason=?,tradePnl=?,forwardLossRatio=?,lossProbability=?,mScore=?,maxProfit=?,maxLoss=?,minProfitTarget=?,dailyProfitTarget=?,assetPrice=?,assetStdDev=?,assetMean=?,assetPriceChange=?,marketTrend=?,marketVolatility=?,marketDirection=?,vixVolatility=?,tradeRisk=?,fiftyDayMA=?,fiveDayXMA=?,putOTMProbability=?,callOTMProbability=?,shortPutGamma=?,shortCallGamma=?,gammaRisk=?,netPrice=?,forwardPrice=?,forwardDelta=?,stopLossLimit=?,trendType=?,trendStrength=?,rsi=?,rsiSlope=?,tdi=?,tdiStrength=?,createdOn=?,createdBy=?,sourceEventId=?,positionSequence=?,routeGeneration=?,calculationVersion=?,inputStatus=?,actionDateTime=?,dailyPnl=?,dailyLoss=?,dailyLossLimit=?,lossHeadroom=?,forwardDailyPnl=?,forwardLoss=?,forwardLossHeadroom=?,projectedPositionValueChange=?,estimatedExitCommission=?,estimatedExitSlippage=?,estimatedExitCosts=?,putSpreadPrice=?,callSpreadPrice=?,combinedSpreadPrice=?,putForwardPrice=?,callForwardPrice=?,combinedForwardPrice=?,currentPositionValue=?,forwardPositionValue=?,estimatedCloseValue=?,netDelta=?,netGamma=?,netVega=?,netTheta=?,underlyingPrice=?,distanceToShortPut=?,distanceToShortCall=?,timeToExpiryDays=?,scenarioHorizonSeconds=?,scenarioUnderlyingPrice=?,scenarioUnderlyingMove=?,scenarioVolatilityShift=?,scenarioKind=?,pricingModelVersion=?,oldestQuoteAtUtc=?,riskValidUntilUtc=?,calculationStatus=?,exitRecommended=?,exitReason=?,quantity=?,contractMultiplier=?,currency=?,riskParameterSetId=?,riskParameterSetVersion=?,riskParameterSetHash=?,snapshotPayload=? WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;";
+    internal const string UpdateScalars = "UPDATE iron_condor_trade_plan SET sequenceId=?,actionDate=?,tradeDate=?,maturityDate=?,tradeType=?,actionType=?,actionSubType=?,actionState=?,actionReason=?,tradePnl=?,forwardLossRatio=?,lossProbability=?,mScore=?,maxProfit=?,maxLoss=?,minProfitTarget=?,dailyProfitTarget=?,assetPrice=?,assetStdDev=?,assetMean=?,assetPriceChange=?,marketTrend=?,marketVolatility=?,marketDirection=?,vixVolatility=?,tradeRisk=?,fiftyDayMA=?,fiveDayXMA=?,putOTMProbability=?,callOTMProbability=?,shortPutGamma=?,shortCallGamma=?,gammaRisk=?,netPrice=?,forwardPrice=?,forwardDelta=?,stopLossLimit=?,trendType=?,trendStrength=?,rsi=?,rsiSlope=?,tdi=?,tdiStrength=?,createdOn=?,createdBy=?,sourceEventId=?,positionSequence=?,routeGeneration=?,calculationVersion=?,inputStatus=?,actionDateTime=?,dailyPnl=?,dailyLoss=?,dailyLossLimit=?,lossHeadroom=?,forwardDailyPnl=?,forwardLoss=?,forwardLossHeadroom=?,projectedPositionValueChange=?,estimatedExitCommission=?,estimatedExitSlippage=?,estimatedExitCosts=?,putSpreadPrice=?,callSpreadPrice=?,combinedSpreadPrice=?,putForwardPrice=?,callForwardPrice=?,combinedForwardPrice=?,currentPositionValue=?,forwardPositionValue=?,estimatedCloseValue=?,netDelta=?,netGamma=?,netVega=?,netTheta=?,underlyingPrice=?,distanceToShortPut=?,distanceToShortCall=?,timeToExpiryDays=?,scenarioHorizonSeconds=?,scenarioUnderlyingPrice=?,scenarioUnderlyingMove=?,scenarioVolatilityShift=?,scenarioKind=?,pricingModelVersion=?,oldestQuoteAtUtc=?,riskValidUntilUtc=?,calculationStatus=?,exitRecommended=?,exitReason=?,quantity=?,contractMultiplier=?,currency=?,riskParameterSetId=?,riskParameterSetVersion=?,riskParameterSetHash=?,snapshotPayload=? WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;";
 
     /// <summary>Writes available business fields and input provenance; no scalar is fabricated for an absent provider.</summary>
     /// <param name="context">The independently configured TradePlanDb writer.</param>
@@ -22,9 +22,11 @@ internal static class IronCondorTradePlanProjection
             .ConfigureAwait(false);
     }
 
-    readonly record struct ScalarParameters(StrategyTradePlanSnapshot Plan, IronCondorTradePlanSnapshot Snapshot) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+internal readonly record struct ScalarParameters(StrategyTradePlanSnapshot Plan, IronCondorTradePlanSnapshot Snapshot) : IBindValue
     {
         /// <inheritdoc />
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
         public object Bind()
         {
             var id = Plan.Position.Id.Trade;

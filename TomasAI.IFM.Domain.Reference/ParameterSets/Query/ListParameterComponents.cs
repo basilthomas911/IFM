@@ -9,9 +9,10 @@ public static class ListParameterComponents
 {
     public static async ValueTask ExecuteAsync(this ListParameterComponentsQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Read); token.ThrowIfCancellationRequested();
-        var result = await context.ConfigurationDb.GetParameterComponentsAsync(token);
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterComponentSummary[]>(result));
+        var result = await (context.ConfigurationDb.GetParameterComponentsAsync(token)).ConfigureAwait(false);
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterComponentSummary[]>(result))).ConfigureAwait(false);
     }
 }

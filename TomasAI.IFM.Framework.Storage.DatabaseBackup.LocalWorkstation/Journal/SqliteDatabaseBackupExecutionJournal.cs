@@ -100,7 +100,13 @@ public sealed class SqliteDatabaseBackupExecutionJournal : IDatabaseBackupExecut
             "SELECT definition_hash FROM journal_operation WHERE operation_id=$operation_id;",
             cancellationToken,
             ("$operation_id", operationId)).ConfigureAwait(false);
-        if (existingDefinitionHash is not null && !StringComparer.Ordinal.Equals(existingDefinitionHash, definitionHash))
+        if (intent.ExecutionEvent.Source.OperationKind == DatabaseRecoveryOperationKind.Cutover)
+        {
+            if (existingDefinitionHash is null)
+                throw new DatabaseExecutionConflictException("Cutover requires the original restore in this journal.");
+            await AdmitCutoverAsync(connection, transaction, intent, cancellationToken).ConfigureAwait(false);
+        }
+        else if (existingDefinitionHash is not null && !StringComparer.Ordinal.Equals(existingDefinitionHash, definitionHash))
             throw new DatabaseExecutionConflictException("An operation ID was replayed with a conflicting immutable definition.");
 
         if (existingDefinitionHash is null)
@@ -141,6 +147,43 @@ VALUES ($event_id,$operation_id,$content_hash,$now);
 
         transaction.Commit();
         return new JournalAdmissionResult(intent.OperationId, JournalAdmissionOutcome.Admitted);
+    }
+
+    async ValueTask AdmitCutoverAsync(SqliteConnection connection, SqliteTransaction transaction,
+        DatabaseExecutionIntent intent, CancellationToken token)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+SELECT o.intent_type,o.intent_json,o.phase,o.terminal,e.event_type,e.event_json
+FROM journal_operation o JOIN journal_outbox e
+ON e.operation_id=o.operation_id AND e.service_sequence=o.last_service_sequence
+WHERE o.operation_id=$id;
+""";
+        command.Parameters.AddWithValue("$id", intent.OperationId.Value.ToString("D"));
+        await using (var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
+        {
+            if (!await reader.ReadAsync(token).ConfigureAwait(false))
+                throw new DatabaseExecutionConflictException("Cutover requires durable restore validation evidence.");
+            var original = DatabaseBackupContractSerializer.Deserialize(reader.GetString(0), reader.GetString(1));
+            var validation = DatabaseBackupContractSerializer.Deserialize(reader.GetString(4), reader.GetString(5));
+            if (validation is not DatabaseRestoreReadyForCutoverEvent)
+                throw new DatabaseExecutionConflictException("Cutover requires a persisted ReadyForCutover event.");
+            DatabaseCutoverAdmission.Validate(original, intent.ExecutionEvent,
+                (DatabaseRecoveryPhase)reader.GetInt16(2), reader.GetInt64(3) == 1, validation.ValidationRevision);
+        }
+        var serialized = DatabaseBackupContractSerializer.Serialize(intent.ExecutionEvent);
+        await ExecuteAsync(connection, transaction, """
+UPDATE journal_operation SET operation_kind=$kind, definition_hash=$hash,
+intent_event_id=$event_id,intent_type=$type,intent_json=$json,phase=$phase,terminal=0,
+lease_host_id=NULL,lease_expires_utc=NULL,fencing_token=fencing_token+1,updated_utc=$now
+WHERE operation_id=$id;
+""", token,
+            ("$kind", (short)DatabaseRecoveryOperationKind.Cutover),
+            ("$hash", DatabaseBackupContractSerializer.DefinitionHash(intent.ExecutionEvent)),
+            ("$event_id", intent.ExecutionEvent.Id.ToString("D")), ("$type", serialized.TypeName),
+            ("$json", serialized.Payload), ("$phase", (short)DatabaseRecoveryPhase.CuttingOver),
+            ("$now", Format(DateTimeOffset.UtcNow)), ("$id", intent.OperationId.Value.ToString("D"))).ConfigureAwait(false);
     }
 
     public async ValueTask<JournalLease?> TryAcquireLeaseAsync(
@@ -275,6 +318,18 @@ LIMIT $maximum_count;
             cancellationToken.ThrowIfCancellationRequested();
             yield return item;
         }
+    }
+
+    public async ValueTask<DatabaseBackupServiceEventContract?> ReadLatestServiceEventAsync(
+        DatabaseRecoveryOperationId operationId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT event_type,event_json FROM journal_outbox WHERE operation_id=$id ORDER BY service_sequence DESC LIMIT 1;";
+        command.Parameters.AddWithValue("$id", operationId.Value.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? (DatabaseBackupServiceEventContract)DatabaseBackupContractSerializer.Deserialize(reader.GetString(0), reader.GetString(1)) : null;
     }
 
     public async ValueTask MarkServiceEventPublishedAsync(

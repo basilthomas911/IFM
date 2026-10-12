@@ -25,8 +25,11 @@ public static class CreatePortfolioFinancialPolicy
         string principal,
         Func<Func<bool, DateTime, ServiceResult<GuidResult>>,
             Func<IPortfolioFinancialPolicyDomainEvent, bool>?,
-            ValueTask<ServiceResult<GuidResult>>> commit) =>
-        commit((referenced, now) => command.Execute(state, principal, referenced, now), committed => committed is PortfolioFinancialPolicyCreatedEvent prior && !string.Equals(command.Policy.CanonicalSha256(), prior.Policy.CanonicalSha256(), StringComparison.Ordinal));
+            ValueTask<ServiceResult<GuidResult>>> commit) 
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+        return commit((referenced, now) => command.Execute(state, principal, referenced, now), committed => committed is PortfolioFinancialPolicyCreatedEvent prior && !string.Equals(command.Policy.CanonicalSha256(), prior.Policy.CanonicalSha256(), StringComparison.Ordinal));
+    }
 
     /// <summary>Computes and guards the policy change before applying its source event.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>

@@ -9,5 +9,6 @@ public interface IFunctionActorContext
 }
 
 /// <summary>Closed-generic Function actor context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
 public interface IFunctionActorContext<TActor> : IFunctionActorContext
     where TActor : IActor;

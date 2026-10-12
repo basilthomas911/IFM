@@ -21,8 +21,12 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
     /// execution time of the event is logged for monitoring purposes.</remarks>
     /// <param name="e">The event to be processed. Must not be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The event-service dispatch boundary records handler failures without terminating unrelated event dispatch.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public async Task ExecuteAsync(IEvent e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             var eventType = e.GetType();
@@ -33,7 +37,7 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
             if (!await ExecuteAsync(eventHandler, e))
                 await eventHandler?.ExecuteAsync((dynamic)e);
             sw.Stop();
-            var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
+            var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff", System.Globalization.CultureInfo.InvariantCulture);
             logger.LogInformationEvent(ServiceName, $"{eventTypeName} executed in {queryElapsedTime} seconds");
         }
         catch (EventException ex)
@@ -55,8 +59,13 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
     /// <param name="e">The event to be processed. Must not be <see langword="null"/>.</param>
     /// <param name="eventService">The service responsible for handling the event. Must not be <see langword="null"/>.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The event-service dispatch boundary records handler failures without terminating unrelated event dispatch.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public async Task ExecuteAsync(IEvent e, IEventService eventService)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventService);
         try
         {
             var eventType = e.GetType();
@@ -66,7 +75,7 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
             dynamic eventServiceHandler = eventHandlerResolver.ResolveEventServiceHandler(eventType, eventService.GetType())!;
             await eventServiceHandler?.ExecuteAsync((dynamic)e, eventService);
             sw.Stop();
-            var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff");
+            var queryElapsedTime = sw.Elapsed.ToString(@"ss\.fff", System.Globalization.CultureInfo.InvariantCulture);
             logger.LogInformationEvent(ServiceName, $"{eventTypeName} executed in {queryElapsedTime} seconds");
         }
         catch (EventException ex)
@@ -80,6 +89,6 @@ public abstract class BaseEventService(IEventServiceHandlerResolver eventHandler
     }
 
     protected virtual async Task<bool> ExecuteAsync(object handler, IEvent e)
-        => await Task.FromResult(false);
+        => await (Task.FromResult(false)).ConfigureAwait(false);
 
 }

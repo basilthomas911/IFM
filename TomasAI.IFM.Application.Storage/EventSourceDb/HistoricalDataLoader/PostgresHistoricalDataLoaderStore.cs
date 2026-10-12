@@ -75,17 +75,20 @@ public sealed class PostgresHistoricalDataLoaderStore(
             : JsonSerializer.Deserialize<HistoricalDataLoaderAudit>(row.GetString(11))
     };
 
-    readonly record struct AttemptParameter(Guid AttemptId) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct AttemptParameter(Guid AttemptId) : IBindValue
     {
         public object Bind() => Values(Uuid(AttemptId));
     }
 
-    readonly record struct HashParameter(string Hash) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct HashParameter(string Hash) : IBindValue
     {
         public object Bind() => Values(Text(Hash));
     }
 
-    readonly record struct SaveParameter(HistoricalDataLoaderState State) : IBindValue
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+readonly record struct SaveParameter(HistoricalDataLoaderState State) : IBindValue
     {
         public object Bind() => Values(
             Uuid(State.DataLoadAttemptId),

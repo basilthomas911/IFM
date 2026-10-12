@@ -25,9 +25,13 @@ public static class EventInitHelper
     /// Sets the value of an init-only (or regular) property on the given object using a cached setter.
     /// </summary>
     public static void SetProperty<T>(object target, string propertyName, T value)
-        => Setters<T>.Cache.GetOrAdd(
+        
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        Setters<T>.Cache.GetOrAdd(
             (target.GetType(), propertyName),
             static key => CreateSetter<T>(key.Item1, key.Item2))(target, value);
+    }
 
     static Action<object, T> CreateSetter<T>(Type type, string propertyName)
     {

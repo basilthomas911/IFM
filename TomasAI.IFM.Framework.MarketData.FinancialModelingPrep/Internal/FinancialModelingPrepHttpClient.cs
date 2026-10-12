@@ -66,38 +66,9 @@ internal sealed class FinancialModelingPrepHttpClient
 
             try
             {
-                var requestStarted = Stopwatch.GetTimestamp();
-                RequestCount.Add(1, new KeyValuePair<string, object?>("dataset", dataset));
-                using var lease = await _requestGate.EnterAsync(cancellationToken).ConfigureAwait(false);
-                using var request = new HttpRequestMessage(HttpMethod.Get, relativeUri);
-                request.Headers.TryAddWithoutValidation("apikey", _options.GetApiKey());
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                requestTimeout.CancelAfter(_options.RequestTimeout);
-
-                using var response = await _httpClient.SendAsync(
-                        request,
-                        HttpCompletionOption.ResponseHeadersRead,
-                        requestTimeout.Token)
-                    .ConfigureAwait(false);
-                RequestDuration.Record(
-                    Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds,
-                    new KeyValuePair<string, object?>("dataset", dataset),
-                    new KeyValuePair<string, object?>("status_class", $"{(int)response.StatusCode / 100}xx"));
-
-                if (IsTransient(response.StatusCode) && attempt < _options.MaximumRetryAttempts)
-                {
-                    retryDelay = GetRetryDelay(response.Headers.RetryAfter, attempt);
-                }
-                else
-                {
-                    EnsureSuccess(response.StatusCode);
-                    var payload = await ReadBoundedAsync(response.Content, cancellationToken).ConfigureAwait(false);
-                    ResponseBytes.Add(payload.Length, new KeyValuePair<string, object?>("dataset", dataset));
-                    _requestGate.RecordSuccess();
-                    return payload;
-                }
+                var result = await SendAttemptAsync(relativeUri, dataset, attempt, cancellationToken).ConfigureAwait(false);
+                if (result.Payload is { } payload) return payload;
+                retryDelay = result.RetryDelay;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -132,6 +103,43 @@ internal sealed class FinancialModelingPrepHttpClient
         throw new UnreachableException();
     }
 
+    private async Task<(byte[]? Payload, TimeSpan? RetryDelay)> SendAttemptAsync(
+        string relativeUri, string dataset, int attempt, CancellationToken cancellationToken)
+    {
+        var requestStarted = Stopwatch.GetTimestamp();
+        RequestCount.Add(1, new KeyValuePair<string, object?>("dataset", dataset));
+        using var lease = await _requestGate.EnterAsync(cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Get, relativeUri);
+        request.Headers.TryAddWithoutValidation("apikey", _options.GetApiKey());
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestTimeout.CancelAfter(_options.RequestTimeout);
+
+        using var response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                requestTimeout.Token)
+            .ConfigureAwait(false);
+        RequestDuration.Record(
+            Stopwatch.GetElapsedTime(requestStarted).TotalMilliseconds,
+            new KeyValuePair<string, object?>("dataset", dataset),
+            new KeyValuePair<string, object?>("status_class", $"{(int)response.StatusCode / 100}xx"));
+
+        if (IsTransient(response.StatusCode) && attempt < _options.MaximumRetryAttempts)
+        {
+            return (null, GetRetryDelay(response.Headers.RetryAfter, attempt));
+        }
+        else
+        {
+            EnsureSuccess(response.StatusCode);
+            var payload = await ReadBoundedAsync(response.Content, cancellationToken).ConfigureAwait(false);
+            ResponseBytes.Add(payload.Length, new KeyValuePair<string, object?>("dataset", dataset));
+            _requestGate.RecordSuccess();
+            return (payload, null);
+        }
+    }
+
     private async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {
         if (content.Headers.ContentLength > _options.MaximumResponseBytes)
@@ -139,7 +147,8 @@ internal sealed class FinancialModelingPrepHttpClient
             throw new FinancialModelingPrepResponseTooLargeException(_options.MaximumResponseBytes);
         }
 
-        await using var input = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var input = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var inputLease = input.ConfigureAwait(false);
         using var output = new MemoryStream(Math.Min(_options.MaximumResponseBytes, 64 * 1024));
         var buffer = new byte[16 * 1024];
 
@@ -188,6 +197,8 @@ internal sealed class FinancialModelingPrepHttpClient
         throw new FinancialModelingPrepResponseException($"FMP returned unexpected HTTP status {(int)statusCode}.");
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA5394", Justification = "Randomness spreads provider retries; it does not generate credentials or security decisions.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "S1244", Justification = "Zero is an explicit configured no-delay sentinel.")]
     private TimeSpan GetRetryDelay(RetryConditionHeaderValue? retryAfter, int attempt)
     {
         TimeSpan delay;
@@ -219,7 +230,7 @@ internal sealed class FinancialModelingPrepHttpClient
 
     private string DatasetTag(string relativeUri)
     {
-        var pathLength = relativeUri.IndexOf('?');
+        var pathLength = relativeUri.IndexOf('?', StringComparison.Ordinal);
         var path = (pathLength < 0 ? relativeUri : relativeUri[..pathLength]).TrimStart('/');
         return string.Equals(path, _options.TreasuryRatesEndpoint.TrimStart('/'), StringComparison.Ordinal)
             ? "treasury"

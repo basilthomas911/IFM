@@ -38,14 +38,17 @@ public class NatsJetStreamConsumerOptions : INatsJetStreamConsumerOptions
     public int MaxAckPending { get; set; }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int MaxMessages { get; set; }
 
     /// <inheritdoc />
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int ThresholdMessages { get; set; }
 
     /// <inheritdoc />
     public bool UseOwnedEventPayloads { get; set; } = true;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int GetOutstandingLimit()
         => MaxAckPending > 0
             ? MaxAckPending
@@ -53,6 +56,7 @@ public class NatsJetStreamConsumerOptions : INatsJetStreamConsumerOptions
 
     public int GetMaxMessages() => MaxMessages > 0 ? MaxMessages : GetOutstandingLimit();
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1024", Justification = "Preserve the published interface/configuration contract used by actor callers, named arguments, and serialized settings.")]
     public int GetThresholdMessages() => ThresholdMessages > 0 ? ThresholdMessages : DispatcherCapacity;
 
     public void Validate(ActorAdmissionOptions? admissionOptions = null)

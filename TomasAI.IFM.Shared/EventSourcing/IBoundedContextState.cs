@@ -8,7 +8,8 @@ public interface IBoundedContextState
     bool Apply<TEvent>(TEvent domainEvent, bool addEvent = true) where TEvent : IEvent;
 }
 
-public interface IBoundedContextState<TboundedContextState> : IBoundedContextState where TboundedContextState : IBoundedContextState
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2326", Justification = "The invariant generic argument identifies the exact actor, state, result or handler contract in dependency registration and dispatch.")]
+public interface IBoundedContextState<TBoundedContextState> : IBoundedContextState where TBoundedContextState : IBoundedContextState
 {
     void ReplayEvents(DomainEventCollection domainEvents);
     void ReplayEvents(ICollection<EventStreamReadModel> domainEvents);

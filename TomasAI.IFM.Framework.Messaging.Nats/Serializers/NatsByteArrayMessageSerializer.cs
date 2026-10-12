@@ -19,7 +19,7 @@ public class NatsByteArrayMessageSerializer : INatsSerializer<byte[]>
     /// serializer.</returns>
     /// <exception cref="NotImplementedException"></exception>
     public INatsSerializer<byte[]> CombineWith(INatsSerializer<byte[]> next)
-        => throw new NotImplementedException();
+        => throw new NotSupportedException("Raw byte-array serialization does not support serializer chaining.");
 
     /// <summary>
     /// Converts the specified <see cref="ReadOnlySequence{T}"/> of bytes into an array of bytes.

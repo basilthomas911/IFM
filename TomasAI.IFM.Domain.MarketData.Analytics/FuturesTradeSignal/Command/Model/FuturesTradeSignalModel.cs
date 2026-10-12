@@ -65,6 +65,7 @@ public class FuturesTradeSignalModel(
         };
     }
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3923", Justification = "The existing MDI fallback behavior is intentionally preserved during the storage refactor; new trading policy requires separate qualification.")]
     FuturesMDITrendType FuturesItiSignaIMDITrend()
     {
         var e = _lastItiSignal;
@@ -92,14 +93,8 @@ public class FuturesTradeSignalModel(
 
     public FuturesMDITrendType MDITrend => FuturesItiSignaIMDITrend();
 
-    FuturesMDITrendType GetMDITrend()
-        => _lastItiSignal switch
-        {
-            null => FuturesMDITrendType.RangeBound,
-            FuturesItiSignalV2ReadModel => FuturesItiSignaIMDITrend()
-        };
-
     public double MDIUpTrendLimit => GetMDIUpTrendLimit();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3923", Justification = "The existing MDI fallback behavior is intentionally preserved during the storage refactor; new trading policy requires separate qualification.")]
     double GetMDIUpTrendLimit()
         => _lastItiSignal switch
         {
@@ -108,6 +103,7 @@ public class FuturesTradeSignalModel(
         };
 
     public double MDIDownTrendLimit => GetMDIDownTrendLimit();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3923", Justification = "The existing MDI fallback behavior is intentionally preserved during the storage refactor; new trading policy requires separate qualification.")]
     double GetMDIDownTrendLimit()
         => _lastItiSignal switch
         {
@@ -186,6 +182,7 @@ public class FuturesTradeSignalModel(
     public decimal TwoHundredDMA => _futuresEodData.TwoHundredDMA;
 
     public TradeExecuteState TradeExecuteState => GetTradeExecuteState();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This existing decision compares persisted intrinsic local wall-clock timestamps; a monotonic stopwatch cannot substitute for those recorded times.")]
     TradeExecuteState GetTradeExecuteState()
     {
         var tradeExecuteState = TradeExecuteState.No;
@@ -212,12 +209,6 @@ public class FuturesTradeSignalModel(
             };
         }
         return tradeExecuteState;
-
-        bool CheckTradeExecuteState()
-            => (DateTime.Now - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
-
-        bool InHoldTradeExecuteState()
-            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
 
         bool IsBelowUpTrendEntryLimit(double entryLimitDelta, double maxExtreme)
             => FuturesTrendType == FuturesTrendType.UpTrending
@@ -253,4 +244,13 @@ public class FuturesTradeSignalModel(
                 && _tdiSignal.TDI == FuturesTrendDirectionType.DownTrending
                 && Convert.ToDouble(_futuresEodData.ClosePrice) < _itiSignalData.TrendDirectionChange.IntrinsicPrice;
     }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
+    bool CheckTradeExecuteState()
+            => (DateTime.Now - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6561", Justification = "This decision compares recorded intrinsic local wall-clock times; preserve the existing clock convention.")]
+    bool InHoldTradeExecuteState()
+            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
+
+
 }

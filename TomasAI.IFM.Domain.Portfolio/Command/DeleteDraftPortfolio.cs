@@ -31,6 +31,10 @@ public static class DeleteDraftPortfolio
         string principal,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(portfolioId);
+        ArgumentNullException.ThrowIfNull(state);
 
         foreach (var fundId in state.FundIds)
         {

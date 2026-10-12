@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.Supervisor.Shared.Service;
 /// <summary>Collects all managed actor metrics on one dedicated, named background thread.</summary>
 public sealed class SupervisorActorMetricsPollingService : ISupervisorActorMetricsPollingService, IDisposable
 {
-    readonly object _processSampleGate = new();
+    readonly System.Threading.Lock _processSampleGate = new();
     TimeSpan _lastProcessorTime;
     long _lastProcessTimestamp;
     public const string PollingThreadName = "IFM.Supervisor.ActorMetricsPoller";
@@ -25,7 +25,7 @@ public sealed class SupervisorActorMetricsPollingService : ISupervisorActorMetri
     readonly TimeProvider _timeProvider;
     readonly TimeSpan _interval;
     readonly ManualResetEventSlim _stop = new(false);
-    readonly object _gate = new();
+    readonly System.Threading.Lock _gate = new();
     Thread? _thread;
     int _serviceState;
     long _revision;
@@ -279,6 +279,7 @@ public sealed class SupervisorActorMetricsPollingService : ISupervisorActorMetri
         return total;
     }
 
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
     readonly record struct ProcessMetrics(double CpuPercent, long WorkingSetBytes, long ManagedHeapBytes,
         long TotalAllocatedBytes, long Gen0Collections, long Gen1Collections, long Gen2Collections,
         TimeSpan TotalGcPause, long ThreadPoolPendingItems, int ThreadPoolThreads);
@@ -296,7 +297,7 @@ public sealed class SupervisorActorMetricsPollingService : ISupervisorActorMetri
         catch (Exception exception) when (IsRecoverable(exception))
         {
             try { _exceptionLog.HeartbeatLogFailed(exception); }
-            catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { }
+            catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         }
     }
 
@@ -314,13 +315,13 @@ public sealed class SupervisorActorMetricsPollingService : ISupervisorActorMetri
     void TryActorSnapshotFailure(TomasAI.IFM.Shared.EventModelActor.ActorMailboxId actorId, Exception exception)
     {
         try { _exceptionLog.ActorSnapshotFailed(actorId, exception); }
-        catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { }
+        catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     void TryPollCycleFailure(Exception exception)
     {
         try { _exceptionLog.PollCycleFailed(exception); }
-        catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { }
+        catch (Exception fallbackException) when (IsRecoverable(fallbackException)) { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     static bool IsRecoverable(Exception exception) =>

@@ -7,17 +7,9 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
 
-/// <summary>Defines the runtime services required by <see cref="FuturesEodDataQueryActor"/>.</summary>
-public interface IFuturesEodDataQueryContext : IQueryActorContext<FuturesEodDataQueryActor>
-{
-    /// <summary>Gets the database-context factory.</summary>
-    IDbContextFactory DbFactory { get; }
-    /// <summary>Gets the actor logger.</summary>
-    ILogger<FuturesEodDataQueryActor> Logger { get; }
-}
-
 /// <summary>Provides the typed runtime context used by <see cref="FuturesEodDataQueryActor"/>.</summary>
-public sealed class FuturesEodDataQueryContext : QueryActorContext, IQueryActorContext<FuturesEodDataQueryActor>, IFuturesEodDataQueryContext
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
+public sealed class FuturesEodDataQueryContext : QueryActorContext, IFuturesEodDataQueryContext
 {
     /// <summary>Initializes the typed query context.</summary>
     public FuturesEodDataQueryContext(

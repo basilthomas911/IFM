@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility;
 /// <summary>Bounded in-memory cadence guard; durable history remains observation/snapshot based.</summary>
 public sealed class VolatilitySampleCoordinator(TimeSpan coalescingInterval, int maximumIntradayCheckpointsPerValueDate)
 {
-    readonly object gate = new();
+    readonly System.Threading.Lock gate = new();
     readonly Dictionary<(string Series, string Version, DateOnly Date, string Slot), int> daily = new();
     readonly Dictionary<(string Series, string Version, DateOnly Date), SortedDictionary<long, int>> intraday = new();
 

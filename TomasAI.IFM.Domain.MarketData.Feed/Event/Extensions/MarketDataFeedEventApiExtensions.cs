@@ -19,6 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 /// operations explicitly populate actor subjects and correlation fields before sending through the captured
 /// <see cref="IEventActorContext"/>.
 /// </remarks>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "C# 14 extension blocks generate nested implementation types; the public API consists of actor context extension members, not nested domain types.")]
 public static class MarketDataFeedEventApiExtensions
 {
     extension(IEventActorContext context)
@@ -30,7 +32,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesBarDataStreamingStartedCompleteAsync(FuturesBarDataStreamingStartedEvent e)
-            => context.SendCompleteAsync<FuturesBarDataStreamingStartedEvent, FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesBarDataStreamingStartedEvent, FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(e);
+        }
 
         /// <summary>
         /// Sends the futures bar data streaming started fail event.
@@ -39,7 +45,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesBarDataStreamingStartedFailAsync(FuturesBarDataStreamingStartedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesBarDataStreamingStartedEvent, FuturesBarDataStreamingStartedFailEvent, FuturesBarDataStreamingId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesBarDataStreamingStartedEvent, FuturesBarDataStreamingStartedFailEvent, FuturesBarDataStreamingId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the futures bar data streaming stopped complete event.
@@ -47,7 +57,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesBarDataStreamingStoppedCompleteAsync(FuturesBarDataStreamingStoppedEvent e)
-            => context.SendCompleteAsync<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>(e);
+        }
 
         /// <summary>
         /// Sends the futures bar data streaming stopped fail event.
@@ -56,7 +70,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesBarDataStreamingStoppedFailAsync(FuturesBarDataStreamingStoppedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesBarDataStreamingStoppedEvent, FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the futures tick data streaming started complete event.
@@ -64,7 +82,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesTickDataStreamingStartedCompleteAsync(FuturesTickDataStreamingStartedEvent e)
-            => context.SendCompleteAsync<FuturesTickDataStreamingStartedEvent, FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesTickDataStreamingStartedEvent, FuturesTickDataStreamingStartedCompleteEvent, FuturesTickDataStreamingId>(e);
+        }
 
         /// <summary>
         /// Sends the futures tick data streaming started fail event.
@@ -73,7 +95,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesTickDataStreamingStartedFailAsync(FuturesTickDataStreamingStartedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesTickDataStreamingStartedEvent, FuturesTickDataStreamingStartedFailEvent, FuturesTickDataStreamingId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesTickDataStreamingStartedEvent, FuturesTickDataStreamingStartedFailEvent, FuturesTickDataStreamingId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the futures tick data streaming stopped complete event.
@@ -81,7 +107,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesTickDataStreamingStoppedCompleteAsync(FuturesTickDataStreamingStoppedEvent e)
-            => context.SendCompleteAsync<FuturesTickDataStreamingStoppedEvent, FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesTickDataStreamingStoppedEvent, FuturesTickDataStreamingStoppedCompleteEvent, FuturesTickDataStreamingId>(e);
+        }
 
         /// <summary>
         /// Sends the futures tick data streaming stopped fail event.
@@ -90,7 +120,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask FuturesTickDataStreamingStoppedFailAsync(FuturesTickDataStreamingStoppedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesTickDataStreamingStoppedEvent, FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesTickDataStreamingStoppedEvent, FuturesTickDataStreamingStoppedFailEvent, FuturesTickDataStreamingId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the option trade tick price data updated event.
@@ -99,6 +133,7 @@ public static class MarketDataFeedEventApiExtensions
         /// <returns>A value task that completes when the event has been sent.</returns>
         public async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(FuturesOptionTickDataInsertedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             var entityId = new FuturesOptionTickEntityId(e.TickData.ContractId, e.TickData.ValueDate);
             OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(e.TickData)
             {
@@ -113,7 +148,7 @@ public static class MarketDataFeedEventApiExtensions
                 AggregateId = e.AggregateId,
                 ReceivedOn = DateTime.UtcNow
             };
-            await context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent);
+            await (context.SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(updatedEvent)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -153,6 +188,8 @@ public static class MarketDataFeedEventApiExtensions
         public async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(
             FuturesTickTradeDataChangedEvent e, FuturesOptionTickDataV2ReadModel tickData)
         {
+            ArgumentNullException.ThrowIfNull(e);
+            ArgumentNullException.ThrowIfNull(tickData);
             var entityId = new FuturesOptionTickEntityId(tickData.ContractId, tickData.ValueDate);
             var updatedEvent = new OptionTradeTickPriceDataUpdatedEvent(tickData)
             {
@@ -170,7 +207,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendFuturesOptionTickDataStreamingStartedCompleteAsync(FuturesOptionTickDataStreamingStartedEvent e)
-            => context.SendCompleteAsync<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickDataStreamingStartedCompleteEvent, FuturesOptionTickEntityId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickDataStreamingStartedCompleteEvent, FuturesOptionTickEntityId>(e);
+        }
 
         /// <summary>
         /// Sends the futures option tick data streaming started fail event.
@@ -179,7 +220,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendFuturesOptionTickDataStreamingStartedFailAsync(FuturesOptionTickDataStreamingStartedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesOptionTickDataStreamingStartedEvent, FuturesOptionTickDataStreamingStartedFailEvent, FuturesOptionTickEntityId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the futures option tick data streaming stopped complete event.
@@ -187,7 +232,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendFuturesOptionTickDataStreamingStoppedCompleteAsync(FuturesOptionTickDataStreamingStoppedEvent e)
-            => context.SendCompleteAsync<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickDataStreamingStoppedCompleteEvent, FuturesOptionTickEntityId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickDataStreamingStoppedCompleteEvent, FuturesOptionTickEntityId>(e);
+        }
 
         /// <summary>
         /// Sends the futures option tick data streaming stopped fail event.
@@ -196,7 +245,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendFuturesOptionTickDataStreamingStoppedFailAsync(FuturesOptionTickDataStreamingStoppedEvent e, Exception ex)
-            => context.SendFailAsync<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<FuturesOptionTickDataStreamingStoppedEvent, FuturesOptionTickDataStreamingStoppedFailEvent, FuturesOptionTickEntityId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the market data feed reset complete event.
@@ -204,7 +257,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask MarketDataFeedResetCompleteAsync(MarketDataFeedResetEvent e)
-            => context.SendCompleteAsync<MarketDataFeedResetEvent, MarketDataFeedResetCompleteEvent, MarketDataFeedId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<MarketDataFeedResetEvent, MarketDataFeedResetCompleteEvent, MarketDataFeedId>(e);
+        }
 
         /// <summary>
         /// Sends the market data feed reset fail event.
@@ -213,7 +270,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask MarketDataFeedResetFailAsync(MarketDataFeedResetEvent e, Exception ex)
-            => context.SendFailAsync<MarketDataFeedResetEvent, MarketDataFeedResetFailEvent, MarketDataFeedId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<MarketDataFeedResetEvent, MarketDataFeedResetFailEvent, MarketDataFeedId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the reset streaming event.
@@ -222,6 +283,7 @@ public static class MarketDataFeedEventApiExtensions
         /// <returns>A value task that completes when the event has been sent.</returns>
         public async ValueTask SendResetStreamingEventAsync(MarketDataFeedResetCompleteEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             MarketDataFeedResetStreamingEvent resetStreamingEvent = new()
             {
                 Subject = new ActorSubject(
@@ -232,7 +294,7 @@ public static class MarketDataFeedEventApiExtensions
                 EntityId = e.EntityId,
                 CommandId = e.CommandId
             };
-            await context.SendAsync<MarketDataFeedResetStreamingEvent, MarketDataFeedId>(resetStreamingEvent);
+            await (context.SendAsync<MarketDataFeedResetStreamingEvent, MarketDataFeedId>(resetStreamingEvent)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -241,7 +303,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendMarketDataFeedStartedCompleteAsync(MarketDataFeedStartedEvent e)
-            => context.SendCompleteAsync<MarketDataFeedStartedEvent, MarketDataFeedStartedCompleteEvent, MarketDataFeedId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<MarketDataFeedStartedEvent, MarketDataFeedStartedCompleteEvent, MarketDataFeedId>(e);
+        }
 
         /// <summary>
         /// Sends the market data feed started fail event.
@@ -250,7 +316,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendMarketDataFeedStartedFailAsync(MarketDataFeedStartedEvent e, Exception ex)
-            => context.SendFailAsync<MarketDataFeedStartedEvent, MarketDataFeedStartedFailEvent, MarketDataFeedId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<MarketDataFeedStartedEvent, MarketDataFeedStartedFailEvent, MarketDataFeedId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the market data feed stopped complete event.
@@ -258,7 +328,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="e">The source domain event.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendMarketDataFeedStoppedCompleteAsync(MarketDataFeedStoppedEvent e)
-            => context.SendCompleteAsync<MarketDataFeedStoppedEvent, MarketDataFeedStoppedCompleteEvent, MarketDataFeedId>(e);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendCompleteAsync<MarketDataFeedStoppedEvent, MarketDataFeedStoppedCompleteEvent, MarketDataFeedId>(e);
+        }
 
         /// <summary>
         /// Sends the market data feed stopped fail event.
@@ -267,7 +341,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendMarketDataFeedStoppedFailAsync(MarketDataFeedStoppedEvent e, Exception ex)
-            => context.SendFailAsync<MarketDataFeedStoppedEvent, MarketDataFeedStoppedFailEvent, MarketDataFeedId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<MarketDataFeedStoppedEvent, MarketDataFeedStoppedFailEvent, MarketDataFeedId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the trade live feed added fail event.
@@ -276,7 +354,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendTradeLiveFeedAddedFailEventAsync(TradeLiveFeedAddedEvent e, Exception ex)
-            => context.SendFailAsync<TradeLiveFeedAddedEvent, TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<TradeLiveFeedAddedEvent, TradeLiveFeedAddedFailEvent, TradeLiveFeedId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the trade live feed removed fail event.
@@ -285,7 +367,11 @@ public static class MarketDataFeedEventApiExtensions
         /// <param name="ex">The exception that caused the failure.</param>
         /// <returns>A value task that completes when the event has been sent.</returns>
         public ValueTask SendTradeLiveFeedRemovedFailEventAsync(TradeLiveFeedRemovedEvent e, Exception ex)
-            => context.SendFailAsync<TradeLiveFeedRemovedEvent, TradeLiveFeedRemovedFailEvent, TradeLiveFeedId>(e, ex);
+            
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            return context.SendFailAsync<TradeLiveFeedRemovedEvent, TradeLiveFeedRemovedFailEvent, TradeLiveFeedId>(e, ex);
+        }
 
         /// <summary>
         /// Sends the futures EOD data updated event.
@@ -294,6 +380,7 @@ public static class MarketDataFeedEventApiExtensions
         /// <returns>A value task that completes when the event has been sent.</returns>
         public async ValueTask SendFuturesEodDataUpdatedEventAsync(FuturesEodDataInsertedEvent e)
         {
+            ArgumentNullException.ThrowIfNull(e);
             var entityId = e.EntityId;
             FuturesEodDataUpdatedEvent updatedEvent = new()
             {
@@ -311,7 +398,7 @@ public static class MarketDataFeedEventApiExtensions
                 UpdatedOn = DateTime.Now,
                 UpdatedBy = e.UserName
             };
-            await context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(updatedEvent);
+            await (context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(updatedEvent)).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -346,7 +433,7 @@ public static class MarketDataFeedEventApiExtensions
             where TEntityId : IActorEntityId
         {
             var completeEvent = e.ToCompleteEvent<TCompleteEvent, TEntityId>() as TCompleteEvent;
-            await context.SendAsync<TCompleteEvent, TEntityId>(completeEvent!);
+            await (context.SendAsync<TCompleteEvent, TEntityId>(completeEvent!)).ConfigureAwait(false);
         }
 
         async ValueTask SendFailAsync<TEvent, TFailEvent, TEntityId>(TEvent e, Exception ex)
@@ -355,7 +442,7 @@ public static class MarketDataFeedEventApiExtensions
             where TEntityId : IActorEntityId
         {
             var failEvent = e.ToFailEvent<TFailEvent, TEntityId>(ex) as TFailEvent;
-            await context.SendAsync<TFailEvent, TEntityId>(failEvent!);
+            await (context.SendAsync<TFailEvent, TEntityId>(failEvent!)).ConfigureAwait(false);
         }
     }
 }

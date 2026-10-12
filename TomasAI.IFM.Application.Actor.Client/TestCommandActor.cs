@@ -17,13 +17,13 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestCommandContext ActorContext =>
-        IsArgumentNull.Set(Context as ITestCommandContext, nameof(Context))!;
+        IsArgumentNull.Set(Context as ITestCommandContext)!;
 
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "TestCommand";
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
-        new Dictionary<string, Func<IActorMessage, ICommand>>
+        new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             ["TestCommand"] = message => message.AsCommand<TestCommand>()!
         };
@@ -48,9 +48,10 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context of the command actor, providing access to actor-specific information and services.</param>
     /// <param name="state">The current state of the actor, which may be used or modified during command processing.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TestCommandActor> context, IActorState state, ICommand cmd)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TestCommandActor> context, IActorState state, ICommand command)
     {
-        return await Task.FromResult(new ServiceResult<GuidResult>(new GuidResult(cmd.CommandId)));
+        ArgumentNullException.ThrowIfNull(command);
+        return await (Task.FromResult(new ServiceResult<GuidResult>(new GuidResult(command.CommandId)))).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -60,9 +61,13 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context for the command actor, providing access to actor metadata and services required for state loading.</param>
     /// <param name="threadId">The identifier of the actor thread for which the state is being loaded.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand cmd)
-        => await ValueTask.FromResult(new TestCommandState());
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand command)
+        => await (ValueTask.FromResult(new TestCommandState())).ConfigureAwait(false);
 
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
-        => await ValueTask.FromResult(new ServiceResult<GuidResult>(new GuidResult(cmd.CommandId)));
+    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
+        
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return await (ValueTask.FromResult(new ServiceResult<GuidResult>(new GuidResult(command.CommandId)))).ConfigureAwait(false);
+    }
 }

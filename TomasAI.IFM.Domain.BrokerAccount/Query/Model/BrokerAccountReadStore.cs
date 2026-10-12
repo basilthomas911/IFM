@@ -7,22 +7,6 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 
-/// <summary>Reads persisted account definitions; command state must not populate this service.</summary>
-public interface IBrokerAccountReadStore
-{
-    /// <summary>Reads ScyllaDB for an account used by synchronous broker-order authorization.</summary>
-    BrokerAccountDefinition? Get(BrokerAccountId accountId);
-    /// <summary>Reads the persisted projection asynchronously for query actors.</summary>
-    ValueTask<BrokerAccountDefinition?> GetAsync(BrokerAccountId accountId, CancellationToken cancellationToken = default)
-        => ValueTask.FromResult(Get(accountId));
-}
-
-/// <summary>Persists account data carried by committed domain events.</summary>
-public interface IBrokerAccountProjectionWriter
-{
-    ValueTask ProjectAsync(BrokerAccountDefinition brokerAccountDefinition, CancellationToken cancellationToken = default);
-}
-
 /// <summary>ScyllaDB account read-model repository; highest projected revision is current.</summary>
 public sealed class BrokerAccountReadStore(IDbConnectionSettings settings, ILogger<DbProvider> logger, IHostEnvironment? hostEnvironment = null)
     : ObjectDataRepository<BrokerAccountReadStore>(settings["TradeDbConnection"], logger), IBrokerAccountReadStore, IBrokerAccountProjectionWriter
@@ -43,8 +27,9 @@ public sealed class BrokerAccountReadStore(IDbConnectionSettings settings, ILogg
     /// <inheritdoc />
     public async ValueTask ProjectAsync(BrokerAccountDefinition brokerAccountDefinition, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(brokerAccountDefinition);
         await Use("BrokerAccount.Project", "INSERT INTO broker_account_read_model (account_alias, revision, account_definition) VALUES (:AccountAlias, :Revision, :AccountDefinition);")
-            .SetParameters(new { AccountAlias = brokerAccountDefinition.Id.AccountAlias, Revision = (long)brokerAccountDefinition.Revision, AccountDefinition = MessagePackSerializer.Serialize(brokerAccountDefinition with { DevelopmentQualificationsExempt = false }) })
+            .SetParameters(new { AccountAlias = brokerAccountDefinition.Id.AccountAlias, Revision = (long)brokerAccountDefinition.Revision, AccountDefinition = MessagePackSerializer.Serialize(brokerAccountDefinition with { DevelopmentQualificationsExempt = false }, cancellationToken: cancellationToken) })
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
 }

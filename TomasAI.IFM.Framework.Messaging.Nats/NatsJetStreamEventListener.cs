@@ -25,7 +25,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 public sealed class NatsJetStreamEventListener(
     INatsJetStreamEventListenerOptions options,
     ILogger logger,
-    NatsConnectionManager? connectionManager = null) : IJSActorEventListener
+    NatsConnectionManager? connectionManager = null) : IJSActorEventListener, IAsyncDisposable
 {
     const string ServiceId = nameof(NatsJetStreamEventListener);
     readonly INatsJetStreamEventListenerOptions _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -33,6 +33,17 @@ public sealed class NatsJetStreamEventListener(
     NatsConnectionManager? _connectionManager = connectionManager ?? new NatsConnectionManager();
     readonly bool _ownsConnectionManager = connectionManager is null;
     readonly NatsByteArrayMessageSerializer _deserializer = new();
+    int _disposeStarted;
+
+    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
+        try { await StopAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Dispose(); }
+        GC.SuppressFinalize(this);
+    }
+
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     readonly List<MailboxRuntime> _mailboxes = [];
     NatsClient? _client;
@@ -107,7 +118,7 @@ public sealed class NatsJetStreamEventListener(
             if (_client is null)
                 return;
 
-            _consumerCancellation!.Cancel();
+            await _consumerCancellation!.CancelAsync().ConfigureAwait(false);
             await AwaitExpectedCancellationAsync(_mailboxes.Select(runtime => runtime.ConsumerTask)).ConfigureAwait(false);
             foreach (var runtime in _mailboxes)
                 foreach (var channel in runtime.Channels)
@@ -194,6 +205,8 @@ public sealed class NatsJetStreamEventListener(
         _mailboxes.Add(new MailboxRuntime(channels, dispatcherTasks, consumerTask));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "This transport boundary keeps ownership transfer, cancellation, and cleanup in one lexical scope so admission cannot outlive its cleanup contract.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task ConsumeAsync(
         INatsJSConsumer consumer,
         ActorMailboxId mailboxId,
@@ -261,11 +274,9 @@ public sealed class NatsJetStreamEventListener(
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
         catch (Exception exception)
         {
             NatsMessagingMetrics.DispatchFailures.Add(1);
@@ -274,6 +285,7 @@ public sealed class NatsJetStreamEventListener(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async Task DispatchLoopAsync(ChannelReader<PendingDelivery> reader)
     {
         await foreach (var delivery in reader.ReadAllAsync().ConfigureAwait(false))
@@ -306,6 +318,7 @@ public sealed class NatsJetStreamEventListener(
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1751", Justification = "This bounded async enumeration intentionally selects only the first stream matching the exact subject filter, then disposes the enumerator.")]
     async ValueTask<INatsJSStream> ResolveStreamAsync(
         INatsJSContext jetStream,
         string filterSubject,
@@ -370,6 +383,7 @@ public sealed class NatsJetStreamEventListener(
         return _options.FilterSubject;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The transport boundary records delivery failures or requests redelivery; one failed delivery or shutdown cleanup must not terminate unrelated messaging.")]
     async ValueTask TryNegativeAcknowledgeAsync(INatsJSMsg<byte[]> message)
     {
         try
@@ -380,14 +394,13 @@ public sealed class NatsJetStreamEventListener(
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(
-                exception,                "{Component}.{Method} "+"JetStream event listener {EventListenerId} could not send a negative acknowledgement; the ACK timeout will preserve redelivery.",nameof(NatsJetStreamEventListener),nameof(TryNegativeAcknowledgeAsync),                _eventListenerId);
+            global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write49(_logger, exception, nameof(NatsJetStreamEventListener), nameof(TryNegativeAcknowledgeAsync), _eventListenerId);
         }
     }
 
     async ValueTask StopFailedStartAsync()
     {
-        _consumerCancellation?.Cancel();
+        if (_consumerCancellation is { } pendingCancellation402) await pendingCancellation402.CancelAsync().ConfigureAwait(false);
         await AwaitExpectedCancellationAsync(_mailboxes.Select(runtime => runtime.ConsumerTask)).ConfigureAwait(false);
         foreach (var runtime in _mailboxes)
             foreach (var channel in runtime.Channels)
@@ -412,8 +425,7 @@ public sealed class NatsJetStreamEventListener(
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
-        {
-        }
+        { /* Expected cancellation or nonfatal diagnostic failure; preserve the primary operation outcome. */ }
     }
 
     static void ValidateStartArguments(
@@ -439,7 +451,7 @@ public sealed class NatsJetStreamEventListener(
         }
     }
 
-    NatsJetStreamEventListenerOptions GetValidatedOptions()
+    void GetValidatedOptions()
     {
         var concreteOptions = _options as NatsJetStreamEventListenerOptions ?? new NatsJetStreamEventListenerOptions
         {
@@ -458,7 +470,7 @@ public sealed class NatsJetStreamEventListener(
             NegativeAcknowledgeDelay = _options.NegativeAcknowledgeDelay
         };
         concreteOptions.Validate();
-        return concreteOptions;
+
     }
 
     int GetOutstandingLimit() => _options.MaxAckPending > 0
@@ -471,6 +483,7 @@ public sealed class NatsJetStreamEventListener(
         ? _options.ThresholdMessages
         : Math.Min(_options.DispatcherCapacity, GetMaxMessages());
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1308", Justification = "Lowercase consumer names are persisted NATS durable identities; changing casing would create different consumers.")]
     internal static string CreateDurableConsumerName(
         string prefix,
         string eventListenerId,

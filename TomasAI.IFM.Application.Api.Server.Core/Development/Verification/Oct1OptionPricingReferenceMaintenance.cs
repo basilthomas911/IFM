@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
-using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.Pricing;
@@ -22,32 +24,26 @@ internal static class Oct1OptionPricingReferenceMaintenance
             throw new InvalidOperationException("Oct 1 reference publication requires Development and explicit live-qualification opt-in.");
 
         using var logs = LoggerFactory.Create(_ => { });
-        var settings = new DbConnectionSettings()
-            .Add("securities", config.GetConnectionString("SecuritiesDbConnection")
-                ?? throw new InvalidOperationException("SecuritiesDbConnection required."), "System.Data.ScyllaDb")
-            .Add("reference", config.GetConnectionString("ReferenceDbConnection")
-                ?? throw new InvalidOperationException("ReferenceDbConnection required."), "System.Data.ScyllaDb");
-        var securities = new Repository(settings["securities"], logs.CreateLogger<DbProvider>());
-        var reference = new Repository(settings["reference"], logs.CreateLogger<DbProvider>());
-        var generation = await securities.Use("Oct1Reference.CacheState",
-                "SELECT generation FROM option_contract_expiry_calendar_state WHERE symbol=?;")
-            .SetParameters(new Values(["ES"]))
-            .ExecuteSingleAsync(row => row.GetGuid(0), token);
-        if (generation == Guid.Empty) throw new InvalidDataException("ES option-expiry cache has no published generation.");
-        var rows = await securities.Use("Oct1Reference.CachedDefinitions",
-                "SELECT underlyingContractId,providerRoot,definitionPayload FROM option_contract_expiry_calendar WHERE symbol=? AND generation=? AND expiryDate=?;")
-            .SetParameters(new Values(["ES", generation, Expiry]))
-            .ExecuteQueryAsync(row => new Cached(row.GetString(0), row.GetString(1),
-                ReferencePayloadCodec.ReadOption(row.GetBytes(2))), token);
-        var selected = rows.Where(row => row.Root == "E1D" && row.Underlying == "ES20261218")
+        var settings = TomasAI.IFM.Application.Storage.ApplicationStorageConnections.CreatePostgres(
+            config["IFM_TEST_POSTGRES_CONNECTION"] ?? config["Storage:PostgresConnection"]
+                ?? config.GetConnectionString("EventSourceActorDbConnection")
+                ?? throw new InvalidOperationException("The shared PostgreSQL application connection is required."));
+        SecuritiesDbContext? securities = null;
+        var factory = new DbContextFactory(new DbContextResolver(_ => securities!));
+        securities = new SecuritiesDbContext(settings, factory, logs.CreateLogger<DbProvider>());
+        var rows = await securities.GetCachedOptionContractDefinitionsAsync("ES", "ES20261218", Expiry, ["E1D"], token);
+        var selected = rows.Select(row => new Cached(row.UnderlyingContractId, row.ProviderRoot, row.Definition))
             .DistinctBy(row => row.Definition.ContractId).ToArray();
         if (selected.Length == 0) throw new InvalidDataException("No cached Oct 1 E1D definitions for ES20261218.");
-        var conventions = selected.Select(Create).ToArray();
-        await reference.Use("Oct1Reference.Schema", OptionPricingConventionStore.CreateTable).ExecuteCommandAsync(token);
-        var store = new OptionPricingConventionStore(reference);
-        foreach (var convention in conventions)
-            await store.InsertReviewedAsync(convention, token);
-        Console.WriteLine($"Published and read back {conventions.Length} exact Oct 1 E1D conventions from cache generation {generation}.");
+        await new SecuritiesSchemaDb(settings, logs.CreateLogger<DbProvider>()).CreateAsync(
+            ["securities"], token);
+        foreach (var row in selected)
+        {
+            var definition = ReviewedOptionReference.Apply(row.Definition with { PremiumStyle = ReferencePremiumStyle.PremiumPaid }, Create(row));
+            var pending = await securities.StageReferenceVersionAsync(definition, token);
+            await securities.CommitReferenceVersionAsync(pending, token);
+        }
+        Console.WriteLine($"Published and read back {selected.Length} exact Oct 1 E1D contract versions from the published definition cache.");
     }
 
     static OptionPricingConvention Create(Cached row)
@@ -99,7 +95,4 @@ internal static class Oct1OptionPricingReferenceMaintenance
 
     sealed record Cached(string Underlying, string Root,
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel Definition);
-    readonly record struct Values(object[] Items) : IBindValue { public object Bind() => Items; }
-    sealed class Repository(IDbConnectionSetting setting, ILogger<DbProvider> logger) : ObjectDataRepository<Repository>(setting, logger)
-    { public override IObjectRepository Database => this; }
 }

@@ -9,14 +9,4 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Primary,
         Hedge
     }
-
-    public static class TradeSubTypeExtensions
-    {
-        public static string ToStringFast(this TradeSubType value) => value switch
-        {
-            TradeSubType.Primary => nameof(TradeSubType.Primary),
-            TradeSubType.Hedge => nameof(TradeSubType.Hedge),
-            _ => value.ToString()
-        };
-    }
 }

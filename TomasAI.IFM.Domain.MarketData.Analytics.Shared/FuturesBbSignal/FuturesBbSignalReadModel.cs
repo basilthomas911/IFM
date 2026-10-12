@@ -49,21 +49,3 @@ public sealed record FuturesBbSignalReadModel
     /// <summary>Gets the live trade time used by a provisional preview.</summary>
     [Key(19)] public DateTimeOffset? LivePriceAsOfUtc { get; init; }
 }
-
-/// <summary>Represents immutable event-sourced state for Bollinger calculation.</summary>
-[MessagePackObject]
-public sealed record FuturesBbAccumulatorCheckpoint
-{
-    /// <summary>Gets at most the last 20 closes.</summary>
-    [Key(0)] public decimal[] Closes { get; init; } = [];
-    /// <summary>Gets at most the prior 20 completed positive BB20 widths.</summary>
-    [Key(1)] public decimal[] CompletedWidths20 { get; init; } = [];
-    /// <summary>Gets the last observation identity.</summary>
-    [Key(2)] public FuturesTradeSessionBarId LastObservationId { get; init; }
-    /// <summary>Gets the last source sequence.</summary>
-    [Key(3)] public long LastSourceSequence { get; init; }
-    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
-    [Key(4)] public DateTimeOffset LastIntervalEndUtc { get; init; }
-    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
-    [Key(5)] public Guid LastStreamEpochId { get; init; }
-}

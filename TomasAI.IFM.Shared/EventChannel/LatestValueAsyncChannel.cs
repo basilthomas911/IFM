@@ -4,31 +4,6 @@ using Microsoft.Extensions.Logging;
 namespace TomasAI.IFM.Shared.EventChannel;
 
 /// <summary>
-/// Describes the current operating state of a latest-value channel.
-/// </summary>
-/// <param name="AcceptedCount">The number of values accepted while the channel was open.</param>
-/// <param name="ProcessedCount">The number of values whose reader callback completed successfully.</param>
-/// <param name="CoalescedCount">The number of pending values superseded by a newer value.</param>
-/// <param name="FailureCount">The number of reader callback failures.</param>
-/// <param name="AcceptedPerSecond">The average accepted event rate since the channel was created.</param>
-/// <param name="LastQueueDelay">The queue delay of the most recently dispatched value.</param>
-/// <param name="MaximumQueueDelay">The greatest observed queue delay.</param>
-/// <param name="LastProcessingDuration">The processing duration of the most recently completed callback.</param>
-/// <param name="MaximumProcessingDuration">The greatest observed callback processing duration.</param>
-/// <param name="IsOpen">Whether the channel still accepts writes.</param>
-public readonly record struct LatestValueChannelMetrics(
-    long AcceptedCount,
-    long ProcessedCount,
-    long CoalescedCount,
-    long FailureCount,
-    double AcceptedPerSecond,
-    TimeSpan LastQueueDelay,
-    TimeSpan MaximumQueueDelay,
-    TimeSpan LastProcessingDuration,
-    TimeSpan MaximumProcessingDuration,
-    bool IsOpen);
-
-/// <summary>
 /// Processes replaceable realtime state through a bounded, asynchronous, latest-value channel.
 /// </summary>
 /// <remarks>
@@ -53,7 +28,7 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
     readonly ILogger? _logger;
     readonly CancellationTokenSource _stopSource = new();
     readonly Task _processingTask;
-    readonly object _pendingGate = new();
+    readonly System.Threading.Lock _pendingGate = new();
     readonly long _startedTimestamp;
     bool _hasPendingValue;
     long _pendingTimestamp;
@@ -168,18 +143,20 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
     /// </summary>
     public async ValueTask StopAsync()
     {
+        Task cancellation = Task.CompletedTask;
         lock (_pendingGate)
         {
             if (Interlocked.Exchange(ref _acceptingWrites, 0) == 1)
             {
                 _hasPendingValue = false;
                 _channel.Writer.TryComplete();
-                _stopSource.Cancel();
+                cancellation = _stopSource.CancelAsync();
             }
         }
 
         try
         {
+            await cancellation.ConfigureAwait(false);
             await _processingTask.ConfigureAwait(false);
         }
         finally
@@ -193,6 +170,7 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
     /// <inheritdoc />
     public ValueTask DisposeAsync() => StopAsync();
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
     async Task ProcessAsync(CancellationToken cancellationToken)
     {
         try
@@ -228,7 +206,7 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
                 catch (Exception exception)
                 {
                     Interlocked.Increment(ref _failureCount);
-                    _logger?.LogError(exception, "Latest-value channel callback failed for {ValueType}", typeof(T).Name);
+                    if (_logger is not null) SharedActorDiagnosticLog.LatestValueCallbackFailed(_logger, exception, typeof(T).Name);
                 }
 
                 var processingDuration = _timeProvider.GetElapsedTime(processingStarted, _timeProvider.GetTimestamp());
@@ -241,10 +219,11 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
+        { /* Cancellation is the expected shutdown/retirement outcome. */ 
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Diagnostic failures must not interrupt actor processing or replace the original failure.")]
     void PublishMetrics()
     {
         try
@@ -253,7 +232,7 @@ public sealed class LatestValueAsyncChannel<T> : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            _logger?.LogError(exception, "Latest-value channel metrics observer failed for {ValueType}", typeof(T).Name);
+            if (_logger is not null) SharedActorDiagnosticLog.LatestValueMetricsFailed(_logger, exception, typeof(T).Name);
         }
     }
 

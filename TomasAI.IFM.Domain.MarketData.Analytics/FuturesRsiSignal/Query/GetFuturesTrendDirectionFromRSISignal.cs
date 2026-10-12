@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query.Actor;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Query;
 
 /// <summary>Handles the GetFuturesTrendDirectionFromRSISignalQuery query.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "The published query handler name preserves the domain acronym and existing query-family convention.")]
 public static class GetFuturesTrendDirectionFromRSISignal
 {
     /// <summary>Loads the RSI trend-direction read model for this query.</summary>
@@ -20,13 +21,9 @@ public static class GetFuturesTrendDirectionFromRSISignal
         this GetFuturesTrendDirectionFromRSISignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
+        => await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
                 q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, q.Timestamp,
-                q.LookBackInterval, q.StartTime, q.EndTime, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetFuturesTrendDirectionFromRSISignalAsync(
-                q.ContractId, q.ValueDate, q.TimePeriod, q.PeriodLength, q.Timestamp,
-                q.LookBackInterval, q.StartTime, q.EndTime).ConfigureAwait(false);
+                q.LookBackInterval, q.StartTime, q.EndTime, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Reads and replies to the GetFuturesTrendDirectionFromRSISignalQuery message.</summary>
     public static async ValueTask ExecuteAsync(
@@ -35,7 +32,10 @@ public static class GetFuturesTrendDirectionFromRSISignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (GetFuturesTrendDirectionFromRSISignalQuery)q;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesTrendDirectionReadModel>(result);

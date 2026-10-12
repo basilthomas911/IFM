@@ -4,12 +4,6 @@ using System.Runtime.InteropServices;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
-[StructLayout(LayoutKind.Explicit, Size = 128)]
-internal struct SpscPaddedPosition
-{
-    [FieldOffset(64)] public int Value;
-}
-
 /// <summary>
 /// Allocation-free bounded ring for exactly one logical producer and one concurrent consumer.
 /// The producer and consumer may move between OS threads, but their operations must never overlap with another

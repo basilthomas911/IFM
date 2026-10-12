@@ -35,11 +35,11 @@ internal static class EventLogPersistenceMetrics
         MarkerDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
-    internal static void Queued(in TagList tags) => QueueDepth.Add(1, tags);
-    internal static void Dequeued(in TagList tags) => QueueDepth.Add(-1, tags);
+    internal static void Queued(TagList tags) => QueueDepth.Add(1, tags);
+    internal static void Dequeued(TagList tags) => QueueDepth.Add(-1, tags);
 
     internal static void Committed(
-        in TagList tags,
+        TagList tags,
         int commandCount,
         int eventCount,
         long payloadBytes,
@@ -53,7 +53,7 @@ internal static class EventLogPersistenceMetrics
         Duration.Record(Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds, tags);
     }
 
-    internal static void Failed(in TagList tags, long startedTimestamp)
+    internal static void Failed(TagList tags, long startedTimestamp)
     {
         Failures.Add(1, tags);
         Duration.Record(Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds, tags);

@@ -18,7 +18,7 @@ internal sealed class FuturesSessionAccumulator
     private const long UndefinedStatisticQuantity = long.MaxValue;
 
     private readonly Dictionary<DateOnly, SessionState> _sessions = [];
-    private readonly object _sync = new();
+    private readonly System.Threading.Lock _sync = new();
 
     /// <summary>Attempts to incorporate an eligible trade into the futures session statistics.</summary>
     /// <param name="contractId">The futures or option contract identifier.</param>

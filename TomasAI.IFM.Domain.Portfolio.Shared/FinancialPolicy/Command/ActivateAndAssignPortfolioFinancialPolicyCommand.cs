@@ -43,6 +43,20 @@ public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public ActivateAndAssignPortfolioFinancialPolicyCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="policyVersion">The PolicyVersion command value.</param>
+    /// <param name="expectedPolicyRevision">The ExpectedPolicyRevision command value.</param>
+    /// <param name="expectedPortfolioRevision">The ExpectedPortfolioRevision command value.</param>
+    public ActivateAndAssignPortfolioFinancialPolicyCommand(long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision)
+    {
+        PolicyVersion = policyVersion;
+        ExpectedPolicyRevision = expectedPolicyRevision;
+        ExpectedPortfolioRevision = expectedPortfolioRevision;
+    }
     public const string Actor = "PortfolioFinancialPolicyCommand";
     public const string Verb = "ActivateAndAssignPortfolioFinancialPolicy";
     public const int ErrorId = 34000;
@@ -63,20 +77,6 @@ public sealed record ActivateAndAssignPortfolioFinancialPolicyCommand : ICommand
     [IgnoreMember] public string CommandName => nameof(ActivateAndAssignPortfolioFinancialPolicyCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public ActivateAndAssignPortfolioFinancialPolicyCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="policyVersion">The PolicyVersion command value.</param>
-    /// <param name="expectedPolicyRevision">The ExpectedPolicyRevision command value.</param>
-    /// <param name="expectedPortfolioRevision">The ExpectedPortfolioRevision command value.</param>
-    public ActivateAndAssignPortfolioFinancialPolicyCommand(long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision)
-    {
-        PolicyVersion = policyVersion;
-        ExpectedPolicyRevision = expectedPolicyRevision;
-        ExpectedPortfolioRevision = expectedPortfolioRevision;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

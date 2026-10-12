@@ -9,10 +9,11 @@ public static class PreviewSignalStartupPlan
 {
     public static async ValueTask ExecuteAsync(this PreviewSignalStartupPlanQuery query, IParameterSetQueryContext context, ILogger<ParameterSetQueryActor> logger, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(context); ArgumentNullException.ThrowIfNull(logger);
         context.AccessPolicy.Demand(ParameterCapability.Read);
-        var snapshot = await ParameterStartupReader.ReadAsync(query.StartupRunId, context.ConfigurationDb, context.Assignments, context.StateRepository, token);
+        var snapshot = await (ParameterStartupReader.ReadAsync(query.StartupRunId, context.ConfigurationDb, context.Assignments, context.StateRepository, token)).ConfigureAwait(false);
         var plan = SignalStartupPlanModel.Create(snapshot, SignalStartupPlanModel.ExistingIntradayConsumers());
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSignalStartupPlan>(plan));
+        await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<ParameterSignalStartupPlan>(plan))).ConfigureAwait(false);
     }
 }

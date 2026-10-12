@@ -71,24 +71,15 @@ public record TradePlacementClosePositionEvent : IEvent
         ClosedOn = this.ClosedOn,
         ClosedBy = this.ClosedBy,
     };
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementClosePositionFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradePlacementClosePositionFailEvent
     {
         CommandId = this.CommandId,
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     };
-}
-
-
-public record TradePlacementClosePositionCompleteEvent : CompleteEvent
-{
-    public TradePlacementId TradePlacementId { get; init; }
-    public FuturesTradeSignalV2ReadModel FuturesTradeSignal { get; init; }
-    public DateTime ClosedOn { get; init; }
-    public string ClosedBy { get; init; }
-}
-
-public record TradePlacementClosePositionFailEvent : ErrorEvent
-{
+    }
 }

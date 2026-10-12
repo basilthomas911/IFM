@@ -1,4 +1,4 @@
-﻿using Cassandra.Serialization;
+using Cassandra.Serialization;
 using Cassandra;
 using System;
 using System.Collections.Generic;
@@ -24,7 +24,7 @@ namespace TomasAI.IFM.Framework.Storage.ScyllaDb
         {
             var result = serializer.Deserialize(protocolVersion, buffer,
                     offset, length, typeInfo);
-            return new DateTime(result.Year, result.Month, result.Day);
+            return new DateTime(result.Year, result.Month, result.Day, 0, 0, 0, DateTimeKind.Unspecified);
         }
 
         public override byte[] Serialize(ushort protocolVersion, DateTime value)

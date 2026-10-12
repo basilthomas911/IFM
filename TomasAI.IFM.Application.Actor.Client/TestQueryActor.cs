@@ -21,12 +21,14 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestQueryContext ActorContext =>
-        IsArgumentNull.Set(Context as ITestQueryContext, nameof(Context))!;
+        IsArgumentNull.Set(Context as ITestQueryContext)!;
 
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "Test";
     protected override IQuery ParseMessage(IQueryActorContext<TestQueryActor> context, IActorMessage message)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(message);
         var msgSubject = message.Subject;
         IQuery query = default(IQuery) switch
         {
@@ -45,16 +47,21 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<TestQueryActor> context, IQuery query)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var dispatchContext = context;
         var msgInfo = IsArgumentNull.Set(dispatchContext.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
         var actorMessage = IsArgumentNull.Set(msgInfo.Message);
-        await actorMessage.ReplyAsync(new ServiceResult<string>("The rain in Spain stays mainly in the plain."));
+        await (actorMessage.ReplyAsync(new ServiceResult<string>("The rain in Spain stays mainly in the plain."))).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Exception reporting is best effort; preserve the original query failure if its error reply fails.")]
     protected override async ValueTask OnExceptionAsync(IQueryActorContext<TestQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(ex);
         try
         {
             var msgInfo = IsArgumentNull.Set(context.GetMessageInfo(threadId, verb)).Value;
@@ -65,11 +72,11 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
                         new ServiceResult<string>(msgInfo.Query.ErrorCode, ex.Message)),
                 _ => throw new InvalidOperationException($"Unable to process {ActorName} query: {msgInfo.Query.GetType().Name}")
             };
-            await serviceResultTask;
+            await (serviceResultTask).ConfigureAwait(false);
         }
         catch (Exception innerEx)
         {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            QueryDiagnosticLog.ReplyFailed(Context.Logger, innerEx, ActorName, threadId);
         }
     }
 }

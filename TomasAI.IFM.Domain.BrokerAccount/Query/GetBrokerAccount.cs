@@ -11,6 +11,8 @@ public static class GetBrokerAccount
     public static async ValueTask ExecuteAsync(this GetBrokerAccountQuery query,
         IBrokerAccountQueryContext context, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
             new ServiceResult<BrokerAccountDefinition?>(await context.Store.GetAsync(query.BrokerAccountId, cancellationToken).ConfigureAwait(false)))

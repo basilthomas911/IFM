@@ -18,6 +18,7 @@ public static class ReferencePayloadCodec
     /// <summary>Encodes a futures-contract reference payload.</summary>
     public static byte[] Write(FuturesContractV3ReadModel value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         ValidateReview(value.SchemaVersion, value.ReviewState, () => FuturesReferenceQualification.Errors(value));
         return Encode(value);
     }
@@ -25,6 +26,7 @@ public static class ReferencePayloadCodec
     /// <summary>Encodes a futures-option-contract reference payload.</summary>
     public static byte[] Write(FuturesOptionContractReadModel value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         ValidateReview(value.SchemaVersion, value.ReviewState, () => FuturesReferenceQualification.Errors(value));
         if (value.StrikePriceDecimal.HasValue)
             _ = value.GetExactStrikePrice();
@@ -34,29 +36,32 @@ public static class ReferencePayloadCodec
     /// <summary>Reads a futures-contract payload and verifies its legacy-column identity.</summary>
     public static FuturesContractV3ReadModel ReadFuture(byte[]? bytes, FuturesContractV3ReadModel legacy)
     {
+        ArgumentNullException.ThrowIfNull(legacy);
         if (bytes is null)
             return legacy;
         var value = Decode<FuturesContractV3ReadModel>(bytes);
-        if (value.SchemaVersion is < 0 or > 1 || value.ContractId != legacy.ContractId || value.Symbol != legacy.Symbol
-            || value.Description != legacy.Description || value.LocalSymbol != legacy.LocalSymbol
-            || value.SecurityType != legacy.SecurityType || value.Currency != legacy.Currency
-            || value.Exchange != legacy.Exchange || value.Multiplier != legacy.Multiplier
+        if (value.SchemaVersion is < 0 or > 1 || !string.Equals(value.ContractId,legacy.ContractId,StringComparison.Ordinal) || !string.Equals(value.Symbol,legacy.Symbol,StringComparison.Ordinal)
+            || !string.Equals(value.Description,legacy.Description,StringComparison.Ordinal) || !string.Equals(value.LocalSymbol,legacy.LocalSymbol,StringComparison.Ordinal)
+            || !string.Equals(value.SecurityType,legacy.SecurityType,StringComparison.Ordinal) || !string.Equals(value.Currency,legacy.Currency,StringComparison.Ordinal)
+            || !string.Equals(value.Exchange,legacy.Exchange,StringComparison.Ordinal) || !string.Equals(value.Multiplier,legacy.Multiplier,StringComparison.Ordinal)
             || value.LastTradeDate != legacy.LastTradeDate || value.OnTheRun != legacy.OnTheRun || value.Rollover != legacy.Rollover)
             throw new InvalidDataException("Reference payload conflicts with futures columns; migration/reconciliation is required.");
         return value;
     }
 
     /// <summary>Reads a futures-option payload and verifies its legacy-column identity.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Exact equality verifies lossless decimal/double representation or a zero-width denominator sentinel; epsilon comparison would change validation.")]
     public static FuturesOptionContractReadModel ReadOption(byte[]? bytes, FuturesOptionContractReadModel legacy)
     {
+        ArgumentNullException.ThrowIfNull(legacy);
         if (bytes is null)
             return legacy;
         var value = Decode<FuturesOptionContractReadModel>(bytes);
-        if (value.SchemaVersion is < 0 or > 1 || value.ContractId != legacy.ContractId || value.Symbol != legacy.Symbol
-            || value.Description != legacy.Description || value.LocalSymbol != legacy.LocalSymbol
-            || value.SecurityType != legacy.SecurityType || value.Currency != legacy.Currency
-            || value.Exchange != legacy.Exchange || value.Multiplier != legacy.Multiplier
-            || value.ContractMonth != legacy.ContractMonth || value.StrikePrice != legacy.StrikePrice || value.OptionType != legacy.OptionType)
+        if (value.SchemaVersion is < 0 or > 1 || !string.Equals(value.ContractId,legacy.ContractId,StringComparison.Ordinal) || !string.Equals(value.Symbol,legacy.Symbol,StringComparison.Ordinal)
+            || !string.Equals(value.Description,legacy.Description,StringComparison.Ordinal) || !string.Equals(value.LocalSymbol,legacy.LocalSymbol,StringComparison.Ordinal)
+            || !string.Equals(value.SecurityType,legacy.SecurityType,StringComparison.Ordinal) || !string.Equals(value.Currency,legacy.Currency,StringComparison.Ordinal)
+            || !string.Equals(value.Exchange,legacy.Exchange,StringComparison.Ordinal) || !string.Equals(value.Multiplier,legacy.Multiplier,StringComparison.Ordinal)
+            || value.ContractMonth != legacy.ContractMonth || value.StrikePrice != legacy.StrikePrice || !string.Equals(value.OptionType,legacy.OptionType,StringComparison.Ordinal))
             throw new InvalidDataException("Reference payload conflicts with option columns; migration/reconciliation is required.");
         if (value.StrikePriceDecimal.HasValue)
             _ = value.GetExactStrikePrice();
@@ -66,6 +71,7 @@ public static class ReferencePayloadCodec
     /// <summary>Reads and validates a standalone futures-option payload.</summary>
     public static FuturesOptionContractReadModel ReadOption(byte[] bytes)
     {
+        ArgumentNullException.ThrowIfNull(bytes);
         var value = Decode<FuturesOptionContractReadModel>(bytes);
         ValidateReview(value.SchemaVersion, value.ReviewState, () => FuturesReferenceQualification.Errors(value));
         if (value.StrikePriceDecimal.HasValue)

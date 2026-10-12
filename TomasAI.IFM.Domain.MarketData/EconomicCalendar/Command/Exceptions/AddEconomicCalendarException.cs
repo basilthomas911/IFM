@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Exceptions;
 /// <remarks>Use this exception to indicate failures specific to adding economic calendar data, such as validation
 /// errors or data conflicts. This exception is intended for application-level error handling and can be caught to
 /// provide user-friendly feedback or logging.</remarks>
-public class AddEconomicCalendarException : ApplicationException
+public class AddEconomicCalendarException : Exception
 {
     public AddEconomicCalendarException(string errorMessage) : base(errorMessage)
     {

@@ -13,9 +13,9 @@ internal static class MarketOutlookSnapshotValidation
         var eod = snapshot.FuturesEodData;
         if (string.IsNullOrWhiteSpace(snapshot.ContractId) || snapshot.ValueDate == default)
             errors.Add(new("A Market Outlook snapshot identity is required."));
-        if (snapshot.ContractId != command.EntityId.ContractId
+        if (!string.Equals(snapshot.ContractId,command.EntityId.ContractId,StringComparison.Ordinal)
             || snapshot.ValueDate != command.EntityId.ValueDate
-            || command.Subject.EntityId != command.EntityId.Format())
+            || !string.Equals(command.Subject.EntityId,command.EntityId.Format(),StringComparison.Ordinal))
             errors.Add(new("Command routing identity must match the Market Outlook snapshot."));
         if (!string.Equals(eod.ContractId, snapshot.ContractId, StringComparison.Ordinal)
             || eod.ValueDate != snapshot.ValueDate

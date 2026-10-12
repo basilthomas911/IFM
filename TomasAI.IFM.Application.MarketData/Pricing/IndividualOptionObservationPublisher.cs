@@ -19,6 +19,8 @@ public sealed class IndividualOptionObservationPublisher(
     /// <summary>Maps midpoint = bid + (ask - bid) / 2; invalid or chain-wide quotes do not enter position monitoring.</summary>
     /// <param name="quote">The actual provider quote with its canonical option identity.</param>
     /// <returns>The publication enqueue operation, with no pricing or storage wait. Book-size-only changes are suppressed for at most one second.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     public ValueTask PublishAsync(FuturesOptionChainQuoteChangedServiceEvent quote)
     {
         var tick = quote.Tick;
@@ -60,5 +62,7 @@ public sealed class IndividualOptionObservationPublisher(
     }
 
     /// <summary>Actual trades are already published after their retained evidence is acknowledged; prevents duplicate routing.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     public ValueTask PublishAsync(FuturesOptionChainTradeChangedServiceEvent trade) => ValueTask.CompletedTask;
 }

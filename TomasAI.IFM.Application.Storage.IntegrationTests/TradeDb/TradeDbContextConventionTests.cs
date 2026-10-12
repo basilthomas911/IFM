@@ -34,7 +34,7 @@ public sealed class TradeDbContextConventionTests
     [Fact]
     public void Public_context_methods_are_contract_implementations()
     {
-        Type[] contracts = [typeof(ITradeDbReadContext), typeof(ITradeDbWriteContext)];
+        var contracts = typeof(TradeDbContext).GetInterfaces();
         var contractMethods = contracts.SelectMany(static type => type.GetMethods()).ToArray();
         var publicMethods = typeof(TradeDbContext)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

@@ -10,7 +10,7 @@ internal sealed class SafeHistoricalResultHandle : SafeHandleZeroOrMinusOneIsInv
     private static int activeHandleCount;
 
     /// <summary>Initializes a new SafeHistoricalResultHandle instance.</summary>
-    private SafeHistoricalResultHandle()
+    public SafeHistoricalResultHandle()
         : base(ownsHandle: true)
     {
     }

@@ -10,11 +10,21 @@ public static class FailCapacityReservation
 {
     public static FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent> Fail(this FunctionEventContext<ReservePortfolioTradeRiskCommand> input, TimeProvider clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
         var request = input.Request; var error = input.Exception as FinancialOperationException;
         var unknown = input.Exception is FunctionCommitOutcomeUnknownException;
-        var code = unknown ? FinancialReasons.CommitUnknown : error?.Code ?? (input.IsConflict ? FinancialReasons.RequestMismatch :
-            input.Exception is TimeoutException ? FinancialReasons.TimeExpired :
-            input.Stage is FunctionFailureStage.Parsing or FunctionFailureStage.Validation ? FinancialReasons.InvalidContract : FinancialReasons.PersistenceFailed);
+        var code = (unknown) switch
+{
+    true => FinancialReasons.CommitUnknown,
+    false => error?.Code ?? ((input.IsConflict) switch
+    {
+        true => FinancialReasons.RequestMismatch,
+        false => (input.Exception is TimeoutException) switch
+        {
+            true => FinancialReasons.TimeExpired,
+            false => input.Stage is FunctionFailureStage.Parsing or FunctionFailureStage.Validation ? FinancialReasons.InvalidContract : FinancialReasons.PersistenceFailed
+        }})};
         var now = clock.GetUtcNow().UtcDateTime;
         return FunctionResult<CapacityReservationCompletedEvent, CapacityReservationFailedEvent>.Fail(new()
         {

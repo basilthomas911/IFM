@@ -8,6 +8,8 @@ public sealed record LivePipelineMonitorOptions
     public int MaximumHardResetAttempts { get; init; } = 3;
     public bool ForceOneHardResetAfterStartup { get; init; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "Instance validation reports the configuration property captured by this object.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3928", Justification = "Instance validation reports the configuration property captured by this object.")]
     public LivePipelineMonitorOptions Validate()
     {
         if (HardResetDelay <= TimeSpan.Zero)

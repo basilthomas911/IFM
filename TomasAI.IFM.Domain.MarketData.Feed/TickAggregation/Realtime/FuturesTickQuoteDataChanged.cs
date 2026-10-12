@@ -9,6 +9,8 @@ public static class FuturesTickQuoteDataChanged
     /// <summary>Converts and submits the normalized observation.</summary>
     public static async ValueTask ExecuteAsync(this FuturesTickQuoteDataChangedEvent domainEvent, ITickAggregationRealtimeContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
         _ = await context.Projector.ProcessRealtimeEventAsync(domainEvent.ToInsertedEvent()).ConfigureAwait(false);
     }
 }

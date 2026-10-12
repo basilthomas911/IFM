@@ -42,14 +42,14 @@ public interface IActorSupervisor
     ValueTask StopAsync(ActorMailboxId mailboxId);
     ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken);
     ValueTask RestartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken = default);
-    ValueTask<bool> PauseAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
-    ValueTask ResumeAsync(ActorThreadId threadId, CancellationToken cancellationToken = default);
     ValueTask<bool> RestartAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
     ValueTask<bool> RestartAsync(
         ActorThreadId threadId,
         long expectedGeneration,
         TimeSpan timeout,
         CancellationToken cancellationToken = default);
+    ValueTask<bool> PauseAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default);
+    ValueTask ResumeAsync(ActorThreadId threadId, CancellationToken cancellationToken = default);
     ValueTask<bool> RetireAsync(
         ActorThreadId threadId,
         long expectedGeneration,
@@ -105,12 +105,4 @@ public interface IActorSupervisor
     /// IImmutableDictionary<ActorThreadId, IActorState> _threadStates { get; }
     IActorThreadPool ThreadPool { get; }
 
-}
-
-public interface IActorClient
-{
-    ValueTask TellAsync<TEntityId>(ICommand<TEntityId> command) where TEntityId : IActorEntityId;
-    ValueTask TellAsync(IEvent @event);
-    ValueTask<TValue> AskAsync<TValue>(IQuery<TValue> query);
-    ValueTask<ServiceResult<Guid>> AskAsync(ICommand<IActorEntityId> query);
 }

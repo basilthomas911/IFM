@@ -43,6 +43,20 @@ public sealed record RecordFundOrderComposedCommand : ICommand<PortfolioFundId>,
         RequestedOnUtc = requestedOnUtc;
         Access = access;
     }
+
+    /// <summary>Initializes an empty message for serialization.</summary>
+    public RecordFundOrderComposedCommand() { }
+
+    /// <summary>Initializes the command from its application values.</summary>
+    /// <param name="orderId">The OrderId command value.</param>
+    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
+    /// <param name="result">The Result command value.</param>
+    public RecordFundOrderComposedCommand(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result)
+    {
+        OrderId = orderId;
+        ExpectedVersion = expectedVersion;
+        Result = result;
+    }
     public const string Actor = "PortfolioFundCommand";
     public const string Verb = "RecordFundOrderComposed";
     public const int ErrorId = 34000;
@@ -63,20 +77,6 @@ public sealed record RecordFundOrderComposedCommand : ICommand<PortfolioFundId>,
     [IgnoreMember] public string CommandName => nameof(RecordFundOrderComposedCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;
-
-    /// <summary>Initializes an empty message for serialization.</summary>
-    public RecordFundOrderComposedCommand() { }
-
-    /// <summary>Initializes the command from its application values.</summary>
-    /// <param name="orderId">The OrderId command value.</param>
-    /// <param name="expectedVersion">The ExpectedVersion command value.</param>
-    /// <param name="result">The Result command value.</param>
-    public RecordFundOrderComposedCommand(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result)
-    {
-        OrderId = orderId;
-        ExpectedVersion = expectedVersion;
-        Result = result;
-    }
 
     ICommand ICommandRetryIdentity.ForRetryIdentity() => this with { CorrelationId = Guid.Empty, RequestedOnUtc = default };
 }

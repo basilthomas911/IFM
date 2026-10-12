@@ -50,95 +50,46 @@ public static class VolatilityRankPercentileCalculator
         var windowStart = window.PriorExchangeSessionDates.Min();
         var windowEnd = window.PriorExchangeSessionDates.Max();
 
-        if (!currentIsValid)
+        var context = new CalculationContext(validCount, expectedCount, coverage, windowStart, windowEnd, sourceIds);
+        return context.CalculateMetrics(current, validHistory, currentIsValid, hasSufficientHistory);
+    }
+
+    sealed record CalculationContext(int ValidCount, int ExpectedCount, decimal Coverage,
+        DateOnly WindowStart, DateOnly WindowEnd, ImmutableArray<string> SourceIds)
+    {
+        /// <summary>Rank = 100 * (current IV - range minimum) / range width; percentile = 100 * strictly lower observations / qualified history count.</summary>
+        public VolatilityMetricCalculation CalculateMetrics(VolatilityCalculationObservation current,
+            VolatilityCalculationObservation[] validHistory, bool currentIsValid, bool hasSufficientHistory)
         {
-            return Result(
-                current.ImpliedVolatility,
-                null,
-                VolatilityMetricStatus.InvalidCurrentObservation,
-                null,
-                VolatilityMetricStatus.InvalidCurrentObservation,
-                null,
-                null,
-                0,
-                0);
+            if (!currentIsValid)
+                return Result(current.ImpliedVolatility, null, VolatilityMetricStatus.InvalidCurrentObservation,
+                    null, VolatilityMetricStatus.InvalidCurrentObservation, null, null, 0, 0);
+
+            var currentValue = current.ImpliedVolatility!.Value;
+            var belowCount = validHistory.Count(observation => observation.ImpliedVolatility!.Value < currentValue);
+            var tieCount = validHistory.Count(observation => observation.ImpliedVolatility!.Value == currentValue);
+            if (!hasSufficientHistory)
+                return Result(currentValue, null, VolatilityMetricStatus.InsufficientHistory,
+                    null, VolatilityMetricStatus.InsufficientHistory, null, null, belowCount, tieCount);
+
+            var rankLow = Math.Min(currentValue, validHistory.Min(x => x.ImpliedVolatility!.Value));
+            var rankHigh = Math.Max(currentValue, validHistory.Max(x => x.ImpliedVolatility!.Value));
+            var percentile = 100m * belowCount / ValidCount;
+            if (rankHigh == rankLow)
+                return Result(currentValue, null, VolatilityMetricStatus.UndefinedRange,
+                    percentile, VolatilityMetricStatus.Qualified, rankLow, rankHigh, belowCount, tieCount);
+
+            var rank = 100m * (currentValue - rankLow) / (rankHigh - rankLow);
+            return Result(currentValue, rank, VolatilityMetricStatus.Qualified,
+                percentile, VolatilityMetricStatus.Qualified, rankLow, rankHigh, belowCount, tieCount);
         }
 
-        var currentValue = current.ImpliedVolatility!.Value;
-        var belowCount = validHistory.Count(observation => observation.ImpliedVolatility!.Value < currentValue);
-        var tieCount = validHistory.Count(observation => observation.ImpliedVolatility!.Value == currentValue);
-
-        if (!hasSufficientHistory)
-        {
-            return Result(
-                currentValue,
-                null,
-                VolatilityMetricStatus.InsufficientHistory,
-                null,
-                VolatilityMetricStatus.InsufficientHistory,
-                null,
-                null,
-                belowCount,
-                tieCount);
-        }
-
-        var rankLow = Math.Min(currentValue, validHistory.Min(x => x.ImpliedVolatility!.Value));
-        var rankHigh = Math.Max(currentValue, validHistory.Max(x => x.ImpliedVolatility!.Value));
-        var percentile = 100m * belowCount / validCount;
-        if (rankHigh == rankLow)
-        {
-            return Result(
-                currentValue,
-                null,
-                VolatilityMetricStatus.UndefinedRange,
-                percentile,
-                VolatilityMetricStatus.Qualified,
-                rankLow,
-                rankHigh,
-                belowCount,
-                tieCount);
-        }
-
-        var rank = 100m * (currentValue - rankLow) / (rankHigh - rankLow);
-        return Result(
-            currentValue,
-            rank,
-            VolatilityMetricStatus.Qualified,
-            percentile,
-            VolatilityMetricStatus.Qualified,
-            rankLow,
-            rankHigh,
-            belowCount,
-            tieCount);
-
-        VolatilityMetricCalculation Result(
-            decimal? currentIv,
-            decimal? rank,
-            VolatilityMetricStatus rankStatus,
-            decimal? percentile,
-            VolatilityMetricStatus percentileStatus,
-            decimal? low,
-            decimal? high,
-            int below,
-            int ties) =>
-            new(
-                currentIv,
-                VolatilityValueUnit.AnnualDecimal,
-                rank,
-                rankStatus,
-                percentile,
-                percentileStatus,
-                VolatilityMetricUnit.PercentagePoints0To100,
-                low,
-                high,
-                below,
-                ties,
-                validCount,
-                expectedCount,
-                coverage,
-                windowStart,
-                windowEnd,
-                sourceIds);
+        VolatilityMetricCalculation Result(decimal? currentIv, decimal? rank,
+            VolatilityMetricStatus rankStatus, decimal? percentile, VolatilityMetricStatus percentileStatus,
+            decimal? low, decimal? high, int below, int ties) =>
+            new(currentIv, VolatilityValueUnit.AnnualDecimal, rank, rankStatus,
+                percentile, percentileStatus, VolatilityMetricUnit.PercentagePoints0To100,
+                low, high, below, ties, ValidCount, ExpectedCount, Coverage, WindowStart, WindowEnd, SourceIds);
     }
 
     static bool IsQualifiedValue(VolatilityCalculationObservation observation) =>

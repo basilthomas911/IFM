@@ -22,14 +22,14 @@ public class DatabaseBackupEventActor(
     internal const string HandlerErrorLoggedKey = "IFM.DatabaseBackup.EventHandlerErrorLogged";
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupEventContext ActorContext =>
-        IsArgumentNull.Set(Context as IDatabaseBackupEventContext, nameof(Context))!;
+        IsArgumentNull.Named(Context as IDatabaseBackupEventContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupEvent";
 
     /// <summary>Gets the supported service-event types.</summary>
-    public static IReadOnlyCollection<Type> SupportedServiceEventTypes => _receiveMap.Keys.ToArray();
+    public static IReadOnlyCollection<Type> SupportedServiceEventTypes =>CachedSupportedServiceEventTypes.Value;
     /// <summary>Gets the supported service-event verbs.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys.ToArray();
+    public static IReadOnlyCollection<string> SupportedVerbs =>CachedSupportedVerbs.Value;
 
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
@@ -104,19 +104,20 @@ public class DatabaseBackupEventActor(
     protected override IEvent ParseMessage(IEventActorContext<DatabaseBackupEventActor> context, IActorMessage message)
         => ParseMappedEvent(context, message, _parseMap);
 
-    static IEvent ParseTyped<TEvent>(IActorMessage message) where TEvent : class, IEvent
-        => message.AsEvent<TEvent>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TEvent).Name}.");
-
     protected override ValueTask ReceiveAsync(IEventActorContext<DatabaseBackupEventActor> context, IEvent @event)
     {
+        ArgumentNullException.ThrowIfNull(context);
         var receive = ResolveMappedEventHandler(@event, _receiveMap);
         return receive(@event, context, context.Logger);
     }
 
-    protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
+    protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        if (!exception.Data.Contains(HandlerErrorLoggedKey))
-            Context.Logger.LogError(exception,"{Component}.{Method} "+"DatabaseBackup service event {EventName} failed.",nameof(DatabaseBackupEventActor),nameof(OnExceptionAsync),@event?.EventName);
+        ArgumentNullException.ThrowIfNull(ex);
+        if (!ex.Data.Contains(HandlerErrorLoggedKey))
+            global::TomasAI.IFM.Domain.SystemAdmin.ActorLifecycleDiagnosticLog.Write9(Context.Logger, ex, nameof(DatabaseBackupEventActor), nameof(OnExceptionAsync), @event?.EventName);
         return ValueTask.CompletedTask;
     }
+private static readonly System.Lazy<IReadOnlyCollection<Type>> CachedSupportedServiceEventTypes = new(() => System.Array.AsReadOnly(_receiveMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+private static readonly System.Lazy<IReadOnlyCollection<string>> CachedSupportedVerbs = new(() => System.Array.AsReadOnly(_parseMap.Keys.ToArray()), System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
 }

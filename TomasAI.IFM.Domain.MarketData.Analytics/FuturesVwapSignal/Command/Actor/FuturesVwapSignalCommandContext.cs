@@ -8,22 +8,10 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Actor;
 
-/// <summary>Defines readonly services required by the VWAP Command actor.</summary>
-public interface IFuturesVwapSignalCommandContext : ICommandActorContext<FuturesVwapSignalCommandActor>
-{
-    /// <summary>Gets the event-sourced VWAP state repository.</summary>
-    IEventSourceActorStateRepository<FuturesVwapSignalCommandState> StateRepository { get; }
-    /// <summary>Gets the command logger.</summary>
-    ILogger<FuturesVwapSignalCommandActor> Logger { get; }
-    /// <summary>Gets the event-source database context.</summary>
-    IEventSourceActorDbContext DbEventSource { get; }
-    /// <summary>Gets the command-owned event projector.</summary>
-    IEventProjector<FuturesVwapSignalCommandActor> EventProjector { get; }
-}
-
 /// <summary>Provides the closed generic VWAP Command context.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "Typed actor contexts intentionally retain ILogger of their owning actor, matching the actor context contract and diagnostic category.")]
 public sealed class FuturesVwapSignalCommandContext : CommandActorContext,
-    ICommandActorContext<FuturesVwapSignalCommandActor>, IFuturesVwapSignalCommandContext
+IFuturesVwapSignalCommandContext
 {
     /// <summary>Initializes the readonly Command context.</summary>
     public FuturesVwapSignalCommandContext(

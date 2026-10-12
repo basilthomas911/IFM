@@ -27,6 +27,9 @@ services:
       DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__Database: postgres
       DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__AllowedLogicalTargets__0: development-restore
       DatabaseBackup__PostgreSql__FreshTargetProfiles__development-on-demand__StartupTimeout: "00:05:00"
+      DatabaseBackup__Scylla__ProtectionSets__read-model-scylla__CqlContactPoints__0: 172.30.20.10
+      DatabaseBackup__Scylla__FreshTargetProfiles__disposable-validation__CqlContactPoints__0: 172.30.20.11
+      DatabaseBackup__Scylla__FreshTargetProfiles__disposable-validation__DiscardExistingApplicationData: "true"
       DatabaseBackup__Scylla__ManagerApiUrl: ${IFM_SCYLLA_MANAGER_API_URL:-http://host.docker.internal:5080/api/v1}
       DatabaseBackup__Scylla__PortableSnapshot__Enabled: ${IFM_SCYLLA_PORTABLE_SNAPSHOT_ENABLED:-true}
       DatabaseBackup__Scylla__PortableSnapshot__ServiceUrl: ${IFM_SCYLLA_MINIO_URL:-http://host.docker.internal:19000}
@@ -71,6 +74,7 @@ services:
         source: ${IFM_BACKUP_ROOT:-E:/IFM/DatabaseBackup}/tools/scylla-manager
         target: /opt/scylla-manager/bin
         read_only: true
+    networks: [ default, scylla-management ]
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -85,3 +89,8 @@ services:
       timeout: 3s
       start_period: 20s
       retries: 6
+
+networks:
+  scylla-management:
+    external: true
+    name: ifm_scylla_management

@@ -1,0 +1,583 @@
+{
+  "version": 1,
+  "updatedUtcDate": "2026-10-12",
+  "complete": false,
+  "policy": "Business source and required PostgreSQL rows share one transaction. Rebuild uses recorded facts without providers, actor dispatch or notifications. Disposable trade plans have no retry/replay. Raw Databento ticks and quotes remain in ScyllaDB.",
+  "projectors": [
+    {
+      "type": "FuturesAdxSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAdxSignal/Command/EventProjector/FuturesAdxSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAdxSignal/Command/State/FuturesAdxSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesAtrSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAtrSignal/Command/EventProjector/FuturesAtrSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesAtrSignal/Command/State/FuturesAtrSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesBbSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesBbSignal/Command/EventProjector/FuturesBbSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesBbSignal/Command/State/FuturesBbSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesEmaSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesEmaSignal/Command/EventProjector/FuturesEmaSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesEmaSignal/Command/State/FuturesEmaSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesItiSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesItiSignal/Command/EventProjector/FuturesItiSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesItiSignal/Command/State/FuturesItiSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesMacdSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesMacdSignal/Command/EventProjector/FuturesMacdSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesMacdSignal/Command/State/FuturesMacdSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesRsiSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesRsiSignal/Command/EventProjector/FuturesRsiSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesRsiSignal/Command/State/FuturesRsiSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesTdiSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTdiSignal/Command/EventProjector/FuturesTdiSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTdiSignal/Command/State/FuturesTdiSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesTdiSignalRealtimeProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTdiSignal/Realtime/Projector/FuturesTdiSignalRealtimeProjector.cs",
+      "status": "verified_approved_direct_realtime_exception",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "notes": "Derived TDI observation writes go directly to PostgreSQL; current schema guard precedes persistence.",
+      "target": "MarketDataDb"
+    },
+    {
+      "type": "FuturesTradeSessionBarSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSessionBarSignal/Command/EventProjector/FuturesTradeSessionBarSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSessionBarSignal/Command/State/FuturesTradeSessionBarSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesTradeSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSignal/Command/EventProjector/FuturesTradeSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesTradeSignal/Command/State/FuturesTradeSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesVwapSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVwapSignal/Command/EventProjector/FuturesVwapSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVwapSignal/Command/State/FuturesVwapSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesVxTermStructureSignalEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVxTermStructureSignal/Command/EventProjector/FuturesVxTermStructureSignalEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/FuturesVxTermStructureSignal/Command/State/FuturesVxTermStructureSignalStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "FuturesAnalyticsHistoricalDataLoaderEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/HistoricalDataLoader/Command/EventProjector/FuturesAnalyticsHistoricalDataLoaderEventProjector.cs",
+      "status": "verified_notification_only",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "notes": "Descriptor publishes the accepted historical-load request. No read-model database write occurs in this projector; loading is an external execution action."
+    },
+    {
+      "type": "MarketOutlookSnapshotEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Analytics/MarketOutlookSnapshot/Command/EventProjector/MarketOutlookSnapshotEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Analytics/MarketOutlookSnapshot/Command/State/MarketOutlookSnapshotStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "rebuild": "AcceptedSignalRebuild.MaterializeAsync",
+      "verification": "PostgresAcceptedSignalTests and PostgresEodObservationTests; native suite 213 passed, unrelated backup binding failures corrected in the focused 22-test rerun."
+    },
+    {
+      "type": "MarketDataFeedEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/Command/EventProjector/MarketDataFeedEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Feed\\Command\\State\\MarketDataFeedStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "notes": "Native source append and required feed rows share the repository transaction; live PostgreSQL projector skips duplicate row writes, and explicit read-model rebuild uses the accepted fact."
+    },
+    {
+      "type": "FuturesBarDataEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesBarData/Command/EventProjector/FuturesBarDataEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Feed\\FuturesBarData\\Command\\State\\FuturesBarDataStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "notes": "Native source append and required feed rows share the repository transaction; live PostgreSQL projector skips duplicate row writes, and explicit read-model rebuild uses the accepted fact."
+    },
+    {
+      "type": "FuturesClosingPriceEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesClosingPrice/Command/EventProjector/FuturesClosingPriceEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Feed\\FuturesClosingPrice\\Command\\State\\FuturesClosingPriceStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "notes": "Native source append and required feed rows share the repository transaction; live PostgreSQL projector skips duplicate row writes, and explicit read-model rebuild uses the accepted fact."
+    },
+    {
+      "type": "FuturesEodDataEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesEodData/Command/EventProjector/FuturesEodDataEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.MarketData.Feed\\FuturesEodData\\Command\\State\\FuturesEodDataStateRepository.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/MarketDataDb/PostgresMarketSignalStore.cs",
+      "notes": "Native source append and required feed rows share the repository transaction; live PostgreSQL projector skips duplicate row writes, and explicit read-model rebuild uses the accepted fact."
+    },
+    {
+      "type": "FuturesEodDataRealtimeProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesEodData/Realtime/Projector/FuturesEodDataRealtimeProjector.cs",
+      "status": "verified_approved_direct_realtime_exception",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "notes": "Derived EOD history uses PostgreSQL direct row or batch writes; its outage spool is independent of trade-plan drop policy.",
+      "target": "MarketDataDb"
+    },
+    {
+      "type": "FuturesOptionTickDataEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesOptionTickData/Command/EventProjector/FuturesOptionTickDataEventProjector.cs",
+      "status": "verified_approved_raw_storage_exception",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb",
+      "notes": "Raw inserted ticks route through the MarketDataDb compatibility adapter into Scylla TradeTickQuoteDb. Option-chain quote enrichment is a separate derived PostgreSQL write. These realtime writes are not a distributed atomic transaction, and raw rows are not rebuilt from business event history."
+    },
+    {
+      "type": "FuturesTickDataEventProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/FuturesTickData/Command/EventProjector/FuturesTickDataEventProjector.cs",
+      "status": "verified_approved_raw_storage_exception",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/TradeTickQuoteDb",
+      "notes": "Raw inserted ticks route through the MarketDataDb compatibility adapter into Scylla TradeTickQuoteDb. Option-chain quote enrichment is a separate derived PostgreSQL write. These realtime writes are not a distributed atomic transaction, and raw rows are not rebuilt from business event history."
+    },
+    {
+      "type": "TickAggregationRealtimeProjector",
+      "file": "TomasAI.IFM.Domain.MarketData.Feed/TickAggregation/Realtime/Projector/TickAggregationRealtimeProjector.cs",
+      "status": "verified_approved_direct_realtime_exception",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "notes": "Normalized Databento trade and quote writes go directly to ScyllaDB.",
+      "target": "TradeTickQuoteDb"
+    },
+    {
+      "type": "EmulatorExecutionProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/CapacityReservation/Emulator/EmulatorExecutionProjector.cs",
+      "status": "verified_rebuildable_async_history",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/FinancialReadProjectionRebuilder.cs",
+      "notes": "Financial source facts and mandatory journals/authority/capacity/execution rows commit in their owning transaction. This descriptor writes optional monthly financial history after commit. Full accepted facts and verified Development baseline support pure financial reconstruction; history can be regenerated independently."
+    },
+    {
+      "type": "CapacityLifecycleProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/CapacityReservation/Projection/CapacityLifecycleProjector.cs",
+      "status": "verified_rebuildable_async_history",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/FinancialReadProjectionRebuilder.cs",
+      "notes": "Financial source facts and mandatory journals/authority/capacity/execution rows commit in their owning transaction. This descriptor writes optional monthly financial history after commit. Full accepted facts and verified Development baseline support pure financial reconstruction; history can be regenerated independently."
+    },
+    {
+      "type": "PortfolioEventProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/Event/Actor/PortfolioEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioAuthorityFence.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/PostgresPortfolioProjectionStore.cs",
+      "notes": "Accepted ProjectionFacts are appended and applied inside the authority fence transaction. Live PortfolioProjectionHandler returns for these facts. Older Development rows are preserved in the verified baseline."
+    },
+    {
+      "type": "PortfolioFinancialPolicyEventProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/FinancialPolicy/Event/Actor/PortfolioFinancialPolicyEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioAuthorityFence.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/PostgresPortfolioProjectionStore.cs",
+      "notes": "Accepted ProjectionFacts are appended and applied inside the authority fence transaction. Live PortfolioProjectionHandler returns for these facts. Older Development rows are preserved in the verified baseline."
+    },
+    {
+      "type": "PortfolioFundEventProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/Fund/Event/Actor/PortfolioFundEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/PortfolioAuthorityFence.cs",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/PostgresPortfolioProjectionStore.cs",
+      "notes": "Accepted ProjectionFacts are appended and applied inside the authority fence transaction. Live PortfolioProjectionHandler returns for these facts. Older Development rows are preserved in the verified baseline."
+    },
+    {
+      "type": "GeneralLedgerProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/GeneralLedger/Projection/GeneralLedgerProjector.cs",
+      "status": "verified_rebuildable_async_history",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/FinancialReadProjectionRebuilder.cs",
+      "notes": "Financial source facts and mandatory journals/authority/capacity/execution rows commit in their owning transaction. This descriptor writes optional monthly financial history after commit. Full accepted facts and verified Development baseline support pure financial reconstruction; history can be regenerated independently."
+    },
+    {
+      "type": "LedgerConfigurationProjector",
+      "file": "TomasAI.IFM.Domain.Portfolio/GeneralLedger/Projection/LedgerConfigurationProjector.cs",
+      "status": "verified_rebuildable_async_history",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial",
+      "materializer": "TomasAI.IFM.Application.Storage/PortfolioDb/Financial/FinancialReadProjectionRebuilder.cs",
+      "notes": "Financial source facts and mandatory journals/authority/capacity/execution rows commit in their owning transaction. This descriptor writes optional monthly financial history after commit. Full accepted facts and verified Development baseline support pure financial reconstruction; history can be regenerated independently."
+    },
+    {
+      "type": "RegimeDiscoveryConfigurationEventProjector",
+      "file": "TomasAI.IFM.Domain.Reference/Configuration/Strategy/Command/EventProjector/RegimeDiscoveryConfigurationEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Reference\\Configuration\\Strategy\\Command\\State\\RegimeDiscoveryConfigurationStateRepository.cs",
+      "notes": "Accepted payload is appended and materialized through the same enlisted PostgreSQL transaction before state acceptance. Parameter publication also enlists the option-chain policy projection."
+    },
+    {
+      "type": "LookupTypeEventProjector",
+      "file": "TomasAI.IFM.Domain.Reference/LookupType/Command/EventProjector/LookupTypeEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Reference\\LookupType\\Command\\State\\LookupTypeStateRepository.cs",
+      "notes": "Accepted payload is appended and materialized through the same enlisted PostgreSQL transaction before state acceptance. Parameter publication also enlists the option-chain policy projection."
+    },
+    {
+      "type": "ParameterAssignmentEventProjector",
+      "file": "TomasAI.IFM.Domain.Reference/ParameterSets/Command/EventProjector/ParameterAssignmentEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Reference\\ParameterSets\\Command\\State\\ParameterAssignmentStateRepository.cs",
+      "notes": "Accepted payload is appended and materialized through the same enlisted PostgreSQL transaction before state acceptance. Parameter publication also enlists the option-chain policy projection."
+    },
+    {
+      "type": "ParameterSetEventProjector",
+      "file": "TomasAI.IFM.Domain.Reference/ParameterSets/Command/EventProjector/ParameterSetEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Reference\\ParameterSets\\Command\\State\\ParameterSetStateRepository.cs",
+      "notes": "Accepted payload is appended and materialized through the same enlisted PostgreSQL transaction before state acceptance. Parameter publication also enlists the option-chain policy projection."
+    },
+    {
+      "type": "ParameterStartupEventProjector",
+      "file": "TomasAI.IFM.Domain.Reference/ParameterSets/Command/EventProjector/ParameterStartupEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Reference\\ParameterSets\\Command\\State\\ParameterStartupStateRepository.cs",
+      "notes": "Accepted payload is appended and materialized through the same enlisted PostgreSQL transaction before state acceptance. Parameter publication also enlists the option-chain policy projection."
+    },
+    {
+      "type": "DatabaseBackupEventProjector",
+      "file": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Command/EventProjector/DatabaseBackupEventProjector.cs",
+      "status": "native_boundary_tested",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "owner": "TomasAI.IFM.Domain.SystemAdmin/DatabaseBackup/Command/State/DatabaseBackupStateRepository.cs",
+      "evidence": [
+        ".artifacts/native-backup-atomic-regressions-2.log"
+      ],
+      "notes": "Source, read rows, receipt, checkpoint and execution intent enlist together. Restart dispatcher requires explicit approval; it is not installed."
+    },
+    {
+      "type": "ScheduledTaskCatalogEventProjector",
+      "file": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/EventProjector/ScheduledTaskCatalogEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/State/ScheduledTaskAtomicPersistence.cs",
+      "notes": "Definition, catalog and run snapshots are persisted with their source. PostgreSQL live descriptors only deliver terminal notifications; explicit rebuild writes recorded snapshots."
+    },
+    {
+      "type": "ScheduledTaskEventProjector",
+      "file": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/EventProjector/ScheduledTaskEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/State/ScheduledTaskAtomicPersistence.cs",
+      "notes": "Definition, catalog and run snapshots are persisted with their source. PostgreSQL live descriptors only deliver terminal notifications; explicit rebuild writes recorded snapshots."
+    },
+    {
+      "type": "ScheduledTaskRunEventProjector",
+      "file": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/EventProjector/ScheduledTaskRunEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.SystemAdmin/ScheduledTask/Command/State/ScheduledTaskAtomicPersistence.cs",
+      "notes": "Definition, catalog and run snapshots are persisted with their source. PostgreSQL live descriptors only deliver terminal notifications; explicit rebuild writes recorded snapshots."
+    },
+    {
+      "type": "FuturesTradeEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Command/EventProjector/FuturesTradeEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Command\\State\\FuturesTradeStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "FuturesOptionTradeEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Option/Command/EventProjector/FuturesOptionTradeEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Option\\Command\\State\\FuturesOptionTradeStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "IronCondorPositionEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Command/EventProjector/IronCondorPositionEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Option\\Position\\IronCondor\\Command\\State\\IronCondorPositionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "IronCondorExitPositionWorkflowEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/IronCondor/Workflow/Command/EventProjector/IronCondorExitPositionWorkflowEventProjector.cs",
+      "status": "verified_notification_after_atomic_commit",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Option\\Position\\IronCondor\\Workflow\\Command\\State\\IronCondorExitPositionWorkflowStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/ExitWorkflowAtomicPersistence.cs",
+      "notes": "Source and full exit-stage snapshot commit in TradePlanDb before this notification-only actor handoff. Baseline event reconstructs the three existing Development stage rows."
+    },
+    {
+      "type": "VerticalSpreadPositionEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Command/EventProjector/VerticalSpreadPositionEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Option\\Position\\VerticalSpread\\Command\\State\\VerticalSpreadPositionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "VerticalSpreadExitPositionWorkflowEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Option/Position/VerticalSpread/Workflow/Command/EventProjector/VerticalSpreadExitPositionWorkflowEventProjector.cs",
+      "status": "verified_notification_after_atomic_commit",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Option\\Position\\VerticalSpread\\Workflow\\Command\\State\\VerticalSpreadExitPositionWorkflowStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/ExitWorkflowAtomicPersistence.cs",
+      "notes": "Source and full exit-stage snapshot commit in TradePlanDb before this notification-only actor handoff. Baseline event reconstructs the three existing Development stage rows."
+    },
+    {
+      "type": "FuturesPositionEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Position/Command/EventProjector/FuturesPositionEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Position\\Command\\State\\FuturesPositionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "FuturesExitPositionWorkflowEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Futures/Position/Workflow/Command/EventProjector/FuturesExitPositionWorkflowEventProjector.cs",
+      "status": "verified_notification_after_atomic_commit",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Futures\\Position\\Workflow\\Command\\State\\FuturesExitPositionWorkflowStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/ExitWorkflowAtomicPersistence.cs",
+      "notes": "Source and full exit-stage snapshot commit in TradePlanDb before this notification-only actor handoff. Baseline event reconstructs the three existing Development stage rows."
+    },
+    {
+      "type": "BrokerOrderEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Order/Broker/Command/EventProjector/BrokerOrderEventProjector.cs",
+      "status": "verified_external_execution_boundary",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": false,
+      "notes": "Post-commit broker place/modify/cancel and observation-to-command dispatch cannot join a database transaction. Explicit rebuilding restores the local broker read cache only; it never places or cancels orders."
+    },
+    {
+      "type": "TradeOrderEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Order/Command/EventProjector/TradeOrderEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Order\\Command\\State\\TradeOrderStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "OrderExecutionEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Order/Execution/Command/EventProjector/OrderExecutionEventProjector.cs",
+      "status": "verified_source_and_required_rows_enlisted",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade\\Order\\Execution\\Command\\State\\OrderExecutionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradeAtomicPersistence.cs",
+      "notes": "Accepted order, execution, trade, position and limits facts commit with mandatory rows; PostgreSQL live projector skips duplicate storage. Position routing is part of the enlisted writer. Explicit rebuilding uses recorded state and does not submit broker orders."
+    },
+    {
+      "type": "IntrinsicTimeStrategyWorkflowEventProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Command/EventProjector/IntrinsicTimeStrategyWorkflowEventProjector.cs",
+      "status": "native_boundary_tested",
+      "declaresReadModelRebuild": true,
+      "containsPostgresProviderGuard": true,
+      "owner": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Command/State/IntrinsicTimeStrategyWorkflowStateRepository.cs",
+      "evidence": [
+        ".artifacts/native-workflow-repository-regressions-2.log"
+      ],
+      "notes": "Source plus eight workflow/risk tables commit together; post-commit cache, dispatch and subscriptions stay external."
+    },
+    {
+      "type": "MarketConditionAssessmentProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/MarketCondition/Function/Projector/MarketConditionAssessmentProjector.cs",
+      "status": "verified_native_function_transaction_route",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/MarketCondition/Function/State/MarketConditionAssessmentStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradePipelineAtomicPersistence.cs",
+      "notes": "Native function actors select AtomicBusinessAndEvent and do not invoke the compatibility projector after commit. Pure accepted stores are available for explicit rebuild.",
+      "verification": "PostgresRegimeDiscoveryTests, PostgresPipelineResultTests and PostgresPipelineHistoryTests; additional composer/selection repository fault coverage remains to be reviewed."
+    },
+    {
+      "type": "OrderCompositionProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Function/Projector/OrderCompositionProjector.cs",
+      "status": "verified_native_function_transaction_route",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Function/State/OrderCompositionFunctionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradePipelineAtomicPersistence.cs",
+      "notes": "Native function actors select AtomicBusinessAndEvent and do not invoke the compatibility projector after commit. Pure accepted stores are available for explicit rebuild.",
+      "verification": "PostgresRegimeDiscoveryTests, PostgresPipelineResultTests and PostgresPipelineHistoryTests; additional composer/selection repository fault coverage remains to be reviewed."
+    },
+    {
+      "type": "CommittedCompositionSubscriptionProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Realtime/CommittedCompositionSubscriptionProjector.cs",
+      "status": "verified_rebuildable_async_subscription_boundary",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Application.Storage/MarketDataServiceDb/MarketDataServiceDbContextExtensions.cs",
+      "notes": "Consumes committed workflow/order/position facts. Subscription intent, lease, operation result, outbox and authority watermark share a separate PostgreSQL transaction. Event-journal acknowledgement follows that commit; interrupted acknowledgement repeats an idempotent apply. Broker/provider delivery remains outside database transactions. This is not atomic with the original business source append."
+    },
+    {
+      "type": "RegimeDiscoveryFunctionProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RegimeDiscovery/Function/Projector/RegimeDiscoveryFunctionProjector.cs",
+      "status": "verified_native_function_transaction_route",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RegimeDiscovery/Function/State/RegimeDiscoveryFunctionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradePipelineAtomicPersistence.cs",
+      "notes": "Native function actors select AtomicBusinessAndEvent and do not invoke the compatibility projector after commit. Pure accepted stores are available for explicit rebuild.",
+      "verification": "PostgresRegimeDiscoveryTests, PostgresPipelineResultTests and PostgresPipelineHistoryTests; additional composer/selection repository fault coverage remains to be reviewed."
+    },
+    {
+      "type": "TradeSelectionProjector",
+      "file": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Function/Projector/TradeSelectionProjector.cs",
+      "status": "verified_native_function_transaction_route",
+      "declaresReadModelRebuild": false,
+      "containsPostgresProviderGuard": false,
+      "transactionOwner": "TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/TradeSelection/Function/State/TradeSelectionFunctionStateRepository.cs",
+      "materializer": "TomasAI.IFM.Domain.Trade/Persistence/TradePipelineAtomicPersistence.cs",
+      "notes": "Native function actors select AtomicBusinessAndEvent and do not invoke the compatibility projector after commit. Pure accepted stores are available for explicit rebuild.",
+      "verification": "PostgresRegimeDiscoveryTests, PostgresPipelineResultTests and PostgresPipelineHistoryTests; additional composer/selection repository fault coverage remains to be reviewed."
+    }
+  ],
+  "reviewComplete": true,
+  "notes": "All 56 concrete projector roles traced. Development cutover, isolated restore, actual API/UI/Scheduler runtime and normal solution compilation are verified. Extended performance acceptance is deferred to a weekend and excluded from migration correctness. Local backup-host validation awaits its original enrolled vault. Strict analyzer cleanup deferred by user on 2026-10-12.",
+  "migrationCorrectnessVerified": true,
+  "performanceQualificationDeferred": true,
+  "localBackupHostEnrollment": {
+    "status": "repaired",
+    "date": "2026-10-12",
+    "readinessHttpStatus": 200,
+    "existingJournalPreserved": true,
+    "enrollmentEvidence": ".artifacts/backup-vault-repair/enrollment.log",
+    "pendingBackups": "resumed; completion not asserted"
+  }
+}

@@ -30,12 +30,16 @@ public static class ReserveFundOrderComposition
         string principal,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(allocator);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
 
         if (state.TryComposition(command.Request.IdempotencyKey, out var prior))
         {
             var hash = PortfolioCanonicalHash.Compute(command.Request.DefensiveCopy());
             if (!string.Equals(prior.CanonicalRequestSha256, hash, StringComparison.Ordinal))
-                throw new InvalidOperationException("IdempotencyKeyConflict: the key was already committed for a different canonical request.");
+{
+throw new InvalidOperationException("IdempotencyKeyConflict: the key was already committed for a different canonical request.");}
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
         }
 
@@ -43,7 +47,7 @@ public static class ReserveFundOrderComposition
         var tradeIds = new int[command.Request.TradeInstructions.Length];
         for (var i = 0; i < tradeIds.Length; i++)
             tradeIds[i] = await allocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false);
-                var errorMsg = $"{command.CommandName}: unable to apply FundCompositionReserved event";
+        var errorMsg = $"{command.CommandName}: unable to apply FundCompositionReserved event";
         var updated = command.Compute(state, now, principal, orderId, tradeIds, out var fundChange) switch
         {
             _ when !fundChange.Accepted

@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -18,6 +18,7 @@ public static class OptionTradeRealtimeEvent
     /// This event is a price input, not a broker execution or a trade decision.</remarks>
     public static FuturesTickTradeDataChangedEvent ToRealtimeEvent(this OptionTradeEvidence evidence)
     {
+        ArgumentNullException.ThrowIfNull(evidence);
         evidence.Validate();
         var source = evidence.Source;
         var sequence = checked((uint)source.Sequence);

@@ -1,4 +1,4 @@
-﻿namespace TomasAI.IFM.Shared.EventService;
+namespace TomasAI.IFM.Shared.EventService;
 
 /// <summary>
 /// Provides a mechanism to resolve instances of event service APIs based on their type.
@@ -19,6 +19,7 @@ public class EventServiceApiResolver(Func<Type, object>? resolverFunction)
     /// <param name="eventServiceApiType">The <see cref="Type"/> of the event service API to resolve. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>An instance of the specified event service API type if the resolution is successful; otherwise, <see
     /// langword="null"/>.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The documented optional API lookup returns null on DI provider resolution failure.")]
     public TApi? ResolveApi<TApi>() where TApi : class
     {
         try

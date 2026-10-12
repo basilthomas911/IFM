@@ -48,5 +48,12 @@ public sealed partial class ApiServerLifecycle : IApiServerLifecycle
         {
             ApiServerProcess.ReportFailure(ex, args, fatalRecoveryShutdown);
         }
+        finally
+        {
+            // Actor projectors own async resources. Dispose them before their cross-wired
+            // Microsoft DI dependencies; the synchronous integration wrapper cannot do this.
+            await app.Services.GetRequiredService<SimpleInjector.Container>()
+                .DisposeContainerAsync();
+        }
     }
 }

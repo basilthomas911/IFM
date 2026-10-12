@@ -2,7 +2,10 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 
 public static class LookupDefinitionSchemaSql
 {
-    public const string Create = """
+    public const string Create = CreateStructure + Seed;
+
+    /// <summary>Creates lookup storage and guards without writing default rows during reconstruction.</summary>
+    public const string CreateStructure = """
 CREATE TABLE IF NOT EXISTS reference_configuration.lookup_definition (
     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     group_name varchar(64) NOT NULL CHECK(group_name ~ '^[A-Za-z][A-Za-z0-9]*$'),
@@ -26,6 +29,10 @@ BEGIN
 END $$;
 CREATE OR REPLACE TRIGGER guard_lookup_definition BEFORE UPDATE ON reference_configuration.lookup_definition
 FOR EACH ROW EXECUTE FUNCTION reference_configuration.guard_lookup_definition();
+""";
+
+    /// <summary>Seeds default lookup rows only during ordinary initialization.</summary>
+    public const string Seed = """
 INSERT INTO reference_configuration.lookup_definition(group_name,internal_value,display_name,description,display_order) VALUES
 ('AssetTypes','Futures','Futures','Futures contracts.',10),
 ('AssetTypes','FuturesOption','Futures Options','Options on futures contracts.',20),

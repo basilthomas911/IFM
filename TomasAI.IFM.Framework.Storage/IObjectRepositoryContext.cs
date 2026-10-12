@@ -10,6 +10,8 @@ namespace TomasAI.IFM.Framework.Storage;
 public interface IObjectRepositoryContext : IDisposable
 {
     IObjectRepository Repository { get; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     List<object> ParameterValues { get; }
     bool UseTransaction { get; }
     int CommandTimeout { get; }
@@ -50,7 +52,11 @@ public interface IObjectRepositoryContext : IDisposable
 
     Task<long[]> ExecuteCommandAsync(Action<string> onInfoMessage = default!);
     Task<long[]> ExecuteCommandAsync(CancellationToken cancellationToken, Action<string> onInfoMessage = default!);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retains the existing public collection contract used by adapters and validation callers.")]
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction, CancellationToken cancellationToken);
 
     ValueTask ExecuteMapReduceAsync<TResult>(Func<IObjectDataRecord, TResult> mapper, Action<IEnumerable<TResult>> reducer);

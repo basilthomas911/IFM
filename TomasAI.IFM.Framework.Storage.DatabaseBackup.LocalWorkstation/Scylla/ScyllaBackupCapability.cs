@@ -331,7 +331,7 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
                 "The staged Scylla protection set differs from the signed AWS topology or snapshot evidence.");
     }
 
-    static ScyllaProtectionSetOptions RestoreProtectionSet(ScyllaProtectionSetOptions source)
+    internal static ScyllaProtectionSetOptions RestoreProtectionSet(ScyllaProtectionSetOptions source)
         => string.IsNullOrWhiteSpace(source.RestoreLocation)
             ? source
             : new ScyllaProtectionSetOptions
@@ -341,6 +341,7 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
                 RestoreLocation = source.RestoreLocation,
                 Keyspaces = source.Keyspaces,
                 RequiredLiveNodes = source.RequiredLiveNodes,
-                ManagerRetentionCount = source.ManagerRetentionCount
+                ManagerRetentionCount = source.ManagerRetentionCount,
+                CqlContactPoints = source.CqlContactPoints
             };
 }

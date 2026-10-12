@@ -19,6 +19,8 @@ public static class GenerateFuturesAdxSignal
     /// <returns>The originating command ID on acceptance, including an idempotent no-change result; otherwise, the business rejection or state-application failure.</returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAdxSignalCommand command, FuturesAdxSignalCommandState state)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         if (command.Observation is { } observation
             && state.AdxSignals.LastOrDefault()?.Metadata?.MarketDataAsOfUtc >= observation.LastMarketEventUtc)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));

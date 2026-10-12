@@ -51,14 +51,6 @@ public interface IActorThread
     bool Start();
 
     /// <summary>
-    /// Sets the availability status of the message, indicating that it can be processed.
-    /// </summary>
-    /// <remarks>This method should be called when a new message is available for processing. It may trigger
-    /// any associated event handlers or notifications to inform listeners of the new message status.</remarks>
-    /// <param name="threadId">The identifier of the actor thread that has a new message available.</param>
-    void SignalMessageAvailable(ActorThreadId threadId);
-
-    /// <summary>
     /// Starts the specified actor on the given thread.
     /// </summary>
     /// <remarks>Ensure that the actor is not already running on another thread before calling this
@@ -69,9 +61,18 @@ public interface IActorThread
     bool Start(IActor actor, ActorThreadId threadId);
 
     /// <summary>
+    /// Sets the availability status of the message, indicating that it can be processed.
+    /// </summary>
+    /// <remarks>This method should be called when a new message is available for processing. It may trigger
+    /// any associated event handlers or notifications to inform listeners of the new message status.</remarks>
+    /// <param name="threadId">The identifier of the actor thread that has a new message available.</param>
+    void SignalMessageAvailable(ActorThreadId threadId);
+
+    /// <summary>
     /// Stops the actor thread, transitioning it to a stopped state and releasing resources as appropriate.
     /// </summary>
     /// <returns>True if the thread was stopped successfully; otherwise false.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Preserve the existing public virtual/interface member and named argument contract used by actor implementations.")]
     bool Stop();
 
     /// <summary>

@@ -15,9 +15,8 @@ public static class FuturesItiSignalHoldTradeChanged
     {
         ServiceId = $"{LogSourceType.FuturesTradeSignalEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-    /// <summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>
     /// 
     /// </summary>
     /// <param name="e"></param>
@@ -28,6 +27,8 @@ public static class FuturesItiSignalHoldTradeChanged
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesItiSignalHoldTradeChangedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(statusConsoleWriter);
         var source = $"FuturesItiSignalHoldTradeChangedEvent for {e.FuturesItiSignalId}";
         try
         {
@@ -36,7 +37,7 @@ public static class FuturesItiSignalHoldTradeChanged
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: complete handler failed", source);
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTradeSignalEvent, 19014, ex.GetErrorMessage());
+            await (statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTradeSignalEvent, 19014, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return false;
     }

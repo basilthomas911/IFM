@@ -29,13 +29,23 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         Type,
         Func<IEventActorContext, IEvent, ValueTask>> EventPublishers = new();
 
-    readonly object _descriptorLock = new();
+    readonly System.Threading.Lock _descriptorLock = new();
     FrozenDictionary<Type, RealtimeProjectionDescriptor>? _descriptorMap;
     IEventActorContext? _context;
 
     public abstract string ActorName { get; }
     public abstract string ProjectorName { get; }
-    public abstract IReadOnlyCollection<Type> ProjectedEventTypes { get; }
+    IReadOnlyCollection<Type>? projectedTypes;
+
+    /// <summary>Gets the immutable descriptor types cached for this projector instance.</summary>
+    public virtual IReadOnlyCollection<Type> ProjectedEventTypes
+        => Volatile.Read(ref projectedTypes) ?? GetProjectedTypes();
+
+    IReadOnlyCollection<Type> GetProjectedTypes()
+    {
+        var types = Array.AsReadOnly(ProjectionDescriptors.Select(static descriptor => descriptor.SourceEventType).ToArray());
+        return Interlocked.CompareExchange(ref projectedTypes, types, null) ?? types;
+    }
     public abstract IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors { get; }
 
     /// <summary>Minimum stage duration reported at information level.</summary>
@@ -84,6 +94,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         return ValueTask.CompletedTask;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     public virtual async ValueTask<bool> ProcessRealtimeEventAsync(
         IEvent domainEvent,
         CancellationToken cancellationToken = default)
@@ -127,19 +138,17 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         {
             await PublishFailureAsync(context, descriptor, domainEvent, exception)
                 .ConfigureAwait(false);
-            Logger.LogError(
-                exception,                "{Component}.{Method} "+"Realtime projection {ProjectorName} failed for event {EventName} on "
-                + "{EntityId}; the observation will not be retried or replayed.",nameof(BaseRealtimeProjector<TActor>),nameof(ProcessRealtimeEventAsync),                ProjectorName,                domainEvent.EventName,                domainEvent.Subject.EntityId);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write7(Logger, exception, nameof(BaseRealtimeProjector<TActor>), nameof(ProcessRealtimeEventAsync), ProjectorName, domainEvent.EventName, domainEvent.Subject.EntityId);
             return false;
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1873", Justification = "Arguments are evaluated only inside the explicit Information IsEnabled guard.")]
     void LogSlowStage(IEvent domainEvent, string stage, long started)
     {
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        if (elapsed >= SlowStageLogThreshold.TotalMilliseconds)
-            Logger.LogInformation(
-                "{Component}.{Method} "+"Realtime projection stage: {ProjectorName}; {EventName}; {EntityId}; SourceId={SourceId}; stage={Stage}; elapsed {ElapsedMilliseconds:F3} ms.",nameof(BaseRealtimeProjector<TActor>),nameof(LogSlowStage),                ProjectorName,domainEvent.EventName,domainEvent.Subject.EntityId,                domainEvent.Id,stage,elapsed);
+        if (elapsed >= SlowStageLogThreshold.TotalMilliseconds && Logger.IsEnabled(LogLevel.Information))
+            RealtimeDiagnosticLog.SlowStage(Logger, nameof(BaseRealtimeProjector<TActor>), nameof(LogSlowStage), ProjectorName, domainEvent.EventName, domainEvent.Subject.EntityId, domainEvent.Id, stage, elapsed);
     }
 
     /// <summary>
@@ -198,6 +207,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
                 await applyAsync(domainEvent).ConfigureAwait(false));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Projector boundary records an isolated projection failure or cleanup error; failures must not silently stop unrelated projection processing.")]
     async ValueTask PublishFailureAsync(
         IEventActorContext context,
         RealtimeProjectionDescriptor descriptor,
@@ -215,9 +225,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         }
         catch (Exception publicationException)
         {
-            Logger.LogError(
-                publicationException,                "{Component}.{Method} "+"Realtime projector {ProjectorName} could not publish the failure event "
-                + "for {EventName}; the observation will not be retried or replayed.",nameof(BaseRealtimeProjector<TActor>),nameof(PublishFailureAsync),                ProjectorName,                sourceEvent.EventName);
+            global::TomasAI.IFM.Application.EventProjector.PersistenceDiagnosticLog.Write8(Logger, publicationException, nameof(BaseRealtimeProjector<TActor>), nameof(PublishFailureAsync), ProjectorName, sourceEvent.EventName);
         }
     }
 
@@ -278,6 +286,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         string actorName,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(domainEvent);
         cancellationToken.ThrowIfCancellationRequested();
         domainEvent.CheckForEmptyCommandId();
         EventInitHelper.SetProperty(
@@ -295,6 +304,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         await publisher(context, domainEvent).ConfigureAwait(false);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3011", Justification = "Only a fixed private publication method on this class is reflected; the event type supplies generic arguments.")]
     static Func<IEventActorContext, IEvent, ValueTask> CreateEventPublisher(
         Type eventType)
     {
@@ -308,8 +318,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
                 nameof(PublishTypedEventAsync),
                 BindingFlags.Static | BindingFlags.NonPublic)!
             .MakeGenericMethod(eventType, entityIdType);
-        return (Func<IEventActorContext, IEvent, ValueTask>)method.CreateDelegate(
-            typeof(Func<IEventActorContext, IEvent, ValueTask>));
+        return method.CreateDelegate<Func<IEventActorContext, IEvent, ValueTask>>();
     }
 
     static ValueTask PublishTypedEventAsync<TEvent, TEntityId>(

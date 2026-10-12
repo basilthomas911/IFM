@@ -34,7 +34,29 @@ public static partial class ApiServerModes
         var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
         var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
         var qualifyRecoveryInfrastructureOnly = args.Contains("--qualify-recovery-infrastructure-only", StringComparer.OrdinalIgnoreCase);
-        if (verifyStartupOnly)
+        if (args.Contains("--validate-restored-databases-only", StringComparer.OrdinalIgnoreCase))
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            var databases = app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.IDbContextFactory>();
+            TomasAI.IFM.Application.Storage.SchemaDb.IDbSchemaContext[] schemas =
+            [
+                databases.EventSourceSchema, databases.SequenceIdSchema, databases.SystemAdminSchema, databases.ConfigurationSchema,
+                databases.ReferenceSchema, databases.SecuritiesSchema, databases.TradeSchema,
+                databases.TradePlanSchema, databases.PortfolioSchema, databases.MarketDataSchema, databases.TradeTickQuoteSchema,
+                databases.OptionPricerSchema, databases.MarketDataServiceSchema,
+                app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>()
+            ];
+            foreach (var schema in schemas)
+            {
+                var tables = await schema.ValidateTablesAsync(deadline.Token);
+                Console.WriteLine($"Recovery validation {schema.GetType().Name}: {tables} tables readable.");
+            }
+            var financialTables = await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>()
+                .ValidateAsync(deadline.Token);
+            Console.WriteLine($"Recovery validation PortfolioFinancialSchema: {financialTables} tables readable.");
+            Console.WriteLine("Restored database application-provider validation completed; no hosted services, actors, feeds, migrations or HTTP listeners started.");
+        }
+        else if (verifyStartupOnly)
         {
             if (app.Configuration.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"))
             _ = app.Services.GetRequiredService<IDatabentoRecoveryRequester>();
@@ -48,7 +70,7 @@ public static partial class ApiServerModes
         else if (qualifyRecoveryInfrastructureOnly)
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            await app.Services.GetRequiredService<MarketDataSchemaDb>()
+            await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema.TradeTickQuoteSchemaDb>()
             .CreateAsync(["ifm_recovery_probe"], deadline.Token);
             var result = await app.Services.GetRequiredService<DatabentoSoftRecoveryGate>()
             .QualifyAsync(deadline.Token);

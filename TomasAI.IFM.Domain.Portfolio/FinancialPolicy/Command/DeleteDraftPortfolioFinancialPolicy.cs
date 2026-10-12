@@ -25,8 +25,11 @@ public static class DeleteDraftPortfolioFinancialPolicy
         string principal,
         Func<Func<bool, DateTime, ServiceResult<GuidResult>>,
             Func<IPortfolioFinancialPolicyDomainEvent, bool>?,
-            ValueTask<ServiceResult<GuidResult>>> commit) =>
-        commit((referenced, now) => command.Execute(state, principal, referenced, now), null);
+            ValueTask<ServiceResult<GuidResult>>> commit) 
+    {
+        ArgumentNullException.ThrowIfNull(commit);
+        return commit((referenced, now) => command.Execute(state, principal, referenced, now), null);
+    }
 
     /// <summary>Computes and guards the policy change before applying its source event.</summary>
     /// <param name="command">The concrete business command and originating identity.</param>

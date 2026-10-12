@@ -21,9 +21,8 @@ public static class FuturesBarDataStreamingStarted
     {
         ServiceId = $"{LogSourceType.FuturesBarDataEvent}";
     }
-    static string ServiceId { get; } = default!;
-
-    /// <summary>Starts the bar timer and publishes a correlated completion or failure event.</summary>
+    static string ServiceId { get; } 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")]     /// <summary>Starts the bar timer and publishes a correlated completion or failure event.</summary>
     public static async ValueTask<bool> ExecuteAsync(
     this FuturesBarDataStreamingStartedEvent e,
     IEventActorContext context,
@@ -31,26 +30,33 @@ public static class FuturesBarDataStreamingStarted
     IEventActorContext eventApi,
     FuturesBarDataEventParameters p, ILogger<FuturesBarDataEventActor> logger)
     {
+        ArgumentNullException.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(eventApi);
+        ArgumentNullException.ThrowIfNull(p);
         var source = $"FuturesBarDataStreamingStartedEvent for EntityId: {e.EntityId}";
         var started = false;
         try
         {
-            p.FuturesBarDataTimer.Start(e.EntityId, InsertFuturesBarDataFromTickDataAsync);
-            await eventApi.FuturesBarDataStreamingStartedCompleteAsync(e);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source);
+            p.FuturesBarDataTimer.Start(e.EntityId, () => InsertFuturesBarDataFromTickDataAsync(e, commandApi, p, logger, source));
+            await (eventApi.FuturesBarDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, source)).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "{Source}", source);
             started = true;
         }
         catch (Exception ex)
         {
             logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data streaming start failed", source);
-            await eventApi.FuturesBarDataStreamingStartedFailAsync(e, ex);
-            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
+            await (eventApi.FuturesBarDataStreamingStartedFailAsync(e, ex)).ConfigureAwait(false);
+            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
         }
         return started;
 
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The timer callback reports its failure without terminating the registered market-data timer.")]
         /// <summary>Samples current futures ticks and submits supported bar insertions.</summary>
-        async ValueTask InsertFuturesBarDataFromTickDataAsync()
+    static async ValueTask InsertFuturesBarDataFromTickDataAsync(FuturesBarDataStreamingStartedEvent e,
+        IEventActorContext commandApi, FuturesBarDataEventParameters p, ILogger<FuturesBarDataEventActor> logger, string source)
         {
             try
             {
@@ -79,7 +85,7 @@ public static class FuturesBarDataStreamingStarted
                     {
                         case "ES":
                         case "VX":
-                            await commandApi.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
+                            await (commandApi.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
                                 contractId: o.ContractId,
                                 symbol: o.Symbol,
                                 valueDate: e.ValueDate,
@@ -88,8 +94,8 @@ public static class FuturesBarDataStreamingStarted
                                 barValue: barPrice,
                                 upTrendTrigger: 0,
                                 downTrendTrigger: 0
-                            ));
-                            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Inserted Futures Bar Data {o.ContractId}");
+                            ))).ConfigureAwait(false);
+                            await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Inserted Futures Bar Data {o.ContractId}")).ConfigureAwait(false);
                             logger.LogInformationEvent(ServiceId, "{Source}", $"inserted futures bar data {o.ContractId}");
                             break;
                     }
@@ -98,8 +104,7 @@ public static class FuturesBarDataStreamingStarted
             catch (Exception ex)
             {
                 logger.LogErrorEvent(ServiceId, ex, "{Source}: futures bar data insert failed", source);
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage());
+                await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, FuturesBarDataStreamingStartedEvent.ErrorCode, ex.GetErrorMessage())).ConfigureAwait(false);
             }
         }
-    }
 }

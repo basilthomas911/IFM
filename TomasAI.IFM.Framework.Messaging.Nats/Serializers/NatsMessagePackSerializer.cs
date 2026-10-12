@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 /// <typeparam name="T">The payload type carried on the wire.</typeparam>
 public sealed class NatsMessagePackSerializer<T> : INatsSerializer<T>
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "The NATS generic serializer exposes one cached instance per payload type to avoid serializer allocation per message.")]
     public static NatsMessagePackSerializer<T> Default { get; } = new();
 
     static MessagePackSerializerOptions Options => TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Options;

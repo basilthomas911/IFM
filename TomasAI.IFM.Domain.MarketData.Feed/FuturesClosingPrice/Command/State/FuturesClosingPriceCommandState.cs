@@ -4,7 +4,6 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
@@ -20,7 +19,7 @@ public class FuturesClosingPriceCommandState(IMarketDataDbContext? db = null)
     public override ActorThreadId Id { get; set; } = default!;
 
     readonly IMarketDataDbContext? _db = db;
-    FuturesClosingPriceInsertedEvent? _closingPrice = default;
+    FuturesClosingPriceInsertedEvent? _closingPrice;
 
     /// <summary>
     /// Determines whether a closing price exists for the specified futures data identifier using in-memory state.
@@ -38,7 +37,7 @@ public class FuturesClosingPriceCommandState(IMarketDataDbContext? db = null)
     /// <returns>true if a closing price exists for the specified identifier; otherwise, false.</returns>
     internal async ValueTask<bool> FuturesClosingPriceExistsAsync(FuturesDataId id)
         => FuturesClosingPriceExists(id)
-           || (_db is not null && await _db.GetFuturesClosingPriceAsync(id) is not null);
+           || (_db is not null && await (_db.GetFuturesClosingPriceAsync(id)).ConfigureAwait(false) is not null);
 
     /// <summary>
     /// apply state change event

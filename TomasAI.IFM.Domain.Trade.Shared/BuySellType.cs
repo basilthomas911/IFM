@@ -4,6 +4,7 @@ using System.Text;
 
 namespace TomasAI.IFM.Domain.Trade.Shared
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1720", Justification = "Preserve the existing serialized contract name describing the model value type.")]
     public enum BuySellType
     {
         Undefined,
@@ -11,18 +12,5 @@ namespace TomasAI.IFM.Domain.Trade.Shared
         Sell,
         Short,
         Long
-    }
-
-    public static class BuySellTypeExtensions
-    {
-        public static string ToStringFast(this BuySellType value) => value switch
-        {
-            BuySellType.Undefined => nameof(BuySellType.Undefined),
-            BuySellType.Buy => nameof(BuySellType.Buy),
-            BuySellType.Sell => nameof(BuySellType.Sell),
-            BuySellType.Short => nameof(BuySellType.Short),
-            BuySellType.Long => nameof(BuySellType.Long),
-            _ => value.ToString()
-        };
     }
 }

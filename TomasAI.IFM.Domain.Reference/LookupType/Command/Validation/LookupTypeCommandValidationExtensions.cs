@@ -5,12 +5,14 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;
 
 public static class LookupTypeCommandValidationExtensions
 {
-    public static List<ValidationError> ValidateLookupTypeIdentityMatches(
-        this List<ValidationError> validationErrors,
+    public static TErrors ValidateLookupTypeIdentityMatches<TErrors>(
+        this TErrors validationErrors,
         LookupTypeId? entityId,
         LookupTypeId? payloadId,
         string payloadName,
         string commandName)
+
+        where TErrors : class, ICollection<ValidationError>
     {
         ArgumentNullException.ThrowIfNull(validationErrors);
         if (IsValid(entityId) && IsValid(payloadId) && entityId != payloadId)

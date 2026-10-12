@@ -17,6 +17,8 @@ namespace TomasAI.IFM.Domain.Reference.Shared;
 public class LookupTypeCollection : ICollection<LookupTypeReadModel>
 {
     // runtime backing list (ignored by MessagePack)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The serialized collection contract retains its concrete collection shape.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retain the published collection contract used by callers and serialization.")]
     [Key(0)]
     public List<LookupTypeReadModel> Items { get; private set; } = [];
 
@@ -29,6 +31,8 @@ public class LookupTypeCollection : ICollection<LookupTypeReadModel>
     /// MessagePack serialization constructor. MessagePack will deserialize the collection as an array
     /// and pass it here; we copy into the internal list.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1002", Justification = "The serialized collection contract retains its concrete collection shape.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Retain the published collection contract used by callers and serialization.")]
     [SerializationConstructor]
     public LookupTypeCollection(List<LookupTypeReadModel> items)
     {

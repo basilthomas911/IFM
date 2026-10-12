@@ -20,26 +20,16 @@ public sealed class FunctionResult<TCompletedEvent, TFailedEvent>
     public FunctionResult(TCompletedEvent? completed, TFailedEvent? failed)
     {
         if ((completed is null) == (failed is null))
-            throw new ArgumentException("A Function result must contain exactly one completed or failed value.");
+            throw new ArgumentException("A Function result must contain exactly one completed or failed value.", nameof(completed));
         Completed = completed;
         Failed = failed;
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "The typed terminal-result factory must preserve the completed/failed generic reply contract.")]
     public static FunctionResult<TCompletedEvent, TFailedEvent> Complete(TCompletedEvent value)
         => new(value ?? throw new ArgumentNullException(nameof(value)), null);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "The typed terminal-result factory must preserve the completed/failed generic reply contract.")]
     public static FunctionResult<TCompletedEvent, TFailedEvent> Fail(TFailedEvent value)
         => new(null, value ?? throw new ArgumentNullException(nameof(value)));
-}
-
-/// <summary>Identifies the Function lifecycle stage that produced a failed response.</summary>
-public enum FunctionFailureStage : byte
-{
-    Unknown = 0,
-    Parsing = 1,
-    Validation = 2,
-    Loading = 3,
-    Execution = 4,
-    Projection = 5,
-    Persistence = 6
 }

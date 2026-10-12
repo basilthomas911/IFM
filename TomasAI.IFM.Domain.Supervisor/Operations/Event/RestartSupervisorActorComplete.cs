@@ -11,7 +11,12 @@ public static class RestartSupervisorActorComplete
     /// <summary>Records the Restart complete outcome in Supervisor operation history.</summary>
     public static ValueTask ExecuteAsync(this RestartSupervisorActorCompleteEvent value,
         ISupervisorEventActorContext context, ILogger<SupervisorEventActor> logger)
-        => SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
+        
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(value);
+        return SupervisorTerminalProjection.Complete(context, value.CommandId, value.Target,
             value.ExpectedGeneration, SupervisorActorOperationKind.Restart, value.Requester,
             value.Reason, value.TimeoutTicks, value.Stage);
+    }
 }

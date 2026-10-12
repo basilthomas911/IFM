@@ -1,4 +1,4 @@
-﻿using MessagePack;
+using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -18,6 +18,7 @@ public sealed record IronCondorTradePlanInputs
     /// <summary>Gets the positive configured legacy forward-loss denominator in price points.</summary>
     [Key(3)] public decimal ForwardLossPriceLimit { get; init; }
     /// <summary>Gets preceding forward-loss ratios excluding the current observation.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(4)] public double[] HistoricalForwardLossRatios { get; init; } = [];
     /// <summary>Gets the persisted baseline identity for reproducible MScore.</summary>
     [Key(5)] public string BaselineIdentity { get; init; } = string.Empty;

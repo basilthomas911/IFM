@@ -18,6 +18,7 @@ public sealed class PortfolioCloseOrderCompositionFunctionStateRepository(
     public async ValueTask<PortfolioCloseOrderCompositionFunctionState> LoadStateAsync(
         EvaluatePortfolioCloseOrderCompositionCommand request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
         var state = new PortfolioCloseOrderCompositionFunctionState { Id = request.Subject.ThreadId };
         var completed = await database.ReadOperationAsync<PortfolioCloseOrderCompositionCompletedEvent>(
             request.PortfolioId, request.OperationId, null, cancellationToken).ConfigureAwait(false);

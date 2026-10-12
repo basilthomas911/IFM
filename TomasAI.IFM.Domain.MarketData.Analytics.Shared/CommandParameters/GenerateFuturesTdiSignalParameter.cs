@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.CommandParameters;
 /// <param name="FuturesTdiSignalId">Identifier describing the target futures contract and value date for TDI signal generation.</param>
 /// <param name="FuturesRsiSignals">Collection of RSI signals used as input factors for computing the TDI signal.</param>
 /// <param name="ErrorCode">The error code associated with the operation.</param>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public model contract.")]
 public record GenerateFuturesTdiSignalParameter(
     FuturesTdiSignalId FuturesTdiSignalId,
     FuturesRsiSignalReadModel[] FuturesRsiSignals,

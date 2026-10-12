@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
 
 public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction transactions, FinancialDevelopmentPolicy? developmentPolicy = null)
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public Task<PortfolioOrderCompositionCompletedEvent> EvaluateAsync(
         EvaluatePortfolioOrderCompositionCommand request,
         Func<EvaluatePortfolioOrderCompositionCommand, FinancialBookConfiguration, long, IReadOnlyList<PortfolioFundFinancialSnapshot>, CancellationToken, ValueTask<PortfolioOrderCompositionReceipt>> evaluate,
@@ -69,16 +70,26 @@ public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction tra
                 Receipt = receipt
             };
 
+            await (ProjectMaterialAsync(db,completed,token)).ConfigureAwait(false);
+            await PortfolioDbFinancialSupport.SaveOutcomeAsync(db, request, completed, receipt.FinancialRevision, true, token).ConfigureAwait(false);
+            await (LedgerFinancialProjection.RecordAppliedAsync(db,completed,receipt.FinancialRevision,token)).ConfigureAwait(false);
+            return completed;
+        }, cancellationToken);
+
+    /// <summary>Materializes the accepted decision, orders, legs and capacity effects. No price/risk/admission calculation.</summary>
+    internal static async Task ProjectMaterialAsync(EnlistedEventTransaction db,PortfolioOrderCompositionCompletedEvent completed,CancellationToken token)
+    {
+        var receipt=completed.Receipt;
             await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertDecision,
-                [request.OperationId,receipt.CompositionId,receipt.WorkflowId,request.PortfolioId,(short)receipt.Status,
-                    receipt.FinancialRevision,request.InputSha256,PortfolioDbFinancialSupport.Json(receipt),now], token).ConfigureAwait(false);
+                [completed.OperationId,receipt.CompositionId,receipt.WorkflowId,completed.PortfolioId,(short)receipt.Status,
+                    receipt.FinancialRevision,completed.InputHash,PortfolioDbFinancialSupport.Json(receipt),completed.CommittedAtUtc], token).ConfigureAwait(false);
             foreach (var decision in receipt.FundDecisions)
                 await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertFundDecision,
-                    [request.OperationId, decision.FundId, decision.Accepted, decision.ReasonCode, decision.OrderId], token).ConfigureAwait(false);
+                    [completed.OperationId, decision.FundId, decision.Accepted, decision.ReasonCode, decision.OrderId], token).ConfigureAwait(false);
             foreach (var order in receipt.TradeOrders)
             {
                 await db.ExecuteAsync(PortfolioDbSql.OrderComposition.InsertOrder,
-                    [order.Id.OrderId,request.OperationId,order.Id.PortfolioId,order.Id.FundId,(short)order.Status,
+                    [order.Id.OrderId,completed.OperationId,order.Id.PortfolioId,order.Id.FundId,(short)order.Status,
                         order.DefinitionHash,PortfolioDbFinancialSupport.Json(order),order.ValidUntilUtc], token).ConfigureAwait(false);
                 var ordinal = 0;
                 foreach (var component in order.Components)
@@ -96,7 +107,5 @@ public sealed class PortfolioOrderCompositionStore(IPostgresEventTransaction tra
                         [effect.PortfolioId,(int)exposure.ScopeKind,exposure.ScopeKey,(int)exposure.Measure,(int)exposure.Unit,
                             0m,Math.Abs(exposure.Amount),0m,receipt.FinancialRevision], token).ConfigureAwait(false);
                 }
-            await PortfolioDbFinancialSupport.SaveOutcomeAsync(db, request, completed, receipt.FinancialRevision, true, token).ConfigureAwait(false);
-            return completed;
-        }, cancellationToken);
+    }
 }

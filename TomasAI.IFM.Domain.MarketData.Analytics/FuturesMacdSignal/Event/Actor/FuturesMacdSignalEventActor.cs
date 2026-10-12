@@ -18,8 +18,7 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
     /// <summary>Identifies the MACD event mailbox.</summary>
     public const string Actor = "FuturesMacdSignalEvent";
     /// <summary>Gets the typed event context supplied to this actor.</summary>
-    protected IFuturesMacdSignalEventContext FuturesMacdSignalEventContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesMacdSignalEventContext, nameof(actorContext))!;
+    protected IFuturesMacdSignalEventContext FuturesMacdSignalEventContext { get; } = IsArgumentNull.Named(actorContext as IFuturesMacdSignalEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesMacdSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesMacdSignalEventContext, ILogger<FuturesMacdSignalEventActor>, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesMacdSignalEventContext, ILogger<FuturesMacdSignalEventActor>, ValueTask<bool>>>()
     {
@@ -32,7 +31,7 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
         [typeof(FuturesMacdDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
             await ((FuturesMacdDailySignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
     };
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesMacdSignalStartedEvent.Verb] = message => message.AsEvent<FuturesMacdSignalStartedEvent>()!,
         [FuturesMacdSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesMacdSignalStoppedEvent>()!,
@@ -59,24 +58,31 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
         FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Clear();
         return ValueTask.CompletedTask;
     }
-
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/service boundary records the exception and contains the failure according to its existing lifecycle or message contract.")] 
     /// <summary>Publishes the standard event-actor error event.</summary>
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesMacdSignalEventActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception)
+        ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            await ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
                 ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
         }
         catch (Exception innerException)
         {
-            await innerException.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-                ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
-            Context.Logger.LogError(innerException, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            try
+            {
+                await innerException.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+                ActorEntityId>(ErrorType.EventService, context ?? Context).ConfigureAwait(false);
+            }
+            catch (Exception publicationException)
+            {
+                global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write5(Context.Logger, publicationException, Actor);
+            }
+            global::TomasAI.IFM.Domain.MarketData.Analytics.ActorLifecycleDiagnosticLog.Write42(Context.Logger, innerException, Actor);
         }
     }
 }

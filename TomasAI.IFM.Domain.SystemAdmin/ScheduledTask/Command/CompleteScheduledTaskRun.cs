@@ -18,6 +18,8 @@ public static class CompleteScheduledTaskRun
     public static ServiceResult<GuidResult> Execute(this CompleteScheduledTaskRunCommand command,
         ScheduledTaskRunCommandState state, DateTimeOffset now)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = "ScheduledTaskRun.STATE.APPLY_FAILED;unable to apply CompleteScheduledTaskRun event";
         var updated = command.Compute(state.ScheduledTaskRun, now, out var model) switch
         {

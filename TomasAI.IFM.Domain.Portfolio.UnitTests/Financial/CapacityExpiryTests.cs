@@ -15,7 +15,7 @@ public sealed class CapacityExpiryTests
     {
         var now = DateTime.UtcNow; var candidate = new CapacityExpiryCandidate(1, 2, Guid.NewGuid(), 1, 10, new('A', 64), 3, now.AddMinutes(-1));
         var first = CapacityExpiryModel.Create(candidate, now); var retry = CapacityExpiryModel.Create(candidate with { FinancialRevision = 4 }, now.AddSeconds(20));
-        new List<ValidationError>().ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest>(first,
+        new List<ValidationError>().ValidateFinancialRequest<ChangeCapacityReservationCommand, CapacityLifecycleRequest, List<ValidationError>>(first,
             ActorType.Command, ChangeCapacityReservationCommand.Actor, ChangeCapacityReservationCommand.Verb).Should().BeEmpty();
         first.Body.ChangeKind.Should().Be(CapacityChangeKind.ExpireUnconsumed); first.Body.ExecutionId.Should().BeEmpty();
         first.Body.CancelledUnits.Should().Be(10); first.Body.FilledUnits.Should().Be(0); first.Body.RemainingUnits.Should().Be(0);

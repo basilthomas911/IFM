@@ -5,5 +5,10 @@ namespace TomasAI.IFM.Domain.MarketData.DownloadLog.Query;
 public static class GetMarketDataDownloadHistory
 {
     public static Task<MarketDataDownloadHistoryResult> ExecuteAsync(this GetMarketDataDownloadHistoryQuery query, IDbContextFactory db, CancellationToken cancellationToken)
-        => db.MarketDataDb.GetMarketDataDownloadHistoryAsync(query.Request, query.PageSize, query.Cursor, cancellationToken);
+        
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(query);
+        return db.MarketDataDb.GetMarketDataDownloadHistoryAsync(query.Request, query.PageSize, query.Cursor, cancellationToken);
+    }
 }

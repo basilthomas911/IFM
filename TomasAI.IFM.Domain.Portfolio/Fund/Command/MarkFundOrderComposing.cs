@@ -23,6 +23,8 @@ public static class MarkFundOrderComposing
         DateTime now,
         string principal)
     {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(state);
         var errorMsg = $"{command.CommandName}: unable to apply FundCompositionStateChanged event";
         var updated = command.Compute(state, now, principal, out var fundChange) switch
         {

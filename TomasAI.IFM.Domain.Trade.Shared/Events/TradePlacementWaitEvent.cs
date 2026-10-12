@@ -71,24 +71,15 @@ public record TradePlacementWaitEvent : IEvent
         CreatedOn = this.CreatedOn,
         CreatedBy = this.CreatedBy,
     };
-    public IErrorEvent ToFailedEvent(Exception ex) => new TradePlacementWaitFailEvent
+    public IErrorEvent ToFailedEvent(Exception ex) 
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new TradePlacementWaitFailEvent
     {
         CommandId = this.CommandId,
         ErrorMessage = ex.Message,
         ErrorType = ErrorType.Command,
         ErrorCode = ErrorCode
     };
-}
-
-
-public record TradePlacementWaitCompleteEvent : CompleteEvent
-{
-    public TradePlacementId TradePlacementId { get; init; }
-    public FuturesTradeSignalV2ReadModel FuturesTradeSignal { get; init; }
-    public DateTime CreatedOn { get; init; }
-    public string CreatedBy { get; init; }
-}
-
-public record TradePlacementWaitFailEvent : ErrorEvent
-{
+    }
 }

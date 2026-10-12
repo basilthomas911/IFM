@@ -11,6 +11,7 @@ public static class FrozenEmulatorQuoteStore
 
     public static void Publish(IEnumerable<EvaluatedOptionContractReadModel> contracts, DateTimeOffset at)
     {
+        ArgumentNullException.ThrowIfNull(contracts);
         foreach (var contract in contracts)
         {
             if (contract.Bid is not > 0 || contract.Ask is not { } ask || ask < contract.Bid)

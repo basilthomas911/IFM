@@ -92,21 +92,10 @@ public sealed record FuturesTickQuoteDataInsertedEvent : IEvent<TickDataEntityId
     public IErrorEvent<TId> ToFailEvent<TFail, TId>(Exception ex)
         where TFail : IErrorEvent<TId> where TId : IActorEntityId
     {
+        ArgumentNullException.ThrowIfNull(ex);
         if (typeof(TId) != typeof(TickDataEntityId) || typeof(TFail) != typeof(FuturesTickQuoteDataInsertedFailEvent))
             throw new InvalidOperationException("The requested failure event type does not match the quote event family.");
         object result = TickAggregationEventFactory.Fail(this, ex, QuoteCount, FuturesTickQuoteDataInsertedFailEvent.Verb, ErrorId);
         return (IErrorEvent<TId>)result;
     }
-}
-
-[MessagePackObject]
-public record FuturesTickQuoteDataInsertedCompleteEvent : TickAggregationCompleteEvent
-{
-    public new const string Verb = "FuturesTickQuoteDataInsertedComplete";
-}
-
-[MessagePackObject]
-public record FuturesTickQuoteDataInsertedFailEvent : TickAggregationFailEvent
-{
-    public new const string Verb = "FuturesTickQuoteDataInsertedFail";
 }

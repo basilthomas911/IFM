@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Reference.Shared.Queries;
+using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.Caching;
@@ -20,8 +20,8 @@ namespace TomasAI.IFM.Domain.Reference.Services;
 /// thread-safe for concurrent existence checks.</remarks>
 /// <param name="actorService">The actor service used to query reference data from external sources.</param>
 /// <param name="blackboardService">The blackboard service used to cache and retrieve reference lookup data.</param>
-public class ReferenceLookupActorService(IActorService actorService, IBlackboardService blackboardService)
-    : IReferenceLookupService
+public sealed class ReferenceLookupActorService(IActorService actorService, IBlackboardService blackboardService)
+    : IReferenceLookupService, IDisposable
 {
     const long LocalCacheLifetimeMilliseconds = 30_000;
     static readonly FrozenDictionary<string, FrozenSet<string>> EmptyLookupIndex =
@@ -30,6 +30,13 @@ public class ReferenceLookupActorService(IActorService actorService, IBlackboard
     readonly IActorService _actorService = IsArgumentNull.Set(actorService);
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly SemaphoreSlim _refreshGate = new(1, 1);
+    int disposed;
+
+    /// <summary>Releases the refresh gate after host shutdown has stopped lookup consumers.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0) _refreshGate.Dispose();
+    }
     FrozenDictionary<string, FrozenSet<string>>? _lookupIndex;
     long _expiresAt;
     long _observedGeneration = -1;

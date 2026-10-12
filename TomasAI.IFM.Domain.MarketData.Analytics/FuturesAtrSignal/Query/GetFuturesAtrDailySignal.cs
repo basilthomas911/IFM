@@ -21,11 +21,8 @@ public static class GetFuturesAtrDailySignal
         this GetFuturesAtrDailySignalQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
-        => cancellationToken.CanBeCanceled
-            ? await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false)
-            : await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
-                q.ContractId, q.TimePeriod, q.PeriodLength).ConfigureAwait(false);
+        => await dbFactory.MarketDataDb.GetLastFuturesAtrDailySignalAsync(
+                q.ContractId, q.TimePeriod, q.PeriodLength, cancellationToken).ConfigureAwait(false);
 
 
     /// <summary>Reads and replies to the GetFuturesAtrDailySignalQuery message.</summary>
@@ -35,7 +32,10 @@ public static class GetFuturesAtrDailySignal
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken)
     {
-        var query = (q as GetFuturesAtrDailySignalQuery)!;
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(dbFactory);
+        ArgumentNullException.ThrowIfNull(q);
+        var query = q;
         var queryResult = await query.GetLastFuturesAtrDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var serviceResult = new ServiceResult<FuturesAtrSignalReadModel?>(queryResult);

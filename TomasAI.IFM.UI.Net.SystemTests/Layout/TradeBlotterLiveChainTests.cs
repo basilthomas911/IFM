@@ -372,7 +372,7 @@ public sealed class TradeBlotterLiveChainTests
         var contracts = new[]
         {
             Contract("call-7950", 7950m, true, 0.08),
-            Contract("call-7900", 7900m, true, 0.161),
+            Contract("call-7900", 7900m, true, 0.159),
             Contract("call-7850", 7850m, true, 0.31),
             Contract("put-7750", 7750m, false, -0.30),
             Contract("put-7700", 7700m, false, -0.159),
@@ -455,8 +455,12 @@ public sealed class TradeBlotterLiveChainTests
         Assert.Equal(Color.FromArgb(110, 24, 30), selectedStyle.BackColor);
 
         Bind(contracts.Select(value => value with { Delta = null }).ToArray());
-        Assert.Equal("-SC", ReadVirtualCell(blotter, grid, "CallSelected", 1));
-        Assert.Equal("+LP", ReadVirtualCell(blotter, grid, "PutSelected", 5));
+        Assert.Equal(0, selected.RowCount); // No qualified short deltas: do not retain an automatic selection.
+        Bind(contracts);
+        Assert.Equal(4, selected.RowCount);
+        Bind(contracts.Select(value => value.ContractId == "call-7900" ? value with { Delta = .161 } : value).ToArray());
+        Assert.Equal(0, selected.RowCount); // A live update above the target must invalidate the completed spread.
+        Bind(contracts.Select(value => value.ContractId == "call-7900" ? value with { Delta = .155 } : value).ToArray());
         Assert.Equal(4, selected.RowCount);
     }
 
@@ -514,7 +518,7 @@ public sealed class TradeBlotterLiveChainTests
                 null, null, null, null, null, null, true, false, observed, null, observed);
         var chain = new EvaluatedOptionChainReadModel("ES20261218", expiry, 7800m, 7800m, 8000m,
             "ImpliedVolatility5Delta", observed,
-            [Contract("call-7900", 7900m, .161), Contract("call-7950", 7950m, .08)]);
+            [Contract("call-7900", 7900m, .159), Contract("call-7950", 7950m, .08)]);
         typeof(EsTradeBlotterControl).GetMethod("BindEvaluatedChain",
             BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(blotter, [chain]);
 

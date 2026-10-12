@@ -7,23 +7,23 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function;
-
 /// <summary>Builds completion candidates and records successfully committed assessments through the event map.</summary>
 public static class CompleteMarketConditionAssessment
 {
     /// <summary>Creates the typed completion, or observes the same event after the base commits it.</summary>
-    public static FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> Complete(
-        this FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input, TimeProvider clock)
+    public static FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent> Complete(this FunctionEventContext<ExecuteMarketConditionAssessmentCommand> input, TimeProvider clock)
     {
-        var c = input.Request ?? throw new ArgumentException("Completion requires its command.");
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(input);
+        var c = input.Request ?? throw new ArgumentException("Completion requires its command.",nameof(input));
         if (input.Outcome is MarketConditionAssessmentCompletedEvent committed && input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
         {
-            if (input.Phase == FunctionEventPhase.Committed) MarketConditionTelemetry.RecordAssessment(MarketConditionAssessmentContracts.ReadResult(committed.Result),
-                Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
+            if (input.Phase == FunctionEventPhase.Committed)
+                MarketConditionTelemetry.RecordAssessment(MarketConditionAssessmentContracts.ReadResult(committed.Result), Math.Max(0, (clock.GetUtcNow().UtcDateTime - c.RequestedAtUtc).TotalMilliseconds));
             return FunctionResult<MarketConditionAssessmentCompletedEvent, MarketConditionAssessmentFailedEvent>.Complete(committed);
         }
-        var outcome = input.Outcome as MarketConditionExecutionCompleted
-            ?? throw new ArgumentException("Completion requires a calculated assessment.");
+
+        var outcome = input.Outcome as MarketConditionExecutionCompleted ?? throw new ArgumentException("Completion requires a calculated assessment.",nameof(input));
         var result = outcome.Result;
         var snapshot = outcome.Snapshot;
         var completed = new MarketConditionAssessmentCompletedEvent

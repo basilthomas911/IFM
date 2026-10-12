@@ -21,10 +21,14 @@ public sealed class PortfolioFinancialPolicyAggregate
     /// <summary>Gets the existing read-only compatibility view of the business state.</summary>
     public PortfolioFinancialPolicyReadModel? Current => FinancialPolicy;
     public bool IsDeleted { get; private set; }
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2365", Justification = "The published aggregate view returns a sorted snapshot of mutable event-sourced state; callers must not observe subsequent reducer mutations through an earlier view.")]
     public IReadOnlyCollection<PortfolioFinancialPolicyReadModel> Versions => _financialPolicyVersions.Values.OrderBy(x => x.PolicyVersion).ToArray();
 
-    public IPortfolioFinancialPolicyDomainEvent Create(Guid commandId, Guid idempotencyKey, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreate(commandId, idempotencyKey, policy, nowUtc, principal)));
+    public IPortfolioFinancialPolicyDomainEvent Create(Guid commandId, Guid idempotencyKey, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeCreate(commandId, idempotencyKey, policy, nowUtc, principal)));
+    }
 
     /// <summary>Computes Create without changing authoritative state.</summary>
     internal IPortfolioFinancialPolicyChange ComputeCreate(Guid commandId, Guid idempotencyKey, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) {
@@ -37,8 +41,11 @@ public sealed class PortfolioFinancialPolicyAggregate
         return new PortfolioFinancialPolicyCreatedCompute(Guid.NewGuid(), commandId, 1, nowUtc, principal, policy.DefensiveCopy(), idempotencyKey);
     }
 
-    public IPortfolioFinancialPolicyDomainEvent AddVersion(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) =>
-        ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAddVersion(commandId, expectedRevision, policy, nowUtc, principal)));
+    public IPortfolioFinancialPolicyDomainEvent AddVersion(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) 
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return ApplyAndReturn(PortfolioComputedEvents.Create(ComputeAddVersion(commandId, expectedRevision, policy, nowUtc, principal)));
+    }
 
     /// <summary>Computes AddVersion without changing authoritative state.</summary>
     internal IPortfolioFinancialPolicyChange ComputeAddVersion(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal) {
@@ -159,6 +166,6 @@ public sealed class PortfolioFinancialPolicyAggregate
 
     static void ThrowIfInvalid(IReadOnlyList<string> errors)
     {
-        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors));
+        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors),nameof(errors));
     }
 }

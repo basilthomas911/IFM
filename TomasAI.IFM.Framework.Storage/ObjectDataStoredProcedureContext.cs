@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Framework.Storage;
@@ -16,6 +16,7 @@ public class ObjectDataStoredProcedureContext(IObjectRepository db, ILogger<DbPr
 {
     readonly string _storedProcName = storedProcName;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1721", Justification = "Preserves the repository interface property and method contract.")]
     public new string CommandText => _storedProcName;
 
     /// <summary>
@@ -24,6 +25,7 @@ public class ObjectDataStoredProcedureContext(IObjectRepository db, ILogger<DbPr
     /// <param name="cmd"></param>
     public override void SetCommand(IDbCommand cmd)
     {
+        ArgumentNullException.ThrowIfNull(cmd);
         cmd.CommandType = CommandType.StoredProcedure;
         cmd.CommandText = _storedProcName;
     }
@@ -48,7 +50,7 @@ public class ObjectDataStoredProcedureContext(IObjectRepository db, ILogger<DbPr
             "System.Data.Scylla" => parameterName,
             "System.Data.Postgres" => $"_{parameterName}",
             "System.Data.SqlServer" => $"@{parameterName}",
-            _ or null => throw new ArgumentException("ObjectDataStoredProcedureContext: parameter name is empty"),
+            _ or null => throw new ArgumentException("ObjectDataStoredProcedureContext: parameter name is empty",nameof(parameterName)),
         };
 
 }

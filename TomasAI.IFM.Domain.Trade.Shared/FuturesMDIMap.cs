@@ -1,6 +1,7 @@
 namespace TomasAI.IFM.Domain.Trade.Shared;
 
 /// <summary>Provides legacy MDI forward-loss thresholds for option trade strategies.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S101", Justification = "Preserve this existing persisted CLR type identity and acronym spelling.")]
 public static class FuturesMDIMap
 {
     static readonly Dictionary<FuturesMDIId, FuturesMDIItem> Items = new()

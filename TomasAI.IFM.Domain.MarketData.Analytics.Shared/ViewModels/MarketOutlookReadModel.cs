@@ -6,38 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
-/// <summary>Identifies what caused the latest versionless Market Outlook cache replacement.</summary>
-public enum MarketOutlookRefreshTrigger : byte
-{
-    None = 0,
-    Component = 1,
-    EsTrade = 2,
-    EodSession = 3,
-    Warmup = 4,
-    PersistedBaseline = 5
-}
-
-/// <summary>Describes the current usability of one Market Outlook input.</summary>
-public enum MarketOutlookInputAvailability : byte
-{
-    Unavailable = 0,
-    Warming = 1,
-    Available = 2,
-    Stale = 3,
-    Invalid = 4
-}
-
-/// <summary>Identifies the market-data source that produced a durable snapshot.</summary>
-public enum MarketOutlookSnapshotSource : byte
-{
-    /// <summary>Legacy snapshot written before source provenance was captured.</summary>
-    Unknown = 0,
-    /// <summary>Snapshot derived from the Databento live feed.</summary>
-    DatabentoLive = 1,
-    /// <summary>Snapshot derived from the deterministic synthetic feed.</summary>
-    Synthetic = 2
-}
-
 /// <summary>
 /// Current non-authoritative Market Outlook display value. The record is an immutable hot-cache
 /// projection and deliberately has no aggregate revision or persistence lifecycle.

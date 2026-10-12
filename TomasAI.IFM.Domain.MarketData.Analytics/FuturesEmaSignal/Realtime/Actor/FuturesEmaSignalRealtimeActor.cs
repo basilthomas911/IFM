@@ -22,8 +22,7 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
             [FuturesTradeSessionBarClosedRealtimeEvent.Verb] =
                 message => message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
         };
-    readonly IFuturesEmaSignalRealtimeContext typedContext = IsArgumentNull.Set(
-        actorContext as IFuturesEmaSignalRealtimeContext, nameof(actorContext))!;
+    readonly IFuturesEmaSignalRealtimeContext typedContext = IsArgumentNull.Named(actorContext as IFuturesEmaSignalRealtimeContext, nameof(actorContext))!;
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEmaSignalRealtimeContext, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesEmaSignalRealtimeContext, ValueTask<bool>>>
         {
@@ -33,10 +32,12 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
 
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<FuturesEmaSignalRealtimeActor> context)
-    { context.AddRealtimeRouter(Route, Id); return ValueTask.CompletedTask; }
+    {
+        ArgumentNullException.ThrowIfNull(context); context.AddRealtimeRouter(Route, Id); return ValueTask.CompletedTask; }
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<FuturesEmaSignalRealtimeActor> context)
-    { context.RemoveRealtimeRouter(Route, Id); return ValueTask.CompletedTask; }
+    {
+        ArgumentNullException.ThrowIfNull(context); context.RemoveRealtimeRouter(Route, Id); return ValueTask.CompletedTask; }
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesEmaSignalRealtimeActor> context, IActorMessage message) =>
         ParseMappedRealtimeEvent(context, message, _parseMap);
@@ -49,7 +50,7 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
     }
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesEmaSignalRealtimeActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }

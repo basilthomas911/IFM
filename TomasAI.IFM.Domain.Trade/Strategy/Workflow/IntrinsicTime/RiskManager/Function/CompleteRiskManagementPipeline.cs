@@ -10,25 +10,22 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Function;
-
 /// <summary>Builds typed completions and observes committed or replayed results through the event map.</summary>
 public static class CompleteRiskManagementPipeline
 {
     /// <summary>Creates a calculated completion or records a successful lifecycle observation.</summary>
-    public static FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent> Complete(
-        this FunctionEventContext<ExecuteRiskManagementPipelineCommand> input, TimeProvider clock)
+    public static FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent> Complete(this FunctionEventContext<ExecuteRiskManagementPipelineCommand> input, TimeProvider clock)
     {
-        var c = input.Request ?? throw new ArgumentException("Completion requires its command.");
-        if (input.Outcome is RiskManagementFunctionCompletedEvent committed &&
-            input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
+        ArgumentNullException.ThrowIfNull(input);
+        var c = input.Request ?? throw new ArgumentException("Completion requires its command.",nameof(input));
+        if (input.Outcome is RiskManagementFunctionCompletedEvent committed && input.Phase is FunctionEventPhase.Committed or FunctionEventPhase.Replayed)
         {
             return FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>.Complete(committed);
         }
-        var result = input.Outcome as RiskAssessmentResult ?? throw new ArgumentException("Completion requires a calculated Risk assessment.");
-        RiskContracts.ValidateResult(result);
 
-        RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(result) <= 524288,
-            "RM.INPUT.PAYLOAD_SIZE");
+        var result = input.Outcome as RiskAssessmentResult ?? throw new ArgumentException("Completion requires a calculated Risk assessment.",nameof(input));
+        RiskContracts.ValidateResult(result);
+        RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(result) <= 524288, "RM.INPUT.PAYLOAD_SIZE");
         var completed = new RiskManagementFunctionCompletedEvent
         {
             Subject = new(ActorType.Function, ExecuteRiskManagementPipelineCommand.Actor, RiskManagementFunctionCompletedEvent.Verb, c.EntityId.Format()),
@@ -51,9 +48,7 @@ public static class CompleteRiskManagementPipeline
             ValidUntilUtc = result.ValidUntilUtc,
             RequestFingerprint = c.Fingerprint()
         };
-        RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(completed) <= 1048576 &&
-            MessagePackBinarySerializer.MeasureEncoded(completed) <= 1048576,
-            "RM.INPUT.PAYLOAD_SIZE");
+        RiskUnitModel.Require(MessagePackBinarySerializer.MeasureContent(completed) <= 1048576 && MessagePackBinarySerializer.MeasureEncoded(completed) <= 1048576, "RM.INPUT.PAYLOAD_SIZE");
         return FunctionResult<RiskManagementFunctionCompletedEvent, RiskManagementFunctionFailedEvent>.Complete(completed);
     }
 }

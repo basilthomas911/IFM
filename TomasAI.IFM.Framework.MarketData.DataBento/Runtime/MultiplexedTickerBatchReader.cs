@@ -36,6 +36,7 @@ internal sealed class MultiplexedTickerBatchReader(
     /// <summary>Attempts to read the next available batch or current snapshot.</summary>
     /// <param name="batch">When a read succeeds, receives the next batch.</param>
     /// <returns>True when the operation succeeds or the requested condition holds; otherwise, false.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "Ownership is transferred to the returned reader/batch; failed native results are scoped with using before error propagation.")]
     public bool TryRead(out InstrumentBatch64 batch)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);

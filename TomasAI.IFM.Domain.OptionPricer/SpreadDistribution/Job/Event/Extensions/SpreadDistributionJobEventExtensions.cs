@@ -43,7 +43,7 @@ internal static class SpreadDistributionJobEventExtensions
             EntityId = entityId,
             ErrorCode = GetOptionTradeQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<OptionTradeReadModel, GetOptionTradeQuery>(query);
+        var serviceResult = await (context.RequestAsync<OptionTradeReadModel, GetOptionTradeQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             optionTrade = serviceResult.Value;
         return optionTrade!;
@@ -101,7 +101,7 @@ internal static class SpreadDistributionJobEventExtensions
             EntityId = entityId,
             ErrorCode = GetIronCondorMarketDataQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<IronCondorMarketDataReadModel, GetIronCondorMarketDataQuery>(query);
+        var serviceResult = await (context.RequestAsync<IronCondorMarketDataReadModel, GetIronCondorMarketDataQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             ironCondorMarketData = serviceResult.Value;
         return ironCondorMarketData!;
@@ -147,7 +147,7 @@ internal static class SpreadDistributionJobEventExtensions
             EntityId = entityId,
             ErrorCode = GetIronCondorMarketDataFeedQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<IronCondorMarketDataFeedReadModel, GetIronCondorMarketDataFeedQuery>(query);
+        var serviceResult = await (context.RequestAsync<IronCondorMarketDataFeedReadModel, GetIronCondorMarketDataFeedQuery>(query)).ConfigureAwait(false);
         if (serviceResult.Success && serviceResult.Value is not null)
             ironCondorMarketDataFeed = serviceResult.Value;
         return ironCondorMarketDataFeed!;
@@ -167,7 +167,7 @@ internal static class SpreadDistributionJobEventExtensions
         DateTime jobCompleted,
         SpreadDistributionJobStatus jobStatus)
     {
-        _ = await OptionPricerCommandApiExtensions.CompleteSpreadDistributionJobAsync(commandApi, entityId, jobCompleted, jobStatus);
+        _ = await (OptionPricerCommandApiExtensions.CompleteSpreadDistributionJobAsync(commandApi, entityId, jobCompleted, jobStatus)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -186,6 +186,6 @@ internal static class SpreadDistributionJobEventExtensions
         SpreadDistributionJobStatus jobStatus,
         string errorMessage)
     {
-        _ = await OptionPricerCommandApiExtensions.FailSpreadDistributionJobAsync(commandApi, entityId, jobFailed, jobStatus, errorMessage);
+        _ = await (OptionPricerCommandApiExtensions.FailSpreadDistributionJobAsync(commandApi, entityId, jobFailed, jobStatus, errorMessage)).ConfigureAwait(false);
     }
 }

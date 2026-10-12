@@ -26,8 +26,7 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
                 message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
         };
     /// <summary>Gets the typed realtime context supplied through open-generic registration.</summary>
-    IFuturesVxTermStructureSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
-        actorContext as IFuturesVxTermStructureSignalRealtimeContext, nameof(actorContext))!;
+    IFuturesVxTermStructureSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Named(actorContext as IFuturesVxTermStructureSignalRealtimeContext, nameof(actorContext))!;
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
         FuturesTermStructureContracts, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
@@ -42,12 +41,14 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     protected override ValueTask OnStartup(
         IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.AddRealtimeRouter(Route, Id);
         return ValueTask.CompletedTask;
     }
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(Route, Id);
         return ValueTask.CompletedTask;
     }
@@ -70,8 +71,8 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context,
-        ActorThreadId threadId, IEvent @event, Exception exception) =>
-        await exception.SendErrorEventAsync<
+        ActorThreadId threadId, IEvent @event, Exception ex) =>
+        await (ex.SendErrorEventAsync<
             TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
-            ActorEntityId>(ErrorType.EventService, context);
+            ActorEntityId>(ErrorType.EventService, context)).ConfigureAwait(false);
 }
