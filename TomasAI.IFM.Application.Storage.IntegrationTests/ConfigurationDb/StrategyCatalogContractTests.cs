@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using Xunit;
 

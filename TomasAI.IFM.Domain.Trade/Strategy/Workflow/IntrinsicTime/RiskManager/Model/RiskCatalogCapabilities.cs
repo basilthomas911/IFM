@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Model;

@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
-namespace TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 
 public static class StrategyCatalogValidation
 {

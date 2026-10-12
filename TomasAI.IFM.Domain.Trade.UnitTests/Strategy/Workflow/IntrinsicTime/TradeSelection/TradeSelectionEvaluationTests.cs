@@ -35,7 +35,7 @@ public sealed class TradeSelectionEvaluationTests
         foreach (var node in c.SelectionBinding.CatalogDefinitions)
         {
             var copy = MessagePackSerializer.Deserialize<SelectionCatalogDefinitionSnapshot>(MessagePackSerializer.Serialize(node));
-            Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogValidation.ContentHash(SelectionCatalogTransport.ToSource(copy).Definition).Should().Be(node.ContentHash);
+            Domain.Strategy.Contracts.Shared.Canonical.StrategyCatalogValidation.ContentHash(SelectionCatalogTransport.ToSource(copy).Definition).Should().Be(node.ContentHash);
         }
     }
 }

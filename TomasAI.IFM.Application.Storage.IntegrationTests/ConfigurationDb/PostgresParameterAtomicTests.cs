@@ -53,7 +53,7 @@ public sealed class PostgresParameterAtomicTests(PostgresTradePlanFixture fixtur
                 case IParameterSetFact value:
                     await context.ProjectParameterSetAsync(tx,value,token);
                     var accepted=JsonSerializer.Deserialize<ParameterSetVersion>(value.VersionJson)!;
-                    await PostgresOptionChainParameterStore.ProjectAsync(tx,StrategyOptionChainParameterSet.Read(accepted.PayloadJson),value.Revision,true,token);
+                    await MarketDataDbContextExtensions.PersistOptionChainParametersAsync(tx,StrategyOptionChainParameterSet.Read(accepted.PayloadJson),value.Revision,true,token);
                     break;
                 case ParameterAssignmentChangedEvent value: await context.ProjectParameterAssignmentAsync(tx,value,token); break;
                 case ParameterStartupChangedEvent value: await context.ProjectParameterStartupAsync(tx,value,token); break;

@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;

@@ -1,7 +1,7 @@
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;

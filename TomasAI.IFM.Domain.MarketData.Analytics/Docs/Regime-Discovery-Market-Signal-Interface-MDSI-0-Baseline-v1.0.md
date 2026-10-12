@@ -351,7 +351,7 @@ Current read/write behavior is concentrated in:
 - `MarketDataDbContext` and its partial files;
 - `MarketDataDbCql`;
 - `MarketDataDbParameters`;
-- `MarketDataSchemaCql`; and
+- `MarketDataSchemaSql`; and
 - the ordered `MarketDataSchemaDb` registry.
 
 The later schema gates must preserve query-first partitions, named command

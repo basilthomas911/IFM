@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
 namespace TomasAI.IFM.Domain.Reference.StrategyCatalog;

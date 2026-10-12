@@ -123,7 +123,8 @@ public sealed partial class MarkerProjectorPipelineTests
 
     sealed class RuntimeContainer(EventSourceActorDbContext db) : IContainerInstance
     {
-        public T Resolve<T>() where T : class => typeof(T) == typeof(ICommandAuditLogger) ? (T)(object)db
+        readonly ICommandAuditLogger audit = new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(db);
+        public T Resolve<T>() where T : class => typeof(T) == typeof(ICommandAuditLogger) ? (T)(object)audit
             : typeof(T) == typeof(IActorThreadQueue) ? (T)(object)new ActorThreadQueueV2()
             : throw new InvalidOperationException("Unregistered test dependency: " + typeof(T).FullName);
     }

@@ -2,8 +2,6 @@ using FluentAssertions;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using Xunit;
@@ -13,19 +11,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class EconomicCalendarDbTests(MarketDataFixture fixture)
     : IClassFixture<MarketDataFixture>
 {
-    [Fact]
-    public void EconomicCalendarSchemaAndRangeQueryUseCanonicalCountryMonthTable()
-    {
-        MarketDataSchemaCql.CreateEconomicCalendarV2Table
-            .Should().Contain("economic_calendar")
-            .And.Contain("PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)");
 
-        MarketDataDbCql.GetEconomicCalendars
-            .Should().Contain("countryCode = :countryCode")
-            .And.Contain("monthBucket = :monthBucket")
-            .And.Contain("eventDate >= :startDate")
-            .And.Contain("eventDate <= :endDate");
-    }
 
     [Fact]
     public async Task EconomicCalendarPageUsesOpaqueContinuationWithoutDuplicates()

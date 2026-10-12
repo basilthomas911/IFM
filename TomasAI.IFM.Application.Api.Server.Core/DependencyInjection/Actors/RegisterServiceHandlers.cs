@@ -35,7 +35,6 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Application.MarketData.Worker;
-using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -152,6 +151,8 @@ public static partial class CoreServiceRegistration
     static void RegisterServiceHandlers(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register service handlers...",nameof(CoreServiceRegistration),nameof(RegisterServiceHandlers));
+        services.AddSingleton(provider => new TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository.OptionPricingReferenceBundleRepository(
+            provider.GetRequiredService<TomasAI.IFM.Application.Storage.IDbContextFactory>().SecuritiesDb));
         services.AddSingleton<IBoundedContextCommandResolver>(_ => new BoundedContextCommandResolver(cmdType => GetContainerInstance(siContainer, cmdType)!));
     }
 }

@@ -26,7 +26,6 @@ public static class DomainActorIntegrationInfrastructureFixture
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["MarketDataDbConnection"] = "marketdata",
-            ["OptionPricerDbConnection"] = "optionpricer",
             ["ReferenceDbConnection"] = "reference",
             ["SecuritiesDbConnection"] = "securities",
             ["TradeDbConnection"] = "trade",
@@ -38,6 +37,7 @@ public static class DomainActorIntegrationInfrastructureFixture
         "ConfigurationDbConnection",
         "EventSourceActorDbConnection",
         "MarketDataServiceDbConnection",
+        "OptionPricerDbConnection",
         "PortfolioDbConnection",
         "SequenceIdDbConnection",
         "SystemAdminDbConnection"
@@ -114,7 +114,7 @@ public static class DomainActorIntegrationInfrastructureFixture
         SetEnvironment("IFM_QUALIFICATION_POSTGRES_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_QUALIFICATION_SCYLLA_PORT", infrastructure.CqlPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
         SetEnvironment("IFM_TEST_MARKET_DATA_CONNECTION", cqlConnections["MarketDataDbConnection"]);
-        SetEnvironment("IFM_TEST_OPTION_PRICER_CONNECTION", cqlConnections["OptionPricerDbConnection"]);
+        SetEnvironment("IFM_TEST_OPTION_PRICER_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_TEST_REFERENCE_CONNECTION", cqlConnections["ReferenceDbConnection"]);
         SetEnvironment("IFM_TEST_SECURITIES_CONNECTION", cqlConnections["SecuritiesDbConnection"]);
         SetEnvironment("IFM_TEST_TRADE_PLAN_CONNECTION", cqlConnections["TradePlanDbConnection"]);

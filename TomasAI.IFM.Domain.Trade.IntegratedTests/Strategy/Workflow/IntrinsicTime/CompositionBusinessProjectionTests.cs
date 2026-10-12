@@ -251,7 +251,7 @@ public sealed partial class CompositionBusinessProjectionTests
             f.db = new TomasAI.IFM.Framework.Storage.Postgres.PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(c.ConnectionString);
             await f.db.OpenAsync();
             await f.Sql($"CREATE SCHEMA {f.schema}; CREATE TABLE {f.schema}.event_name_id(eventNameId integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,eventName text,eventTypeName text); CREATE TABLE {f.schema}.event_log(eventStreamId bigint,eventNameId integer,eventVersion bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,streamVersion bigint,eventPayload bytea NOT NULL,commandId uuid,eventTimestamp text);");
-            await f.Sql(PostgresCommittedBusinessEventJournal.CreateTable);
+            await f.Sql(TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaSql.CreateBusinessSubscriptionJournal);
             await f.Sql("CREATE SCHEMA IF NOT EXISTS market_data_service;");
             await f.Sql(Stage4SubscriptionSchemaSql.Create);
             await f.Sql(MarketDataServiceSchemaSql.CreateCompositionRoutePlan);

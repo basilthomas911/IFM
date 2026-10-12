@@ -24,6 +24,7 @@ public sealed class EventSourceActorDbContextConventionTests
             .IsAssignableFrom(typeof(IEventSourceActorDbContext)));
         Assert.True(typeof(IEventSourceActorDbContext)
             .IsAssignableFrom(typeof(EventSourceActorDbContext)));
+        Assert.False(typeof(ICommandAuditLogger).IsAssignableFrom(typeof(EventSourceActorDbContext)));
     }
 
     [Fact]
@@ -82,14 +83,51 @@ public sealed class EventSourceActorDbContextConventionTests
     }
 
     [Fact]
-    public void Sql_parameter_records_are_grouped_under_Parameters()
+    public void Sql_parameter_records_are_consolidated_in_the_database_parameter_catalog()
     {
         var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
+        var catalog = Path.Combine(folder, "EventSourceDbParameters.cs");
+        Assert.True(File.Exists(catalog));
+        Assert.Contains(": IBindValue", File.ReadAllText(catalog), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(folder, "Parameters")));
         Assert.DoesNotContain(Directory.GetFiles(folder, "*.cs"), file =>
-            File.ReadAllText(file).Contains(": IBindValue", StringComparison.Ordinal));
-        Assert.NotEmpty(Directory.GetFiles(Path.Combine(folder, "Parameters"), "*.cs"));
-        Assert.Empty(typeof(EventSourceActorDbContext).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
-            .Where(type => !type.IsDefined(typeof(CompilerGeneratedAttribute), false)));
+            file != catalog && File.ReadAllText(file).Contains(": IBindValue", StringComparison.Ordinal));
+        Assert.DoesNotContain(typeof(EventSourceActorDbContext).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic),
+            type => !type.IsDefined(typeof(CompilerGeneratedAttribute), false));
+    }
+
+    [Fact]
+    public void Schema_executor_uses_one_complete_PostgreSql_catalog()
+    {
+        var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
+        var schema = Path.Combine(folder, "Schema");
+        Assert.Equal(new[] { "EventSourceSchemaDb.cs", "EventSourceSchemaSql.cs" },
+            Directory.GetFiles(schema, "*.cs").Select(Path.GetFileName).OrderBy(name => name).ToArray());
+        var executor = File.ReadAllText(Path.Combine(schema, "EventSourceSchemaDb.cs"));
+        Assert.Contains("EventSourceSchemaSql.GetDefinitions(options)", executor, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP TABLE", executor, StringComparison.Ordinal);
+        var definitions = TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaSql.GetDefinitions(new());
+        Assert.Equal(definitions.Length, definitions.Select(definition => definition.Name).Distinct().Count());
+        Assert.Contains(definitions, definition => definition.Name == "event_log");
+        Assert.Contains(definitions, definition => definition.CreateStatement.Contains("business_subscription_projection_issue", StringComparison.Ordinal));
+        Assert.Contains(definitions, definition => definition.CreateStatement.Contains("risk_history_projection_issue", StringComparison.Ordinal));
+        Assert.Empty(Directory.GetFiles(folder, "*.cql", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void Storage_has_no_domain_coordination_or_benchmark_dependency()
+    {
+        var dependencies = typeof(EventSourceActorDbContext).Assembly.GetReferencedAssemblies();
+        Assert.DoesNotContain(dependencies, assembly => assembly.Name!.StartsWith("TomasAI.IFM.Domain.", StringComparison.Ordinal)
+            && !assembly.Name.EndsWith(".Shared", StringComparison.Ordinal));
+        Assert.DoesNotContain(dependencies, assembly => assembly.Name == "TomasAI.IFM.Framework.Storage.Benchmarks");
+        Assert.Equal("TomasAI.IFM.Domain.EventSourcing",
+            typeof(TomasAI.IFM.Domain.EventSourcing.Repository.BaseEventSourceActorRepository).Assembly.GetName().Name);
+        Assert.True(typeof(ICommandAuditLogger).IsAssignableFrom(
+            typeof(TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator)));
+        var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
+        foreach (var retired in new[] { "CommandDeduplication", "CommandLogBenchmark", "HistoricalDataLoader", "Persistence" })
+            Assert.False(Directory.Exists(Path.Combine(folder, retired)), retired);
     }
 
     private static string FindRepositoryRoot()
@@ -100,10 +138,10 @@ public sealed class EventSourceActorDbContextConventionTests
     }
 
     [Fact]
-    public void Public_context_methods_implement_read_write_audit_or_lifetime_contracts()
+    public void Public_context_methods_implement_read_write_or_resource_lifetime_contracts()
     {
         var contracts = new[] { typeof(IEventSourceActorDbReadContext), typeof(IEventSourceActorDbWriteContext),
-            typeof(ICommandAuditLogger), typeof(IDisposable), typeof(IAsyncDisposable) };
+            typeof(IDisposable), typeof(IAsyncDisposable) };
         var implementations = contracts.SelectMany(contract => typeof(EventSourceActorDbContext)
             .GetInterfaceMap(contract).TargetMethods).ToHashSet();
         var operations = typeof(EventSourceActorDbContext).GetMethods(

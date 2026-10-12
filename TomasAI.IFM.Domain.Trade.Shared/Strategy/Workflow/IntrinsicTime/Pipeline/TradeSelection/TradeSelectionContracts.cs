@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;

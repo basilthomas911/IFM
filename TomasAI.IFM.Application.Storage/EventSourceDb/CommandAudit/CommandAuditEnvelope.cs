@@ -12,7 +12,7 @@ public sealed record CommandAuditEnvelope(
 {
     public int PayloadBytes => Payload.Bytes.Length;
     internal Type? RetryCommandType { get; init; }
-    internal byte[] RetrySha256 { get; init; } = Payload.Sha256;
+    public byte[] RetrySha256 { get; internal init; } = Payload.Sha256;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
     public static CommandAuditEnvelope Create(ICommand command, CommandAuditMessagePackCodec codec)

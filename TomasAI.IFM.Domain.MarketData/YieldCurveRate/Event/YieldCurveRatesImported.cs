@@ -121,7 +121,7 @@ public static class YieldCurveRatesImported
                     {
                         await transaction.AppendAsync(acceptedStream,
                             @event.CommandId,accepted,0,token).ConfigureAwait(false);
-                        await PostgresYieldCurveStore.ImportAsync(transaction,records,@event.DuplicatePolicy,@event.CommandId,accepted.ReceivedOn,token).ConfigureAwait(false);
+                        await MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,records,@event.DuplicatePolicy,@event.CommandId,accepted.ReceivedOn,token).ConfigureAwait(false);
                         return true;
                     }).ConfigureAwait(false);
     }

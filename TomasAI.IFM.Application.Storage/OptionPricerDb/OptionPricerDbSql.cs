@@ -20,13 +20,6 @@ internal static class OptionPricerDbSql
                 and tradeId = $2;
         """;
 
-    public const string DeleteSpreadDistributionJob = """
-        DELETE FROM option_pricer.spread_distribution_job
-                WHERE orderId = $1
-                AND tradeId = $2
-                AND valueDate = $3;
-        """;
-
     public const string GetOptionPricerDevices = """
         SELECT 
                 deviceId AS "DeviceId",
@@ -61,41 +54,6 @@ internal static class OptionPricerDbSql
                 AND tradeType = $3
                 AND tradeStatus = $4
                 AND daysToExpiry = $5 ORDER BY COALESCE(sourceEventId,0) DESC,createdOn DESC,id DESC LIMIT 1;
-        """;
-
-    public const string GetAllSpreadDistributionJobs = """
-        SELECT
-                orderId AS "OrderId",
-                tradeId AS "TradeId",
-                tradeType AS "TradeType",
-                tradeStatus AS "TradeStatus",
-                valueDate AS "ValueDate",
-                daysToExpiry AS "DaysToExpiry",
-                jobSubmitted AS "JobSubmitted",
-                jobStatus AS "JobStatus",
-                jobCompleted AS "JobCompleted",
-                jobFailed AS "JobFailed",
-                inProgress AS "InProgress",
-                lossProbabilityFactor AS "LossProbabilityFactor"
-                FROM option_pricer.spread_distribution_job;
-        """;
-
-    public const string GetSpreadDistributionJobs = """
-        SELECT 
-                orderId AS "OrderId",
-                tradeId AS "TradeId",
-                tradeType AS "TradeType",
-                tradeStatus AS "TradeStatus",
-                valueDate AS "ValueDate",
-                daysToExpiry AS "DaysToExpiry",
-                jobSubmitted AS "JobSubmitted",
-                jobStatus AS "JobStatus",
-                jobCompleted AS "JobCompleted",
-                jobFailed AS "JobFailed",
-                inProgress AS "InProgress",
-                lossProbabilityFactor AS "LossProbabilityFactor"
-                FROM option_pricer.spread_distribution_job
-                WHERE orderId = $1 AND tradeId = $2;
         """;
 
     public const string InsertOptionPricerDevice = """
@@ -169,4 +127,6 @@ internal static class OptionPricerDbSql
                 and tradeId = $6
                 and valueDate = $7;
         """;
+    internal const string DeleteInProgressJobs = "DELETE FROM option_pricer.spread_distribution_job WHERE inProgress OR jobStatus='InProgress';";
+    internal const string CountInProgressJobs = "SELECT COUNT(*)::integer FROM option_pricer.spread_distribution_job WHERE orderId=$1 AND tradeId=$2 AND (inProgress OR jobStatus='InProgress');";
 }

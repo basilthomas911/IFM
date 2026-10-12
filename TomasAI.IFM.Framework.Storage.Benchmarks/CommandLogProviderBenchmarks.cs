@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.Storage.EventSourceDb.CommandLogBenchmark;
+using TomasAI.IFM.Framework.Storage.Benchmarks.CommandLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;

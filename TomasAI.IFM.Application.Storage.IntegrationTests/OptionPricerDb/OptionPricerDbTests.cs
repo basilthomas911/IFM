@@ -23,71 +23,15 @@ using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.OptionPricerDb;
 
-public class OptionPricerFixture : IDisposable
+[Collection("OptionPricer PostgreSQL")]
+public class OptionPricerDbTests
 {
-    public OptionPricerFixture()
-    {
-        SetSeqIdDatabase();
-        SetDevDatabase();
-    }
-
-    public void Dispose()
-    {
-        // Do "global" teardown here; Only called once.
-    }
-
-    public Storage.OptionPricerDb.OptionPricerDbContext DevDatabase { get; private set; }
-    public SequenceIdDbContext SeqIdDatabase { get; private set; }
-    public ISequenceIdGenerator SequenceIdGenerator { get; private set; }
-    public DbContextFactory DbFactory { get; private set; }
-
-    void SetDevDatabase()
-    {
-        var dbConn = new DbConnectionSettings()
-            .Add("OptionPricerDbConnection", LegacyStorageFixtureIsolation.Scylla("ifm_storage_legacy_option_pricer"), "System.Data.ScyllaDb");
-        var diContainer = new Dictionary<Type, Storage.OptionPricerDb.OptionPricerDbContext>();
-        var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
-        var redisCache = Substitute.For<IRedisCache>();
-        var redisCacheMap = new Dictionary<string, string>();
-        redisCache.Get(Arg.Any<string>()).Returns(callInfo => redisCacheMap[callInfo.Arg<string>()]);
-        redisCache.When(_ => _.Set(Arg.Any<string>(), Arg.Any<string>())).Do(_ => { redisCacheMap.Add(_.ArgAt<string>(0), _.ArgAt<string>(1)); });
-        var blackboardServce = new BlackboardService(redisCache, new SystemTextJsonSerializer());
-        var logger = Substitute.For<ILogger<DbProvider>>();
-        logger.When(_ => { }).Do(_ => { });
-        new TomasAI.IFM.Application.Storage.OptionPricerDb.Schema.OptionPricerSchemaDb(dbConn, logger)
-            .CreateAllAsync().GetAwaiter().GetResult();
-        DbFactory = new DbContextFactory(dbResolver);
-        var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<Storage.OptionPricerDb.OptionPricerDbContext>), new Storage.OptionPricerDb.OptionPricerDbContext(dbConn, DbFactory, SequenceIdGenerator, logger));
-        DevDatabase = DbFactory.OptionPricerDb as Storage.OptionPricerDb.OptionPricerDbContext;
-    }
-
-    void SetSeqIdDatabase()
-    {
-        var dbConn = new DbConnectionSettings()
-             .Add("SequenceIdDbConnection", LegacyStorageFixtureIsolation.Postgres("ifm_storage_legacy_sequence_option_pricer"), "System.Data.Postgres");
-        var diContainer = new Dictionary<Type, SequenceIdDbContext>();
-        var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
-        var logger = Substitute.For<ILogger<DbProvider>>();
-        logger.When(_ => { }).Do(_ => { });
-        var dbFactory = new DbContextFactory(dbResolver);
-        var dbCache = new DbCache();
-        diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), new SequenceIdDbContext(dbConn, dbFactory, logger));
-        SeqIdDatabase = dbFactory.SequenceIdDb as SequenceIdDbContext;
-        SequenceIdDatabaseInitializer.EnsureInitialized(new TomasAI.IFM.Application.Storage.SequenceIdDb.Schema.SequenceIdSchemaDb(dbConn, logger));
-        SequenceIdGenerator = new PostgresSequenceIdGenerator(dbFactory.SequenceIdDb as SequenceIdDbContext);
-    }
-
-}
-
-public class OptionPricerDbTests : IClassFixture<OptionPricerFixture>
-{
-    public OptionPricerDbTests(OptionPricerFixture testFixture)
+    public OptionPricerDbTests(OptionPricerPostgresFixture testFixture)
     {
         TestFixture = testFixture;
     }
 
-    OptionPricerFixture TestFixture { get; }
+    OptionPricerPostgresFixture TestFixture { get; }
 
     /// <summary>
     /// Unit test for GetOptionPricerDevicesAsync method.

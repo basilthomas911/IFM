@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.Events;

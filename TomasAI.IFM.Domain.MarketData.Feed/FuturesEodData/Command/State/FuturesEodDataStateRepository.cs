@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
@@ -87,9 +89,9 @@ public class FuturesEodDataStateRepository(
             foreach (var source in pending)
             {
                 IEvent fact = source;
-                if (source is VixFuturesEodDataInsertedEvent vix) fact = await PostgresMarketSignalStore.AcceptVixAsync(transaction,vix,token).ConfigureAwait(false);
+                if (source is VixFuturesEodDataInsertedEvent vix) fact = await AcceptedMarketSignalProjection.AcceptVixAsync(transaction,vix,token).ConfigureAwait(false);
                 await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
-                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
+                _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
                 accepted.Add(fact);
             }
             return accepted;

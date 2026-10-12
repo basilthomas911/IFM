@@ -66,10 +66,13 @@ public sealed class MarketDataDbContextConventionTests
         var assembly = typeof(MarketDataDbContext).Assembly;
         string[] retiredTypes =
         [
+            "TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaCql",
+            "TomasAI.IFM.Application.Storage.MarketDataDb.Schema.OptionVolatilitySchemaCql",
             "TomasAI.IFM.Application.Storage.MarketDataDb.CompositionPreparationStore",
             "TomasAI.IFM.Application.Storage.MarketDataDb.OptionTradeEvidenceStore",
             "TomasAI.IFM.Application.Storage.MarketDataDb.ScyllaOptionVolatilityRepository",
-            "TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader.ScyllaHistoricalObservationStore"
+            "TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader.ScyllaHistoricalObservationStore",
+            "TomasAI.IFM.Application.Storage.MarketDataDb.HistoricalDataLoader.PostgresHistoricalDataLoaderStore"
         ];
 
         Assert.All(retiredTypes, typeName => Assert.Null(assembly.GetType(typeName)));
@@ -229,6 +232,36 @@ public sealed class MarketDataDbContextConventionTests
         });
         Assert.Null(typeof(MarketDataDbContext).Assembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataProjectionHash"));
+    }
+
+    [Fact]
+    public void Context_is_non_partial_and_bindings_use_one_catalog()
+    {
+        var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "MarketDataDb");
+        Assert.DoesNotContain("partial class MarketDataDbContext",
+            File.ReadAllText(Path.Combine(folder, "MarketDataDbContext.cs")), StringComparison.Ordinal);
+        var catalog = Path.Combine(folder, "MarketDataDbParameters.cs");
+        Assert.True(File.Exists(catalog));
+        Assert.DoesNotContain(Directory.GetFiles(folder, "*.cs"), file => file != catalog
+            && File.ReadAllText(file).Contains(": IBindValue", StringComparison.Ordinal));
+        Assert.DoesNotContain(typeof(MarketDataDbContext).Assembly.GetTypes(), type =>
+            type.FullName is "TomasAI.IFM.Application.Storage.MarketDataDb.PostgresRealtimeMarketDataExtensions"
+                or "TomasAI.IFM.Application.Storage.MarketDataDb.PostgresVixObservationExtensions");
+    }
+
+    [Fact]
+    public void Schema_executor_uses_the_complete_PostgreSql_catalog()
+    {
+        var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "MarketDataDb", "Schema");
+        var executor = File.ReadAllText(Path.Combine(folder, "MarketDataSchemaDb.cs"));
+        Assert.Contains("MarketDataSchemaSql.GetDefinitions()", executor, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cql", executor, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP TABLE", executor, StringComparison.Ordinal);
+        var definitions = TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaSql.GetDefinitions();
+        Assert.Equal(definitions.Length, definitions.Select(value => value.Name).Distinct().Count());
+        Assert.Contains(definitions, value => value.Name == "market_data");
+        Assert.Contains(definitions, value => value.Name == "historical_data_loader");
+        Assert.Contains(definitions, value => value.Name == "strategy_option_chain_parameter_current");
     }
 
     static bool SameSignature(MethodInfo contract, MethodInfo implementation)

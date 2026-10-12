@@ -21,7 +21,7 @@ internal sealed record ProjectionMigrationOptions(
     {
         ProjectionMigrationTarget.Reference => "IFM_STORAGE_MIGRATION_REFERENCE_SCYLLA_CONNECTION",
         ProjectionMigrationTarget.Securities => "IFM_STORAGE_MIGRATION_SECURITIES_SCYLLA_CONNECTION",
-        ProjectionMigrationTarget.Market => "IFM_STORAGE_MIGRATION_MARKET_DATA_SCYLLA_CONNECTION",
+        ProjectionMigrationTarget.Market => "IFM_STORAGE_MIGRATION_MARKET_DATA_POSTGRES_CONNECTION",
         _ => throw new ArgumentOutOfRangeException(nameof(Target), Target, null)
     };
 }
@@ -36,7 +36,7 @@ internal static class ProjectionMigrationCommandLine
 
         Options:
           --apply-schema
-              Create only the additive projection/state tables used by this migration.
+              Create additive schema objects (Market: PostgreSQL schema catalog).
           --batch-size <count>
               Rows per write batch (default: 256).
           --stale-operation-cutoff-utc <UTC timestamp>
@@ -49,10 +49,10 @@ internal static class ProjectionMigrationCommandLine
               Canonical source rows are retained.
           --help
 
-        Connection-string environment variables (must not contain credentials):
+        Connection-string environment variables (Scylla values must not contain credentials):
           IFM_STORAGE_MIGRATION_REFERENCE_SCYLLA_CONNECTION
           IFM_STORAGE_MIGRATION_SECURITIES_SCYLLA_CONNECTION
-          IFM_STORAGE_MIGRATION_MARKET_DATA_SCYLLA_CONNECTION
+          IFM_STORAGE_MIGRATION_MARKET_DATA_POSTGRES_CONNECTION
 
         Credentials remain in SCYLLADB_DEV_KEY, SCYLLADB_TEST_KEY,
         SCYLLADB_STAGING_KEY, or SCYLLADB_PROD_KEY as selected by DOTNET_ENVIRONMENT.

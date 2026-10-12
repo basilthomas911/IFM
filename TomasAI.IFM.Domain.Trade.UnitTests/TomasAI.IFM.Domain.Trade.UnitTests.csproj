@@ -35,4 +35,5 @@
   </ItemGroup>
 
 <ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
 </Project>

@@ -45,32 +45,6 @@ internal static class Program
         "securities_projection_operation_scope"
     ];
 
-    static readonly string[] MarketProjectionObjects =
-    [
-        "market_outlook_snapshot",
-        "market_outlook_working_state",
-        "economic_calendar",
-        "economic_calendar_country_code",
-        "yield_curve_rate_by_date",
-        "yield_curve_rate_year",
-        "futures_tick_data_by_time",
-        "futures_eod_data_by_month",
-        "futures_eod_data_fifty_dma",
-        "futures_eod_data_two_hundred_dma",
-        "futures_eod_data_by_month_fifty_dma",
-        "futures_eod_data_by_month_two_hundred_dma",
-        "vix_futures_contract_index",
-        "futures_iti_signal_by_contract_day",
-        "futures_iti_signal_by_contract_month",
-        "futures_iti_signal_by_trend_mode_month",
-        "market_data_projection_month",
-        "market_data_projection_state",
-        "market_data_projection_mutation",
-        "market_data_projection_scope_state",
-        "market_data_projection_scope_mutation",
-        "futures_trade_signal_quarantine"
-    ];
-
     static async Task<int> Main(string[] args)
     {
         if (!ProjectionMigrationCommandLine.TryParse(
@@ -227,7 +201,7 @@ internal static class Program
     {
         var settings = CreateConnectionSettings(
             MarketDataDbContext.MarketDataDbConnection,
-            options.ConnectionEnvironmentVariable);
+            options.ConnectionEnvironmentVariable, "System.Data.Postgres");
         var repositories = new Dictionary<Type, object>();
         var factory = CreateFactory(repositories);
         var context = new MarketDataDbContext(
@@ -240,10 +214,8 @@ internal static class Program
 
         if (options.ApplySchema)
         {
-            await ApplySchemaAsync(
-                new MarketDataSchemaDb(settings, Logger),
-                MarketProjectionObjects,
-                cancellationToken).ConfigureAwait(false);
+            var schema = new MarketDataSchemaDb(settings, Logger);
+            await schema.CreateAsync(schema.ManagedObjects, cancellationToken).ConfigureAwait(false);
         }
 
         var fmpBackfill = await context.BackfillFmpQueryProjectionsAsync(
@@ -270,9 +242,8 @@ internal static class Program
         Console.WriteLine(
             $"Market FMP yield fingerprints: rows={fmpBackfill.YieldCurveSourceFingerprint}/{fmpBackfill.YieldCurveProjectedFingerprint}, " +
             $"yieldYears={fmpBackfill.YieldCurveYearsSourceFingerprint}/{fmpBackfill.YieldCurveYearsProjectedFingerprint}.");
-        Console.WriteLine(
-            $"Market tick reconciliation: source/projected={backfill.FuturesTicksSource}/{backfill.FuturesTicksProjected}, " +
-            $"fingerprints={backfill.FuturesTicksSourceFingerprint}/{backfill.FuturesTicksProjectedFingerprint}.");
+        Console.WriteLine("Raw tick maintenance is owned by TradeTickQuoteDb and is not evaluated here.");
+
         Console.WriteLine(
             $"Market EOD reconciliation: source/projected={backfill.FuturesEodRowsSource}/{backfill.FuturesEodRowsProjected}, " +
             $"fingerprints={backfill.FuturesEodSourceFingerprint}/{backfill.FuturesEodProjectedFingerprint}.");
@@ -283,7 +254,7 @@ internal static class Program
             $"Market ITI reconciliation: source/day/month/trendMode={backfill.FuturesItiSignalsSource}/{backfill.FuturesItiSignalsByDayProjected}/{backfill.FuturesItiSignalsByMonthProjected}/{backfill.FuturesItiSignalsByTrendModeProjected}, " +
             $"fingerprints={backfill.FuturesItiSignalsSourceFingerprint}/{backfill.FuturesItiSignalsByDayFingerprint}/{backfill.FuturesItiSignalsByMonthFingerprint}/{backfill.FuturesItiSignalsByTrendModeFingerprint}.");
         Console.WriteLine(
-            $"Market readiness: tick={readiness.FuturesTickByTime}, eod={readiness.FuturesEodByMonth}, " +
+            $"PostgreSQL readiness: eod={readiness.FuturesEodByMonth}, " +
             $"vix={readiness.VixFuturesContractIndex}, iti={readiness.FuturesItiSignalQueries}, " +
             $"cutoverCompleted={backfill.CutoverCompleted}.");
         if (tradeSignalRepair is { } repair)
@@ -306,7 +277,7 @@ internal static class Program
 
     static DbConnectionSettings CreateConnectionSettings(
         string connectionName,
-        string environmentVariable)
+        string environmentVariable, string providerName = ScyllaProviderName)
     {
         var connectionString = Environment.GetEnvironmentVariable(environmentVariable);
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -315,9 +286,9 @@ internal static class Program
                 $"Environment variable '{environmentVariable}' is missing or empty.");
         }
 
-        EnsureCredentialFree(connectionString, environmentVariable);
+        if (providerName == ScyllaProviderName) EnsureCredentialFree(connectionString, environmentVariable);
         var settings = new DbConnectionSettings();
-        settings.Add(connectionName, connectionString, ScyllaProviderName);
+        settings.Add(connectionName, connectionString, providerName);
         return settings;
     }
 

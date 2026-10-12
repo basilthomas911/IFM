@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.EventSourceDb.CommandDeduplication;
+using TomasAI.IFM.Domain.EventSourcing.Command.Deduplication;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Xunit;
 

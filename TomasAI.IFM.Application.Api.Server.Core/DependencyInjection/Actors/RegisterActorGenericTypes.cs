@@ -37,7 +37,6 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Application.MarketData.Worker;
-using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -182,9 +181,9 @@ public static partial class CoreServiceRegistration
             DurableProjectorAllowlist = FinancialJetStreamPolicy.DurableProjectors
         }).Validate());
         var eventLogPersistenceOptions = config
-        .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
-        .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
-        ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
+        .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions.SectionName)
+        .Get<TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions>()
+        ?? new TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions();
         siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
         var commandAuditPersistenceOptions = config
         .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions.SectionName)

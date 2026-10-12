@@ -27,7 +27,7 @@ internal static class ParameterAcceptedProjection
                     throw new InvalidDataException("Option-chain parameter event identity differs from its payload.");
                 if (PostgresDatabaseIdentity.Parse(databases.MarketDataDb.ConnectionString) != PostgresDatabaseIdentity.Parse(databases.ConfigurationDb.ConnectionString))
                     throw new InvalidOperationException("Option-chain policy projections must share the configuration PostgreSQL database/security identity.");
-                await PostgresOptionChainParameterStore.ProjectAsync(transaction, parameters, fact.Revision,
+                await MarketDataDbContextExtensions.PersistOptionChainParametersAsync(transaction, parameters, fact.Revision,
                     version.Status == ParameterVersionStatus.Published, token).ConfigureAwait(false);
                 break;
             case ParameterAssignmentChangedEvent fact:

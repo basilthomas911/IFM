@@ -24,6 +24,9 @@ public readonly record struct MarketDataProjectionBackfillReadModel(
     string FuturesItiSignalsByTrendModeFingerprint,
     bool CutoverCompleted)
 {
+    /// <summary>Raw tick query maintenance is outside MarketDataDb; tick flags/counts are not a Scylla health claim.</summary>
+    public bool RawTicksManagedByTradeTickQuoteDb { get; init; }
+
     public bool IsReconciled =>
         FuturesTicksSource == FuturesTicksProjected &&
         string.Equals(FuturesTicksSourceFingerprint,FuturesTicksProjectedFingerprint,StringComparison.Ordinal) &&

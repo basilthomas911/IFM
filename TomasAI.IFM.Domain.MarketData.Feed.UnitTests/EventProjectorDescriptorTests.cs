@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -120,6 +121,44 @@ public sealed class EventProjectorDescriptorTests
             "ES2026121", Arg.Is<FuturesOptionTickDataV2ReadModel>(row => row.TickId == persistedEventId));
     }
 
+    [Fact]
+    public async Task Option_tick_projector_enriches_missing_Greeks_and_preserves_raw_tick_prices()
+    {
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        var securitiesDb = Substitute.For<ISecuritiesDbContext>();
+        var observedAt = new DateTimeOffset(2026, 10, 2, 20, 0, 0, TimeSpan.Zero);
+        var definition = new FuturesOptionContractReadModel
+        {
+            ContractId = "ES20261009C5000", StrikePrice = 5000, OptionType = "Call",
+            ExpirationUtc = observedAt.AddDays(7)
+        };
+        securitiesDb.GetFuturesOptionContractAsync(definition.ContractId).Returns(definition);
+        var projector = CreateOptionTickProjector(marketDataDb, securitiesDb);
+        var descriptor = projector.ProjectionDescriptors.Single(item =>
+            item.SourceEventType == typeof(FuturesOptionTickDataInsertedEvent));
+        var tick = new FuturesOptionTickDataV2ReadModel
+        {
+            ContractId = definition.ContractId, UnderlyingPrice = 5000, BidPrice = 78.25, AskPrice = 79.25,
+            TickId = (observedAt - DateTimeOffset.UnixEpoch).Ticks * 100,
+            ValueDate = new DateOnly(2026, 10, 2)
+        };
+        var source = new FuturesOptionTickDataInsertedEvent
+        {
+            Contract = new FuturesContractV3ReadModel { ContractId = "ES2026121" }, TickData = tick
+        };
+
+        await descriptor.ApplyAsync(source, CreateContext(projector, tick.TickId));
+
+        await marketDataDb.Received(1).InsertFuturesOptionTickDataAsync(tick);
+        await marketDataDb.Received(1).UpsertFuturesOptionChainQuoteDataAsync("ES2026121",
+            Arg.Is<FuturesOptionTickDataV2ReadModel>(row => row.Vega > 0 && row.Delta > 0 && row.Delta < 1
+                && row.BidPrice == tick.BidPrice && row.AskPrice == tick.AskPrice && row.TickId == tick.TickId));
+
+        await descriptor.ApplyAsync(source with { TickData = tick with { Vega = 1 } }, CreateContext(projector, tick.TickId));
+        await securitiesDb.Received(1).GetFuturesOptionContractAsync(definition.ContractId);
+        await marketDataDb.Received(1).UpsertFuturesOptionChainQuoteDataAsync("ES2026121",
+            Arg.Is<FuturesOptionTickDataV2ReadModel>(row => row.Vega == 1));
+    }
     static FuturesTickDataEventProjector CreateTickProjector(IMarketDataDbContext marketDataDb)
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
@@ -132,10 +171,11 @@ public sealed class EventProjectorDescriptorTests
             Substitute.For<ILogger<FuturesTickDataEventProjector>>());
     }
 
-    static FuturesOptionTickDataEventProjector CreateOptionTickProjector(IMarketDataDbContext marketDataDb)
+    static FuturesOptionTickDataEventProjector CreateOptionTickProjector(IMarketDataDbContext marketDataDb, ISecuritiesDbContext? securitiesDb = null)
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
+        if (securitiesDb is not null) dbFactory.SecuritiesDb.Returns(securitiesDb);
         var actorContext = TypedActorContextFactory.Command(Substitute.For<IEventSourceActorDbContext>(), Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>());
         actorContext.DbFactory.Returns(dbFactory);
         actorContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());

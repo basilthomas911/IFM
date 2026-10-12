@@ -5,19 +5,12 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 
+/// <summary>Creates all option-pricer PostgreSQL tables, indexes and additive schema changes.</summary>
 public sealed class OptionPricerSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
     : SchemaDbContext<OptionPricerSchemaDb>(connectionSettings[OptionPricerDbContext.ConnectionName], logger)
 {
     static readonly SchemaObjectDefinition[] Objects =
-    [
-        new("option_pricer_device", OptionPricerSchemaCql.CreateOptionPricerDeviceTable, "DROP TABLE IF EXISTS option_pricer_device;"),
-        new("spread_distribution_job", OptionPricerSchemaCql.CreateSpreadDistributionJobTable, "DROP TABLE IF EXISTS spread_distribution_job;"),
-        new("spread_distribution", OptionPricerSchemaCql.CreateSpreadDistributionTable, "DROP TABLE IF EXISTS spread_distribution;")
-    ];
-
-    static readonly SchemaObjectDefinition[] PostgresObjects =
     [new("option_pricer", OptionPricerSchemaSql.Create, "DROP SCHEMA IF EXISTS option_pricer CASCADE;")];
 
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
-        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

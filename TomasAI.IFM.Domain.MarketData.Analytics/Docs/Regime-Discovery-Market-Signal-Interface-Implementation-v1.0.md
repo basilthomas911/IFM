@@ -103,7 +103,7 @@ captured as front VX while spot VIX remains missing unless separately supplied.
 | Durable VWAP projection | `BaseEventSourceCommandActor<TActor>`, typed state repository, PostgreSQL event log, and a Command-folder event projector |
 | Runtime routing | `AddRealtimeRouter` during actor startup and `RemoveRealtimeRouter` during shutdown |
 | Open generic DI | Startup assembly scanning for `IActor<>`, all four closed context interfaces, state repositories, and projectors |
-| Scylla schema | `MarketDataSchemaCql` plus ordered `SchemaObjectDefinition` entries in `MarketDataSchemaDb` |
+| PostgreSQL schema | `MarketDataSchemaSql` plus ordered `SchemaObjectDefinition` entries in `MarketDataSchemaDb` |
 | Storage command naming | `.Use($"{nameof(MarketDataDbCql)}.{nameof(...)}", commandText)` |
 | Read/write API | `IMarketDataDbReadContext`, `IMarketDataDbWriteContext`, `MarketDataDbContext`, and cancellation-aware query overloads |
 | Historical definition query | Pinned Databento C++ client, native opaque result handle, managed `SafeHandle`, strict timeout, complete-or-fail result |
@@ -316,7 +316,7 @@ TomasAI.IFM.Application.Storage/MarketDataDb/
   MarketDataDbContext.AnalyticsSignalsCancellation.cs
   MarketDataDbCql.AnalyticsSignals.cs
   MarketDataDbParameters.AnalyticsSignals.cs
-  Schema/MarketDataSchemaCql.AnalyticsSignals.cs
+  Schema/MarketDataSchemaSql.cs
   Schema/MarketDataSchemaDb.cs
 
 TomasAI.IFM.Application.Storage/HistoricalDataLoaderDb/

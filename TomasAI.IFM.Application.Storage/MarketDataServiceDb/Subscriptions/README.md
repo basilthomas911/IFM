@@ -3,18 +3,19 @@
 `MarketDataServiceDbContext` owns the public `IDurableSubscriptionIntentStore` persistence port.
 Its C# 14 extension implementation creates an internal `MarketDataServiceTransactionRepository`
 for each call so concurrent operations never share mutable transaction state.
-`Stage4SubscriptionSchemaSql.Create` is additive and is part of the Market Data Service schema catalog.
+`MarketDataServiceSchemaSql.CreateDurableSubscriptions` is additive and is part of the Market Data Service schema catalog.
 
 Startup repository discovery must not register the internal transaction repository.
 It requires the context extension's per-operation connection and is deliberately not a global
 DI service. The shared public-repository discovery boundary excludes this helper; a
 regression test exercises the actual type and the real API startup verifier.
 
-The extension workflow maintains one bounded typed current-intent snapshot per scope/dataset,
+The persistence extensions maintain one bounded typed current-intent snapshot per scope/dataset,
 operation outcomes, an ownership-audit outbox, independent per-source watermark rows, and immutable
 lease-ID reservations/tombstones. It uses
 the existing PostgreSQL `ObjectDataRepository` implementation, a fresh repository per operation,
 a dataset row lock and optimistic revision checks. Two-/four-leg batches are all-or-nothing.
+`DurableSubscriptionTransition` in Application.MarketData owns the pure ownership rules.
 Only explicit add/release deltas or an exact-owner terminal fact remove ownership; empty active
 observations and unknown authority retain existing leases. No prices or runtime resources are stored.
 
@@ -57,9 +58,9 @@ reads, reusing `AdoNetDataRecord` mapping and disposing only commands/readers. O
 queries and all writes retain the existing repository boundary. No shared-provider behavior was
 changed; this is a scoped correction, not an accepted wider Stage 4 architecture redesign.
 
-`Stage4DurableIntentPostgresTests` first verifies the connection targets
-`localhost:5432/event-source-test-db` (loopback aliases also accepted) and checks `current_database()`
-before schema application. Each case owns a randomized `stage4-test-...` scope. Cleanup deletes
+`Stage4DurableIntentPostgresTests` uses disposable infrastructure by default. When an external
+test connection is explicitly supplied, it first verifies `localhost:5432/event-source-test-db`
+(loopback aliases also accepted). It checks `current_database()` before schema application. Each case owns a randomized `stage4-test-...` scope. Cleanup deletes
 only those exact registered scopes from these five new tables; it never truncates or drops tables.
 An internal transaction-write observer exists solely for deterministic rollback/cancellation tests.
 

@@ -1,20 +1,19 @@
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using System.Collections.Concurrent;
-using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.EventSourceDb.CommandDeduplication;
+
+
+
+
+
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
-using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
+
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.EventProjector;
-using TomasAI.IFM.Shared.EventProjector.ReadModels;
-using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Storage;
+
+
+
+
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 
@@ -24,28 +23,109 @@ internal static class EventSourceActorDbContextExtensions
 {
     extension(EventSourceActorDbContext context)
     {
+
+        /// <summary>Resolves the cached event stream identifier, creating the database entry on a cache miss.</summary>
+        /// <param name="eventStream">The event stream name.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
+        internal async Task<long> ResolveEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
+        {
+        var pending = context._blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync);
+        return (await pending.AsTask().WaitAsync(cancellationToken)
+            .ConfigureAwait(false)).EventStreamId;
+
+        async Task<EventStreamIdReadModel> InsertEntityTypeAsync(string eventStream)
+        {
+            var eventStreamId = await context.InsertEventStreamAsync(eventStream, cancellationToken)
+            .ConfigureAwait(false);
+            return new EventStreamIdReadModel(eventStreamId, eventStream);
+        }
+        }
+        /// <summary>Checks  batch size before the persistence operation.</summary>
+        /// <param name="batchSize">The maximum number of records to return or claim.</param>
+        internal void ValidateBatchSize(int batchSize)
+        {
+            if (batchSize is < 1 or > 2_048) throw new ArgumentOutOfRangeException(nameof(batchSize));
+        }
+        /// <summary>Checks  release transition before the persistence operation.</summary>
+        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+        internal void ValidateReleaseTransition(EventProjectorStateTransition transition)
+        {
+            context.ValidateTransition(transition, terminal: false);
+            if (transition.Outcome != EventProjectorOutcomeType.Retrying)
+                throw new ArgumentOutOfRangeException(nameof(transition), "A released execution must be retryable.");
+            if (!transition.NextAttemptAtUtc.HasValue || !transition.LastErrorAtUtc.HasValue)
+                throw new ArgumentException("A released execution requires retry and error timestamps.", nameof(transition));
+        }
+        /// <summary>Checks  outbox release status before the persistence operation.</summary>
+        /// <param name="status">The requested projector or outbox status.</param>
+        internal void ValidateOutboxReleaseStatus(EventProjectorOutboxStatus status)
+        {
+            if (status is not EventProjectorOutboxStatus.Retrying and not EventProjectorOutboxStatus.Failed)
+                throw new ArgumentOutOfRangeException(nameof(status));
+        }
+        /// <summary>Checks  operational status before the persistence operation.</summary>
+        /// <param name="status">The requested projector or outbox status.</param>
+        internal void ValidateOperationalStatus(EventProjectorOperationalStatus status)
+        {
+            if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
+        }
+        /// <summary>Checks  skip reason before the persistence operation.</summary>
+        /// <param name="reason">The operator supplied reason for skipping the event.</param>
+        internal void ValidateSkipReason(string reason)
+        {
+            context.ValidateTextArgument(reason, nameof(reason));
+            if (reason.Length > 2_000) throw new ArgumentOutOfRangeException(nameof(reason));
+        }
+        /// <summary>Checks  qualification writer before the persistence operation.</summary>
+        /// <param name="options">The event log persistence configuration.</param>
+        internal void ValidateQualificationWriter(EventLogPersistenceOptions options)
+        {
+            if (options.WriteMode != EventLogWriteMode.BinaryCopy)
+                throw new ArgumentException("Actor qualification requires the binary-copy writer.", nameof(options));
+        }
+
+        /// <summary>Checks  required argument before the persistence operation.</summary>
+        /// <param name="argument">The argument used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
         internal void ValidateRequiredArgument([System.Diagnostics.CodeAnalysis.NotNull] object? argument, string parameterName)
             => ArgumentNullException.ThrowIfNull(argument, parameterName);
 
+        /// <summary>Checks  text argument before the persistence operation.</summary>
+        /// <param name="argument">The argument used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
         internal void ValidateTextArgument([System.Diagnostics.CodeAnalysis.NotNull] string? argument, string parameterName)
             => ArgumentException.ThrowIfNullOrWhiteSpace(argument, parameterName);
 
+        /// <summary>Checks  nonnegative argument before the persistence operation.</summary>
+        /// <param name="argument">The argument used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
         internal void ValidateNonnegativeArgument(long argument, string parameterName)
             => ArgumentOutOfRangeException.ThrowIfLessThan(argument, 0, parameterName);
 
+        /// <summary>Checks  positive argument before the persistence operation.</summary>
+        /// <param name="argument">The argument used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Argument validation belongs to the context extension API.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "Forward the original operation parameter name rather than the helper parameter name.")]
         internal void ValidatePositiveArgument(long argument, string parameterName)
             => ArgumentOutOfRangeException.ThrowIfNegativeOrZero(argument, parameterName);
 
+        /// <summary>Event Log Sql using the event-source persistence services.</summary>
+        /// <param name="sql">The sql used by this operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal string EventLogSql(string sql) => context._eventLogSqlLayout.Resolve(sql);
 
+        /// <summary>Create Event Log Appender using the event-source persistence services.</summary>
+        /// <param name="connectionString">The connection string used by this operation.</param>
+        /// <param name="options">The event log persistence configuration.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Appender construction belongs to the context extension API.")]
         internal IEventLogAppender CreateEventLogAppender(string connectionString, EventLogPersistenceOptions options)
         {
@@ -58,6 +138,9 @@ internal static class EventSourceActorDbContextExtensions
             };
         }
 
+        /// <summary>Checks  projector identity before the persistence operation.</summary>
+        /// <param name="eventId">The source event identifier.</param>
+        /// <param name="projectorName">The projector identity.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal void ValidateProjectorIdentity(long eventId, string projectorName)
         {
@@ -66,6 +149,8 @@ internal static class EventSourceActorDbContextExtensions
             ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
         }
 
+        /// <summary>Checks  execution token before the persistence operation.</summary>
+        /// <param name="executionToken">The token identifying the current execution lease owner.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal void ValidateExecutionToken(Guid executionToken)
         {
@@ -73,6 +158,10 @@ internal static class EventSourceActorDbContextExtensions
                 throw new ArgumentException("The execution token cannot be empty.", nameof(executionToken));
         }
 
+        /// <summary>Require Utc using the event-source persistence services.</summary>
+        /// <param name="value">The value used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal DateTime RequireUtc(DateTime value, string parameterName)
         {
@@ -81,10 +170,18 @@ internal static class EventSourceActorDbContextExtensions
             return value;
         }
 
+        /// <summary>Checks  optional utc before the persistence operation.</summary>
+        /// <param name="value">The value used by this operation.</param>
+        /// <param name="parameterName">The parameter name used by this operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal DateTime? ValidateOptionalUtc(DateTime? value, string parameterName)
             => value.HasValue ? context.RequireUtc(value.Value, parameterName) : null;
 
+        /// <summary>Get Lease Expiry using the event-source persistence services.</summary>
+        /// <param name="nowUtc">The current UTC timestamp.</param>
+        /// <param name="leaseDuration">The requested lease duration.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal DateTime GetLeaseExpiry(DateTime nowUtc, TimeSpan leaseDuration)
         {
@@ -94,6 +191,9 @@ internal static class EventSourceActorDbContextExtensions
             return nowUtc.Add(leaseDuration);
         }
 
+        /// <summary>Checks  transition before the persistence operation.</summary>
+        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+        /// <param name="terminal">The terminal used by this operation.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal void ValidateTransition(EventProjectorStateTransition transition, bool terminal)
         {
@@ -124,6 +224,9 @@ internal static class EventSourceActorDbContextExtensions
             }
         }
 
+        /// <summary>Checks  outbox message before the persistence operation.</summary>
+        /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+        /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Validation belongs to the context extension API.")]
         internal void ValidateOutboxMessage(
@@ -146,6 +249,10 @@ internal static class EventSourceActorDbContextExtensions
         }
 
 
+        /// <summary>Apply Assignments using the event-source persistence services.</summary>
+        /// <param name="domainEvents">The ordered events to persist.</param>
+        /// <param name="result">The result used by this operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep internal persistence helpers on the context extension API.")]
         internal DomainEventCollection ApplyAssignments(DomainEventCollection domainEvents, EventLogAppendResult result)
         {
@@ -160,6 +267,9 @@ internal static class EventSourceActorDbContextExtensions
             return saved;
         }
 
+        /// <summary>Acquire Atomic Preparation using the event-source persistence services.</summary>
+        /// <param name="streamId">The event stream identifier.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal AtomicPreparationLease AcquireAtomicPreparation(string streamId)
         {
             while (true)
@@ -177,6 +287,9 @@ internal static class EventSourceActorDbContextExtensions
             }
         }
 
+        /// <summary>Release Atomic Preparation using the event-source persistence services.</summary>
+        /// <param name="streamId">The event stream identifier.</param>
+        /// <param name="preparation">The preparation used by this operation.</param>
         internal void ReleaseAtomicPreparation(string streamId, AtomicPreparationLease preparation)
         {
             preparation.Release.TrySetResult();
@@ -190,46 +303,39 @@ internal static class EventSourceActorDbContextExtensions
             }
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep internal persistence helpers on the context extension API.")]
-        internal async ValueTask<bool> AwaitLegacyReservationAsync(
-            Task<bool> reservation,
-            CancellationToken cancellationToken)
-            => await reservation.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-
-        internal async Task<DomainEventCollection> SaveCommandEventsDeduplicatedAsync(
+        /// <summary>Save Command Events Deduplicated using the event-source persistence services.</summary>
+        /// <param name="command">The command being audited or committed.</param>
+        /// <param name="domainEvents">The ordered events to persist.</param>
+        /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
+        internal async Task<DomainEventCollection> SaveCommandEventsCoreAsync(
             ICommand command,
             DomainEventCollection domainEvents,
             long expectedStreamVersion,
             CancellationToken cancellationToken)
         {
             var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec);
-            DomainEventCollection? committed = null;
-            var accepted = await context._commandDuplicates.Value.TryAcceptAsync(
-                command.CommandId,
-                envelope.RetrySha256,
-                async token =>
-                {
-                    if (domainEvents.Count == 0)
-                    {
-                        var reservation = await context._commandAuditWriter.Value
-                            .ReserveAsync(envelope, token).ConfigureAwait(false);
-                        if (!reservation.Accepted) return false;
-                        committed = [];
-                        return true;
-                    }
-
-                    var preparation = context.AcquireAtomicPreparation(command.StreamId);
-                    committed = await context.PrepareAndSaveCommandEventsAtomicallyAsync(
-                        preparation, command, domainEvents, expectedStreamVersion, envelope, token)
-                        .ConfigureAwait(false);
-                    return true;
-                },
-                cancellationToken).ConfigureAwait(false);
-            if (!accepted) throw new CommandAuditDuplicateException(command.CommandId);
-            return committed ?? throw new InvalidOperationException("Atomic command persistence completed without an event result.");
+            if (domainEvents.Count == 0)
+            {
+                if (!await context.TryInsertCommandAuditAsync(envelope, cancellationToken).ConfigureAwait(false))
+                    throw new CommandAuditDuplicateException(command.CommandId);
+                return [];
+            }
+            var preparation = context.AcquireAtomicPreparation(command.StreamId);
+            return await context.PrepareAndSaveCommandEventsAtomicallyAsync(
+                preparation, command, domainEvents, expectedStreamVersion, envelope, cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>Prepare And Save Command Events Atomically using the event-source persistence services.</summary>
+        /// <param name="preparation">The preparation used by this operation.</param>
+        /// <param name="command">The command being audited or committed.</param>
+        /// <param name="domainEvents">The ordered events to persist.</param>
+        /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
+        /// <param name="commandAudit">The command audit used by this operation.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<DomainEventCollection> PrepareAndSaveCommandEventsAtomicallyAsync(
             AtomicPreparationLease preparation,
             ICommand command,
@@ -241,12 +347,15 @@ internal static class EventSourceActorDbContextExtensions
             Task<EventLogAppendResult> persistence;
             try
             {
-                await preparation.Predecessor.WaitAsync(cancellationToken).ConfigureAwait(false);
-                var streamId = await context.GetEventStreamIdAsync(command.StreamId, cancellationToken).ConfigureAwait(false);
+                await preparation.Predecessor.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+                var streamId = await context.GetEventStreamIdAsync(command.StreamId, cancellationToken)
+            .ConfigureAwait(false);
                 var entries = new List<EventLogAppendEntry>(domainEvents.Count);
                 foreach (var domainEvent in domainEvents)
                     entries.Add(new EventLogAppendEntry(
-                        await context.GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken).ConfigureAwait(false),
+                        await context.GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken)
+            .ConfigureAwait(false),
                         domainEvent));
                 persistence = context._atomicCommandEventAppender.Value.AppendAsync(new EventLogAppendRequest(
                     command.StreamId,
@@ -266,62 +375,13 @@ internal static class EventSourceActorDbContextExtensions
             return context.ApplyAssignments(domainEvents, result);
         }
 
-        internal async ValueTask<CommandAuditReservation> TryReserveCoreAsync(
-            ICommand command,
-            CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(command);
-            if (context._legacyCommandReservations.TryRemove(command.CommandId, out var legacyReservation))
-                return new CommandAuditReservation(
-                    await context.AwaitLegacyReservationAsync(legacyReservation.Value, cancellationToken)
-                        .ConfigureAwait(false));
 
-            bool accepted;
-            if (context._commandAuditOptions.WriteMode == CommandAuditWriteMode.SequentialJsonLegacy)
-            {
-                accepted = await context._commandDuplicates.Value.TryAcceptAsync(
-                        command.CommandId,
-                        token => context.InsertCommandLogCoreAsync(
-                            command,
-                            DateTime.UtcNow,
-                            JsonConvert.SerializeObject(command),
-                            token),
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                // Keep complete audit bytes; opted-in commands compare a separate stable
-                // retry identity that excludes only per-attempt tracing metadata.
-                var envelope = CommandAuditEnvelope.Create(command, context._commandAuditCodec);
-                accepted = await context._commandDuplicates.Value.TryAcceptAsync(
-                        command.CommandId,
-                        envelope.RetrySha256,
-                        async token => (await context._commandAuditWriter.Value
-                            .ReserveAsync(envelope, token).ConfigureAwait(false)).Accepted,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            return new CommandAuditReservation(accepted);
-        }
-
-        internal async Task ObserveLegacyReservationAsync(
-            Guid commandId,
-            Lazy<Task<bool>> reservation)
-        {
-            try
-            {
-                _ = await reservation.Value.ConfigureAwait(false);
-            }
-            catch
-            {
-                context._legacyCommandReservations.TryRemove(
-                    new KeyValuePair<Guid, Lazy<Task<bool>>>(commandId, reservation));
-                throw;
-            }
-        }
-
-
+        /// <summary>Insert Command Log Core using the event-source persistence services.</summary>
+        /// <param name="command">The command being audited or committed.</param>
+        /// <param name="commandTimestamp">The command audit timestamp.</param>
+        /// <param name="commandData">The serialized command audit payload.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal Task<bool> InsertCommandLogCoreAsync(
             ICommand command,
             DateTime commandTimestamp,
@@ -348,11 +408,13 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>A <see langword="long"/> representing the unique identifier of the specified event stream.</returns>
         internal async Task<long> GetEventStreamAsync(string eventStream)
         {
-            return (await (context._blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEventStream)).ConfigureAwait(false)).EventStreamId;
+            return (await (context._blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEventStream))
+            .ConfigureAwait(false)).EventStreamId;
 
             async Task<EventStreamIdReadModel> InsertEventStream(string eventStream)
             {
-                var eventStreamId = await (context.InsertEventStreamAsync(eventStream)).ConfigureAwait(false);
+                var eventStreamId = await (context.InsertEventStreamAsync(eventStream))
+            .ConfigureAwait(false);
                 return new EventStreamIdReadModel(eventStreamId, eventStream);
             }
         }
@@ -371,7 +433,8 @@ internal static class EventSourceActorDbContextExtensions
             => await (context._dbFactory.ActorEventSourceDb
                     .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", context.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
                     .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                    .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream)).ConfigureAwait(false);
+                    .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
+            .ConfigureAwait(false);
 
         /// <summary>
         /// Inserts an event stream into the database if it does not already exist.
@@ -381,8 +444,13 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>The unique identifier of the event stream. If the event stream already exists, its existing identifier is
         /// returned; otherwise, the identifier of the newly inserted event stream is returned.</returns>
         internal async Task<long> InsertEventStreamAsync(string eventStream)
-            => await context.InsertEventStreamAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
+            => await context.InsertEventStreamAsync(eventStream, CancellationToken.None)
+            .ConfigureAwait(false);
 
+        /// <summary>Insert Event Stream using the event-source persistence services.</summary>
+        /// <param name="eventStream">The event stream name.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<long> InsertEventStreamAsync(string eventStream, CancellationToken cancellationToken)
         {
             var eventStreamIdModel = await context._dbFactory.ActorEventSourceDb
@@ -396,7 +464,8 @@ internal static class EventSourceActorDbContextExtensions
             return await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventStreamId)}", EventSourceDbSql.InsertEventStreamId)
                 .SetParameters(new InsertEventStreamId(eventStream))
-                .ExecuteScalarAsync(EventSourceActorDbContext.MapToLong, cancellationToken)).ConfigureAwait(false);
+                .ExecuteScalarAsync(EventSourceActorDbContext.MapToLong, cancellationToken))
+            .ConfigureAwait(false);
         }
 
 
@@ -407,10 +476,16 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  for the event
         /// name associated with the specified event type.</returns>
         internal async Task<int> GetEventNameIdFromTypeAsync<TEvent>() where TEvent : IEvent
-            => await context.GetEventNameIdFromTypeAsync<TEvent>(CancellationToken.None).ConfigureAwait(false);
+            => await context.GetEventNameIdFromTypeAsync<TEvent>(CancellationToken.None)
+            .ConfigureAwait(false);
 
+        /// <summary>Get Event Name Id From Type using the event-source persistence services.</summary>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <typeparam name="TEvent">The event, snapshot, state or record type used by the operation.</typeparam>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<int> GetEventNameIdFromTypeAsync<TEvent>(CancellationToken cancellationToken) where TEvent : IEvent
-            => await context.GetEventNameIdFromTypeAsync(typeof(TEvent), cancellationToken).ConfigureAwait(false);
+            => await context.GetEventNameIdFromTypeAsync(typeof(TEvent), cancellationToken)
+            .ConfigureAwait(false);
 
         /// <summary>
         /// Asynchronously retrieves the unique identifier for an event name based on the specified event type.
@@ -421,18 +496,21 @@ internal static class EventSourceActorDbContextExtensions
         /// cref="Type.FullName"/> and <see cref="Type.Name"/> properties are used to determine the event name and type.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  for the event
         /// name associated with the specified event type.</returns>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
         internal async Task<int> GetEventNameIdFromTypeAsync(Type eventType, CancellationToken cancellationToken)
         {
             var eventTypeFullName = eventType.AssemblyQualifiedName;
             if (!context._eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
             {
-                eventNameIdModel = await context.GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName, cancellationToken).ConfigureAwait(false);
+                eventNameIdModel = await context.GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName, cancellationToken)
+            .ConfigureAwait(false);
                 if (eventNameIdModel.IsValid)
                 {
                     context._eventNameIdCache.TryAdd(eventTypeFullName, eventNameIdModel);
                     return eventNameIdModel.EventNameId;
                 }
-                var newEventNameIdModel = await InsertEventNameIdAsync(eventType.Name, eventTypeFullName).ConfigureAwait(false);
+                var newEventNameIdModel = await InsertEventNameIdAsync(eventType.Name, eventTypeFullName)
+            .ConfigureAwait(false);
                 context._eventNameIdCache.TryAdd(eventTypeFullName, newEventNameIdModel);
                 return newEventNameIdModel.EventNameId;
             }
@@ -440,13 +518,15 @@ internal static class EventSourceActorDbContextExtensions
 
             async Task<EventNameIdReadModel> InsertEventNameIdAsync(string eventName, string eventTypeName)
             {
-                var eventNameIdModel = await context.GetEventNameIdFromDbAsync(eventName, eventTypeName, cancellationToken).ConfigureAwait(false);
+                var eventNameIdModel = await context.GetEventNameIdFromDbAsync(eventName, eventTypeName, cancellationToken)
+            .ConfigureAwait(false);
                 if (eventNameIdModel.IsValid)
                     return eventNameIdModel;
                 var eventNameId = await (context._dbFactory.ActorEventSourceDb
                       .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventNameId)}", EventSourceDbSql.InsertEventNameId)
                       .SetParameters(new InsertEventNameId(eventName, eventTypeName))
-                      .ExecuteScalarAsync(EventSourceActorDbContext.MapToInt, cancellationToken)).ConfigureAwait(false);
+                      .ExecuteScalarAsync(EventSourceActorDbContext.MapToInt, cancellationToken))
+            .ConfigureAwait(false);
                 return new EventNameIdReadModel(eventNameId, eventName, eventTypeName);
             }
         }
@@ -462,8 +542,14 @@ internal static class EventSourceActorDbContextExtensions
         /// <returns>An <see cref="EventNameIdReadModel"/> containing the event name and ID if the event is found; otherwise, <see
         /// langword="null"/>.</returns>
         internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(string eventName, string eventTypeName)
-            => await context.GetEventNameIdFromDbAsync(eventName, eventTypeName, CancellationToken.None).ConfigureAwait(false);
+            => await context.GetEventNameIdFromDbAsync(eventName, eventTypeName, CancellationToken.None)
+            .ConfigureAwait(false);
 
+        /// <summary>Get Event Name Id From Db using the event-source persistence services.</summary>
+        /// <param name="eventName">The event name used by this operation.</param>
+        /// <param name="eventTypeName">The event type name used by this operation.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>The typed result of the event-source operation.</returns>
         internal async Task<EventNameIdReadModel> GetEventNameIdFromDbAsync(
             string eventName,
             string eventTypeName,
@@ -471,7 +557,8 @@ internal static class EventSourceActorDbContextExtensions
             => await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventNameId)}", EventSourceDbSql.GetEventNameId)
                 .SetParameters(new GetEventNameId(eventName, eventTypeName))
-                .ExecuteSingleAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken)).ConfigureAwait(false);
+                .ExecuteSingleAsync<EventNameIdReadModel>(EventSourceActorDbContext.MapToEventNameId, cancellationToken))
+            .ConfigureAwait(false);
 
         /// <summary>
         /// Asynchronously retrieves the last N events from a specified event stream.
@@ -487,7 +574,8 @@ internal static class EventSourceActorDbContextExtensions
             var eventLogRange = await (context._dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRange)}", context.EventLogSql(EventSourceDbSql.GetEventLogLastNRange))
                 .SetParameters(new GetEventLogLastNRange(eventStreamId))
-                .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream)).ConfigureAwait(false);
+                .ExecuteQueryAsync<EventStreamReadModel>(EventSourceActorDbContext.MapToEventStream))
+            .ConfigureAwait(false);
             return (eventLogRange is null || eventLogRange.Count == 0)
                 ? [] : [.. eventLogRange.Take(lastNRange).OrderBy(e => e.EventVersion)];
         }

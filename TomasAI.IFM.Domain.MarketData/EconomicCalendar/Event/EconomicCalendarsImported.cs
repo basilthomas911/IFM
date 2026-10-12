@@ -121,7 +121,7 @@ public static class EconomicCalendarsImported
                     {
                         await transaction.AppendAsync(acceptedStream,
                             @event.CommandId,accepted,0,token).ConfigureAwait(false);
-                        await PostgresEconomicCalendarStore.ImportAsync(transaction,records,@event.DuplicatePolicy,@event.CommandId,token).ConfigureAwait(false);
+                        await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,records,@event.DuplicatePolicy,@event.CommandId,token).ConfigureAwait(false);
                         return true;
                     }).ConfigureAwait(false);
     }

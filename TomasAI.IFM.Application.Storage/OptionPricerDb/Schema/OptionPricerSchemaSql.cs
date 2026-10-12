@@ -1,5 +1,6 @@
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 
+/// <summary>Complete PostgreSQL schema catalog for option-pricer tables, indexes and additive changes.</summary>
 internal static class OptionPricerSchemaSql
 {
     public const string Create = """

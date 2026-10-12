@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using TomasAI.IFM.IntegrationTesting;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
@@ -29,6 +30,7 @@ public sealed class Stage4DurableIntentPostgresCollection : ICollectionFixture<S
 /// <summary>Never truncates: all cleanup is parameterized against registered randomized test scopes.</summary>
 public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
 {
+    private IsolatedIntegrationInfrastructure? _infrastructure;
     private const string ScopePrefix = "stage4-test-";
     private readonly ConcurrentDictionary<string, byte> _scopes = new(StringComparer.Ordinal);
     private readonly ILogger<DbProvider> _logger = Substitute.For<ILogger<DbProvider>>();
@@ -42,9 +44,14 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION")
-            ?? throw new InvalidOperationException("Set IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION to the dedicated local test database.");
-        ValidateDedicatedConnection(connection); // No connection, credentials or mutation before this guard.
+        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION");
+        if (connection is null)
+        {
+            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataserviceintent");
+            await _infrastructure.StartAsync();
+            connection = _infrastructure.PostgresConnectionString;
+        }
+        else ValidateDedicatedConnection(connection); // External databases must pass the existing guard.
         _previousDotnet = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
         _previousAspnet = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
         Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Test");
@@ -57,14 +64,15 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
             _repository = new TestRepository(_settings[MarketDataServiceDbContext.MarketDataServiceDbConnection], _logger);
             var database = await _repository.Use("Stage4Fixture.VerifyDedicatedDatabase", "SELECT current_database();")
                 .ExecuteSingleAsync(row => row.GetString(0));
-            if (database != "event-source-test-db") throw new InvalidOperationException("Connected database is not the dedicated Stage 4 test database.");
-            _ = await _repository.Use("Stage4Fixture.AdditiveSchema", Stage4SubscriptionSchemaSql.Create).ExecuteCommandAsync();
+            if (database != (_infrastructure?.PostgresDatabase ?? "event-source-test-db")) throw new InvalidOperationException("Connected database is not the dedicated Stage 4 test database.");
+            _ = await _repository.Use("Stage4Fixture.AdditiveSchema", MarketDataServiceSchemaSql.CreateDurableSubscriptions).ExecuteCommandAsync();
             _schemaCreated = true;
             Store = NewStore();
         }
         catch
         {
             RestoreEnvironment();
+            if (_infrastructure is not null) await _infrastructure.DisposeAsync();
             throw;
         }
     }
@@ -133,7 +141,11 @@ public sealed class Stage4DurableIntentPostgresFixture : IAsyncLifetime
                         .SetParameters(new Parameters(Values(Text(scope)))).ExecuteCommandAsync();
             }
         }
-        finally { RestoreEnvironment(); }
+        finally
+        {
+            RestoreEnvironment();
+            if (_infrastructure is not null) await _infrastructure.DisposeAsync();
+        }
     }
 
     private void RestoreEnvironment()

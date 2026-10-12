@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -47,7 +48,7 @@ public sealed class MarketDataFeedEventProjector(
     {
         await context.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async(transaction,cancellation) =>
         {
-            if (!await PostgresMarketSignalStore.TryProjectAsync(transaction,source,cancellation).ConfigureAwait(false))
+            if (!await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,cancellation).ConfigureAwait(false))
                 throw new InvalidOperationException("No audited feed materialization exists for this event.");
             return true;
         },token).ConfigureAwait(false);

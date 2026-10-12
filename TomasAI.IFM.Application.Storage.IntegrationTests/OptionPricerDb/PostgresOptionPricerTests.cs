@@ -19,18 +19,10 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.OptionPricerDb;
 
-public sealed class PostgresOptionPricerTests
+[Collection("OptionPricer PostgreSQL")]
+public sealed class PostgresOptionPricerTests(OptionPricerPostgresFixture fixture)
 {
-    const string Connection = "Host=localhost;Port=5432;Database=ifm_storage_refactor_test";
-    static async Task<OptionPricerDbContext> Context()
-    {
-        var settings = new DbConnectionSettings().Add(OptionPricerDbContext.ConnectionName, Connection, "System.Data.Postgres");
-        await new OptionPricerSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
-        var factory = Substitute.For<IDbContextFactory>();
-        var context = new OptionPricerDbContext(settings, factory, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
-        factory.OptionPricerDb.Returns(context);
-        return context;
-    }
+    Task<OptionPricerDbContext> Context() => Task.FromResult(fixture.DevDatabase);
 
     static SpreadDistributionReadModel Distribution(int trade, long id, TradeType type) => new(
         id, trade, new DateOnly(2026, 10, 11), type, TradeStatus.Open, 30,
@@ -67,7 +59,7 @@ public sealed class PostgresOptionPricerTests
         var context = await Context(); var trade = Random.Shared.Next(20_000_000, 30_000_000);
         var put = Distribution(trade, 1, TradeType.PutCreditSpread);
         var call = Distribution(trade + 1, 2, TradeType.CallCreditSpread);
-        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(Connection);
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
         await connection.OpenAsync();
         var constraint = "test_pair_" + Guid.NewGuid().ToString("N");
         await using (var command = new NpgsqlCommand($"ALTER TABLE option_pricer.spread_distribution ADD CONSTRAINT {constraint} CHECK (tradeId <> {call.TradeId});", connection))

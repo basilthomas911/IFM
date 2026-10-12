@@ -1,6 +1,6 @@
 using System.Text.Json;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 
 public static class SelectionCatalogTransport

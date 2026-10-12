@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;

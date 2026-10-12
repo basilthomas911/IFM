@@ -34,6 +34,7 @@ public sealed class StrategyRiskParameterSetResolver(IDbContextFactory databases
             {
                 try
                 {
+                    defaults.Validate();
                     await databases.ConfigurationDb.InsertStrategyPositionRiskDraftAsync(defaults, "Provisional ES daily-loss monitoring defaults", "DevelopmentDefaultProvisioner", token).ConfigureAwait(false);
                 }
                 catch when (!token.IsCancellationRequested)

@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
-using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Xunit;
 
@@ -14,13 +13,12 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void ProjectionState_UsesGenerationCheckedCutover()
     {
-        var schema = Normalize(ReferenceSchemaCql.CreateReferenceProjectionStateV3Table);
+
         var read = Normalize(ReferenceDbCql.GetReferenceProjectionStateV3);
         var invalidate = Normalize(ReferenceDbCql.InvalidateReferenceProjectionStateV3);
         var complete = Normalize(ReferenceDbCql.CompleteReferenceProjectionStateV3);
 
-        schema.Should().Contain("generation uuid");
-        schema.Should().Contain("completed boolean");
+
         read.Should().Contain("generation as \"generation\", completed as \"completed\"");
         invalidate.Should().Contain("set generation = :generation, completed = false");
         complete.Should().Contain("if generation = :generation");
@@ -30,14 +28,13 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void ProjectionMutationBarrier_TracksEachActiveWriterByProjection()
     {
-        var schema = Normalize(ReferenceSchemaCql.CreateReferenceProjectionMutationV3Table);
+
         var insert = Normalize(ReferenceDbCql.InsertReferenceProjectionMutationV3);
         var read = Normalize(ReferenceDbCql.GetReferenceProjectionMutationsV3);
         var delete = Normalize(ReferenceDbCql.DeleteReferenceProjectionMutationV3);
         var mutationId = Guid.NewGuid();
         var startedOn = new DateTime(2045, 2, 1, 12, 0, 0, DateTimeKind.Utc);
 
-        schema.Should().Contain("primary key ((projectionname), mutationid)");
         insert.Should().Contain("values (:projectionname, :mutationid, :startedon)");
         read.Should().Contain("where projectionname = :projectionname");
         delete.Should().Contain("where projectionname = :projectionname and mutationid = :mutationid");
@@ -53,14 +50,13 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void ProjectionOwnership_UsesLwtConflictPoisonAndConditionalSafeRelease()
     {
-        var schema = Normalize(ReferenceSchemaCql.CreateReferenceProjectionOwnershipV3Table);
+
         var claim = Normalize(ReferenceDbCql.ClaimReferenceProjectionOwnershipV3);
         var conflict = Normalize(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3);
         var release = Normalize(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3);
 
-        schema.Should().Contain("projectionname text primary key");
-        schema.Should().Contain("ownermutationid uuid");
-        schema.Should().Contain("conflicted boolean");
+
+
         claim.Should().Contain("if not exists");
         conflict.Should().Contain("set conflicted = true");
         conflict.Should().Contain("if exists");
@@ -134,15 +130,14 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void ScheduledJobNameProjection_UsesCaseSensitivePrimaryKeyAndLwtReservation()
     {
-        var schema = Normalize(ReferenceSchemaCql.CreateScheduledJobByNameV3Table);
+
         var reserve = Normalize(ReferenceDbCql.InsertScheduledJobByNameV3);
         var rotate = Normalize(ReferenceDbCql.RotateScheduledJobNameV3Reservation);
         var release = Normalize(ReferenceDbCql.ReleaseScheduledJobNameV3);
         var read = Normalize(ReferenceDbCql.GetScheduledJobId);
         var reservationToken = Guid.Parse("73c27988-d257-475f-af4e-428e8ab3dc39");
 
-        schema.Should().Contain("jobname text primary key");
-        schema.Should().Contain("reservationtoken uuid");
+
         reserve.Should().Contain("if not exists");
         rotate.Should().Contain("if jobid = :jobid and reservationtoken = :expectedreservationtoken");
         release.Should().Contain("if jobid = :jobid and reservationtoken = :reservationtoken");
@@ -170,16 +165,15 @@ public sealed class ReferenceProjectionCqlTests
     [Fact]
     public void ScheduledJobMutationOwnership_UsesIdAndNameScopesWithExactLwtRelease()
     {
-        var schema = Normalize(ReferenceSchemaCql.CreateScheduledJobWriteOwnershipV3Table);
+
         var claim = Normalize(ReferenceDbCql.ClaimScheduledJobWriteOwnershipV3);
         var release = Normalize(ReferenceDbCql.ReleaseScheduledJobWriteOwnershipV3);
         var inventory = Normalize(ReferenceDbCql.GetScheduledJobWriteOwnershipsV3All);
         var operationId = Guid.Parse("34e0f1f2-e89f-4bf3-b80a-699a3e8ed9ab");
         var startedOn = new DateTime(2045, 2, 1, 12, 0, 0, DateTimeKind.Utc);
 
-        schema.Should().Contain("primary key ((scopetype, scopekey))");
-        schema.Should().Contain("operationid uuid");
-        schema.Should().Contain("startedon timestamp");
+
+
         claim.Should().Contain("if not exists");
         release.Should().Contain("if operationid = :operationid");
         inventory.Should().Contain("scopetype, scopekey, operationid, startedon");

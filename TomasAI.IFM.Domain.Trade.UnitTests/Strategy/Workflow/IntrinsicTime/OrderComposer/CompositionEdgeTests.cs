@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;

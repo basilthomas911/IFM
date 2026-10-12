@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using TomasAI.IFM.Application.Storage.EventSourceDb.CommandDeduplication;
+using TomasAI.IFM.Domain.EventSourcing.Command.Deduplication;
 
 namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 

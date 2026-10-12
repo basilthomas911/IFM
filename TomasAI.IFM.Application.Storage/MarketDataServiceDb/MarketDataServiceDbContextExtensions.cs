@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using Npgsql;
@@ -90,16 +91,12 @@ internal static class MarketDataServiceDbContextExtensions
                         : new(input.OperationId, DurableIntentResultCode.OperationConflict, prior.Result.Revision, null);
                 }
 
-                var code = context.TryApplyDurableSubscription(current, input, factDigest, out var next);
+                var code = DurableSubscriptionTransition.Apply(current, input, factDigest, out var next);
                 var currentIds = current.Authorities.SelectMany(value => value.Leases).Select(value => value.LeaseId).ToHashSet();
                 var additions = input.Adds.Where(value => !currentIds.Contains(value.LeaseId)).ToArray();
                 if (code == DurableIntentResultCode.Committed && additions.Length != 0)
                 {
-                    var reserved = await context.ReadDurableSingleAsync(repository, "Stage4Intent.CheckLeaseIdentity", """
-                            SELECT EXISTS(SELECT 1 FROM market_data_service.stage4_lease_identity
-                            WHERE scope=$1 AND dataset=$2 AND lease_id IN
-                              (SELECT jsonb_array_elements_text($3::jsonb)::uuid));
-                            """, Values(Text(input.Scope), Text(input.Dataset),
+                    var reserved = await context.ReadDurableSingleAsync(repository, "Stage4Intent.CheckLeaseIdentity", MarketDataServiceDbSql.CheckDurableLeaseIdentity, Values(Text(input.Scope), Text(input.Dataset),
                                 Text(JsonSerializer.Serialize(additions.Select(value => value.LeaseId)))),
                             row => new DurableExistsRow(row.GetBool(0)), cancellationToken)
                 .ConfigureAwait(false);
@@ -236,68 +233,6 @@ internal static class MarketDataServiceDbContextExtensions
         }
 
         /// <summary>
-        /// Performs the <c>TryApplyDurableSubscription</c> operation for Market Data Service persistence.
-        /// </summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal DurableIntentResultCode TryApplyDurableSubscription(DurableSubscriptionSnapshot current, DurableAuthorityMutation input,
-            string factDigest, out DurableSubscriptionSnapshot next)
-        {
-            next = current;
-            var source = current.Authorities.SingleOrDefault(value => string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal));
-            if (source is not null && source.Owner != input.Owner
-                || current.Authorities.Any(value => value.Owner == input.Owner && !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)))
-                return DurableIntentResultCode.AuthorityConflict;
-            if (source is not null && input.SourceVersion < source.SourceVersion) return DurableIntentResultCode.StaleAuthority;
-            if (source is not null && input.SourceVersion == source.SourceVersion)
-                return string.Equals(source.FactDigest,factDigest,StringComparison.Ordinal) ? DurableIntentResultCode.AlreadyApplied : DurableIntentResultCode.AuthorityConflict;
-            // Deltas require contiguous delivery. A separately identified complete committed snapshot
-            // carries the real source watermark and can safely cover intermediate non-ownership events.
-            if (!input.CompleteSourceSnapshot && input.SourceVersion != (source?.SourceVersion ?? 0) + 1)
-                return DurableIntentResultCode.AuthorityGap;
-            if (input.ExpectedRevision != current.Revision) return DurableIntentResultCode.RevisionConflict;
-            if (current.Revision == long.MaxValue) return DurableIntentResultCode.CapacityExceeded;
-            var leases = source?.Leases.ToDictionary(value => value.LeaseId) ?? [];
-            if (input.Status == DurableAuthorityStatus.Terminal) leases.Clear();
-            else if (input.Status == DurableAuthorityStatus.Active)
-            {
-                if (input.CompleteSourceSnapshot)
-                    foreach (var id in leases.Keys.Where(id => !input.Adds.Any(x => x.LeaseId == id)).ToArray()) leases.Remove(id);
-                foreach (var release in input.Releases)
-                {
-                    if (!leases.TryGetValue(release.LeaseId, out var existing) || existing.LeaseVersion != release.ExpectedLeaseVersion)
-                        return DurableIntentResultCode.LeaseConflict;
-                    leases.Remove(release.LeaseId);
-                }
-                foreach (var add in input.Adds)
-                {
-                    if (leases.TryGetValue(add.LeaseId, out var existing))
-                    {
-                        if (existing != add) return DurableIntentResultCode.LeaseConflict;
-                        continue;
-                    }
-                    if (add.LeaseVersion != 1 || leases.Values.Any(value => value.Purpose == add.Purpose && value.Ticker == add.Ticker)
-                        || current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal))
-                            .Any(value => value.Leases.Any(lease => lease.LeaseId == add.LeaseId)))
-                        return DurableIntentResultCode.LeaseConflict;
-                    leases.Add(add.LeaseId, add);
-                }
-            }
-            if (leases.Count > DurableSubscriptionContract.MaximumOwnerLeases
-                || current.Authorities.Count(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)) + 1 > DurableSubscriptionContract.MaximumAuthorities
-                || current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)).Sum(value => value.Leases.Count) + leases.Count
-                    > DurableSubscriptionContract.MaximumLeases)
-                return DurableIntentResultCode.CapacityExceeded;
-            var updated = new DurableAuthorityState(input.SourceId, input.SourceVersion, input.SourceEventId, factDigest,
-                input.Owner, input.Status, input.ReasonCode, leases.Values.ToArray());
-            next = DurableSubscriptionContract.Freeze(current with
-            {
-                Revision = current.Revision + 1,
-                Authorities = current.Authorities.Where(value => !string.Equals(value.SourceId,input.SourceId,StringComparison.Ordinal)).Append(updated).ToArray()
-            });
-            return DurableIntentResultCode.Committed;
-        }
-
-        /// <summary>
         /// Performs the <c>ReadDurableCurrentAsync</c> operation for Market Data Service persistence.
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -421,4 +356,34 @@ internal static class MarketDataServiceDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         internal DateTime AsUtc() => DateTime.SpecifyKind(value, DateTimeKind.Utc);
     }
+}
+
+/// <summary>Persisted snapshot and optimistic revision.</summary>
+internal sealed record DurableCurrentRow(string Json, long Revision);
+
+/// <summary>Persisted identity existence query result.</summary>
+internal sealed record DurableExistsRow(bool Exists);
+
+/// <summary>Persisted idempotency digest and operation result.</summary>
+internal sealed record DurableOperationRow(
+    string Digest,
+    TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.DurableIntentResult Result);
+
+/// <summary>Write boundaries used by isolated fault-injection tests.</summary>
+internal enum DurableStoreWriteStage
+{
+    CurrentIntent,
+    OperationResult,
+    Outbox,
+    AuthorityWatermark,
+    LeaseIdentity
+}
+
+/// <summary>Per-operation provider repository owning one subscription transaction.</summary>
+internal sealed class MarketDataServiceTransactionRepository(
+    IDbConnectionSetting connection,
+    ILogger<DbProvider> logger)
+    : ObjectDataRepository<MarketDataServiceTransactionRepository>(connection, logger)
+{
+    public override IObjectRepository Database => this;
 }

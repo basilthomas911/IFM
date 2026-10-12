@@ -3,7 +3,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
@@ -23,93 +22,11 @@ public sealed class FmpQueryOptimizationCollection
 public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
     : IClassFixture<MarketDataFixture>
 {
-    [Fact]
-    public void EconomicCalendarQueriesUseSingleBoundedCanonicalTable()
-    {
-        MarketDataSchemaCql.CreateEconomicCalendarV2Table
-            .Should().Contain("economic_calendar")
-            .And.Contain("PRIMARY KEY ((countryCode, monthBucket), eventDate, eventName)");
-        MarketDataSchemaCql.CreateEconomicCalendarCountryCodeTable
-            .Should().Contain("PRIMARY KEY ((lookupId), countryCode)");
 
-        MarketDataDbCql.GetEconomicCalendarCountryCodes
-            .Should().Contain("economic_calendar_country_code")
-            .And.Contain("LIMIT 512")
-            .And.NotContain("FROM economic_calendar;");
-        MarketDataDbCql.GetEconomicCalendars
-            .Should().Contain("FROM economic_calendar")
-            .And.Contain("countryCode = :countryCode")
-            .And.Contain("monthBucket = :monthBucket")
-            .And.Contain("LIMIT 2501")
-            .And.NotContain("ALLOW FILTERING");
-    }
 
-    [Fact]
-    public void FmpSchemaPersistsSupplementalFieldsAndCalendarRejectsAtCanonicalRow()
-    {
-        MarketDataSchemaCql.CreateEconomicCalendarV2Table
-            .Should().Contain("impact text")
-            .And.Contain("unit text")
-            .And.Contain("change text")
-            .And.Contain("changePercentage text");
-        MarketDataDbCql.InsertEconomicCalendarV2
-            .Should().Contain(":impact")
-            .And.Contain(":changePercentage");
-        MarketDataDbCql.InsertEconomicCalendarV2IfNotExists
-            .Should().Contain("IF NOT EXISTS")
-            .And.Contain("economic_calendar");
-        MarketDataSchemaCql.CreateMarketDataImportOwnershipTable
-            .Should().Contain("PRIMARY KEY ((dataset, logicalKey))");
-        MarketDataDbCql.ClaimMarketDataImportOwnership
-            .Should().Contain("IF NOT EXISTS")
-            .And.NotContain("ALLOW FILTERING");
-        MarketDataDbCql.GetMarketDataImportOwnership
-            .Should().Contain("dataset = :dataset AND logicalKey = :logicalKey")
-            .And.NotContain("ALLOW FILTERING");
-    }
 
-    [Fact]
-    public void AuxiliarySchemaAndQueriesUseAuthoritativeUnversionedTableNames()
-    {
-        string[] schemaDefinitions =
-        [
-            MarketDataSchemaCql.CreateMarketDataImportOwnershipTable,
-            MarketDataSchemaCql.CreateEconomicCalendarCountryCodeTable,
-            MarketDataSchemaCql.CreateFuturesItiTimeFrameStateTable,
-            MarketDataSchemaCql.CreateYieldCurveRateYearTable,
-            MarketDataSchemaCql.CreateYieldCurveRateByDateTable
-        ];
-        string[] queryDefinitions =
-        [
-            MarketDataDbCql.ClaimMarketDataImportOwnership,
-            MarketDataDbCql.GetMarketDataImportOwnership,
-            MarketDataDbCql.InsertEconomicCalendarCountryCode,
-            MarketDataDbCql.GetEconomicCalendarCountryCodes,
-            MarketDataDbCql.GetEconomicCalendarCountryCodeAll,
-            MarketDataDbCql.UpsertFuturesItiTimeFrameState,
-            MarketDataDbCql.GetFuturesItiTimeFrameState,
-            MarketDataDbCql.DeleteFuturesItiTimeFrameState,
-            MarketDataDbCql.InsertYieldCurveRateByDate,
-            MarketDataDbCql.DeleteYieldCurveRateByDate,
-            MarketDataDbCql.GetYieldCurveRate,
-            MarketDataDbCql.GetLastYieldCurveRate,
-            MarketDataDbCql.GetYieldCurveRates,
-            MarketDataDbCql.InsertYieldCurveRateYear,
-            MarketDataDbCql.GetYieldCurveRateYears,
-            MarketDataDbCql.GetYieldCurveRateYearAll,
-            MarketDataDbCql.GetYieldCurveRateByDateAll,
-            MarketDataDbCql.TruncateYieldCurveRateByDate,
-            MarketDataDbCql.TruncateYieldCurveRateYear
-        ];
 
-        schemaDefinitions.Should().OnlyContain(static cql => !cql.Contains("_v1", StringComparison.Ordinal));
-        queryDefinitions.Should().OnlyContain(static cql => !cql.Contains("_v1", StringComparison.Ordinal));
-        schemaDefinitions.Should().Contain(cql => cql.Contains("market_data_import_ownership", StringComparison.Ordinal));
-        schemaDefinitions.Should().Contain(cql => cql.Contains("economic_calendar_country_code", StringComparison.Ordinal));
-        schemaDefinitions.Should().Contain(cql => cql.Contains("futures_iti_timeframe_state", StringComparison.Ordinal));
-        schemaDefinitions.Should().Contain(cql => cql.Contains("yield_curve_rate_year", StringComparison.Ordinal));
-        schemaDefinitions.Should().Contain(cql => cql.Contains("yield_curve_rate_by_date", StringComparison.Ordinal));
-    }
+
 
     [Fact]
     public async Task EconomicCalendarRangeRejectsUnboundedMonthFanOut()
@@ -169,28 +86,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
         afterDelete.Items.Should().NotContain(row => row.Id == calendar.Id);
     }
 
-    [Fact]
-    public void YieldCurveQueriesUseOrderedAndDistinctBoundedShapes()
-    {
-        MarketDataSchemaCql.CreateYieldCurveRateTable
-            .Should().Contain("PRIMARY KEY ((id), valueDate)")
-            .And.Contain("CLUSTERING ORDER BY (valueDate DESC)");
-        MarketDataSchemaCql.CreateYieldCurveRateYearTable
-            .Should().Contain("PRIMARY KEY ((lookupId), rateYear)");
-        MarketDataSchemaCql.CreateYieldCurveRateByDateTable
-            .Should().Contain("PRIMARY KEY ((lookupId), valueDate)")
-            .And.Contain("CLUSTERING ORDER BY (valueDate DESC)");
 
-        MarketDataDbCql.GetLastYieldCurveRate
-            .Should().Contain("yield_curve_rate_by_date")
-            .And.Contain("WHERE lookupId = 1 LIMIT 1");
-        MarketDataDbCql.GetYieldCurveRates
-            .Should().Contain("LIMIT 5000");
-        MarketDataDbCql.GetYieldCurveRateYears
-            .Should().Contain("yield_curve_rate_year")
-            .And.Contain("LIMIT 200")
-            .And.NotContain("yield_curve_rates");
-    }
 
     [Fact]
     public async Task YieldCurveRangeRejectsUnboundedMaterialization()

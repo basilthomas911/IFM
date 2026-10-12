@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Shared.EventProjector;

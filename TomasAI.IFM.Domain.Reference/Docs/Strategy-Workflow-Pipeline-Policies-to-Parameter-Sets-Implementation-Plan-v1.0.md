@@ -286,7 +286,7 @@ Retire after cutover:
 
 ### 10.1 Generic authority
 
-Extend `ParameterRegistrySchemaSql` with the four missing Strategy Workflow components and immutable schema versions. Keep SQL constants and migrations under `Application.Storage/ConfigurationDb/ParameterSets`.
+Extend `ConfigurationSchemaSql.ParameterRegistry` with the four missing Strategy Workflow components and immutable schema versions. Keep schema SQL under `Application.Storage/ConfigurationDb/Schema/ConfigurationSchemaSql.cs`.
 
 Add indexes required for bounded startup loading and UI queries:
 

@@ -9,33 +9,13 @@ public sealed class RiskHistoryJournal(IPostgresEventTransaction transactions)
 {
     public const string HistoryProjection = "risk-history-v1";
     public const string FundOutcomeProjection = "risk-fund-outcomes-v1";
-    public const string CreateTables = """
-        CREATE TABLE IF NOT EXISTS risk_history_projection_progress (
-          projection_name text PRIMARY KEY,
-          after_event_version bigint NOT NULL CHECK(after_event_version>=0));
-        CREATE TABLE IF NOT EXISTS risk_history_projection_receipt (
-          projection_name text NOT NULL,
-          event_id bigint NOT NULL,
-          projected_at_utc timestamptz NOT NULL DEFAULT now(),
-          PRIMARY KEY(projection_name,event_id));
-        CREATE TABLE IF NOT EXISTS risk_history_projection_issue (
-          projection_name text NOT NULL,
-          event_id bigint NOT NULL,
-          workflow_id uuid NOT NULL,
-          invocation_id uuid NOT NULL,
-          source_revision bigint NOT NULL,
-          issue_code text NOT NULL,
-          stored_hash text NOT NULL,
-          incoming_hash text NOT NULL,
-          detected_at_utc timestamptz NOT NULL DEFAULT now(),
-          PRIMARY KEY(projection_name,event_id));
-        """;
+
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<long> LoadCursorAsync(CancellationToken token = default, string projectionName = HistoryProjection)
         => transactions.ExecuteAsync(async (db, ct) =>
         {
-            await (db.ExecuteAsync(CreateTables, [], ct)).ConfigureAwait(false);
+            await (db.ExecuteAsync(Schema.EventSourceSchemaSql.CreateRiskHistoryJournal, [], ct)).ConfigureAwait(false);
             var value = await (db.ScalarAsync("SELECT after_event_version FROM risk_history_projection_progress WHERE projection_name=$1;", [projectionName], ct)).ConfigureAwait(false);
             var cursor = value is null ? 0 : Convert.ToInt64(value,System.Globalization.CultureInfo.InvariantCulture);
             // Compatible migration: the old cursor proves these events were previously projected.

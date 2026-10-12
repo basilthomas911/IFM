@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
@@ -27,6 +28,7 @@ public sealed class MarketDataServicePostgresCollection : ICollectionFixture<Mar
 
 public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
 {
+    IsolatedIntegrationInfrastructure? _infrastructure;
     const string ConnectionVariable = "IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION";
     public MarketDataServiceDbContext Store { get; private set; } = null!;
     public IReadOnlyDictionary<string, FuturesContractV3ReadModel> Sources { get; private set; } = null!;
@@ -35,8 +37,14 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable)
-            ?? throw new InvalidOperationException($"Set {ConnectionVariable} to the dedicated PostgreSQL integration-test database.");
+        var connectionString = Environment.GetEnvironmentVariable(ConnectionVariable);
+        if (connectionString is null)
+        {
+            _infrastructure = new IsolatedIntegrationInfrastructure("marketdataservice");
+            await _infrastructure.StartAsync();
+            connectionString = _infrastructure.PostgresConnectionString;
+        }
+        else Stage4DurableIntentPostgresFixture.ValidateDedicatedConnection(connectionString);
         _previousEnvironment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
         Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Test");
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -66,7 +74,11 @@ public sealed class MarketDataServicePostgresFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         try { await CleanupAsync(); }
-        finally { Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", _previousEnvironment); }
+        finally
+        {
+            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", _previousEnvironment);
+            if (_infrastructure is not null) await _infrastructure.DisposeAsync();
+        }
     }
 
     async Task CleanupAsync()

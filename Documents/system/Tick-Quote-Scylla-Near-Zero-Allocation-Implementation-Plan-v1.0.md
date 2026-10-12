@@ -166,7 +166,7 @@ Run from `TomasAI.IFM.Application.Actor.IntegrationTests` after a Release build 
 - `TomasAI.IFM.Application.Storage/MarketDataDb/TickAggregationStorage.cs`
 - `TomasAI.IFM.Framework.Storage/ScyllaDb/ScyllaDbObjectDataRepositoryProvider.cs`
 - `TomasAI.IFM.Domain.MarketData.Feed.Shared/TickAggregation/TickAggregationContracts.cs`
-- `TomasAI.IFM.Application.Storage/MarketDataDb/Schema/MarketDataSchemaCql.cs`
+- `TomasAI.IFM.Application.Storage/TradeTickQuoteDb/Schema/TradeTickQuoteSchemaCql.cs`
 - `TomasAI.IFM.Application.Storage.IntegrationTests/MarketDataDb/TickAggregationStorageTests.cs`
 - `TomasAI.IFM.Framework.Messaging.Nats/Docs/MessagePack-NATS-Allocation-Optimization-Implementation-Plan-v1.0.md`
 - [Scylla C# driver UDT mapping](https://csharp-driver.docs.scylladb.com/stable/features/udts/index.html)

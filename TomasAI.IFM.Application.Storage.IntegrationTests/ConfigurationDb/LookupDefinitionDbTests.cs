@@ -37,7 +37,7 @@ public sealed class LookupDefinitionDbTests(MarketConditionConfigurationDbFixtur
         var original = (await context.GetLookupDefinitionsAsync(LookupDefinitionGroups.AssetTypes)).Single(x => x.InternalValue == "Futures");
         await using (var change = new NpgsqlCommand("UPDATE reference_configuration.lookup_definition SET display_name='Configured label',is_enabled=false WHERE group_name='AssetTypes' AND internal_value='Futures'", connection, tx))
             await change.ExecuteNonQueryAsync();
-        await using (var seed = new NpgsqlCommand(LookupDefinitionSchemaSql.Create, connection, tx)) await seed.ExecuteNonQueryAsync();
+        await using (var seed = new NpgsqlCommand(ConfigurationSchemaSql.Lookups.Create, connection, tx)) await seed.ExecuteNonQueryAsync();
         await using (var query = new NpgsqlCommand("SELECT id,display_name,is_enabled FROM reference_configuration.lookup_definition WHERE group_name='AssetTypes' AND internal_value='Futures'", connection, tx))
         await using (var reader = await query.ExecuteReaderAsync())
         {

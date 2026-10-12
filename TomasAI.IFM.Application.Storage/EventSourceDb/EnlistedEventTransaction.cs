@@ -1,16 +1,13 @@
-using System.Diagnostics;
+
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
-using System.Data;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using Npgsql;
 using NpgsqlTypes;
-using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Storage;
+
+
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 

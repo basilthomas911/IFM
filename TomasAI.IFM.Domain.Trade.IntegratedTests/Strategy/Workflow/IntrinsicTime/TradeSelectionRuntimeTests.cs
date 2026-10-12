@@ -17,7 +17,7 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Reflection;

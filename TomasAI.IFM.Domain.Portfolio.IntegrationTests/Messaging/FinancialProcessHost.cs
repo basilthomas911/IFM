@@ -35,7 +35,7 @@ internal static class FinancialProcessHost
             var fixture = new PortfolioEventStoreFixture(false);
             var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
             context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
-            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(fixture.EventSourceDb);
+            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
             var supervisor = Substitute.For<IActorSupervisor>(); supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
             supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
             var sequences = Substitute.For<ISequenceIdGenerator>(); sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())

@@ -192,7 +192,7 @@ public sealed partial class TradeSelectionRuntimeTests
             };
             var db = host.Services.GetRequiredService<IEventSourceActorDbContext>();
             await db.SaveEventsAsync(command.StreamId, seed.CommandId, new DomainEventCollection([seed]), 0, CancellationToken.None);
-            (await ((ICommandAuditLogger)db).TryReserveAsync(command)).Accepted.Should().BeTrue();
+            (await (new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(db)).TryReserveAsync(command)).Accepted.Should().BeTrue();
             var reply = await producer.RequestAsync<PrepareRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId, GuidResult>(command.Subject, command, command.EntityId);
             reply.Success.Should().BeTrue(reply.ErrorMessage);
             var container = host.Services.GetRequiredService<SimpleInjector.Container>();

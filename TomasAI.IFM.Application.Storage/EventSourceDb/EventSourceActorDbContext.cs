@@ -1,19 +1,15 @@
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.Storage.EventSourceDb.CommandDeduplication;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.Exceptions;
-using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -28,26 +24,15 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// Utility mapping methods convert data records to strongly-typed view models, and transactional save operations
 /// ensure consistency.
 /// </remarks>
-/// <param name="connectionSettings">Application database connection settings.</param>
-/// <param name="dbFactory">Factory providing access to event-source repository contexts.</param>
-/// <param name="blackboardService">Blackboard service for cached ID resolution and lookups.</param>
-/// <param name="logger">Logger for database provider diagnostics.</param>
 public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSourceActorDbContext>,
       IEventSourceActorDbContext,
-      ICommandAuditLogger,
       IDisposable,
       IAsyncDisposable
 {
     internal readonly IBlackboardService _blackboardService;
     internal readonly IDbContextFactory _dbFactory;
     internal readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new(StringComparer.Ordinal);
-    internal readonly ConcurrentDictionary<Guid, Lazy<Task<bool>>> _legacyCommandReservations = new();
     internal readonly ConcurrentDictionary<string, AtomicPreparationLane> _atomicPreparationLanes = new(StringComparer.Ordinal);
-    readonly ILogger _diagnosticLogger;
-    internal readonly Lazy<CommandDuplicateCoordinator> _commandDuplicates = new(
-        static () => new CommandDuplicateCoordinator(
-            CommandDuplicateCoordinator.ReadConfiguredCapacity()),
-        LazyThreadSafetyMode.ExecutionAndPublication);
     internal readonly CommandAuditPersistenceOptions _commandAuditOptions;
     internal readonly CommandAuditMessagePackCodec _commandAuditCodec = new();
     internal readonly Lazy<ICommandAuditWriter> _commandAuditWriter;
@@ -55,6 +40,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     internal readonly Lazy<IEventLogAppender> _atomicCommandEventAppender;
     internal readonly EventLogSqlLayout _eventLogSqlLayout;
 
+    /// <summary>Initializes the actor event-source context and its configured persistence writers.</summary>
+    /// <param name="connectionSettings">Application database connection settings.</param>
+    /// <param name="dbFactory">Factory providing access to event-source repository contexts.</param>
+    /// <param name="blackboardService">Blackboard service for cached ID resolution and lookups.</param>
+    /// <param name="logger">Logger for database provider diagnostics.</param>
+    /// <param name="eventLogPersistenceOptions">The event log persistence configuration.</param>
+    /// <param name="commandAuditPersistenceOptions">The command audit persistence configuration.</param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "The database provider owns this injected logger; retain its category and constructor contract while the context supplies structured component names.")]
     public EventSourceActorDbContext(
         IDbConnectionSettings connectionSettings,
@@ -63,11 +55,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         ILogger<DbProvider> logger,
         EventLogPersistenceOptions? eventLogPersistenceOptions = null,
         CommandAuditPersistenceOptions? commandAuditPersistenceOptions = null)
-        : base((connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings)))[EventSourceActorDbConnection], logger)
+        : base(connectionSettings[EventSourceActorDbConnection], logger)
     {
-        _diagnosticLogger = logger;
-        _blackboardService = IsArgumentNull.Set(blackboardService);
-        _dbFactory = IsArgumentNull.Set(dbFactory);
+        _blackboardService = blackboardService;
+        _dbFactory = dbFactory;
         var eventOptions = (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate();
         _eventLogSqlLayout = EventLogSqlLayout.ForProduction(eventOptions);
         _commandAuditOptions = (commandAuditPersistenceOptions ?? new CommandAuditPersistenceOptions()).Validate();
@@ -96,8 +87,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         var connection = connectionSettings[EventSourceActorDbConnection].ConnectionString;
         var layout = EventLogSqlLayout.ForBenchmark(connection, benchmarkBatchProjectionMarkers);
         options.Validate();
-        if (options.WriteMode != EventLogWriteMode.BinaryCopy)
-            throw new ArgumentException("Actor qualification requires the binary-copy writer.", nameof(options));
+        this.ValidateQualificationWriter(options);
         _eventLogAppender = new(() => new BinaryCopyEventLogAppender(
             connection, options.UseLz4Compression, options, layout));
         _atomicCommandEventAppender = new(() => new BinaryCopyEventLogAppender(
@@ -132,6 +122,14 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// </summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1707", Justification = "Preserve the established public storage/serialized schema contract and identifiers consumed by callers.")]
     public const string ERR_EventDbContext_SaveEventsAsync = "EventSourceActorDbContext: Unable to execute SaveEventsAsync";
+
+    /// <summary>Attempts the durable command audit insertion using the supplied encoded facts.</summary>
+    /// <param name="envelope">The command audit identity and provider payload.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>True if this request inserted the command audit; false if it already exists.</returns>
+    public async ValueTask<bool> TryInsertCommandAuditAsync(CommandAuditEnvelope envelope, CancellationToken cancellationToken = default)
+        => (await _commandAuditWriter.Value.ReserveAsync(envelope, cancellationToken).ConfigureAwait(false)).Accepted;
+
 
     /// <summary>
     /// Maps ordinal data from an <see cref="IObjectDataRecord"/> to a <see cref="CommandLogReadModel"/> instance.
@@ -201,6 +199,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <summary>
     /// Maps durable projection state from the event-source database.
     /// </summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorStateReadModel MapToEventProjectorState(
         IObjectDataRecord o)
         => new(
@@ -215,10 +215,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             createdTimestamp: o.GetDateTime(8),
             updatedTimestamp: o.GetDateTime(9));
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorExecutionStateReadModel MapToEventProjectorExecutionState(
         IObjectDataRecord o)
         => MapToEventProjectorExecutionState(o, 0);
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <param name="offset">The offset used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorExecutionStateReadModel MapToEventProjectorExecutionState(
         IObjectDataRecord o,
         int offset)
@@ -247,6 +254,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             BlockedStage: o.GetEnum<EventProjectorStageType>(offset + 21),
             StreamVersion: o.GetLong(offset + 22));
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorRecoveryItemReadModel MapToEventProjectorRecoveryItem(
         IObjectDataRecord o)
         => new(
@@ -261,6 +271,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 StreamVersion: o.GetLong(7)),
             State: MapToEventProjectorExecutionState(o, 8));
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorStreamCheckpointReadModel MapToEventProjectorStreamCheckpoint(
         IObjectDataRecord o)
         => new(
@@ -271,6 +284,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             Revision: o.GetLong(4),
             UpdatedAtUtc: o.GetDateTime(5));
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorOutboxReadModel MapToEventProjectorOutbox(IObjectDataRecord o)
         => new(
             ProjectorName: o.GetString(0),
@@ -288,6 +304,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             DispatchToken: o.GetGuid(12),
             DispatchLeaseExpiresAtUtc: o.GetDateTime(13));
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static EventProjectorOperationalSnapshotReadModel MapToEventProjectorOperationalSnapshot(
         IObjectDataRecord o)
         => new(
@@ -314,8 +333,16 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             StreamVersion = o.GetLong(7)
         };
 
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static long MapToLong<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetLong(0);
+    /// <summary>Maps selected event-store columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the event-source operation.</returns>
     internal static int MapToInt<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => e.GetInt(0);
 
@@ -328,18 +355,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier  of the
     /// specified event stream as a <see langword="long"/>.</returns>
     public async Task<long> GetEventStreamIdAsync(string eventStream)
-        => await GetEventStreamIdAsync(eventStream, CancellationToken.None).ConfigureAwait(false);
+        => await GetEventStreamIdAsync(eventStream, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Get Event Stream Id using the event-source persistence services.</summary>
+    /// <param name="eventStream">The event stream name.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<long> GetEventStreamIdAsync(string eventStream, CancellationToken cancellationToken)
     {
-        var pending = _blackboardService.EventSourcing.EventStreamId.GetAsync(eventStream, InsertEntityTypeAsync);
-        return (await pending.AsTask().WaitAsync(cancellationToken).ConfigureAwait(false)).EventStreamId;
-
-        async Task<EventStreamIdReadModel> InsertEntityTypeAsync(string eventStream)
-        {
-            var eventStreamId = await this.InsertEventStreamAsync(eventStream, cancellationToken).ConfigureAwait(false);
-            return new EventStreamIdReadModel(eventStreamId, eventStream);
-        }
+        return await this.ResolveEventStreamIdAsync(eventStream, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -355,8 +381,15 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A <see cref="DomainEventCollection"/> containing the saved domain events, including their updated identifiers.</returns>
     /// <exception cref="StorageException">Thrown if a storage-related error occurs during the operation.</exception>
     public async Task<DomainEventCollection> SaveEventsAsync(string eventStream, Guid commandId, DomainEventCollection domainEvents)
-        => await SaveEventsAsync(eventStream, commandId, domainEvents, CancellationToken.None).ConfigureAwait(false);
+        => await SaveEventsAsync(eventStream, commandId, domainEvents, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Appends ordered domain events and assigns their committed event and stream versions.</summary>
+    /// <param name="eventStream">The event stream name.</param>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="domainEvents">The ordered events to persist.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<DomainEventCollection> SaveEventsAsync(
         string eventStream,
         Guid commandId,
@@ -364,18 +397,21 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         CancellationToken cancellationToken)
     {
         this.ValidateRequiredArgument(domainEvents, nameof(domainEvents));
-        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
+        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken)
+            .ConfigureAwait(false);
         var entries = new List<EventLogAppendEntry>(domainEvents.Count);
         foreach (var e in domainEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var eventNameId = await GetEventNameIdFromDomainEventAsync(e, cancellationToken).ConfigureAwait(false);
+            var eventNameId = await GetEventNameIdFromDomainEventAsync(e, cancellationToken)
+            .ConfigureAwait(false);
             entries.Add(new EventLogAppendEntry(eventNameId, e));
         }
         try
         {
             var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
-                eventStream, streamId, commandId, entries, null, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+                eventStream, streamId, commandId, entries, null, DateTime.UtcNow), cancellationToken)
+            .ConfigureAwait(false);
             return this.ApplyAssignments(domainEvents, result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -389,6 +425,12 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     }
 
     /// <summary>Saves one atomic event batch using optimistic stream-version concurrency.</summary>
+    /// <param name="eventStream">The event stream name.</param>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="domainEvents">The ordered events to persist.</param>
+    /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<DomainEventCollection> SaveEventsAsync(
         string eventStream,
         Guid commandId,
@@ -399,19 +441,22 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         this.ValidateRequiredArgument(domainEvents, nameof(domainEvents));
         this.ValidateNonnegativeArgument(expectedStreamVersion, nameof(expectedStreamVersion));
 
-        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
+        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken)
+            .ConfigureAwait(false);
         var entries = new List<EventLogAppendEntry>(domainEvents.Count);
         foreach (var domainEvent in domainEvents)
         {
             cancellationToken.ThrowIfCancellationRequested();
             entries.Add(new EventLogAppendEntry(
-                await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken).ConfigureAwait(false),
+                await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken)
+            .ConfigureAwait(false),
                 domainEvent));
         }
         try
         {
             var result = await _eventLogAppender.Value.AppendAsync(new EventLogAppendRequest(
-                eventStream, streamId, commandId, entries, expectedStreamVersion, DateTime.UtcNow), cancellationToken).ConfigureAwait(false);
+                eventStream, streamId, commandId, entries, expectedStreamVersion, DateTime.UtcNow), cancellationToken)
+            .ConfigureAwait(false);
             return this.ApplyAssignments(domainEvents, result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -421,6 +466,12 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         finally { /* Repository disposal belongs to the owning context. */ }
     }
 
+    /// <summary>Commits command audit and its domain events in one PostgreSQL transaction.</summary>
+    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="domainEvents">The ordered events to persist.</param>
+    /// <param name="expectedStreamVersion">The committed stream version required for optimistic concurrency.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public Task<DomainEventCollection> SaveCommandEventsAtomicallyAsync(
         ICommand command,
         DomainEventCollection domainEvents,
@@ -430,18 +481,23 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         this.ValidateRequiredArgument(command, nameof(command));
         this.ValidateRequiredArgument(domainEvents, nameof(domainEvents));
         this.ValidateNonnegativeArgument(expectedStreamVersion, nameof(expectedStreamVersion));
-        return this.SaveCommandEventsDeduplicatedAsync(
+        return this.SaveCommandEventsCoreAsync(
             command, domainEvents, expectedStreamVersion, cancellationToken);
     }
 
+    /// <summary>Releases event-store persistence writers during host shutdown.</summary>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask DisposeAsync()
     {
         if (_commandAuditWriter.IsValueCreated)
-            await _commandAuditWriter.Value.DisposeAsync().ConfigureAwait(false);
+            await _commandAuditWriter.Value.DisposeAsync()
+            .ConfigureAwait(false);
         if (_eventLogAppender.IsValueCreated)
-            await _eventLogAppender.Value.DisposeAsync().ConfigureAwait(false);
+            await _eventLogAppender.Value.DisposeAsync()
+            .ConfigureAwait(false);
         if (_atomicCommandEventAppender.IsValueCreated)
-            await _atomicCommandEventAppender.Value.DisposeAsync().ConfigureAwait(false);
+            await _atomicCommandEventAppender.Value.DisposeAsync()
+            .ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
 
@@ -451,30 +507,34 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// </summary>
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
+    /// <summary>Insert Command Log using the event-source persistence services.</summary>
+    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="commandTimestamp">The command audit timestamp.</param>
+    /// <param name="commandData">The serialized command audit payload.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData)
         => InsertCommandLogAsync(command, commandTimestamp, commandData, CancellationToken.None);
 
-    public Task InsertCommandLogAsync(
+    /// <summary>Insert Command Log using the event-source persistence services.</summary>
+    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="commandTimestamp">The command audit timestamp.</param>
+    /// <param name="commandData">The serialized command audit payload.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task InsertCommandLogAsync(
         ICommand command,
         DateTime commandTimestamp,
         string commandData,
         CancellationToken cancellationToken)
     {
-        this.ValidateRequiredArgument(command, nameof(command));
-        this.ValidateTextArgument(commandData, nameof(commandData));
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var candidate = new Lazy<Task<bool>>(
-            () => TryInsertCommandLogAsync(
-                command,
-                commandTimestamp,
-                commandData,
-                cancellationToken),
-            LazyThreadSafetyMode.ExecutionAndPublication);
-        var reservation = _legacyCommandReservations.GetOrAdd(command.CommandId, candidate);
-        return this.ObserveLegacyReservationAsync(command.CommandId, reservation);
+        _ = await TryInsertCommandLogAsync(command, commandTimestamp, commandData, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Try Insert Command Log using the event-source persistence services.</summary>
+    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="commandTimestamp">The command audit timestamp.</param>
+    /// <param name="commandData">The serialized command audit payload.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> TryInsertCommandLogAsync(
         ICommand command,
         DateTime commandTimestamp,
@@ -486,52 +546,34 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 CancellationToken.None)
             .ConfigureAwait(false);
 
+    /// <summary>Try Insert Command Log using the event-source persistence services.</summary>
+    /// <param name="command">The command being audited or committed.</param>
+    /// <param name="commandTimestamp">The command audit timestamp.</param>
+    /// <param name="commandData">The serialized command audit payload.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> TryInsertCommandLogAsync(
         ICommand command,
         DateTime commandTimestamp,
         string commandData,
         CancellationToken cancellationToken)
     {
-        this.ValidateRequiredArgument(command, nameof(command));
-        this.ValidateTextArgument(commandData, nameof(commandData));
-
-        return await _commandDuplicates.Value.TryAcceptAsync(
-                command.CommandId,
-                token => this.InsertCommandLogCoreAsync(command, commandTimestamp, commandData, token),
-                cancellationToken)
-            .ConfigureAwait(false);
+        return await this.InsertCommandLogCoreAsync(command, commandTimestamp, commandData, cancellationToken).ConfigureAwait(false);
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2139", Justification = "Log persistence failure with its request identity before preserving the original exception for the caller transaction boundary.")]
-    public async ValueTask<CommandAuditReservation> TryReserveAsync(ICommand command, CancellationToken cancellationToken = default)
-    {
-        this.ValidateRequiredArgument(command, nameof(command));
-        var started = System.Diagnostics.Stopwatch.GetTimestamp();
-        try
-        {
-            var result = await this.TryReserveCoreAsync(command, cancellationToken).ConfigureAwait(false);
-            var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            if (elapsed >= 250 && _diagnosticLogger.IsEnabled(LogLevel.Information))
-            {
-                object subject = command.Subject;
-                StorageDiagnosticLog.SlowReservation(_diagnosticLogger,
-                    nameof(EventSourceActorDbContext), nameof(TryReserveAsync), command.CommandId, subject, elapsed);
-            }
-            return result;
-        }
-        catch (CommandAuditPayloadConflictException exception)
-        {
-            StorageDiagnosticLog.ReservationConflict(_diagnosticLogger, exception,
-                nameof(EventSourceActorDbContext), nameof(TryReserveAsync), command.CommandId, command.Subject, _commandAuditOptions.WriteMode);
-            throw;
-        }
-    }
-
+    /// <summary>Insert Event Projector State using the event-source persistence services.</summary>
+    /// <param name="state">The projector state to persist.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
-        => await InsertEventProjectorStateAsync(state, CancellationToken.None).ConfigureAwait(false);
+        => await InsertEventProjectorStateAsync(state, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Insert Event Projector State using the event-source persistence services.</summary>
+    /// <param name="state">The projector state to persist.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
@@ -563,14 +605,23 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <summary>
     /// Gets durable projection state for one event and one projector.
     /// </summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
         long eventId,
         string projectorName)
         => await GetEventProjectorStateAsync(
             eventId,
             projectorName,
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Get Event Projector State using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorStateReadModel?> GetEventProjectorStateAsync(
         long eventId,
         string projectorName,
@@ -584,6 +635,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Event Log By Event Id using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventLogReadModel?> GetEventLogByEventIdAsync(
         long eventId,
         CancellationToken cancellationToken = default)
@@ -596,6 +651,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Create Event Projector Execution State using the event-source persistence services.</summary>
+    /// <param name="state">The projector state to persist.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S3236", Justification = "The validated member belongs to this public input argument; explicitly report its root parameter rather than exposing a member expression as the parameter name.")]
     public async Task<EventProjectorExecutionStateReadModel?> TryCreateEventProjectorExecutionStateAsync(
         EventProjectorExecutionStateReadModel state,
@@ -631,6 +690,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Event Projector Execution State using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> GetEventProjectorExecutionStateAsync(
         long eventId,
         string projectorName,
@@ -646,6 +710,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Event Projector Stream Checkpoint using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorStreamCheckpointReadModel?> GetEventProjectorStreamCheckpointAsync(
         string projectorName,
         long eventStreamId,
@@ -662,6 +731,14 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Claim Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="executionToken">The token identifying the current execution lease owner.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="leaseDuration">The requested lease duration.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryClaimEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -689,6 +766,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Has Earlier Unresolved Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> HasEarlierUnresolvedEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -702,6 +784,15 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Renew Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="executionToken">The token identifying the current execution lease owner.</param>
+    /// <param name="expectedRevision">The expected revision used by this operation.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="leaseDuration">The requested lease duration.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryRenewEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -732,16 +823,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Release Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryReleaseEventProjectorExecutionAsync(
         EventProjectorStateTransition transition,
         DateTime nowUtc,
         CancellationToken cancellationToken = default)
     {
-        this.ValidateTransition(transition, terminal: false);
-        if (transition.Outcome != EventProjectorOutcomeType.Retrying)
-            throw new ArgumentOutOfRangeException(nameof(transition), "A released execution must be retryable.");
-        if (!transition.NextAttemptAtUtc.HasValue || !transition.LastErrorAtUtc.HasValue)
-            throw new ArgumentException("A released execution requires retry and error timestamps.", nameof(transition));
+        this.ValidateReleaseTransition(transition);
         nowUtc = this.RequireUtc(nowUtc, nameof(nowUtc));
         return await _dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryReleaseEventProjectorExecution)}", EventSourceDbSql.TryReleaseEventProjectorExecution)
@@ -764,6 +856,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Transition Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionAsync(
         EventProjectorStateTransition transition,
         DateTime nowUtc,
@@ -796,6 +893,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Terminalize Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionAsync(
         EventProjectorStateTransition transition,
         DateTime nowUtc,
@@ -826,6 +928,12 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Transition Event Projector Execution With Outbox using the event-source persistence services.</summary>
+    /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+    /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryTransitionEventProjectorExecutionWithOutboxAsync(
         EventProjectorStateTransition transition,
         EventProjectorOutboxMessage message,
@@ -865,6 +973,12 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Terminalize Event Projector Execution With Outbox using the event-source persistence services.</summary>
+    /// <param name="transition">The requested revision and lease-qualified projector transition.</param>
+    /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryTerminalizeEventProjectorExecutionWithOutboxAsync(
         EventProjectorStateTransition transition,
         EventProjectorOutboxMessage message,
@@ -902,6 +1016,14 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Claim Event Projector Outbox using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="dispatchToken">The token identifying the current outbox lease owner.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="leaseDuration">The requested lease duration.</param>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<IReadOnlyList<EventProjectorOutboxReadModel>> ClaimEventProjectorOutboxAsync(
         string projectorName,
         Guid dispatchToken,
@@ -912,8 +1034,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         this.ValidateTextArgument(projectorName, nameof(projectorName));
         this.ValidateExecutionToken(dispatchToken);
-        if (batchSize is < 1 or > 2_048)
-            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        this.ValidateBatchSize(batchSize);
         nowUtc = this.RequireUtc(nowUtc, nameof(nowUtc));
         var leaseExpiresAtUtc = this.GetLeaseExpiry(nowUtc, leaseDuration);
         return [.. await _dbFactory.ActorEventSourceDb
@@ -928,6 +1049,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false)];
     }
 
+    /// <summary>Mark Event Projector Outbox Published using the event-source persistence services.</summary>
+    /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> MarkEventProjectorOutboxPublishedAsync(
         EventProjectorOutboxReadModel message,
         DateTime nowUtc,
@@ -944,10 +1070,19 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 message.DispatchToken,
                 nowUtc,
                 nowUtc))
-            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
         return affected.Sum() == 1;
     }
 
+    /// <summary>Release Event Projector Outbox using the event-source persistence services.</summary>
+    /// <param name="message">The persisted outbox message and its dispatch ownership.</param>
+    /// <param name="status">The requested projector or outbox status.</param>
+    /// <param name="nextAttemptAtUtc">The next eligible retry time in UTC.</param>
+    /// <param name="lastError">The diagnostic error from the failed attempt.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> ReleaseEventProjectorOutboxAsync(
         EventProjectorOutboxReadModel message,
         EventProjectorOutboxStatus status,
@@ -957,8 +1092,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         CancellationToken cancellationToken = default)
     {
         this.ValidateRequiredArgument(message, nameof(message));
-        if (status is not EventProjectorOutboxStatus.Retrying and not EventProjectorOutboxStatus.Failed)
-            throw new ArgumentOutOfRangeException(nameof(status));
+        this.ValidateOutboxReleaseStatus(status);
         nowUtc = this.RequireUtc(nowUtc, nameof(nowUtc));
         nextAttemptAtUtc = this.ValidateOptionalUtc(nextAttemptAtUtc, nameof(nextAttemptAtUtc));
         var affected = await _dbFactory.ActorEventSourceDb
@@ -972,10 +1106,18 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 $"{status}",
                 nextAttemptAtUtc,
                 lastError ?? string.Empty))
-            .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
         return affected.Sum() == 1;
     }
 
+    /// <summary>Get Event Projector Operational State Page using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="status">The requested projector or outbox status.</param>
+    /// <param name="afterEventId">The exclusive event identifier page cursor.</param>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<IReadOnlyList<EventProjectorExecutionStateReadModel>> GetEventProjectorOperationalStatePageAsync(
         string projectorName,
         EventProjectorOperationalStatus status,
@@ -984,11 +1126,9 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         CancellationToken cancellationToken = default)
     {
         this.ValidateTextArgument(projectorName, nameof(projectorName));
-        if (!Enum.IsDefined(status))
-            throw new ArgumentOutOfRangeException(nameof(status));
+        this.ValidateOperationalStatus(status);
         this.ValidateNonnegativeArgument(afterEventId, nameof(afterEventId));
-        if (batchSize is < 1 or > 2_048)
-            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        this.ValidateBatchSize(batchSize);
         return [.. await _dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventProjectorOperationalStatePage)}", this.EventLogSql(EventSourceDbSql.GetEventProjectorOperationalStatePage))
             .SetParameters(new GetEventProjectorOperationalStatePage(
@@ -998,6 +1138,11 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false)];
     }
 
+    /// <summary>Get Event Projector Operational Snapshot using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorOperationalSnapshotReadModel> GetEventProjectorOperationalSnapshotAsync(
         string projectorName,
         DateTime nowUtc,
@@ -1015,6 +1160,12 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             ?? new EventProjectorOperationalSnapshotReadModel(0, null, 0, 0, 0, 0, null, 0);
     }
 
+    /// <summary>Try Retry Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TryRetryEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -1032,6 +1183,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Skip Event Projector Execution using the event-source persistence services.</summary>
+    /// <param name="eventId">The source event identifier.</param>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="reason">The operator supplied reason for skipping the event.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventProjectorExecutionStateReadModel?> TrySkipEventProjectorExecutionAsync(
         long eventId,
         string projectorName,
@@ -1040,9 +1198,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         CancellationToken cancellationToken = default)
     {
         this.ValidateProjectorIdentity(eventId, projectorName);
-        this.ValidateTextArgument(reason, nameof(reason));
-        if (reason.Length > 2_000)
-            throw new ArgumentOutOfRangeException(nameof(reason));
+        this.ValidateSkipReason(reason);
         nowUtc = this.RequireUtc(nowUtc, nameof(nowUtc));
         return await _dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TrySkipEventProjectorExecution)}", EventSourceDbSql.TrySkipEventProjectorExecution)
@@ -1053,6 +1209,14 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Event Projector Recovery Page using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="eventNames">The event names to include.</param>
+    /// <param name="afterEventId">The exclusive event identifier page cursor.</param>
+    /// <param name="nowUtc">The current UTC timestamp.</param>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<IReadOnlyList<EventProjectorRecoveryItemReadModel>> GetEventProjectorRecoveryPageAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames,
@@ -1066,8 +1230,7 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         if (eventNames.Count == 0)
             return [];
         this.ValidateNonnegativeArgument(afterEventId, nameof(afterEventId));
-        if (batchSize is < 1 or > 2_048)
-            throw new ArgumentOutOfRangeException(nameof(batchSize));
+        this.ValidateBatchSize(batchSize);
         nowUtc = this.RequireUtc(nowUtc, nameof(nowUtc));
 
         return [.. await _dbFactory.ActorEventSourceDb
@@ -1087,14 +1250,23 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <summary>
     /// Gets event-log entries that the named projector supports and has not terminally processed.
     /// </summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="eventNames">The event names to include.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames)
         => await GetUncompletedEventProjectorEventsAsync(
             projectorName,
             eventNames,
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Get Uncompleted Event Projector Events using the event-source persistence services.</summary>
+    /// <param name="projectorName">The projector identity.</param>
+    /// <param name="eventNames">The event names to include.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<ICollection<EventLogReadModel>> GetUncompletedEventProjectorEventsAsync(
         string projectorName,
         IReadOnlyCollection<string> eventNames,
@@ -1122,8 +1294,15 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <param name="commandStatus">The new status to assign to the command in the log.</param>
     /// <returns>A task that represents the asynchronous update operation.</returns>
     public async Task UpdateCommandLogAsync(Guid commandId, DateTime updateTimestamp, CommandStatus commandStatus)
-        => await UpdateCommandLogAsync(commandId, updateTimestamp, commandStatus, CancellationToken.None).ConfigureAwait(false);
+        => await UpdateCommandLogAsync(commandId, updateTimestamp, commandStatus, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Update Command Log using the event-source persistence services.</summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <param name="updateTimestamp">The command status update timestamp.</param>
+    /// <param name="commandStatus">The new command audit status.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task UpdateCommandLogAsync(
         Guid commandId,
         DateTime updateTimestamp,
@@ -1136,7 +1315,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                     commandStatus: $"{commandStatus}",
                     updateTimestamp: updateTimestamp
                 ))
-                .ExecuteCommandAsync(cancellationToken)).ConfigureAwait(false);
+                .ExecuteCommandAsync(cancellationToken))
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Deletes an event log entry from the database based on the specified event version.
@@ -1149,7 +1329,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventLog)}", this.EventLogSql(EventSourceDbSql.DeleteEventLog))
             .SetParameters(new DeleteEventLog(eventVersion))
-            .ExecuteCommandAsync()).ConfigureAwait(false);
+            .ExecuteCommandAsync())
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Deletes event logs corresponding to the specified event versions asynchronously.
@@ -1163,7 +1344,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     {
         this.ValidateRequiredArgument(eventVersions, nameof(eventVersions));
         foreach (var eventVersion in eventVersions)
-            await (DeleteEventLogAsync(eventVersion)).ConfigureAwait(false);
+            await (DeleteEventLogAsync(eventVersion))
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1175,7 +1357,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventLogByStreamId)}", this.EventLogSql(EventSourceDbSql.DeleteEventLogByStreamId))
             .SetParameters(new DeleteEventLogByStreamId(streamId))
-            .ExecuteCommandAsync()).ConfigureAwait(false);
+            .ExecuteCommandAsync())
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously deletes the event stream with the specified identifier from the data store.
@@ -1186,7 +1369,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.DeleteEventStreamById)}", EventSourceDbSql.DeleteEventStreamById)
             .SetParameters(new DeleteEventStreamById(eventStreamId))
-            .ExecuteCommandAsync()).ConfigureAwait(false);
+            .ExecuteCommandAsync())
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves the command log associated with the specified command ID.
@@ -1200,38 +1384,42 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetCommandLog)}", EventSourceDbSql.GetCommandLog)
             .SetParameters(new GetCommandLog(commandId))
-            .ExecuteSingleAsync<CommandLogReadModel>(MapToCommandLog)).ConfigureAwait(false);
+            .ExecuteSingleAsync<CommandLogReadModel>(MapToCommandLog))
+            .ConfigureAwait(false);
 
+    /// <summary>Has Event For Command using the event-source persistence services.</summary>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<bool> HasEventForCommandAsync(Guid commandId)
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.HasEventForCommand)}", this.EventLogSql(EventSourceDbSql.HasEventForCommand))
             .SetParameters(new GetCommandLog(commandId))
-            .ExecuteScalarAsync(static value => value.GetBool(0))).ConfigureAwait(false);
+            .ExecuteScalarAsync(static value => value.GetBool(0)))
+            .ConfigureAwait(false);
 
-    /// <summary>
-    /// Retrieves the event stream ID from the database based on the specified event stream name.
-    /// </summary>
-    /// <remarks>This method queries the database to retrieve the ID associated with the given event stream
-    /// name. Ensure that the provided <paramref name="eventStream"/> corresponds to a valid entry in the
-    /// database.</remarks>
-    /// <param name="eventStream">The name of the event stream to query. Cannot be null or empty.</param>
-    /// <returns>An <see cref="EventStreamIdReadModel"/> containing the event stream ID if found; otherwise, <see
-    /// langword="null"/>.</returns>
     /// <summary>Reads the last committed source version; filtered state windows do not define stream concurrency.</summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<long> GetCommittedStreamVersionAsync(long eventStreamId, CancellationToken cancellationToken = default)
     {
         this.ValidatePositiveArgument(eventStreamId, nameof(eventStreamId));
         return await Database.Use("EventSource.StreamVersion",
             this.EventLogSql("SELECT COALESCE(MAX(StreamVersion),0) FROM event_log WHERE EventStreamId=$1;"))
             .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-            .ExecuteSingleAsync(static row => row.GetLong(0), cancellationToken).ConfigureAwait(false);
+            .ExecuteSingleAsync(static row => row.GetLong(0), cancellationToken)
+            .ConfigureAwait(false);
     }
 
+    /// <summary>Get Event Stream Id From Db using the event-source persistence services.</summary>
+    /// <param name="eventStream">The event stream name.</param>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<EventStreamIdReadModel?> GetEventStreamIdFromDbAsync(string eventStream)
         => await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventStreamId)}", EventSourceDbSql.GetEventStreamId)
             .SetParameters(new GetEventStreamId(eventStream))
-            .ExecuteSingleAsync<EventStreamIdReadModel>(MapToEventStreamId)).ConfigureAwait(false);
+            .ExecuteSingleAsync<EventStreamIdReadModel>(MapToEventStreamId))
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Retrieves the unique identifier associated with the event name of the specified domain event type.
@@ -1241,10 +1429,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>A task that represents the asynchronous operation. The task result contains the unique identifier for the event
     /// name associated with the specified domain event type.</returns>
     public async Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent) where TEvent : IEvent
-        => await GetEventNameIdFromDomainEventAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
+        => await GetEventNameIdFromDomainEventAsync(domainEvent, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Get Event Name Id From Domain Event using the event-source persistence services.</summary>
+    /// <param name="domainEvent">The domain event used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="TEvent">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the event-source operation.</returns>
     public async Task<int> GetEventNameIdFromDomainEventAsync<TEvent>(TEvent domainEvent, CancellationToken cancellationToken) where TEvent : IEvent
-        => await this.GetEventNameIdFromTypeAsync(domainEvent.GetType(), cancellationToken).ConfigureAwait(false);
+        => await this.GetEventNameIdFromTypeAsync(domainEvent.GetType(), cancellationToken)
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously retrieves a collection of event stream view models from a snapshot for a specified event stream.
@@ -1258,18 +1453,22 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async ValueTask<ICollection<EventStreamReadModel>> GetEventsFromSnapshotAsync<TSnapshot>(long eventStreamId)
         where TSnapshot : IEvent
     {
-        var snapshotEventNameId = await (this.GetEventNameIdFromTypeAsync<TSnapshot>()).ConfigureAwait(false);
+        var snapshotEventNameId = await (this.GetEventNameIdFromTypeAsync<TSnapshot>())
+            .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
             .SetParameters(new GetMaxEventVersion(eventStreamId, snapshotEventNameId))
-            .ExecuteScalarAsync(MapToLong)).ConfigureAwait(false);
+            .ExecuteScalarAsync(MapToLong))
+            .ConfigureAwait(false);
         return maxEventVersion > 0
             ? await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByMaxEventVersion))
                 .SetParameters(new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion))
-                .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream)).ConfigureAwait(false)
+                .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
+            .ConfigureAwait(false)
             : await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream)).ConfigureAwait(false);
+                .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1280,8 +1479,15 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <param name="reducerAction">The action invoked with the mapped <see cref="EventStreamReadModel"/> sequence.</param>
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     public async ValueTask MapReduceActorEventStreamAsync<TState>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction) where TState : IActorState<TState>
-        => await MapReduceActorEventStreamAsync<TState>(eventStreamId, reducerAction, CancellationToken.None).ConfigureAwait(false);
+        => await MapReduceActorEventStreamAsync<TState>(eventStreamId, reducerAction, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Map Reduce Actor Event Stream using the event-source persistence services.</summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="reducerAction">The reducer applied to the loaded stream events.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="TState">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask MapReduceActorEventStreamAsync<TState>(
         long eventStreamId,
         Action<IEnumerable<EventStreamReadModel>> reducerAction,
@@ -1292,7 +1498,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         await (_dbFactory.ActorEventSourceDb
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken)).ConfigureAwait(false);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ConfigureAwait(false);
 
         EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
@@ -1316,8 +1523,17 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(long eventStreamId, int lastNRange, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState>
         where TEvent : IEvent
-        => await MapReduceActorEventStreamAsync<TState, TEvent>(eventStreamId, lastNRange, reducerAction, CancellationToken.None).ConfigureAwait(false);
+        => await MapReduceActorEventStreamAsync<TState, TEvent>(eventStreamId, lastNRange, reducerAction, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Map Reduce Actor Event Stream using the event-source persistence services.</summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="lastNRange">The number of recent matching events to load.</param>
+    /// <param name="reducerAction">The reducer applied to the loaded stream events.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="TState">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TEvent">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask MapReduceActorEventStreamAsync<TState, TEvent>(
         long eventStreamId,
         int lastNRange,
@@ -1326,14 +1542,16 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await this.GetEventNameIdFromTypeAsync<TEvent>(cancellationToken).ConfigureAwait(false);
+        var eventNameId = await this.GetEventNameIdFromTypeAsync<TEvent>(cancellationToken)
+            .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
             .SetParameters(new GetEventLogLastNRangeByEventName(
                 eventStreamId,
                 eventNameId,
                 Math.Max(0, lastNRange)))
-            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken)).ConfigureAwait(false);
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken))
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1347,8 +1565,16 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
         where TState : IActorState<TState>
         where TSnapshot : IEvent
-        => await MapReduceActorEventStreamAsync<TState, TSnapshot>(eventStreamId, reducerAction, CancellationToken.None).ConfigureAwait(false);
+        => await MapReduceActorEventStreamAsync<TState, TSnapshot>(eventStreamId, reducerAction, CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Map Reduce Actor Event Stream using the event-source persistence services.</summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="reducerAction">The reducer applied to the loaded stream events.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="TState">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TSnapshot">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask MapReduceActorEventStreamAsync<TState, TSnapshot>(
         long eventStreamId,
         Action<IEnumerable<EventStreamReadModel>> reducerAction,
@@ -1357,19 +1583,23 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
     {
         var eventStream = new EventStreamReadModel();
-        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken).ConfigureAwait(false);
+        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken)
+            .ConfigureAwait(false);
         var db = _dbFactory.ActorEventSourceDb;
         var maxEventVersion = await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetMaxEventVersion))
             .SetParameters(new GetMaxEventVersion(eventStreamId, snapshotEventNameId))
-            .ExecuteScalarAsync(MapToLong, cancellationToken)).ConfigureAwait(false);
+            .ExecuteScalarAsync(MapToLong, cancellationToken))
+            .ConfigureAwait(false);
         if (maxEventVersion > 0)
             await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByMaxEventVersion)}", this.EventLogSql(EventSourceDbSql.GetEventLogByMaxEventVersion))
                 .SetParameters(new GetEventLogByMaxEventVersion(eventStreamId, maxEventVersion))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken)).ConfigureAwait(false);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ConfigureAwait(false);
         else
             await (db.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogByEventStreamId)}", this.EventLogSql(EventSourceDbSql.GetEventLogByEventStreamId))
                 .SetParameters(new GetEventLogByEventStreamId(eventStreamId))
-                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken)).ConfigureAwait(false);
+                .ExecuteMapReduceAsync(EventStreamMapper, reducerAction, cancellationToken))
+            .ConfigureAwait(false);
 
         EventStreamReadModel EventStreamMapper(IObjectDataRecord o)
         {
@@ -1385,6 +1615,13 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// Replays the latest snapshot followed by the last N matching post-snapshot events.
     /// A missing snapshot produces an empty sequence. Results are streamed in ascending event-version order.
     /// </summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="lastNRange">The number of recent matching events to load.</param>
+    /// <param name="reducerAction">The reducer applied to the loaded stream events.</param>
+    /// <typeparam name="TState">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TSnapshot">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TRangeEvent">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
         long eventStreamId,
         int lastNRange,
@@ -1396,8 +1633,18 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
             eventStreamId,
             lastNRange,
             reducerAction,
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None)
+            .ConfigureAwait(false);
 
+    /// <summary>Map Reduce Actor Event Stream From Snapshot Last NRange using the event-source persistence services.</summary>
+    /// <param name="eventStreamId">The event stream identifier.</param>
+    /// <param name="lastNRange">The number of recent matching events to load.</param>
+    /// <param name="reducerAction">The reducer applied to the loaded stream events.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <typeparam name="TState">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TSnapshot">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <typeparam name="TRangeEvent">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask MapReduceActorEventStreamFromSnapshotLastNRangeAsync<TState, TSnapshot, TRangeEvent>(
         long eventStreamId,
         int lastNRange,
@@ -1407,8 +1654,10 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TSnapshot : IEvent
         where TRangeEvent : IEvent
     {
-        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken).ConfigureAwait(false);
-        var rangeEventNameId = await this.GetEventNameIdFromTypeAsync<TRangeEvent>(cancellationToken).ConfigureAwait(false);
+        var snapshotEventNameId = await this.GetEventNameIdFromTypeAsync<TSnapshot>(cancellationToken)
+            .ConfigureAwait(false);
+        var rangeEventNameId = await this.GetEventNameIdFromTypeAsync<TRangeEvent>(cancellationToken)
+            .ConfigureAwait(false);
         await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogFromSnapshotLastNRange)}", this.EventLogSql(EventSourceDbSql.GetEventLogFromSnapshotLastNRange))
             .SetParameters(new GetEventLogFromSnapshotLastNRange(
@@ -1416,7 +1665,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
                 snapshotEventNameId,
                 rangeEventNameId,
                 Math.Max(0, lastNRange)))
-            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken)).ConfigureAwait(false);
+            .ExecuteMapReduceAsync(MapToEventStream, reducerAction, cancellationToken))
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1427,7 +1677,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     /// <returns>An <see cref="ICollection{T}"/> of <see cref="EventStreamReadModel"/> entries for the stream.</returns>
     public async ValueTask<ICollection<EventStreamReadModel>> LoadActorEventStreamAsync<TState>(long eventStreamId)
         where TState : IActorState<TState>
-            => await (this.GetEventStreamAsync(eventStreamId)).ConfigureAwait(false);
+            => await (this.GetEventStreamAsync(eventStreamId))
+            .ConfigureAwait(false);
 
     /// <summary>
     /// Loads the last N events of an event stream into memory for the specified actor state type.
@@ -1441,14 +1692,16 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
         where TState : IActorState<TState>
         where TEvent : IEvent
     {
-        var eventNameId = await (this.GetEventNameIdFromTypeAsync<TEvent>()).ConfigureAwait(false);
+        var eventNameId = await (this.GetEventNameIdFromTypeAsync<TEvent>())
+            .ConfigureAwait(false);
         return await (_dbFactory.ActorEventSourceDb
             .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.GetEventLogLastNRangeByEventName)}", this.EventLogSql(EventSourceDbSql.GetEventLogLastNRangeByEventName))
             .SetParameters(new GetEventLogLastNRangeByEventName(
                 eventStreamId,
                 eventNameId,
                 Math.Max(0, lastNRange)))
-            .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream)).ConfigureAwait(false);
+            .ExecuteQueryAsync<EventStreamReadModel>(MapToEventStream))
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1461,7 +1714,8 @@ public sealed class EventSourceActorDbContext : ObjectDataRepository<EventSource
     public async ValueTask<ICollection<EventStreamReadModel>> LoadActorEventStreamAsync<TState, TSnapshot>(long eventStreamId)
         where TState : IActorState<TState>
         where TSnapshot : IEvent
-           => await (GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId)).ConfigureAwait(false);
+           => await (GetEventsFromSnapshotAsync<TSnapshot>(eventStreamId))
+            .ConfigureAwait(false);
 
 
 }

@@ -23,12 +23,12 @@ public static class AcceptedMarketDataReadProjectionDescriptors
         return ImmutableArray.Create(
             Describe<EconomicCalendarsImportedCompleteEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
             {
-                await PostgresEconomicCalendarStore.ImportAsync(transaction,source.EconomicCalendars,source.DuplicatePolicy,source.CommandId,cancellation).ConfigureAwait(false);
+                await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,source.EconomicCalendars,source.DuplicatePolicy,source.CommandId,cancellation).ConfigureAwait(false);
                 return true;
             },token)),
             Describe<YieldCurveRatesImportedCompleteEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>
             {
-                await PostgresYieldCurveStore.ImportAsync(transaction,source.YieldCurveRates,source.DuplicatePolicy,source.CommandId,source.ReceivedOn,cancellation).ConfigureAwait(false);
+                await MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,source.YieldCurveRates,source.DuplicatePolicy,source.CommandId,source.ReceivedOn,cancellation).ConfigureAwait(false);
                 return true;
             },token)),
             Describe<MarketDataDownloadLogInsertedEvent>((source,token) => transactions.ExecuteOnceAsync(async (transaction,cancellation) =>

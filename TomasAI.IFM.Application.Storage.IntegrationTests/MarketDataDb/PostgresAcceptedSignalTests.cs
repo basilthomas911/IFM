@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -149,9 +150,9 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
             foreach(var source in sources)
             {
                 var accepted = source is VixFuturesEodDataInsertedEvent vix
-                    ? await PostgresMarketSignalStore.AcceptVixAsync(db,vix,ct) : source;
+                    ? await AcceptedMarketSignalProjection.AcceptVixAsync(db,vix,ct) : source;
                 await db.AppendAsync(key+source.GetType().Name,source.CommandId,accepted,0,ct);
-                Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,accepted,ct));
+                Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,accepted,ct));
             }
             throw new InvalidOperationException("Injected failure after every analytic materialization");
         })).Should().ThrowAsync<InvalidOperationException>();
@@ -162,9 +163,9 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
             foreach(var source in sources)
             {
                 var accepted = source is VixFuturesEodDataInsertedEvent vix
-                    ? await PostgresMarketSignalStore.AcceptVixAsync(db,vix,ct) : source;
+                    ? await AcceptedMarketSignalProjection.AcceptVixAsync(db,vix,ct) : source;
                 await db.AppendAsync(key+source.GetType().Name,source.CommandId,accepted,0,ct);
-                Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,accepted,ct));
+                Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,accepted,ct));
             }
             return true;
         });
@@ -181,9 +182,9 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         {
             foreach(var table in tables)
                 await db.ExecuteAsync("DELETE FROM market_data."+table+" WHERE "+(table=="futures_vx_term_structure_signal"?"configurationId":"contractId")+"=$1;",[key],ct);
-            foreach(var source in persisted) Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,source,ct));
+            foreach(var source in persisted) Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,source,ct));
             // Repeated materialization must not reapply VX tick volume or mutate accepted row facts.
-            foreach(var source in persisted) Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,source,ct));
+            foreach(var source in persisted) Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,source,ct));
             return true;
         });
         foreach(var table in tables) string.Join("\n",await RowsAsync(table)).Should().Be(originals[table]);
@@ -202,7 +203,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         async Task PersistAsync(IEvent source,long version,bool fail) => await fixture.Transactions.ExecuteOnceAsync(async(db,ct) =>
         {
             await db.AppendAsync(key,source.CommandId,source,version,ct);
-            Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,source,ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,source,ct));
             if (fail) throw new InvalidOperationException("Injected live-feed materialization failure");
             return true;
         });
@@ -222,15 +223,15 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
         persisted.Should().HaveCount(2);
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct) =>
         {
-            Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,persisted[0],ct));
-            Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,persisted[0],ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,persisted[0],ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,persisted[0],ct));
             return true;
         });
         (await RowsAsync()).Should().Be(1);
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct) =>
         {
-            Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,persisted[1],ct));
-            Assert.True(await PostgresMarketSignalStore.TryProjectAsync(db,persisted[1],ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,persisted[1],ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,persisted[1],ct));
             return true;
         });
         (await RowsAsync()).Should().Be(0);

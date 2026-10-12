@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.OptionPricer.Persistence;
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -77,7 +79,7 @@ public class SpreadDistributionStateRepository(
             foreach (var source in pending)
             {
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
-                await database.ProjectAcceptedEventAsync(transaction,source,token).ConfigureAwait(false);
+                await AcceptedOptionPricerProjection.ProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
             return true;
         },cancellationToken).ConfigureAwait(false);

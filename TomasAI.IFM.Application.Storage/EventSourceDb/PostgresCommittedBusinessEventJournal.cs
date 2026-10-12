@@ -1,7 +1,7 @@
 using Npgsql;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 
@@ -10,17 +10,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// <summary>Receipt-based scan includes late commits; a global sequence cursor cannot safely provide that guarantee.</summary>
 public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEventJournal
 {
-    public const string CreateTable = """
-        CREATE TABLE IF NOT EXISTS business_subscription_projection_receipt(
-          event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
-          projected_at_utc timestamptz NOT NULL DEFAULT now());
-        ALTER TABLE business_subscription_projection_receipt ADD COLUMN IF NOT EXISTS handoff_completed boolean NOT NULL DEFAULT false;
-        CREATE TABLE IF NOT EXISTS business_subscription_projection_issue(
-          event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
-          reason_code text NOT NULL,
-          detail text NOT NULL,
-          rejected_at_utc timestamptz NOT NULL DEFAULT now());
-        """;
+
     const string Columns = "SELECT el.eventStreamId,en.eventName,en.eventTypeName,el.eventVersion,el.EventPayload,el.commandId,el.eventTimestamp::text,el.StreamVersion FROM event_log el JOIN event_name_id en ON en.eventNameId=el.eventNameId ";
     const string Pending = Columns + "WHERE en.eventName=ANY($1) AND NOT EXISTS(SELECT 1 FROM business_subscription_projection_receipt r WHERE r.event_id=el.eventVersion) ORDER BY el.eventVersion LIMIT 32;";
     const string Prior = Columns + "WHERE el.eventStreamId=$1 AND el.eventVersion<=$2 AND en.eventName=ANY($3) ORDER BY el.eventVersion DESC LIMIT 1;";
@@ -41,12 +31,6 @@ public sealed class PostgresCommittedBusinessEventJournal : ICommittedBusinessEv
         pendingSql = layout.Resolve(Pending);
         priorSql = layout.Resolve(Prior);
         handoffsSql = layout.Resolve(Handoffs);
-    }
-
-    internal static string CreateTableFor(EventLogPersistenceOptions? options)
-    {
-        var validated = (options ?? new EventLogPersistenceOptions()).Validate();
-        return EventLogSqlLayout.ForProduction(validated).Resolve(CreateTable);
     }
 
     public Task<IReadOnlyList<EventLogReadModel>> ReadPendingAsync(IReadOnlyList<string> eventNames, CancellationToken cancellationToken)

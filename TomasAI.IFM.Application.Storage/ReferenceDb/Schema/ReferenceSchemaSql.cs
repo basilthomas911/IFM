@@ -3,6 +3,9 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 /// <summary>Native PostgreSQL reference tables and explicit history-order indexes. No runtime CQL translation.</summary>
 public static class ReferenceSchemaSql
 {
+    /// <summary>Drops the ReferenceDb PostgreSQL schema during an explicit schema teardown.</summary>
+    public const string Drop = "DROP SCHEMA IF EXISTS reference CASCADE;";
+
     public const string Create = """
         CREATE SCHEMA IF NOT EXISTS reference;
         

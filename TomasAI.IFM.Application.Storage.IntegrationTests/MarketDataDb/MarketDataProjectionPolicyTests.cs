@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
@@ -15,48 +16,31 @@ public sealed class MarketDataProjectionPolicyTests
     static readonly Type CqlType = typeof(MarketDataDbContext).Assembly.GetType(
         "TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataDbCql",
         throwOnError: true)!;
-    static readonly Type SchemaCqlType = typeof(MarketDataDbContext).Assembly.GetType(
-        "TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaCql",
-        throwOnError: true)!;
 
     [Fact]
     public void MarketOutlookSnapshot_UsesOneUpsertRowPerDateAndLatestCutoffQuery()
     {
-        var schema = GetSchemaCql("CreateMarketOutlookSnapshotTable");
-        schema.ShouldContain("PRIMARY KEY ((contractId), valueDate)");
-        schema.ShouldContain("CLUSTERING ORDER BY (valueDate DESC)");
-        GetCql("UpsertMarketOutlookSnapshot").ShouldContain("INSERT INTO market_outlook_snapshot");
-        var query = GetCql("GetMarketOutlookSnapshot");
-        query.ShouldContain("valueDate <= :valueDate");
-        query.ShouldContain("ORDER BY valueDate DESC");
-        query.ShouldContain("LIMIT 1");
+        MarketDataSchemaSql.Create.ShouldContain("market_data.market_outlook_snapshot");
+        MarketDataDbSql.UpsertMarketOutlookSnapshot.ShouldContain("ON CONFLICT (contractId, valueDate)");
+        MarketDataDbSql.GetMarketOutlookSnapshot.ShouldContain("valueDate <= $2");
+        MarketDataDbSql.GetMarketOutlookSnapshot.ShouldContain("ORDER BY valueDate DESC LIMIT 1");
     }
 
     [Fact]
     public void FuturesEodSchema_PersistsMovingAveragesAndSupportsAdditiveUpgrade()
     {
-        GetSchemaCql("CreateFuturesEodDataTable").ShouldContain("fiftyDMA decimal");
-        GetSchemaCql("CreateFuturesEodDataTable").ShouldContain("twoHundredDMA decimal");
-        GetSchemaCql("CreateFuturesEodDataByMonthTable").ShouldContain("fiftyDMA decimal");
-        GetSchemaCql("CreateFuturesEodDataByMonthTable").ShouldContain("twoHundredDMA decimal");
-        GetSchemaCql("AddFuturesEodDataFiftyDmaColumn").ShouldContain("ALTER TABLE futures_eod_data");
-        GetSchemaCql("AddFuturesEodDataByMonthTwoHundredDmaColumn")
-            .ShouldContain("ALTER TABLE futures_eod_data_by_month");
-        GetCql("GetFuturesEodData").ShouldContain("fiftyDMA AS \"FiftyDMA\"");
-        GetCql("GetFuturesEodData").ShouldContain("twoHundredDMA AS \"TwoHundredDMA\"");
+        MarketDataSchemaSql.Create.ShouldContain("fiftyDMA numeric");
+        MarketDataSchemaSql.Create.ShouldContain("twoHundredDMA numeric");
+        MarketDataDbSql.GetFuturesEodData.ShouldContain("fiftyDMA AS \"FiftyDMA\"");
+        MarketDataDbSql.GetFuturesEodData.ShouldContain("twoHundredDMA AS \"TwoHundredDMA\"");
     }
 
     [Fact]
     public void FuturesTradeSignalRepair_IsNonDestructiveAndHasQuarantineStorage()
     {
-        GetSchemaCql("CreateFuturesTradeSignalQuarantineTable")
-            .ShouldContain("futures_trade_signal_quarantine");
-        GetCql("GetFuturesTradeSignalJsonAll").ShouldContain("SELECT JSON *");
-        GetCql("InsertFuturesTradeSignalQuarantine")
-            .ShouldContain("futures_trade_signal_quarantine");
-        Assert.Null(CqlType.GetField(
-            "DeleteMalformedFuturesTradeSignal",
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        MarketDataSchemaSql.Create.ShouldContain("market_data.futures_trade_signal_quarantine");
+        MarketDataDbSql.InsertFuturesTradeSignalQuarantine.ShouldContain("ON CONFLICT (fingerprint)");
+        Assert.Null(typeof(MarketDataDbSql).GetField("DeleteMalformedFuturesTradeSignal"));
     }
 
     [Fact]
@@ -75,9 +59,6 @@ public sealed class MarketDataProjectionPolicyTests
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
         Assert.Null(CqlType.GetField(
             "TruncateLegacyVixFuturesEodDataByMonth",
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
-        Assert.Null(SchemaCqlType.GetField(
-            "CreateVixFuturesEodDataByMonthTable",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
     }
 
@@ -98,28 +79,11 @@ public sealed class MarketDataProjectionPolicyTests
     [Fact]
     public void FuturesItiProjections_UseBoundedQueryShapedPartitions()
     {
-        GetSchemaCql("CreateFuturesItiSignalByContractDayTable")
-            .ShouldContain("PRIMARY KEY ((contractId, valueDate), intrinsicTimeMode, sequenceId");
-        GetSchemaCql("CreateFuturesItiSignalByContractMonthTable")
-            .ShouldContain("PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId");
-        GetSchemaCql("CreateFuturesItiSignalByTrendModeMonthTable")
-            .ShouldContain("PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)");
-        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
-            .ShouldContain("PRIMARY KEY ((contractId, timePeriod, calendarBucketStart))");
-        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
-            .ShouldContain("timeFrameStartValueDate date");
-        GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
-            .ShouldContain("bandPercentage double");
-        GetCql("UpsertFuturesItiTimeFrameState")
-            .ShouldContain(":timeFrameStartValueDate");
-        GetCql("GetFuturesItiTimeFrameState")
-            .ShouldContain("calendarBucketStart = :calendarBucketStart");
-        GetCql("GetFuturesItiSignalsByContractMonth")
-            .ShouldContain("contractId = :contractId AND yearMonth = :yearMonth");
-        GetCql("GetLastFuturesItiSignalByTrendModeMonth")
-            .ShouldContain("AND yearMonth = :yearMonth");
-        GetCql("GetFuturesItiSignalsByContractDayModeAfterSequence")
-            .ShouldContain("intrinsicTimeMode = :intrinsicTimeMode AND sequenceId > :sequenceId");
+        MarketDataSchemaSql.Create.ShouldContain("futures_iti_signal_ordered");
+        MarketDataSchemaSql.Create.ShouldContain("PRIMARY KEY (contractId, timePeriod, calendarBucketStart)");
+        MarketDataSchemaSql.Create.ShouldContain("timeFrameStartValueDate date");
+        MarketDataSchemaSql.Create.ShouldContain("bandPercentage double precision");
+        MarketDataDbSql.GetFuturesItiTimeFrameState.ShouldContain("calendarBucketStart = $3");
     }
 
     [Fact]
@@ -143,17 +107,9 @@ public sealed class MarketDataProjectionPolicyTests
             .ShouldContain("activeOperations = :expectedActiveOperations");
         GetCql("GetMarketDataProjectionScopeStatesV3")
             .ShouldContain("activeOperations AS \"ActiveOperations\"");
-        GetSchemaCql("CreateMarketDataProjectionScopeStateV3Table")
-            .ShouldContain("blocked boolean");
-        GetSchemaCql("CreateMarketDataProjectionScopeMutationV3Table")
-            .ShouldContain("PRIMARY KEY ((projectionName, scopeKey), mutationId)");
-
-        // Tick canonical and query tables deliberately route differently. The hot path
-        // therefore uses a tiny logged batch, not a claimed same-partition optimization.
-        GetSchemaCql("CreateFuturesTickDataTable")
-            .ShouldContain("PRIMARY KEY (contractId, valueDate, tickId)");
-        GetSchemaCql("CreateFuturesTickDataByTimeTable")
-            .ShouldContain("PRIMARY KEY ((contractId, valueDate), tickTime, tickId)");
+        MarketDataSchemaSql.Create.ShouldContain("market_data.market_data_projection_scope_state");
+        MarketDataSchemaSql.Create.ShouldContain("market_data.market_data_projection_scope_mutation");
+        Assert.DoesNotContain("CREATE TABLE IF NOT EXISTS market_data.futures_tick_data (", MarketDataSchemaSql.Create);
 
         var batchBound = (int)typeof(MarketDataDbContext)
             .GetField("TickAtomicBatchRowCount", BindingFlags.NonPublic | BindingFlags.Static)!
@@ -300,11 +256,6 @@ public sealed class MarketDataProjectionPolicyTests
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!
             .GetRawConstantValue()!;
 
-    static string GetSchemaCql(string fieldName)
-        => (string)SchemaCqlType.GetField(
-            fieldName,
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!
-            .GetRawConstantValue()!;
 
     static void AssertBind(IBindValue bindValue, params object?[] expected)
         => Assert.Equal(expected, (object?[])bindValue.Bind());

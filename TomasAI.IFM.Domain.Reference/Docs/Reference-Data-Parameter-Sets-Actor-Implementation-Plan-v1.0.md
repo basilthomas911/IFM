@@ -139,7 +139,7 @@ ParameterAssignments/
 
 Add corresponding contracts under Reference.Shared.ParameterSets: Identity, Commands, Queries, Events, Models, Validation and Enums. Follow physical shared-contract/type-forwarding conventions rather than duplicating public types in two assemblies.
 
-Place generic startup planning under the existing application startup/market-data orchestration ownership, using SignalStartup/Command/{Actor,Extensions,Model,State} and SignalStartup/Query/{Actor,Extensions,Model}. Keep Regime-specific rule calculations in Domain.Trade's existing RegimeDiscovery/Model. Keep storage implementation under Application.Storage/ConfigurationDb/ParameterSets; UI under existing Reference view/model/service namespaces.
+Place generic startup planning under the existing application startup/market-data orchestration ownership, using SignalStartup/Command/{Actor,Extensions,Model,State} and SignalStartup/Query/{Actor,Extensions,Model}. Keep Regime-specific rule calculations in Domain.Trade's existing RegimeDiscovery/Model. Keep storage implementation under Application.Storage/ConfigurationDb; UI under existing Reference view/model/service namespaces.
 
 The assignment tree uses the same file-per-message convention; phase tasks below enumerate its operations. Do not place SQL in actors, UI or calculation models.
 
@@ -489,7 +489,7 @@ Acceptance: deterministic tests pass without database, transport or UI dependenc
 
 ### DB01 — schema migrations
 
-Create `ParameterSetSchemaSql.cs`, `ParameterSetSchemaDb.cs` and versioned additive migrations under Application.Storage/ConfigurationDb/ParameterSets/Schema. Register migrations in the existing ConfigurationDb schema bootstrap; do not add an independent startup database worker.
+Extend the single `ConfigurationSchemaSql.cs` catalog and `ConfigurationSchemaDb.cs` executor under Application.Storage/ConfigurationDb/Schema. Register migrations in the existing ConfigurationDb schema bootstrap; do not add an independent startup database worker.
 
 Implement tables with the following fields. Required identity/code/revision/payload fields are NOT NULL; only explicitly optional lifecycle timestamps are nullable.
 

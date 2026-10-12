@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Application.Storage.TradeDb;

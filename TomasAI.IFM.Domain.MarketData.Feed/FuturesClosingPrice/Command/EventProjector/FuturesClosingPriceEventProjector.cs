@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using System.Collections.Immutable;
@@ -29,7 +30,7 @@ public sealed class FuturesClosingPriceEventProjector(
                 e.ClosingPrice, e.CreatedOn, e.CreatedBy)))
             .WithReadModelRebuild((source,token) => actorContext.Container.Resolve<IPostgresEventTransaction>().ExecuteOnceAsync(async(transaction,cancellationToken) =>
             {
-                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,cancellationToken).ConfigureAwait(false);
+                _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,cancellationToken).ConfigureAwait(false);
                 return true;
             },token))
     ];

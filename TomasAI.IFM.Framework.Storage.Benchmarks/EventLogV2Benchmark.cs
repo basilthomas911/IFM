@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Framework.Storage.Postgres;
@@ -623,12 +623,12 @@ public static class EventLogV2Benchmark
         string[] files = [
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogV2Benchmark.cs",
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogSoakObserver.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/BinaryCopyEventLogAppender.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/SequentialEventLogAppender.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/BatchedProjectionMarkerWriter.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/EventLogAppenderSupport.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/EventLogSqlLayout.cs",
-            "TomasAI.IFM.Application.Storage/EventSourceDb/Persistence/EventLogPersistenceMetrics.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/BinaryCopyEventLogAppender.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/SequentialEventLogAppender.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/BatchedProjectionMarkerWriter.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogAppenderSupport.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogSqlLayout.cs",
+            "TomasAI.IFM.Application.Storage/EventSourceDb/EventLog/EventLogPersistenceMetrics.cs",
             "TomasAI.IFM.Framework.Storage.Benchmarks/EventLogMarkerVerification.cs",
             "TomasAI.IFM.Application.Storage/EventSourceDb/Schema/EventSourceSchemaSql.cs",
             "TomasAI.IFM.Application.Storage/PortfolioDb/PortfolioDbSql.cs"];

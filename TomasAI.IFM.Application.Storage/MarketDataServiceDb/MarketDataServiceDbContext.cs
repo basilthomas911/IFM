@@ -391,6 +391,9 @@ public sealed class MarketDataServiceDbContext(
         CancellationToken cancellationToken = default)
         => this.AcknowledgeDurableOutboxAsync(scope, dataset, transitionId, cancellationToken);
 
+    /// <summary>Maps the ordered PostgreSQL result to a contract assignment.</summary>
+    /// <param name="row">The current result row.</param>
+    /// <returns>The typed persisted value.</returns>
     internal static FuturesRolloverContractAssignment MapToAssignment(IObjectDataRecord row) => new()
     {
         ContractRole = Enum.Parse<DatabentoContractRole>(row.GetString(0)),
@@ -412,6 +415,9 @@ public sealed class MarketDataServiceDbContext(
         UpdatedBy = row.GetString(16)
     };
 
+    /// <summary>Maps the ordered PostgreSQL result to a watchdog observation.</summary>
+    /// <param name="row">The current result row.</param>
+    /// <returns>The typed persisted value.</returns>
     internal static DatabentoWatchdogObservation MapToObservation(IObjectDataRecord row) => new()
     {
         WatchdogStatusLogId = row.GetLong(0),
@@ -433,6 +439,9 @@ public sealed class MarketDataServiceDbContext(
         RowVersion = row.GetLong(16)
     };
 
+    /// <summary>Maps the ordered PostgreSQL result to a dataset incident.</summary>
+    /// <param name="row">The current result row.</param>
+    /// <returns>The typed persisted value.</returns>
     internal static DatasetIncidentTransition MapToIncident(IObjectDataRecord row) => new(
         row.GetGuid(0),
         row.GetGuid(1),
@@ -440,6 +449,9 @@ public sealed class MarketDataServiceDbContext(
             ?? throw new InvalidDataException("Persisted dataset incident snapshot is invalid."),
         row.GetLong(3));
 
+    /// <summary>Maps the ordered PostgreSQL result to a composition route plan.</summary>
+    /// <param name="row">The current result row.</param>
+    /// <returns>The typed persisted value.</returns>
     internal static CompositionRoutePlan MapToCompositionRoutePlan(IObjectDataRecord row)
     {
         var result = JsonSerializer.Deserialize<CompositionRoutePlan>(

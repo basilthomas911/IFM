@@ -32,7 +32,7 @@ The complete definition JSON returned by reads is assembled from these relationa
 
 ## Context operations
 
-The partial `IConfigurationDbContext` exposes:
+The combined `IConfigurationDbContext` inherits read and write contracts that expose:
 
 | Operation | Behavior |
 | --- | --- |
@@ -60,6 +60,8 @@ Drafts validate identity/kind, code/text bounds, schema version, exact relations
 `CatalogParameterShape` is a documented small parameter-shape DSL, not a general JSON Schema engine. It supports Object, Array, String, Decimal, Integer and Boolean; required object properties; numeric bounds; string/array length bounds; string choices; nested item/property shapes; and units. Unknown shape fields, unknown parameter properties, missing required fields and null/type mismatches are errors. All values are explicit; no silent default injection occurs. Cross-field/economic rules belong to the registered semantic validator.
 
 Hashing sorts named relationships and JSON object properties, preserves array order where meaningful, rejects duplicate JSON properties, normalizes numeric spelling and rejects numbers that cannot be represented without decimal precision loss. Metadata and complete child contents participate in the definition hash. Lifecycle timestamps/status do not change the content hash. Existing Portfolio and pipeline hash algorithms are unchanged.
+
+The validator contract is owned by `TomasAI.IFM.Domain.Strategy.Contracts.Shared/StrategyCatalog/Contracts`; canonical validation is owned by that project's `Canonical` folder. The concrete registry is owned by `TomasAI.IFM.Application.Strategy/StrategyCatalog` and registered by API server composition. ConfigurationDb consumes shared contracts and owns persistence only; it contains no strategy capability registry or compatibility type forwarding.
 
 `StrategyCatalogCapabilityRegistry` resolves exact `(role,code,version)` validators registered by trusted server composition. Roles are evaluator, builder, validator, risk and data. Registration is server code, not an uploaded script or catalog assertion. Publication requires evaluator/data support for strategies; builder/risk support for structures; and semantic validators for variants, parameter schemas and deployments. Parameter-set values are checked against their exact schema and its semantic validator. Deployment structures must belong to the selected strategy version.
 
@@ -138,3 +140,23 @@ The composer consumes an exact deployment `Parameters` binding with Role `OrderC
 The owning domain registers Future, CallVertical, PutVertical and IronCondor builder version 1 capabilities and the rules validator. Declared composer deployment roles are checked for unique binding, complete exact variant coverage, matching horizon/structure/settings, widths, balance tolerance, hard bounds/grid and supported pricer version. Binding additionally checks the pinned outer construction policy and Fund authorization. Missing required risk capability continues to block publication.
 
 Parameter shapes permit at most 32 nested levels (JSON representation limit 96) so the composer can describe eight predicate levels plus their object/array wrappers. Existing 256 KiB definition and bounded-child limits remain. Unknown fields and incomplete values still fail validation; existing version-one policy serialization/hashes are unchanged. Real PostgreSQL composer publication/rejection/retirement evidence is recorded in the [composer implementation record](../../TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/OrderComposer/Docs/OrderComposition-Implementation-Record-v1.0.md).
+
+
+## DbContext convention alignment ? 2026-10-12
+
+- `ConfigurationDbContext.cs` is the single non-partial repository implementation. It contains the public read/write contract operations, explicitly documented parameters and results, and static `MapTo...` result mappers.
+- `ConfigurationDbContextExtensions.cs` contains all context helpers in C# 14 extension blocks, including catalog transactions, dependency validation, stored-payload integrity checks, hashing and accepted-fact projection helpers.
+- `ConfigurationDbParameters.cs` owns the internal readonly `IBindValue` records; the individual binding files were consolidated.
+- `ParameterWriteLease.cs` owns disposal of the advisory-lock transaction and connection. The context still exposes lease acquisition through its write contract.
+- `ConfigurationDbSql.cs` retains runtime statement ownership. All DDL and schema metadata now live in `Schema/ConfigurationSchemaSql.cs`; `ConfigurationSchemaDb` registers the complete catalog through `GetDefinitions`. The separate `ParameterSets/` folder and feature schema SQL files were removed.
+- Incoming argument validation belongs to callers. Development risk provisioning now explicitly validates its policies before calling storage. Persisted identity/hash checks, lifecycle guards, revision ordering and operation deduplication remain enforced.
+- Catalog operations retain independent connections and transaction-scoped locking. Enlisted projection overloads retain the caller-owned event/projection transaction, and deployment queries retain repeatable-read isolation.
+- ConfigurationDb imports were checked using compiler semantic diagnostics. Query-result models remain in the owning shared-domain projects.
+
+Verification: focused ConfigurationDb convention tests plus the isolated PostgreSQL catalog and Market Condition lifecycle suite. The latter passed all 27 tests, including draft rollback, concurrent authoring, immutability, dependency publication and corrupt-payload rejection.
+
+Schema consolidation verification: **37 focused tests passed**. The complete schema was created twice against the isolated PostgreSQL configuration test database, and registered relations (including indexes), functions and triggers were checked against PostgreSQL catalogs. ConfigurationDb contains no CQL files or CQL schema classes.
+
+## Configuration rebuild helper
+
+`ConfigurationDb/Rebuild/ConfigurationProjectionBaseline.cs` owns offline baseline capture and verified materialization. Its namespace is `TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild`. The migration tool and event projector call this storage helper; normal DbContext operations and schema creation remain separate. This folder move does not change baseline event identity or serialized data.

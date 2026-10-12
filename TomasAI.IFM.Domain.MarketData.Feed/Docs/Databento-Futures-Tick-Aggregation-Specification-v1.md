@@ -1846,7 +1846,7 @@ TomasAI.IFM.Shared/
 
 TomasAI.IFM.Application.Storage/MarketDataDb/
   TickAggregation/
-  Schema/MarketDataSchemaCql.cs
+  Schema/MarketDataSchemaSql.cs
   Schema/MarketDataSchemaDb.cs
 ```
 
@@ -2017,7 +2017,7 @@ Codex must:
    managed batch ownership, synchronous readers, per-instrument bounded
    channels, and contract mapping cache. Verify the multiplexed reader can be
    additive and mutually exclusive with diagnostic per-instrument readers.
-8. Inspect `MarketDataSchemaCql`, `MarketDataSchemaDb`, `MarketDataDbContext`,
+8. Inspect `MarketDataSchemaSql`, `MarketDataSchemaDb`, `MarketDataDbContext`,
    prepared CQL/parameter patterns, `DateOnly`/`TimeOnly` driver mappings, and
    integration-test fixture behavior.
 9. Inspect existing error-code ranges, bounded-context routing, actor names, and

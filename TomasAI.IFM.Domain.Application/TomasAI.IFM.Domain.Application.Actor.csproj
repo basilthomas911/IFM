@@ -15,4 +15,5 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
 </Project>

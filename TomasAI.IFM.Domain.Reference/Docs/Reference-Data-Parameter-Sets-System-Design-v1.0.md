@@ -81,7 +81,7 @@ Check current inputs requires an instrument/consumer context and returns timesta
 | Existing producer actors | Initialize/warm supported signals |
 | Monitor | Current availability and per-consumer readiness |
 
-Proposed namespaces: `TomasAI.IFM.Domain.Reference.Shared.ParameterSets` for contracts; `TomasAI.IFM.Application.Storage.ConfigurationDb.ParameterSets` for storage; existing UI Reference namespaces for views/view models. Respect existing physical contracts assembly/type-forwarding patterns. Regime payloads remain domain-owned.
+Proposed namespaces: `TomasAI.IFM.Domain.Reference.Shared.ParameterSets` for contracts; `TomasAI.IFM.Application.Storage.ConfigurationDb` for storage; existing UI Reference namespaces for views/view models. Respect existing physical contracts assembly/type-forwarding patterns. Regime payloads remain domain-owned.
 
 Interfaces:
 

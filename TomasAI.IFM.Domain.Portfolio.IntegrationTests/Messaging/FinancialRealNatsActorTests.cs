@@ -172,7 +172,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         {
             var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
             context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
-            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(hostStore.EventSourceDb);
+            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(hostStore.EventSourceDb));
             var supervisor = Substitute.For<IActorSupervisor>(); supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
             supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
             var sequences = Substitute.For<ISequenceIdGenerator>(); sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
@@ -207,7 +207,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
     public async Task Audited_but_uncommitted_command_resumes_and_replay_checks_receipt_even_when_notification_is_down()
     {
         var book = await CreateBook(); var request = Request(book, LedgerTransactionKind.DepositConfirmed, 100, 0);
-        (await fixture.EventSourceDb.TryReserveAsync(request)).Accepted.Should().BeTrue();
+        (await new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb).TryReserveAsync(request)).Accepted.Should().BeTrue();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await using var server = new NatsClient(Url); await server.ConnectAsync();
         await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(request.Subject.ToString(), serializer: new NatsByteArrayMessageSerializer());
@@ -217,7 +217,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
         var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container);
-        container.Resolve<ICommandAuditLogger>().Returns(fixture.EventSourceDb);
+        container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
         supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());

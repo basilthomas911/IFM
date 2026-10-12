@@ -185,6 +185,33 @@ These rules define the minimum implementation pattern for every application DbCo
 - The context must return itself from its `Database`, `DbReader`, and `DbWriter` properties.
 - Every public constructor, property, and method must have XML documentation. Method documentation must describe every parameter and the returned value or asynchronous operation.
 
+### Persistence and orchestration boundary
+
+A DbContext must be as close to an ORM-style persistence adapter as possible. It exposes typed queries and mutations over its owned tables, maps records and delegates provider mechanics. It must contain minimal application or domain functionality. This rule applies to the entire database implementation, including its extension class and supporting folders; moving orchestration out of the context class into a Storage helper does not satisfy the boundary.
+
+- **Domain ownership:** business calculations, business invariants, strategy decisions and rules determining which events or read models should be produced belong in the owning domain. Incoming request validation belongs to the caller before persistence is invoked.
+- **Domain coordination ownership:** command execution coordination, duplicate-request coordination, workflow and pipeline sequencing, actor messaging, notifications, schedules, recovery/replay coordination, import orchestration and application-driven cache policy belong in the owning domain repositories, command actors, query handlers and workflow services.
+- **Storage ownership:** typed queries and mutations, parameter binding, record mapping, provider-specific serialization, SQL/CQL execution, database constraints, optimistic-concurrency predicates, row locks, atomic compare-and-set updates and connection/transaction resources belong in Storage. Technical batching and binary COPY are permitted when they preserve the caller's requested writes and do not introduce business decisions.
+- **Transactions:** the domain selects the business operation and the event/projection writes that must commit together. Storage supplies the enlisted connection and transaction/unit-of-work mechanism and executes those writes atomically. A DbContext must not discover downstream business work, invoke actors/providers or start another workflow while committing a transaction.
+- **Idempotency and leases:** Storage may persist command identities, receipts, lease tokens, revisions and checkpoints and enforce their conditional database updates. The caller decides whether a command should execute, whether a lease should be acquired or renewed, and whether a failure should retry, replay, skip or escalate.
+- **Audit and event sourcing:** deciding when a command is audited, reserving execution and coordinating event production belong to the domain command/repository layer. Storage persists the supplied audit/event facts and reports database outcomes. Audit orchestration interfaces must not be added to a DbContext simply because they eventually write rows.
+- **Lifetime:** DbContext lifetime behavior is limited to releasing its database/provider resources. Starting or stopping application workers, recovery loops or background coordination is not a DbContext responsibility.
+- **Dependencies:** DbContexts must not depend on domain actors, workflow runners, external market-data/broker clients, schedulers or application coordination services. The permitted dependency direction is application/domain consumers toward persistence contracts; the concrete Storage implementation does not call back into business orchestration.
+- **Helper and folder ownership:** context extension methods contain persistence helpers only. Supporting Storage folders must represent substantial provider/persistence responsibilities. Domain orchestration must be moved to its owning layer, not hidden in a database folder. Benchmark fixtures and comparison stores belong in benchmark/test projects and must not be shipped as production Storage services.
+
+Apply the following split when reviewing EventSourceDb:
+
+| Responsibility | Storage portion | Domain coordination portion |
+|---|---|---|
+| Command audit | Persist supplied audit payloads, identity and status; provider encoding | Decide when to audit and coordinate command acceptance/execution |
+| Command deduplication | Unique keys and conditional reservation/receipt writes | Coordinate duplicate callers and execution outcomes |
+| Historical data loading | Persist import manifests and checkpoints in their owning database | Download, batch, resume, schedule and supervise imports |
+| Event-log persistence | Append supplied events, assign database versions, encode bytes, COPY and transaction handling | Choose events, coordinate command processing, retries and replay |
+| Projection rebuilding | Read source events and execute supplied projection mutations | Select replay/baseline scope, sequence rebuild work and verify application readiness |
+| Command-log benchmarking | No production benchmark service | Benchmark/test project owns fixtures, workloads and comparisons |
+
+Existing implementations that mix these responsibilities require an explicit separation refactor. Their current location or interface shape is not an exception to this convention. A refactor must preserve transaction atomicity, concurrency and idempotency guarantees while moving orchestration to the owning layer.
+
 ### Physical table naming
 
 - Physical SQL and CQL table names must describe the table's current domain role and must not end in a schema-generation suffix such as `_v1`, `_v2`, or `_v3`.
@@ -299,6 +326,16 @@ static LookupTypeReadModel MapToLookupType(IObjectDataRecord e)
         createdOn: e.GetDateTime(4),
         createdBy: e.GetString(5));
 ```
+
+### Database schema implementation
+
+- Each database owns a `Schema/` folder containing one `<Domain>SchemaDb.cs` executor and one `<Domain>SchemaSql.cs` PostgreSQL DDL catalog.
+- `<Domain>SchemaDb` inherits `SchemaDbContext<<Domain>SchemaDb>` and selects the database context's named connection setting. Its `Definitions` cover every owned schema, table, index, constraint, sequence, function, trigger and required initialization step, in dependency order.
+- All create/drop SQL and schema metadata belong in the single schema SQL catalog. Related definition groups may be nested in that catalog; additional feature-specific schema SQL files or schema folders such as `ParameterSets/` are prohibited.
+- The executor uses the inherited `CreateAllAsync`, targeted `CreateAsync`, and table-validation operations. Schema creation must be additive and repeatable; ordinary startup must not drop application data.
+- PostgreSQL databases must not retain `.cql` files, `*SchemaCql.cs` classes or CQL compatibility catalogs. ScyllaDB databases retain their provider-specific CQL schema catalog.
+- Runtime query/command SQL remains in `<Domain>DbSql.cs`; schema DDL remains in `Schema/<Domain>SchemaSql.cs`.
+- Focused tests verify the single-catalog layout and actual PostgreSQL creation, including indexes and lifecycle guards. `ConfigurationDb/Schema` implements this pattern; the shared schema executor provides the creation mechanism used by the MarketData schema executor as well.
 
 ### Statement and parameter catalogs
 
@@ -567,11 +604,10 @@ manifest rows. Runtime and explicit maintenance publication use the same Securit
 - ReviewedOptionReference in Application.MarketData applies explicit pricing review terms to
   an exact provider definition. Provider identity, digest, strike and underlying identity remain
   attached to that definition. Published version conflicts require a new mapping version.
-- OptionPricingReferenceBundleStore in Application.Storage/OptionPricing is an application-facing
-  validation/serialization adapter. It holds no CQL, DDL, binding records or provider mappers.
-  Bundle persistence uses the SecuritiesDb read/write contracts, SecuritiesDbCql,
-  SecuritiesDbParameters and SecuritiesSchemaCql. The context returns primitive JSON;
-  application bundle models do not become database result models.
+- OptionPricingReferenceBundleRepository in Domain.MarketData.Securities/OptionPricing/Repository
+  owns bundle validation, serialization, publication and read-back confirmation. Storage/OptionPricing
+  is retired. Persistence remains behind the SecuritiesDb read/write contracts; the context
+  returns the primitive manifest payload and does not coordinate reference publication.
 - Bundle publication checks the exact published version, definition digest and calendar version
   of every member before inserting an immutable manifest. Reads validate its content digest.
 - ReferenceDb retains general reference metadata and instrument-definition ingestion. Its pricing
@@ -596,3 +632,98 @@ Development cleanup (2026-10-11): at the owner's request, the unused
 verified. No rows were migrated. Other ReferenceDb tables and SecuritiesDb tables
 were left intact. SecuritiesDb schema initialization creates its new bundle table
 on the next schema initialization or explicit pricing publication.
+
+## EventSourceDb convention alignment
+
+The structural cleanup and domain ownership separation below follow the DbContext boundary: domain repositories and actors coordinate command execution; Storage supplies persistence operations and provider mechanics.
+
+EventSourceDb retains its established `EventSourceActorDbContext` and read/write contracts. The concrete context implements read/write persistence and resource lifetime contracts; `EventSourceActorDbContextExtensions` owns its C# 14 context helpers. Both carry explicit XML operation documentation. Local cache-resolution helpers and inline projector protocol guards are owned by that extension class. Existing revision checks, execution ownership, timestamp requirements and command deduplication remain enforced.
+
+`EventSourceDbParameters.cs` is the single catalog for all context `IBindValue` records; the former per-record `Parameters` directory is removed. `Schema/EventSourceSchemaSql.cs` owns all production DDL and dependency-ordered schema definitions, including the business-subscription and risk-history receipt tables. `EventSourceSchemaDb` selects the named connection and delegates to that catalog and the inherited schema executor. Runtime journal operations reference the catalog when they need additive initialization. Benchmark-specific provider fixtures reside in `Framework.Storage.Benchmarks/CommandLog` and are not compiled into production Storage.
+
+## EventSourceDb domain ownership separation
+
+Shared domain event-source repository coordination is owned by `TomasAI.IFM.Domain.EventSourcing/Repository/BaseEventSourceActorRepository.cs`; concrete domain repositories continue inheriting that base. `Command/CommandAuditCoordinator.cs` implements `ICommandAuditLogger` and owns pre-parse acceptance, duplicate callers and command reservation diagnostics. The bounded coordinator resides in `Command/Deduplication`. Hosts only register this domain service. DbContext no longer implements the audit coordination interface or retains command acceptance caches. It persists supplied audit facts through `TryInsertCommandAuditAsync` and retains atomic command-audit/event commits and database optimistic concurrency.
+
+Provider serialization and command-audit SQL writers remain in `EventSourceDb/CommandAudit`; event-log appending and technical per-stream preparation remain in `EventSourceDb/EventLog`. Command-log comparison stores are owned by `Framework.Storage.Benchmarks/CommandLog` and excluded from the production Storage assembly. Historical checkpoint/manifest persistence is owned by `MarketDataDbContext`, with statements in `MarketDataDbSql`, bindings in `MarketDataDbParameters` and DDL in the MarketData schema catalog. Physical table names remain unchanged, preserving existing records in the consolidated PostgreSQL database. Import orchestration already resides in the owning market-data services.
+
+### Verification (2026-10-12)
+
+- 69 focused tests passed, including PostgreSQL audit reservations, conflicting payloads, atomic command/event persistence, snapshot reads and command-log benchmark contracts.
+- 12 final tests passed for domain audit coordination, actor dispatch and DbContext architecture conventions. The architecture gate permits shared domain data contracts but prevents Storage from depending on domain coordination implementations or benchmark assemblies.
+- Storage, API Server Core and the actor integration test host compiled with zero warnings and errors. API Server Core was compiled against rebuilt dependencies because the running market-data workers lock their output DLLs; a full dependency build cannot overwrite those active worker files.
+- EventSourceDb XML documentation and semantic unused-import checks passed. No deployed data was deleted or moved, and the running application was not restarted as part of this refactor.
+
+## MarketDataDb convention alignment (2026-10-12)
+
+MarketDataDb uses one non-partial `MarketDataDbContext` that implements its read/write contracts. All 190 context binding types are consolidated in `MarketDataDbParameters.cs`; the former individual parameter source files are removed. Public context and contract operations have XML summaries, parameter and return documentation. Context helpers are consolidated in the C# 14 blocks in `MarketDataDbContextExtensions.cs`, including transaction-bound realtime and VIX helpers.
+
+`Schema/MarketDataSchemaSql.cs` owns the PostgreSQL DDL and the complete dependency-ordered schema definition catalog. `MarketDataSchemaDb` selects the named MarketData connection and delegates schema execution to that catalog. Existing PostgreSQL table/index statements and historical loader table names are preserved. Normal persistence paths use PostgreSQL statements. Raw trade/quote persistence continues delegating to TradeTickQuoteDb.
+
+Calendar calculations are owned by `Domain.MarketData.Shared/Calendar/TradingCalendar.cs`; context queries read current persisted holidays and pass them to that calculator. The context no longer keeps trading-day or normal-curve caches. Missing option quote Greeks are calculated by `Domain.MarketData.Feed/Pricing/OptionQuoteGreekEnrichment.cs` in the option tick domain projector before quote persistence. The raw tick is preserved and supplied Greeks remain unchanged. Historical backfill test tooling uses the same domain calculator. Storage receives the resulting quote facts.
+
+### Verification
+
+- 15 MarketDataDb convention and isolated PostgreSQL persistence tests passed, including direct observation transactions, related schema/catalog reads, signal writes, lookup repair rollback and option-volatility persistence.
+- Four domain calendar tests passed for inclusive dates, holidays, updated holiday inputs, cancellation and date bounds.
+- Four market-data projector tests passed, including the moved quote enrichment path, preservation of raw prices and supplied Greeks, and persisted-event ID behavior.
+- One pricing regression test passed: all Greeks are calculated without changing recorded prices or timestamps.
+- Semantic verification found zero errors, unused imports and malformed XML documentation in MarketDataDb.
+- Storage and domain dependency builds passed; API Server Core compiled against rebuilt dependencies with zero warnings/errors. Full host dependency overwrite remains unsuitable while market-data worker binaries are in use.
+- Test persistence uses isolated fixture databases. No development database data was deleted or migrated, and running application processes were not restarted by this refactor. This focused suite establishes coverage for affected paths; it does not claim a full repository test run.
+
+### PostgreSQL maintenance API update
+
+The public `BackfillQueryProjectionsV2Async` and `GetQueryProjectionReadinessAsync` methods are retained and implemented for PostgreSQL. Their Scylla mutation-journal/cutover implementation is replaced. Normal PostgreSQL EOD, VIX and ITI queries read canonical tables directly, so no duplicate projection-table population is required. Backfill recreates missing canonical indexes and reindexes them in one transaction. It takes table share locks to keep the source inventory stable; run this explicit maintenance outside active ingestion. Lock waits are bounded to five seconds, individual maintenance statements to fifteen minutes, and caller cancellation remains supported. Failure before commit rolls back the maintenance transaction. The statement budget is local to that transaction and does not change normal business transaction settings or durability.
+
+Readiness uses PostgreSQL catalog evidence: index existence, table ownership, valid/ready flags, expected key columns, and absence of unexpected partial/expression definitions. It performs no schema writes and does not rely on old Scylla cutover markers. A correctly named index with incorrect columns is not ready.
+
+The compatibility backfill result's source/projected counts and fingerprints describe logical queries on the same canonical table, not independent copies. Raw tick maintenance is explicitly excluded with `RawTicksManagedByTradeTickQuoteDb`; the tick readiness flag is false and ignored by overall PostgreSQL readiness only when that ownership flag is set. Raw tick backfill counts are zero with a not-applicable marker. These methods make no claim about Scylla health or tick reconciliation. `batchSize` and `staleOperationCutoffUtc` remain validated compatibility arguments; server-side index maintenance does not batch row writes or recover Scylla journals.
+
+The market migration CLI uses `IFM_STORAGE_MIGRATION_MARKET_DATA_POSTGRES_CONNECTION` with the PostgreSQL provider. Its additive schema option uses the PostgreSQL catalog. Scylla catalogs/support methods retained for other historical compatibility paths are not called by these two APIs. This is index maintenance of existing canonical data, not a replacement for domain-owned replay from the authoritative event log.
+
+Verification of the API update: the final 14-test run passed (13 convention checks and the isolated EOD transaction/maintenance regression). It covers missing and incorrectly defined index detection, index recreation, rollback, repeatability, fresh writes and cancellation. The other PostgreSQL atomic observation test passed in the preceding run. Storage, ProjectionMigration and API Server Core builds completed with zero warnings/errors; XML/import semantic checks passed. Test sample setup errors (credential resolver, deleted input rows and UTC timestamps) were corrected before the successful final run. No maintenance was run against the active Development databases.
+
+
+## Historical-load persistence consolidation
+
+The separate `MarketDataDb/HistoricalDataLoader` folder and standalone `PostgresHistoricalDataLoaderStore` repository are removed. `GetHistoricalDataLoadAsync`, `GetCompletedHistoricalDataLoadAsync` and `SaveHistoricalDataLoadAsync` are documented operations on the MarketDataDb read/write contracts and main context. The mapper is in the context, three bindings are in `MarketDataDbParameters`, and the existing checkpoint/manifest statements are in `MarketDataDbSql`. DDL remains in `MarketDataSchemaSql`; table names, binding order, JSON serialization and the atomic checkpoint/immutable-manifest statement are preserved.
+
+`Domain.MarketData.Analytics/HistoricalDataLoader/HistoricalDataLoaderStore` is the thin adapter for the existing `IHistoricalDataLoaderStore` port. It delegates to the factory's MarketDataDb context without owning SQL, provider connections or loading orchestration. API and actor-host registration use that adapter. Historical acquisition and analytics coordination remain outside DbContext.
+
+Verification: 14 context convention and isolated PostgreSQL persistence tests passed, including checkpoint resume reads, completed-request lookup, immutable manifests, duplicate-completion refusal, atomic rollback and cancellation. Two existing historical-loader unit tests passed. Domain Analytics, API Server Core and actor integration host builds completed with zero warnings/errors. MarketDataDb semantic checks reported zero errors, unused imports and malformed XML documentation. Test data was confined to a disposable fixture database; existing Development data was not changed.
+
+
+### MarketDataDb PostgreSQL schema catalog
+
+MarketDataDb schema creation is owned exclusively by `Schema/MarketDataSchemaDb.cs` and `Schema/MarketDataSchemaSql.cs`. The retired `MarketDataSchemaCql.cs` and `OptionVolatilitySchemaCql.cs` files have been removed. Schema policy tests now validate PostgreSQL DDL, indexes, conflict fences and immutable volatility evidence. Volatility persistence verification uses a disposable PostgreSQL instance. Raw trade/quote Scylla schema creation remains under TradeTickQuoteDb.
+
+
+### Internal persistence helper types
+
+Small internal types used exclusively by DbContext persistence helpers are declared at file scope in `<Name>DbContextExtensions.cs`, alongside the helpers that consume them. They retain internal visibility and are not public query result models or parameter bindings. Public query results remain in shared read models, parameter bindings remain in `<Name>DbParameters.cs`, and result-set `MapTo...` methods remain in the main context.
+
+MarketDataDb consolidates its calendar continuation token and partition, ITI projection scope identity, and trade-signal repair row/parse result in `MarketDataDbContextExtensions.cs`. Their members, record semantics, JSON continuation-token shape and struct layout remain unchanged; the five standalone files are removed.
+
+
+### Transaction-bound MarketDataDb persistence
+
+Caller-owned PostgreSQL transaction operations are consolidated in the `IEnlistedPostgresTransaction` C# 14 receiver block in `MarketDataDbContextExtensions.cs`. Operations needed by domain repositories/projectors are public; other helpers remain internal. These helpers preserve the supplied transaction and never create independent commits. SQL statements remain in `MarketDataDbSql.cs` and import ownership remains an internal persistence type alongside the extensions.
+
+The standalone PostgreSQL economic-calendar, yield-curve, option-chain parameter, volatility and trade-signal index stores are removed. `Domain.EventSourcing/MarketData/AcceptedMarketSignalProjection.cs` owns source-event dispatch and mapping an accepted daily session bar into an EOD observation. Storage exposes typed transaction mutations and does not dispatch arbitrary `IEvent` objects. Provider calls, signal calculation and notification publication are absent from the persistence helpers. Context public instance operations continue implementing read/write contracts.
+
+
+### MarketDataServiceDb alignment
+
+- `MarketDataServiceDbContext` implements the read/write contracts and ordinal result mapping.
+- `MarketDataServiceDbParameters.cs` contains all internal PostgreSQL bindings.
+- `MarketDataServiceDbContextExtensions.cs` owns provider operations and file-scoped internal transaction/result helpers.
+- `Schema/MarketDataServiceSchemaSql.cs` is the single schema catalog; `MarketDataServiceSchemaDb` creates all tables, constraints and indexes in dependency order.
+- Pure subscription ownership rules live in `Application.MarketData/Subscriptions/Persistence/DurableSubscriptionTransition.cs`. Persistence evaluates those rules under the dataset row lock and atomically saves the snapshot, operation outcome, identity reservations, watermark and outbox. No dispatch or recovery orchestration is added to the context.
+
+
+### OptionPricerDb alignment
+
+OptionPricerDb uses PostgreSQL exclusively. `OptionPricerDbContext` is the non-partial read/write facade with ordinal `MapTo` mappings. Bind values are consolidated in `OptionPricerDbParameters.cs`; UTC timestamp conversion and typed provider operations use receiver blocks in `OptionPricerDbContextExtensions.cs`. `Schema/OptionPricerSchemaSql.cs` is the single schema catalog, executed by `OptionPricerSchemaDb`.
+
+`Domain.OptionPricer/Persistence/AcceptedOptionPricerProjection.cs` owns accepted-event dispatch. Typed extensions on `IEnlistedPostgresTransaction` persist distribution pairs, jobs and status/deletion facts in the caller's transaction, without independent commits or recalculation. Deterministic source-derived IDs, numeric precision, nullable timestamps and source-order selection remain unchanged. In-progress count and cleanup execute directly in SQL rather than loading and iterating all jobs. Pricing tests share disposable infrastructure; they do not use Development databases.

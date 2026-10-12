@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;

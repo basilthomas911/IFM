@@ -7,6 +7,9 @@ public readonly record struct MarketDataProjectionReadinessReadModel(
     bool VixFuturesContractIndex,
     bool FuturesItiSignalQueries)
 {
-    public bool IsReady => FuturesTickByTime && FuturesEodByMonth &&
+    /// <summary>Raw tick query maintenance is outside MarketDataDb; tick flags/counts are not a Scylla health claim.</summary>
+    public bool RawTicksManagedByTradeTickQuoteDb { get; init; }
+
+    public bool IsReady => (RawTicksManagedByTradeTickQuoteDb || FuturesTickByTime) && FuturesEodByMonth &&
         VixFuturesContractIndex && FuturesItiSignalQueries;
 }

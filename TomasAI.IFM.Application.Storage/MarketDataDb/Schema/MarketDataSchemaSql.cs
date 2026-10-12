@@ -1,8 +1,53 @@
+using TomasAI.IFM.Application.Storage.SchemaDb;
+
 namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 /// <summary>Native derived-market-data tables. Raw Databento trades and quotes belong to TradeTickQuoteDb.</summary>
 public static class MarketDataSchemaSql
 {
+    /// <summary>Returns every PostgreSQL schema object in dependency order.</summary>
+    /// <returns>The complete table, index and additive schema catalog.</returns>
+    public static SchemaObjectDefinition[] GetDefinitions() =>
+    [
+        new("historical_data_loader", CreateHistoricalDataLoader,
+            "DROP TABLE IF EXISTS historical_data_load_manifest; DROP TABLE IF EXISTS historical_data_load_checkpoint;"),
+        new("market_data", Create, "DROP SCHEMA IF EXISTS market_data CASCADE;"),
+        new("strategy_option_chain_parameter_version", OptionChainVersionCreate,
+            "DROP TABLE IF EXISTS market_data.strategy_option_chain_parameter_version;"),
+        new("strategy_option_chain_parameter_current", OptionChainCurrentCreate,
+            "DROP TABLE IF EXISTS market_data.strategy_option_chain_parameter_current;")
+    ];
+
+    public const string CreateHistoricalDataLoader = """
+    CREATE TABLE IF NOT EXISTS historical_data_load_checkpoint (
+        data_load_attempt_id uuid PRIMARY KEY,
+        request_sha256 text NOT NULL,
+        status smallint NOT NULL,
+        stage smallint NOT NULL,
+        provider_job_id text NOT NULL DEFAULT '',
+        provider_file_id text NOT NULL DEFAULT '',
+        batch_ordinal bigint NOT NULL DEFAULT -1,
+        source_position text NOT NULL DEFAULT '',
+        error_message text NOT NULL DEFAULT '',
+        updated_at_utc timestamptz NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_historical_data_load_completed_request
+        ON historical_data_load_checkpoint (request_sha256)
+        WHERE status = 2;
+
+    CREATE TABLE IF NOT EXISTS historical_data_load_manifest (
+        data_load_attempt_id uuid PRIMARY KEY,
+        manifest_json text NOT NULL,
+        audit_json text NOT NULL,
+        created_at_utc timestamptz NOT NULL,
+        CONSTRAINT fk_historical_data_load_manifest_checkpoint
+            FOREIGN KEY (data_load_attempt_id)
+            REFERENCES historical_data_load_checkpoint(data_load_attempt_id)
+            ON DELETE CASCADE
+    );
+    """;
+
     /// <summary>Creates the immutable option-chain policy versions without altering existing rows.</summary>
     public const string OptionChainVersionCreate = """
         CREATE SCHEMA IF NOT EXISTS market_data;
@@ -994,5 +1039,21 @@ public static class MarketDataSchemaSql
         ALTER TABLE market_data.futures_atr_signal ADD COLUMN IF NOT EXISTS isWarm BOOLEAN;
         
         CREATE INDEX IF NOT EXISTS futures_rsi_signal_signaltype ON market_data.futures_rsi_signal (signalType);
+        """;
+    /// <summary>Recreates missing canonical query indexes and rebuilds them transactionally.</summary>
+    public const string RebuildCanonicalQueryIndexes = """
+        SET LOCAL statement_timeout = '15min';
+        SET LOCAL lock_timeout = '5s';
+        LOCK TABLE market_data.futures_eod_data,market_data.vix_futures_eod_data,market_data.futures_iti_signal IN SHARE MODE;
+        CREATE INDEX IF NOT EXISTS futures_eod_data_ordered ON market_data.futures_eod_data(contractId,valueDate DESC,symbol);
+        CREATE INDEX IF NOT EXISTS futures_eod_value_date ON market_data.futures_eod_data(valueDate DESC,contractId,symbol);
+        CREATE INDEX IF NOT EXISTS vix_futures_eod_data_ordered ON market_data.vix_futures_eod_data(contractId,valueDate DESC);
+        CREATE INDEX IF NOT EXISTS vix_futures_eod_value_date ON market_data.vix_futures_eod_data(valueDate,contractId);
+        CREATE INDEX IF NOT EXISTS futures_iti_signal_ordered ON market_data.futures_iti_signal(contractId,valueDate DESC,timePeriod DESC,intrinsicTimeMode DESC,intrinsicTimeTrend DESC,intrinsicTimeGroupId DESC,sequenceId DESC);
+        REINDEX INDEX market_data.futures_eod_data_ordered;
+        REINDEX INDEX market_data.futures_eod_value_date;
+        REINDEX INDEX market_data.vix_futures_eod_data_ordered;
+        REINDEX INDEX market_data.vix_futures_eod_value_date;
+        REINDEX INDEX market_data.futures_iti_signal_ordered;
         """;
 }

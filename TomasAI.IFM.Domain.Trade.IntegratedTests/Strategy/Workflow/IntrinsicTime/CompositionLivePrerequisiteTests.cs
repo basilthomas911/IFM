@@ -11,7 +11,7 @@ using TomasAI.IFM.Application.MarketData.Subscriptions;
 using TomasAI.IFM.Application.MarketData.Worker;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
-using TomasAI.IFM.Application.Storage.OptionPricing;
+using TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -48,7 +48,7 @@ public sealed partial class CompositionBusinessProjectionTests
         var securitiesFactory = Substitute.For<IDbContextFactory>();
         var securitiesDb = new SecuritiesDbContext(settings, securitiesFactory, NullLogger<DbProvider>.Instance);
         securitiesFactory.SecuritiesDb.Returns(securitiesDb);
-        var bundle = await new OptionPricingReferenceBundleStore(securitiesDb).ReadAsync(Environment.GetEnvironmentVariable("IFM_OCP_BUNDLE_ID")!, token);
+        var bundle = await new OptionPricingReferenceBundleRepository(securitiesDb).ReadAsync(Environment.GetEnvironmentVariable("IFM_OCP_BUNDLE_ID")!, token);
         Assert.NotNull(bundle);
         var native = new DatabentoFeedFactory();
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Production, "GLBX.MDP3") with { DataSource = FeedDataSourceMode.DatabentoLive };

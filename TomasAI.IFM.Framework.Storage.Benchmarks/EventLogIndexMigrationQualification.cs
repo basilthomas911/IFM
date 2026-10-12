@@ -4,7 +4,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Framework.Storage.Postgres;

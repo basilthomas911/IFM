@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage;
@@ -71,7 +73,7 @@ public class FuturesBarDataStateRepository(
                 IEvent fact = source;
                 
                 await transaction.AppendAsync(command.StreamId,command.CommandId,fact,version++,token).ConfigureAwait(false);
-                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
+                _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,fact,token).ConfigureAwait(false);
                 accepted.Add(fact);
             }
             return accepted;

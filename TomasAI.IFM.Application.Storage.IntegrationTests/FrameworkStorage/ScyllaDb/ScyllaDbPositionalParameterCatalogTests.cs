@@ -36,7 +36,6 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         };
 
     [Theory]
-    [InlineData("OptionPricerDb", "OptionPricerDbCql")]
     [InlineData("ReferenceDb", "ReferenceDbCql")]
     [InlineData("SecuritiesDb", "SecuritiesDbCql")]
     [InlineData("MarketDataDb", "MarketDataDbCql")]

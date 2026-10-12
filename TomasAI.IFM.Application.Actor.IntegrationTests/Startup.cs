@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.AspNetCore.Builder;
@@ -33,7 +33,6 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
-using TomasAI.IFM.Application.Storage.EventSourceDb.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
@@ -432,7 +431,7 @@ public static class Startup
             services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
             // Match production's implemented selector capabilities; unsupported downstream capabilities remain denied.
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogCapabilities>(
-                _ => new TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
+                _ => new TomasAI.IFM.Application.Strategy.StrategyCatalog.StrategyCatalogCapabilityRegistry(TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.TradeSelectionCatalogCapabilities.Create()));
             services.AddSingleton<TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.IStrategyCatalogReferences,
                 TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogReferenceAdapter>();
             logger.LogInformationEvent("ApiServer", "register storage services...");
@@ -505,7 +504,9 @@ public static class Startup
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
             services.AddSingleton<ICommandAuditLogger>(provider =>
-                (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
+                new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(provider.GetRequiredService<IEventSourceActorDbContext>(),
+                logger: provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator>>(),
+                options: siContainer.GetInstance<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>
@@ -522,7 +523,7 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataServiceDbContext>() as MarketDataServiceDbContext)!);
             services.AddSingleton<IMarketDataServiceStore>(provider => provider.GetRequiredService<MarketDataServiceDbContext>());
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
-            services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
+            services.AddSingleton<IHistoricalDataLoaderStore, HistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore>(provider =>
                 provider.GetRequiredService<IMarketDataDbContext>());
             services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.Persistence.IDurableSubscriptionIntentStore>(provider =>
@@ -714,9 +715,9 @@ public static class Startup
             .Get<EventProjectorReliabilityOptions>() ?? new EventProjectorReliabilityOptions();
         siContainer.RegisterInstance(projectorReliabilityOptions.Validate());
         var eventLogPersistenceOptions = config
-            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions.SectionName)
-            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions>()
-            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.Persistence.EventLogPersistenceOptions();
+            .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions.SectionName)
+            .Get<TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions>()
+            ?? new TomasAI.IFM.Application.Storage.EventSourceDb.EventLog.EventLogPersistenceOptions();
         siContainer.RegisterInstance(eventLogPersistenceOptions.Validate());
         var commandAuditPersistenceOptions = config
             .GetSection(TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions.SectionName)

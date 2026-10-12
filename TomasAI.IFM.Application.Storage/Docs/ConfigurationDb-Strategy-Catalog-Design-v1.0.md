@@ -40,7 +40,7 @@ One mean-reversion strategy can be deployed on several approved roots. Several s
 
 The relational catalog now has its own context operations, transactional writes, lifecycle guards and tests. Existing pipeline parameter lifecycle enforcement still varies by kind. Actual trading capability implementations and the TradeSelection binding are not supplied merely by creating catalog tables.
 
-Sources: [context](../ConfigurationDb/ConfigurationDbContext.cs), [parameter contract](../ConfigurationDb/ConfigurationParameterSet.cs), [schema registration](../ConfigurationDb/Schema/ConfigurationSchemaDb.cs), [SQL schema](../ConfigurationDb/Schema/ConfigurationSchemaSql.cs).
+Sources: [context](../ConfigurationDb/ConfigurationDbContext.cs), [parameter contract](../../TomasAI.IFM.Domain.Strategy.Contracts.Shared/Configuration/ConfigurationParameterSet.cs), [schema registration](../ConfigurationDb/Schema/ConfigurationSchemaDb.cs), [SQL schema](../ConfigurationDb/Schema/ConfigurationSchemaSql.cs).
 
 ## 4. Proposed relational model
 

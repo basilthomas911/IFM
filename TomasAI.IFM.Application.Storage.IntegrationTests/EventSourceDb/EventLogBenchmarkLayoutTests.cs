@@ -1,5 +1,5 @@
 using System;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;

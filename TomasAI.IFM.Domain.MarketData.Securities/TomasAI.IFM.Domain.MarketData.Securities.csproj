@@ -24,4 +24,5 @@
     <Folder Include="FuturesOptionContract\Command\Validation\" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
 </Project>

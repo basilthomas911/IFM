@@ -4,7 +4,7 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
-using TomasAI.IFM.Application.Storage.OptionPricing;
+using TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -58,7 +58,7 @@ internal static class OptionPricingReferenceMaintenance
             AssetTypeId = AssetTypeId.Futures
         }, ReviewedEsOptionReference.Calendar, UsTreasuryPublicationCalendar.Default2026, UsTreasuryCurve.ConversionPolicy,
             mapped.Select(x => x.Candidate).ToImmutableArray()).Seal();
-        await new OptionPricingReferenceBundleStore(db).PublishAsync(bundle, token);
+        await new OptionPricingReferenceBundleRepository(db).PublishAsync(bundle, token);
         Console.WriteLine($"Published and read back {mapped.Length} exact {root} mappings for {expiry:yyyy-MM-dd}; bundle={bundle.BundleId}; underlying={future.RawSymbol}/{future.Instrument.InstrumentId}; profile={bundle.ProfileVersion}.");
     }
     static FuturesOptionContractReadModel CreateDefinition(ContractDetail source, ContractDetail future,

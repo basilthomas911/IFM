@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -62,7 +64,7 @@ public sealed class MarketOutlookSnapshotStateRepository(
             foreach (var source in pending)
             {
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
-                _ = await PostgresMarketSignalStore.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
+                _ = await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
             return true;
         },cancellationToken).ConfigureAwait(false);

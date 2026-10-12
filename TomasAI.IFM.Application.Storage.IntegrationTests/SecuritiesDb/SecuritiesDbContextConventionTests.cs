@@ -22,6 +22,7 @@ public sealed class SecuritiesDbContextConventionTests
         var assembly = typeof(SecuritiesDbContext).Assembly;
         Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.OptionPricingConventionStore"));
         Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.OptionPricingReferenceBundleStore"));
+        Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.OptionPricing.OptionPricingReferenceBundleStore"));
         Assert.DoesNotContain(typeof(TomasAI.IFM.Application.Storage.ReferenceDb.IReferenceDbContext).GetProperties(),
             property => property.Name.StartsWith("OptionPricing", StringComparison.Ordinal));
         Assert.Contains(typeof(ISecuritiesDbReadContext).GetMethods(),

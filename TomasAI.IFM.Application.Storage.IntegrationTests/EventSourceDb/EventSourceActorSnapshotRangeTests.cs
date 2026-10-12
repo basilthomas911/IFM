@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -9,7 +9,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
-using TomasAI.IFM.Application.Storage.EventSourceDb.Persistence;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -736,16 +736,16 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
                 InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
             EntityId = entity
         };
-        var auditLogger = (ICommandAuditLogger)fixture.ActorEventDb;
+        var auditLogger = new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.ActorEventDb);
 
-        var legacyAudit = fixture.ActorEventDb.InsertCommandLogAsync(
+        var legacyAudit = auditLogger.InsertCommandLogAsync(
             command,
             DateTime.UtcNow,
             "payload");
         (await auditLogger.TryReserveAsync(command)).Accepted.Should().BeTrue();
         await legacyAudit;
 
-        var duplicateAudit = fixture.ActorEventDb.InsertCommandLogAsync(
+        var duplicateAudit = auditLogger.InsertCommandLogAsync(
             command,
             DateTime.UtcNow,
             "payload");

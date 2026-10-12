@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.MarketData;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -15,7 +16,7 @@ internal static class AcceptedSignalRebuild
         var owner = transactions ?? throw new InvalidOperationException("Signal reconstruction requires the PostgreSQL event transaction service.");
         await owner.ExecuteOnceAsync(async (transaction,cancellation) =>
         {
-            if (!await PostgresMarketSignalStore.TryProjectAsync(transaction,source,cancellation).ConfigureAwait(false))
+            if (!await AcceptedMarketSignalProjection.TryProjectAsync(transaction,source,cancellation).ConfigureAwait(false))
                 throw new InvalidOperationException("No audited signal materialization exists for this source event.");
             return true;
         },token).ConfigureAwait(false);

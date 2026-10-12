@@ -74,7 +74,7 @@ public sealed class StrategyOptionChainCompositionTests
         var candidate = binding.Candidates[0] with { CompositionPolicyReference = reference };
         var definitions = binding.CatalogDefinitions.Select(x => x.Key == candidate.DeploymentKey
             ? x with { PipelineParameters = x.PipelineParameters.Select(p => p.Id == old.Id ? p with { Hash = policy.Hash() } : p).ToArray() } : x).ToArray();
-        definitions = definitions.Select(x => x with { ContentHash = TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog.StrategyCatalogValidation.ContentHash(SelectionCatalogTransport.ToSource(x).Definition) }).ToArray();
+        definitions = definitions.Select(x => x with { ContentHash = TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical.StrategyCatalogValidation.ContentHash(SelectionCatalogTransport.ToSource(x).Definition) }).ToArray();
         var graph = binding.DeploymentSnapshots.Single();
         graph = graph with { ContentHash = SelectionCatalogTransport.GraphHash(graph.DeploymentKey, definitions.Select(SelectionCatalogTransport.ToSource)) };
         candidate = candidate with { CandidateHash = TradeSelectionContracts.CandidateHash(candidate, graph) };

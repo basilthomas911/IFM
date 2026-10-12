@@ -1,94 +1,30 @@
-using Microsoft.Extensions.Logging;
+using Npgsql;
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 using TomasAI.IFM.Framework.SequenceId;
-using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Shared.Storage;
+
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Shared.Extensions;
+
 
 namespace TomasAI.IFM.Application.Storage.OptionPricerDb;
 
-internal static class OptionPricerDbContextExtensions
+/// <summary>Typed PostgreSQL persistence helpers for the context and caller-owned transactions.</summary>
+public static class OptionPricerDbContextExtensions
 {
     extension(OptionPricerDbContext context)
     {
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","S2325", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
-        /// <summary>Validates and persists the ProjectAcceptedEventAsync operation.</summary>
-        internal async Task ProjectAcceptedEventAsyncCoreBinding(EventSourceDb.IEnlistedPostgresTransaction transaction, TomasAI.IFM.Shared.EventSourcing.IEvent source, CancellationToken cancellationToken = default)
-        {
-            ArgumentNullException.ThrowIfNull(transaction);
-            if (!string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-                throw new InvalidOperationException("Enlisted pricing materialization requires the PostgreSQL provider.");
-            ArgumentNullException.ThrowIfNull(source);
-            switch (source)
-            {
-                case TomasAI.IFM.Domain.OptionPricer.Shared.Events.SpreadDistributionInsertedEvent inserted:
-                    var put = inserted.PutSpreadDistribution;
-                    var call = inserted.CallSpreadDistribution;
-                    var putId = put.Id != 0 ? put.Id : context.StableSourceDistributionId(source.EventId, false);
-                    var callId = call.Id != 0 ? call.Id : context.StableSourceDistributionId(source.EventId, true);
-                    var putParameters = put.ToInsertSpreadDistribution(putId)with
-                    {
-                        PostgreSql = true
-                    };
-                    var callParameters = call.ToInsertSpreadDistribution(callId)with
-                    {
-                        PostgreSql = true
-                    };
-                    await transaction.ExecuteAsync(OptionPricerDbSql.InsertAcceptedSpreadDistribution, [..(Npgsql.NpgsqlParameter[])putParameters.Bind(), TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Bigint(source.EventId)], cancellationToken)
-                .ConfigureAwait(false);
-                    await transaction.ExecuteAsync(OptionPricerDbSql.InsertAcceptedSpreadDistribution, [..(Npgsql.NpgsqlParameter[])callParameters.Bind(), TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter.Bigint(source.EventId)], cancellationToken)
-                .ConfigureAwait(false);
-                    break;
-                case TomasAI.IFM.Domain.OptionPricer.Shared.Events.SpreadDistributionDeletedEvent deleted:
-                    var deletion = new DeleteSpreadDistribution(deleted.EntityId.TradeId, deleted.EntityId.ValueDate)
-                    {
-                        PostgreSql = true
-                    };
-                    await transaction.ExecuteAsync(OptionPricerDbSql.DeleteSpreadDistribution, (Npgsql.NpgsqlParameter[])deletion.Bind(), cancellationToken)
-                .ConfigureAwait(false);
-                    break;
-                case TomasAI.IFM.Domain.OptionPricer.Shared.Events.SpreadDistributionJobSubmittedEvent submitted:
-                    var submission = submitted.SpreadDistributionJob.ToInsertSpreadDistributionJob()with
-                    {
-                        PostgreSql = true
-                    };
-                    await transaction.ExecuteAsync(OptionPricerDbSql.InsertSpreadDistributionJob, (Npgsql.NpgsqlParameter[])submission.Bind(), cancellationToken)
-                .ConfigureAwait(false);
-                    break;
-                case TomasAI.IFM.Domain.OptionPricer.Shared.Events.SpreadDistributionJobsInProgressDeletedEvent deleted:
-                    var jobs = new DeleteSpreadDistributionJobs(deleted.EntityId.OrderId, deleted.EntityId.TradeId)
-                    {
-                        PostgreSql = true
-                    };
-                    await transaction.ExecuteAsync(OptionPricerDbSql.DeleteSpreadDistributionJobs, (Npgsql.NpgsqlParameter[])jobs.Bind(), cancellationToken)
-                .ConfigureAwait(false);
-                    break;
-                case TomasAI.IFM.Domain.OptionPricer.Shared.Events.SpreadDistributionJobStatusUpdatedEvent changed:
-                    var update = new UpdateSpreadDistributionJobStatus(changed.EntityId.OrderId, changed.EntityId.TradeId, changed.EntityId.ValueDate, changed.JobStatus.ToStringFast(), changed.ReceivedOn, null, changed.JobStatus == SpreadDistributionJobStatus.InProgress)
-                    {
-                        PostgreSql = true
-                    };
-                    await transaction.ExecuteAsync(OptionPricerDbSql.UpdateSpreadDistributionJobStatus, (Npgsql.NpgsqlParameter[])update.Bind(), cancellationToken)
-                .ConfigureAwait(false);
-                    break;
-                default:
-                    throw new InvalidOperationException("Unexpected option-pricer source event.");
-            }
-        }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","S2325", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>Validates and persists the DeleteOptionPricerDeviceAsync operation.</summary>
-        internal async Task DeleteOptionPricerDeviceAsyncCoreBinding(OptionPricerDeviceEntityId deviceId)
+        internal async Task DeleteDeviceAsync(OptionPricerDeviceEntityId deviceId)
         {
             ArgumentNullException.ThrowIfNull(deviceId);
             var parameters = new DeleteOptionPricerDevice(deviceId.DeviceId, deviceId.DeviceName);
-            await (context._dbFactory.OptionPricerDb.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteOptionPricerDevice)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? OptionPricerDbSql.DeleteOptionPricerDevice : OptionPricerDbCql.DeleteOptionPricerDevice)
-                .SetParameters(parameters with { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            await (context.Database.Use("OptionPricer.DeleteOptionPricerDevice", OptionPricerDbSql.DeleteOptionPricerDevice)
+                .SetParameters(parameters)
                 .ExecuteCommandAsync())
                 .ConfigureAwait(false);
         }
@@ -96,12 +32,12 @@ internal static class OptionPricerDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","S2325", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>Validates and persists the InsertOptionPricerDeviceAsync operation.</summary>
-        internal async Task InsertOptionPricerDeviceAsyncCoreBinding(OptionPricerDeviceReadModel device)
+        internal async Task PersistDeviceAsync(OptionPricerDeviceReadModel device)
         {
             ArgumentNullException.ThrowIfNull(device);
             var parameters = new InsertOptionPricerDevice(device.DeviceId, device.DeviceName, device.SpreadPaths, device.VolatilityPaths, device.MaxBatchSize, device.OptionType.ToStringFast(), device.Enabled);
-            await (context._dbFactory.OptionPricerDb.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertOptionPricerDevice)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? OptionPricerDbSql.InsertOptionPricerDevice : OptionPricerDbCql.InsertOptionPricerDevice)
-                .SetParameters(parameters with { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            await (context.Database.Use("OptionPricer.InsertOptionPricerDevice", OptionPricerDbSql.InsertOptionPricerDevice)
+                .SetParameters(parameters)
                 .ExecuteCommandAsync())
                 .ConfigureAwait(false);
         }
@@ -109,7 +45,7 @@ internal static class OptionPricerDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","S2325", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>Validates and persists the InsertSpreadDistributionsAsync operation.</summary>
-        internal async Task InsertSpreadDistributionsAsyncCoreBinding(SpreadDistributionReadModel putSpreadDistribution, SpreadDistributionReadModel callSpreadDistribution)
+        internal async Task PersistDistributionPairAsync(SpreadDistributionReadModel putSpreadDistribution, SpreadDistributionReadModel callSpreadDistribution)
         {
             ArgumentNullException.ThrowIfNull(callSpreadDistribution);
             ArgumentNullException.ThrowIfNull(putSpreadDistribution);
@@ -119,12 +55,12 @@ internal static class OptionPricerDbContextExtensions
                 .ConfigureAwait(false);
             var putParameters = putSpreadDistribution.ToInsertSpreadDistribution(putId);
             var callParameters = callSpreadDistribution.ToInsertSpreadDistribution(callId);
-            var db = context._dbFactory.OptionPricerDb;
-            var putCommand = db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? OptionPricerDbSql.InsertSpreadDistribution : OptionPricerDbCql.InsertSpreadDistribution)
-                .SetParameters(putParameters with { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var db = context.Database;
+            var putCommand = db.Use("OptionPricer.InsertSpreadDistribution", OptionPricerDbSql.InsertSpreadDistribution)
+                .SetParameters(putParameters)
                 .QueueCommand();
-            var callCommand = db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? OptionPricerDbSql.InsertSpreadDistribution : OptionPricerDbCql.InsertSpreadDistribution)
-                .SetParameters(callParameters with { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var callCommand = db.Use("OptionPricer.InsertSpreadDistribution", OptionPricerDbSql.InsertSpreadDistribution)
+                .SetParameters(callParameters)
                 .QueueCommand();
             await (db.ExecuteQueuedCommandsAsync([putCommand, callCommand], useTransaction: true))
                 .ConfigureAwait(false);
@@ -133,44 +69,17 @@ internal static class OptionPricerDbContextExtensions
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","S2325", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822", Justification="Keep the C# 14 DbContext binding extension receiver contract.")]
         /// <summary>Validates and persists the InsertSpreadDistributionJobAsync operation.</summary>
-        internal async Task InsertSpreadDistributionJobAsyncCoreBinding(SpreadDistributionJobReadModel job)
+        internal async Task PersistDistributionJobAsync(SpreadDistributionJobReadModel job)
         {
             ArgumentNullException.ThrowIfNull(job);
             var parameters = job.ToInsertSpreadDistributionJob();
-            await (context._dbFactory.OptionPricerDb.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistributionJob)}", string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? OptionPricerDbSql.InsertSpreadDistributionJob : OptionPricerDbCql.InsertSpreadDistributionJob)
-                .SetParameters(parameters with { PostgreSql = string.Equals(context.ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            await (context.Database.Use("OptionPricer.InsertSpreadDistributionJob", OptionPricerDbSql.InsertSpreadDistributionJob)
+                .SetParameters(parameters)
                 .ExecuteCommandAsync())
                 .ConfigureAwait(false);
         }
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep the C# 14 DbContext binding extension receiver contract.")]
-        /// <summary>Executes the StableSourceDistributionId persistence helper.</summary>
-        internal long StableSourceDistributionId(long eventId, bool isCall)
-        {
-            if (eventId <= 0 || eventId > (long.MaxValue - 1) / 2)
-                throw new ArgumentOutOfRangeException(nameof(eventId), eventId, "A positive persisted source event id is required.");
-            return isCall ? checked(-(eventId * 2 + 1)) : checked(-(eventId * 2));
-        }
 
-        /// <summary>
-        /// Gets the identities of all persisted spread-distribution jobs that are currently in progress.
-        /// </summary>
-        /// <param name="cancellationToken">The token used to cancel the asynchronous query.</param>
-        /// <returns>The identities of the in-progress jobs.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal async Task<IReadOnlyList<SpreadDistributionJobEntityId>> GetSpreadDistributionJobsInProgressAsync(
-            CancellationToken cancellationToken = default)
-        {
-            var jobs = await (context.Database
-                .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetAllSpreadDistributionJobs)}", string.Equals(context.ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? OptionPricerDbSql.GetAllSpreadDistributionJobs : OptionPricerDbCql.GetAllSpreadDistributionJobs)
-                .ExecuteQueryAsync<SpreadDistributionJobReadModel>(OptionPricerDbContext.MapToSpreadDistributionJob, cancellationToken))
-                .ConfigureAwait(false);
-            return jobs
-                .Where(job => job.JobStatus == SpreadDistributionJobStatus.InProgress || job.InProgress)
-                .Select(job => job.EntityId)
-                .ToArray();
-        }
     }
 
     extension(SpreadDistributionReadModel distribution)
@@ -220,5 +129,63 @@ internal static class OptionPricerDbContextExtensions
                 job.JobFailed,
                 job.JobStatus == SpreadDistributionJobStatus.InProgress,
                 job.LossProbabilityFactor);
+    }
+
+    extension(IEnlistedPostgresTransaction transaction)
+    {
+        /// <summary>Persists the accepted put/call pair on the caller-owned event transaction.</summary>
+        public async Task PersistAcceptedDistributionPairAsync(SpreadDistributionReadModel put, SpreadDistributionReadModel call, long eventId, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(put);
+            ArgumentNullException.ThrowIfNull(call);
+            var putId = put.Id != 0 ? put.Id : eventId.AsDistributionId(false);
+            var callId = call.Id != 0 ? call.Id : eventId.AsDistributionId(true);
+            var putParameters = (NpgsqlParameter[])put.ToInsertSpreadDistribution(putId).Bind();
+            var callParameters = (NpgsqlParameter[])call.ToInsertSpreadDistribution(callId).Bind();
+            await transaction.ExecuteAsync(OptionPricerDbSql.InsertAcceptedSpreadDistribution, [.. putParameters, Bigint(eventId)], cancellationToken)
+                .ConfigureAwait(false);
+            await transaction.ExecuteAsync(OptionPricerDbSql.InsertAcceptedSpreadDistribution, [.. callParameters, Bigint(eventId)], cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>Deletes persisted distributions on the caller-owned event transaction.</summary>
+        public Task DeleteAcceptedDistributionsAsync(int tradeId, DateOnly valueDate, CancellationToken cancellationToken = default)
+            => transaction.ExecuteAsync(OptionPricerDbSql.DeleteSpreadDistribution, (NpgsqlParameter[])new DeleteSpreadDistribution(tradeId, valueDate).Bind(), cancellationToken);
+
+        /// <summary>Persists the accepted job on the caller-owned event transaction.</summary>
+        public Task PersistAcceptedDistributionJobAsync(SpreadDistributionJobReadModel job, CancellationToken cancellationToken = default)
+            => transaction.ExecuteAsync(OptionPricerDbSql.InsertSpreadDistributionJob, (NpgsqlParameter[])job.ToInsertSpreadDistributionJob().Bind(), cancellationToken);
+
+        /// <summary>Deletes an order/trade's jobs on the caller-owned event transaction.</summary>
+        public Task DeleteAcceptedDistributionJobsAsync(int orderId, int tradeId, CancellationToken cancellationToken = default)
+            => transaction.ExecuteAsync(OptionPricerDbSql.DeleteSpreadDistributionJobs, (NpgsqlParameter[])new DeleteSpreadDistributionJobs(orderId, tradeId).Bind(), cancellationToken);
+
+        /// <summary>Updates a job's persisted status on the caller-owned event transaction.</summary>
+        public Task UpdateAcceptedDistributionJobStatusAsync(int orderId, int tradeId, DateOnly valueDate, SpreadDistributionJobStatus status, DateTime completed, DateTime? failed, CancellationToken cancellationToken = default)
+            => transaction.ExecuteAsync(OptionPricerDbSql.UpdateSpreadDistributionJobStatus, (NpgsqlParameter[])new UpdateSpreadDistributionJobStatus(orderId, tradeId, valueDate, status.ToStringFast(), completed, failed, status == SpreadDistributionJobStatus.InProgress).Bind(), cancellationToken);
+    }
+
+    extension(long eventId)
+    {
+        /// <summary>Derives distinct deterministic negative put/call IDs for source-event replay.</summary>
+        internal long AsDistributionId(bool isCall)
+        {
+            if (eventId <= 0 || eventId > (long.MaxValue - 1) / 2)
+                throw new ArgumentOutOfRangeException(nameof(eventId), eventId, "A positive persisted source event id is required.");
+            return isCall ? checked(-(eventId * 2 + 1)) : checked(-(eventId * 2));
+        }
+    }
+
+    extension(DateTime value)
+    {
+        /// <summary>Preserves the established UTC interpretation of unspecified timestamps.</summary>
+        internal DateTime AsOptionPricerUtc() => value.Kind == DateTimeKind.Local
+            ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+    }
+
+    extension(DateTime? value)
+    {
+        /// <summary>Converts an optional persisted timestamp to UTC while preserving null.</summary>
+        internal DateTime? AsOptionPricerUtc() => value?.AsOptionPricerUtc();
     }
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.OptionPricer.Persistence;
 using System;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -15,17 +16,13 @@ using TomasAI.IFM.Shared.Storage;
 using Xunit;
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.OptionPricerDb;
 
-[Collection("PostgreSQL plan atomicity")]
-public sealed class PostgresOptionPricerAtomicTests(PostgresTradePlanFixture fixture)
+[Collection("OptionPricer PostgreSQL")]
+public sealed class PostgresOptionPricerAtomicTests(OptionPricerPostgresFixture fixture)
 {
     [Fact]
     public async Task Accepted_source_pair_rolls_back_together_and_latest_selection_uses_source_order()
     {
-        var settings=new DbConnectionSettings().Add(OptionPricerDbContext.ConnectionName,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
-        await new OptionPricerSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
-        var factory=Substitute.For<IDbContextFactory>();
-        var context=new OptionPricerDbContext(settings,factory,Substitute.For<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
-        factory.OptionPricerDb.Returns(context);
+        var context = fixture.DevDatabase;
         var trade=Random.Shared.Next(30_000_000,40_000_000);
         var date=new DateOnly(2026,10,11);
         var put=new SpreadDistributionReadModel(0,trade,date,TradeType.PutCreditSpread,TradeStatus.Open,30,
@@ -36,14 +33,14 @@ public sealed class PostgresOptionPricerAtomicTests(PostgresTradePlanFixture fix
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             await db.AppendAsync(stream,first.CommandId,first,0,ct);
-            await context.ProjectAcceptedEventAsync(db,first,ct);
+            await AcceptedOptionPricerProjection.ProjectAsync(db,first,ct);
             return true;
         });
         var second=first with {CommandId=Guid.NewGuid(),PutSpreadDistribution=put with {ForwardPrice=13},EventId=0};
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             await db.AppendAsync(stream,second.CommandId,second,1,ct);
-            await context.ProjectAcceptedEventAsync(db,second,ct);
+            await AcceptedOptionPricerProjection.ProjectAsync(db,second,ct);
             return true;
         });
         var latest=await context.GetSpreadDistributionAsync(trade,put.TradeType,put.TradeStatus,date,30);
@@ -53,7 +50,7 @@ public sealed class PostgresOptionPricerAtomicTests(PostgresTradePlanFixture fix
         await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=>
         {
             await db.AppendAsync(stream,failed.CommandId,failed,2,ct);
-            await context.ProjectAcceptedEventAsync(db,failed,ct);
+            await AcceptedOptionPricerProjection.ProjectAsync(db,failed,ct);
             throw new InvalidOperationException("Failure after source and pair materialization");
         })).Should().ThrowAsync<InvalidOperationException>();
         (await fixture.EventCountAsync(stream)).Should().Be(2);
@@ -61,7 +58,7 @@ public sealed class PostgresOptionPricerAtomicTests(PostgresTradePlanFixture fix
         // An older event applied later must not replace the newest accepted calculation.
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await context.ProjectAcceptedEventAsync(db,first,ct);
+            await AcceptedOptionPricerProjection.ProjectAsync(db,first,ct);
             return true;
         });
         (await context.GetSpreadDistributionAsync(trade,put.TradeType,put.TradeStatus,date,30))!.ForwardPrice.Should().Be(13);

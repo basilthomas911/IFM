@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Pricing;
 using System;
 using System.Collections.Generic;
 using System.Linq;

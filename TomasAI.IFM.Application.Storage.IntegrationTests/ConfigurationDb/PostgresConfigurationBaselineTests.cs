@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;

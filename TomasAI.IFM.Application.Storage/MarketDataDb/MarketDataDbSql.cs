@@ -621,4 +621,169 @@ public static class MarketDataDbSql
     public const string SelectLatest = """
         SELECT snapshot_id,snapshot_digest,publication_sequence,available_at_utc FROM market_data.option_iv_latest WHERE environment=$1 AND series_id=$2 AND methodology_version=$3 AND metric_policy_version=$4;
         """;
+    /// <summary>Checks canonical PostgreSQL query indexes; raw ticks belong to TradeTickQuoteDb.</summary>
+    public const string GetCanonicalQueryReadiness = """
+        WITH required(group_name,index_name,table_name,columns) AS (VALUES
+          ('eod','futures_eod_data_ordered','futures_eod_data',ARRAY['contractid','valuedate','symbol']),
+          ('eod','futures_eod_value_date','futures_eod_data',ARRAY['valuedate','contractid','symbol']),
+          ('vix','vix_futures_eod_data_ordered','vix_futures_eod_data',ARRAY['contractid','valuedate']),
+          ('vix','vix_futures_eod_value_date','vix_futures_eod_data',ARRAY['valuedate','contractid']),
+          ('iti','futures_iti_signal_ordered','futures_iti_signal',ARRAY['contractid','valuedate','timeperiod','intrinsictimemode','intrinsictimetrend','intrinsictimegroupid','sequenceid'])),
+        checks AS (SELECT r.group_name,COALESCE(i.indisvalid AND i.indisready
+          AND i.indrelid=to_regclass('market_data.'||r.table_name)
+          AND i.indpred IS NULL AND i.indexprs IS NULL
+          AND ARRAY(SELECT a.attname::text FROM unnest(i.indkey) WITH ORDINALITY k(attnum,ordinality)
+              JOIN pg_attribute a ON a.attrelid=i.indrelid AND a.attnum=k.attnum
+              WHERE k.ordinality<=i.indnkeyatts ORDER BY k.ordinality)=r.columns,false) AS ready
+          FROM required r LEFT JOIN pg_index i ON i.indexrelid=to_regclass('market_data.'||r.index_name))
+        SELECT bool_and(ready) FILTER(WHERE group_name='eod'),
+               bool_and(ready) FILTER(WHERE group_name='vix'),
+               bool_and(ready) FILTER(WHERE group_name='iti') FROM checks;
+        """;
+
+    /// <summary>Reconciles canonical query sources in one database snapshot without duplicate read tables.</summary>
+    public const string GetCanonicalQueryInventory = """
+        SELECT 'eod' AS kind,count(*) AS rows,md5(COALESCE(string_agg(md5(to_jsonb(t)::text),'' ORDER BY to_jsonb(t)::text),'')) AS fingerprint
+          FROM market_data.futures_eod_data t
+        UNION ALL SELECT 'vix_rows',count(*),'' FROM market_data.vix_futures_eod_data
+        UNION ALL SELECT 'vix',count(*),md5(COALESCE(string_agg(contractid,'' ORDER BY contractid),'')) FROM
+          (SELECT DISTINCT contractid FROM market_data.vix_futures_eod_data) t
+        UNION ALL SELECT 'iti',count(*),md5(COALESCE(string_agg(md5(to_jsonb(t)::text),'' ORDER BY to_jsonb(t)::text),''))
+          FROM market_data.futures_iti_signal t;
+        """;
+
+    /// <summary>Creates or advances a checkpoint and stores its immutable terminal manifest.</summary>
+    public const string SaveHistoricalDataLoad = """
+    WITH checkpoint AS (
+        INSERT INTO historical_data_load_checkpoint (
+            data_load_attempt_id, request_sha256, status, stage, provider_job_id,
+            provider_file_id, batch_ordinal, source_position, error_message, updated_at_utc)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (data_load_attempt_id) DO UPDATE SET
+            request_sha256 = EXCLUDED.request_sha256,
+            status = EXCLUDED.status,
+            stage = EXCLUDED.stage,
+            provider_job_id = EXCLUDED.provider_job_id,
+            provider_file_id = EXCLUDED.provider_file_id,
+            batch_ordinal = EXCLUDED.batch_ordinal,
+            source_position = EXCLUDED.source_position,
+            error_message = EXCLUDED.error_message,
+            updated_at_utc = EXCLUDED.updated_at_utc
+        RETURNING data_load_attempt_id
+    )
+    INSERT INTO historical_data_load_manifest (
+        data_load_attempt_id, manifest_json, audit_json, created_at_utc)
+    SELECT $1, $11, $12, $10
+    FROM checkpoint
+    WHERE $11 <> ''
+    ON CONFLICT (data_load_attempt_id) DO NOTHING;
+    """;
+
+    /// <summary>Reads one exact attempt.</summary>
+    public const string GetHistoricalDataLoadByAttempt = """
+    SELECT c.data_load_attempt_id, c.request_sha256, c.status, c.stage,
+           c.provider_job_id, c.provider_file_id, c.batch_ordinal,
+           c.source_position, c.error_message, c.updated_at_utc,
+           m.manifest_json, m.audit_json
+    FROM historical_data_load_checkpoint c
+    LEFT JOIN historical_data_load_manifest m
+      ON m.data_load_attempt_id = c.data_load_attempt_id
+    WHERE c.data_load_attempt_id = $1;
+    """;
+
+    /// <summary>Reads the immutable completed owner of one request hash.</summary>
+    public const string GetCompletedHistoricalDataLoadByRequestHash = """
+    SELECT c.data_load_attempt_id, c.request_sha256, c.status, c.stage,
+           c.provider_job_id, c.provider_file_id, c.batch_ordinal,
+           c.source_position, c.error_message, c.updated_at_utc,
+           m.manifest_json, m.audit_json
+    FROM historical_data_load_checkpoint c
+    INNER JOIN historical_data_load_manifest m
+      ON m.data_load_attempt_id = c.data_load_attempt_id
+    WHERE c.request_sha256 = $1 AND c.status = 2
+    LIMIT 1;
+    """;
+    /// <summary>GetCanonicalYieldCurvesForRebuild database statement.</summary>
+    public const string GetCanonicalYieldCurvesForRebuild = "SELECT valueDate,oneMonth,twoMonth,threeMonth,sixMonth,oneYear,twoYear,threeYear,fiveYear,sevenYear,tenYear,twentyYear,thirtyYear FROM market_data.yield_curve_rates WHERE id=1 ORDER BY valueDate;";
+
+    /// <summary>GetIndexedYieldCurvesForRebuild database statement.</summary>
+    public const string GetIndexedYieldCurvesForRebuild = "SELECT valueDate,oneMonth,twoMonth,threeMonth,sixMonth,oneYear,twoYear,threeYear,fiveYear,sevenYear,tenYear,twentyYear,thirtyYear FROM market_data.yield_curve_rate_by_date WHERE lookupId=1 ORDER BY valueDate;";
+
+    /// <summary>RebuildYieldCurveDateIndex database statement.</summary>
+    public const string RebuildYieldCurveDateIndex = "INSERT INTO market_data.yield_curve_rate_by_date(lookupId,valueDate,oneMonth,twoMonth,threeMonth,sixMonth,oneYear,twoYear,threeYear,fiveYear,sevenYear,tenYear,twentyYear,thirtyYear) SELECT 1,valueDate,oneMonth,twoMonth,threeMonth,sixMonth,oneYear,twoYear,threeYear,fiveYear,sevenYear,tenYear,twentyYear,thirtyYear FROM market_data.yield_curve_rates WHERE id=1;";
+
+    /// <summary>AcquireMarketDataIdentityLock database statement.</summary>
+    public const string AcquireMarketDataIdentityLock = "SELECT pg_advisory_xact_lock(hashtextextended($1,0));";
+
+    /// <summary>LockYieldCurveIndexes database statement.</summary>
+    public const string LockYieldCurveIndexes = "LOCK TABLE market_data.yield_curve_rates,market_data.yield_curve_rate_by_date,market_data.yield_curve_rate_year IN SHARE ROW EXCLUSIVE MODE;";
+
+    /// <summary>ClearYieldCurveDateIndex database statement.</summary>
+    public const string ClearYieldCurveDateIndex = "DELETE FROM market_data.yield_curve_rate_by_date WHERE lookupId=1;";
+
+    /// <summary>ClearYieldCurveYearIndex database statement.</summary>
+    public const string ClearYieldCurveYearIndex = "DELETE FROM market_data.yield_curve_rate_year WHERE lookupId=1;";
+
+    /// <summary>RebuildYieldCurveYearIndex database statement.</summary>
+    public const string RebuildYieldCurveYearIndex = "INSERT INTO market_data.yield_curve_rate_year(lookupId,rateYear) SELECT DISTINCT 1,EXTRACT(YEAR FROM valueDate)::integer FROM market_data.yield_curve_rates WHERE id=1;";
+
+    /// <summary>GetYieldCurveIndexYears database statement.</summary>
+    public const string GetYieldCurveIndexYears = "SELECT rateYear FROM market_data.yield_curve_rate_year WHERE lookupId=1 ORDER BY rateYear;";
+
+    /// <summary>ReadMarketDataImportOwnership database statement.</summary>
+    public const string ReadMarketDataImportOwnership = "SELECT commandId,mayWrite FROM market_data.market_data_import_ownership WHERE dataset=$1 AND logicalKey=$2;";
+
+    /// <summary>YieldCurveExists database statement.</summary>
+    public const string YieldCurveExists = "SELECT EXISTS(SELECT 1 FROM market_data.yield_curve_rates WHERE id=1 AND valueDate=$1);";
+
+    /// <summary>InsertMarketDataImportOwnership database statement.</summary>
+    public const string InsertMarketDataImportOwnership = "INSERT INTO market_data.market_data_import_ownership(dataset,logicalKey,commandId,mayWrite,createdOn) VALUES($1,$2,$3,$4,$5);";
+
+    /// <summary>InsertOptionChainParameterVersion database statement.</summary>
+    public const string InsertOptionChainParameterVersion = "INSERT INTO market_data.strategy_option_chain_parameter_version(set_id,version,payload) VALUES($1,$2,$3) ON CONFLICT(set_id,version) DO NOTHING;";
+
+    /// <summary>GetOptionChainParameterVersion database statement.</summary>
+    public const string GetOptionChainParameterVersion = "SELECT payload FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=$2;";
+
+    /// <summary>UpsertOptionChainParameterCurrent database statement.</summary>
+    public const string UpsertOptionChainParameterCurrent = "INSERT INTO market_data.strategy_option_chain_parameter_current(environment,set_id,version,revision,published,payload) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(environment,set_id,version) DO UPDATE SET revision=EXCLUDED.revision,published=EXCLUDED.published,payload=EXCLUDED.payload WHERE strategy_option_chain_parameter_current.revision < EXCLUDED.revision;";
+
+    /// <summary>LockTradeSignalIndexes database statement.</summary>
+    public const string LockTradeSignalIndexes = "LOCK TABLE market_data.futures_trade_signal,market_data.futures_trade_signal_lookup_by_scope,market_data.futures_trade_signal_quarantine IN SHARE ROW EXCLUSIVE MODE;";
+
+    /// <summary>ReadTradeSignalRepairRows database statement.</summary>
+    public const string ReadTradeSignalRepairRows = "SELECT row_to_json(t)::text FROM market_data.futures_trade_signal t ORDER BY sequenceId,contractId,valueDate,timePeriod;";
+
+    /// <summary>ClearTradeSignalLookup database statement.</summary>
+    public const string ClearTradeSignalLookup = "DELETE FROM market_data.futures_trade_signal_lookup_by_scope;";
+
+    /// <summary>GetOptionIvObservationHistory database statement.</summary>
+    public const string GetOptionIvObservationHistory = """
+            WITH ranked AS (
+                SELECT value_date,sampling_slot,payload,
+                    row_number() OVER (PARTITION BY value_date,sampling_slot ORDER BY revision DESC,observation_id) AS ordinal
+                FROM market_data.option_iv_observation_history
+                WHERE environment=$1 AND series_id=$2 AND methodology_version=$3 AND calendar_bucket=$4 AND value_date>=$5 AND value_date<=$6
+                    AND ($7::text IS NULL OR sampling_slot=$7)
+                    AND ($8::timestamptz IS NULL OR available_at_utc<=$8)
+            )
+            SELECT value_date,sampling_slot,payload FROM ranked
+            WHERE ordinal=1 AND ($9::date IS NULL OR (value_date,sampling_slot COLLATE "C")>($9,$10::text COLLATE "C"))
+            ORDER BY value_date,sampling_slot COLLATE "C" LIMIT $11;
+            """;
+
+    /// <summary>GetOptionIvMetricHistory database statement.</summary>
+    public const string GetOptionIvMetricHistory = """
+            WITH ranked AS (
+                SELECT value_date,sampling_slot,payload,
+                    row_number() OVER (PARTITION BY value_date,sampling_slot ORDER BY revision DESC,publication_sequence DESC,snapshot_id) AS ordinal
+                FROM market_data.option_iv_metric_history
+                WHERE environment=$1 AND series_id=$2 AND methodology_version=$3 AND metric_policy_version=$4 AND calendar_bucket=$5 AND value_date>=$6 AND value_date<=$7
+                    AND ($8::text IS NULL OR sampling_slot=$8)
+                    AND ($9::timestamptz IS NULL OR available_at_utc<=$9)
+            )
+            SELECT value_date,sampling_slot,payload FROM ranked
+            WHERE ordinal=1 AND ($10::date IS NULL OR (value_date,sampling_slot COLLATE "C")>($10,$11::text COLLATE "C"))
+            ORDER BY value_date,sampling_slot COLLATE "C" LIMIT $12;
+            """;
 }

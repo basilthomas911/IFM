@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.OptionPricer.Persistence;
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Actor;
@@ -67,7 +69,7 @@ public class SpreadDistributionJobStateRepository(
             foreach (var source in pending)
             {
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
-                await database.ProjectAcceptedEventAsync(transaction,source,token).ConfigureAwait(false);
+                await AcceptedOptionPricerProjection.ProjectAsync(transaction,source,token).ConfigureAwait(false);
             }
             return true;
         },cancellationToken).ConfigureAwait(false);

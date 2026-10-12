@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.Repository;
 using TomasAI.IFM.Domain.Trade.Persistence;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;

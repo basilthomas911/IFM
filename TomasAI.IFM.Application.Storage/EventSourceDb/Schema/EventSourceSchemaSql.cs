@@ -1,7 +1,44 @@
+using TomasAI.IFM.Application.Storage.SchemaDb;
+using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
+
 namespace TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 
 public static class EventSourceSchemaSql
 {
+    public const string CreateBusinessSubscriptionJournal = """
+        CREATE TABLE IF NOT EXISTS business_subscription_projection_receipt(
+          event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
+          projected_at_utc timestamptz NOT NULL DEFAULT now());
+        ALTER TABLE business_subscription_projection_receipt ADD COLUMN IF NOT EXISTS handoff_completed boolean NOT NULL DEFAULT false;
+        CREATE TABLE IF NOT EXISTS business_subscription_projection_issue(
+          event_id bigint PRIMARY KEY REFERENCES event_log(eventVersion) ON DELETE CASCADE,
+          reason_code text NOT NULL,
+          detail text NOT NULL,
+          rejected_at_utc timestamptz NOT NULL DEFAULT now());
+        """;
+
+    public const string CreateRiskHistoryJournal = """
+        CREATE TABLE IF NOT EXISTS risk_history_projection_progress (
+          projection_name text PRIMARY KEY,
+          after_event_version bigint NOT NULL CHECK(after_event_version>=0));
+        CREATE TABLE IF NOT EXISTS risk_history_projection_receipt (
+          projection_name text NOT NULL,
+          event_id bigint NOT NULL,
+          projected_at_utc timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY(projection_name,event_id));
+        CREATE TABLE IF NOT EXISTS risk_history_projection_issue (
+          projection_name text NOT NULL,
+          event_id bigint NOT NULL,
+          workflow_id uuid NOT NULL,
+          invocation_id uuid NOT NULL,
+          source_revision bigint NOT NULL,
+          issue_code text NOT NULL,
+          stored_hash text NOT NULL,
+          incoming_hash text NOT NULL,
+          detected_at_utc timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY(projection_name,event_id));
+        """;
+
     public const string CreateEventStreamIdSequence = "CREATE SEQUENCE IF NOT EXISTS public.entity_type_id_entitytypeid_seq;";
     public const string CreateEventNameIdSequence = "CREATE SEQUENCE IF NOT EXISTS public.event_name_id_eventnameid_seq;";
     public const string CreateEventVersionSequence = "CREATE SEQUENCE IF NOT EXISTS public.event_log_eventversion_seq;";
@@ -282,33 +319,45 @@ public static class EventSourceSchemaSql
     """;
 
     /// <summary>Creates durable historical-data-load checkpoint and immutable manifest tables.</summary>
-    public const string CreateHistoricalDataLoader = """
-    CREATE TABLE IF NOT EXISTS historical_data_load_checkpoint (
-        data_load_attempt_id uuid PRIMARY KEY,
-        request_sha256 text NOT NULL,
-        status smallint NOT NULL,
-        stage smallint NOT NULL,
-        provider_job_id text NOT NULL DEFAULT '',
-        provider_file_id text NOT NULL DEFAULT '',
-        batch_ordinal bigint NOT NULL DEFAULT -1,
-        source_position text NOT NULL DEFAULT '',
-        error_message text NOT NULL DEFAULT '',
-        updated_at_utc timestamptz NOT NULL
-    );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_historical_data_load_completed_request
-        ON historical_data_load_checkpoint (request_sha256)
-        WHERE status = 2;
 
-    CREATE TABLE IF NOT EXISTS historical_data_load_manifest (
-        data_load_attempt_id uuid PRIMARY KEY,
-        manifest_json text NOT NULL,
-        audit_json text NOT NULL,
-        created_at_utc timestamptz NOT NULL,
-        CONSTRAINT fk_historical_data_load_manifest_checkpoint
-            FOREIGN KEY (data_load_attempt_id)
-            REFERENCES historical_data_load_checkpoint(data_load_attempt_id)
-            ON DELETE CASCADE
-    );
-    """;
+    /// <summary>Returns the complete event-store schema catalog in dependency order.</summary>
+    /// <param name="options">Validated event log persistence options.</param>
+    /// <returns>The owned sequences, tables, indexes and migrations.</returns>
+    public static SchemaObjectDefinition[] GetDefinitions(EventLogPersistenceOptions options)
+    {
+        var projectorState = CreateEventProjectorState.Replace("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_event_version
+                ON event_log (EventVersion);
+
+                """, string.Empty, StringComparison.Ordinal);
+        var streamVersion = CreateEventStreamVersionAndProjectorCheckpointV3.Replace("""
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_event_log_stream_version_v3
+                    ON event_log (EventStreamId, StreamVersion);
+
+                """, string.Empty, StringComparison.Ordinal);
+        var definitions = new List<SchemaObjectDefinition>
+        {
+            new("entity_type_id_entitytypeid_seq", CreateEventStreamIdSequence, "DROP SEQUENCE IF EXISTS public.entity_type_id_entitytypeid_seq;"),
+            new("event_name_id_eventnameid_seq", CreateEventNameIdSequence, "DROP SEQUENCE IF EXISTS public.event_name_id_eventnameid_seq;"),
+            new("event_log_eventversion_seq", CreateEventVersionSequence, "DROP SEQUENCE IF EXISTS public.event_log_eventversion_seq;"),
+            new("event_stream_id", CreateEventStreamIdTable, "DROP TABLE IF EXISTS public.event_stream_id;"),
+            new("event_name_id", CreateEventNameIdTable, "DROP TABLE IF EXISTS public.event_name_id;"),
+            new("event_log", CreateEventLogTable, "DROP TABLE IF EXISTS public.event_log;")
+        };
+        definitions.AddRange([
+            new("command_log", CreateCommandLog, "DROP TABLE IF EXISTS public.command_log;"),
+            new("command_log_messagepack_v1", AddCommandLogMessagePackPayload,
+                DropCommandLogMessagePackPayload),
+            new("event_projector_state", projectorState, "DROP TABLE IF EXISTS public.event_projector_state;"),
+            new("business_subscription_projection_receipt", EventLogSqlLayout.ForProduction(options).Resolve(CreateBusinessSubscriptionJournal),
+                "DROP TABLE IF EXISTS business_subscription_projection_issue; DROP TABLE IF EXISTS business_subscription_projection_receipt;"),
+            new("risk_history_projection_progress", CreateRiskHistoryJournal,
+                "DROP TABLE IF EXISTS risk_history_projection_issue; DROP TABLE IF EXISTS risk_history_projection_receipt; DROP TABLE IF EXISTS risk_history_projection_progress;"),
+            new("event_projector_state_reliability_v2", CreateEventProjectorStateReliabilityV2, DropEventProjectorStateReliabilityV2),
+            new("event_projector_outbox_v2", CreateEventProjectorOutboxV2, "DROP TABLE IF EXISTS public.event_projector_outbox;"),
+            new("event_stream_version_projector_checkpoint_v3", streamVersion, DropEventStreamVersionAndProjectorCheckpointV3)
+        ]);
+        return [.. definitions];
+    }
 }

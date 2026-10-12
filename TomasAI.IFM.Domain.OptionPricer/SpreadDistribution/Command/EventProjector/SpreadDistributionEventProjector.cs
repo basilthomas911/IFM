@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.OptionPricer.Persistence;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Immutable;
@@ -42,7 +43,7 @@ public sealed class SpreadDistributionEventProjector(
         var owner = transactions ?? throw new InvalidOperationException("Option-pricer reconstruction requires the PostgreSQL event transaction service.");
         await owner.ExecuteOnceAsync(async (transaction,cancellation) =>
         {
-            await databases.OptionPricerDb.ProjectAcceptedEventAsync(transaction,source,cancellation).ConfigureAwait(false);
+            await AcceptedOptionPricerProjection.ProjectAsync(transaction,source,cancellation).ConfigureAwait(false);
             return true;
         },token).ConfigureAwait(false);
     }

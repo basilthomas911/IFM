@@ -30,6 +30,14 @@ public sealed class FuturesOptionTickDataEventProjector(
                     TickId = e.TickData.TickId > 0 ? e.TickData.TickId : context.EventId
                 };
                 await (actorContext.DbFactory.MarketDataDb.InsertFuturesOptionTickDataAsync(tick)).ConfigureAwait(false);
+                // Enrichment is domain projection work; persistence receives the accepted quote facts.
+                if (tick.Vega == 0 && tick.UnderlyingPrice > 0)
+                {
+                    var definition = await actorContext.DbFactory.SecuritiesDb.GetFuturesOptionContractAsync(tick.ContractId)
+                        .ConfigureAwait(false);
+                    if (definition is not null)
+                        tick = TomasAI.IFM.Domain.MarketData.Feed.Pricing.OptionQuoteGreekEnrichment.Calculate(definition, tick);
+                }
                 await (actorContext.DbFactory.MarketDataDb.UpsertFuturesOptionChainQuoteDataAsync(
                     e.Contract.ContractId, tick)).ConfigureAwait(false);
             })

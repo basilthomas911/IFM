@@ -1,16 +1,18 @@
+using System.Text.Json;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
-using MathNet.Numerics.Distributions;
+
+
 using Microsoft.Extensions.Logging;
-using System.Globalization;
+
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Framework.Storage.Extensions;
-using TomasAI.IFM.Shared.EventSourcing;
+
+
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -20,9 +22,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+
+
+
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using MessagePack;
 using MessagePack.Resolvers;
@@ -30,24 +32,26 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
-using TomasAI.IFM.Framework.Storage.ScyllaDb;
+
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Framework.Serialization;
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 /// <summary>
-/// market data database constructor
+/// Provides typed MarketDataDb queries and mutations over PostgreSQL.
 /// </summary>
 /// <param name = "connectionSettings"></param>
-/// <param name = "dbFactory"></param>
+/// <param name = "dbFactory">The factory supplying related database capabilities.</param>
+/// <param name="blackboardService">The existing context construction dependency.</param>
+/// <param name="sequenceIdGenerator">The database sequence allocator.</param>
 /// <param name = "logger"></param>
-public partial class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
+public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ISequenceIdGenerator sequenceIdGenerator, ILogger<DbProvider> logger) : ObjectDataRepository<MarketDataDbContext>(connectionSettings[MarketDataDbConnection], logger), IMarketDataDbContext
 {
     readonly ILogger _diagnosticLogger = logger;
     public const string MarketDataDbConnection = "MarketDataDbConnection";
@@ -65,11 +69,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     internal const int YieldCurveMaximumRows = 5_000;
     internal const int YieldCurveMaximumYears = 200;
     internal const int YieldCurveLookupId = 1;
-    internal readonly static Dictionary<TradingDaysKey, int> _tradingDaysMap = [];
+
     internal readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     internal readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     internal readonly ISequenceIdGenerator _sequenceIdGenerator = IsArgumentNull.Set(sequenceIdGenerator);
-    NormalCurveTableReadModel? _normalCurveTable;
+
     // Deterministic integration-test seams for the two sides of the online-backfill
     // fence. They remain null in production and do not expose migration state publicly.
     internal Func<Func<Task>, Task>? TickProjectionGuardRegistrationForTestingAsync { get; set; }
@@ -90,50 +94,122 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <summary>Gets the Market Data database write capability.</summary>
     public IMarketDataDbWriteContext DbWriter => this;
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static int MapToYearMonth<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetInt(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static string MapToString<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetString(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static Guid MapToGuid<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetGuid(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static bool MapToBoolean<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetBool(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataImportOwnership MapToMarketDataImportOwnership<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord => new(row.GetGuid(0), row.GetBool(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataProjectionMutationReadModel MapToProjectionMutation<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(e.GetGuid(0), e.GetDateTime(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataProjectionScopeMutationReadModel MapToProjectionScopeMutation<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(e.GetString(0), e.GetString(1), e.GetGuid(2), e.GetDateTime(3));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static VixFuturesContractIndexReadModel MapToVixFuturesContractIndex<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(e.GetInt(0), e.GetString(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataProjectionStateReadModel MapToProjectionState<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(e.GetString(0), e.GetGuid(1), e.GetBool(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataProjectionScopeStateReadModel MapToProjectionScopeState<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(e.GetString(0), e.GetString(1), e.GetGuid(2), e.GetBool(3), e.GetBool(4), e.IsCollectionEmpty(5));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static string MapToFuturesTickProjectionScope<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => MarketDataDbContextExtensions.GetFuturesTickScopeKey(e.GetString(0), e.GetDateOnly(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static string MapToFuturesEodProjectionSourceScope<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.GetDateOnly(0));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static string MapToFuturesEodProjectionTargetScope<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.GetInt(0));
+    /// <summary>Checks usable PostgreSQL canonical query indexes; raw tick readiness belongs to TradeTickQuoteDb.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<MarketDataProjectionReadinessReadModel> GetQueryProjectionReadinessAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return new(await (this.GetProjectionScopeReadStampAsync(FuturesTickByTimeProjection, this.GetProjectionGuardScopeKeys()))
-                .ConfigureAwait(false) is not null, await (this.GetProjectionScopeReadStampAsync(FuturesEodProjection, this.GetProjectionGuardScopeKeys()))
-                .ConfigureAwait(false) is not null, await (this.GetProjectionScopeReadStampAsync(VixFuturesContractIndexProjection, this.GetProjectionGuardScopeKeys()))
-                .ConfigureAwait(false) is not null, await (this.GetProjectionScopeReadStampAsync(FuturesItiSignalQueryProjection, this.GetProjectionGuardScopeKeys()))
-                .ConfigureAwait(false) is not null);
+        return await new PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, ConnectionString, "System.Data.Postgres"))
+            .ExecuteAsync((transaction, token) => transaction.ReadCanonicalQueryReadinessAsync(token), cancellationToken)
+            .ConfigureAwait(false);
     }
-
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesDataId MapToFuturesDataId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTickDataV2ReadModel MapToFuturesTickData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), price: e.GetDecimal(4), size: e.GetInt(5));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTickDataId MapToFuturesTickDataId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(ContractId: e.GetString(0), ValueDate: e.GetDateOnly(1), TickId: e.GetLong(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesOptionTickDataV2ReadModel MapToFuturesOptionTickData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), optionPrice: e.GetDouble(4), bidPrice: e.GetDouble(5), askPrice: e.GetDouble(6), bidSize: e.GetInt(7), askSize: e.GetInt(8), impliedVolatility: e.GetDouble(9), underlyingPrice: e.GetDouble(10), delta: e.GetDouble(11), gamma: e.GetDouble(12), vega: e.GetDouble(13), theta: e.GetDouble(14), rho: e.GetDouble(15));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesOptionTickDataV2ReadModel MapToOptionChainQuote<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => MapToFuturesOptionTickData(e) with
         {
@@ -142,42 +218,110 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             VolumeValueDate = e.IsNull(18) ? null : e.GetDateOnly(18),
             OpenInterestValueDate = e.IsNull(19) ? null : e.GetDateOnly(19)
         };
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesOptionTickDataV2ReadModel MapToFuturesOptionTickPriceData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), optionPrice: e.GetDouble(4), bidPrice: e.GetDouble(5), askPrice: e.GetDouble(6), bidSize: e.GetInt(7), askSize: e.GetInt(8), impliedVolatility: e.GetDouble(9), underlyingPrice: e.GetDouble(10), delta: e.GetDouble(11), gamma: e.GetDouble(12), vega: e.GetDouble(13), theta: e.GetDouble(14), rho: e.GetDouble(15));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesOptionTickDataId MapToFuturesOptionTickDataId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(ContractId: e.GetString(0), ValueDate: e.GetDateOnly(1), TickId: e.GetLong(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesBarDataReadModel MapToFuturesBarData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), symbol: e.GetString(1), valueDate: e.GetDateOnly(2), barDate: e.GetDateTime(3), barRateType: e.GetEnum<BarRateType>(4), barValue: e.GetDecimal(5), upTrendTrigger: e.GetDouble(6), downTrendTrigger: e.GetDouble(7));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static long MapToFuturesBarDataCount<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetLong(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesClosingPriceReadModel MapToFuturesClosingPrice<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), closingPrice: e.GetDecimal(2), createdOn: e.GetDateTime(3), createdBy: e.GetString(4));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesEodDataV2ReadModel MapToFuturesEodData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), symbol: e.GetString(2), openPrice: e.GetDecimal(3), highPrice: e.GetDecimal(4), lowPrice: e.GetDecimal(5), closePrice: e.GetDecimal(6), volume: e.GetLong(7), dailyPercentChange: e.GetDouble(8), dailyStdDev: e.GetDouble(9), dailyStdDevAmount: e.GetDouble(10), upperBand: e.GetDouble(11), mean: e.GetDouble(12), lowerBand: e.GetDouble(13), marketDirection: e.GetEnum<MarketDirectionType>(14), marketVolatility: e.GetEnum<MarketVolatilityType>(15), priceDirection: e.GetEnum<PriceDirectionType>(16), priceVolatility: e.GetEnum<PriceVolatilityType>(17), marketDirectionIndicator: e.GetDouble(18), windowSize: e.GetInt(19), fiftyDMA: e.IsNull(20) ? 0m : e.GetDecimal(20), twoHundredDMA: e.IsNull(21) ? 0m : e.GetDecimal(21));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesIntraDayDataReadModel MapToFuturesIntraDayData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), sequenceId: e.GetLong(2), symbol: e.GetString(3), openPrice: e.GetDecimal(4), highPrice: e.GetDecimal(5), lowPrice: e.GetDecimal(6), closePrice: e.GetDecimal(7), volume: e.GetLong(8), dailyPercentChange: e.GetDouble(9), dailyStdDev: e.GetDouble(10), dailyStdDevAmount: e.GetDouble(11), upperBand: e.GetDouble(12), mean: e.GetDouble(13), lowerBand: e.GetDouble(14), marketDirection: e.GetEnum<MarketDirectionType>(15), marketVolatility: e.GetEnum<MarketVolatilityType>(16), priceDirection: e.GetEnum<PriceDirectionType>(17), priceVolatility: e.GetEnum<PriceVolatilityType>(18), marketDirectionIndicator: e.GetDouble(19), windowSize: e.GetInt(20));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesEodClosingPriceReadModel MapToFuturesEodClosingPrice<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), closingPrice: e.GetDecimal(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTickHLVDataReadModel MapToFuturesTickHLVData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(ContractId: e.GetString(0), ValueDate: e.GetDateOnly(1), HighPrice: e.GetDecimal(2), LowPrice: e.GetDecimal(3), Volume: e.GetLong(4));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalV2ReadModel MapToFuturesItiSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), bandLevel: e.GetDouble(21), reversalLevel: e.GetDouble(22));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalMDIV2ReadModel MapToFuturesItiSignalMDI<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), intrinsicTime: e.GetDateTime(2), trendType: e.GetEnum<IntrinsicTimeTrendType>(3), mdi: e.GetDouble(4));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static DateOnly MapToMaxValueDate<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetDateOnly(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static int MapToMaxIntrinsicTimeGroupId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetInt(0);
 
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalV2ReadModel MapToFuturesItiTimeFrameState<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), intrinsicTime: e.GetDateTime(4), intrinsicTimeGroupId: e.GetInt(5), intrinsicTimeLength: e.GetDouble(6), intrinsicPrice: e.GetDouble(7), intrinsicTimeTrend: e.GetEnum<IntrinsicTimeTrendType>(8), intrinsicTimeMode: e.GetEnum<IntrinsicTimeModeType>(9), trendPrice: e.GetDouble(10), trendExtreme: e.GetDouble(11), trendReversal: e.GetDouble(12), trendDelta: e.GetDouble(13), targetDelta: e.GetDouble(14), lambda: e.GetDouble(15), tradingDays: e.GetInt(16), threshold: e.GetDouble(17), upTrendTrigger: e.GetDouble(18), downTrendTrigger: e.GetDouble(19), tradeState: e.GetEnum<IntrinsicTimeTradeState>(20), timeFrameStartValueDate: e.GetDateOnly(21), bandAnchorPrice: e.GetDouble(22), bandPercentage: e.GetDouble(23), bandSize: e.GetDouble(24), bandLevel: e.GetDouble(25), reversalLevel: e.GetDouble(26));
 
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static double MapToRsi<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetDouble(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static long MapToMaxSequenceId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetLong(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTdiSignalReadModel MapToFuturesTdiSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new()
         {
@@ -209,6 +353,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             SourceSequence = e.GetLong(25),
             SourceEventTimestamp = e.GetDateTime(26)
         };
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesMacdSignalReadModel MapToFuturesMacdSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
     {
@@ -242,6 +390,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesAtrSignalReadModel MapToFuturesAtrSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
     {
@@ -275,9 +427,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     /// <summary>Preserves the ADX warm-up flag in the evolved PostgreSQL observation schema.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesAdxSignalReadModel MapToPostgresFuturesAdxSignal<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord => MapToFuturesAdxSignal(row) with { IsWarm = !row.IsNull(19) && row.GetBool(19) };
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesAdxSignalReadModel MapToFuturesAdxSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
     {
@@ -304,28 +463,76 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTradeSignalV2ReadModel MapToFuturesTradeSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3), timestamp: e.GetTimeOnly(4), mean: e.GetDouble(5), stdDev: e.GetDouble(6), futuresPrice: e.GetDouble(7), priceChangePercent: e.GetDouble(8), fundRiskPercent: e.GetDouble(9), rsi: e.GetDouble(10), rsiSlope: e.GetDouble(11), trendType: e.GetEnum<FuturesTrendType>(12), trendStrength: e.GetEnum<FuturesTrendStrengthType>(13), tradeSignal: e.GetEnum<TradeSignalType>(14), tdi: e.GetEnum<FuturesTrendDirectionType>(15), tdiStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(16), mdi: e.GetDouble(17), mdiTrend: e.GetEnum<FuturesMDITrendType>(18), mdiUpTrendLimit: e.GetDouble(19), mdiDownTrendLimit: e.GetDouble(20), upTrendingTrigger: e.GetDouble(21), downTrendingTrigger: e.GetDouble(22), entryTrigger: e.GetDouble(23), exitTrigger: e.GetDouble(24), trendDelta: e.GetDouble(25), trendExtreme: e.GetDouble(26), trendReversal: e.GetDouble(27), fiftyDMA: e.GetDecimal(28), twoHundredDMA: e.GetDecimal(29), tradeExecuteState: e.GetEnum<TradeExecuteState>(30));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static RateOfReturnReadModel MapToRateOfReturn<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(symbol: e.GetString(0), valueDate: e.GetDateOnly(1), rateOfReturn: e.GetDouble(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static VixFuturesEodDataReadModel MapToVixFuturesEodData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), openPrice: e.GetDecimal(2), highPrice: e.GetDecimal(3), lowPrice: e.GetDecimal(4), closePrice: e.GetDecimal(5), volume: e.GetLong(6));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static long MapToMinTickId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetLong(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static decimal MapToPrice<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetDecimal(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static YieldCurveRateReadModel MapToYieldCurveRate<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(valueDate: e.GetDateOnly(0), oneMonth: e.GetDouble(1), twoMonth: e.GetDouble(2), threeMonth: e.GetDouble(3), sixMonth: e.GetDouble(4), oneYear: e.GetDouble(5), twoYear: e.GetDouble(6), threeYear: e.GetDouble(7), fiveYear: e.GetDouble(8), sevenYear: e.GetDouble(9), tenYear: e.GetDouble(10), twentyYear: e.GetDouble(11), thirtyYear: e.GetDouble(12));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketHolidayReadModel MapToMarketHoliday<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(currencyType: e.GetEnum<CurrencyType>(0), holidayDate: e.GetDateOnly(1), description: e.GetString(2));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiSignalAverageInfoDataModel MapToFuturesItiSignalAverageInfo<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), predictedDelta: e.GetDouble(2), futuresRSI: e.GetDouble(3));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static double MapToAveragePredictedDelta<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => e.GetDouble(0);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static NormalCurveDataReadModel MapToNormalCurveData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(stdDevIndex: e.GetInt(0), percent: e.GetDouble(1));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesTradeSignalId MapToFuturesTradeSignalId<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), timePeriod: e.GetEnum<TimeFrameType>(2), sequenceId: e.GetLong(3));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesRsiSignalReadModel MapToFuturesRsiSignal<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord
     {
@@ -358,7 +565,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="o">The o used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesContractV3ReadModel MapToFuturesContract(IObjectDataRecord o) => new(o.GetString(0), o.GetString(1), o.GetString(2), o.GetString(3), o.GetString(4), o.GetString(5), o.GetString(6), o.GetString(7), o.GetDateOnly(8), o.GetBool(9));
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static TradeLiveFeedReadModel MapToTradeLiveFeed<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(orderId: e.GetInt(0), tradeId: e.GetInt(1), tradeLiveFeedState: e.GetEnum<TradeLiveFeedStateType>(2));
     /// <summary>
@@ -366,11 +580,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The identifier of the futures bar data to delete.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DeleteFuturesBarDataAsync(FuturesBarDataId e) 
+    public async Task DeleteFuturesBarDataAsync(FuturesBarDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesBarData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesBarData : MarketDataDbCql.DeleteFuturesBarData)
-        .SetParameters(new DeleteFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesBarData)}", MarketDataDbSql.DeleteFuturesBarData)
+        .SetParameters(new DeleteFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -382,8 +596,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The unique identifier of the futures contract for which to delete the closing price.</param>
     /// <param name = "valueDate">The date of the closing price to delete. Must be a valid date.</param>
     /// <returns>A task that represents the asynchronous delete operation.</returns>
-    public async Task DeleteFuturesClosingPriceAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesClosingPrice)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesClosingPrice : MarketDataDbCql.DeleteFuturesClosingPrice)
-        .SetParameters(new DeleteFuturesClosingPrice(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task DeleteFuturesClosingPriceAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesClosingPrice)}", MarketDataDbSql.DeleteFuturesClosingPrice)
+        .SetParameters(new DeleteFuturesClosingPrice(contractId, valueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -394,24 +608,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task DeleteFuturesEodDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await this.DeleteNativeFuturesEodAsync(contractId, valueDate)
                 .ConfigureAwait(false);
             return;
-        }
-        await (this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection, new[] { MarketDataDbContextExtensions.GetFuturesEodScopeKey(valueDate) }, async () =>
-        {
-            var db = _dbFactory.MarketDataDb;
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesEodData)}", MarketDataDbCql.DeleteFuturesEodData)
-                .SetParameters(new DeleteFuturesEodData(contractId, valueDate))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesEodDataByMonth)}", MarketDataDbCql.DeleteFuturesEodDataByMonth)
-                .SetParameters(new DeleteFuturesEodDataByMonth(MarketDataDbContextExtensions.ToYearMonth(valueDate), valueDate, contractId))
-                .QueueCommand()];
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
-        }))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -425,21 +624,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     public async Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.DeleteFuturesTickDataAsync(contractId, valueDate)
                 .ConfigureAwait(false);
             return;
-        }
-        var scopeKey = MarketDataDbContextExtensions.GetFuturesTickScopeKey(contractId, valueDate);
-        await (this.ExecuteGuardedAtomicTickMutationAsync(scopeKey, db => [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesTickData)}", MarketDataDbCql.DeleteFuturesTickData)
-            .SetParameters(new DeleteFuturesTickData(contractId, valueDate))
-            .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesTickDataByTime)}", MarketDataDbCql.DeleteFuturesTickDataByTime)
-            .SetParameters(new DeleteFuturesTickDataByTime(contractId, valueDate))
-            .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)}", MarketDataDbCql.MarkMarketDataProjectionScopeAtomicWriteV3)
-            .SetParameters(new MarkMarketDataProjectionScopeAtomicWriteV3(FuturesTickByTimeProjection, scopeKey, Guid.NewGuid()))
-            .QueueCommand()]))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -450,8 +637,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task that represents the asynchronous delete operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task DeleteTradeLiveFeedAsync(int orderId, int tradeId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteTradeLiveFeed)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteTradeLiveFeed : MarketDataDbCql.DeleteTradeLiveFeed)
-        .SetParameters(new DeleteTradeLiveFeed(orderId, tradeId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task DeleteTradeLiveFeedAsync(int orderId, int tradeId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteTradeLiveFeed)}", MarketDataDbSql.DeleteTradeLiveFeed)
+        .SetParameters(new DeleteTradeLiveFeed(orderId, tradeId) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -462,35 +649,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task DeleteVixFuturesEodDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await this.Use(nameof(MarketDataDbSql.DeleteVixFuturesEodData),MarketDataDbSql.DeleteVixFuturesEodData)
                 .SetParameters(new DeleteVixFuturesEodData(contractId,valueDate) { PostgreSql = true })
                 .ExecuteCommandAsync()
                 .ConfigureAwait(false);
             return;
-        }
-
-        await (this.ExecuteMaintainedProjectionMutationAsync(VixFuturesContractIndexProjection, new[] { MarketDataDbContextExtensions.GetVixContractIndexScopeKey(contractId) }, async () =>
-        {
-            var db = _dbFactory.MarketDataDb;
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteVixFuturesEodData : MarketDataDbCql.DeleteVixFuturesEodData)
-                .SetParameters(new DeleteVixFuturesEodData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            var remaining = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastVixFuturesEodData : MarketDataDbCql.GetLastVixFuturesEodData)
-                .SetParameters(new GetLastVixFuturesEodData(contractId, DateOnly.MaxValue) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                .ExecuteSingleAsync(MapToVixFuturesEodData))
-                .ConfigureAwait(false);
-            if (remaining is null)
-            {
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteVixFuturesContractIndex)}", MarketDataDbCql.DeleteVixFuturesContractIndex)
-                    .SetParameters(new DeleteVixFuturesContractIndex(MarketDataDbContextExtensions.GetVixContractBucket(contractId), contractId))
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            }
-        }))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -501,11 +664,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     public async Task DeleteYieldCurveRateAsync(DateOnly valueDate)
     {
         var db = _dbFactory.MarketDataDb;
-        await (db.ExecuteQueuedCommandsAsync([db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteYieldCurveRate : MarketDataDbCql.DeleteYieldCurveRate)
-            .SetParameters(new DeleteYieldCurveRate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteYieldCurveRateByDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteYieldCurveRateByDate : MarketDataDbCql.DeleteYieldCurveRateByDate)
-            .SetParameters(new DeleteYieldCurveRate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .QueueCommand()], useTransaction: string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal)))
+        await (db.ExecuteQueuedCommandsAsync([db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteYieldCurveRate)}", MarketDataDbSql.DeleteYieldCurveRate)
+                .SetParameters(new DeleteYieldCurveRate(valueDate) { PostgreSql = true })
+                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteYieldCurveRateByDate)}", MarketDataDbSql.DeleteYieldCurveRateByDate)
+                .SetParameters(new DeleteYieldCurveRate(valueDate) { PostgreSql = true })
+                .QueueCommand()], useTransaction: true))
                 .ConfigureAwait(false);
     }
 
@@ -518,58 +681,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task DeleteFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             var nativeDb = _dbFactory.MarketDataDb;
             var signal = nativeDb.Use("NativeIti.Delete", MarketDataDbSql.DeleteFuturesItiSignal)
                 .SetParameters(new DeleteFuturesItiSignal(contractId,valueDate,timePeriod.ToStringFast()) { PostgreSql = true })
                 .QueueCommand();
             var state = nativeDb.Use("NativeIti.DeleteState", MarketDataDbSql.DeleteNativeItiTimeFrameState)
-                .SetParameters(new Parameters.NativeItiDeleteState(contractId,timePeriod.ToStringFast(),MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(valueDate,timePeriod),valueDate))
+                .SetParameters(new NativeItiDeleteState(contractId,timePeriod.ToStringFast(),MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(valueDate,timePeriod),valueDate))
                 .QueueCommand();
             await nativeDb.ExecuteQueuedCommandsAsync([signal,state],useTransaction:true)
                 .ConfigureAwait(false);
             return;
-        }
-
-        var existing = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignals)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesItiSignals : MarketDataDbCql.GetFuturesItiSignals)
-            .SetParameters(new GetFuturesItiSignals(contractId, valueDate, timePeriod.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .ExecuteQueryAsync(MapToFuturesItiSignal!))
-                .ConfigureAwait(false);
-        var scopes = new[]
-        {
-            MarketDataDbContextExtensions.GetFuturesItiDayScopeKey(contractId, valueDate),
-            MarketDataDbContextExtensions.GetFuturesItiMonthScopeKey(contractId, MarketDataDbContextExtensions.ToYearMonth(valueDate))
-        }.Concat(existing.Select(row => MarketDataDbContextExtensions.GetFuturesItiTimelineScopeKey(row.ContractId, row.IntrinsicTimeTrend.ToStringFast(), row.IntrinsicTimeMode.ToStringFast(), MarketDataDbContextExtensions.ToYearMonth(row.ValueDate))));
-        await (this.ExecuteMaintainedProjectionMutationAsync(FuturesItiSignalQueryProjection, scopes, async () =>
-        {
-            var db = _dbFactory.MarketDataDb;
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesItiSignal : MarketDataDbCql.DeleteFuturesItiSignal)
-                .SetParameters(new DeleteFuturesItiSignal(contractId, valueDate, timePeriod.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiTimeFrameState)}", MarketDataDbCql.DeleteFuturesItiTimeFrameState)
-                .SetParameters(new GetFuturesItiTimeFrameState(contractId, timePeriod.ToStringFast(), MarketDataDbContextExtensions.GetFuturesItiCalendarBucketStart(valueDate, timePeriod)) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                .QueueCommand()];
-            foreach (var row in existing)
-            {
-                var rowTrend = row.IntrinsicTimeTrend.ToStringFast();
-                var rowMode = row.IntrinsicTimeMode.ToStringFast();
-                var rowTimePeriod = row.TimePeriod.ToStringFast();
-                var yearMonth = MarketDataDbContextExtensions.ToYearMonth(row.ValueDate);
-                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractDay)}", MarketDataDbCql.DeleteFuturesItiSignalByContractDay)
-                    .SetParameters(new DeleteFuturesItiSignalByContractDay(row.ContractId, row.ValueDate, rowMode, row.SequenceId, rowTimePeriod, rowTrend, row.IntrinsicTimeGroupId))
-                    .QueueCommand());
-                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractMonth)}", MarketDataDbCql.DeleteFuturesItiSignalByContractMonth)
-                    .SetParameters(new DeleteFuturesItiSignalByContractMonth(row.ContractId, yearMonth, row.ValueDate, row.SequenceId, rowTimePeriod, rowMode, rowTrend, row.IntrinsicTimeGroupId))
-                    .QueueCommand());
-                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonth)
-                    .SetParameters(new DeleteFuturesItiSignalByTrendModeMonth(row.ContractId, rowTrend, rowMode, yearMonth, row.ValueDate, row.SequenceId, rowTimePeriod, row.IntrinsicTimeGroupId))
-                    .QueueCommand());
-            }
-
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
-        }))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -578,18 +699,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The contract identifier.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate) 
+    public async Task DeleteFuturesOptionTickDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.DeleteFuturesOptionTickDataAsync(contractId, valueDate)
                 .ConfigureAwait(false);
             return;
-        }
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesOptionTickData)}", MarketDataDbCql.DeleteFuturesOptionTickData)
-        .SetParameters(new DeleteFuturesOptionTickData(contractId, valueDate))
-        .ExecuteCommandAsync())
-                .ConfigureAwait(false);
     }
     /// <summary>
     /// Asynchronously deletes tick price data for a specified futures option contract on a given date.
@@ -600,8 +714,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// empty.</param>
     /// <param name = "valueDate">The date for which the tick price data should be deleted.</param>
     /// <returns>A task that represents the asynchronous delete operation.</returns>
-    public async Task DeleteFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesOptionTickPriceData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesOptionTickPriceData : MarketDataDbCql.DeleteFuturesOptionTickPriceData)
-        .SetParameters(new DeleteFuturesOptionTickPriceData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task DeleteFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesOptionTickPriceData)}", MarketDataDbSql.DeleteFuturesOptionTickPriceData)
+        .SetParameters(new DeleteFuturesOptionTickPriceData(contractId, valueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -609,11 +723,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The market holiday to delete.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DeleteMarketHolidayAsync(MarketHolidayReadModel e) 
+    public async Task DeleteMarketHolidayAsync(MarketHolidayReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketHoliday)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteMarketHoliday : MarketDataDbCql.DeleteMarketHoliday)
-        .SetParameters(new DeleteMarketHoliday(currencyType: e.CurrencyType.ToStringFast(), holidayDate: e.HolidayDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketHoliday)}", MarketDataDbSql.DeleteMarketHoliday)
+        .SetParameters(new DeleteMarketHoliday(currencyType: e.CurrencyType.ToStringFast(), holidayDate: e.HolidayDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -622,12 +736,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "currencyType">The currency type.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task DeleteMarketHolidaysAsync(CurrencyType currencyType) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketHolidays)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteMarketHolidays : MarketDataDbCql.DeleteMarketHolidays)
-        .SetParameters(new DeleteMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task DeleteMarketHolidaysAsync(CurrencyType currencyType) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketHolidays)}", MarketDataDbSql.DeleteMarketHolidays)
+        .SetParameters(new DeleteMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
-    public async Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteRateOfReturn)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteRateOfReturn : MarketDataDbCql.DeleteRateOfReturn)
-        .SetParameters(new DeleteRateOfReturn(symbol, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Delete Rate Of Return using the MarketDataDb persistence.</summary>
+    /// <param name="symbol">The symbol used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task DeleteRateOfReturnAsync(string symbol, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteRateOfReturn)}", MarketDataDbSql.DeleteRateOfReturn)
+        .SetParameters(new DeleteRateOfReturn(symbol, valueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -635,44 +753,39 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The identifier of the futures closing price to retrieve.</param>
     /// <returns>The <see cref = "FuturesClosingPriceReadModel"/>.</returns>
-    public async Task<FuturesClosingPriceReadModel?> GetFuturesClosingPriceAsync(FuturesDataId e) 
+    public async Task<FuturesClosingPriceReadModel?> GetFuturesClosingPriceAsync(FuturesDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesClosingPrice)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesClosingPrice : MarketDataDbCql.GetFuturesClosingPrice)
-        .SetParameters(new GetFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesClosingPrice)}", MarketDataDbSql.GetFuturesClosingPrice)
+        .SetParameters(new GetFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesClosingPrice!))
                 .ConfigureAwait(false);
     }
     /// <summary>
     /// Gets yesterday's futures closing price for a given FuturesClosingPriceId.
     /// </summary>
-    /// <param name = "id">The identifier of the futures closing price to retrieve.</param>
     /// <returns>The <see cref = "FuturesClosingPriceReadModel"/>.</returns>
+    /// <param name="e">The e used by this operation.</param>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<FuturesClosingPriceReadModel?> GetYesterdaysFuturesClosingPriceAsync(FuturesDataId e) 
+    public async Task<FuturesClosingPriceReadModel?> GetYesterdaysFuturesClosingPriceAsync(FuturesDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYesterdaysFuturesClosingPrice)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetYesterdaysFuturesClosingPrice : MarketDataDbCql.GetYesterdaysFuturesClosingPrice)
-        .SetParameters(new GetYesterdaysFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }).ExecuteSingleAsync<FuturesClosingPriceReadModel>(MapToFuturesClosingPrice!))
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYesterdaysFuturesClosingPrice)}", MarketDataDbSql.GetYesterdaysFuturesClosingPrice)
+        .SetParameters(new GetYesterdaysFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = true }).ExecuteSingleAsync<FuturesClosingPriceReadModel>(MapToFuturesClosingPrice!))
                 .ConfigureAwait(false);
     }
     /// <summary>
-    /// get futures tick data   
+    /// get futures tick data
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<FuturesTickDataV2ReadModel?> GetFuturesTickDataAsync(FuturesTickDataId e) 
+    public async Task<FuturesTickDataV2ReadModel?> GetFuturesTickDataAsync(FuturesTickDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await _dbFactory.TradeTickQuoteDb.GetFuturesTickDataAsync(e)
-                .ConfigureAwait(false);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickData)}", MarketDataDbCql.GetFuturesTickData)
-        .SetParameters(new GetFuturesTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId))
-        .ExecuteSingleAsync(MapToFuturesTickData!))
+        return await _dbFactory.TradeTickQuoteDb.GetFuturesTickDataAsync(e)
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -681,73 +794,34 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
     /// <returns></returns>
-    public async Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(string contractId, DateOnly valueDate) 
+    public async Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             return await _dbFactory.TradeTickQuoteDb.GetLastFuturesTickDataAsync(contractId, valueDate)
-                .ConfigureAwait(false);
-        }
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTickData)}", MarketDataDbCql.GetLastFuturesTickData)
-        .SetParameters(new GetLastFuturesTickData(contractId, valueDate))
-        .ExecuteSingleAsync(MapToFuturesTickData!))
                 .ConfigureAwait(false);
     }
     /// <summary>
     /// get last futures option tick data
     /// </summary>
     /// <param name = "contractId"></param>
-    /// <param name = "tickDate"></param>
     /// <returns></returns>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="tickTime">The tick time used by this operation.</param>
+    /// <param name="token">The token used by this operation.</param>
     public async Task<FuturesTickDataV2ReadModel?> GetFuturesTickAtOrBeforeAsync(string contractId, DateOnly valueDate, TimeOnly tickTime, CancellationToken token = default)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             return await _dbFactory.TradeTickQuoteDb.GetFuturesTickAtOrBeforeAsync(contractId, valueDate, tickTime, token)
                 .ConfigureAwait(false);
-        }
-        token.ThrowIfCancellationRequested();
-        var stamp = await (this.GetProjectionScopeReadStampAsync(FuturesTickByTimeProjection, new[] { MarketDataDbContextExtensions.GetFuturesTickScopeKey(contractId, valueDate) }).WaitAsync(token))
-                .ConfigureAwait(false);
-        // Partial/stale time indexes cannot establish a contiguous historical seed.
-        if (stamp is null)
-            return null;
-        var result = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickAtOrBefore)}", MarketDataDbCql.GetFuturesTickAtOrBefore)
-            .SetParameters(new GetLastFuturesTickDataByTickTime(contractId, valueDate, tickTime))
-            .ExecuteSingleAsync(MapToFuturesTickData!).WaitAsync(token))
-                .ConfigureAwait(false);
-        return await (this.IsProjectionScopeReadStampValidAsync(stamp.Value).WaitAsync(token))
-                .ConfigureAwait(false) ? result : null;
     }
 
+    /// <summary>Get Last Futures Tick Data By Tick Date using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="tickDate">The tick date used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesTickDataV2ReadModel?> GetLastFuturesTickDataByTickDateAsync(string contractId, DateTime tickDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             var raw = await _dbFactory.TradeTickQuoteDb.GetFuturesTickAtOrBeforeAsync(contractId, DateOnly.FromDateTime(tickDate), TimeOnly.FromDateTime(tickDate))
                 .ConfigureAwait(false);
             return raw?.TickTime == TimeOnly.FromDateTime(tickDate) ? raw : null;
-        }
-        var db = _dbFactory.MarketDataDb;
-        var valueDate = DateOnly.FromDateTime(tickDate);
-        var tickTime = TimeOnly.FromDateTime(tickDate);
-        var stamp = await (this.GetProjectionScopeReadStampAsync(FuturesTickByTimeProjection, new[] { MarketDataDbContextExtensions.GetFuturesTickScopeKey(contractId, valueDate) }))
-                .ConfigureAwait(false);
-        if (stamp is not null)
-        {
-            var projected = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTickDataByTickTime)}", MarketDataDbCql.GetLastFuturesTickDataByTickTime)
-                .SetParameters(new GetLastFuturesTickDataByTickTime(contractId, valueDate, tickTime))
-                .ExecuteSingleAsync(MapToFuturesTickData!))
-                .ConfigureAwait(false);
-            if (await (this.IsProjectionScopeReadStampValidAsync(stamp.Value))
-                .ConfigureAwait(false))
-                return projected;
-        }
-
-        return (await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickDataByDate)}", MarketDataDbCql.GetFuturesTickDataByDate)
-            .SetParameters(new GetLastFuturesTickData(contractId, valueDate))
-            .ExecuteQueryAsync(MapToFuturesTickData!))
-                .ConfigureAwait(false)).Where(e => e.TickTime == tickTime).OrderByDescending(e => e.TickId).FirstOrDefault();
     }
 
     /// <summary>
@@ -756,19 +830,18 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
     /// <returns></returns>
-    public async Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(string contractId, DateOnly valueDate) 
+    public async Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickDataAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             return await _dbFactory.TradeTickQuoteDb.GetLastFuturesOptionTickDataAsync(contractId, valueDate)
-                .ConfigureAwait(false);
-        }
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesOptionTickData)}", MarketDataDbCql.GetLastFuturesOptionTickData)
-        .SetParameters(new GetLastFuturesOptionTickData(contractId, valueDate))
-        .ExecuteSingleAsync(MapToFuturesOptionTickData!))
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Get Futures Option Chain Quote Data using the MarketDataDb persistence.</summary>
+    /// <param name="underlyingContractId">The underlying contract id used by this operation.</param>
+    /// <param name="expiryDate">The expiry date used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2139", Justification = "Log persistence failure with its request identity before preserving the original exception for the caller transaction boundary.")]
     public async Task<ICollection<FuturesOptionTickDataV2ReadModel>> GetFuturesOptionChainQuoteDataAsync(
         string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken = default)
@@ -776,9 +849,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
-            var rows = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionChainQuoteData)}",
-                    string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesOptionChainQuoteData : MarketDataDbCql.GetFuturesOptionChainQuoteData)
-                .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var rows = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionChainQuoteData)}", MarketDataDbSql.GetFuturesOptionChainQuoteData)
+                .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate) { PostgreSql = true })
                 .ExecuteQueryAsync(MapToOptionChainQuote!, cancellationToken))
                 .ConfigureAwait(false);
             if (_diagnosticLogger.IsEnabled(LogLevel.Information))
@@ -810,26 +882,19 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "valueDate">The date for which to retrieve the tick price data. Must be a valid date.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the last tick price data for the
     /// specified contract and date, or null if no data is found.</returns>
-    public async Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesOptionTickPriceData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesOptionTickPriceData : MarketDataDbCql.GetLastFuturesOptionTickPriceData)
-        .SetParameters(new GetLastFuturesOptionTickPriceData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<FuturesOptionTickDataV2ReadModel?> GetLastFuturesOptionTickPriceDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesOptionTickPriceData)}", MarketDataDbSql.GetLastFuturesOptionTickPriceData)
+        .SetParameters(new GetLastFuturesOptionTickPriceData(contractId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesOptionTickPriceData!))
                 .ConfigureAwait(false);
     /// <summary>
-    /// get futures tick data id    
+    /// get futures tick data id
     /// </summary>
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
     /// <returns></returns>
-    public async Task<FuturesTickDataId?> GetLastFuturesTickDataIdAsync(string contractId, DateOnly valueDate) 
+    public async Task<FuturesTickDataId?> GetLastFuturesTickDataIdAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             return await _dbFactory.TradeTickQuoteDb.GetLastFuturesTickDataIdAsync(contractId, valueDate)
-                .ConfigureAwait(false);
-        }
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTickData)}", MarketDataDbCql.GetLastFuturesTickData)
-        .SetParameters(new GetLastFuturesTickData(contractId, valueDate))
-        .ExecuteSingleAsync(MapToFuturesTickDataId))
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -843,8 +908,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A collection of <see cref = "FuturesBarDataReadModel"/>.</returns>
     public async Task<ICollection<FuturesBarDataReadModel>> GetFuturesBarDataAsync(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate)
     {
-        var futuresBarData = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesBarData : MarketDataDbCql.GetFuturesBarData)
-            .SetParameters(new GetFuturesBarData(contractId, symbol, valueDate, startDate, endDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var futuresBarData = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarData)}", MarketDataDbSql.GetFuturesBarData)
+            .SetParameters(new GetFuturesBarData(contractId, symbol, valueDate, startDate, endDate) { PostgreSql = true })
             .ExecuteQueryAsync(MapToFuturesBarData!))
                 .ConfigureAwait(false);
         return [.. futuresBarData.OrderBy(e => e.BarDate)];
@@ -856,7 +921,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<ICollection<FuturesBarDataReadModel>> GetFuturesBarDataAsync()
     {
-        var futuresBarData = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarDataAll)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesBarDataAll : MarketDataDbCql.GetFuturesBarDataAll)
+        var futuresBarData = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarDataAll)}", MarketDataDbSql.GetFuturesBarDataAll)
             .ExecuteQueryAsync(MapToFuturesBarData!))
                 .ConfigureAwait(false);
         return futuresBarData;
@@ -866,11 +931,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// gets the last futures bar data for a given contractId, symbol, and valueDate.
     /// </summary>
     /// <returns></returns>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="symbol">The symbol used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
     public async Task<FuturesBarDataReadModel> GetLastFuturesBarDataAsync(string contractId, string symbol, DateOnly valueDate)
     {
         var db = _dbFactory.MarketDataDb;
-        var lastFuturesBarData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesBarData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesBarData : MarketDataDbCql.GetLastFuturesBarData)
-            .SetParameters(new GetLastFuturesBarData(contractId, symbol, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var lastFuturesBarData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesBarData)}", MarketDataDbSql.GetLastFuturesBarData)
+            .SetParameters(new GetLastFuturesBarData(contractId, symbol, valueDate) { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesBarData!))
                 .ConfigureAwait(false);
         return lastFuturesBarData!;
@@ -883,11 +951,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The count of futures bar data.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<int> GetFuturesBarDataCountAsync(FuturesBarDataId e) 
+    public async Task<int> GetFuturesBarDataCountAsync(FuturesBarDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        return Convert.ToInt32(await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarDataCount)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesBarDataCount : MarketDataDbCql.GetFuturesBarDataCount)
-        .SetParameters(new GetFuturesBarDataCount(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return Convert.ToInt32(await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesBarDataCount)}", MarketDataDbSql.GetFuturesBarDataCount)
+        .SetParameters(new GetFuturesBarDataCount(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate) { PostgreSql = true })
         .ExecuteScalarAsync(MapToFuturesBarDataCount!))
                 .ConfigureAwait(false));
     }
@@ -896,11 +964,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The entity ID containing the contract ID and value date.</param>
     /// <returns>A task representing the asynchronous operation, containing a collection of <see cref = "FuturesItiSignalV2ReadModel"/>.</returns>
-    public async Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalsAsync(FuturesItiSignalEntityId e) 
+    public async Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalsAsync(FuturesItiSignalEntityId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignals)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesItiSignals : MarketDataDbCql.GetFuturesItiSignals)
-        .SetParameters(new GetFuturesItiSignals(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignals)}", MarketDataDbSql.GetFuturesItiSignals)
+        .SetParameters(new GetFuturesItiSignals(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast()) { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesItiSignal!))
                 .ConfigureAwait(false);
     }
@@ -922,8 +990,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         var valueDates = Enumerable.Range(0, endDate.DayNumber - startDate.DayNumber + 1).Select(startDate.AddDays);
         foreach (var batch in valueDates.Chunk(ProjectionReadConcurrency))
         {
-            var reads = batch.Select(valueDate => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalContractIdsByDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesItiSignalContractIdsByDate : MarketDataDbCql.GetFuturesItiSignalContractIdsByDate)
-                .SetParameters(new GetFuturesItiSignalContractIdsByDate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var reads = batch.Select(valueDate => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalContractIdsByDate)}", MarketDataDbSql.GetFuturesItiSignalContractIdsByDate)
+                .SetParameters(new GetFuturesItiSignalContractIdsByDate(valueDate) { PostgreSql = true })
                 .ExecuteQueryAsync(static row => row.GetString(0)));
             foreach (var indexedContractIds in await (Task.WhenAll(reads))
                 .ConfigureAwait(false))
@@ -938,6 +1006,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// Gets futures ITI signals for one concrete futures contract and date range.
     /// This avoids the securities-symbol lookup used by the cross-contract query.
     /// </summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiSignalsForContractAsync(string contractId, DateOnly startDate, DateOnly endDate) => this.ReadFuturesItiSignalsByDateRangeAsync([contractId], startDate, endDate);
     /// <summary>
     /// Gets a collection of futures ITI signals for a given symbol and date range.
@@ -972,11 +1044,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The futures bar data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertFuturesBarDataAsync(FuturesBarDataReadModel e) 
+    public async Task InsertFuturesBarDataAsync(FuturesBarDataReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBarData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesBarData : MarketDataDbCql.InsertFuturesBarData)
-        .SetParameters(new InsertFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate, barDate: e.BarDate, barRateType: e.BarRateType.ToStringFast(), barValue: e.BarValue, upTrendTrigger: e.UpTrendTrigger, downTrendTrigger: e.DownTrendTrigger) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBarData)}", MarketDataDbSql.InsertFuturesBarData)
+        .SetParameters(new InsertFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate, barDate: e.BarDate, barRateType: e.BarRateType.ToStringFast(), barValue: e.BarValue, upTrendTrigger: e.UpTrendTrigger, downTrendTrigger: e.DownTrendTrigger) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -985,8 +1057,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "futuresBarData">The futures bar data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertFuturesBarDataAsync(ICollection<FuturesBarDataReadModel> futuresBarData) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBarData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesBarData : MarketDataDbCql.InsertFuturesBarData)
-        .SetParameters(futuresBarData.Select(e => new InsertFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate, barDate: e.BarDate, barRateType: e.BarRateType.ToStringFast(), barValue: e.BarValue, upTrendTrigger: e.UpTrendTrigger, downTrendTrigger: e.DownTrendTrigger) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+    public async Task InsertFuturesBarDataAsync(ICollection<FuturesBarDataReadModel> futuresBarData) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBarData)}", MarketDataDbSql.InsertFuturesBarData)
+        .SetParameters(futuresBarData.Select(e => new InsertFuturesBarData(contractId: e.ContractId, symbol: e.Symbol, valueDate: e.ValueDate, barDate: e.BarDate, barRateType: e.BarRateType.ToStringFast(), barValue: e.BarValue, upTrendTrigger: e.UpTrendTrigger, downTrendTrigger: e.DownTrendTrigger) { PostgreSql = true }))
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -996,7 +1068,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// batch operation.  The <paramref name = "futuresBarData"/> collection is enumerated to count the rows and prepare
     /// the data for insertion.</remarks>
     /// <param name = "futuresBarData">A collection of <see cref = "FuturesBarDataReadModel"/> objects representing the futures bar data to be inserted.
-    /// Each object must contain valid values for contract ID, symbol, value date, bar date, bar rate type, bar value, 
+    /// Each object must contain valid values for contract ID, symbol, value date, bar date, bar rate type, bar value,
     /// up trend trigger, and down trend trigger.</param>
     /// <returns>A <see cref = "Task{TResult}"/> representing the asynchronous operation. The result contains the total number  of
     /// rows processed during the insertion.</returns>
@@ -1020,36 +1092,31 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     /// <summary>
-    /// Inserts a collection of futures bar data records into the database. 
+    /// Inserts a collection of futures bar data records into the database.
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
-    public async Task InsertFuturesClosingPriceAsync(FuturesClosingPriceReadModel e) 
+    public async Task InsertFuturesClosingPriceAsync(FuturesClosingPriceReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesClosingPrice)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesClosingPrice : MarketDataDbCql.InsertFuturesClosingPrice)
-        .SetParameters(new InsertFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate, closingPrice: e.ClosingPrice, createdOn: e.CreatedOn, createdBy: e.CreatedBy) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesClosingPrice)}", MarketDataDbSql.InsertFuturesClosingPrice)
+        .SetParameters(new InsertFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate, closingPrice: e.ClosingPrice, createdOn: e.CreatedOn, createdBy: e.CreatedBy) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
     /// <summary>
-    /// 
+    ///
     /// </summary>
-    /// <param name = "tickData"></param>
     /// <returns></returns>
+    /// <param name="e">The e used by this operation.</param>
     public async Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
         var tickId = e.TickId > 0 ? e.TickId : await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesTickData_TickId))
                 .ConfigureAwait(false);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.InsertFuturesTickDataAsync(e with { TickId = tickId })
                 .ConfigureAwait(false);
             return;
-        }
-        await (this.ExecuteAtomicTickWriteAsync(MarketDataDbContextExtensions.GetFuturesTickScopeKey(e.ContractId, e.ValueDate), new[] { new InsertFuturesTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId, tickTime: e.TickTime, price: e.Price, size: e.Size) }, new[] { new InsertFuturesTickDataByTime(contractId: e.ContractId, valueDate: e.ValueDate, tickTime: e.TickTime, tickId, price: e.Price, size: e.Size) }))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1061,29 +1128,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> tickData)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.InsertFuturesTickDataAsync(tickData)
                 .ConfigureAwait(false);
             return;
-        }
-        ArgumentNullException.ThrowIfNull(tickData);
-        if (tickData.Count == 0)
-            return;
-        MarketDataDbContextExtensions.EnsureDistinctFuturesTickWrites(tickData);
-        var batchesByGuard = tickData.GroupBy(static e => (e.ContractId, e.ValueDate)).SelectMany(group => group.Chunk(TickAtomicBatchRowCount).Select(chunk => (group.Key.ContractId, group.Key.ValueDate, Rows: chunk))).GroupBy(batch => MarketDataDbContextExtensions.GetProjectionGuardScopeKey(MarketDataDbContextExtensions.GetFuturesTickScopeKey(batch.ContractId, batch.ValueDate)), StringComparer.Ordinal);
-        foreach (var guardGroupBatch in batchesByGuard.Chunk(ProjectionReadConcurrency))
-        {
-            await (Task.WhenAll(guardGroupBatch.Select(async guardBatches =>
-            {
-                foreach (var batch in guardBatches)
-                {
-                    await (this.ExecuteAtomicTickWriteAsync(MarketDataDbContextExtensions.GetFuturesTickScopeKey(batch.ContractId, batch.ValueDate), batch.Rows.Select(e => new InsertFuturesTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId, tickTime: e.TickTime, price: e.Price, size: e.Size)).ToArray(), batch.Rows.Select(e => new InsertFuturesTickDataByTime(contractId: e.ContractId, valueDate: e.ValueDate, tickTime: e.TickTime, tickId: e.TickId, price: e.Price, size: e.Size)).ToArray()))
-                .ConfigureAwait(false);
-                }
-            })))
-                .ConfigureAwait(false);
-        }
     }
 
     /// <summary>
@@ -1094,8 +1141,6 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     public async Task InsertFuturesItiSignalAsync(FuturesItiSignalV2ReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             var acceptedSequence = e.SequenceId > 0 ? e.SequenceId : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId)
                 .ConfigureAwait(false);
             var nativeDb = _dbFactory.MarketDataDb;
@@ -1108,52 +1153,28 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             await nativeDb.ExecuteQueuedCommandsAsync([signal,state],useTransaction:true)
                 .ConfigureAwait(false);
             return;
-        }
-
-        var trend = e.IntrinsicTimeTrend.ToStringFast();
-        var mode = e.IntrinsicTimeMode.ToStringFast();
-        await (this.ExecuteMaintainedProjectionMutationAsync(FuturesItiSignalQueryProjection, MarketDataDbContextExtensions.GetFuturesItiProjectionScopeKeys(e.ContractId, e.ValueDate, trend, mode), async () =>
-        {
-            var sequenceId = e.SequenceId > 0 ? e.SequenceId : await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesItiSignal_SequenceId))
-                .ConfigureAwait(false);
-            var db = _dbFactory.MarketDataDb;
-            var canonicalParameters = MarketDataDbContextExtensions.CreateFuturesItiSignalParameters(e, sequenceId);
-            var monthParameters = MarketDataDbContextExtensions.CreateFuturesItiSignalMonthParameters(e, sequenceId);
-            List<object> commands = [db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalIndex)}", MarketDataDbCql.InsertFuturesItiSignalIndex)
-                .SetParameters(new InsertFuturesItiSignalIndex(e.ValueDate, e.ContractId))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesItiSignal : MarketDataDbCql.InsertFuturesItiSignal)
-                .SetParameters(canonicalParameters)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDay)}", MarketDataDbCql.InsertFuturesItiSignalByContractDay)
-                .SetParameters(canonicalParameters)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonth)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonth)
-                .SetParameters(monthParameters)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)
-                .SetParameters(monthParameters)
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertFuturesItiTimeFrameState)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.UpsertFuturesItiTimeFrameState : MarketDataDbCql.UpsertFuturesItiTimeFrameState)
-                .SetParameters(MarketDataDbContextExtensions.CreateFuturesItiTimeFrameStateParameters(e, sequenceId))
-                .QueueCommand(), db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                .SetParameters(new InsertMarketDataProjectionMonth(FuturesItiSignalQueryProjection, MarketDataDbContextExtensions.ToYearMonth(e.ValueDate)))
-                .QueueCommand()];
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
-        }))
-                .ConfigureAwait(false);
     }
 
-    public async Task<FuturesItiSignalV2ReadModel?> GetFuturesItiTimeFrameStateAsync(string contractId, TimeFrameType timePeriod, DateOnly calendarBucketStart, CancellationToken cancellationToken = default) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTimeFrameState)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesItiTimeFrameState : MarketDataDbCql.GetFuturesItiTimeFrameState)
-        .SetParameters(new GetFuturesItiTimeFrameState(contractId, timePeriod.ToStringFast(), calendarBucketStart) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Futures Iti Time Frame State using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="calendarBucketStart">The calendar bucket start used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesItiSignalV2ReadModel?> GetFuturesItiTimeFrameStateAsync(string contractId, TimeFrameType timePeriod, DateOnly calendarBucketStart, CancellationToken cancellationToken = default) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiTimeFrameState)}", MarketDataDbSql.GetFuturesItiTimeFrameState)
+        .SetParameters(new GetFuturesItiTimeFrameState(contractId, timePeriod.ToStringFast(), calendarBucketStart) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesItiTimeFrameState!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
     /// Inserts a Futures RSI Signal asynchronously into the database.
     /// </summary>
-    /// <param name = "futuresRsiSignal">The Futures RSI Signal to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <param name="e">The e used by this operation.</param>
     public async Task InsertFuturesRsiSignalAsync(FuturesRsiSignalReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        var parameters = new InsertFuturesRsiSignal(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), e.PeriodLength, e.Timestamp, e.Price, e.PriceChange, e.PriceGain, e.PriceLoss, e.AveragePriceGain, e.AveragePriceLoss, e.RS, e.RSI, e.RSIAverage, e.RSISlope, e.SourceSequence, e.SourceEventTimestamp, e.Metadata?.CalculationConfigurationId, e.Metadata?.ObservationId.Value, e.Metadata?.MarketDataAsOfUtc.UtcDateTime, e.Metadata?.CalculationVersion, e.Metadata?.CalculationMethod.ToString(), e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null, e.Metadata?.IsValid, e.PreviousRsi, e.RegimeSlope, e.IsWarm) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) };
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesRsiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesRsiSignal : MarketDataDbCql.InsertFuturesRsiSignal)
+        var parameters = new InsertFuturesRsiSignal(e.ContractId, e.ValueDate, e.TimePeriod.ToStringFast(), e.PeriodLength, e.Timestamp, e.Price, e.PriceChange, e.PriceGain, e.PriceLoss, e.AveragePriceGain, e.AveragePriceLoss, e.RS, e.RSI, e.RSIAverage, e.RSISlope, e.SourceSequence, e.SourceEventTimestamp, e.Metadata?.CalculationConfigurationId, e.Metadata?.ObservationId.Value, e.Metadata?.MarketDataAsOfUtc.UtcDateTime, e.Metadata?.CalculationVersion, e.Metadata?.CalculationMethod.ToString(), e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null, e.Metadata?.IsValid, e.PreviousRsi, e.RegimeSlope, e.IsWarm) { PostgreSql = true };
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesRsiSignal)}", MarketDataDbSql.InsertFuturesRsiSignal)
             .SetParameters(parameters)
             .ExecuteCommandAsync())
                 .ConfigureAwait(false);
@@ -1172,54 +1193,24 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InsertYieldCurveRatesAsync(YieldCurveRateReadModel[] e) => await (InsertYieldCurveRatesAsync(e, ImportDuplicatePolicy.Overwrite, Guid.Empty))
                 .ConfigureAwait(false);
+    /// <summary>Insert Yield Curve Rates using the MarketDataDb persistence.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <param name="duplicatePolicy">The duplicate policy used by this operation.</param>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertYieldCurveRatesAsync(YieldCurveRateReadModel[] e, ImportDuplicatePolicy duplicatePolicy, Guid commandId)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
             var acceptedAtUtc = DateTime.UtcNow;
             var transactions = new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings()
                 .Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"));
             await transactions.ExecuteOnceAsync(async (transaction, token) =>
             {
-                await PostgresYieldCurveStore.ImportAsync(transaction,e,duplicatePolicy,commandId,acceptedAtUtc,token)
+                await MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,e,duplicatePolicy,commandId,acceptedAtUtc,token)
                 .ConfigureAwait(false);
                 return true;
             })
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(e);
-        if (e.Length == 0)
-            return;
-        MarketDataDbContextExtensions.ValidateImportPolicy(duplicatePolicy, commandId);
-        var db = _dbFactory.MarketDataDb;
-        var commands = new List<object>(e.Length * 3);
-        var years = new HashSet<int>();
-        foreach (var row in e)
-        {
-            if (duplicatePolicy == ImportDuplicatePolicy.Reject)
-            {
-                await this.EnsureImportOwnershipAsync("treasury-curve", row.ValueDate.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture), commandId, await GetYieldCurveRateAsync(row.ValueDate)
-                    .ConfigureAwait(false) is not null)
-                    .ConfigureAwait(false);
-            }
-
-            var parameters = new InsertYieldCurveRate(id: YieldCurveLookupId, valueDate: row.ValueDate, oneMonth: row.OneMonth, twoMonth: row.TwoMonth, threeMonth: row.ThreeMonth, sixMonth: row.SixMonth, oneYear: row.OneYear, twoYear: row.TwoYear, threeYear: row.ThreeYear, fiveYear: row.FiveYear, sevenYear: row.SevenYear, tenYear: row.TenYear, twentyYear: row.TwentyYear, thirtyYear: row.ThirtyYear) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) };
-            commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertYieldCurveRate : MarketDataDbCql.InsertYieldCurveRate)
-                .SetParameters(parameters)
-                .QueueCommand());
-            commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateByDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertYieldCurveRateByDate : MarketDataDbCql.InsertYieldCurveRateByDate)
-                .SetParameters(parameters)
-                .QueueCommand());
-            years.Add(row.ValueDate.Year);
-        }
-
-        commands.AddRange(years.Select(rateYear => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateYear)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertYieldCurveRateYear : MarketDataDbCql.InsertYieldCurveRateYear)
-            .SetParameters(new InsertYieldCurveRateYear(YieldCurveLookupId, rateYear) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .QueueCommand()));
-        await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1228,16 +1219,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The contract identifier.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>The last <see cref = "FuturesOptionTickDataId"/>.</returns>
-    public async Task<FuturesOptionTickDataId?> GetLastFuturesOptionTickDataIdAsync(string contractId, DateOnly valueDate) 
+    public async Task<FuturesOptionTickDataId?> GetLastFuturesOptionTickDataIdAsync(string contractId, DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             return await _dbFactory.TradeTickQuoteDb.GetLastFuturesOptionTickDataIdAsync(contractId, valueDate)
-                .ConfigureAwait(false);
-        }
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesOptionTickDataId)}", MarketDataDbCql.GetLastFuturesOptionTickDataId)
-        .SetParameters(new GetLastFuturesOptionTickDataId(contractId, valueDate))
-        .ExecuteSingleAsync(MapToFuturesOptionTickDataId!))
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -1247,15 +1231,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>The <see cref = "FuturesOptionTickDataV2ReadModel"/>.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionTickDataAsync(FuturesOptionTickDataId e) 
+    public async Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionTickDataAsync(FuturesOptionTickDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await _dbFactory.TradeTickQuoteDb.GetFuturesOptionTickDataAsync(e)
-                .ConfigureAwait(false);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionTickData)}", MarketDataDbCql.GetFuturesOptionTickData)
-        .SetParameters(new GetFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId))
-        .ExecuteSingleAsync(MapToFuturesOptionTickData!))
+        return await _dbFactory.TradeTickQuoteDb.GetFuturesOptionTickDataAsync(e)
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -1269,11 +1248,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// specified futures option, or null if no matching data is found.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionTickPriceDataAsync(FuturesOptionTickDataId e) 
+    public async Task<FuturesOptionTickDataV2ReadModel?> GetFuturesOptionTickPriceDataAsync(FuturesOptionTickDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionTickPriceData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesOptionTickPriceData : MarketDataDbCql.GetFuturesOptionTickPriceData)
-        .SetParameters(new GetFuturesOptionTickPriceData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesOptionTickPriceData)}", MarketDataDbSql.GetFuturesOptionTickPriceData)
+        .SetParameters(new GetFuturesOptionTickPriceData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesOptionTickPriceData!))
                 .ConfigureAwait(false);
     }
@@ -1287,16 +1266,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         ArgumentNullException.ThrowIfNull(e);
         var tickId = e.TickId > 0 ? e.TickId : await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickData_TickId))
                 .ConfigureAwait(false);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.InsertFuturesOptionTickDataAsync(e with { TickId = tickId })
                 .ConfigureAwait(false);
             return;
-        }
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesOptionTickData)}", MarketDataDbCql.InsertFuturesOptionTickData)
-            .SetParameters(new InsertFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId, tickTime: e.TickTime, optionPrice: e.OptionPrice, bidPrice: e.BidPrice, askPrice: e.AskPrice, bidSize: e.BidSize, askSize: e.AskSize, impliedVolatility: e.ImpliedVolatility, underlyingPrice: e.UnderlyingPrice, delta: e.Delta, gamma: e.Gamma, vega: e.Vega, theta: e.Theta, rho: e.Rho) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .ExecuteCommandAsync())
-                .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1306,32 +1278,33 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> tickData) 
+    public async Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> tickData)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await _dbFactory.TradeTickQuoteDb.InsertFuturesOptionTickDataAsync(tickData)
                 .ConfigureAwait(false);
             return;
-        }
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesOptionTickData)}", MarketDataDbCql.InsertFuturesOptionTickData)
-        .SetParameters(tickData.Select(e => new InsertFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId: e.TickId, tickTime: e.TickTime, optionPrice: e.OptionPrice, bidPrice: e.BidPrice, askPrice: e.AskPrice, bidSize: e.BidSize, askSize: e.AskSize, impliedVolatility: e.ImpliedVolatility, underlyingPrice: e.UnderlyingPrice, delta: e.Delta, gamma: e.Gamma, vega: e.Vega, theta: e.Theta, rho: e.Rho) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
-        .ExecuteCommandAsync())
-                .ConfigureAwait(false);
     }
 
     /// <summary>Enriches existing frozen quotes without replacing prices, timestamps, or newer ticks.</summary>
+    /// <param name="underlyingContractId">The underlying contract id used by this operation.</param>
+    /// <param name="expiryDate">The expiry date used by this operation.</param>
+    /// <param name="quotes">The quotes used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task UpdateFuturesOptionChainQuoteGreeksAsync(string underlyingContractId, DateOnly expiryDate,
         ICollection<FuturesOptionTickDataV2ReadModel> quotes)
     {
         ArgumentNullException.ThrowIfNull(quotes);
         if (quotes.Count == 0) return;
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateOptionChainGreeks)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.UpdateOptionChainGreeks : MarketDataDbCql.UpdateOptionChainGreeks)
-            .SetParameters(quotes.Select(x => new UpdateOptionChainGreeks(underlyingContractId, expiryDate, x) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateOptionChainGreeks)}", MarketDataDbSql.UpdateOptionChainGreeks)
+            .SetParameters(quotes.Select(x => new UpdateOptionChainGreeks(underlyingContractId, expiryDate, x) { PostgreSql = true }))
             .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Upsert Futures Option Chain Quote Data using the MarketDataDb persistence.</summary>
+    /// <param name="underlyingContractId">The underlying contract id used by this operation.</param>
+    /// <param name="tick">The tick used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1244", Justification = "Zero is the explicit missing-value sentinel in the persisted pricing contract; approximate comparison would classify valid nonzero values as missing.")]
     public async Task UpsertFuturesOptionChainQuoteDataAsync(
         string underlyingContractId, FuturesOptionTickDataV2ReadModel tick)
@@ -1347,26 +1320,22 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             expiry = definition.ExpirationUtc is { } at
                 ? DateOnly.FromDateTime(at.UtcDateTime) : definition.ContractMonth;
         }
-        if (tick.Vega == 0 && tick.UnderlyingPrice > 0)
-        {
-            var pricingDefinition = await _dbFactory.SecuritiesDb.GetFuturesOptionContractAsync(tick.ContractId)
-                .ConfigureAwait(false);
-            if (pricingDefinition is not null) tick = OptionQuoteGreekEnrichment.Calculate(pricingDefinition, tick);
-        }
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertFuturesOptionChainQuoteData)}",
-                string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.UpsertFuturesOptionChainQuoteData : MarketDataDbCql.UpsertFuturesOptionChainQuoteData)
-            .SetParameters(new UpsertFuturesOptionChainQuoteData(underlyingContractId, expiry, tick) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertFuturesOptionChainQuoteData)}", MarketDataDbSql.UpsertFuturesOptionChainQuoteData)
+                .SetParameters(new UpsertFuturesOptionChainQuoteData(underlyingContractId, expiry, tick) { PostgreSql = true })
             .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Futures Option Tick Price Data using the MarketDataDb persistence.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertFuturesOptionTickPriceDataAsync(FuturesOptionTickDataV2ReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
         var tickId = await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesOptionTickPriceData_TickId))
                 .ConfigureAwait(false);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesOptionTickPriceData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesOptionTickPriceData : MarketDataDbCql.InsertFuturesOptionTickPriceData)
-            .SetParameters(new InsertFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId, tickTime: e.TickTime, optionPrice: e.OptionPrice, bidPrice: e.BidPrice, askPrice: e.AskPrice, bidSize: e.BidSize, askSize: e.AskSize, impliedVolatility: e.ImpliedVolatility, underlyingPrice: e.UnderlyingPrice, delta: e.Delta, gamma: e.Gamma, vega: e.Vega, theta: e.Theta, rho: e.Rho) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesOptionTickPriceData)}", MarketDataDbSql.InsertFuturesOptionTickPriceData)
+            .SetParameters(new InsertFuturesOptionTickData(contractId: e.ContractId, valueDate: e.ValueDate, tickId, tickTime: e.TickTime, optionPrice: e.OptionPrice, bidPrice: e.BidPrice, askPrice: e.AskPrice, bidSize: e.BidSize, askSize: e.AskSize, impliedVolatility: e.ImpliedVolatility, underlyingPrice: e.UnderlyingPrice, delta: e.Delta, gamma: e.Gamma, vega: e.Vega, theta: e.Theta, rho: e.Rho) { PostgreSql = true })
             .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1375,11 +1344,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
-    public async Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e) 
+    public async Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTradeLiveFeed)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertTradeLiveFeed : MarketDataDbCql.InsertTradeLiveFeed)
-        .SetParameters(new InsertTradeLiveFeed(orderId: e.OrderId, tradeId: e.TradeId, tradeLiveFeedState: e.TradeLiveFeedState.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTradeLiveFeed)}", MarketDataDbSql.InsertTradeLiveFeed)
+        .SetParameters(new InsertTradeLiveFeed(orderId: e.OrderId, tradeId: e.TradeId, tradeLiveFeedState: e.TradeLiveFeedState.ToStringFast()) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1389,10 +1358,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The contract identifier.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the FuturesDataId.</returns>
-    public async Task<FuturesDataId?> GetFuturesDataId(string contractId, DateOnly valueDate) 
+    public async Task<FuturesDataId?> GetFuturesDataId(string contractId, DateOnly valueDate)
     {
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesDataId)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesDataId : MarketDataDbCql.GetFuturesDataId)
-        .SetParameters(new GetFuturesDataId(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesDataId)}", MarketDataDbSql.GetFuturesDataId)
+        .SetParameters(new GetFuturesDataId(contractId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesDataId))
                 .ConfigureAwait(false);
     } // Map the result to FuturesDataId
@@ -1401,15 +1370,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
-    public async Task<FuturesTickHLVDataReadModel?> GetFuturesTickHLVDataAsync(FuturesDataId e) 
+    public async Task<FuturesTickHLVDataReadModel?> GetFuturesTickHLVDataAsync(FuturesDataId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await _dbFactory.TradeTickQuoteDb.GetFuturesTickHLVDataAsync(e)
-                .ConfigureAwait(false);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickHLVData)}", MarketDataDbCql.GetFuturesTickHLVData)
-        .SetParameters(new GetFuturesTickHLVData(contractId: e.ContractId, valueDate: e.ValueDate))
-        .ExecuteSingleAsync(MapToFuturesTickHLVData!))
+        return await _dbFactory.TradeTickQuoteDb.GetFuturesTickHLVDataAsync(e)
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -1417,15 +1381,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e"></param>
     /// <returns></returns>
-    public async Task<FuturesTickHLVDataReadModel?> GetVixFuturesTickHLVDataAsync(VixFuturesEodDataEntityId e) 
+    public async Task<FuturesTickHLVDataReadModel?> GetVixFuturesTickHLVDataAsync(VixFuturesEodDataEntityId e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await _dbFactory.TradeTickQuoteDb.GetFuturesTickHLVDataAsync(new FuturesDataId(e.ContractId, e.ValueDate))
-                .ConfigureAwait(false);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickHLVData)}", MarketDataDbCql.GetFuturesTickHLVData)
-        .SetParameters(new GetFuturesTickHLVData(contractId: e.ContractId, valueDate: e.ValueDate))
-        .ExecuteSingleAsync(MapToFuturesTickHLVData!))
+        return await _dbFactory.TradeTickQuoteDb.GetFuturesTickHLVDataAsync(new FuturesDataId(e.ContractId, e.ValueDate))
                 .ConfigureAwait(false);
     }
     /// <summary>
@@ -1444,7 +1403,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// data.</remarks>
     /// <returns>A task representing the asynchronous operation. The task result contains a collection of  <see
     ///cref = "FuturesEodDataV2ReadModel"/> objects representing the end-of-day futures data.</returns>
-    public async Task<ICollection<FuturesEodDataV2ReadModel>> GetFuturesEodDataAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesEodDataAll : MarketDataDbCql.GetFuturesEodDataAll)
+    public async Task<ICollection<FuturesEodDataV2ReadModel>> GetFuturesEodDataAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", MarketDataDbSql.GetFuturesEodDataAll)
         .ExecuteQueryAsync(MapToFuturesEodData!))
                 .ConfigureAwait(false);
 
@@ -1458,8 +1417,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "valueDate">The date for which the intra-day market data is requested.</param>
     /// <returns>A collection of <see cref = "FuturesIntraDayDataReadModel"/> objects representing the intra-day market data for
     /// the specified contract and date.</returns>
-    public async Task<ICollection<FuturesIntraDayDataReadModel>> GetFuturesIntraDayDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesIntraDayData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesIntraDayData : MarketDataDbCql.GetFuturesIntraDayData)
-        .SetParameters(new GetFuturesIntraDayData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<ICollection<FuturesIntraDayDataReadModel>> GetFuturesIntraDayDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesIntraDayData)}", MarketDataDbSql.GetFuturesIntraDayData)
+        .SetParameters(new GetFuturesIntraDayData(contractId, valueDate) { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesIntraDayData!))
                 .ConfigureAwait(false);
     /// <summary>
@@ -1470,8 +1429,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation. The task result contains a <see
     ///cref = "FuturesEodDataV2ReadModel"/> representing the latest end-of-day futures data, or <see langword="null"/> if
     /// no data is available.</returns>
-    public async Task<FuturesEodDataV2ReadModel?> GetLastFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesEodData : MarketDataDbCql.GetLastFuturesEodData)
-        .SetParameters(new GetLastFuturesEodData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    public async Task<FuturesEodDataV2ReadModel?> GetLastFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesEodData)}", MarketDataDbSql.GetLastFuturesEodData)
+        .SetParameters(new GetLastFuturesEodData(contractId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesEodData!))
                 .ConfigureAwait(false);
     /// <summary>
@@ -1481,57 +1442,20 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "startDate"></param>
     /// <param name = "endDate"></param>
     /// <returns></returns>
-    public async Task<ICollection<FuturesEodDataV2ReadModel>> GetFuturesEodDataByDateRangeAsync(string contractId, DateOnly startDate, DateOnly endDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataByDateRange)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesEodDataByDateRange : MarketDataDbCql.GetFuturesEodDataByDateRange)
-        .SetParameters(new GetFuturesEodDataByDateRange(contractId, startDate, endDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<ICollection<FuturesEodDataV2ReadModel>> GetFuturesEodDataByDateRangeAsync(string contractId, DateOnly startDate, DateOnly endDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataByDateRange)}", MarketDataDbSql.GetFuturesEodDataByDateRange)
+        .SetParameters(new GetFuturesEodDataByDateRange(contractId, startDate, endDate) { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesEodData!))
                 .ConfigureAwait(false);
     /// <summary>
     /// Gets the current FuturesEodDataV2ReadModel for a given FuturesDataId.
     /// </summary>
-    /// <param name = "e">The FuturesDataId containing the contractId and valueDate.</param>
     /// <returns>A task representing the asynchronous operation, containing the FuturesEodDataV2ReadModel.</returns>
+    /// <param name="valueDate">The value date used by this operation.</param>
     public async Task<FuturesEodDataV2ReadModel?> GetCurrentFuturesEodDataAsync(DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await this.Use(nameof(MarketDataDbSql.GetCurrentFuturesEodData), MarketDataDbSql.GetCurrentFuturesEodData)
+        return await this.Use(nameof(MarketDataDbSql.GetCurrentFuturesEodData), MarketDataDbSql.GetCurrentFuturesEodData)
                 .SetParameters(new NativeValueDateParameters(valueDate))
                 .ExecuteSingleAsync(MapToFuturesEodData!)
-                .ConfigureAwait(false);
-        var db = _dbFactory.MarketDataDb;
-        var targetYearMonth = MarketDataDbContextExtensions.ToYearMonth(valueDate);
-        var projectionMonths = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
-            .SetParameters(new GetMarketDataProjectionMonths(FuturesEodProjection, targetYearMonth))
-            .ExecuteQueryAsync(MapToYearMonth))
-                .ConfigureAwait(false);
-        var orderedProjectionMonths = projectionMonths.ToArray();
-        var stamp = await (this.GetProjectionScopeReadStampAsync(FuturesEodProjection, orderedProjectionMonths.Select(MarketDataDbContextExtensions.GetFuturesEodScopeKey).Concat(this.GetProjectionGuardScopeKeys())))
-                .ConfigureAwait(false);
-        if (stamp is null)
-            return await (this.ReadLegacyCurrentFuturesEodDataAsync(valueDate))
-                .ConfigureAwait(false);
-        FuturesEodDataV2ReadModel? result = null;
-        foreach (var yearMonth in orderedProjectionMonths)
-        {
-            var monthCutoff = yearMonth == targetYearMonth ? valueDate : MarketDataDbContextExtensions.GetMonthEnd(yearMonth);
-            result = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetCurrentFuturesEodDataByMonth)}", MarketDataDbCql.GetCurrentFuturesEodDataByMonth)
-                .SetParameters(new GetCurrentFuturesEodDataByMonth(yearMonth, monthCutoff))
-                .ExecuteSingleAsync(MapToFuturesEodData!))
-                .ConfigureAwait(false);
-            if (result is not null)
-                break;
-        }
-
-        var validatedProjectionMonths = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
-            .SetParameters(new GetMarketDataProjectionMonths(FuturesEodProjection, targetYearMonth))
-            .ExecuteQueryAsync(MapToYearMonth))
-                .ConfigureAwait(false);
-        if (orderedProjectionMonths.SequenceEqual(validatedProjectionMonths) && await (this.IsProjectionScopeReadStampValidAsync(stamp.Value))
-                .ConfigureAwait(false))
-        {
-            return result;
-        }
-
-        return await (this.ReadLegacyCurrentFuturesEodDataAsync(valueDate))
                 .ConfigureAwait(false);
     }
 
@@ -1543,41 +1467,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<ICollection<FuturesEodDataV2ReadModel>> GetCurrentFuturesEodDataByDateRangeAsync(DateOnly startDate, DateOnly endDate)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
             ArgumentOutOfRangeException.ThrowIfGreaterThan(startDate,endDate);
             return await this.Use(nameof(MarketDataDbSql.GetCurrentFuturesEodDataByDateRange),MarketDataDbSql.GetCurrentFuturesEodDataByDateRange)
-                .SetParameters(new Parameters.NativeMarketDateRangeParameter(startDate,endDate))
+                .SetParameters(new NativeMarketDateRangeParameter(startDate,endDate))
                 .ExecuteQueryAsync(MapToFuturesEodData)
                 .ConfigureAwait(false);
-        }
-
-        var db = _dbFactory.MarketDataDb;
-        var yearMonths = MarketDataDbContextExtensions.GetYearMonths(startDate, endDate).ToHashSet();
-        var stamp = await (this.GetProjectionScopeReadStampAsync(FuturesEodProjection, yearMonths.Select(MarketDataDbContextExtensions.GetFuturesEodScopeKey)))
-                .ConfigureAwait(false);
-        if (stamp is null)
-            return await (this.ReadLegacyFuturesEodDataByMonthsAsync(startDate, endDate, yearMonths))
-                .ConfigureAwait(false);
-        List<FuturesEodDataV2ReadModel> results = [];
-        foreach (var yearMonth in yearMonths)
-        {
-            var monthStart = MarketDataDbContextExtensions.GetMonthStart(yearMonth);
-            var monthEnd = MarketDataDbContextExtensions.GetMonthEnd(yearMonth);
-            var rangeStart = startDate > monthStart ? startDate : monthStart;
-            var rangeEnd = endDate < monthEnd ? endDate : monthEnd;
-            var monthValues = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetCurrentFuturesEodDataByDateRange)}", MarketDataDbCql.GetCurrentFuturesEodDataByDateRange)
-                .SetParameters(new GetCurrentFuturesEodDataByDateRange(yearMonth, rangeStart, rangeEnd))
-                .ExecuteQueryAsync(MapToFuturesEodData!))
-                .ConfigureAwait(false);
-            results.AddRange(monthValues);
-        }
-
-        if (!await (this.IsProjectionScopeReadStampValidAsync(stamp.Value))
-                .ConfigureAwait(false))
-            return await (this.ReadLegacyFuturesEodDataByMonthsAsync(startDate, endDate, yearMonths))
-                .ConfigureAwait(false);
-        return [.. results.OrderByDescending(e => e.ValueDate).ThenBy(e => e.ContractId, StringComparer.Ordinal)];
     }
 
     /// <summary>
@@ -1608,8 +1502,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         if (maxDays <= 0)
             return [];
         var closingPrices = new List<FuturesEodClosingPriceReadModel>(Math.Min(maxDays, 256));
-        var rows = _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodClosingPrices)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesEodClosingPrices : MarketDataDbCql.GetFuturesEodClosingPrices)
-            .SetParameters(new GetFuturesEodClosingPrices(contractId, startDate, endDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var rows = _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodClosingPrices)}", MarketDataDbSql.GetFuturesEodClosingPrices)
+            .SetParameters(new GetFuturesEodClosingPrices(contractId, startDate, endDate) { PostgreSql = true })
             .ExecuteStreamAsync(MapToFuturesEodClosingPrice);
         await foreach (var row in rows.ConfigureAwait(false))
         {
@@ -1632,11 +1526,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The FuturesEodDataIndexReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertFuturesEodDataIndexAsync(FuturesEodDataIndexReadModel e) 
+    public async Task InsertFuturesEodDataIndexAsync(FuturesEodDataIndexReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataIndex)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesEodDataIndex : MarketDataDbCql.InsertFuturesEodDataIndex)
-        .SetParameters(new InsertFuturesEodDataIndex(valueDate: e.ValueDate, contractId: e.ContractId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataIndex)}", MarketDataDbSql.InsertFuturesEodDataIndex)
+        .SetParameters(new InsertFuturesEodDataIndex(valueDate: e.ValueDate, contractId: e.ContractId) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1649,11 +1543,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel futuresTdiSignal) 
+    public async Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel futuresTdiSignal)
     {
         ArgumentNullException.ThrowIfNull(futuresTdiSignal);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTdiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTdiSignal : MarketDataDbCql.InsertFuturesTdiSignal)
-        .SetParameters(new InsertFuturesTdiSignal(contractId: futuresTdiSignal.ContractId, timePeriod: futuresTdiSignal.TimePeriod.ToStringFast(), configurationId: futuresTdiSignal.ConfigurationId, valueDate: futuresTdiSignal.ValueDate, timestamp: futuresTdiSignal.Timestamp, schemaVersion: futuresTdiSignal.SchemaVersion, rsiPeriod: futuresTdiSignal.RsiPeriod, priceLinePeriod: futuresTdiSignal.PriceLinePeriod, signalLinePeriod: futuresTdiSignal.SignalLinePeriod, marketBasePeriod: futuresTdiSignal.MarketBasePeriod, volatilityBandPeriod: futuresTdiSignal.VolatilityBandPeriod, volatilityBandDeviation: futuresTdiSignal.VolatilityBandDeviation, price: futuresTdiSignal.Price, rsi: futuresTdiSignal.Rsi, priceLine: futuresTdiSignal.PriceLine, signalLine: futuresTdiSignal.SignalLine, marketBaseLine: futuresTdiSignal.MarketBaseLine, upperVolatilityBand: futuresTdiSignal.UpperVolatilityBand, lowerVolatilityBand: futuresTdiSignal.LowerVolatilityBand, bandWidth: futuresTdiSignal.BandWidth, priceSignalDivergence: futuresTdiSignal.PriceSignalDivergence, crossType: futuresTdiSignal.Cross.ToString(), marketState: futuresTdiSignal.MarketState.ToString(), trendDirection: futuresTdiSignal.TDI.ToStringFast(), trendStrength: futuresTdiSignal.TDIStrength.ToStringFast(), sourceSequence: futuresTdiSignal.SourceSequence, sourceEventTimestamp: futuresTdiSignal.SourceEventTimestamp) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTdiSignal)}", MarketDataDbSql.InsertFuturesTdiSignal)
+        .SetParameters(new InsertFuturesTdiSignal(contractId: futuresTdiSignal.ContractId, timePeriod: futuresTdiSignal.TimePeriod.ToStringFast(), configurationId: futuresTdiSignal.ConfigurationId, valueDate: futuresTdiSignal.ValueDate, timestamp: futuresTdiSignal.Timestamp, schemaVersion: futuresTdiSignal.SchemaVersion, rsiPeriod: futuresTdiSignal.RsiPeriod, priceLinePeriod: futuresTdiSignal.PriceLinePeriod, signalLinePeriod: futuresTdiSignal.SignalLinePeriod, marketBasePeriod: futuresTdiSignal.MarketBasePeriod, volatilityBandPeriod: futuresTdiSignal.VolatilityBandPeriod, volatilityBandDeviation: futuresTdiSignal.VolatilityBandDeviation, price: futuresTdiSignal.Price, rsi: futuresTdiSignal.Rsi, priceLine: futuresTdiSignal.PriceLine, signalLine: futuresTdiSignal.SignalLine, marketBaseLine: futuresTdiSignal.MarketBaseLine, upperVolatilityBand: futuresTdiSignal.UpperVolatilityBand, lowerVolatilityBand: futuresTdiSignal.LowerVolatilityBand, bandWidth: futuresTdiSignal.BandWidth, priceSignalDivergence: futuresTdiSignal.PriceSignalDivergence, crossType: futuresTdiSignal.Cross.ToString(), marketState: futuresTdiSignal.MarketState.ToString(), trendDirection: futuresTdiSignal.TDI.ToStringFast(), trendStrength: futuresTdiSignal.TDIStrength.ToStringFast(), sourceSequence: futuresTdiSignal.SourceSequence, sourceEventTimestamp: futuresTdiSignal.SourceEventTimestamp) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1664,11 +1558,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel futuresMacdSignal) 
+    public async Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel futuresMacdSignal)
     {
         ArgumentNullException.ThrowIfNull(futuresMacdSignal);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesMacdSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesMacdSignal : MarketDataDbCql.InsertFuturesMacdSignal)
-        .SetParameters(new InsertFuturesMacdSignal(contractId: futuresMacdSignal.ContractId, valueDate: futuresMacdSignal.ValueDate, timePeriod: futuresMacdSignal.TimePeriod.ToStringFast(), signalEmaPeriod: futuresMacdSignal.SignalEmaPeriod, fastEmaPeriod: futuresMacdSignal.FastEmaPeriod, slowEmaPeriod: futuresMacdSignal.SlowEmaPeriod, timestamp: futuresMacdSignal.Timestamp, futuresPrice: futuresMacdSignal.FuturesPrice, fastEma: futuresMacdSignal.FastEma, slowEma: futuresMacdSignal.SlowEma, macdLine: futuresMacdSignal.MacdLine, signalLine: futuresMacdSignal.SignalLine, histogram: futuresMacdSignal.Histogram, macd: futuresMacdSignal.MACD.ToStringFast(), macdStrength: futuresMacdSignal.MACDStrength.ToStringFast(), configurationId: futuresMacdSignal.Metadata?.CalculationConfigurationId, observationId: futuresMacdSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresMacdSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresMacdSignal.Metadata?.SourceSequence, calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion, calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null, isValid: futuresMacdSignal.Metadata?.IsValid, isWarm: futuresMacdSignal.IsWarm, observationCount: futuresMacdSignal.ObservationCount) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesMacdSignal)}", MarketDataDbSql.InsertFuturesMacdSignal)
+        .SetParameters(new InsertFuturesMacdSignal(contractId: futuresMacdSignal.ContractId, valueDate: futuresMacdSignal.ValueDate, timePeriod: futuresMacdSignal.TimePeriod.ToStringFast(), signalEmaPeriod: futuresMacdSignal.SignalEmaPeriod, fastEmaPeriod: futuresMacdSignal.FastEmaPeriod, slowEmaPeriod: futuresMacdSignal.SlowEmaPeriod, timestamp: futuresMacdSignal.Timestamp, futuresPrice: futuresMacdSignal.FuturesPrice, fastEma: futuresMacdSignal.FastEma, slowEma: futuresMacdSignal.SlowEma, macdLine: futuresMacdSignal.MacdLine, signalLine: futuresMacdSignal.SignalLine, histogram: futuresMacdSignal.Histogram, macd: futuresMacdSignal.MACD.ToStringFast(), macdStrength: futuresMacdSignal.MACDStrength.ToStringFast(), configurationId: futuresMacdSignal.Metadata?.CalculationConfigurationId, observationId: futuresMacdSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresMacdSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresMacdSignal.Metadata?.SourceSequence, calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion, calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null, isValid: futuresMacdSignal.Metadata?.IsValid, isWarm: futuresMacdSignal.IsWarm, observationCount: futuresMacdSignal.ObservationCount) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1679,11 +1573,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task InsertFuturesAtrSignalAsync(FuturesAtrSignalReadModel futuresAtrSignal) 
+    public async Task InsertFuturesAtrSignalAsync(FuturesAtrSignalReadModel futuresAtrSignal)
     {
         ArgumentNullException.ThrowIfNull(futuresAtrSignal);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesAtrSignal : MarketDataDbCql.InsertFuturesAtrSignal)
-        .SetParameters(new InsertFuturesAtrSignal(contractId: futuresAtrSignal.ContractId, valueDate: futuresAtrSignal.ValueDate, timePeriod: futuresAtrSignal.TimePeriod.ToStringFast(), periodLength: futuresAtrSignal.PeriodLength, timestamp: futuresAtrSignal.Timestamp, futuresPrice: futuresAtrSignal.FuturesPrice, atrValue: futuresAtrSignal.AtrValue, trueRange: futuresAtrSignal.TrueRange, atr: futuresAtrSignal.ATR.ToStringFast(), atrStrength: futuresAtrSignal.ATRStrength.ToStringFast(), configurationId: futuresAtrSignal.Metadata?.CalculationConfigurationId, observationId: futuresAtrSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAtrSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAtrSignal.Metadata?.SourceSequence, calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion, calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null, isValid: futuresAtrSignal.Metadata?.IsValid, previousAtrValue: futuresAtrSignal.PreviousAtrValue, atrBaseline: futuresAtrSignal.AtrBaseline, atrRatio: futuresAtrSignal.AtrRatio, isWarm: futuresAtrSignal.IsWarm) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesAtrSignal)}", MarketDataDbSql.InsertFuturesAtrSignal)
+        .SetParameters(new InsertFuturesAtrSignal(contractId: futuresAtrSignal.ContractId, valueDate: futuresAtrSignal.ValueDate, timePeriod: futuresAtrSignal.TimePeriod.ToStringFast(), periodLength: futuresAtrSignal.PeriodLength, timestamp: futuresAtrSignal.Timestamp, futuresPrice: futuresAtrSignal.FuturesPrice, atrValue: futuresAtrSignal.AtrValue, trueRange: futuresAtrSignal.TrueRange, atr: futuresAtrSignal.ATR.ToStringFast(), atrStrength: futuresAtrSignal.ATRStrength.ToStringFast(), configurationId: futuresAtrSignal.Metadata?.CalculationConfigurationId, observationId: futuresAtrSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAtrSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAtrSignal.Metadata?.SourceSequence, calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion, calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null, isValid: futuresAtrSignal.Metadata?.IsValid, previousAtrValue: futuresAtrSignal.PreviousAtrValue, atrBaseline: futuresAtrSignal.AtrBaseline, atrRatio: futuresAtrSignal.AtrRatio, isWarm: futuresAtrSignal.IsWarm) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1694,8 +1588,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "valueDate">The value date.</param>
     /// <param name = "timePeriod">The signal time frame.</param>
     /// <param name = "periodLength">The indicator period length.</param>
-    public async Task DeleteFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesAtrSignal : MarketDataDbCql.DeleteFuturesAtrSignal)
-        .SetParameters(new DeleteFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task DeleteFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesAtrSignal)}", MarketDataDbSql.DeleteFuturesAtrSignal)
+        .SetParameters(new DeleteFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -1705,11 +1600,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task InsertFuturesAdxSignalAsync(FuturesAdxSignalReadModel futuresAdxSignal) 
+    public async Task InsertFuturesAdxSignalAsync(FuturesAdxSignalReadModel futuresAdxSignal)
     {
         ArgumentNullException.ThrowIfNull(futuresAdxSignal);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesAdxSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesAdxSignal : MarketDataDbCql.InsertFuturesAdxSignal)
-        .SetParameters(new InsertFuturesAdxSignal(contractId: futuresAdxSignal.ContractId, valueDate: futuresAdxSignal.ValueDate, timePeriod: futuresAdxSignal.TimePeriod.ToStringFast(), periodLength: futuresAdxSignal.PeriodLength, timestamp: futuresAdxSignal.Timestamp, futuresPrice: futuresAdxSignal.FuturesPrice, plusDI: futuresAdxSignal.PlusDI, minusDI: futuresAdxSignal.MinusDI, adxValue: futuresAdxSignal.AdxValue, adx: futuresAdxSignal.ADX.ToStringFast(), adxStrength: futuresAdxSignal.ADXStrength.ToStringFast(), configurationId: futuresAdxSignal.Metadata?.CalculationConfigurationId, observationId: futuresAdxSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAdxSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAdxSignal.Metadata?.SourceSequence, calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion, calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAdxSignal.Metadata is { } metadata ? metadata.SchemaVersion : null, isValid: futuresAdxSignal.Metadata?.IsValid, isWarm: futuresAdxSignal.IsWarm) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesAdxSignal)}", MarketDataDbSql.InsertFuturesAdxSignal)
+        .SetParameters(new InsertFuturesAdxSignal(contractId: futuresAdxSignal.ContractId, valueDate: futuresAdxSignal.ValueDate, timePeriod: futuresAdxSignal.TimePeriod.ToStringFast(), periodLength: futuresAdxSignal.PeriodLength, timestamp: futuresAdxSignal.Timestamp, futuresPrice: futuresAdxSignal.FuturesPrice, plusDI: futuresAdxSignal.PlusDI, minusDI: futuresAdxSignal.MinusDI, adxValue: futuresAdxSignal.AdxValue, adx: futuresAdxSignal.ADX.ToStringFast(), adxStrength: futuresAdxSignal.ADXStrength.ToStringFast(), configurationId: futuresAdxSignal.Metadata?.CalculationConfigurationId, observationId: futuresAdxSignal.Metadata?.ObservationId.Value, marketDataAsOf: futuresAdxSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime, sourceSequence: futuresAdxSignal.Metadata?.SourceSequence, calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion, calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(), schemaVersion: futuresAdxSignal.Metadata is { } metadata ? metadata.SchemaVersion : null, isValid: futuresAdxSignal.Metadata?.IsValid, isWarm: futuresAdxSignal.IsWarm) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1720,8 +1615,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "valueDate">The value date.</param>
     /// <param name = "timePeriod">The signal time frame.</param>
     /// <param name = "periodLength">The indicator period length.</param>
-    public async Task DeleteFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesAdxSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteFuturesAdxSignal : MarketDataDbCql.DeleteFuturesAdxSignal)
-        .SetParameters(new DeleteFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task DeleteFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesAdxSignal)}", MarketDataDbSql.DeleteFuturesAdxSignal)
+        .SetParameters(new DeleteFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     /// <summary>
@@ -1738,16 +1634,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 .ConfigureAwait(false);
         var timePeriod = FuturesTradeSignalV2ReadModel.TimePeriod.ToStringFast();
         var db = _dbFactory.MarketDataDb;
-        var insertSignal = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignal : MarketDataDbCql.InsertFuturesTradeSignal)
-            .SetParameters(new InsertFuturesTradeSignal(contractId: FuturesTradeSignalV2ReadModel.ContractId, valueDate: FuturesTradeSignalV2ReadModel.ValueDate, timePeriod, sequenceId, timestamp: FuturesTradeSignalV2ReadModel.Timestamp, mean: FuturesTradeSignalV2ReadModel.Mean, stdDev: FuturesTradeSignalV2ReadModel.StdDev, futuresPrice: FuturesTradeSignalV2ReadModel.FuturesPrice, priceChangePercent: FuturesTradeSignalV2ReadModel.PriceChangePercent, fundRiskPercent: FuturesTradeSignalV2ReadModel.FundRiskPercent, rsi: FuturesTradeSignalV2ReadModel.RSI, rsiSlope: FuturesTradeSignalV2ReadModel.RSISlope, trendType: FuturesTradeSignalV2ReadModel.TrendType.ToStringFast(), trendStrength: FuturesTradeSignalV2ReadModel.TrendStrength.ToStringFast(), tradeSignal: FuturesTradeSignalV2ReadModel.TradeSignal.ToStringFast(), tdi: FuturesTradeSignalV2ReadModel.TDI.ToStringFast(), tdiStrength: FuturesTradeSignalV2ReadModel.TDIStrength.ToStringFast(), mdi: FuturesTradeSignalV2ReadModel.MDI, mdiTrend: FuturesTradeSignalV2ReadModel.MDITrend.ToStringFast(), mdiUpTrendLimit: FuturesTradeSignalV2ReadModel.MDIUpTrendLimit, mdiDownTrendLimit: FuturesTradeSignalV2ReadModel.MDIDownTrendLimit, upTrendingTrigger: FuturesTradeSignalV2ReadModel.UpTrendingTrigger, downTrendingTrigger: FuturesTradeSignalV2ReadModel.DownTrendingTrigger, entryTrigger: FuturesTradeSignalV2ReadModel.EntryTrigger, exitTrigger: FuturesTradeSignalV2ReadModel.ExitTrigger, trendDelta: FuturesTradeSignalV2ReadModel.TrendDelta, trendExtreme: FuturesTradeSignalV2ReadModel.TrendExtreme, trendReversal: FuturesTradeSignalV2ReadModel.TrendReversal, fiftyDma: FuturesTradeSignalV2ReadModel.FiftyDMA, twoHundredDma: FuturesTradeSignalV2ReadModel.TwoHundredDMA, tradeExecuteState: FuturesTradeSignalV2ReadModel.TradeExecuteState.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var insertSignal = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", MarketDataDbSql.InsertFuturesTradeSignal)
+            .SetParameters(new InsertFuturesTradeSignal(contractId: FuturesTradeSignalV2ReadModel.ContractId, valueDate: FuturesTradeSignalV2ReadModel.ValueDate, timePeriod, sequenceId, timestamp: FuturesTradeSignalV2ReadModel.Timestamp, mean: FuturesTradeSignalV2ReadModel.Mean, stdDev: FuturesTradeSignalV2ReadModel.StdDev, futuresPrice: FuturesTradeSignalV2ReadModel.FuturesPrice, priceChangePercent: FuturesTradeSignalV2ReadModel.PriceChangePercent, fundRiskPercent: FuturesTradeSignalV2ReadModel.FundRiskPercent, rsi: FuturesTradeSignalV2ReadModel.RSI, rsiSlope: FuturesTradeSignalV2ReadModel.RSISlope, trendType: FuturesTradeSignalV2ReadModel.TrendType.ToStringFast(), trendStrength: FuturesTradeSignalV2ReadModel.TrendStrength.ToStringFast(), tradeSignal: FuturesTradeSignalV2ReadModel.TradeSignal.ToStringFast(), tdi: FuturesTradeSignalV2ReadModel.TDI.ToStringFast(), tdiStrength: FuturesTradeSignalV2ReadModel.TDIStrength.ToStringFast(), mdi: FuturesTradeSignalV2ReadModel.MDI, mdiTrend: FuturesTradeSignalV2ReadModel.MDITrend.ToStringFast(), mdiUpTrendLimit: FuturesTradeSignalV2ReadModel.MDIUpTrendLimit, mdiDownTrendLimit: FuturesTradeSignalV2ReadModel.MDIDownTrendLimit, upTrendingTrigger: FuturesTradeSignalV2ReadModel.UpTrendingTrigger, downTrendingTrigger: FuturesTradeSignalV2ReadModel.DownTrendingTrigger, entryTrigger: FuturesTradeSignalV2ReadModel.EntryTrigger, exitTrigger: FuturesTradeSignalV2ReadModel.ExitTrigger, trendDelta: FuturesTradeSignalV2ReadModel.TrendDelta, trendExtreme: FuturesTradeSignalV2ReadModel.TrendExtreme, trendReversal: FuturesTradeSignalV2ReadModel.TrendReversal, fiftyDma: FuturesTradeSignalV2ReadModel.FiftyDMA, twoHundredDma: FuturesTradeSignalV2ReadModel.TwoHundredDMA, tradeExecuteState: FuturesTradeSignalV2ReadModel.TradeExecuteState.ToStringFast()) { PostgreSql = true })
             .QueueCommand();
-        var insertLatestIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignalIndex : MarketDataDbCql.InsertFuturesTradeSignalIndex)
-            .SetParameters(new InsertFuturesTradeSignalIndex($"latest:{timePeriod}", "latest", sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var insertLatestIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbSql.InsertFuturesTradeSignalIndex)
+            .SetParameters(new InsertFuturesTradeSignalIndex($"latest:{timePeriod}", "latest", sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = true })
             .QueueCommand();
-        var insertDateIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignalIndex : MarketDataDbCql.InsertFuturesTradeSignalIndex)
-            .SetParameters(new InsertFuturesTradeSignalIndex($"date:{timePeriod}:{FuturesTradeSignalV2ReadModel.ValueDate.DayNumber}", FuturesTradeSignalV2ReadModel.ContractId, sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var insertDateIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbSql.InsertFuturesTradeSignalIndex)
+            .SetParameters(new InsertFuturesTradeSignalIndex($"date:{timePeriod}:{FuturesTradeSignalV2ReadModel.ValueDate.DayNumber}", FuturesTradeSignalV2ReadModel.ContractId, sequenceId, FuturesTradeSignalV2ReadModel.ContractId, FuturesTradeSignalV2ReadModel.ValueDate, timePeriod) { PostgreSql = true })
             .QueueCommand();
-        await (db.ExecuteQueuedCommandsAsync([insertSignal, insertLatestIndex, insertDateIndex], useTransaction: string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)))
+        await (db.ExecuteQueuedCommandsAsync([insertSignal, insertLatestIndex, insertDateIndex], useTransaction: true))
                 .ConfigureAwait(false);
     }
 
@@ -1772,25 +1668,28 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         }
 
         var db = _dbFactory.MarketDataDb;
-        var insertSignals = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignal : MarketDataDbCql.InsertFuturesTradeSignal)
-            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast(), sequenceId: e.SequenceId, timestamp: e.Timestamp, mean: e.Mean, stdDev: e.StdDev, futuresPrice: e.FuturesPrice, priceChangePercent: e.PriceChangePercent, fundRiskPercent: e.FundRiskPercent, rsi: e.RSI, rsiSlope: e.RSISlope, trendType: e.TrendType.ToStringFast(), trendStrength: e.TrendStrength.ToStringFast(), tradeSignal: e.TradeSignal.ToStringFast(), tdi: e.TDI.ToStringFast(), tdiStrength: e.TDIStrength.ToStringFast(), mdi: e.MDI, mdiTrend: e.MDITrend.ToStringFast(), mdiUpTrendLimit: e.MDIUpTrendLimit, mdiDownTrendLimit: e.MDIDownTrendLimit, upTrendingTrigger: e.UpTrendingTrigger, downTrendingTrigger: e.DownTrendingTrigger, entryTrigger: e.EntryTrigger, exitTrigger: e.ExitTrigger, trendDelta: e.TrendDelta, trendExtreme: e.TrendExtreme, trendReversal: e.TrendReversal, fiftyDma: e.FiftyDMA, twoHundredDma: e.TwoHundredDMA, tradeExecuteState: e.TradeExecuteState.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+        var insertSignals = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", MarketDataDbSql.InsertFuturesTradeSignal)
+            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast(), sequenceId: e.SequenceId, timestamp: e.Timestamp, mean: e.Mean, stdDev: e.StdDev, futuresPrice: e.FuturesPrice, priceChangePercent: e.PriceChangePercent, fundRiskPercent: e.FundRiskPercent, rsi: e.RSI, rsiSlope: e.RSISlope, trendType: e.TrendType.ToStringFast(), trendStrength: e.TrendStrength.ToStringFast(), tradeSignal: e.TradeSignal.ToStringFast(), tdi: e.TDI.ToStringFast(), tdiStrength: e.TDIStrength.ToStringFast(), mdi: e.MDI, mdiTrend: e.MDITrend.ToStringFast(), mdiUpTrendLimit: e.MDIUpTrendLimit, mdiDownTrendLimit: e.MDIDownTrendLimit, upTrendingTrigger: e.UpTrendingTrigger, downTrendingTrigger: e.DownTrendingTrigger, entryTrigger: e.EntryTrigger, exitTrigger: e.ExitTrigger, trendDelta: e.TrendDelta, trendExtreme: e.TrendExtreme, trendReversal: e.TrendReversal, fiftyDma: e.FiftyDMA, twoHundredDma: e.TwoHundredDMA, tradeExecuteState: e.TradeExecuteState.ToStringFast()) { PostgreSql = true }))
             .QueueCommand();
         var indexParameters = ftsQuery.SelectMany(e =>
         {
             var timePeriod = e.TimePeriod.ToStringFast();
             return new InsertFuturesTradeSignalIndex[]
             {
-                new($"latest:{timePeriod}", "latest", e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) },
-                new($"date:{timePeriod}:{e.ValueDate.DayNumber}", e.ContractId, e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }
+                new($"latest:{timePeriod}", "latest", e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = true },
+                new($"date:{timePeriod}:{e.ValueDate.DayNumber}", e.ContractId, e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = true }
             };
         });
-        var insertIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignalIndex : MarketDataDbCql.InsertFuturesTradeSignalIndex)
+        var insertIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbSql.InsertFuturesTradeSignalIndex)
             .SetParameters(indexParameters)
             .QueueCommand();
-        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex], useTransaction: string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex], useTransaction: true)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Futures Trade Signals using the MarketDataDb persistence.</summary>
+    /// <param name="futuresTradeSignals">The futures trade signals used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<long> InsertFuturesTradeSignalsAsync(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals)
     {
         var signals = futuresTradeSignals as IReadOnlyCollection<FuturesTradeSignalV2ReadModel> ?? futuresTradeSignals.ToArray();
@@ -1808,22 +1707,22 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         }
 
         var db = _dbFactory.MarketDataDb;
-        var insertSignals = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignal : MarketDataDbCql.InsertFuturesTradeSignal)
-            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast(), sequenceId: e.SequenceId, timestamp: e.Timestamp, mean: e.Mean, stdDev: e.StdDev, futuresPrice: e.FuturesPrice, priceChangePercent: e.PriceChangePercent, fundRiskPercent: e.FundRiskPercent, rsi: e.RSI, rsiSlope: e.RSISlope, trendType: e.TrendType.ToStringFast(), trendStrength: e.TrendStrength.ToStringFast(), tradeSignal: e.TradeSignal.ToStringFast(), tdi: e.TDI.ToStringFast(), tdiStrength: e.TDIStrength.ToStringFast(), mdi: e.MDI, mdiTrend: e.MDITrend.ToStringFast(), mdiUpTrendLimit: e.MDIUpTrendLimit, mdiDownTrendLimit: e.MDIDownTrendLimit, upTrendingTrigger: e.UpTrendingTrigger, downTrendingTrigger: e.DownTrendingTrigger, entryTrigger: e.EntryTrigger, exitTrigger: e.ExitTrigger, trendDelta: e.TrendDelta, trendExtreme: e.TrendExtreme, trendReversal: e.TrendReversal, fiftyDma: e.FiftyDMA, twoHundredDma: e.TwoHundredDMA, tradeExecuteState: e.TradeExecuteState.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
+        var insertSignals = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignal)}", MarketDataDbSql.InsertFuturesTradeSignal)
+            .SetParameters(ftsQuery.Select(e => new InsertFuturesTradeSignal(contractId: e.ContractId, valueDate: e.ValueDate, timePeriod: e.TimePeriod.ToStringFast(), sequenceId: e.SequenceId, timestamp: e.Timestamp, mean: e.Mean, stdDev: e.StdDev, futuresPrice: e.FuturesPrice, priceChangePercent: e.PriceChangePercent, fundRiskPercent: e.FundRiskPercent, rsi: e.RSI, rsiSlope: e.RSISlope, trendType: e.TrendType.ToStringFast(), trendStrength: e.TrendStrength.ToStringFast(), tradeSignal: e.TradeSignal.ToStringFast(), tdi: e.TDI.ToStringFast(), tdiStrength: e.TDIStrength.ToStringFast(), mdi: e.MDI, mdiTrend: e.MDITrend.ToStringFast(), mdiUpTrendLimit: e.MDIUpTrendLimit, mdiDownTrendLimit: e.MDIDownTrendLimit, upTrendingTrigger: e.UpTrendingTrigger, downTrendingTrigger: e.DownTrendingTrigger, entryTrigger: e.EntryTrigger, exitTrigger: e.ExitTrigger, trendDelta: e.TrendDelta, trendExtreme: e.TrendExtreme, trendReversal: e.TrendReversal, fiftyDma: e.FiftyDMA, twoHundredDma: e.TwoHundredDMA, tradeExecuteState: e.TradeExecuteState.ToStringFast()) { PostgreSql = true }))
             .QueueCommand();
         var indexParameters = ftsQuery.SelectMany(e =>
         {
             var timePeriod = e.TimePeriod.ToStringFast();
             return new InsertFuturesTradeSignalIndex[]
             {
-                new($"latest:{timePeriod}", "latest", e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) },
-                new($"date:{timePeriod}:{e.ValueDate.DayNumber}", e.ContractId, e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }
+                new($"latest:{timePeriod}", "latest", e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = true },
+                new($"date:{timePeriod}:{e.ValueDate.DayNumber}", e.ContractId, e.SequenceId, e.ContractId, e.ValueDate, timePeriod) { PostgreSql = true }
             };
         });
-        var insertIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesTradeSignalIndex : MarketDataDbCql.InsertFuturesTradeSignalIndex)
+        var insertIndex = db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbSql.InsertFuturesTradeSignalIndex)
             .SetParameters(indexParameters)
             .QueueCommand();
-        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex], useTransaction: string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+        await db.ExecuteQueuedCommandsAsync([insertSignals, insertIndex], useTransaction: true)
             .ConfigureAwait(false);
         return rowCount;
     }
@@ -1833,11 +1732,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The rate of return data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertRateOfReturnAsync(RateOfReturnReadModel e) 
+    public async Task InsertRateOfReturnAsync(RateOfReturnReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertRateOfReturn)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertRateOfReturn : MarketDataDbCql.InsertRateOfReturn)
-        .SetParameters(new InsertRateOfReturn(symbol: e.Symbol, valueDate: e.ValueDate, rateOfReturn: e.RateOfReturn) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertRateOfReturn)}", MarketDataDbSql.InsertRateOfReturn)
+        .SetParameters(new InsertRateOfReturn(symbol: e.Symbol, valueDate: e.ValueDate, rateOfReturn: e.RateOfReturn) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1846,11 +1745,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "e">The MarketHolidayReadModel containing the data to insert.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task InsertMarketHolidayAsync(MarketHolidayReadModel e) 
+    public async Task InsertMarketHolidayAsync(MarketHolidayReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketHoliday)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertMarketHoliday : MarketDataDbCql.InsertMarketHoliday)
-        .SetParameters(new InsertMarketHoliday(currencyType: e.CurrencyType.ToStringFast(), holidayDate: e.HolidayDate, description: e.Description) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketHoliday)}", MarketDataDbSql.InsertMarketHoliday)
+        .SetParameters(new InsertMarketHoliday(currencyType: e.CurrencyType.ToStringFast(), holidayDate: e.HolidayDate, description: e.Description) { PostgreSql = true })
         .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
@@ -1858,6 +1757,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
 
 
     /// <summary>Allocates stable history IDs before records are durably spooled and submitted to storage.</summary>
+    /// <param name="rows">The rows used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task PrepareRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows)
     {
         foreach (var row in rows.Where(row => row.AppendHistory && row.HistorySequenceId is null))
@@ -1866,112 +1767,34 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     /// <summary>Writes every admitted history row and coalesces current snapshots per contract/date.</summary>
+    /// <param name="rows">The rows used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task PersistRealtimeFuturesEodBatchAsync(IReadOnlyList<BufferedFuturesEodRow> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
         if (rows.Count == 0) return;
         await (PrepareRealtimeFuturesEodBatchAsync(rows))
                 .ConfigureAwait(false);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await this.PersistNativeFuturesEodBatchAsync(rows)
                 .ConfigureAwait(false);
             return;
-        }
-        var latest = rows.GroupBy(row => (row.Snapshot.ContractId, row.Snapshot.ValueDate))
-            .Select(group => group.Last().Snapshot).ToArray();
-        await (this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection, latest.Select(e => MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate)), async () =>
-        {
-            var db = _dbFactory.MarketDataDb;
-            var history = rows.Where(row => row.AppendHistory).Select(row =>
-            {
-                var e = row.Snapshot;
-                return new InsertFuturesIntraDayData(e.ContractId, e.ValueDate, row.HistorySequenceId!.Value,
-                    e.Symbol, e.OpenPrice, e.HighPrice, e.LowPrice, e.ClosePrice, e.Volume,
-                    e.DailyPercentChange, e.DailyStdDev, e.DailyStdDevAmount, e.UpperBand, e.Mean,
-                    e.LowerBand, e.MarketDirection.ToStringFast(), e.MarketVolatility.ToStringFast(),
-                    e.PriceDirection.ToStringFast(), e.PriceVolatility.ToStringFast(), e.MarketDirectionIndicator, e.WindowSize);
-            }).ToArray();
-            if (history.Length > 0)
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesIntraDayData)}", MarketDataDbCql.InsertFuturesIntraDayData)
-                    .SetParameters(history)
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodData)}", MarketDataDbCql.InsertFuturesEodData)
-                .SetParameters(latest.Select(e => MarketDataDbContextExtensions.CreateFuturesEodDataParameters(e, e.OpenPrice)))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            foreach (var e in latest)
-            {
-                await (InsertFuturesEodDataIndexAsync(new FuturesEodDataIndexReadModel(e.ValueDate, e.ContractId)))
-                .ConfigureAwait(false);
-                await (this.UpsertFuturesEodProjectionAsync(e, e.OpenPrice))
-                .ConfigureAwait(false);
-            }
-        }))
-                .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Futures Eod Data using the MarketDataDb persistence.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await PersistRealtimeFuturesEodBatchAsync(new[] { new BufferedFuturesEodRow(e, true) })
                 .ConfigureAwait(false);
             return;
-        }
-        // check if the data already exists...
-        var db = _dbFactory.MarketDataDb;
-        var existingData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesDataId)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesDataId : MarketDataDbCql.GetFuturesDataId)
-            .SetParameters(new GetFuturesDataId(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .ExecuteSingleAsync(MapToFuturesDataId!))
-                .ConfigureAwait(false);
-        if (existingData is null)
-        {
-            // insert new data if it doesn't exist...
-            var openPrice = e.OpenPrice;
-            await (this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection, new[] { MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate) }, async () =>
-            {
-                await (InsertFuturesEodDataIndexAsync(new FuturesEodDataIndexReadModel(e.ValueDate, e.ContractId)))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodData)}", MarketDataDbCql.InsertFuturesEodData)
-                    .SetParameters(new InsertFuturesEodData(contractId: e.ContractId, valueDate: e.ValueDate, symbol: e.Symbol, openPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, closePrice: e.ClosePrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, dailyStdDev: e.DailyStdDev, dailyStdDevAmount: e.DailyStdDevAmount, upperBand: e.UpperBand, mean: e.Mean, lowerBand: e.LowerBand, marketDirection: e.MarketDirection.ToStringFast(), marketVolatility: e.MarketVolatility.ToStringFast(), priceDirection: e.PriceDirection.ToStringFast(), priceVolatility: e.PriceVolatility.ToStringFast(), marketDirectionIndicator: e.MarketDirectionIndicator, windowSize: e.WindowSize, fiftyDMA: e.FiftyDMA, twoHundredDMA: e.TwoHundredDMA))
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesIntraDayData)}", MarketDataDbCql.InsertFuturesIntraDayData)
-                    .SetParameters(new InsertFuturesIntraDayData(contractId: e.ContractId, valueDate: e.ValueDate, sequenceId: await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId))
-                .ConfigureAwait(false), symbol: e.Symbol, openPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, closePrice: e.ClosePrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, dailyStdDev: e.DailyStdDev, dailyStdDevAmount: e.DailyStdDevAmount, upperBand: e.UpperBand, mean: e.Mean, lowerBand: e.LowerBand, marketDirection: e.MarketDirection.ToStringFast(), marketVolatility: e.MarketVolatility.ToStringFast(), priceDirection: e.PriceDirection.ToStringFast(), priceVolatility: e.PriceVolatility.ToStringFast(), marketDirectionIndicator: e.MarketDirectionIndicator, windowSize: e.WindowSize))
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                await (this.UpsertFuturesEodProjectionAsync(e, openPrice))
-                .ConfigureAwait(false);
-            }))
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            // Update existing data if it exists
-            var openPrice = e.OpenPrice;
-            await (this.ExecuteMaintainedProjectionMutationAsync(FuturesEodProjection, new[] { MarketDataDbContextExtensions.GetFuturesEodScopeKey(e.ValueDate) }, async () =>
-            {
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateFuturesEodData)}", MarketDataDbCql.UpdateFuturesEodData)
-                    .SetParameters(new UpdateFuturesEodData(contractId: e.ContractId, valueDate: e.ValueDate, symbol: e.Symbol, openPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, closePrice: e.ClosePrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, dailyStdDev: e.DailyStdDev, dailyStdDevAmount: e.DailyStdDevAmount, upperBand: e.UpperBand, mean: e.Mean, lowerBand: e.LowerBand, marketDirection: e.MarketDirection.ToStringFast(), marketVolatility: e.MarketVolatility.ToStringFast(), priceDirection: e.PriceDirection.ToStringFast(), priceVolatility: e.PriceVolatility.ToStringFast(), marketDirectionIndicator: e.MarketDirectionIndicator, windowSize: e.WindowSize, fiftyDMA: e.FiftyDMA, twoHundredDMA: e.TwoHundredDMA))
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesIntraDayData)}", MarketDataDbCql.InsertFuturesIntraDayData)
-                    .SetParameters(new InsertFuturesIntraDayData(contractId: e.ContractId, valueDate: e.ValueDate, sequenceId: await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.FuturesIntraDay_SequenceId))
-                .ConfigureAwait(false), symbol: e.Symbol, openPrice, highPrice: e.HighPrice, lowPrice: e.LowPrice, closePrice: e.ClosePrice, volume: e.Volume, dailyPercentChange: e.DailyPercentChange, dailyStdDev: e.DailyStdDev, dailyStdDevAmount: e.DailyStdDevAmount, upperBand: e.UpperBand, mean: e.Mean, lowerBand: e.LowerBand, marketDirection: e.MarketDirection.ToStringFast(), marketVolatility: e.MarketVolatility.ToStringFast(), priceDirection: e.PriceDirection.ToStringFast(), priceVolatility: e.PriceVolatility.ToStringFast(), marketDirectionIndicator: e.MarketDirectionIndicator, windowSize: e.WindowSize))
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                await (this.UpsertFuturesEodProjectionAsync(e, openPrice))
-                .ConfigureAwait(false);
-            }))
-                .ConfigureAwait(false);
-        }
     }
 
-    public async Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData) 
+    /// <summary>Insert Futures Eod Data using the MarketDataDb persistence.</summary>
+    /// <param name="futuresEodData">The futures eod data used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
+    public async Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData)
     {
         ArgumentNullException.ThrowIfNull(futuresEodData);
         await (this.InsertFuturesEodBatchAsync(futuresEodData))
@@ -2014,12 +1837,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// the session open. The immutable intraday observation table is intentionally
     /// not appended for a statistics-only correction.
     /// </summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e)
     {
         ArgumentNullException.ThrowIfNull(e);
         var db = _dbFactory.MarketDataDb;
-        var existingData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesDataId)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesDataId : MarketDataDbCql.GetFuturesDataId)
-            .SetParameters(new GetFuturesDataId(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var existingData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesDataId)}", MarketDataDbSql.GetFuturesDataId)
+            .SetParameters(new GetFuturesDataId(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesDataId!))
                 .ConfigureAwait(false);
         if (existingData is null)
@@ -2042,13 +1867,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <summary>
     /// Upserts a VixFuturesEodDataReadModel into the database.
     /// </summary>
-    /// <param name = "e"></param>
     /// <returns></returns>
     /// <summary>Persists coalesced VX snapshots without reapplying additive trade volume on retries.</summary>
+    /// <param name="rows">The rows used by this operation.</param>
     public async Task PersistRealtimeVixEodBatchAsync(IReadOnlyList<VixFuturesEodDataReadModel> rows)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             ArgumentNullException.ThrowIfNull(rows);
             if (rows.Count == 0) return;
             var command = this.Use(nameof(MarketDataDbSql.InsertVixFuturesEodData),MarketDataDbSql.InsertVixFuturesEodData)
@@ -2057,79 +1880,22 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             await ExecuteQueuedCommandsAsync([command],useTransaction: true)
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(rows);
-        if (rows.Count == 0) return;
-        await (this.ExecuteMaintainedProjectionMutationAsync(VixFuturesContractIndexProjection, rows.Select(row => MarketDataDbContextExtensions.GetVixContractIndexScopeKey(row.ContractId)), async () =>
-        {
-            await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertVixFuturesEodData : MarketDataDbCql.InsertVixFuturesEodData)
-                .SetParameters(rows.Select(e => new InsertVixFuturesEodData(e.ContractId, e.ValueDate, e.OpenPrice, e.HighPrice, e.LowPrice, e.ClosePrice, e.Volume) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-            foreach (var contract in rows.Select(row => row.ContractId).Distinct(StringComparer.Ordinal))
-                await (this.UpsertVixFuturesContractIndexAsync(contract))
-                .ConfigureAwait(false);
-        }))
-                .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Vix Futures Eod Data using the MarketDataDb persistence.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <param name="sessionStatistics">The session statistics used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel e, FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             await this.InsertNativeVixTickAsync(e,sessionStatistics)
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(e);
-        // check if the data already exists...
-        var db = _dbFactory.MarketDataDb;
-        var existingData = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetVixFuturesEodData : MarketDataDbCql.GetVixFuturesEodData)
-            .SetParameters(new GetVixFuturesEodData(contractId: e.ContractId, valueDate: e.ValueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .ExecuteSingleAsync(MapToVixFuturesEodData!))
-                .ConfigureAwait(false);
-        if (existingData == null)
-        {
-            var hasPrices = sessionStatistics is { HasPriceStatistics: true };
-            var openPrice = hasPrices ? sessionStatistics.Value.OpenPrice : e.Price;
-            var highPrice = hasPrices ? sessionStatistics.Value.HighPrice : e.Price;
-            var lowPrice = hasPrices ? sessionStatistics.Value.LowPrice : e.Price;
-            var volume = sessionStatistics is { HasVolume: true } ? sessionStatistics.Value.Volume : e.Size;
-            await (this.ExecuteMaintainedProjectionMutationAsync(VixFuturesContractIndexProjection, new[] { MarketDataDbContextExtensions.GetVixContractIndexScopeKey(e.ContractId) }, async () =>
-            {
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertVixFuturesEodData : MarketDataDbCql.InsertVixFuturesEodData)
-                    .SetParameters(new InsertVixFuturesEodData(contractId: e.ContractId, valueDate: e.ValueDate, openPrice, highPrice, lowPrice, closePrice: e.Price, volume) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                    .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                await (this.UpsertVixFuturesContractIndexAsync(e.ContractId))
-                .ConfigureAwait(false);
-            }))
-                .ConfigureAwait(false);
-        }
-        else
-        {
-            // The contract index is unchanged for an update to an existing canonical
-            // partition, so avoid an index and projection-state write on every VX observation.
-            // Derive the rolling row only from its current stored state and the incoming
-            // trade-or-quote observation; tick storage is an independent realtime projection.
-            var hasPrices = sessionStatistics is { HasPriceStatistics: true };
-            var openPrice = hasPrices ? sessionStatistics.Value.OpenPrice : existingData.OpenPrice;
-            var highPrice = hasPrices ? sessionStatistics.Value.HighPrice : Math.Max(existingData.HighPrice, e.Price);
-            var lowPrice = hasPrices ? sessionStatistics.Value.LowPrice : Math.Min(existingData.LowPrice, e.Price);
-            var volume = sessionStatistics is { HasVolume: true } ? sessionStatistics.Value.Volume : checked(existingData.Volume + e.Size);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpdateVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.UpdateVixFuturesEodData : MarketDataDbCql.UpdateVixFuturesEodData)
-                .SetParameters(new UpdateVixFuturesEodData(contractId: e.ContractId, valueDate: e.ValueDate, openPrice, highPrice, lowPrice, closePrice: e.Price, volume) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-        }
     }
 
     /// <summary>
     /// Gets a collection of Futures ITI Signal MDI for a given entity ID.
     /// </summary>
-    /// <param name = "e">The entity ID containing the contract ID and value date.</param>
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
     /// <returns>A task representing the asynchronous operation, containing a collection of <see cref = "FuturesItiSignalMDIViewModel"/>.</returns>
@@ -2151,6 +1917,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return [.. rows.SelectMany(static values => values).Select(MarketDataDbContextExtensions.ToFuturesItiSignalMdi)];
     }
 
+    /// <summary>Get Futures Iti Signal MDI using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ICollection<FuturesItiSignalMDIV2ReadModel>> GetFuturesItiSignalMDIAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
     {
         var modes = new[]
@@ -2196,6 +1967,13 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return [.. rows.SelectMany(static values => values).Where(row => row.IntrinsicTimeTrend == intrinsicTimeTrend).Select(MarketDataDbContextExtensions.ToFuturesItiSignalMdi)];
     }
 
+    /// <summary>Get Futures Iti Signal MDIBy Trend using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="intrinsicTimeTrend">The intrinsic time trend used by this operation.</param>
+    /// <param name="intrinsicTimeGroupId">The intrinsic time group id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ICollection<FuturesItiSignalMDIV2ReadModel>> GetFuturesItiSignalMDIByTrendAsync(string contractId, DateOnly valueDate, IntrinsicTimeTrendType intrinsicTimeTrend, int intrinsicTimeGroupId, CancellationToken cancellationToken)
     {
         _ = intrinsicTimeGroupId; // The legacy query never applied this argument.
@@ -2218,17 +1996,20 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <summary>
     /// Gets a collection of futures ITI trend direction changed signals for a given entity ID.
     /// </summary>
-    /// <param name = "e"></param>
     /// <param name = "timestamp"></param>
     /// <param name = "lookbackInterval"></param>
     /// <param name = "startTime"></param>
     /// <param name = "endTime"></param>
     /// <returns></returns>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
     public async Task<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionFromRSISignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, DateTime timestamp, int lookbackInterval, DateTime startTime, DateTime endTime)
     {
         var db = _dbFactory.MarketDataDb;
-        var rsiValues = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesRsiSignalsForTrend : MarketDataDbCql.GetFuturesRsiSignalsForTrend)
-            .SetParameters(new GetFuturesRsiSignalsForTrend(contractId, timePeriod.ToStringFast(), periodLength, valueDate, TimeOnly.FromDateTime(startTime), TimeOnly.FromDateTime(endTime)) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var rsiValues = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", MarketDataDbSql.GetFuturesRsiSignalsForTrend)
+            .SetParameters(new GetFuturesRsiSignalsForTrend(contractId, timePeriod.ToStringFast(), periodLength, valueDate, TimeOnly.FromDateTime(startTime), TimeOnly.FromDateTime(endTime)) { PostgreSql = true })
             .ExecuteQueryAsync(MapToRsi!))
                 .ConfigureAwait(false);
         var upTrendCount = rsiValues.Count(static rsi => rsi >= 50);
@@ -2243,11 +2024,22 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return new FuturesTrendDirectionReadModel(ContractId: contractId, ValueDate: valueDate, Timestamp: TimeOnly.FromDateTime(DateTime.Now), LookbackInterval: lookbackInterval, UpTrendCount: upTrendCount, DownTrendCount: downTrendCount, TrendDirection: trendDirection);
     }
 
+    /// <summary>Get Futures Trend Direction From RSISignal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="timestamp">The timestamp used by this operation.</param>
+    /// <param name="lookbackInterval">The lookback interval used by this operation.</param>
+    /// <param name="startTime">The start time used by this operation.</param>
+    /// <param name="endTime">The end time used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesTrendDirectionReadModel> GetFuturesTrendDirectionFromRSISignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, DateTime timestamp, int lookbackInterval, DateTime startTime, DateTime endTime, CancellationToken cancellationToken)
     {
         var db = _dbFactory.MarketDataDb;
-        var rsiValues = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesRsiSignalsForTrend : MarketDataDbCql.GetFuturesRsiSignalsForTrend)
-            .SetParameters(new GetFuturesRsiSignalsForTrend(contractId, timePeriod.ToStringFast(), periodLength, valueDate, TimeOnly.FromDateTime(startTime), TimeOnly.FromDateTime(endTime)) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var rsiValues = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", MarketDataDbSql.GetFuturesRsiSignalsForTrend)
+            .SetParameters(new GetFuturesRsiSignalsForTrend(contractId, timePeriod.ToStringFast(), periodLength, valueDate, TimeOnly.FromDateTime(startTime), TimeOnly.FromDateTime(endTime)) { PostgreSql = true })
             .ExecuteQueryAsync(MapToRsi!, cancellationToken)
             .ConfigureAwait(false);
         var upTrendCount = rsiValues.Count(static rsi => rsi >= 50);
@@ -2264,16 +2056,35 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <summary>
     /// return last futures intrinsic time indicator signal
     /// </summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate) => (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
+    /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendReversalChanged, cancellationToken: cancellationToken)
         .ConfigureAwait(false)).FirstOrDefault();
-    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesItiSignalByTimePeriod : MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)
-        .SetParameters(new GetLastFuturesItiSignalByTimePeriod(contractId, valueDate, timePeriod.ToString()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)}", MarketDataDbSql.GetLastFuturesItiSignalByTimePeriod)
+        .SetParameters(new GetLastFuturesItiSignalByTimePeriod(contractId, valueDate, timePeriod.ToString()) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesItiSignal!))
                 .ConfigureAwait(false);
-    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesItiSignalByTimePeriod : MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)
-        .SetParameters(new GetLastFuturesItiSignalByTimePeriod(contractId, valueDate, timePeriod.ToString()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Iti Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTimePeriod)}", MarketDataDbSql.GetLastFuturesItiSignalByTimePeriod)
+        .SetParameters(new GetLastFuturesItiSignalByTimePeriod(contractId, valueDate, timePeriod.ToString()) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesItiSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2281,8 +2092,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>\
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendDirectionChangeAsync(string contractId, DateOnly valueDate) => (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false)).FirstOrDefault();
+    /// <summary>Get Last Futures Iti Signal Trend Direction Change using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendDirectionChangeAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
         .ConfigureAwait(false)).FirstOrDefault();
     /// <summary>
@@ -2290,6 +2107,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendExtremeChangeAsync(string contractId, DateOnly valueDate)
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
@@ -2298,6 +2116,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 .ConfigureAwait(false)).FirstOrDefault();
     }
 
+    /// <summary>Get Last Futures Iti Signal Trend Extreme Change using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendExtremeChangeAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
@@ -2311,6 +2134,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "contractId"></param>
     /// <param name = "valueDate"></param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendReversalChangeAsync(string contractId, DateOnly valueDate)
     {
         var direction = (await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
@@ -2319,6 +2143,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 .ConfigureAwait(false)).FirstOrDefault();
     }
 
+    /// <summary>Get Last Futures Iti Signal Trend Reversal Change using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesItiSignalV2ReadModel?> GetLastFuturesItiSignalTrendReversalChangeAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
     {
         var direction = (await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
@@ -2335,12 +2164,19 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "timePeriod">The time period.</param>
     /// <param name = "periodLength">The period length.</param>
     /// <returns></returns>
-    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesRsiSignal : MarketDataDbCql.GetLastFuturesRsiSignal)
-        .SetParameters(new GetLastFuturesRsiSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiSignal)}", MarketDataDbSql.GetLastFuturesRsiSignal)
+        .SetParameters(new GetLastFuturesRsiSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesRsiSignal))
                 .ConfigureAwait(false);
-    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesRsiSignal : MarketDataDbCql.GetLastFuturesRsiSignal)
-        .SetParameters(new GetLastFuturesRsiSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Rsi Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiSignal)}", MarketDataDbSql.GetLastFuturesRsiSignal)
+        .SetParameters(new GetLastFuturesRsiSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesRsiSignal, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2350,29 +2186,54 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "timePeriod">The time period.</param>
     /// <param name = "periodLength">The period length.</param>
     /// <returns></returns>
-    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesRsiDailySignal : MarketDataDbCql.GetLastFuturesRsiDailySignal)
-        .SetParameters(new GetLastFuturesRsiDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiDailySignal)}", MarketDataDbSql.GetLastFuturesRsiDailySignal)
+        .SetParameters(new GetLastFuturesRsiDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesRsiSignal))
                 .ConfigureAwait(false);
-    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesRsiDailySignal : MarketDataDbCql.GetLastFuturesRsiDailySignal)
-        .SetParameters(new GetLastFuturesRsiDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Rsi Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesRsiSignalReadModel?> GetLastFuturesRsiDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesRsiDailySignal)}", MarketDataDbSql.GetLastFuturesRsiDailySignal)
+        .SetParameters(new GetLastFuturesRsiDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesRsiSignal, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
     /// Gets the last Futures TDI signal for a given entity ID.
     /// </summary>
-    /// <param name = "e">The entity ID containing the contract ID and value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesTdiSignalReadModel"/>.</returns>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
     public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate) => await (GetLastFuturesTdiSignalAsync(contractId, valueDate, TimeFrameType.OneMinute, FuturesTdiConfiguration.StandardConfigurationId))
                 .ConfigureAwait(false);
-    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, string configurationId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTdiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTdiSignal : MarketDataDbCql.GetLastFuturesTdiSignal)
-        .SetParameters(new GetLastFuturesTdiSignal(contractId, timePeriod.ToStringFast(), configurationId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Tdi Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="configurationId">The configuration id used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, string configurationId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTdiSignal)}", MarketDataDbSql.GetLastFuturesTdiSignal)
+        .SetParameters(new GetLastFuturesTdiSignal(contractId, timePeriod.ToStringFast(), configurationId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesTdiSignal!))
                 .ConfigureAwait(false);
+    /// <summary>Get Last Futures Tdi Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => await (GetLastFuturesTdiSignalAsync(contractId, valueDate, TimeFrameType.OneMinute, FuturesTdiConfiguration.StandardConfigurationId, cancellationToken))
                 .ConfigureAwait(false);
-    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, string configurationId, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTdiSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTdiSignal : MarketDataDbCql.GetLastFuturesTdiSignal)
-        .SetParameters(new GetLastFuturesTdiSignal(contractId, timePeriod.ToStringFast(), configurationId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Tdi Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="configurationId">The configuration id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesTdiSignalReadModel?> GetLastFuturesTdiSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, string configurationId, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTdiSignal)}", MarketDataDbSql.GetLastFuturesTdiSignal)
+        .SetParameters(new GetLastFuturesTdiSignal(contractId, timePeriod.ToStringFast(), configurationId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesTdiSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2385,18 +2246,42 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesMacdSignalReadModel"/>.</returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (GetLastFuturesMacdSignalAsync(contractId, valueDate, timePeriod, periodLength, FuturesMacdConfiguration.ConventionalFastEmaPeriod, FuturesMacdConfiguration.ConventionalSlowEmaPeriod))
                 .ConfigureAwait(false);
-    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesMacdSignal : MarketDataDbCql.GetLastFuturesMacdSignal)
-        .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Macd Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="signalEmaPeriod">The signal ema period used by this operation.</param>
+    /// <param name="fastEmaPeriod">The fast ema period used by this operation.</param>
+    /// <param name="slowEmaPeriod">The slow ema period used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdSignal)}", MarketDataDbSql.GetLastFuturesMacdSignal)
+        .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesMacdSignal!))
                 .ConfigureAwait(false);
+    /// <summary>Get Last Futures Macd Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await (GetLastFuturesMacdSignalAsync(contractId, valueDate, timePeriod, periodLength, FuturesMacdConfiguration.ConventionalFastEmaPeriod, FuturesMacdConfiguration.ConventionalSlowEmaPeriod, cancellationToken))
                 .ConfigureAwait(false);
-    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesMacdSignal : MarketDataDbCql.GetLastFuturesMacdSignal)
-        .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Macd Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="signalEmaPeriod">The signal ema period used by this operation.</param>
+    /// <param name="fastEmaPeriod">The fast ema period used by this operation.</param>
+    /// <param name="slowEmaPeriod">The slow ema period used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdSignal)}", MarketDataDbSql.GetLastFuturesMacdSignal)
+        .SetParameters(new GetLastFuturesMacdSignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesMacdSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name = "contractId"></param>
     /// <param name = "timePeriod"></param>
@@ -2404,14 +2289,35 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (GetLastFuturesMacdDailySignalAsync(contractId, timePeriod, periodLength, FuturesMacdConfiguration.ConventionalFastEmaPeriod, FuturesMacdConfiguration.ConventionalSlowEmaPeriod))
                 .ConfigureAwait(false);
-    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesMacdDailySignal : MarketDataDbCql.GetLastFuturesMacdDailySignal)
-        .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Macd Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="signalEmaPeriod">The signal ema period used by this operation.</param>
+    /// <param name="fastEmaPeriod">The fast ema period used by this operation.</param>
+    /// <param name="slowEmaPeriod">The slow ema period used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdDailySignal)}", MarketDataDbSql.GetLastFuturesMacdDailySignal)
+        .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesMacdSignal!))
                 .ConfigureAwait(false);
+    /// <summary>Get Last Futures Macd Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await (GetLastFuturesMacdDailySignalAsync(contractId, timePeriod, periodLength, FuturesMacdConfiguration.ConventionalFastEmaPeriod, FuturesMacdConfiguration.ConventionalSlowEmaPeriod, cancellationToken))
                 .ConfigureAwait(false);
-    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesMacdDailySignal : MarketDataDbCql.GetLastFuturesMacdDailySignal)
-        .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Macd Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="signalEmaPeriod">The signal ema period used by this operation.</param>
+    /// <param name="fastEmaPeriod">The fast ema period used by this operation.</param>
+    /// <param name="slowEmaPeriod">The slow ema period used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesMacdSignalReadModel?> GetLastFuturesMacdDailySignalAsync(string contractId, TimeFrameType timePeriod, int signalEmaPeriod, int fastEmaPeriod, int slowEmaPeriod, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesMacdDailySignal)}", MarketDataDbSql.GetLastFuturesMacdDailySignal)
+        .SetParameters(new GetLastFuturesMacdDailySignal(contractId, timePeriod.ToStringFast(), signalEmaPeriod, fastEmaPeriod, slowEmaPeriod) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesMacdSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2420,20 +2326,40 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The contract ID.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesAtrSignalReadModel"/>.</returns>
-    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAtrSignal : MarketDataDbCql.GetLastFuturesAtrSignal)
-        .SetParameters(new GetLastFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAtrSignal)}", MarketDataDbSql.GetLastFuturesAtrSignal)
+        .SetParameters(new GetLastFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesAtrSignal!))
                 .ConfigureAwait(false);
-    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAtrSignal : MarketDataDbCql.GetLastFuturesAtrSignal)
-        .SetParameters(new GetLastFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Atr Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAtrSignal)}", MarketDataDbSql.GetLastFuturesAtrSignal)
+        .SetParameters(new GetLastFuturesAtrSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesAtrSignal!, cancellationToken)
         .ConfigureAwait(false);
-    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesDailyAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesDailyAtrSignal : MarketDataDbCql.GetLastFuturesDailyAtrSignal)
-        .SetParameters(new GetLastFuturesAtrDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Atr Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesDailyAtrSignal)}", MarketDataDbSql.GetLastFuturesDailyAtrSignal)
+        .SetParameters(new GetLastFuturesAtrDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesAtrSignal!))
                 .ConfigureAwait(false);
-    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesDailyAtrSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesDailyAtrSignal : MarketDataDbCql.GetLastFuturesDailyAtrSignal)
-        .SetParameters(new GetLastFuturesAtrDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Atr Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesAtrSignalReadModel?> GetLastFuturesAtrDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesDailyAtrSignal)}", MarketDataDbSql.GetLastFuturesDailyAtrSignal)
+        .SetParameters(new GetLastFuturesAtrDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesAtrSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2442,13 +2368,22 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The contract ID.</param>
     /// <param name = "valueDate">The value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesAdxSignalReadModel"/>.</returns>
-    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAdxSignal : MarketDataDbCql.GetLastFuturesAdxSignal)
-        .SetParameters(new GetLastFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-        .ExecuteSingleAsync(row => string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MapToPostgresFuturesAdxSignal(row) : MapToFuturesAdxSignal(row)))
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxSignal)}", MarketDataDbSql.GetLastFuturesAdxSignal)
+        .SetParameters(new GetLastFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
+        .ExecuteSingleAsync(row => MapToPostgresFuturesAdxSignal(row)))
                 .ConfigureAwait(false);
-    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAdxSignal : MarketDataDbCql.GetLastFuturesAdxSignal)
-        .SetParameters(new GetLastFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-        .ExecuteSingleAsync(row => string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MapToPostgresFuturesAdxSignal(row) : MapToFuturesAdxSignal(row), cancellationToken)
+    /// <summary>Get Last Futures Adx Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxSignal)}", MarketDataDbSql.GetLastFuturesAdxSignal)
+        .SetParameters(new GetLastFuturesAdxSignal(contractId, timePeriod.ToStringFast(), periodLength, valueDate) { PostgreSql = true })
+        .ExecuteSingleAsync(row => MapToPostgresFuturesAdxSignal(row), cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
     /// Gets the last Futures ADX daily signal
@@ -2457,13 +2392,19 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "timePeriod">The value date.</param>
     /// <param name = "periodLength"></param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesAdxSignalReadModel"/>.</returns>
-    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAdxDailySignal : MarketDataDbCql.GetLastFuturesAdxDailySignal)
-        .SetParameters(new GetLastFuturesAdxDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-        .ExecuteSingleAsync(row => string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MapToPostgresFuturesAdxSignal(row) : MapToFuturesAdxSignal(row)))
+    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxDailySignal)}", MarketDataDbSql.GetLastFuturesAdxDailySignal)
+        .SetParameters(new GetLastFuturesAdxDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
+        .ExecuteSingleAsync(row => MapToPostgresFuturesAdxSignal(row)))
                 .ConfigureAwait(false);
-    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxDailySignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesAdxDailySignal : MarketDataDbCql.GetLastFuturesAdxDailySignal)
-        .SetParameters(new GetLastFuturesAdxDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-        .ExecuteSingleAsync(row => string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MapToPostgresFuturesAdxSignal(row) : MapToFuturesAdxSignal(row), cancellationToken)
+    /// <summary>Get Last Futures Adx Daily Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="timePeriod">The time period used by this operation.</param>
+    /// <param name="periodLength">The period length used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesAdxDailySignal)}", MarketDataDbSql.GetLastFuturesAdxDailySignal)
+        .SetParameters(new GetLastFuturesAdxDailySignal(contractId, timePeriod.ToStringFast(), periodLength) { PostgreSql = true })
+        .ExecuteSingleAsync(row => MapToPostgresFuturesAdxSignal(row), cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
     /// Gets the last futures trade signal
@@ -2471,12 +2412,17 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "contractId">The entity ID containing the contract ID and value date.</param>
     /// <param name = "valueDate"> The value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "FuturesTradeSignalV2ReadModel"/>.</returns>
-    public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalById)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignalById : MarketDataDbCql.GetLastFuturesTradeSignalById)
-        .SetParameters(new GetLastFuturesTradeSignalById(contractId, valueDate, TimeFrameType.FifteenSeconds.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalById)}", MarketDataDbSql.GetLastFuturesTradeSignalById)
+        .SetParameters(new GetLastFuturesTradeSignalById(contractId, valueDate, TimeFrameType.FifteenSeconds.ToStringFast()) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesTradeSignal!))
                 .ConfigureAwait(false);
-    public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalById)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignalById : MarketDataDbCql.GetLastFuturesTradeSignalById)
-        .SetParameters(new GetLastFuturesTradeSignalById(contractId, valueDate, TimeFrameType.FifteenSeconds.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Futures Trade Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalById)}", MarketDataDbSql.GetLastFuturesTradeSignalById)
+        .SetParameters(new GetLastFuturesTradeSignalById(contractId, valueDate, TimeFrameType.FifteenSeconds.ToStringFast()) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesTradeSignal!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2485,18 +2431,21 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync()
     {
-        var id = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignal : MarketDataDbCql.GetLastFuturesTradeSignal)
-            .SetParameters(new GetLastFuturesTradeSignal($"latest:{TimeFrameType.FifteenSeconds.ToStringFast()}") { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var id = await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignal)}", MarketDataDbSql.GetLastFuturesTradeSignal)
+            .SetParameters(new GetLastFuturesTradeSignal($"latest:{TimeFrameType.FifteenSeconds.ToStringFast()}") { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesTradeSignalId))
                 .ConfigureAwait(false);
         return id is null ? null : await (GetLastFuturesTradeSignalAsync(id.ContractId, id.ValueDate))
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Get Last Futures Trade Signal using the MarketDataDb persistence.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(CancellationToken cancellationToken)
     {
-        var id = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignal : MarketDataDbCql.GetLastFuturesTradeSignal)
-            .SetParameters(new GetLastFuturesTradeSignal($"latest:{TimeFrameType.FifteenSeconds.ToStringFast()}") { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var id = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignal)}", MarketDataDbSql.GetLastFuturesTradeSignal)
+            .SetParameters(new GetLastFuturesTradeSignal($"latest:{TimeFrameType.FifteenSeconds.ToStringFast()}") { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesTradeSignalId, cancellationToken)
             .ConfigureAwait(false);
         return id is null ? null : await GetLastFuturesTradeSignalAsync(id.ContractId, id.ValueDate, cancellationToken)
@@ -2510,14 +2459,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     public async Task<ICollection<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalsAsync()
     {
         ICollection<FuturesTradeSignalV2ReadModel> resultSet = [];
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalAll)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesTradeSignalAll : MarketDataDbCql.GetFuturesTradeSignalAll)
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalAll)}", MarketDataDbSql.GetFuturesTradeSignalAll)
             .ExecuteMapReduceAsync(MapToFuturesTradeSignal, reducer => resultSet = [.. reducer]))
                 .ConfigureAwait(false);
         return resultSet;
     }
 
     /// <summary>
-    /// Gets the last futures trade signal for a given symbol and value date asynchronously.    
+    /// Gets the last futures trade signal for a given symbol and value date asynchronously.
     /// </summary>
     /// <param name = "symbol"></param>
     /// <param name = "valueDate"></param>
@@ -2528,20 +2477,25 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         var dbSec = (_dbFactory.SecuritiesDb as ISecuritiesDbReadContext)!;
         List<string> contractIds = [.. (await (dbSec.GetFuturesContractsBySymbolAsync(symbol))
                 .ConfigureAwait(false)).Select(e => e.ContractId)];
-        return await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignalBySymbol : MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)
-            .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", MarketDataDbSql.GetLastFuturesTradeSignalBySymbol)
+            .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate) { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesTradeSignal))
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Get Last Futures Trade Signal By Symbol using the MarketDataDb persistence.</summary>
+    /// <param name="symbol">The symbol used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalBySymbolAsync(string symbol, DateOnly valueDate, CancellationToken cancellationToken)
     {
         var securitiesDb = (ISecuritiesDbReadContext)_dbFactory.SecuritiesDb;
         var contracts = await securitiesDb.GetFuturesContractsBySymbolAsync(symbol, cancellationToken)
             .ConfigureAwait(false);
         List<string> contractIds = [.. contracts.Select(static contract => contract.ContractId)];
-        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastFuturesTradeSignalBySymbol : MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)
-            .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", MarketDataDbSql.GetLastFuturesTradeSignalBySymbol)
+            .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate) { PostgreSql = true })
             .ExecuteSingleAsync(MapToFuturesTradeSignal, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -2551,21 +2505,26 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "symbol">The symbol to get the rate of return for.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "RateOfReturnReadModel"/>.</returns>
-    public async Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastRateOfReturn)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastRateOfReturn : MarketDataDbCql.GetLastRateOfReturn)
-        .SetParameters(new GetLastRateOfReturn(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastRateOfReturn)}", MarketDataDbSql.GetLastRateOfReturn)
+        .SetParameters(new GetLastRateOfReturn(symbol) { PostgreSql = true })
         .ExecuteSingleAsync(MapToRateOfReturn))
                 .ConfigureAwait(false);
-    public async Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastRateOfReturn)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastRateOfReturn : MarketDataDbCql.GetLastRateOfReturn)
-        .SetParameters(new GetLastRateOfReturn(symbol) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Last Rate Of Return using the MarketDataDb persistence.</summary>
+    /// <param name="symbol">The symbol used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<RateOfReturnReadModel?> GetLastRateOfReturnAsync(string symbol, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastRateOfReturn)}", MarketDataDbSql.GetLastRateOfReturn)
+        .SetParameters(new GetLastRateOfReturn(symbol) { PostgreSql = true })
         .ExecuteSingleAsync(MapToRateOfReturn, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
     /// Gets the last VIX futures EOD data for a given VixFuturesEodDataEntityId.
     /// </summary>
-    /// <param name = "e">The entity ID containing the contract ID and value date.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "VixFuturesEodDataReadModel"/>.</returns>
-    public async Task<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastVixFuturesEodData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastVixFuturesEodData : MarketDataDbCql.GetLastVixFuturesEodData)
-        .SetParameters(new GetLastVixFuturesEodData(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    public async Task<VixFuturesEodDataReadModel?> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastVixFuturesEodData)}", MarketDataDbSql.GetLastVixFuturesEodData)
+        .SetParameters(new GetLastVixFuturesEodData(contractId, valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToVixFuturesEodData))
                 .ConfigureAwait(false);
     /// <summary>
@@ -2573,6 +2532,7 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "contractId">The entity ID containing the contract ID and value date.</param>
     /// <param name = "valueDate"></param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<VixFuturesEodDataReadModel?> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate)
         => CurrentVixEodCache.Shared.ReadAsync(contractId, valueDate, () => this.ReadStoredVixFuturesEodDataAsync(contractId, valueDate));
     /// <summary>
@@ -2582,23 +2542,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<ICollection<VixFuturesEodDataReadModel>> GetVixFuturesEodDataByValueDateAsync(DateOnly valueDate)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return await this.Use(nameof(MarketDataDbSql.GetVixFuturesEodDataByValueDate),MarketDataDbSql.GetVixFuturesEodDataByValueDate)
-                .SetParameters(new Parameters.NativeVixDateParameter(valueDate))
+        return await this.Use(nameof(MarketDataDbSql.GetVixFuturesEodDataByValueDate),MarketDataDbSql.GetVixFuturesEodDataByValueDate)
+                .SetParameters(new NativeVixDateParameter(valueDate))
                 .ExecuteQueryAsync(MapToVixFuturesEodData)
-                .ConfigureAwait(false);
-
-        var stamp = await (this.GetProjectionScopeReadStampAsync(VixFuturesContractIndexProjection, Enumerable.Range(0, VixContractBucketCount).Select(MarketDataDbContextExtensions.GetVixContractIndexScopeKey)))
-                .ConfigureAwait(false);
-        if (stamp is null)
-            return await (this.ReadLegacyVixFuturesEodDataByValueDateAsync(valueDate))
-                .ConfigureAwait(false);
-        var results = await (this.ReadIndexedVixFuturesEodDataByValueDateAsync(valueDate))
-                .ConfigureAwait(false);
-        if (await (this.IsProjectionScopeReadStampValidAsync(stamp.Value))
-                .ConfigureAwait(false))
-            return results;
-        return await (this.ReadLegacyVixFuturesEodDataByValueDateAsync(valueDate))
                 .ConfigureAwait(false);
     }
 
@@ -2606,10 +2552,13 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// Gets the last updated yield curve rate from the database.
     /// </summary>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "YieldCurveRateReadModel"/>.</returns>
-    public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastYieldCurveRate : MarketDataDbCql.GetLastYieldCurveRate)
+    public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastYieldCurveRate)}", MarketDataDbSql.GetLastYieldCurveRate)
         .ExecuteSingleAsync(MapToYieldCurveRate!))
                 .ConfigureAwait(false);
-    public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLastYieldCurveRate : MarketDataDbCql.GetLastYieldCurveRate)
+    /// <summary>Get Last Yield Curve Rate using the MarketDataDb persistence.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<YieldCurveRateReadModel?> GetLastYieldCurveRateAsync(CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastYieldCurveRate)}", MarketDataDbSql.GetLastYieldCurveRate)
         .ExecuteSingleAsync(MapToYieldCurveRate!, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2617,8 +2566,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "valueDate">The value date to retrieve the yield curve rate for.</param>
     /// <returns>A task representing the asynchronous operation, containing the <see cref = "YieldCurveRateReadModel"/> if found; otherwise, null.</returns>
-    public async Task<YieldCurveRateReadModel?> GetYieldCurveRateAsync(DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetYieldCurveRate : MarketDataDbCql.GetYieldCurveRate)
-        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<YieldCurveRateReadModel?> GetYieldCurveRateAsync(DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", MarketDataDbSql.GetYieldCurveRate)
+        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToYieldCurveRate))
                 .ConfigureAwait(false);
     /// <summary>
@@ -2629,6 +2578,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation, containing the collection of YieldCurveRateReadModel.</returns>
     public async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate) => await (this.GetYieldCurveRatesCoreAsync(startDate, endDate, CancellationToken.None))
                 .ConfigureAwait(false);
+    /// <summary>Get Yield Curve Rates using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ICollection<YieldCurveRateReadModel>> GetYieldCurveRatesAsync(DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken) => await this.GetYieldCurveRatesCoreAsync(startDate, endDate, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2637,8 +2591,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns>A task representing the asynchronous operation, containing the collection of integer years.</returns>
     public async Task<ICollection<int>> GetYieldCurveRateYearsAsync() => await (GetYieldCurveRateYearsAsync(CancellationToken.None))
                 .ConfigureAwait(false);
-    public async Task<ICollection<int>> GetYieldCurveRateYearsAsync(CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateYears)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetYieldCurveRateYears : MarketDataDbCql.GetYieldCurveRateYears)
-        .SetParameters(new GetYieldCurveRateYears(YieldCurveLookupId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Yield Curve Rate Years using the MarketDataDb persistence.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<int>> GetYieldCurveRateYearsAsync(CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateYears)}", MarketDataDbSql.GetYieldCurveRateYears)
+        .SetParameters(new GetYieldCurveRateYears(YieldCurveLookupId) { PostgreSql = true })
         .ExecuteQueryAsync(MapToYearMonth, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2646,12 +2603,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "currencyType">The currency type.</param>
     /// <returns>A task representing the asynchronous operation, containing a collection of MarketHolidayReadModel.</returns>
-    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidays)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetMarketHolidays : MarketDataDbCql.GetMarketHolidays)
-        .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidays)}", MarketDataDbSql.GetMarketHolidays)
+        .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = true })
         .ExecuteQueryAsync(MapToMarketHoliday))
                 .ConfigureAwait(false);
-    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidays)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetMarketHolidays : MarketDataDbCql.GetMarketHolidays)
-        .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Market Holidays using the MarketDataDb persistence.</summary>
+    /// <param name="currencyType">The currency type used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysAsync(CurrencyType currencyType, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidays)}", MarketDataDbSql.GetMarketHolidays)
+        .SetParameters(new GetMarketHolidays(currencyType: currencyType.ToStringFast()) { PostgreSql = true })
         .ExecuteQueryAsync(MapToMarketHoliday, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2664,8 +2625,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "tradeId">The unique identifier of the trade for which to retrieve live feed data. Must be a positive integer.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a TradeLiveFeedReadModel object with
     /// the live feed data if found; otherwise, null.</returns>
-    public async Task<TradeLiveFeedReadModel?> GetTradeLiveFeedAsync(int orderId, int tradeId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetTradeLiveFeed)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetTradeLiveFeed : MarketDataDbCql.GetTradeLiveFeed)
-        .SetParameters(new GetTradeLiveFeed(orderId, tradeId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<TradeLiveFeedReadModel?> GetTradeLiveFeedAsync(int orderId, int tradeId) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetTradeLiveFeed)}", MarketDataDbSql.GetTradeLiveFeed)
+        .SetParameters(new GetTradeLiveFeed(orderId, tradeId) { PostgreSql = true })
         .ExecuteSingleAsync(MapToTradeLiveFeed!))
                 .ConfigureAwait(false);
     /// <summary>
@@ -2675,8 +2636,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <param name = "startDate">The start date of the range.</param>
     /// <param name = "endDate">The end date of the range.</param>
     /// <returns>A task representing the asynchronous operation, containing a collection of MarketHolidayReadModel.</returns>
-    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysByDateRangeAsync(CurrencyType currencyType, DateOnly startDate, DateOnly endDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidaysByDateRange)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetMarketHolidaysByDateRange : MarketDataDbCql.GetMarketHolidaysByDateRange)
-        .SetParameters(new GetMarketHolidaysByDateRange(currencyType: currencyType.ToStringFast(), startDate, endDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<ICollection<MarketHolidayReadModel>> GetMarketHolidaysByDateRangeAsync(CurrencyType currencyType, DateOnly startDate, DateOnly endDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketHolidaysByDateRange)}", MarketDataDbSql.GetMarketHolidaysByDateRange)
+        .SetParameters(new GetMarketHolidaysByDateRange(currencyType: currencyType.ToStringFast(), startDate, endDate) { PostgreSql = true })
         .ExecuteQueryAsync(MapToMarketHoliday))
                 .ConfigureAwait(false);
     /// <summary>
@@ -2690,37 +2651,15 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1006", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<int> GetTradingDaysAsync(DateOnly startDate, DateOnly endDate, MarketType marketType = MarketType.Futures, CurrencyType currencyType = CurrencyType.USD)
     {
-        var key = new TradingDaysKey(StartDate: startDate, EndDate: endDate, MarketType: marketType, CurrencyType: currencyType);
-        if (_tradingDaysMap.TryGetValue(key, out int value))
-            return value;
-        // load market holidays by currency type..
-        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
-        var marketHolidays = await (dbReader.GetMarketHolidaysAsync(currencyType)!)
-                .ConfigureAwait(false);
-        // build holiday map...
-        var holidayMap = new Dictionary<DateOnly, MarketHolidayReadModel>();
-        foreach (var e in marketHolidays)
-            holidayMap.Add(e.HolidayDate, e);
-        // calculate trading days based on total number of days from start date to end date
-        // that do not fall on a weekend or holiday...
-        var dateIndex = 0;
-        var tradingDays = 0;
-        while (startDate.AddDays(dateIndex) <= endDate)
-        {
-            var tradeDate = startDate.AddDays(dateIndex++);
-            if (tradeDate.DayOfWeek == DayOfWeek.Saturday || tradeDate.DayOfWeek == DayOfWeek.Sunday || holidayMap.ContainsKey(tradeDate))
-                continue;
-            tradingDays++;
-        }
-
-        _tradingDaysMap.Add(key, tradingDays);
-        return tradingDays;
+        return await GetTradingDayCountAsync(startDate, endDate, marketType, currencyType)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
     /// return all normal curve data
     /// </summary>
-    public async Task<ICollection<NormalCurveDataReadModel>> GetNormalCurveDataAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetNormalCurveData)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetNormalCurveData : MarketDataDbCql.GetNormalCurveData)
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<NormalCurveDataReadModel>> GetNormalCurveDataAsync() => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetNormalCurveData)}", MarketDataDbSql.GetNormalCurveData)
         .ExecuteQueryAsync(MapToNormalCurveData!))
                 .ConfigureAwait(false);
     /// <summary>
@@ -2728,12 +2667,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// </summary>
     /// <param name = "valueDate"></param>
     /// <returns></returns>
-    public async Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesTradeSignalIdByValueDate : MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)
-        .SetParameters(new GetFuturesTradeSignalIdByValueDate($"date:{TimeFrameType.FifteenSeconds.ToStringFast()}:{valueDate.DayNumber}") { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)}", MarketDataDbSql.GetFuturesTradeSignalIdByValueDate)
+        .SetParameters(new GetFuturesTradeSignalIdByValueDate($"date:{TimeFrameType.FifteenSeconds.ToStringFast()}:{valueDate.DayNumber}") { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesTradeSignalId))
                 .ConfigureAwait(false);
-    public async Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesTradeSignalIdByValueDate : MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)
-        .SetParameters(new GetFuturesTradeSignalIdByValueDate($"date:{TimeFrameType.FifteenSeconds.ToStringFast()}:{valueDate.DayNumber}") { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Futures Trade Signal Id By Value Date using the MarketDataDb persistence.</summary>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<FuturesTradeSignalId>> GetFuturesTradeSignalIdByValueDateAsync(DateOnly valueDate, CancellationToken cancellationToken) => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalIdByValueDate)}", MarketDataDbSql.GetFuturesTradeSignalIdByValueDate)
+        .SetParameters(new GetFuturesTradeSignalIdByValueDate($"date:{TimeFrameType.FifteenSeconds.ToStringFast()}:{valueDate.DayNumber}") { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesTradeSignalId, cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
@@ -2742,9 +2685,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     public async Task<NormalCurveTableReadModel> GetNormalCurveTableAsync()
     {
-        _normalCurveTable ??= new NormalCurveTableReadModel([.. await (GetNormalCurveDataAsync())
-                .ConfigureAwait(false)]);
-        return _normalCurveTable!;
+        return new NormalCurveTableReadModel([.. await GetNormalCurveDataAsync()
+            .ConfigureAwait(false)]);
     }
 
     /// <summary>
@@ -2757,782 +2699,120 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     /// <returns></returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1006", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<DateOnly[]> GetTradingDatesAsync(DateOnly startDate, DateOnly endDate, MarketType marketType = MarketType.Futures, CurrencyType currencyType = CurrencyType.USD)
+
     {
-        // load market holidays by currency type..
-        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
-        var marketHolidays = await (dbReader.GetMarketHolidaysAsync(currencyType)!)
-                .ConfigureAwait(false);
-        // build holiday map...
-        var holidayMap = new Dictionary<DateOnly, MarketHolidayReadModel>();
-        foreach (var e in marketHolidays)
-            holidayMap.Add(e.HolidayDate, e);
-        // calculate trading days based on total number of days from start date to end date
-        // that do not fall on a weekend or holiday...
-        var dateIndex = 0;
-        var tradingDates = new List<DateOnly>();
-        while (startDate.AddDays(dateIndex) <= endDate)
-        {
-            var tradeDate = startDate.AddDays(dateIndex++);
-            if (tradeDate.DayOfWeek == DayOfWeek.Saturday || tradeDate.DayOfWeek == DayOfWeek.Sunday || holidayMap.ContainsKey(tradeDate))
-                continue;
-            tradingDates.Add(tradeDate);
-        }
-
-        return [.. tradingDates];
-    }
-
+    var holidays = await GetMarketHolidaysAsync(currencyType, CancellationToken.None)
+        .ConfigureAwait(false);
+    return TomasAI.IFM.Domain.MarketData.Shared.Calendar.TradingCalendar.Dates(startDate, endDate, holidays, CancellationToken.None);
+}
+    /// <summary>Get Trading Dates using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="marketType">The market type used by this operation.</param>
+    /// <param name="currencyType">The currency type used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<DateOnly[]> GetTradingDatesAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType, CancellationToken cancellationToken)
+
     {
-        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
-        var marketHolidays = await dbReader.GetMarketHolidaysAsync(currencyType, cancellationToken)
-            .ConfigureAwait(false);
-        var holidayDates = marketHolidays.Select(static holiday => holiday.HolidayDate).ToHashSet();
-        var tradingDates = new List<DateOnly>();
-        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || holidayDates.Contains(tradeDate))
-                continue;
-            tradingDates.Add(tradeDate);
-        }
-
-        return [.. tradingDates];
-    }
-
+    var holidays = await GetMarketHolidaysAsync(currencyType, cancellationToken)
+        .ConfigureAwait(false);
+    return TomasAI.IFM.Domain.MarketData.Shared.Calendar.TradingCalendar.Dates(startDate, endDate, holidays, cancellationToken);
+}
+    /// <summary>Get Trading Day Count using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="marketType">The market type used by this operation.</param>
+    /// <param name="currencyType">The currency type used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1006", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<int> GetTradingDayCountAsync(DateOnly startDate, DateOnly endDate, MarketType marketType = MarketType.Futures, CurrencyType currencyType = CurrencyType.USD)
+
     {
-        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
-        var marketHolidays = await (dbReader.GetMarketHolidaysAsync(currencyType)!)
-                .ConfigureAwait(false);
-        var holidayDates = marketHolidays.Select(static holiday => holiday.HolidayDate).ToHashSet();
-        var tradingDayCount = 0;
-        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
-        {
-            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || holidayDates.Contains(tradeDate))
-                continue;
-            tradingDayCount++;
-        }
-
-        return tradingDayCount;
-    }
-
+    var holidays = await GetMarketHolidaysAsync(currencyType, CancellationToken.None)
+        .ConfigureAwait(false);
+    return TomasAI.IFM.Domain.MarketData.Shared.Calendar.TradingCalendar.Count(startDate, endDate, holidays, CancellationToken.None);
+}
+    /// <summary>Get Trading Day Count using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="marketType">The market type used by this operation.</param>
+    /// <param name="currencyType">The currency type used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<int> GetTradingDayCountAsync(DateOnly startDate, DateOnly endDate, MarketType marketType, CurrencyType currencyType, CancellationToken cancellationToken)
+
     {
-        var dbReader = (_dbFactory.MarketDataDb as IMarketDataDbReadContext)!;
-        var marketHolidays = await dbReader.GetMarketHolidaysAsync(currencyType, cancellationToken)
-            .ConfigureAwait(false);
-        var holidayDates = marketHolidays.Select(static holiday => holiday.HolidayDate).ToHashSet();
-        var tradingDayCount = 0;
-        for (var tradeDate = startDate; tradeDate <= endDate; tradeDate = tradeDate.AddDays(1))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (tradeDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday || holidayDates.Contains(tradeDate))
-                continue;
-            tradingDayCount++;
-        }
-
-        return tradingDayCount;
-    }
-
+    var holidays = await GetMarketHolidaysAsync(currencyType, cancellationToken)
+        .ConfigureAwait(false);
+    return TomasAI.IFM.Domain.MarketData.Shared.Calendar.TradingCalendar.Count(startDate, endDate, holidays, cancellationToken);
+}
     /// <summary>
     /// Checks if yield curve rate data exists for a given value date.
     /// </summary>
     /// <param name = "valueDate">The value date to check.</param>
     /// <returns>A task representing the asynchronous operation, containing a boolean indicating whether the data exists.</returns>
-    public async Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate) => (await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetYieldCurveRate : MarketDataDbCql.GetYieldCurveRate)
-        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    public async Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate) => (await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", MarketDataDbSql.GetYieldCurveRate)
+        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToYieldCurveRate!))
                 .ConfigureAwait(false)) is not null;
-    public async Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate, CancellationToken cancellationToken) => (await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetYieldCurveRate : MarketDataDbCql.GetYieldCurveRate)
-        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Yield Curve Rate Exists using the MarketDataDb persistence.</summary>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<bool> GetYieldCurveRateExistsAsync(DateOnly valueDate, CancellationToken cancellationToken) => (await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRate)}", MarketDataDbSql.GetYieldCurveRate)
+        .SetParameters(new GetYieldCurveRate(valueDate) { PostgreSql = true })
         .ExecuteSingleAsync(MapToYieldCurveRate!, cancellationToken)
         .ConfigureAwait(false)) is not null;
     /// <summary>
     /// return stream request id
     /// </summary>
-    /// <param name = "streamId"></param>
     /// <returns></returns>
     public async Task<int> GetStreamingRequestIdAsync() => Convert.ToInt32(await (_sequenceIdGenerator.GetSequenceIdAsync(SequenceName.StreamingRequest_RequestId))
                 .ConfigureAwait(false));
     /// <summary>
     /// Gets a collection of futures ITI trend direction changed signals for a given entity ID.
     /// </summary>
-    /// <param name = "e">The entity ID containing the contract ID and value date.</param>
     /// <returns>A task representing the asynchronous operation, containing a collection of <see cref = "FuturesItiSignalV2ReadModel"/>.</returns>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
     public async Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate) => await (this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged))
                 .ConfigureAwait(false);
+    /// <summary>Get Futures Iti Trend Direction Changed Signals using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ICollection<FuturesItiSignalV2ReadModel>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken) => await this.ReadFuturesItiDayModeAsync(contractId, valueDate, IntrinsicTimeModeType.TrendDirectionChanged, cancellationToken: cancellationToken)
         .ConfigureAwait(false);
     /// <summary>
-    /// Idempotently rebuilds the non-signal MarketData V2 query projections from canonical tables.
+    /// Rebuilds canonical PostgreSQL query indexes atomically; existing rows remain unchanged.
     /// </summary>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <param name="staleOperationCutoffUtc">Compatibility argument, validated when supplied; PostgreSQL transactions replace Scylla operation journals.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Retain the existing bounded persistence failure boundary: complete cleanup or report failure while preserving ambiguous commit/recovery evidence and the original cause.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the transaction, resource ownership and failure ordering together during this provider migration; splitting it would obscure the atomic persistence boundary.")]
     public async Task<MarketDataProjectionBackfillReadModel> BackfillQueryProjectionsV2Async(int batchSize = ProjectionWriteBatchSize, CancellationToken cancellationToken = default, DateTime? staleOperationCutoffUtc = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         if (staleOperationCutoffUtc is { Kind: not DateTimeKind.Utc })
-        {
-            throw new ArgumentException("The stale operation cutoff must use DateTimeKind.Utc.", nameof(staleOperationCutoffUtc));
-        }
-
+            throw new ArgumentException("The cutoff must use DateTimeKind.Utc.", nameof(staleOperationCutoffUtc));
         if (staleOperationCutoffUtc > DateTime.UtcNow)
-        {
-            throw new ArgumentOutOfRangeException(nameof(staleOperationCutoffUtc), staleOperationCutoffUtc, "The stale operation cutoff cannot be in the future.");
-        }
-
-        var db = _dbFactory.MarketDataDb;
-        string[] projectionNames = [FuturesTickByTimeProjection, FuturesEodProjection, VixFuturesContractIndexProjection, FuturesItiSignalQueryProjection];
-        var failedMutationIds = new Dictionary<string, Guid[]>(StringComparer.Ordinal);
-        var backfillMutationIds = new Dictionary<string, Guid>(StringComparer.Ordinal);
-        var backfillScopes = projectionNames.ToDictionary(static projectionName => projectionName, static _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
-        var backfillStartedScopes = projectionNames.ToDictionary(static projectionName => projectionName, static _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
-        var backfillAcknowledgedScopes = projectionNames.ToDictionary(static projectionName => projectionName, static _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
-        var backfillGlobalOperationsAcknowledged = new HashSet<string>(StringComparer.Ordinal);
-        var targetMutationSubmissionStarted = false;
-        try
-        {
-            // Failed operations are safe to reclaim automatically because their writer
-            // reached a terminal catch path. Other old operations require an explicit
-            // operator cutoff after every writer has been drained.
-            var scopedMutations = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
-                .ExecuteQueryAsync(MapToProjectionScopeMutation))
-                .ConfigureAwait(false);
-            var recoverableScopedMutations = scopedMutations.Where(mutation => projectionNames.Contains(mutation.ProjectionName, StringComparer.Ordinal)).Where(mutation => mutation.IsFailed || staleOperationCutoffUtc.HasValue && mutation.StartedOn <= staleOperationCutoffUtc.Value).ToArray();
-            if (recoverableScopedMutations.Length > 0)
-            {
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
-                    .SetParameters(recoverableScopedMutations.Select(mutation => new RemoveMarketDataProjectionScopeOperationV3(mutation.ProjectionName, mutation.ScopeKey, mutation.MutationId)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                    .SetParameters(recoverableScopedMutations.Select(mutation => new DeleteMarketDataProjectionScopeMutationV3(mutation.ProjectionName, mutation.ScopeKey, mutation.MutationId)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            }
-
-            // Supplying a cutoff is an explicit operator assertion that all older writers
-            // have been drained or terminated. Time alone is not treated as a lease.
-            if (staleOperationCutoffUtc.HasValue)
-            {
-                foreach (var projectionName in projectionNames)
-                {
-                    var mutations = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutations)}", MarketDataDbCql.GetMarketDataProjectionMutations)
-                        .SetParameters(new GetMarketDataProjectionMutation(projectionName))
-                        .ExecuteQueryAsync(MapToProjectionMutation))
-                .ConfigureAwait(false);
-                    var staleMutationIds = mutations.Where(mutation => mutation.StartedOn <= staleOperationCutoffUtc.Value).Select(mutation => mutation.MutationId).ToHashSet();
-                    if (staleMutationIds.Count == 0)
-                        continue;
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionOperations)}", MarketDataDbCql.RemoveMarketDataProjectionOperations)
-                        .SetParameters(new RemoveMarketDataProjectionOperations(projectionName, staleMutationIds))
-                        .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionMutation)}", MarketDataDbCql.DeleteMarketDataProjectionMutation)
-                        .SetParameters(staleMutationIds.Select(mutationId => new DeleteMarketDataProjectionMutation(projectionName, mutationId)))
-                        .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                }
-            }
-
-            // Publish the repair markers before touching any projection. Readers keep using
-            // canonical tables until every rebuilt projection has reconciled successfully.
-            foreach (var projectionName in projectionNames)
-            {
-                var mutationId = Guid.NewGuid();
-                backfillMutationIds.Add(projectionName, mutationId);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMutation)}", MarketDataDbCql.InsertMarketDataProjectionMutation)
-                    .SetParameters(new InsertMarketDataProjectionMutation(projectionName, mutationId, DateTime.UtcNow))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                async Task ActivateGlobalProjectionAsync() => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionOperation)}", MarketDataDbCql.BeginMarketDataProjectionOperation)
-                    .SetParameters(new BeginMarketDataProjectionOperation(projectionName, mutationId, new HashSet<Guid> { mutationId }))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                if (ProjectionBackfillGlobalActivationForTestingAsync is { } globalActivation)
-                    await (globalActivation(ActivateGlobalProjectionAsync))
-                .ConfigureAwait(false);
-                else
-                    await (ActivateGlobalProjectionAsync())
-                .ConfigureAwait(false);
-                backfillGlobalOperationsAcknowledged.Add(projectionName);
-                var existingMutations = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutations)}", MarketDataDbCql.GetMarketDataProjectionMutations)
-                    .SetParameters(new GetMarketDataProjectionMutation(projectionName))
-                    .ExecuteQueryAsync(MapToProjectionMutation))
-                .ConfigureAwait(false);
-                failedMutationIds.Add(projectionName, [.. existingMutations.Where(existingMutation => existingMutation.MutationId != mutationId && existingMutation.IsFailed).Select(existingMutation => existingMutation.MutationId)]);
-            }
-
-            // Claim every guard before discovering data scopes. Ordinary writers touch a
-            // deterministic guard as well as their data scope; a post-discovery write then
-            // prevents the guard's conditional release without creating a global hot row.
-            foreach (var projectionName in projectionNames)
-            {
-                var guards = this.GetProjectionGuardScopeKeys();
-                backfillScopes[projectionName].UnionWith(guards);
-                await (BeginBackfillScopesAsync(projectionName, guards))
-                .ConfigureAwait(false);
-            }
-
-            // Discover the union of canonical, target, and prior state scopes while the
-            // projection-wide gate is closed. Existing targets/states are included so a
-            // replay also clears deleted or previously mis-bucketed partitions.
-            await foreach (var scope in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickProjectionScopesSource)}", MarketDataDbCql.GetFuturesTickProjectionScopesSource)
-                .ExecuteStreamAsync(MapToFuturesTickProjectionScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                backfillScopes[FuturesTickByTimeProjection].Add(scope);
-            }
-
-            await foreach (var scope in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickProjectionScopesTarget)}", MarketDataDbCql.GetFuturesTickProjectionScopesTarget)
-                .ExecuteStreamAsync(MapToFuturesTickProjectionScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                backfillScopes[FuturesTickByTimeProjection].Add(scope);
-            }
-
-            await foreach (var scope in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodProjectionScopesSource)}", MarketDataDbCql.GetFuturesEodProjectionScopesSource)
-                .ExecuteStreamAsync(MapToFuturesEodProjectionSourceScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                backfillScopes[FuturesEodProjection].Add(scope);
-            }
-
-            await foreach (var scope in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodProjectionScopesTarget)}", MarketDataDbCql.GetFuturesEodProjectionScopesTarget)
-                .ExecuteStreamAsync(MapToFuturesEodProjectionTargetScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                backfillScopes[FuturesEodProjection].Add(scope);
-            }
-
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalProjectionScopesSource)}", MarketDataDbCql.GetFuturesItiSignalProjectionScopesSource)
-                .ExecuteStreamAsync(MapToFuturesItiProjectionScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                AddFuturesItiScopes(row);
-            }
-
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalProjectionScopesDayTarget)}", MarketDataDbCql.GetFuturesItiSignalProjectionScopesDayTarget)
-                .ExecuteStreamAsync(MapToFuturesItiProjectionScope, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                AddFuturesItiScopes(row);
-            }
-
-            await foreach (var state in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3All)
-                .ExecuteStreamAsync(MapToProjectionScopeState, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                if (backfillScopes.TryGetValue(state.ProjectionName, out var scopes))
-                    scopes.Add(state.ScopeKey);
-            }
-
-            foreach (var bucket in Enumerable.Range(0, VixContractBucketCount))
-                backfillScopes[VixFuturesContractIndexProjection].Add(MarketDataDbContextExtensions.GetVixContractIndexScopeKey(bucket));
-            // Journal and claim every discovered scope with the projection backfill's ID.
-            // A concurrent ordinary writer adds a second ID, causing scoped completion to
-            // fail without affecting unrelated partitions.
-            foreach (var projectionName in projectionNames)
-            {
-                var scopesToStart = backfillScopes[projectionName].Except(backfillStartedScopes[projectionName], StringComparer.Ordinal).ToArray();
-                await (BeginBackfillScopesAsync(projectionName, scopesToStart))
-                .ConfigureAwait(false);
-            }
-
-            // A clean rebuild is what makes reconciliation detect deleted and stale rows,
-            // rather than merely proving that the source and projection have equal counts.
-            targetMutationSubmissionStarted = true;
-            if (ProjectionBackfillTargetMutationSubmittingForTestingAsync is { } targetMutationSubmitting)
-                await (targetMutationSubmitting())
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesTickDataByTime)}", MarketDataDbCql.TruncateFuturesTickDataByTime)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesEodDataByMonth)}", MarketDataDbCql.TruncateFuturesEodDataByMonth)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateVixFuturesContractIndex)}", MarketDataDbCql.TruncateVixFuturesContractIndex)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractDay)}", MarketDataDbCql.TruncateFuturesItiSignalByContractDay)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractMonth)}", MarketDataDbCql.TruncateFuturesItiSignalByContractMonth)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonth)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateMarketDataProjectionMonth)}", MarketDataDbCql.TruncateMarketDataProjectionMonth)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            var futuresTickSourceIdentityBuilder = new ProjectionIdentityBuilder();
-            var tickBatch = new List<InsertFuturesTickDataByTime>(batchSize);
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickDataAll)}", MarketDataDbCql.GetFuturesTickDataAll)
-                .ExecuteStreamAsync(MapToFuturesTickData!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresTickSourceIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesTickIdentity(row));
-                tickBatch.Add(new InsertFuturesTickDataByTime(row.ContractId, row.ValueDate, row.TickTime, row.TickId, row.Price, row.Size));
-                if (tickBatch.Count == batchSize)
-                    await (FlushTicksAsync())
-                .ConfigureAwait(false);
-            }
-
-            await (FlushTicksAsync())
-                .ConfigureAwait(false);
-            var futuresEodSourceIdentityBuilder = new ProjectionIdentityBuilder();
-            var eodBatch = new List<InsertFuturesEodDataByMonth>(batchSize);
-            var eodMonths = new HashSet<int>();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataAll)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesEodDataAll : MarketDataDbCql.GetFuturesEodDataAll)
-                .ExecuteStreamAsync(MapToFuturesEodData!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresEodSourceIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesEodIdentity(row));
-                eodBatch.Add(MarketDataDbContextExtensions.CreateFuturesEodDataByMonthParameters(row, row.OpenPrice));
-                eodMonths.Add(MarketDataDbContextExtensions.ToYearMonth(row.ValueDate));
-                if (eodBatch.Count == batchSize)
-                    await (FlushFuturesEodAsync())
-                .ConfigureAwait(false);
-            }
-
-            await (FlushFuturesEodAsync())
-                .ConfigureAwait(false);
-            var futuresItiSourceIdentityBuilder = new ProjectionIdentityBuilder();
-            var itiDayBatch = new List<InsertFuturesItiSignal>(batchSize);
-            var itiMonthBatch = new List<InsertFuturesItiSignalByContractMonth>(batchSize);
-            var itiMonths = new HashSet<int>();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsAll)}", MarketDataDbCql.GetFuturesItiSignalsAll)
-                .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresItiSourceIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesItiSignalIdentity(row));
-                itiDayBatch.Add(MarketDataDbContextExtensions.CreateFuturesItiSignalParameters(row, row.SequenceId));
-                itiMonthBatch.Add(MarketDataDbContextExtensions.CreateFuturesItiSignalMonthParameters(row, row.SequenceId));
-                itiMonths.Add(MarketDataDbContextExtensions.ToYearMonth(row.ValueDate));
-                if (itiDayBatch.Count == batchSize)
-                    await (FlushFuturesItiAsync())
-                .ConfigureAwait(false);
-            }
-
-            await (FlushFuturesItiAsync())
-                .ConfigureAwait(false);
-            long vixFuturesEodRowsSource = 0;
-            var vixContracts = new HashSet<string>(StringComparer.Ordinal);
-            var vixContractsSourceIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesEodDataAll)}", MarketDataDbCql.GetVixFuturesEodDataAll)
-                .ExecuteStreamAsync(MapToVixFuturesEodData, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                vixFuturesEodRowsSource++;
-                if (vixContracts.Add(row.ContractId))
-                    vixContractsSourceIdentityBuilder.Add(MarketDataDbContextExtensions.GetVixContractIdentity(row.ContractId));
-            }
-
-            var vixContractBatch = new List<InsertVixFuturesContractIndex>(batchSize);
-            foreach (var contractId in vixContracts.OrderBy(static contractId => contractId, StringComparer.Ordinal))
-            {
-                vixContractBatch.Add(new InsertVixFuturesContractIndex(MarketDataDbContextExtensions.GetVixContractBucket(contractId), contractId));
-                if (vixContractBatch.Count == batchSize)
-                    await (FlushVixContractsAsync())
-                .ConfigureAwait(false);
-            }
-
-            await (FlushVixContractsAsync())
-                .ConfigureAwait(false);
-            var futuresTickProjectedIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTickDataByTimeAll)}", MarketDataDbCql.GetFuturesTickDataByTimeAll)
-                .ExecuteStreamAsync(MapToFuturesTickData!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresTickProjectedIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesTickIdentity(row));
-            }
-
-            var futuresEodProjectedIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesEodDataByMonthAll)}", MarketDataDbCql.GetFuturesEodDataByMonthAll)
-                .ExecuteStreamAsync(MapToFuturesEodData!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresEodProjectedIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesEodIdentity(row));
-            }
-
-            var futuresItiDayIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractDayAll)}", MarketDataDbCql.GetFuturesItiSignalByContractDayAll)
-                .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresItiDayIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesItiSignalIdentity(row));
-            }
-
-            var futuresItiMonthIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractMonthAll)}", MarketDataDbCql.GetFuturesItiSignalByContractMonthAll)
-                .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresItiMonthIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesItiSignalIdentity(row));
-            }
-
-            var futuresItiTrendModeIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthAll)}", MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthAll)
-                .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                futuresItiTrendModeIdentityBuilder.Add(MarketDataDbContextExtensions.GetFuturesItiSignalIdentity(row));
-            }
-
-            var vixContractsIndexedIdentityBuilder = new ProjectionIdentityBuilder();
-            await foreach (var indexRow in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetVixFuturesContractIndexAll)}", MarketDataDbCql.GetVixFuturesContractIndexAll)
-                .ExecuteStreamAsync(MapToVixFuturesContractIndex, cancellationToken))
-                .ConfigureAwait(false))
-            {
-                vixContractsIndexedIdentityBuilder.Add(MarketDataDbContextExtensions.GetVixContractIdentity(indexRow.Bucket, indexRow.ContractId));
-            }
-
-            var futuresTickSourceIdentity = futuresTickSourceIdentityBuilder.Build();
-            var futuresTickProjectedIdentity = futuresTickProjectedIdentityBuilder.Build();
-            var futuresEodSourceIdentity = futuresEodSourceIdentityBuilder.Build();
-            var futuresEodProjectedIdentity = futuresEodProjectedIdentityBuilder.Build();
-            var vixContractsSourceIdentity = vixContractsSourceIdentityBuilder.Build();
-            var vixContractsIndexedIdentity = vixContractsIndexedIdentityBuilder.Build();
-            var futuresItiSourceIdentity = futuresItiSourceIdentityBuilder.Build();
-            var futuresItiDayIdentity = futuresItiDayIdentityBuilder.Build();
-            var futuresItiMonthIdentity = futuresItiMonthIdentityBuilder.Build();
-            var futuresItiTrendModeIdentity = futuresItiTrendModeIdentityBuilder.Build();
-            var reconciled = futuresTickSourceIdentity == futuresTickProjectedIdentity && futuresEodSourceIdentity == futuresEodProjectedIdentity && vixContractsSourceIdentity == vixContractsIndexedIdentity && futuresItiSourceIdentity == futuresItiDayIdentity && futuresItiSourceIdentity == futuresItiMonthIdentity && futuresItiSourceIdentity == futuresItiTrendModeIdentity;
-            if (ProjectionBackfillReconciledForTestingAsync is { } backfillReconciled)
-                await (backfillReconciled())
-                .ConfigureAwait(false);
-            var cutoverPublished = false;
-            if (reconciled)
-            {
-                foreach (var projectionName in projectionNames)
-                {
-                    var failedOperations = failedMutationIds[projectionName];
-                    if (failedOperations.Length == 0)
-                        continue;
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionOperations)}", MarketDataDbCql.RemoveMarketDataProjectionOperations)
-                        .SetParameters(new RemoveMarketDataProjectionOperations(projectionName, failedOperations.ToHashSet()))
-                        .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                }
-
-                var futuresTickScopesCompleted = await (CompleteProjectionScopesAsync(FuturesTickByTimeProjection, guardScopes: false))
-                .ConfigureAwait(false);
-                var futuresEodScopesCompleted = await (CompleteProjectionScopesAsync(FuturesEodProjection, guardScopes: false))
-                .ConfigureAwait(false);
-                var vixContractIndexScopesCompleted = await (CompleteProjectionScopesAsync(VixFuturesContractIndexProjection, guardScopes: false))
-                .ConfigureAwait(false);
-                var futuresItiScopesCompleted = await (CompleteProjectionScopesAsync(FuturesItiSignalQueryProjection, guardScopes: false))
-                .ConfigureAwait(false);
-                var allDataScopesCompleted = futuresTickScopesCompleted && futuresEodScopesCompleted && vixContractIndexScopesCompleted && futuresItiScopesCompleted;
-                var futuresTickCompleted = false;
-                var futuresEodCompleted = false;
-                var vixContractIndexCompleted = false;
-                var futuresItiCompleted = false;
-                if (allDataScopesCompleted)
-                {
-                    futuresTickCompleted = await (CompleteProjectionAsync(FuturesTickByTimeProjection, futuresTickSourceIdentity, futuresTickProjectedIdentity))
-                .ConfigureAwait(false);
-                    futuresEodCompleted = await (CompleteProjectionAsync(FuturesEodProjection, futuresEodSourceIdentity, futuresEodProjectedIdentity))
-                .ConfigureAwait(false);
-                    vixContractIndexCompleted = await (CompleteProjectionAsync(VixFuturesContractIndexProjection, vixContractsSourceIdentity, vixContractsIndexedIdentity))
-                .ConfigureAwait(false);
-                    futuresItiCompleted = await (CompleteProjectionAsync(FuturesItiSignalQueryProjection, futuresItiSourceIdentity, futuresItiDayIdentity))
-                .ConfigureAwait(false);
-                }
-
-                var allGlobalStatesCompleted = allDataScopesCompleted && futuresTickCompleted && futuresEodCompleted && vixContractIndexCompleted && futuresItiCompleted;
-                var allGuardScopesCompleted = false;
-                if (allGlobalStatesCompleted)
-                {
-                    // Global mutation markers remain present while guards are released, so
-                    // readers cannot observe global readiness between these phases.
-                    var futuresTickGuardsCompleted = await (CompleteProjectionScopesAsync(FuturesTickByTimeProjection, guardScopes: true))
-                .ConfigureAwait(false);
-                    var futuresEodGuardsCompleted = await (CompleteProjectionScopesAsync(FuturesEodProjection, guardScopes: true))
-                .ConfigureAwait(false);
-                    var vixContractIndexGuardsCompleted = await (CompleteProjectionScopesAsync(VixFuturesContractIndexProjection, guardScopes: true))
-                .ConfigureAwait(false);
-                    var futuresItiGuardsCompleted = await (CompleteProjectionScopesAsync(FuturesItiSignalQueryProjection, guardScopes: true))
-                .ConfigureAwait(false);
-                    allGuardScopesCompleted = futuresTickGuardsCompleted && futuresEodGuardsCompleted && vixContractIndexGuardsCompleted && futuresItiGuardsCompleted;
-                }
-
-                cutoverPublished = allGlobalStatesCompleted && allGuardScopesCompleted;
-                if (cutoverPublished)
-                {
-                    // Only explicitly failed operations plus this repair's own marker are
-                    // removed. Any live/unclassified operation keeps reads on canonical data.
-                    foreach (var projectionName in projectionNames)
-                    {
-                        var backfillMutationId = backfillMutationIds[projectionName];
-                        var scopes = backfillScopes[projectionName];
-                        if (scopes.Count > 0)
-                        {
-                            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
-                                .SetParameters(scopes.Select(scope => new DeleteMarketDataProjectionScopeMutationV3(projectionName, scope, backfillMutationId)))
-                                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                        }
-
-                        foreach (var failedMutationId in failedMutationIds[projectionName])
-                            await (DeleteProjectionMutationAsync(projectionName, failedMutationId))
-                .ConfigureAwait(false);
-                        await (DeleteProjectionMutationAsync(projectionName, backfillMutationId))
-                .ConfigureAwait(false);
-                    }
-                }
-                else
-                {
-                    if (futuresTickCompleted)
-                        await (CloseCompletedProjectionAsync(FuturesTickByTimeProjection))
-                .ConfigureAwait(false);
-                    if (futuresEodCompleted)
-                        await (CloseCompletedProjectionAsync(FuturesEodProjection))
-                .ConfigureAwait(false);
-                    if (vixContractIndexCompleted)
-                        await (CloseCompletedProjectionAsync(VixFuturesContractIndexProjection))
-                .ConfigureAwait(false);
-                    if (futuresItiCompleted)
-                        await (CloseCompletedProjectionAsync(FuturesItiSignalQueryProjection))
-                .ConfigureAwait(false);
-                    await (FailBackfillMutationsAsync())
-                .ConfigureAwait(false);
-                }
-            }
-            else
-                await (FailBackfillMutationsAsync())
-                .ConfigureAwait(false);
-            var cutoverCompleted = cutoverPublished && (await (GetQueryProjectionReadinessAsync(cancellationToken))
-                .ConfigureAwait(false)).IsReady;
-            return new MarketDataProjectionBackfillReadModel(futuresTickSourceIdentity.Count, futuresTickProjectedIdentity.Count, futuresTickSourceIdentity.Fingerprint, futuresTickProjectedIdentity.Fingerprint, futuresEodSourceIdentity.Count, futuresEodProjectedIdentity.Count, futuresEodSourceIdentity.Fingerprint, futuresEodProjectedIdentity.Fingerprint, vixFuturesEodRowsSource, vixContractsSourceIdentity.Count, vixContractsIndexedIdentity.Count, vixContractsSourceIdentity.Fingerprint, vixContractsIndexedIdentity.Fingerprint, futuresItiSourceIdentity.Count, futuresItiDayIdentity.Count, futuresItiMonthIdentity.Count, futuresItiTrendModeIdentity.Count, futuresItiSourceIdentity.Fingerprint, futuresItiDayIdentity.Fingerprint, futuresItiMonthIdentity.Fingerprint, futuresItiTrendModeIdentity.Fingerprint, cutoverCompleted);
-            async Task FlushTicksAsync()
-            {
-                if (tickBatch.Count == 0)
-                    return;
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTickDataByTime)}", MarketDataDbCql.InsertFuturesTickDataByTime)
-                    .SetParameters(tickBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                tickBatch.Clear();
-            }
-
-            async Task FlushFuturesEodAsync()
-            {
-                if (eodBatch.Count == 0)
-                    return;
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEodDataByMonth)}", MarketDataDbCql.InsertFuturesEodDataByMonth)
-                    .SetParameters(eodBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                    .SetParameters(eodMonths.Select(yearMonth => new InsertMarketDataProjectionMonth(FuturesEodProjection, yearMonth)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                eodBatch.Clear();
-                eodMonths.Clear();
-            }
-
-            async Task FlushFuturesItiAsync()
-            {
-                if (itiDayBatch.Count == 0)
-                    return;
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDay)}", MarketDataDbCql.InsertFuturesItiSignalByContractDay)
-                    .SetParameters(itiDayBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonth)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonth)
-                    .SetParameters(itiMonthBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)
-                    .SetParameters(itiMonthBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)
-                    .SetParameters(itiMonths.Select(yearMonth => new InsertMarketDataProjectionMonth(FuturesItiSignalQueryProjection, yearMonth)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                itiDayBatch.Clear();
-                itiMonthBatch.Clear();
-                itiMonths.Clear();
-            }
-
-            async Task FlushVixContractsAsync()
-            {
-                if (vixContractBatch.Count == 0)
-                    return;
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertVixFuturesContractIndex)}", MarketDataDbCql.InsertVixFuturesContractIndex)
-                    .SetParameters(vixContractBatch)
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                vixContractBatch.Clear();
-            }
-
-            void AddFuturesItiScopes(FuturesItiProjectionScopeData row)
-            {
-                var yearMonth = MarketDataDbContextExtensions.ToYearMonth(row.ValueDate);
-                var scopes = backfillScopes[FuturesItiSignalQueryProjection];
-                scopes.Add(MarketDataDbContextExtensions.GetFuturesItiDayScopeKey(row.ContractId, row.ValueDate));
-                scopes.Add(MarketDataDbContextExtensions.GetFuturesItiMonthScopeKey(row.ContractId, yearMonth));
-                scopes.Add(MarketDataDbContextExtensions.GetFuturesItiTimelineScopeKey(row.ContractId, row.IntrinsicTimeTrend, row.IntrinsicTimeMode, yearMonth));
-            }
-
-            async Task BeginBackfillScopesAsync(string projectionName, IEnumerable<string> scopeKeys)
-            {
-                var scopes = scopeKeys.Distinct(StringComparer.Ordinal).Except(backfillStartedScopes[projectionName], StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-                if (scopes.Length == 0)
-                    return;
-                // Record these before issuing commands: either command can fail after a
-                // partial server-side apply, and the catch path must conservatively end and
-                // classify every possibly started scope.
-                backfillStartedScopes[projectionName].UnionWith(scopes);
-                var mutationId = backfillMutationIds[projectionName];
-                var startedOn = DateTime.UtcNow;
-                await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
-                    .SetParameters(scopes.Select(scope => new InsertMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, startedOn)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                var activeOperations = new HashSet<Guid>
-                {
-                    mutationId
-                };
-                async Task ActivateBackfillScopesAsync() => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
-                    .SetParameters(scopes.Select(scope => new BeginMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations)))
-                    .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-                if (ProjectionBackfillScopeActivationForTestingAsync is { } scopeActivation)
-                    await (scopeActivation(ActivateBackfillScopesAsync))
-                .ConfigureAwait(false);
-                else
-                    await (ActivateBackfillScopesAsync())
-                .ConfigureAwait(false);
-                backfillAcknowledgedScopes[projectionName].UnionWith(scopes);
-            }
-
-            async Task<bool> CompleteProjectionScopesAsync(string projectionName, bool guardScopes)
-            {
-                var mutationId = backfillMutationIds[projectionName];
-                var activeOperations = new HashSet<Guid>
-                {
-                    mutationId
-                };
-                var allCompleted = true;
-                var scopes = backfillScopes[projectionName].Where(scope => MarketDataDbContextExtensions.IsProjectionGuardScopeKey(scope) == guardScopes);
-                foreach (var scopeBatch in scopes.Chunk(ProjectionReadConcurrency))
-                {
-                    var completions = scopeBatch.Select(async scope => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.CompleteMarketDataProjectionScopeOperationV3)
-                        .SetParameters(new CompleteMarketDataProjectionScopeOperationV3(projectionName, scope, mutationId, activeOperations, DateTime.UtcNow, activeOperations))
-                        .ExecuteSingleAsync(MapToBoolean))
-                .ConfigureAwait(false)).ToArray();
-                    if ((await (Task.WhenAll(completions))
-                .ConfigureAwait(false)).Any(static completed => !completed))
-                        allCompleted = false;
-                }
-
-                return allCompleted;
-            }
-
-            async Task<bool> CompleteProjectionAsync(string projectionName, ProjectionIdentity sourceIdentity, ProjectionIdentity projectedIdentity)
-            {
-                var activeOperations = new HashSet<Guid>
-                {
-                    backfillMutationIds[projectionName]
-                };
-                return await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.CompleteMarketDataProjectionState)}", MarketDataDbCql.CompleteMarketDataProjectionState)
-                    .SetParameters(new CompleteMarketDataProjectionState(projectionName, backfillMutationIds[projectionName], activeOperations, sourceIdentity.Count, projectedIdentity.Count, sourceIdentity.Fingerprint, projectedIdentity.Fingerprint, DateTime.UtcNow, activeOperations))
-                    .ExecuteSingleAsync(MapToBoolean))
-                .ConfigureAwait(false);
-            }
-
-            async Task CloseCompletedProjectionAsync(string projectionName)
-            {
-                var activeOperations = new HashSet<Guid>
-                {
-                    backfillMutationIds[projectionName]
-                };
-                await (MarketDataDbContextExtensions.EndProjectionOperationAsync(db, projectionName, activeOperations, cancellationToken))
-                .ConfigureAwait(false);
-            }
-
-            async Task FailBackfillMutationsAsync()
-            {
-                foreach (var projectionName in projectionNames)
-                {
-                    var mutationId = backfillMutationIds[projectionName];
-                    var scopes = backfillStartedScopes[projectionName];
-                    if (scopes.Count > 0)
-                    {
-                        await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
-                            .SetParameters(scopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UnixEpoch)))
-                            .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                    }
-
-                    await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionMutation)}", MarketDataDbCql.FailMarketDataProjectionMutation)
-                        .SetParameters(new FailMarketDataProjectionMutation(projectionName, mutationId, DateTime.UnixEpoch))
-                        .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                }
-            }
-
-            async Task DeleteProjectionMutationAsync(string projectionName, Guid mutationId) => await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionMutation)}", MarketDataDbCql.DeleteMarketDataProjectionMutation)
-                .SetParameters(new DeleteMarketDataProjectionMutation(projectionName, mutationId))
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-        }
-        catch
-        {
-            if (targetMutationSubmissionStarted)
-            {
-                // A TRUNCATE or projection upsert may still be applied after a timeout
-                // or cancellation. Preserve every original nonfailed journal and active
-                // guard so no later repair can cut over until an operator has drained
-                // writers and supplied an explicit stale-operation cutoff.
-                throw;
-            }
-
-            foreach (var (projectionName, mutationId) in backfillMutationIds)
-            {
-                var acknowledgedScopes = backfillAcknowledgedScopes[projectionName];
-                try
-                {
-                    if (acknowledgedScopes.Count > 0)
-                    {
-                        await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.FailMarketDataProjectionScopeMutationV3)
-                            .SetParameters(acknowledgedScopes.Select(scope => new FailMarketDataProjectionScopeMutationV3(projectionName, scope, mutationId, DateTime.UnixEpoch)))
-                            .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                    }
-                }
-                catch
-                {
-                    // Leave original markers for operator-cutoff recovery.
-                }
-
-                if (backfillGlobalOperationsAcknowledged.Contains(projectionName))
-                {
-                    try
-                    {
-                        await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.FailMarketDataProjectionMutation)}", MarketDataDbCql.FailMarketDataProjectionMutation)
-                            .SetParameters(new FailMarketDataProjectionMutation(projectionName, mutationId, DateTime.UnixEpoch))
-                            .ExecuteCommandAsync())
-                .ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        // Leave an unclassified marker in place; a repair must not clear it.
-                    }
-                }
-                // Preserve uncertain Begin evidence until an explicit cutoff follows writer shutdown.
-            }
-
-            throw;
-        }
+            throw new ArgumentOutOfRangeException(nameof(staleOperationCutoffUtc));
+        cancellationToken.ThrowIfCancellationRequested();
+        return await new PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, ConnectionString, "System.Data.Postgres"))
+            .ExecuteAsync((transaction, token) => transaction.RebuildCanonicalQueryIndexesAsync(token), cancellationToken)
+            .ConfigureAwait(false);
     }
-
     /// <summary>Writes the accepted outcome without provider calls on the source-event transaction.</summary>
+    /// <param name="transaction">The transaction used by this operation.</param>
+    /// <param name="outcome">The outcome used by this operation.</param>
+    /// <param name="logCommandId">The log command id used by this operation.</param>
+    /// <param name="payloadSha256">The payload sha256 used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task ProjectDownloadLogAsync(IEnlistedPostgresTransaction transaction, MarketDataDownloadOutcome outcome,
         Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default)
     {
@@ -3550,31 +2830,48 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Market Data Download Log using the MarketDataDb persistence.</summary>
+    /// <param name="outcome">The outcome used by this operation.</param>
+    /// <param name="logCommandId">The log command id used by this operation.</param>
+    /// <param name="payloadSha256">The payload sha256 used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertMarketDataDownloadLogAsync(MarketDataDownloadOutcome outcome, Guid logCommandId, string payloadSha256, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(outcome);
         var command = new InsertMarketDataDownloadLogCommand(outcome);
         if (command.CommandId != logCommandId || !string.Equals(command.PayloadSha256,payloadSha256,StringComparison.Ordinal))
             throw new ArgumentException("DownloadLog projection identity/hash mismatch.",nameof(logCommandId));
-        await _dbFactory.MarketDataDb.Use("DownloadLog.Insert", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DownloadLogInsert : MarketDataDbCql.DownloadLogInsert)
-            .SetParameters(new DownloadLogParameters(outcome.Dataset.ToString(), outcome.Provider, outcome.Scope, outcome.ValueDate, outcome.RequestedAtUtc, outcome.ImportCommandId, logCommandId, outcome.SourceTerminalEventId, outcome.SchemaVersion, outcome.Status.ToString(), outcome.StartedAtUtc, outcome.FinishedAtUtc, outcome.ElapsedMilliseconds, outcome.DownloadedRecordCount, outcome.PersistedRecordCount, outcome.ErrorCode, outcome.ErrorMessage, payloadSha256, DateTime.UtcNow) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await _dbFactory.MarketDataDb.Use("DownloadLog.Insert", MarketDataDbSql.DownloadLogInsert)
+            .SetParameters(new DownloadLogParameters(outcome.Dataset.ToString(), outcome.Provider, outcome.Scope, outcome.ValueDate, outcome.RequestedAtUtc, outcome.ImportCommandId, logCommandId, outcome.SourceTerminalEventId, outcome.SchemaVersion, outcome.Status.ToString(), outcome.StartedAtUtc, outcome.FinishedAtUtc, outcome.ElapsedMilliseconds, outcome.DownloadedRecordCount, outcome.PersistedRecordCount, outcome.ErrorCode, outcome.ErrorMessage, payloadSha256, DateTime.UtcNow) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Market Data Download Log using the MarketDataDb persistence.</summary>
+    /// <param name="partition">The partition used by this operation.</param>
+    /// <param name="attempt">The attempt used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<MarketDataDownloadLogResult> GetMarketDataDownloadLogAsync(MarketDataDownloadPartition partition, MarketDataDownloadCursor attempt, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(attempt);
         ArgumentNullException.ThrowIfNull(partition);
         partition.Validate();
         MarketDataDbContextExtensions.ValidateDownloadCursor(attempt);
-        var rows = await _dbFactory.MarketDataDb.Use("DownloadLog.Exact", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DownloadLogExact : MarketDataDbCql.DownloadLogSelect + " AND requested_at_utc = :RequestedAtUtc AND import_command_id = :ImportCommandId LIMIT 1;")
-            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, attempt.RequestedAtUtc, attempt.ImportCommandId, 1, true) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        var rows = await _dbFactory.MarketDataDb.Use("DownloadLog.Exact", MarketDataDbSql.DownloadLogExact)
+            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, attempt.RequestedAtUtc, attempt.ImportCommandId, 1, true) { PostgreSql = true })
             .ExecuteQueryAsync(MapToDownloadLog, cancellationToken)
             .ConfigureAwait(false);
         return new(rows.FirstOrDefault());
     }
 
+    /// <summary>Get Market Data Download History using the MarketDataDb persistence.</summary>
+    /// <param name="partition">The partition used by this operation.</param>
+    /// <param name="pageSize">The page size used by this operation.</param>
+    /// <param name="cursor">The cursor used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<MarketDataDownloadHistoryResult> GetMarketDataDownloadHistoryAsync(MarketDataDownloadPartition partition, int pageSize = 100, MarketDataDownloadCursor? cursor = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(partition);
@@ -3584,10 +2881,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         if (cursor is not null)
             MarketDataDbContextExtensions.ValidateDownloadCursor(cursor);
         var cql = MarketDataDbCql.DownloadLogSelect + (cursor is null ? "" : " AND (requested_at_utc, import_command_id) < (:RequestedAtUtc, :ImportCommandId)") + " LIMIT :RowLimit;";
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            cql = cursor is null ? MarketDataDbSql.DownloadLogHistory : MarketDataDbSql.DownloadLogHistoryAfter;
+        cql = cursor is null ? MarketDataDbSql.DownloadLogHistory : MarketDataDbSql.DownloadLogHistoryAfter;
         var rows = await _dbFactory.MarketDataDb.Use(cursor is null ? "DownloadLog.History" : "DownloadLog.HistoryAfter", cql)
-            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, cursor?.RequestedAtUtc ?? DateTime.UnixEpoch, cursor?.ImportCommandId ?? Guid.Empty, pageSize + 1) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            .SetParameters(new DownloadLogReadParameters(partition.Dataset.ToString(), partition.Provider, partition.Scope, partition.ValueDate, cursor?.RequestedAtUtc ?? DateTime.UnixEpoch, cursor?.ImportCommandId ?? Guid.Empty, pageSize + 1) { PostgreSql = true })
             .ExecuteQueryAsync(MapToDownloadLog, cancellationToken)
             .ConfigureAwait(false);
         var items = rows.Take(pageSize).ToArray();
@@ -3595,6 +2891,12 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return new(items, rows.Count > pageSize && last is not null ? new(last.RequestedAtUtc, last.ImportCommandId) : null);
     }
 
+    /// <summary>Get Market Data Download Status using the MarketDataDb persistence.</summary>
+    /// <param name="partition">The partition used by this operation.</param>
+    /// <param name="requiredImportCommandId">The required import command id used by this operation.</param>
+    /// <param name="cursor">The cursor used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<MarketDataDownloadStatusResult> GetMarketDataDownloadStatusAsync(MarketDataDownloadPartition partition, Guid? requiredImportCommandId = null, MarketDataDownloadCursor? cursor = null, CancellationToken cancellationToken = default)
     {
         if (requiredImportCommandId == Guid.Empty)
@@ -3609,6 +2911,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return new(success is not null, first.Attempts.FirstOrDefault(), success, page.Continuation is null, selected is null ? page.Continuation : null, requiredImportCommandId.HasValue ? selected : null);
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketDataDownloadLogReadModel MapToDownloadLog(IObjectDataRecord row)
     {
         var outcome = new MarketDataDownloadOutcome
@@ -3642,6 +2947,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     internal const int EconomicCalendarMaximumRowsPerMonth = EconomicCalendarQueryLimits.MaximumRowsPerPartition;
     internal const int EconomicCalendarMaximumConcurrentQueries = 4;
     internal const int EconomicCalendarLookupId = 1;
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static EconomicCalendarReadModel MapToEconomicCalendar(IObjectDataRecord row) => new()
     {
         EventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.GetDateTime(0)),
@@ -3657,23 +2965,42 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         CreatedOn = row.GetDateTime(10),
         CreatedBy = row.GetString(11)
     };
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static EconomicCalendarCountryCodeReadModel MapToEconomicCalendarCountryCode(IObjectDataRecord row) => new(row.GetString(0));
+    /// <summary>Get Economic Calendar using the MarketDataDb persistence.</summary>
+    /// <param name="id">The id used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id) => GetEconomicCalendarAsync(id, CancellationToken.None);
+    /// <summary>Get Economic Calendar using the MarketDataDb persistence.</summary>
+    /// <param name="id">The id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId id, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(id);
         var eventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(id.EventDate);
-        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2ById)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetEconomicCalendarV2ById : MarketDataDbCql.GetEconomicCalendarV2ById)
-            .SetParameters(new GetEconomicCalendarV2ById(id.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2ById)}", MarketDataDbSql.GetEconomicCalendarV2ById)
+            .SetParameters(new GetEconomicCalendarV2ById(id.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName) { PostgreSql = true })
             .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken))
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="eventDate">The event date used by this operation.</param>
+    /// <param name="countryCode">The country code used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode) => GetEconomicCalendarsAsync(eventDate, countryCode, CancellationToken.None);
+    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="eventDate">The event date used by this operation.</param>
+    /// <param name="countryCode">The country code used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode, CancellationToken cancellationToken)
     {
         var startDate = eventDate.Date;
@@ -3681,7 +3008,18 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken);
     }
 
+    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="countryCode">The country code used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode) => GetEconomicCalendarsAsync(startDate, endDate, countryCode, CancellationToken.None);
+    /// <summary>Get Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="countryCode">The country code used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime startDate, DateTime endDate, string countryCode, CancellationToken cancellationToken)
     {
         startDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(startDate);
@@ -3712,6 +3050,10 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return [.. rows.Take(EconomicCalendarMaximumRows)];
     }
 
+    /// <summary>Get Economic Calendar Page using the MarketDataDb persistence.</summary>
+    /// <param name="request">The request used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<EconomicCalendarPageReadModel> GetEconomicCalendarPageAsync(EconomicCalendarPageRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -3725,8 +3067,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         {
             cancellationToken.ThrowIfCancellationRequested();
             var partition = partitions[partitionIndex];
-            var partitionRows = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendars)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetEconomicCalendars : MarketDataDbCql.GetEconomicCalendars)
-                .SetParameters(new GetEconomicCalendars(partition.CountryCode, partition.MonthBucket, request.StartDateUtc, request.EndDateUtc) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var partitionRows = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendars)}", MarketDataDbSql.GetEconomicCalendars)
+                .SetParameters(new GetEconomicCalendars(partition.CountryCode, partition.MonthBucket, request.StartDateUtc, request.EndDateUtc) { PostgreSql = true })
                 .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)
                 .ConfigureAwait(false);
             if (partitionRows.Count > EconomicCalendarMaximumRowsPerMonth)
@@ -3754,9 +3096,14 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Get Economic Calendar All using the MarketDataDb persistence.</summary>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Retained forwarding compatibility entry point; new callers use explicit bounded page queries.")]
     [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
     public Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync() => GetEconomicCalendarAllAsync(CancellationToken.None);
+    /// <summary>Get Economic Calendar All using the MarketDataDb persistence.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1133", Justification = "Retained forwarding compatibility entry point; new callers use explicit bounded page queries.")]
     [Obsolete("Use GetEconomicCalendarPageAsync with explicit UTC bounds and country codes.")]
     public async Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarAllAsync(CancellationToken cancellationToken)
@@ -3800,189 +3147,101 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return [.. rows.OrderByDescending(static row => row.EventDate).ThenBy(static row => row.CountryCode, StringComparer.Ordinal).ThenBy(static row => row.EventName, StringComparer.Ordinal).Take(EconomicCalendarMaximumRows)];
     }
 
+    /// <summary>Get Economic Calendar Country Codes using the MarketDataDb persistence.</summary>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync() => GetEconomicCalendarCountryCodesAsync(CancellationToken.None);
-    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(CancellationToken cancellationToken) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarCountryCodes)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetEconomicCalendarCountryCodes : MarketDataDbCql.GetEconomicCalendarCountryCodes)
-        .SetParameters(new GetEconomicCalendarCountryCodes(EconomicCalendarLookupId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Economic Calendar Country Codes using the MarketDataDb persistence.</summary>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(CancellationToken cancellationToken) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarCountryCodes)}", MarketDataDbSql.GetEconomicCalendarCountryCodes)
+        .SetParameters(new GetEconomicCalendarCountryCodes(EconomicCalendarLookupId) { PostgreSql = true })
         .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken))
                 .ConfigureAwait(false);
+    /// <summary>Delete Economic Calendar using the MarketDataDb persistence.</summary>
+    /// <param name="id">The id used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task DeleteEconomicCalendarAsync(EconomicCalendarId id)
     {
         ArgumentNullException.ThrowIfNull(id);
         var eventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(id.EventDate);
-        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteEconomicCalendarV2)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.DeleteEconomicCalendarV2 : MarketDataDbCql.DeleteEconomicCalendarV2)
-            .SetParameters(new DeleteEconomicCalendarV2(id.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteEconomicCalendarV2)}", MarketDataDbSql.DeleteEconomicCalendarV2)
+            .SetParameters(new DeleteEconomicCalendarV2(id.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName) { PostgreSql = true })
             .ExecuteCommandAsync())
                 .ConfigureAwait(false);
     }
 
+    /// <summary>Insert Economic Calendar using the MarketDataDb persistence.</summary>
+    /// <param name="economicCalendar">The economic calendar used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar) => InsertEconomicCalendarsAsync([economicCalendar]);
+    /// <summary>Insert Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="economicCalendars">The economic calendars used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars) => InsertEconomicCalendarsAsync(economicCalendars, ImportDuplicatePolicy.Overwrite, Guid.Empty);
+    /// <summary>Insert Economic Calendars using the MarketDataDb persistence.</summary>
+    /// <param name="economicCalendars">The economic calendars used by this operation.</param>
+    /// <param name="duplicatePolicy">The duplicate policy used by this operation.</param>
+    /// <param name="commandId">The originating command identifier.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars, ImportDuplicatePolicy duplicatePolicy, Guid commandId)
     {
         ArgumentNullException.ThrowIfNull(economicCalendars);
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
             await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
-                .ExecuteOnceAsync(async (transaction,token) => { await PostgresEconomicCalendarStore.ImportAsync(transaction,economicCalendars,duplicatePolicy,commandId,token)
+                .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,economicCalendars,duplicatePolicy,commandId,token)
                 .ConfigureAwait(false); return true; })
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(economicCalendars);
-        if (economicCalendars.Length == 0)
-            return;
-        MarketDataDbContextExtensions.ValidateImportPolicy(duplicatePolicy, commandId);
-        var db = _dbFactory.MarketDataDb;
-        var commands = new List<object>(economicCalendars.Length * 2);
-        var countryCodes = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var row in economicCalendars)
-        {
-            var eventDate = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(row.EventDate);
-            var parameters = new InsertEconomicCalendarV2(row.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName, row.Actual, row.Forecast, row.Prior, row.Impact, row.Unit, row.Change, row.ChangePercentage, row.CreatedOn, row.CreatedBy, commandId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) };
-            if (duplicatePolicy == ImportDuplicatePolicy.Reject)
-            {
-                var applied = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)}", MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)
-                    .SetParameters(parameters)
-                    .ExecuteScalarAsync(MapToBoolean!))
-                .ConfigureAwait(false);
-                if (!applied)
-                {
-                    var owner = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2CommandId)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetEconomicCalendarV2CommandId : MarketDataDbCql.GetEconomicCalendarV2CommandId)
-                        .SetParameters(new GetEconomicCalendarV2CommandId(row.CountryCode, MarketDataDbContextExtensions.EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-                        .ExecuteSingleAsync(MapToGuid!))
-                .ConfigureAwait(false);
-                    if (owner != commandId)
-                        throw new MarketDataImportDuplicateException($"An economic-calendar row with logical key '{eventDate:O}|{row.CountryCode}|{row.EventName}' already exists.");
-                }
-            }
-            else
-            {
-                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertEconomicCalendarV2 : MarketDataDbCql.InsertEconomicCalendarV2)
-                    .SetParameters(parameters)
-                    .QueueCommand());
-            }
-
-            countryCodes.Add(row.CountryCode);
-        }
-
-        commands.AddRange(countryCodes.Select(countryCode => db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertEconomicCalendarCountryCode : MarketDataDbCql.InsertEconomicCalendarCountryCode)
-            .SetParameters(new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, countryCode) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
-            .QueueCommand()));
-        if (commands.Count > 0)
-            await (db.ExecuteQueuedCommandsAsync(commands))
-                .ConfigureAwait(false);
     }
 
+    /// <summary>Update Economic Calendar using the MarketDataDb persistence.</summary>
+    /// <param name="id">The id used by this operation.</param>
+    /// <param name="economicCalendar">The economic calendar used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task UpdateEconomicCalendarAsync(EconomicCalendarId id, EconomicCalendarReadModel economicCalendar)
     {
         ArgumentNullException.ThrowIfNull(id);
         ArgumentNullException.ThrowIfNull(economicCalendar);
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
             var date = MarketDataDbContextExtensions.NormalizeEconomicCalendarTimestamp(id.EventDate);
             await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
                 .ExecuteOnceAsync(async (transaction,token) =>
                 {
                     await transaction.ExecuteAsync(MarketDataDbSql.DeleteEconomicCalendarV2,(Npgsql.NpgsqlParameter[])new DeleteEconomicCalendarV2(id.CountryCode,MarketDataDbContextExtensions.EconomicCalendarMonthBucket(date),date,id.EventName) { PostgreSql = true }.Bind(),token)
                 .ConfigureAwait(false);
-                    await PostgresEconomicCalendarStore.ImportAsync(transaction,[economicCalendar],ImportDuplicatePolicy.Overwrite,Guid.Empty,token)
+                    await MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,[economicCalendar],ImportDuplicatePolicy.Overwrite,Guid.Empty,token)
                 .ConfigureAwait(false);
                     return true;
                 })
                 .ConfigureAwait(false);
             return;
-        }
-
-        await (DeleteEconomicCalendarAsync(id))
-                .ConfigureAwait(false);
-        await (InsertEconomicCalendarAsync(economicCalendar))
-                .ConfigureAwait(false);
     }
 
+    /// <summary>Backfill Fmp Query Projections using the MarketDataDb persistence.</summary>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "MA0051", Justification = "Native and transitional provider paths implement one compatibility operation; retain its transaction and failure ordering during migration.")]
     public async Task<FmpQueryProjectionBackfillReadModel> BackfillFmpQueryProjectionsAsync(int batchSize = 256, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-            return await new PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
-                .ExecuteAsync((transaction,token) => PostgresYieldCurveStore.RebuildIndexesAsync(transaction,token),cancellationToken)
+        return await new PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+                .ExecuteAsync((transaction,token) => MarketDataDbContextExtensions.RebuildYieldCurveIndexesAsync(transaction,token),cancellationToken)
                 .ConfigureAwait(false);
-        var db = _dbFactory.MarketDataDb;
-        await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateByDate)}", MarketDataDbCql.TruncateYieldCurveRateByDate)
-            .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-        await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateYear)}", MarketDataDbCql.TruncateYieldCurveRateYear)
-            .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-        long sourceRows = 0;
-        var sourceIdentity = new ProjectionIdentityBuilder();
-        var years = new HashSet<int>();
-        var batch = new List<InsertYieldCurveRate>(batchSize);
-        await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateProjectionSource)}", MarketDataDbCql.GetYieldCurveRateProjectionSource)
-            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
-                .ConfigureAwait(false))
-        {
-            sourceRows++;
-            sourceIdentity.Add(MarketDataDbContextExtensions.GetYieldCurveProjectionIdentity(row));
-            years.Add(row.ValueDate.Year);
-            batch.Add(new InsertYieldCurveRate(YieldCurveLookupId, row.ValueDate, row.OneMonth, row.TwoMonth, row.ThreeMonth, row.SixMonth, row.OneYear, row.TwoYear, row.ThreeYear, row.FiveYear, row.SevenYear, row.TenYear, row.TwentyYear, row.ThirtyYear) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) });
-            if (batch.Count == batchSize)
-                await (FlushYieldBatchAsync())
-                .ConfigureAwait(false);
-        }
-
-        await (FlushYieldBatchAsync())
-                .ConfigureAwait(false);
-        if (years.Count > 0)
-        {
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateYear)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertYieldCurveRateYear : MarketDataDbCql.InsertYieldCurveRateYear)
-                .SetParameters(years.Select(year => new InsertYieldCurveRateYear(YieldCurveLookupId, year) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }))
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-        }
-
-        long targetRows = 0;
-        var targetIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateByDateAll)}", MarketDataDbCql.GetYieldCurveRateByDateAll)
-            .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
-                .ConfigureAwait(false))
-        {
-            targetRows++;
-            targetIdentity.Add(MarketDataDbContextExtensions.GetYieldCurveProjectionIdentity(row));
-        }
-
-        var projectedYears = await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateYearAll)}", MarketDataDbCql.GetYieldCurveRateYearAll)
-            .ExecuteQueryAsync(MapToYearMonth, cancellationToken))
-                .ConfigureAwait(false);
-        var source = sourceIdentity.Build();
-        var target = targetIdentity.Build();
-        var sourceYears = MarketDataDbContextExtensions.BuildIntegerSetIdentity(years);
-        var targetYears = MarketDataDbContextExtensions.BuildIntegerSetIdentity(projectedYears);
-        return new FmpQueryProjectionBackfillReadModel(sourceRows, targetRows, source.Fingerprint, target.Fingerprint, years.Count, projectedYears.Count, sourceYears.Fingerprint, targetYears.Fingerprint);
-        async Task FlushYieldBatchAsync()
-        {
-            if (batch.Count == 0)
-                return;
-            await (db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateByDate)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertYieldCurveRateByDate : MarketDataDbCql.InsertYieldCurveRateByDate)
-                .SetParameters(batch)
-                .ExecuteCommandAsync(cancellationToken))
-                .ConfigureAwait(false);
-            batch.Clear();
-        }
     }
 
     /// <summary>
     /// Copies malformed legacy rows to an idempotent quarantine table and rebuilds
     /// lookup entries from valid rows. Canonical source rows are never deleted.
     /// </summary>
+    /// <param name="batchSize">The maximum number of records to return or claim.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "MA0051", Justification = "Native and transitional provider paths implement one compatibility operation; retain its transaction and failure ordering during migration.")]
     public async Task<FuturesTradeSignalRepairReadModel> RepairFuturesTradeSignalLookupAsync(int batchSize = 256, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
             return await new PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
-                .ExecuteAsync((transaction,token) => PostgresTradeSignalIndexStore.RebuildAsync(transaction,token),cancellationToken)
+                .ExecuteAsync((transaction,token) => MarketDataDbContextExtensions.RebuildTradeSignalIndexesAsync(transaction,token),cancellationToken)
                 .ConfigureAwait(false);
         var db = _dbFactory.MarketDataDb;
         var latestRows = new Dictionary<string, FuturesTradeSignalRepairRow>(StringComparer.Ordinal);
@@ -4042,31 +3301,48 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     internal const string FuturesItiSignalQueryProjection = "futures_iti_signal_queries";
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesItiProjectionScopeData MapToFuturesItiProjectionScope<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord => new(row.GetString(0), row.GetDateOnly(1), row.GetString(2), row.GetString(3));
     internal static readonly MessagePackSerializerOptions MarketOutlookSerializerOptions = MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance).WithCompression(MessagePackCompression.Lz4BlockArray);
+    /// <summary>Upsert Market Outlook Snapshot using the MarketDataDb persistence.</summary>
+    /// <param name="snapshot">The snapshot used by this operation.</param>
+    /// <param name="revision">The revision used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task UpsertMarketOutlookSnapshotAsync(MarketOutlookReadModel snapshot, long revision = 0, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var payload = MessagePackSerializer.Serialize(snapshot, MarketOutlookSerializerOptions,cancellationToken:cancellationToken);
         var eod = MessagePackSerializer.Serialize(snapshot.FuturesEodData, MarketOutlookSerializerOptions,cancellationToken:cancellationToken);
         var tradeSignal = snapshot.FuturesTradeSignal is null ? null : MessagePackSerializer.Serialize(snapshot.FuturesTradeSignal, MarketOutlookSerializerOptions,cancellationToken:cancellationToken);
-        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertMarketOutlookSnapshot)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.UpsertMarketOutlookSnapshot : MarketDataDbCql.UpsertMarketOutlookSnapshot)
-            .SetParameters(new UpsertMarketOutlookSnapshot(snapshot.ContractId, snapshot.ValueDate, revision, snapshot.UpdatedAtUtc, eod, tradeSignal, snapshot.MissingInputs, payload) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertMarketOutlookSnapshot)}", MarketDataDbSql.UpsertMarketOutlookSnapshot)
+            .SetParameters(new UpsertMarketOutlookSnapshot(snapshot.ContractId, snapshot.ValueDate, revision, snapshot.UpdatedAtUtc, eod, tradeSignal, snapshot.MissingInputs, payload) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Market Outlook Snapshot using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<MarketOutlookReadModel?> GetMarketOutlookSnapshotAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(contractId) || valueDate == default)
             return null;
-        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookSnapshot)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetMarketOutlookSnapshot : MarketDataDbCql.GetMarketOutlookSnapshot)
-            .SetParameters(new GetMarketOutlookSnapshot(contractId, valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookSnapshot)}", MarketDataDbSql.GetMarketOutlookSnapshot)
+            .SetParameters(new GetMarketOutlookSnapshot(contractId, valueDate) { PostgreSql = true })
             .ExecuteSingleAsync(MapToMarketOutlookSnapshot, cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketOutlookReadModel MapToMarketOutlookSnapshot(IObjectDataRecord row)
     {
         var contractId = row.GetString(1);
@@ -4078,6 +3354,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return snapshot;
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketOutlookReadModel MapToLegacyMarketOutlookSnapshot(IObjectDataRecord row, string contractId, DateOnly valueDate)
     {
         var eodPayload = row.GetBytes(5);
@@ -4104,29 +3385,53 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     internal const string EmaConfigurationId = "ema-10-20-50-200-v1";
     internal const string BollingerBandConfigurationId = "bb-10-20-ema-center-population-v1";
     /// <inheritdoc/>
+    /// <summary>Insert Futures Ema Signal using the MarketDataDb persistence.</summary>
+    /// <param name="signal">The signal used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertFuturesEmaSignalAsync(FuturesEmaSignalReadModel signal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = signal.Metadata;
-        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEmaSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesEmaSignal : MarketDataDbCql.InsertFuturesEmaSignal)
-            .SetParameters(new InsertFuturesEmaSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10, signal.PreviousEma10, signal.Ema10Slope, signal.Ema20, signal.PreviousEma20, signal.Ema20Slope, signal.Ema50, signal.PreviousEma50, signal.Ema50Slope, signal.Ema200, signal.PreviousEma200, signal.Ema200Slope, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEmaSignal)}", MarketDataDbSql.InsertFuturesEmaSignal)
+            .SetParameters(new InsertFuturesEmaSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10, signal.PreviousEma10, signal.Ema10Slope, signal.Ema20, signal.PreviousEma20, signal.Ema20Slope, signal.Ema50, signal.PreviousEma50, signal.Ema50Slope, signal.Ema200, signal.PreviousEma200, signal.Ema200Slope, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
+    /// <summary>Insert Futures Bollinger Band Signal using the MarketDataDb persistence.</summary>
+    /// <param name="signal">The signal used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertFuturesBollingerBandSignalAsync(FuturesBbSignalReadModel signal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = signal.Metadata;
-        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBollingerBandSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesBollingerBandSignal : MarketDataDbCql.InsertFuturesBollingerBandSignal)
-            .SetParameters(new InsertFuturesBollingerBandSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10Center, signal.StandardDeviation10, signal.Upper10, signal.Lower10, signal.Width10, signal.Position10, signal.Ema20Center, signal.StandardDeviation20, signal.Upper20, signal.Lower20, signal.Width20, signal.Position20, signal.Width20Baseline, signal.Width20Ratio, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBollingerBandSignal)}", MarketDataDbSql.InsertFuturesBollingerBandSignal)
+            .SetParameters(new InsertFuturesBollingerBandSignal(metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(), metadata.CalculationConfigurationId, MarketDataDbContextExtensions.Bucket(metadata.ValueDate), metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value, metadata.ContractId, metadata.ValueDate, signal.Price, signal.Ema10Center, signal.StandardDeviation10, signal.Upper10, signal.Lower10, signal.Width10, signal.Position10, signal.Ema20Center, signal.StandardDeviation20, signal.Upper20, signal.Lower20, signal.Width20, signal.Position20, signal.Width20Baseline, signal.Width20Ratio, signal.IsWarm, metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime, metadata.SchemaVersion, metadata.CalculationVersion, metadata.CalculationMethod.ToString(), metadata.IsValid) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
+    /// <summary>Get Latest Futures Ema Signal using the MarketDataDb persistence.</summary>
+    /// <param name="seriesIdentity">The series identity used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken = default) => this.ReadLatestAsync(seriesIdentity, valueDate, EmaConfigurationId, MarketDataDbCql.GetLatestFuturesEmaSignal, nameof(MarketDataDbCql.GetLatestFuturesEmaSignal), MapToFuturesEmaSignal, cancellationToken);
     /// <inheritdoc/>
+    /// <summary>Get Latest Futures Bollinger Band Signal using the MarketDataDb persistence.</summary>
+    /// <param name="seriesIdentity">The series identity used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken = default) => this.ReadLatestAsync(seriesIdentity, valueDate, BollingerBandConfigurationId, MarketDataDbCql.GetLatestFuturesBollingerBandSignal, nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal), MapToFuturesBollingerBandSignal, cancellationToken);
+    /// <summary>Get Latest Futures Bollinger Band Signal For Time Frame using the MarketDataDb persistence.</summary>
+    /// <param name="seriesIdentity">The series identity used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="timeFrame">The time frame used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalForTimeFrameAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, TimeFrameType timeFrame, CancellationToken cancellationToken = default)
     {
         if (timeFrame is not (TimeFrameType.FifteenSeconds or TimeFrameType.FiveMinutes or TimeFrameType.Daily))
@@ -4134,6 +3439,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return this.ReadMonthAsync(seriesIdentity, valueDate, valueDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc), BollingerBandConfigurationId, MarketDataDbCql.GetLatestFuturesBollingerBandSignal, nameof(MarketDataDbCql.GetLatestFuturesBollingerBandSignal), MapToFuturesBollingerBandSignal, cancellationToken, timeFrame);
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="value">The value used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesEmaSignalReadModel MapToFuturesEmaSignal(IObjectDataRecord value)
     {
         var metadata = MapToMetadata(value, MarketAnalyticsSignalKind.Ema);
@@ -4158,6 +3466,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="value">The value used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesBbSignalReadModel MapToFuturesBollingerBandSignal(IObjectDataRecord value)
     {
         var metadata = MapToMetadata(value, MarketAnalyticsSignalKind.BollingerBand, 23);
@@ -4184,6 +3495,11 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         };
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="value">The value used by this operation.</param>
+    /// <param name="kind">The kind used by this operation.</param>
+    /// <param name="sourceSequenceIndex">The source sequence index used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static MarketAnalyticsSignalMetadata MapToMetadata(IObjectDataRecord value, MarketAnalyticsSignalKind kind, int sourceSequenceIndex = 21)
     {
         var series = MarketSeriesIdentity.Parse(value.GetString(0));
@@ -4210,23 +3526,43 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     /// <inheritdoc/>
+    /// <summary>Insert Futures Vwap Signal using the MarketDataDb persistence.</summary>
+    /// <param name="signal">The signal used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertFuturesVwapSignalAsync(FuturesVwapSignalReadModel signal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVwapSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesVwapSignal : MarketDataDbCql.InsertFuturesVwapSignal)
-            .SetParameters(new InsertFuturesVwapSignal(signal.ContractId, signal.ValueDate, signal.ConfigurationId, signal.AsOfUtc.UtcDateTime, signal.LastTradeOrdinal, signal.SessionStartUtc.UtcDateTime, signal.SessionEndUtc.UtcDateTime, signal.CumulativePriceVolume, signal.CumulativeVolume, signal.EligibleTradeCount, signal.RejectedTradeCount, signal.LastPrice, signal.Vwap, signal.PriceMinusVwap, signal.PriceToVwapPercent, signal.LastTradeSourceSequence, signal.StreamEpochId, signal.IsWarm, signal.IsValid, signal.InvalidReason.ToString(), signal.IsTickExact, signal.CalculationMethod.ToString(), signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVwapSignal)}", MarketDataDbSql.InsertFuturesVwapSignal)
+            .SetParameters(new InsertFuturesVwapSignal(signal.ContractId, signal.ValueDate, signal.ConfigurationId, signal.AsOfUtc.UtcDateTime, signal.LastTradeOrdinal, signal.SessionStartUtc.UtcDateTime, signal.SessionEndUtc.UtcDateTime, signal.CumulativePriceVolume, signal.CumulativeVolume, signal.EligibleTradeCount, signal.RejectedTradeCount, signal.LastPrice, signal.Vwap, signal.PriceMinusVwap, signal.PriceToVwapPercent, signal.LastTradeSourceSequence, signal.StreamEpochId, signal.IsWarm, signal.IsValid, signal.InvalidReason.ToString(), signal.IsTickExact, signal.CalculationMethod.ToString(), signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(string contractId, DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVwapSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLatestFuturesVwapSignal : MarketDataDbCql.GetLatestFuturesVwapSignal)
-        .SetParameters(new GetLatestFuturesVwapSignal(contractId, valueDate, configurationId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Latest Futures Vwap Signal using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="configurationId">The configuration id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(string contractId, DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVwapSignal)}", MarketDataDbSql.GetLatestFuturesVwapSignal)
+        .SetParameters(new GetLatestFuturesVwapSignal(contractId, valueDate, configurationId) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesVwapSignal!, cancellationToken);
     /// <inheritdoc/>
-    public async Task<ICollection<FuturesVwapSignalReadModel>> GetFuturesVwapSignalHistoryAsync(string contractId, DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesVwapSignalHistory)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetFuturesVwapSignalHistory : MarketDataDbCql.GetFuturesVwapSignalHistory)
-        .SetParameters(new GetFuturesVwapSignalHistory(contractId, valueDate, configurationId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Futures Vwap Signal History using the MarketDataDb persistence.</summary>
+    /// <param name="contractId">The contract id used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="configurationId">The configuration id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public async Task<ICollection<FuturesVwapSignalReadModel>> GetFuturesVwapSignalHistoryAsync(string contractId, DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => await (_dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesVwapSignalHistory)}", MarketDataDbSql.GetFuturesVwapSignalHistory)
+        .SetParameters(new GetFuturesVwapSignalHistory(contractId, valueDate, configurationId) { PostgreSql = true })
         .ExecuteQueryAsync(MapToFuturesVwapSignal!, cancellationToken))
                 .ConfigureAwait(false);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesVwapSignalReadModel MapToFuturesVwapSignal<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord => new()
         {
@@ -4256,18 +3592,31 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             CalculationVersion = row.GetString(23)
         };
     /// <inheritdoc/>
+    /// <summary>Insert Futures Vx Term Structure Signal using the MarketDataDb persistence.</summary>
+    /// <param name="signal">The signal used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertFuturesVxTermStructureSignalAsync(FuturesVxTermStructureSignalReadModel signal, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(signal);
-        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVxTermStructureSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertFuturesVxTermStructureSignal : MarketDataDbCql.InsertFuturesVxTermStructureSignal)
-            .SetParameters(new InsertFuturesVxTermStructureSignal(signal.ValueDate, signal.ConfigurationId, signal.CalculatedAtUtc.UtcDateTime, signal.FrontSourceSequence, signal.BackSourceSequence, signal.FrontVxContractId, signal.FrontExpiry, signal.FrontVxPrice, signal.BackVxContractId, signal.BackExpiry, signal.BackVxPrice, signal.FrontBackSpread, signal.FrontBackRatio, signal.TermStructurePercent, signal.TermStructureState.ToString(), signal.PriorFrontBackRatio, signal.PriorTermStructurePercent, signal.FrontSourceTimestampUtc.UtcDateTime, signal.BackSourceTimestampUtc.UtcDateTime, signal.IsWarm, signal.IsValid, signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesVxTermStructureSignal)}", MarketDataDbSql.InsertFuturesVxTermStructureSignal)
+            .SetParameters(new InsertFuturesVxTermStructureSignal(signal.ValueDate, signal.ConfigurationId, signal.CalculatedAtUtc.UtcDateTime, signal.FrontSourceSequence, signal.BackSourceSequence, signal.FrontVxContractId, signal.FrontExpiry, signal.FrontVxPrice, signal.BackVxContractId, signal.BackExpiry, signal.BackVxPrice, signal.FrontBackSpread, signal.FrontBackRatio, signal.TermStructurePercent, signal.TermStructureState.ToString(), signal.PriorFrontBackRatio, signal.PriorTermStructurePercent, signal.FrontSourceTimestampUtc.UtcDateTime, signal.BackSourceTimestampUtc.UtcDateTime, signal.IsWarm, signal.IsValid, signal.SchemaVersion, signal.CalculationVersion) { PostgreSql = true })
             .ExecuteCommandAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task<FuturesVxTermStructureSignalReadModel?> GetLatestFuturesVxTermStructureSignalAsync(DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVxTermStructureSignal)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetLatestFuturesVxTermStructureSignal : MarketDataDbCql.GetLatestFuturesVxTermStructureSignal)
-        .SetParameters(new GetLatestFuturesVxTermStructureSignal(valueDate, configurationId) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+    /// <summary>Get Latest Futures Vx Term Structure Signal using the MarketDataDb persistence.</summary>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="configurationId">The configuration id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public Task<FuturesVxTermStructureSignalReadModel?> GetLatestFuturesVxTermStructureSignalAsync(DateOnly valueDate, string configurationId, CancellationToken cancellationToken = default) => _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVxTermStructureSignal)}", MarketDataDbSql.GetLatestFuturesVxTermStructureSignal)
+        .SetParameters(new GetLatestFuturesVxTermStructureSignal(valueDate, configurationId) { PostgreSql = true })
         .ExecuteSingleAsync(MapToFuturesVxTermStructureSignal!, cancellationToken);
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <typeparam name="TDataRecord">The event, snapshot, state or record type used by the operation.</typeparam>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesVxTermStructureSignalReadModel MapToFuturesVxTermStructureSignal<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord => new()
         {
@@ -4295,41 +3644,35 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             SchemaVersion = row.GetInt(21),
             CalculationVersion = row.GetString(22)
         };
+    /// <summary>Insert Tick Trade Data using the MarketDataDb persistence.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return _dbFactory.TradeTickQuoteDb.InsertTickTradeDataAsync(e);
-        ArgumentNullException.ThrowIfNull(e);
-        var id = e.TickDataId;
-        var data = e.TradeData;
-        return this.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickTradeData)}", MarketDataDbCql.InsertTickTradeData)
-            .SetParameters(new InsertTickTradeData([(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (long)data.SourceSequence, data.EventTimestampNanoseconds, data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags, data.PriceRaw, data.Price, (long)data.Size, (short)data.Action, (short)data.Side, (short)data.DbnFlags]))
-            .ExecuteCommandAsync();
+        return _dbFactory.TradeTickQuoteDb.InsertTickTradeDataAsync(e);
     }
 
     /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
+    /// <param name="e">The e used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "InsertTickQuoteData transfers the encoded value through IScyllaOwnedBindValues.BindLifetime; the Scylla executor disposes it after binding/execution, including failure.")]
     public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e)
     {
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-            return _dbFactory.TradeTickQuoteDb.InsertTickQuoteDataAsync(e);
-        ArgumentNullException.ThrowIfNull(e);
-        var id = e.TickDataId;
-        var encoded = new TickQuoteScyllaBindValue(e.QuoteData);
-        object?[] values = [(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (short)e.EmissionReason, (short)e.QuoteCount, encoded];
-        return this.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickQuoteData)}", MarketDataDbCql.InsertTickQuoteData)
-            .SetParameters(new InsertTickQuoteData(values, encoded))
-            .ExecuteCommandAsync();
+        return _dbFactory.TradeTickQuoteDb.InsertTickQuoteDataAsync(e);
     }
 
     internal const string CompositionPreparationSelect = "SELECT payload FROM composition_preparation WHERE workflow_id=:workflow AND input_revision=:revision;";
     internal const string CompositionPreparationInsert = "INSERT INTO composition_preparation(workflow_id,input_revision,payload) VALUES(:workflow,:revision,:payload) IF NOT EXISTS;";
+    /// <summary>Read using the MarketDataDb persistence.</summary>
+    /// <param name="key">The key used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<CompositionPreparation?> ReadAsync(CompositionPreparationKey key, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(key);
         CompositionPreparationService.ValidateKey(key);
-        var rows = await this.Database.Use("CompositionPreparation.Read", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetCompositionPreparation : CompositionPreparationSelect)
-            .SetParameters(new NativeCompositionReadParameters(key.WorkflowId, key.InputRevision, string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)))
+        var rows = await this.Database.Use("CompositionPreparation.Read", MarketDataDbSql.GetCompositionPreparation)
+            .SetParameters(new NativeCompositionReadParameters(key.WorkflowId, key.InputRevision, true))
             .ExecuteQueryAsync(row => MessagePackBinarySerializer.Shared.Deserialize<CompositionPreparation>(row.GetBytes(0)), cancellationToken)
             .ConfigureAwait(false);
         var result = rows.SingleOrDefault();
@@ -4343,6 +3686,12 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return result;
     }
 
+    /// <summary>Read using the MarketDataDb persistence.</summary>
+    /// <param name="contract">The contract used by this operation.</param>
+    /// <param name="date">The date used by this operation.</param>
+    /// <param name="sourceId">The source id used by this operation.</param>
+    /// <param name="token">The token used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<OptionTradeEvidence?> ReadAsync(string contract, DateOnly date, string sourceId, CancellationToken token = default)
@@ -4361,25 +3710,33 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 throw new InvalidDataException("Trade evidence identity mismatch.");
             return value;
         };
-        var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetOptionTradeEvidence)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetOptionTradeEvidence : MarketDataDbCql.GetOptionTradeEvidence)
-            .SetParameters(new NativeOptionEvidenceReadParameters(contract, date, sourceId, string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)))
+        var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetOptionTradeEvidence)}", MarketDataDbSql.GetOptionTradeEvidence)
+            .SetParameters(new NativeOptionEvidenceReadParameters(contract, date, sourceId, true))
             .ExecuteQueryAsync(map, token)
             .ConfigureAwait(false);
         return rows.SingleOrDefault();
     }
 
+    /// <summary>Commit using the MarketDataDb persistence.</summary>
+    /// <param name="proposed">The proposed used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<CompositionPreparation> CommitAsync(CompositionPreparation proposed, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(proposed);
         CompositionPreparationService.Validate(proposed);
-        await this.Database.Use("CompositionPreparation.Commit", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertCompositionPreparation : CompositionPreparationInsert)
-            .SetParameters(new NativeCompositionWriteParameters(proposed.Key.WorkflowId, proposed.Key.InputRevision, MessagePackBinarySerializer.Shared.Serialize(proposed)!, string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)))
+        await this.Database.Use("CompositionPreparation.Commit", MarketDataDbSql.InsertCompositionPreparation)
+            .SetParameters(new NativeCompositionWriteParameters(proposed.Key.WorkflowId, proposed.Key.InputRevision, MessagePackBinarySerializer.Shared.Serialize(proposed)!, true))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         return await ReadAsync(proposed.Key, cancellationToken)
             .ConfigureAwait(false) ?? throw new InvalidOperationException("Committed composition preparation could not be read back.");
     }
 
+    /// <summary>Write using the MarketDataDb persistence.</summary>
+    /// <param name="evidence">The evidence used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async ValueTask WriteAsync(OptionTradeEvidence evidence, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(evidence);
@@ -4387,8 +3744,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         if (MessagePackBinarySerializer.MeasureContent(evidence) > 131072)
             throw new ArgumentException("Trade evidence exceeds its bounded payload.",nameof(evidence));
         var source = evidence.Source;
-        await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.InsertOptionTradeEvidence : MarketDataDbCql.InsertOptionTradeEvidence)
-            .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!, string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal)))
+        await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertOptionTradeEvidence)}", MarketDataDbSql.InsertOptionTradeEvidence)
+            .SetParameters(new NativeOptionEvidenceWriteParameters(source.ContractId, source.ValueDate, source.Identity, source.SourceDigest, MessagePackBinarySerializer.Shared.Serialize(evidence)!, true))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
         var stored = await ReadAsync(source.ContractId, source.ValueDate, source.Identity, cancellationToken)
@@ -4398,103 +3755,38 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
     }
 
     internal const int MaximumPayloadBytes = 1_048_576;
+    /// <summary>Append Observation using the MarketDataDb persistence.</summary>
+    /// <param name="environment">The environment used by this operation.</param>
+    /// <param name="observation">The observation used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task AppendObservationAsync(string environment, OptionIvObservation observation, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
-            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres")).ExecuteOnceAsync(async (transaction,token) => { await PostgresOptionVolatilityStore.AppendAsync(transaction,environment,observation,token)
+            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+            .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.AppendOptionIvObservationAsync(transaction,environment,observation,token)
                 .ConfigureAwait(false); return true; },cancellationToken)
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(observation);
-        MarketDataDbContextExtensions.ValidateEnvironment(environment);
-        MarketDataDbContextExtensions.ValidateObservation(observation);
-        var existing = await this.ReadObservationAsync(environment, observation.ObservationId, cancellationToken)
-            .ConfigureAwait(false);
-        if (existing is not null && !MarketDataDbContextExtensions.Serialize(existing).AsSpan().SequenceEqual(MarketDataDbContextExtensions.Serialize(observation)))
-            throw new InvalidOperationException("Observation identity conflicts with different immutable evidence.");
-        if (observation.Revision > 1)
-        {
-            var superseded = await this.ReadObservationAsync(environment, observation.SupersedesObservationId!, cancellationToken)
-                .ConfigureAwait(false);
-            if (superseded is null || superseded.Series != observation.Series || superseded.ExchangeValueDate != observation.ExchangeValueDate || !string.Equals(superseded.SamplingSlot,observation.SamplingSlot,StringComparison.Ordinal) || superseded.Revision >= observation.Revision)
-                throw new InvalidOperationException("An observation revision must supersede existing immutable evidence.");
-        }
-
-        var payload = MarketDataDbContextExtensions.Serialize(observation);
-        var bucket = VolatilityCalendarBucket.From(observation.ExchangeValueDate).Value;
-        await this.Database.Use("OptionVolatility.Observation.Id.Insert", MarketDataDbCql.InsertObservationById)
-            .SetParameters(new OptionVolatilityParameters([environment, observation.ObservationId, payload]) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var stored = await this.ReadObservationAsync(environment, observation.ObservationId, cancellationToken)
-            .ConfigureAwait(false);
-        if (stored is null || !MarketDataDbContextExtensions.Serialize(stored).AsSpan().SequenceEqual(payload))
-            throw new InvalidOperationException("Observation identity conflicts with different immutable evidence.");
-        await this.Database.Use("OptionVolatility.Observation.History.Insert", MarketDataDbCql.InsertObservationHistory)
-            .SetParameters(new OptionVolatilityParameters([environment, observation.Series.SeriesId, observation.Series.MethodologyVersion, bucket, observation.ExchangeValueDate, observation.SamplingSlot, observation.Revision, observation.ObservationId, observation.AvailableAtUtc.UtcDateTime, payload]) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
     }
 
+    /// <summary>Publish using the MarketDataDb persistence.</summary>
+    /// <param name="publication">The publication used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task PublishAsync(OptionIvPublication publication, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-        {
-            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres")).ExecuteOnceAsync(async (transaction,token) => { await PostgresOptionVolatilityStore.PublishAsync(transaction,publication,token)
+            await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+            .ExecuteOnceAsync(async (transaction,token) => { await MarketDataDbContextExtensions.PublishOptionIvAsync(transaction,publication,token)
                 .ConfigureAwait(false); return true; },cancellationToken)
                 .ConfigureAwait(false);
             return;
-        }
-
-        ArgumentNullException.ThrowIfNull(publication);
-        MarketDataDbContextExtensions.ValidatePublication(publication);
-        foreach (var observation in publication.SourceObservations)
-            await AppendObservationAsync(publication.Environment, observation, cancellationToken)
-                .ConfigureAwait(false);
-        var metric = publication.Metric;
-        var snapshot = metric.Snapshot;
-        if (metric.Revision > 1)
-        {
-            var superseded = await GetSnapshotAsync(publication.Environment, metric.SupersedesSnapshotId!, cancellationToken)
-                .ConfigureAwait(false);
-            if (superseded is null || superseded.Snapshot.Series != snapshot.Series || !string.Equals(superseded.Snapshot.MetricPolicyVersion,snapshot.MetricPolicyVersion,StringComparison.Ordinal))
-                throw new InvalidOperationException("A metric revision must supersede existing evidence in the same series policy.");
-        }
-
-        var metricPayload = MarketDataDbContextExtensions.Serialize(metric);
-        await this.Database.Use("OptionVolatility.Snapshot.Insert", MarketDataDbCql.InsertSnapshot)
-            .SetParameters(new OptionVolatilityParameters([publication.Environment, snapshot.SnapshotId, snapshot.SnapshotDigest, metric.PublicationSequence, metricPayload]) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var sealedMetric = await GetSnapshotAsync(publication.Environment, snapshot.SnapshotId, cancellationToken)
-            .ConfigureAwait(false);
-        if (sealedMetric is null || !MarketDataDbContextExtensions.Serialize(sealedMetric).AsSpan().SequenceEqual(metricPayload))
-            throw new InvalidOperationException("Snapshot identity conflicts with different immutable evidence.");
-        await this.Database.Use("OptionVolatility.Metric.History.Insert", MarketDataDbCql.InsertMetricHistory)
-            .SetParameters(new OptionVolatilityParameters([publication.Environment, snapshot.Series.SeriesId, snapshot.Series.MethodologyVersion, snapshot.MetricPolicyVersion, VolatilityCalendarBucket.From(snapshot.ExchangeValueDate).Value, snapshot.ExchangeValueDate, snapshot.SamplingSlot, metric.Revision, snapshot.SnapshotId, snapshot.AvailableAtUtc.UtcDateTime, metric.PublicationSequence, metricPayload]) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var pointer = MarketDataDbContextExtensions.Pointer(publication);
-        var parameters = MarketDataDbContextExtensions.LatestValues(pointer);
-        await this.Database.Use("OptionVolatility.Latest.Insert", MarketDataDbCql.InsertLatest)
-            .SetParameters(parameters)
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await this.Database.Use("OptionVolatility.Latest.Advance", MarketDataDbCql.AdvanceLatest)
-            .SetParameters(MarketDataDbContextExtensions.AdvanceLatestValues(pointer))
-            .ExecuteCommandAsync(cancellationToken)
-            .ConfigureAwait(false);
-        var current = await this.ReadLatestAsync(pointer.Scope, cancellationToken)
-            .ConfigureAwait(false) ?? throw new InvalidOperationException("Latest pointer was not durably advertised.");
-        if (current.PublicationSequence == pointer.PublicationSequence && current != pointer)
-            throw new InvalidOperationException("Publication sequence conflicts with a different latest pointer.");
-        if (current.PublicationSequence < pointer.PublicationSequence)
-            throw new InvalidOperationException("Latest pointer monotonic advance failed.");
     }
 
+    /// <summary>Get Snapshot using the MarketDataDb persistence.</summary>
+    /// <param name="environment">The environment used by this operation.</param>
+    /// <param name="snapshotId">The snapshot id used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<OptionIvMetricRevision?> GetSnapshotAsync(string environment, string snapshotId, CancellationToken cancellationToken = default)
     {
         MarketDataDbContextExtensions.ValidateEnvironment(environment);
@@ -4506,12 +3798,16 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
                 throw new InvalidDataException("Stored snapshot identity is invalid.");
             return value;
         };
-        return await this.Database.Use("OptionVolatility.Snapshot.Read", string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? MarketDataDbSql.SelectSnapshot : MarketDataDbCql.SelectSnapshot)
-            .SetParameters(new OptionVolatilityParameters([environment, snapshotId]) { PostgreSql = string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) })
+        return await this.Database.Use("OptionVolatility.Snapshot.Read", MarketDataDbSql.SelectSnapshot)
+            .SetParameters(new OptionVolatilityParameters([environment, snapshotId]) { PostgreSql = true })
             .ExecuteSingleAsync(map, cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Get Latest using the MarketDataDb persistence.</summary>
+    /// <param name="request">The request used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<LatestVolatilityResult> GetLatestAsync(LatestVolatilityRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -4527,48 +3823,32 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return new(metric, request.RequestedAtUtc - pointer.AvailableAtUtc <= request.MaximumAge ? VolatilityFreshnessStatus.Accepted : VolatilityFreshnessStatus.Stale);
     }
 
+    /// <summary>Get Observation History using the MarketDataDb persistence.</summary>
+    /// <param name="request">The request used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<VolatilityPage<OptionIvObservation>> GetObservationHistoryAsync(VolatilityHistoryPageRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-            return await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres")).ExecuteOnceAsync((transaction,token) => PostgresOptionVolatilityStore.ReadObservationHistoryAsync(transaction,request,token),cancellationToken)
+        return await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+            .ExecuteOnceAsync((transaction,token) => MarketDataDbContextExtensions.ReadOptionIvObservationHistoryAsync(transaction,request,token),cancellationToken)
                 .ConfigureAwait(false);
-
-        ArgumentNullException.ThrowIfNull(request);
-        MarketDataDbContextExtensions.ValidatePage(request);
-        var page = await this.Database.Use("OptionVolatility.Observation.History", MarketDataDbCql.SelectObservationHistory)
-            .SetParameters(MarketDataDbContextExtensions.HistoryValues(request, includePolicy: false))
-            .ExecutePageAsync(row => MarketDataDbContextExtensions.Deserialize<OptionIvObservation>(row.GetBytes(0)), request.PageSize, request.PagingState, cancellationToken)
-            .ConfigureAwait(false);
-        var candidates = page.Items.AsEnumerable();
-        if (request.SamplingSlot is not null)
-            candidates = candidates.Where(x => string.Equals(x.SamplingSlot,request.SamplingSlot,StringComparison.Ordinal));
-        if (request.Mode == VolatilityHistoricalMode.AsKnown)
-            candidates = candidates.Where(x => x.AvailableAtUtc <= request.KnownAtUtc!.Value);
-        var items = candidates.GroupBy(x => (x.ExchangeValueDate, x.SamplingSlot)).Select(x => x.OrderByDescending(y => y.Revision).First()).ToImmutableArray();
-        return new(items, page.PagingState);
     }
 
+    /// <summary>Get Metric History using the MarketDataDb persistence.</summary>
+    /// <param name="request">The request used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<VolatilityPage<OptionIvMetricRevision>> GetMetricHistoryAsync(VolatilityHistoryPageRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal))
-            return await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres")).ExecuteOnceAsync((transaction,token) => PostgresOptionVolatilityStore.ReadMetricHistoryAsync(transaction,request,token),cancellationToken)
+        return await new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings().Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection,ConnectionString,"System.Data.Postgres"))
+            .ExecuteOnceAsync((transaction,token) => MarketDataDbContextExtensions.ReadOptionIvMetricHistoryAsync(transaction,request,token),cancellationToken)
                 .ConfigureAwait(false);
-
-        ArgumentNullException.ThrowIfNull(request);
-        MarketDataDbContextExtensions.ValidatePage(request);
-        var page = await this.Database.Use("OptionVolatility.Metric.History", MarketDataDbCql.SelectMetricHistory)
-            .SetParameters(MarketDataDbContextExtensions.HistoryValues(request, includePolicy: true))
-            .ExecutePageAsync(row => MarketDataDbContextExtensions.Deserialize<OptionIvMetricRevision>(row.GetBytes(0)), request.PageSize, request.PagingState, cancellationToken)
-            .ConfigureAwait(false);
-        var candidates = page.Items.AsEnumerable();
-        if (request.SamplingSlot is not null)
-            candidates = candidates.Where(x => string.Equals(x.Snapshot.SamplingSlot,request.SamplingSlot,StringComparison.Ordinal));
-        if (request.Mode == VolatilityHistoricalMode.AsKnown)
-            candidates = candidates.Where(x => x.Snapshot.AvailableAtUtc <= request.KnownAtUtc!.Value);
-        var items = candidates.GroupBy(x => (x.Snapshot.ExchangeValueDate, x.Snapshot.SamplingSlot)).Select(x => x.OrderByDescending(y => y.Revision).ThenByDescending(y => y.PublicationSequence).First()).ToImmutableArray();
-        return new(items, page.PagingState);
     }
 
+    /// <summary>Rebuild Latest Cache using the MarketDataDb persistence.</summary>
+    /// <param name="scopes">The scopes used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<IReadOnlyDictionary<VolatilityStorageScope, OptionIvLatestPointer>> RebuildLatestCacheAsync(IEnumerable<VolatilityStorageScope> scopes, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scopes);
@@ -4585,26 +3865,45 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return result.ToImmutable();
     }
 
+    /// <summary>Try Write Observation using the MarketDataDb persistence.</summary>
+    /// <param name="observation">The observation used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async ValueTask<bool> TryWriteObservationAsync(FuturesTradeSessionBarReadModel observation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TryInsertObservation)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.TryInsertObservation : MarketDataDbCql.TryInsertObservation)
-            .SetParameters(new HistoricalObservationParameter(observation) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TryInsertObservation)}", MarketDataDbSql.TryInsertObservation)
+            .SetParameters(new HistoricalObservationParameter(observation) { PostgreSql = true })
             .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);
     }
 
+    /// <summary>Try Write Raw Eod using the MarketDataDb persistence.</summary>
+    /// <param name="observation">The observation used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async ValueTask<bool> TryWriteRawEodAsync(FuturesEodObservationReadModel observation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TryInsertRawEod)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.TryInsertRawEod : MarketDataDbCql.TryInsertRawEod)
-            .SetParameters(new HistoricalRawEodParameter(observation) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+        return await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TryInsertRawEod)}", MarketDataDbSql.TryInsertRawEod)
+            .SetParameters(new HistoricalRawEodParameter(observation) { PostgreSql = true })
             .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);
     }
 
-    public ValueTask<FuturesEodObservationReadModel?> GetRawEodAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken) => new(this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetRawEod)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetRawEod : MarketDataDbCql.GetRawEod)
-        .SetParameters(new HistoricalRawEodKey(seriesIdentity.Format(), MarketDataDbContextExtensions.YearMonth(valueDate), valueDate) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) }).ExecuteSingleAsync<FuturesEodObservationReadModel?>(MapToRawEod, cancellationToken));
+    /// <summary>Get Raw Eod using the MarketDataDb persistence.</summary>
+    /// <param name="seriesIdentity">The series identity used by this operation.</param>
+    /// <param name="valueDate">The value date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
+    public ValueTask<FuturesEodObservationReadModel?> GetRawEodAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken) => new(this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetRawEod)}", MarketDataDbSql.GetRawEod)
+        .SetParameters(new HistoricalRawEodKey(seriesIdentity.Format(), MarketDataDbContextExtensions.YearMonth(valueDate), valueDate) { PostgreSql = true }).ExecuteSingleAsync<FuturesEodObservationReadModel?>(MapToRawEod, cancellationToken));
+    /// <summary>Get Raw Eod Range using the MarketDataDb persistence.</summary>
+    /// <param name="seriesIdentity">The series identity used by this operation.</param>
+    /// <param name="startDate">The start date used by this operation.</param>
+    /// <param name="endDate">The end date used by this operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async ValueTask<IReadOnlyList<FuturesEodObservationReadModel>> GetRawEodRangeAsync(MarketSeriesIdentity seriesIdentity, DateOnly startDate, DateOnly endDate, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(startDate, endDate);
@@ -4614,8 +3913,8 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
             var monthEnd = month.AddMonths(1).AddDays(-1);
             var lower = startDate > month ? startDate : month;
             var upper = endDate < monthEnd ? endDate : monthEnd;
-            var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetRawEodRange)}", string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) ? MarketDataDbSql.GetRawEodRange : MarketDataDbCql.GetRawEodRange)
-                .SetParameters(new HistoricalRawEodRangeKey(seriesIdentity.Format(), MarketDataDbContextExtensions.YearMonth(month), lower, upper) { PostgreSql = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal) })
+            var rows = await this.Database.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetRawEodRange)}", MarketDataDbSql.GetRawEodRange)
+                .SetParameters(new HistoricalRawEodRangeKey(seriesIdentity.Format(), MarketDataDbContextExtensions.YearMonth(month), lower, upper) { PostgreSql = true })
                 .ExecuteQueryAsync(MapToRawEod, cancellationToken)
                 .ConfigureAwait(false);
             values.AddRange(rows);
@@ -4624,6 +3923,9 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         return values.OrderBy(static value => value.ValueDate).ThenBy(static value => value.ContractId, StringComparer.Ordinal).ToArray();
     }
 
+    /// <summary>Maps selected market-data columns to the typed result.</summary>
+    /// <param name="row">The row used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     internal static FuturesEodObservationReadModel MapToRawEod(IObjectDataRecord row) => new()
     {
         MarketSeriesIdentity = MarketSeriesIdentity.Parse(row.GetString(0)),
@@ -4647,53 +3949,36 @@ public partial class MarketDataDbContext(IDbConnectionSettings connectionSetting
         IsComplete = row.GetBool(18),
         IsValid = row.GetBool(19)
     };
-}
-
-public partial class MarketDataDbContext
-{
     /// <summary>Projects a committed configuration snapshot into immutable version and monotonic current tables.</summary>
+    /// <param name="parameters">The parameters used by this operation.</param>
+    /// <param name="revision">The revision used by this operation.</param>
+    /// <param name="published">The published used by this operation.</param>
+    /// <param name="token">The token used by this operation.</param>
+    /// <returns>The completion of the persistence operation.</returns>
     public async Task ProjectAsync(StrategyOptionChainParameterSet parameters, long revision, bool published, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         parameters.Validate(); ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
-        if (string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
-        {
             var owner = new EventSourceDb.PostgresEventTransaction(new DbConnectionSettings()
                 .Add(EventSourceDb.EventSourceActorDbContext.EventSourceActorDbConnection, ConnectionString, "System.Data.Postgres"));
             await owner.ExecuteOnceAsync(async (transaction, cancellationToken) =>
             {
-                await PostgresOptionChainParameterStore.ProjectAsync(transaction, parameters, revision, published, cancellationToken)
+                await MarketDataDbContextExtensions.PersistOptionChainParametersAsync(transaction, parameters, revision, published, cancellationToken)
                 .ConfigureAwait(false);
                 return true;
             }, token)
                 .ConfigureAwait(false);
             return;
-        }
-        var payload = parameters.Serialize();
-        await Database.Use("OptionChainParameter.Version", "INSERT INTO strategy_option_chain_parameter_version (set_id,version,payload) VALUES (:id,:version,:payload) IF NOT EXISTS;")
-            .SetParameters(new CompositionPreparationParameters([parameters.ParameterSetId, parameters.Version, payload]))
-                .ExecuteCommandAsync(token)
-                .ConfigureAwait(false);
-        var committed = await ReadVersionAsync(parameters.ParameterSetId, parameters.Version, token)
-                .ConfigureAwait(false);
-        if (committed is null || !string.Equals(committed.Hash(),parameters.Hash(),StringComparison.Ordinal))
-            throw new InvalidDataException("An immutable option-chain parameter version has conflicting content.");
-        var identity = new CompositionPreparationParameters([parameters.Environment, parameters.ParameterSetId, parameters.Version, revision, published, payload]);
-        await Database.Use("OptionChainParameter.Current.Insert", "INSERT INTO strategy_option_chain_parameter_current (environment,set_id,version,revision,published,payload) VALUES (:environment,:id,:version,:revision,:published,:payload) IF NOT EXISTS;")
-            .SetParameters(identity)
-                .ExecuteCommandAsync(token)
-                .ConfigureAwait(false);
-        await Database.Use("OptionChainParameter.Current.Advance", "UPDATE strategy_option_chain_parameter_current SET revision=:revision,published=:published,payload=:payload WHERE environment=:environment AND set_id=:id AND version=:version IF revision < :expected;")
-            .SetParameters(new CompositionPreparationParameters([revision, published, payload, parameters.Environment, parameters.ParameterSetId, parameters.Version, revision]))
-            .ExecuteCommandAsync(token)
-                .ConfigureAwait(false);
     }
 
     /// <summary>Queries persisted current published rows; parameter queries never load command streams.</summary>
+    /// <param name="environment">The environment used by this operation.</param>
+    /// <param name="token">The token used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<ImmutableArray<StrategyOptionChainParameterSet>> ReadPublishedAsync(string environment, CancellationToken token)
     {
         if (environment is not ("Development" or "Paper" or "Production")) throw new ArgumentException("Invalid parameter environment.",nameof(environment));
-        var postgres = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+        var postgres = true;
         var sql = postgres
             ? "SELECT published,payload FROM market_data.strategy_option_chain_parameter_current WHERE environment=$1 LIMIT 129;"
             : "SELECT published,payload FROM strategy_option_chain_parameter_current WHERE environment=:environment LIMIT 129;";
@@ -4707,10 +3992,14 @@ public partial class MarketDataDbContext
     }
 
     /// <summary>Reads one persisted immutable parameter version.</summary>
+    /// <param name="setId">The set id used by this operation.</param>
+    /// <param name="version">The version used by this operation.</param>
+    /// <param name="token">The token used by this operation.</param>
+    /// <returns>The typed result of the market-data query or mutation.</returns>
     public async Task<StrategyOptionChainParameterSet?> ReadVersionAsync(Guid setId, int version, CancellationToken token)
     {
         if (setId == Guid.Empty || version < 1) throw new ArgumentException("Exact parameter identity is required.",nameof(setId));
-        var postgres = string.Equals(ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+        var postgres = true;
         var sql = postgres
             ? "SELECT payload FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=$2;"
             : "SELECT payload FROM strategy_option_chain_parameter_version WHERE set_id=:id AND version=:version;";
@@ -4719,4 +4008,66 @@ public partial class MarketDataDbContext
             .ExecuteSingleAsync(row => StrategyOptionChainParameterSet.Read(row.GetString(0)), token)
                 .ConfigureAwait(false);
     }
+    /// <summary>Reads one persisted historical-load checkpoint and terminal manifest.</summary>
+    /// <param name="attemptId">The stable load attempt identity.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The stored attempt, or null when absent.</returns>
+    public Task<HistoricalDataLoaderState?> GetHistoricalDataLoadAsync(Guid attemptId, CancellationToken cancellationToken = default) =>
+        Use($"{nameof(MarketDataDbSql)}.{nameof(MarketDataDbSql.GetHistoricalDataLoadByAttempt)}", MarketDataDbSql.GetHistoricalDataLoadByAttempt)
+            .SetParameters(new HistoricalDataLoadAttemptParameter(attemptId))
+            .ExecuteSingleAsync<HistoricalDataLoaderState?>(MapToHistoricalDataLoaderState, cancellationToken);
+
+    /// <summary>Reads the completed historical-load owner of a request hash.</summary>
+    /// <param name="requestSha256">The stable request digest.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The completed attempt, or null when absent.</returns>
+    public Task<HistoricalDataLoaderState?> GetCompletedHistoricalDataLoadAsync(string requestSha256, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestSha256);
+        return Use($"{nameof(MarketDataDbSql)}.{nameof(MarketDataDbSql.GetCompletedHistoricalDataLoadByRequestHash)}", MarketDataDbSql.GetCompletedHistoricalDataLoadByRequestHash)
+            .SetParameters(new HistoricalDataLoadHashParameter(requestSha256))
+            .ExecuteSingleAsync<HistoricalDataLoaderState?>(MapToHistoricalDataLoaderState, cancellationToken);
+    }
+
+    /// <summary>Atomically advances a historical-load checkpoint and inserts its immutable terminal manifest.</summary>
+    /// <param name="state">The supplied load state to persist.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>Completion of the persistence operation.</returns>
+    public async Task SaveHistoricalDataLoadAsync(HistoricalDataLoaderState state, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        await Use($"{nameof(MarketDataDbSql)}.{nameof(MarketDataDbSql.SaveHistoricalDataLoad)}", MarketDataDbSql.SaveHistoricalDataLoad)
+            .SetParameters(new SaveHistoricalDataLoadParameter(state))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Maps checkpoint and optional manifest columns to the historical-load state.</summary>
+    /// <param name="row">The selected database row.</param>
+    /// <returns>The persisted state.</returns>
+    internal static HistoricalDataLoaderState MapToHistoricalDataLoaderState(IObjectDataRecord row) => new()
+    {
+        DataLoadAttemptId = row.GetGuid(0),
+        RequestSha256 = row.GetString(1),
+        Status = (HistoricalDataLoaderStatus)row.GetShort(2),
+        Checkpoint = new HistoricalAcquisitionCheckpoint
+        {
+            DataLoadAttemptId = row.GetGuid(0),
+            Stage = (HistoricalAcquisitionStage)row.GetShort(3),
+            ProviderJobId = row.GetString(4),
+            ProviderFileId = row.GetString(5),
+            BatchOrdinal = row.GetLong(6),
+            SourcePosition = row.GetString(7)
+        },
+        ErrorMessage = row.GetString(8),
+        UpdatedAtUtc = new DateTimeOffset(
+            DateTime.SpecifyKind(row.GetDateTime(9), DateTimeKind.Utc)),
+        Manifest = row.IsNull(10)
+            ? null
+            : JsonSerializer.Deserialize<MarketDataHistoricalManifest>(row.GetString(10)),
+        Audit = row.IsNull(11)
+            ? null
+            : JsonSerializer.Deserialize<HistoricalDataLoaderAudit>(row.GetString(11))
+    };
+
 }

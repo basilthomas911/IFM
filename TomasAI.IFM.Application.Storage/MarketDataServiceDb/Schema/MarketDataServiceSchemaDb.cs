@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 
+/// <summary>Creates and drops the ordered PostgreSQL schema catalog.</summary>
 public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : SchemaDbContext<MarketDataServiceSchemaDb>(settings[MarketDataServiceDbContext.MarketDataServiceDbConnection], logger)
 {
@@ -15,7 +16,7 @@ public sealed class MarketDataServiceSchemaDb(IDbConnectionSettings settings, IL
             "DROP TABLE IF EXISTS market_data_service.futures_rollover_contract_assignment;"),
         new("watchdog_status_log", MarketDataServiceSchemaSql.CreateWatchdogLog,
             "DROP TABLE IF EXISTS market_data_service.watchdog_status_log;"),
-        new("stage4_subscription_intent", Stage4SubscriptionSchemaSql.Create,
+        new("stage4_subscription_intent", MarketDataServiceSchemaSql.CreateDurableSubscriptions,
             "DROP TABLE IF EXISTS market_data_service.stage4_intent_outbox, market_data_service.stage4_authority_watermark, market_data_service.stage4_lease_identity, market_data_service.stage4_intent_operation, market_data_service.stage4_intent_current;"),
         new("composition_route_plan", MarketDataServiceSchemaSql.CreateCompositionRoutePlan,
             "DROP TABLE IF EXISTS market_data_service.composition_route_plan;"),

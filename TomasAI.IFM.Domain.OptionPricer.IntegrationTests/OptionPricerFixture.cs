@@ -36,7 +36,7 @@ public class OptionPricerFixture : IDisposable
         var dbConn = new DbConnectionSettings()
                          .Add("OptionPricerDbConnection",
                              Environment.GetEnvironmentVariable("IFM_TEST_OPTION_PRICER_CONNECTION") ?? throw new InvalidOperationException("The assembly integration fixture did not set IFM_TEST_OPTION_PRICER_CONNECTION."),
-                             "System.Data.ScyllaDb");
+                             "System.Data.Postgres");
 
         var diContainer = new Dictionary<Type, OptionPricerDbContext>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);

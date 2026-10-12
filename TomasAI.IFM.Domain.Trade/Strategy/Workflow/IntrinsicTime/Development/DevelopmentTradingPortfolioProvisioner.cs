@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 using TomasAI.IFM.Application.Storage.PortfolioFinancial;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Portfolio.Identity;
@@ -59,7 +59,10 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
         foreach (var item in construction)
             await EnsurePipelinePolicyAsync(CatalogPipelineParameterKind.OrderComposition, item.ParameterSetId, item.Version, item.Hash(), () => configuration.InsertSelectionConstructionDraftAsync(item, "Development paper-trading construction constraints", Principal, token), StrategyParameterSetKind.OrderComposition, now, token).ConfigureAwait(false);
         foreach (var item in risks)
+        {
+            item.Validate();
             await EnsurePipelinePolicyAsync(CatalogPipelineParameterKind.RiskManagement, item.ParameterSetId, item.Version, item.Hash(), () => configuration.InsertRiskManagementDraftAsync(item, "Development paper-trading Risk Manager policy", Principal, token), StrategyParameterSetKind.RiskManagement, now, token).ConfigureAwait(false);
+        }
         foreach (var definition in catalog.Definitions)
             await EnsureCatalogAsync(definition, now, token).ConfigureAwait(false);
         var financialOwner = await identityRecovery.ResolveAsync("Emulator", options.ExecutionAccountReference, token).ConfigureAwait(false);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
@@ -46,6 +47,57 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 /// <summary>Tests native direct-observation transactions without event-log or Scylla schema dependencies.</summary>
 public sealed class PostgresEodObservationTests
 {
+    static async Task VerifyCanonicalQueryMaintenanceAsync(Storage.MarketDataDb.MarketDataDbContext db, string connectionString)
+    {
+        var signal = SampleData.FuturesItiSignal1 with { ContractId = "MAINTENANCE-ITI", ValueDate = new DateOnly(2026,10,9), TimePeriod = TimeFrameType.Daily, SequenceId = 900, IntrinsicTime = new DateTime(2026,10,9,14,0,0,DateTimeKind.Utc) };
+        await db.InsertFuturesItiSignalAsync(signal);
+        var ready = await db.GetQueryProjectionReadinessAsync();
+        Assert.True(ready.IsReady);
+        Assert.True(ready.RawTicksManagedByTradeTickQuoteDb);
+        Assert.False(ready.FuturesTickByTime);
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(connectionString);
+        await connection.OpenAsync();
+        await using (var drop = new NpgsqlCommand("DROP INDEX market_data.futures_iti_signal_ordered;", connection))
+            await drop.ExecuteNonQueryAsync();
+        Assert.False((await db.GetQueryProjectionReadinessAsync()).FuturesItiSignalQueries);
+        await using (var wrong = new NpgsqlCommand("CREATE INDEX futures_iti_signal_ordered ON market_data.futures_iti_signal(contractId);", connection))
+            await wrong.ExecuteNonQueryAsync();
+        Assert.False((await db.GetQueryProjectionReadinessAsync()).FuturesItiSignalQueries);
+        await using (var dropWrong = new NpgsqlCommand("DROP INDEX market_data.futures_iti_signal_ordered;", connection))
+            await dropWrong.ExecuteNonQueryAsync();
+        var owner = new PostgresEventTransaction(new DbConnectionSettings()
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, connectionString, "System.Data.Postgres"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => owner.ExecuteAsync<int>(async (transaction, token) =>
+        {
+            var result = await transaction.RebuildCanonicalQueryIndexesAsync(token);
+            Assert.True(result.CutoverCompleted);
+            throw new InvalidOperationException("rollback probe");
+        }, CancellationToken.None));
+        Assert.False((await db.GetQueryProjectionReadinessAsync()).FuturesItiSignalQueries);
+        var repaired = await db.BackfillQueryProjectionsV2Async(batchSize: 1);
+        Assert.True(repaired.IsReconciled);
+        Assert.True(repaired.CutoverCompleted);
+        Assert.True(repaired.RawTicksManagedByTradeTickQuoteDb);
+        Assert.True(repaired.FuturesItiSignalsSource > 0);
+        Assert.Equal(0, repaired.FuturesTicksSource);
+        Assert.True((await db.GetQueryProjectionReadinessAsync()).IsReady);
+        var repeated = await db.BackfillQueryProjectionsV2Async();
+        Assert.Equal(repaired, repeated);
+        await db.InsertFuturesEodDataAsync(new[] { SampleData.FuturesEodData with
+            { ContractId = "MAINTENANCE", ValueDate = new DateOnly(2026, 10, 9), ClosePrice = 6000m } });
+        Assert.True((await db.GetQueryProjectionReadinessAsync()).IsReady);
+        var updated = await db.BackfillQueryProjectionsV2Async();
+        Assert.True(updated.FuturesEodRowsSource > repaired.FuturesEodRowsSource);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => db.BackfillQueryProjectionsV2Async(0));
+        await Assert.ThrowsAsync<ArgumentException>(() => db.BackfillQueryProjectionsV2Async(staleOperationCutoffUtc: DateTime.Now));
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.GetQueryProjectionReadinessAsync(cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.BackfillQueryProjectionsV2Async(cancellationToken: cancelled.Token));
+        await db.DeleteFuturesItiSignalAsync(signal.ContractId, signal.ValueDate, signal.TimePeriod);
+        await db.DeleteFuturesEodDataAsync("MAINTENANCE", new DateOnly(2026,10,9));
+    }
+
     static async Task VerifyTradeSignalsAsync(Storage.MarketDataDb.MarketDataDbContext db, DateOnly date, string connectionString)
     {
         var first = SampleData.FuturesTradeSignal with { ContractId = "ES-SIGNAL", ValueDate = date, TimePeriod = TimeFrameType.FifteenSeconds, SequenceId = 700, Timestamp = new TimeOnly(14,0), MDI = 0.125 };
@@ -343,9 +395,9 @@ public sealed class PostgresEodObservationTests
         await transactions.ExecuteOnceAsync(async (transaction,token) =>
         {
             await transaction.AppendAsync("calendar-accepted-test",economicSource.CommandId,economicSource,0,token);
-            await Storage.MarketDataDb.PostgresEconomicCalendarStore.ImportAsync(transaction,[calendar],economicSource.DuplicatePolicy,economicSource.CommandId,token);
+            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportEconomicCalendarsAsync(transaction,[calendar],economicSource.DuplicatePolicy,economicSource.CommandId,token);
             await transaction.AppendAsync("treasury-accepted-test",treasurySource.CommandId,treasurySource,0,token);
-            await Storage.MarketDataDb.PostgresYieldCurveStore.ImportAsync(transaction,[curve],treasurySource.DuplicatePolicy,treasurySource.CommandId,requested,token);
+            await Storage.MarketDataDb.MarketDataDbContextExtensions.ImportYieldCurvesAsync(transaction,[curve],treasurySource.DuplicatePolicy,treasurySource.CommandId,requested,token);
             return true;
         });
         var sources = new List<TomasAI.IFM.Shared.EventSourcing.IEvent>();
@@ -403,6 +455,7 @@ public sealed class PostgresEodObservationTests
         await VerifyDownloadAndFeedStateAsync(db,date);
         await VerifyCalendarAsync(db, date);
         await VerifyHistoricalObservationsAsync(db);
+        await VerifyCanonicalQueryMaintenanceAsync(db, infrastructure.PostgresConnectionString);
         var first = SampleData.FuturesEodData with { ContractId = "ES", ValueDate = date, ClosePrice = 6000.125m, Volume = 12345, MarketDirectionIndicator = 0.125 };
         var second = first with { ClosePrice = 6001.25m, Volume = 12346 };
         var rows = new[]

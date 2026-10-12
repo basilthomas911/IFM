@@ -11,7 +11,8 @@ using Npgsql;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
-using TomasAI.IFM.Application.Storage.ConfigurationDb.StrategyCatalog;
+using TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts;
+using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
@@ -26,7 +27,7 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
     static readonly CatalogCapability[] StrategyCapabilities = [new("evaluator", "fixture", 1), new("data", "fixture", 1)];
     static readonly CatalogCapability[] BuilderCapabilities = [new("builder", "fixture", 1), new("risk", "fixture", 1)];
     static readonly CatalogCapability[] ValidatorCapabilities = [new("validator", "fixture", 1)];
-    static DateTime Now => ConfigurationDbContext.CatalogNow();
+    static DateTime Now => DateTime.UtcNow.CatalogNow();
 
     static ConfigurationDbContext Context(bool supported = true, IStrategyCatalogReferences? references = null)
     {
@@ -36,6 +37,53 @@ public sealed class StrategyCatalogDbTests(MarketConditionConfigurationDbFixture
             .Select(role => (IStrategyCatalogCapabilityValidator)new FixtureValidator(new(role, "fixture", 1)));
         return new(settings, Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<DbProvider>>(),
             new StrategyCatalogCapabilityRegistry(supported ? validators : []), references ?? new FixtureReferences());
+    }
+
+    [Fact]
+    public async Task Complete_schema_catalog_creates_all_registered_relations_and_guards_repeatably()
+    {
+        var context = Context();
+        var settings = new DbConnectionSettings().Add(ConfigurationDbContext.ConfigurationDbConnection,
+            context.ConnectionString, "System.Data.Postgres");
+        var schema = new ConfigurationSchemaDb(settings, Substitute.For<ILogger<DbProvider>>());
+        await schema.CreateAllAsync();
+        await schema.CreateAllAsync();
+        var sql = string.Join("\n", ConfigurationSchemaSql.GetDefinitions().Select(definition => definition.CreateStatement));
+        var relations = System.Text.RegularExpressions.Regex.Matches(sql,
+            @"CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|SEQUENCE)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<name>[a-zA-Z_][a-zA-Z_0-9.]*)")
+            .Select(match => match.Groups["name"].Value)
+            .Distinct().ToArray();
+        Assert.NotEmpty(relations);
+        await using var connection = await context.OpenCatalogAsync(CancellationToken.None);
+        foreach (var relation in relations)
+        {
+            var name = relation.Contains('.') ? relation : "reference_configuration." + relation;
+            await using var command = new NpgsqlCommand("SELECT to_regclass($1) IS NOT NULL;", connection);
+            command.Parameters.Add(new NpgsqlParameter { Value = name });
+            Assert.True((bool)(await command.ExecuteScalarAsync())!, "Missing schema relation: " + name);
+        }
+        var functions = System.Text.RegularExpressions.Regex.Matches(sql,
+            @"CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+reference_configuration\.(?<name>[a-zA-Z_][a-zA-Z_0-9]*)")
+            .Select(match => match.Groups["name"].Value).Distinct().ToArray();
+        Assert.NotEmpty(functions);
+        foreach (var function in functions)
+        {
+            await using var command = new NpgsqlCommand(
+                "SELECT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='reference_configuration' AND p.proname=$1);", connection);
+            command.Parameters.Add(new NpgsqlParameter { Value = function });
+            Assert.True((bool)(await command.ExecuteScalarAsync())!, "Missing schema function: " + function);
+        }
+        var triggers = System.Text.RegularExpressions.Regex.Matches(sql,
+            @"CREATE\s+TRIGGER\s+(?<name>[a-zA-Z_][a-zA-Z_0-9]*)")
+            .Select(match => match.Groups["name"].Value).Distinct().ToArray();
+        Assert.NotEmpty(triggers);
+        foreach (var trigger in triggers)
+        {
+            await using var command = new NpgsqlCommand(
+                "SELECT EXISTS(SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='reference_configuration' AND t.tgname=$1 AND NOT t.tgisinternal);", connection);
+            command.Parameters.Add(new NpgsqlParameter { Value = trigger });
+            Assert.True((bool)(await command.ExecuteScalarAsync())!, "Missing schema trigger: " + trigger);
+        }
     }
 
     [Fact]

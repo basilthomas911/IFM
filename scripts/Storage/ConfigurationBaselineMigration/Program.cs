@@ -3,7 +3,7 @@ using TomasAI.IFM.Storage.Tools;
 using System.Security.Cryptography;
 using System.Text;
 using Npgsql;
-using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.Storage;
 
