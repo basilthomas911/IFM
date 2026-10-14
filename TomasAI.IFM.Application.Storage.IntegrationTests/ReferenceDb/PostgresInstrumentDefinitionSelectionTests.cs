@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
+using TomasAI.IFM.Domain.Reference.Repository;
 using System;
 using System.Linq;
 using System.Threading;
@@ -14,12 +16,14 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 
-public sealed class PostgresInstrumentDefinitionSelectionTests
+[Collection("PostgreSQL plan atomicity")]
+[Trait("Infrastructure","SelfContained")]
+public sealed class PostgresInstrumentDefinitionSelectionTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
     public async Task Selection_pages_are_bounded_snapshot_pinned_and_reject_cross_filter_cursors()
     {
-        await using var isolated = await PostgresInstrumentTestDatabase.CreateAsync();
+        await using var isolated = await PostgresInstrumentTestDatabase.CreateAsync(fixture.Connection);
         var logger = Substitute.For<ILogger<DbProvider>>();
         var settings = new DbConnectionSettings().Add("test", isolated.Connection, "System.Data.Postgres")
             .Add("ReferenceDbConnection", isolated.Connection, "System.Data.Postgres");
@@ -30,7 +34,7 @@ public sealed class PostgresInstrumentDefinitionSelectionTests
         {
             var db = new Db(settings["test"], logger);
             var snapshot = Guid.NewGuid();
-            var store = new InstrumentDefinitionStore(db, Substitute.For<ITradeStrategySymbolStore>());
+            var store = new InstrumentDefinitionStore(new ReferenceDbContext(settings,Substitute.For<IDbContextFactory>(),Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),logger), Substitute.For<ITradeStrategySymbolStore>());
             for (uint id = 1; id <= 5; ++id)
                 await store.IndexSelectionAsync(new()
                 {

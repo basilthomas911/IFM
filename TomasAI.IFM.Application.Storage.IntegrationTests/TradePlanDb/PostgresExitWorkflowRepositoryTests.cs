@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.TradePlan;
 using System.Linq;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -41,14 +42,14 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
             StageRevision = riskStage ? 3 : 2, UpdatedAtUtc = DateTime.UtcNow, SourcePlanEventId = Guid.NewGuid(), ExitPlan = plan };
         var source = Substitute.For<IEventSourceActorDbContext>();
         source.ProviderName.Returns("System.Data.Postgres");
-        source.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+        source.ConnectionString.Returns(fixture.Connection);
         var factory = Substitute.For<IDbContextFactory>();
         ITradePlanDbContext target = fixture.Plans;
         if (failAfterWrite)
         {
             target = Substitute.For<ITradePlanDbContext>();
             target.ProviderName.Returns("System.Data.Postgres");
-            target.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+            target.ConnectionString.Returns(fixture.Connection);
             target.ProjectExitWorkflowAsync(Arg.Any<IEnlistedPostgresTransaction>(), Arg.Any<ExitPositionWorkflowProjection>(), Arg.Any<CancellationToken>())
                 .Returns(async call =>
                 {
@@ -110,8 +111,8 @@ public sealed class PostgresExitWorkflowRepositoryTests(PostgresTradePlanFixture
         source.Snapshots.Should().Contain(x => x.WorkflowId == seed.WorkflowId);
         source.EventId.Should().BeGreaterThan(source.SourceCut);
         var name = "ifm_exit_verify_" + Guid.NewGuid().ToString("N");
-        var targetConnection = new NpgsqlConnectionStringBuilder(PostgresTradePlanFixture.Connection) { Database = name }.ConnectionString;
-        await using var admin = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(PostgresTradePlanFixture.Connection);
+        var targetConnection = new NpgsqlConnectionStringBuilder(fixture.Connection) { Database = name }.ConnectionString;
+        await using var admin = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
         await admin.OpenAsync();
         await using (var create = new NpgsqlCommand("CREATE DATABASE " + name + ";", admin)) await create.ExecuteNonQueryAsync();
         try

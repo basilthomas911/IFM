@@ -35,7 +35,7 @@ public sealed partial class ApiServerLifecycle
     static async Task RunServerAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger, IApiFatalRecoveryShutdown? fatalRecoveryShutdown)
     {
 
-        if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
+        if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
         {
             using var scheduledTaskSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             await scheduledTaskSchema.CreateAllAsync().WaitAsync(scheduledTaskSchemaDeadline.Token);

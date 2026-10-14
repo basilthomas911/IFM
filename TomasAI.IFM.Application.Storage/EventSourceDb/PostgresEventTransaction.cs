@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using System.Data;
 using Npgsql;

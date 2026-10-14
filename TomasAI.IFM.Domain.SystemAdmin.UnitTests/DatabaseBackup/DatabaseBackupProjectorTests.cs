@@ -26,9 +26,10 @@ public sealed class DatabaseBackupProjectorTests
         foreach(var descriptor in projector.ProjectionDescriptors)
         {
             db.ClearReceivedCalls();var source=(DatabaseBackupEventContract)Activator.CreateInstance(descriptor.SourceEventType)!;
+            var valid = Event(1); source = source with { Id = valid.Id, EventId = valid.EventId, EntityId = valid.EntityId, Source = valid.Source };
             descriptor.RebuildReadModelAsync.Should().NotBeNull();await descriptor.RebuildReadModelAsync!(source,CancellationToken.None);
-            var call=Assert.Single(db.ReceivedCalls());call.GetMethodInfo().Name.Should().Be(nameof(ISystemAdminDbContext.ApplyDatabaseBackupEventAsync));
-            call.GetArguments()[0].Should().Be(nameof(DatabaseBackupEventProjector));call.GetArguments()[1].Should().BeSameAs(source);
+            var call=Assert.Single(db.ReceivedCalls());call.GetMethodInfo().Name.Should().Be(nameof(ISystemAdminDbContext.ApplyDatabaseBackupSnapshotAsync));
+            call.GetArguments()[0].Should().Be(nameof(DatabaseBackupEventProjector));((DatabaseBackupProjectionSnapshot)call.GetArguments()[1]!).EventId.Should().Be(source.EventId);
         }
     }
 
@@ -52,13 +53,13 @@ public sealed class DatabaseBackupProjectorTests
     {
         var db = Substitute.For<ISystemAdminDbContext>();
         var observed = new List<long>();
-        db.ApplyDatabaseBackupEventAsync(
+        db.ApplyDatabaseBackupSnapshotAsync(
                 nameof(DatabaseBackupEventProjector),
-                Arg.Any<DatabaseBackupEventContract>(),
+                Arg.Any<DatabaseBackupProjectionSnapshot>(),
                 Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                observed.Add(call.ArgAt<DatabaseBackupEventContract>(1).EventId);
+                observed.Add(call.ArgAt<DatabaseBackupProjectionSnapshot>(1).EventId);
                 return ValueTask.FromResult(EventProjectionApplyOutcome.Applied);
             });
         db.GetDatabaseBackupProjectionCheckpointAsync(

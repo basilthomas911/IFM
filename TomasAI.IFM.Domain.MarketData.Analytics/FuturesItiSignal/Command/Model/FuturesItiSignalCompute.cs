@@ -285,7 +285,7 @@ public sealed class FuturesItiSignalCompute
     static double CalculateLambda(
         double vixFuturesPrice,
         double baselineVix = 15.7,
-        double baseLambdaFactor = 0.002)
+        double baseLambdaFactor = 0.003)
     {
         var normalizedVolatility = vixFuturesPrice / baselineVix;
         var volatilityFactor = normalizedVolatility > 1
@@ -327,8 +327,8 @@ public sealed class FuturesItiSignalCompute
         => timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 10,
-            TimeFrameType.Monthly => 30,
+            TimeFrameType.Weekly => 20,
+            TimeFrameType.Monthly => 60,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(timePeriod),
                 $"Unsupported ITI time period: {timePeriod}")

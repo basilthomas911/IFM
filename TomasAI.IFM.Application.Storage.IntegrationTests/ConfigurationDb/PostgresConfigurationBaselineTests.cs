@@ -29,8 +29,8 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
     public async Task Persisted_configuration_baseline_rebuilds_every_row_with_catalog_guards_and_original_sequence()
     {
         var sourceSettings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings();
-        sourceSettings.Add(ConfigurationDbContext.ConfigurationDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
-        sourceSettings.Add(MarketDataDbContext.MarketDataDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        sourceSettings.Add(ConfigurationDbContext.ConfigurationDbConnection,fixture.Connection,"System.Data.Postgres");
+        sourceSettings.Add(MarketDataDbContext.MarketDataDbConnection,fixture.Connection,"System.Data.Postgres");
         await new ConfigurationSchemaDb(sourceSettings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         await new MarketDataSchemaDb(sourceSettings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var factory=new Mock<IDbContextFactory>();
@@ -54,8 +54,8 @@ public sealed class PostgresConfigurationBaselineTests(PostgresTradePlanFixture 
         source.Should().NotBeNull(); source!.Tables.Should().BeEquivalentTo(captured.Tables);
         source.LookupSequenceLastValue.Should().Be(900000); source.LookupSequenceIsCalled.Should().BeTrue();
         var name="ifm_config_verify_"+Guid.NewGuid().ToString("N");
-        var targetConnection=new NpgsqlConnectionStringBuilder(PostgresTradePlanFixture.Connection){Database=name}.ConnectionString;
-        await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(PostgresTradePlanFixture.Connection);
+        var targetConnection=new NpgsqlConnectionStringBuilder(fixture.Connection){Database=name}.ConnectionString;
+        await using var admin=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
         await admin.OpenAsync();
         await using(var create=new NpgsqlCommand("CREATE DATABASE "+name+";",admin)) await create.ExecuteNonQueryAsync();
         try

@@ -37,11 +37,11 @@ public class EconomicCalendarCommandState
             case EconomicCalendarAddedEvent added when added.EconomicCalendar is not null:
                 return _economicCalendars.TryAdd(added.EntityId, added.EconomicCalendar);
             case EconomicCalendarChangedEvent changed when changed.EconomicCalendar is not null:
-                if (!_economicCalendars.ContainsKey(changed.EconomicCalendar.Id)) return false;
                 _economicCalendars[changed.EconomicCalendar.Id] = changed.EconomicCalendar;
                 return true;
             case EconomicCalendarRemovedEvent removed when removed.EntityId is not null:
-                return _economicCalendars.Remove(removed.EntityId);
+                _economicCalendars.Remove(removed.EntityId);
+                return true;
             case EconomicCalendarsImportedEvent:
                 // Import is an operation marker; external records are projected separately.
                 return true;

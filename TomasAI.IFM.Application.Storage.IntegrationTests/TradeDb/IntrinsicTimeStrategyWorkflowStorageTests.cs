@@ -16,46 +16,42 @@ public sealed class IntrinsicTimeStrategyWorkflowStorageContractTests
     [Fact]
     public void WorkflowSchemas_DefineSixUnversionedQueryDrivenTables()
     {
-        var schemas = new[]
-        {
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTable,
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable,
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowStartAttemptByEntityTable,
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTimelineTable,
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowByEntityTable,
-            TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowByStatusDayTable
-        };
-
-        Assert.All(schemas, static schema =>
-        {
-            Assert.DoesNotContain("ALLOW FILTERING", schema, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotMatch(@"intrinsic_time_strategy_workflow[^\s(]*_v\d+", schema);
-        });
-        Assert.Contains("workflowId uuid PRIMARY KEY", schemas[0], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("workflowEntityId text PRIMARY KEY", schemas[1], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("PRIMARY KEY (workflowEntityId, requestedAtUtc, requestedWorkflowId)", schemas[2], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("PRIMARY KEY (workflowId, eventId)", schemas[3], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("PRIMARY KEY (workflowEntityId, startedAtUtc, workflowId)", schemas[4], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("PRIMARY KEY ((status, startedDate), startedAtUtc, workflowId)", schemas[5], StringComparison.OrdinalIgnoreCase);
+        var schema = TradeSchemaSql.Create;
+        string[] tables =
+        [
+            "intrinsic_time_strategy_workflow",
+            "intrinsic_time_strategy_workflow_active",
+            "intrinsic_time_strategy_workflow_start_attempt",
+            "intrinsic_time_strategy_workflow_timeline",
+            "intrinsic_time_strategy_workflow_by_entity",
+            "intrinsic_time_strategy_workflow_by_status_day"
+        ];
+        Assert.All(tables, table => Assert.Contains("CREATE TABLE IF NOT EXISTS trade." + table, schema, StringComparison.Ordinal));
+        Assert.DoesNotContain("ALLOW FILTERING", schema, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(@"intrinsic_time_strategy_workflow[^\s(]*_v\d+", schema);
+        Assert.Contains("PRIMARY KEY (workflowEntityId, requestedAtUtc, requestedWorkflowId)", schema, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PRIMARY KEY (workflowId, eventId)", schema, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PRIMARY KEY (workflowEntityId, startedAtUtc, workflowId)", schema, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("PRIMARY KEY (status, startedDate, startedAtUtc, workflowId)", schema, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void WorkflowQueries_UsePartitionKeysAndBoundedPaging()
     {
-        Assert.Contains("workflowEntityId = :workflowEntityId", TradeDbCql.GetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
-        Assert.Contains("requestedAtUtc < :beforeUtc", TradeDbCql.GetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
-        Assert.Contains("eventId > :afterEventId", TradeDbCql.GetIntrinsicTimeStrategyWorkflowTimeline, StringComparison.Ordinal);
-        Assert.Contains("startedAtUtc < :beforeUtc", TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByEntity, StringComparison.Ordinal);
-        Assert.Contains("status = :status AND startedDate = :startedDate", TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByStatusDay, StringComparison.Ordinal);
+        Assert.Contains("workflowEntityId = $1", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
+        Assert.Contains("requestedAtUtc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts, StringComparison.Ordinal);
+        Assert.Contains("eventId > $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowTimeline, StringComparison.Ordinal);
+        Assert.Contains("startedAtUtc < $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByEntity, StringComparison.Ordinal);
+        Assert.Contains("status = $1 AND startedDate = $2", TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByStatusDay, StringComparison.Ordinal);
         Assert.All(
             new[]
             {
-                TradeDbCql.GetIntrinsicTimeStrategyWorkflowStartAttempts,
-                TradeDbCql.GetIntrinsicTimeStrategyWorkflowTimeline,
-                TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByEntity,
-                TradeDbCql.GetIntrinsicTimeStrategyWorkflowsByStatusDay
+                TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowStartAttempts,
+                TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowTimeline,
+                TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByEntity,
+                TradeDbSql.NativeGetIntrinsicTimeStrategyWorkflowsByStatusDay
             },
-            static query => Assert.Contains("LIMIT :pageSize", query, StringComparison.Ordinal));
+            static query => Assert.Contains("LIMIT $3", query, StringComparison.Ordinal));
     }
 }
 

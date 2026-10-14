@@ -6,10 +6,16 @@ public static class OptionSpreadLegSelection
     /// <summary>Ranks usable OTM legs by absolute delta descending, with |delta| ? target. Delta uses fractions, not percent.</summary>
     public static IOrderedEnumerable<EvaluatedOptionContractReadModel> ShortCandidates(
         IEnumerable<EvaluatedOptionContractReadModel> contracts, bool isCall, decimal targetDelta,
-        decimal? underlyingPrice)
+        decimal? underlyingPrice) => ShortCandidates(contracts, isCall, targetDelta, underlyingPrice, false);
+
+    /// <summary>Ranks legs for live selection or an explicitly authorized frozen emulator preview.</summary>
+    /// <param name="allowFrozenEmulatorPreview">Opt in only for a confirmed frozen emulator snapshot; live callers retain stale-quote rejection.</param>
+    public static IOrderedEnumerable<EvaluatedOptionContractReadModel> ShortCandidates(
+        IEnumerable<EvaluatedOptionContractReadModel> contracts, bool isCall, decimal targetDelta,
+        decimal? underlyingPrice, bool allowFrozenEmulatorPreview)
     {
         var maximum = (double)targetDelta;
-        return contracts.Where(x => x.IsCall == isCall && !x.IsStale && (x.GreeksValid || x.SelectionValid)
+        return contracts.Where(x => x.IsCall == isCall && (!x.IsStale || allowFrozenEmulatorPreview) && (x.GreeksValid || x.SelectionValid)
                 && x.Delta is { } delta && double.IsFinite(delta)
                 && (isCall ? delta > 0 : delta < 0) && Math.Abs(delta) < .5 && Math.Abs(delta) <= maximum)
             .OrderByDescending(x => Math.Abs(x.Delta!.Value))

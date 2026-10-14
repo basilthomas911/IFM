@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Storage;
@@ -43,6 +45,10 @@ public interface IDbContextFactory
     IConfigurationDbContext ConfigurationDb { get; }
     IPortfolioDbContext PortfolioDb { get; }
     IMarketDataServiceDbContext MarketDataServiceDb { get; }
+    /// <summary>Typed scheduled-task reads and mutations.</summary>
+    IScheduledTaskDbContext ScheduledTaskDb { get; }
+    /// <summary>Scheduled-task schema creation and indexes.</summary>
+    ScheduledTaskSchemaDb ScheduledTaskSchema { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }
     SequenceIdSchemaDb SequenceIdSchema { get; }

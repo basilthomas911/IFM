@@ -157,13 +157,14 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 ConnectionScopeId = key.ConnectionScopeId,
                     ValueDate = valueDate,
                     Routes = routes,
+                    SavedStatistics = request.Statistics.IsDefault ? [] : request.Statistics,
                     Subscription = new()
                     {
                         Underlying = underlying!,
                         MaturityDate = request.MaturityDate,
                         Strikes = ordered.Select(x => x.Strike).Distinct().Order().ToArray(),
                         ResolvedContracts = routes.Select(x => x.Definition).ToArray(),
-                        DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
+                        DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume
                     }
                 }, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -259,7 +260,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                             Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
                             SessionVolume = item.SessionVolume,
                             OpenInterest = item.OpenInterest,
-                            StatisticsAtUtc = item.StatisticsAtUtc
+                            StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate
                         });
                         continue;
                     }
@@ -269,7 +270,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 if (item.Quote is not { } && !request.AllowMissingOptionQuotes)
                     throw new CompositionMarketSourceException("QuoteUnavailable");
                 values.Add(new(id, item.Quote is { } quote ? Convert(quote.Tick) : null, option.Pricing, option.Strike, option.IsCall, underlying)
-                { SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest, StatisticsAtUtc = item.StatisticsAtUtc });
+                { SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest, StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate });
             }
             return new(scope.Digest, generation, values.Count, values.MoveToImmutable(), null);
         }

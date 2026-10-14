@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.PortfolioDb;

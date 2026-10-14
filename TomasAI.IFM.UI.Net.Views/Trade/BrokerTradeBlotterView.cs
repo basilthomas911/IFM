@@ -307,7 +307,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _selectedLegGrid.CellValueNeeded += SelectedLegCellValueNeeded;
         _selectedLegGrid.CellFormatting += SelectedLegCellFormatting;
         _marketContextLabel = MarketValueLabel("-");
-        _lastPriceValue = MarketValueLabel("5,420.50");
+        _lastPriceValue = MarketValueLabel("N/A");
         _changeValue = MarketValueLabel("-");
         _ivValue = MarketValueLabel("-");
         _ivRankValue = MarketValueLabel("-");
@@ -1182,7 +1182,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             if (changedCount > changedRows.Length) _marketGrid.Invalidate();
             else for (var index = 0; index < changedCount; index++) _marketGrid.InvalidateRow(changedRows[index]);
         }
-        if (chain.UnderlyingPrice is { } currentPrice)
+        if (chain.LastUnderlyingPrice is { } currentPrice)
         {
             var nearest = NearestStrike(_optionChainRows, currentPrice);
             if (_nearestUnderlyingStrike != nearest)
@@ -1190,6 +1190,11 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 _nearestUnderlyingStrike = nearest;
                 _marketGrid.Invalidate();
             }
+        }
+        else if (_nearestUnderlyingStrike is not null)
+        {
+            _nearestUnderlyingStrike = null;
+            _marketGrid.Invalidate();
         }
         RefreshSelectedLegRows();
         if (_isNewTrade) RefreshBrokerTradeSelection();
@@ -1210,13 +1215,19 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         _dailyStandardDeviationValue.AccessibleDescription = $"EMA20 Bollinger estimate, futures points, as of {chain.BollingerAsOfUtc:O}";
         SetTextIfChanged(_ivRankValue, chain.IvRank?.ToString("0.0") ?? (chain.IvRankStatus.StartsWith("InsufficientHistory", StringComparison.Ordinal) ? "History needed" : "N/A"));
         _ivRankValue.AccessibleDescription = chain.IvRankStatus;
-        if (chain.UnderlyingPrice is { } underlyingPrice)
+        if (chain.LastUnderlyingPrice is { } underlyingPrice)
         {
             SetTextIfChanged(_lastPriceValue, underlyingPrice.ToString("0.00"));
             SetTextIfChanged(_changeValue, chain.PreviousSessionClose is > 0
                 ? $"{underlyingPrice - chain.PreviousSessionClose.Value:+0.00;-0.00;0.00} ({(underlyingPrice / chain.PreviousSessionClose.Value - 1):+0.00%;-0.00%;0.00%})" : "N/A");
             _changeValue.AccessibleDescription = "Underlying futures points and percent versus previous completed session close";
         }
+        else
+        {
+            SetTextIfChanged(_lastPriceValue, "N/A");
+            SetTextIfChanged(_changeValue, "N/A");
+        }
+        _lastPriceValue.AccessibleDescription = $"Latest underlying trade, as of {chain.LastUnderlyingTradeAtUtc:O}";
         var representativeIv = RepresentativeImpliedVolatility(chain);
         if (representativeIv is not null)
             SetTextIfChanged(_ivValue, representativeIv.Value.ToString("P1", System.Globalization.CultureInfo.InvariantCulture));
@@ -1239,6 +1250,10 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         .Where(x => (decimal)x.StrikePrice == strike && x.OptionType.StartsWith(call ? "C" : "P", StringComparison.OrdinalIgnoreCase))
         .OrderByDescending(x => _selectedMarketContracts.Contains(x.ContractId)).Select(x => x.ContractId).FirstOrDefault();
 
+    private bool AllowFrozenSpreadSelection(EvaluatedOptionChainReadModel chain)
+        => _capabilities.Environment == AppBrokerEnvironment.Emulator && !_liveFeedEnabled
+            && chain.WindowMethod.StartsWith("Frozen emulator preview", StringComparison.Ordinal);
+
     private void TryApplyDefaultOptionSpreadSelection(EvaluatedOptionChainReadModel chain)
     {
         if (!_spreadDefaultsLoaded || _marketSelectionEditedManually) return;
@@ -1251,9 +1266,9 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             || _strategy != TradeBlotterStrategy.IronCondor)
             return;
         var calls = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, true,
-            _shortCallDelta.Value / 100m, chain.UnderlyingPrice);
+            _shortCallDelta.Value / 100m, chain.UnderlyingPrice, AllowFrozenSpreadSelection(chain));
         var puts = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, false,
-            _shortPutDelta.Value / 100m, chain.UnderlyingPrice);
+            _shortPutDelta.Value / 100m, chain.UnderlyingPrice, AllowFrozenSpreadSelection(chain));
         var shortCondor = _tradeType == TradeType.ShortIronCondor;
         var callPair = calls.Select(call => (Call: call, Wing: FindWingContract(chain,
                 call.Strike + (shortCondor ? _callSpreadWidth.Value : -_callSpreadWidth.Value), true, call.Strike)))
@@ -1287,7 +1302,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         var credit = _tradeType is TradeType.CallCreditSpread or TradeType.PutCreditSpread;
         var longDirection = isCall ? (credit ? 1m : -1m) : (credit ? -1m : 1m);
         var pair = OptionSpreadLegSelection.ShortCandidates(chain.Contracts, isCall,
-                _shortLegDelta.Value / 100m, chain.UnderlyingPrice)
+                _shortLegDelta.Value / 100m, chain.UnderlyingPrice, AllowFrozenSpreadSelection(chain))
             .Select(shortLeg => (Short: shortLeg, Wing: FindWingContract(chain,
                 shortLeg.Strike + longDirection * _spreadWidth.Value, isCall, shortLeg.Strike)))
             .FirstOrDefault(x => x.Wing is not null);
@@ -1583,14 +1598,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                     && ContractKey(row, callSide) is { } id && _selectedMarketContracts.Contains(id))
                     .OrderBy(row => row.Strike).ToArray();
                 if (side.Length != 2) continue;
-                var lowIsLong = _tradeType switch
-                {
-                    TradeType.ShortIronCondor => !callSide,
-                    TradeType.LongIronCondor => callSide,
-                    TradeType.PutCreditSpread => true,
-                    TradeType.CallDebitSpread => true,
-                    _ => false
-                };
+                var lowIsLong = BrokerTradeLegSelection.LowStrikeIsLong(_tradeType, callSide);
                 for (var index = 0; index < 2; index++)
                 {
                     var isLong = index == 0 ? lowIsLong : !lowIsLong;

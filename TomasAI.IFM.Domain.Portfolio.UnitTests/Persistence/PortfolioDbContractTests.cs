@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
@@ -29,7 +30,7 @@ public sealed class PortfolioDbContractTests
     [Trait("Gate", "PPG-05")]
     public void Schema_is_additive_schema_qualified_and_has_required_book_of_record_tables()
     {
-        var schema = PortfolioDbSql.Schema.Create;
+        var schema = PortfolioSchemaSql.Portfolio;
         schema.Should().Contain("CREATE SCHEMA IF NOT EXISTS portfolio");
         schema.Should().Contain("portfolio.portfolio_by_id");
         schema.Should().Contain("portfolio.fund_by_portfolio");

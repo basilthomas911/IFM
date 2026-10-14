@@ -61,7 +61,7 @@ TomasAI.IFM.Application.Storage/                    Project root
 │   └── Schema/                                     Sequence functions and sequences
 ├── TradeDb/                                        Trade and trade-plan persistence
 │   └── Schema/                                     Trade CQL schema
-├── TradePlanDb/                                    Legacy trade-plan source (excluded from build)
+├── TradePlanDb/                                    PostgreSQL plan snapshots and exit-stage projections
 ├── YieldCurveRatesDb/                              External yield-curve reader
 ├── bin/                                            Generated build output
 │   ├── Debug/
@@ -128,16 +128,16 @@ TomasAI.IFM.Application.Storage/                    Project root
 | `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VX projections, cutover state, and the RSI signal-type index in creation order. |
 | `OptionPricerDb/` | Active | Option-pricer devices, spread distributions, distribution jobs, status transitions, and domain-specific exception/parameter definitions. |
 | `OptionPricerDb/Schema/` | Active source leaf | Defines device, distribution-job, and spread-distribution tables. |
-| `ReferenceDb/` | Active | Lookup types, seed IDs, scheduled jobs, economic calendars, country codes, and MDI forward-loss-ratio persistence. |
-| `ReferenceDb/Schema/` | Active source leaf | Defines economic-calendar, lookup, forward-loss, scheduled-job/day, and seed tables. |
+| `ReferenceDb/` | Active | Lookup types, seed capabilities, scheduled jobs, instrument definitions, product/family catalogs, and MDI forward-loss-ratio persistence. |
+| `ReferenceDb/Schema/` | Active source leaf | Defines the PostgreSQL lookup, forward-loss, scheduled-job/day, instrument-definition and product/family tables and indexes. |
 | `Schema/` | Active source leaf | Shared `IDbSchemaContext`, `SchemaDbContext<T>`, and immutable schema object definition. |
 | `SecuritiesDb/` | Active | Futures and futures-option contract queries, insert/update/delete operations, and currently-traded contract selection. |
 | `SecuritiesDb/Schema/` | Active source leaf | Defines futures and futures-option contract tables. |
 | `SequenceIdDb/` | Active | Obtains the next named sequence ID through checked-in SQL. |
 | `SequenceIdDb/Schema/` | Active source leaf | Defines current/next sequence functions and one database sequence per `SequenceName`. |
 | `TradeDb/` | Active | Option trades/legs/spreads, positions/states, fills, limits, orders, trade plans, forward-loss values, live feed, and placement signals. |
-| `TradeDb/Schema/` | Active source leaf | Defines 17 trade-related tables. |
-| `TradePlanDb/` | Excluded source leaf | Older standalone trade-plan context/contracts; the project file removes the entire folder from compilation. |
+| `TradeDb/Schema/` | Active source leaf | The single PostgreSQL DDL catalog and schema executor own all trade tables, indexes and additive changes. |
+| `TradePlanDb/` | PostgreSQL context | Active plan snapshot, ordered history and exit-stage persistence through typed contracts. |
 | `YieldCurveRatesDb/` | Active source leaf | Reads externally supplied yield-curve JSON data and converts it to market-data read models. |
 
 ### Generated folders
@@ -302,7 +302,7 @@ A simple command follows this pattern:
 public async Task DeleteMDIForwardLossRatioAsync(
     IntrinsicTimeTrendType trendDirection,
     TradeType tradeType)
-    => await _dbFactory.ReferenceDb.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", ReferenceDbCql.DeleteMDIForwardLossRatio)
+    => await _dbFactory.ReferenceDb.Use($"{nameof(ReferenceDbSql)}.{nameof(ReferenceDbSql.DeleteMDIForwardLossRatio)}", ReferenceDbSql.DeleteMDIForwardLossRatio)
         .SetParameters(new DeleteMDIForwardLossRatio(trendDirection.ToStringFast(), tradeType.ToStringFast()))
         .ExecuteCommandAsync();
 ```
@@ -376,7 +376,7 @@ The project uses `Microsoft.NET.Sdk`, targets `net10.0`, and enables nullable re
 
 Internals are visible to `TomasAI.IFM.Application.Storage.IntegrationTests`.
 
-The project explicitly removes `TradePlanDb/**` and a currently absent `SqlServer/**` path from Compile, EmbeddedResource, and None items. `TradePlanDb` remains in the repository for future work but does not appear in the built assembly. The obsolete `EventDb` implementation and its excluded SQL Server integration test were removed; `EventSourceDb` is the active event-source implementation.
+The project removes the currently absent `SqlServer/**` path from Compile, EmbeddedResource, and None items. TradePlanDb is compiled into the active storage assembly and resolved through the typed database factory. The obsolete `EventDb` implementation and its excluded SQL Server integration test were removed; `EventSourceDb` is the active event-source implementation.
 
 ## Context resolution and factory
 
@@ -463,7 +463,7 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 | `FundDbContext` | Full fund/order/trade/transaction CRUD and bulk operations plus balances, P&L, drawdown reporting, state/status changes, and database backup. |
 | `MarketDataDbContext` | The largest context: market ticks/bars/EOD, option ticks/quotes, analytics indicators/signals/models, VX, yield curves, holidays, normal curves, IDs, and trade live feed. |
 | `OptionPricerDbContext` | Device registration and spread-distribution job/data lifecycle. |
-| `ReferenceDbContext` | Lookup/seed values, scheduled jobs, economic calendars, country codes, and MDI forward-loss ratios. |
+| `ReferenceDbContext` | Lookup/seed capabilities, scheduled jobs, instrument/product catalogs, and MDI forward-loss ratios. |
 | `SecuritiesDbContext` | Futures and futures-option contract master data and currently traded contract queries. |
 | `SequenceIdDbContext` | Executes `fn_get_next_sequence_id` for a named `SequenceName`. |
 | `TradeDbContext` | Broad option trade, position, fill, limit, order, trade-plan, spread, loss-control, live-feed, and placement-signal persistence. |
@@ -559,7 +559,7 @@ The Market Data catalog uses that narrow additive convention for the authoritati
 - **Schema management is not versioned migration.** Create/drop catalogs have no history, checksum, upgrade ordering across releases, or rollback metadata.
 - **Create/drop is not wrapped here in a cross-object transaction.** Partial schema state is possible after a failure.
 - **Actor and standard event sources can use different connections.** The shared schema manager targets only the standard event-source connection, so host configuration must intentionally align or separately provision actor storage.
-- **Excluded source can appear active to readers.** `TradePlanDb` contains complete-looking code but is removed from all project item types.
+- **TradePlanDb is active PostgreSQL persistence.** Its context, contracts and schema are compiled and covered by isolated transaction/history regression tests.
 - **External reader failure policies differ.** Economic Calendars converts/skips rows and returns empty on outer failure; Yield Curve Rates lets failures propagate.
 - **Some contexts are very broad.** `MarketDataDbContext` and `TradeDbContext` combine many aggregates and analytics tables, increasing change and regression scope.
 - **Provider syntax is mixed by design.** SQL and CQL catalogs coexist; connection provider settings must match the command/schema syntax selected by each context.
@@ -727,3 +727,215 @@ The standalone PostgreSQL economic-calendar, yield-curve, option-chain parameter
 OptionPricerDb uses PostgreSQL exclusively. `OptionPricerDbContext` is the non-partial read/write facade with ordinal `MapTo` mappings. Bind values are consolidated in `OptionPricerDbParameters.cs`; UTC timestamp conversion and typed provider operations use receiver blocks in `OptionPricerDbContextExtensions.cs`. `Schema/OptionPricerSchemaSql.cs` is the single schema catalog, executed by `OptionPricerSchemaDb`.
 
 `Domain.OptionPricer/Persistence/AcceptedOptionPricerProjection.cs` owns accepted-event dispatch. Typed extensions on `IEnlistedPostgresTransaction` persist distribution pairs, jobs and status/deletion facts in the caller's transaction, without independent commits or recalculation. Deterministic source-derived IDs, numeric precision, nullable timestamps and source-order selection remain unchanged. In-progress count and cleanup execute directly in SQL rather than loading and iterating all jobs. Pricing tests share disposable infrastructure; they do not use Development databases.
+
+
+## PortfolioDb alignment
+
+`PortfolioDbContext` implements the documented read/write contracts and delegates typed persistence to the single C# 14 `PortfolioDbContextExtensions` class. Accepted Portfolio projection writes use the caller's enlisted transaction; they do not start a separate commit or reconstruct aggregate state. Positional and JSONB bindings are consolidated in `PortfolioDbParameters.cs`.
+
+`Schema/PortfolioSchemaSql.cs` owns projection, financial-history and financial-authority DDL. `PortfolioSchemaDb` exposes both named schema definitions and creates them after the event-log schema, which supplies financial foreign-key targets. Runtime queries remain in `PortfolioDbSql.cs`.
+
+Ledger/capacity decisions, authority preparation, accepted-event dispatch, baseline capture and event-only rebuilding belong to `Domain.Portfolio/Financial/Repository`. Order-composition transaction coordination belongs to `Domain.Portfolio/OrderComposition/Repository`. Their existing request-owned transaction sequences, locks, source fences, receipts, accepted facts and failure ordering are preserved. Domain repositories use the storage SQL catalog and enlisted persistence boundary. Financial transaction diagnostics remain in `Storage/EventSourceDb/Diagnostics`; they cannot abort transaction outcomes. Host registration now identifies the financial services as domain services.
+
+
+Portfolio verification: 15 storage integration cases and 129 financial/projection unit cases passed. An isolated harness executed the existing 18 ledger, atomicity and event-only rebuild cases directly; all passed, including the verified baseline and capacity reconstruction. The full host test bootstrap was not the persistence verification boundary. API Server Core and all three migration CLIs compiled. Semantic checks found zero unused imports and malformed XML documentation in the context and relocated repositories. Disposable database infrastructure was removed; the running Development application was not restarted.
+
+
+### ReferenceDb convention alignment (2026-10-12)
+
+ReferenceDb is PostgreSQL persistence. Its organization is:
+
+```text
+ReferenceDb/
+  ReferenceDbContext.cs
+  IReferenceDbContext.cs
+  IReferenceDbReadContext.cs
+  IReferenceDbWriteContext.cs
+  ReferenceDbContextExtensions.cs
+  ReferenceDbParameters.cs
+  ReferenceDbSql.cs
+  Schema/
+    ReferenceSchemaSql.cs
+    ReferenceSchemaDb.cs
+```
+
+The nonpartial context implements documented read/write capabilities and contains ordinal
+`MapTo...` mappings. All bindings are internal readonly records in `ReferenceDbParameters.cs`;
+small internal support records and persistence helpers reside in the one receiver-based extension
+catalog. SQL statements live in `ReferenceDbSql.cs`. The schema executor owns active Reference
+tables and indexes through the single PostgreSQL DDL catalog. Removed CQL branches and reservation
+support cannot be selected at runtime. Previously created shadow tables are not dropped by this
+source refactor; new schema creation omits them.
+
+`Domain.Reference/Repository` owns the instrument-definition adapter, product identity allocation,
+publication sequencing, cursor validation/filtering, family bootstrap and retained family-catalog
+operation policy. These repositories use typed Reference read/write capabilities. The context
+neither constructs their instances nor invokes their coordination logic. The API Core registers
+these services in `DependencyInjection/Domain/RegisterReferenceServices.cs`; the futures-contract
+query actor receives `IInstrumentDefinitionStore` through its typed context.
+
+Accepted lookup writes accept the caller-owned `IEnlistedPostgresTransaction`, preserving atomic
+source-event append and read projection updates. Standalone context CRUD still owns its local
+PostgreSQL transaction. Scheduled jobs use transaction-scoped advisory locks and exact, case-sensitive
+PostgreSQL unique indexes; no cross-table Scylla ownership handshake is required. Compatibility
+backfill is a bounded validated no-op because native query indexes require no separate backfill;
+reconciliation checks canonical rows and orphan weekday rows. Existing seed APIs continue to delegate
+to the technical sequence allocator, preserving their named query contracts.
+
+Regression tests use generated databases on disposable PostgreSQL infrastructure. Coverage includes
+lookup ordering and accepted-event rebuilding/rollback, scheduled-job weekdays/rename/delete,
+case-sensitive uniqueness and rename collision rollback, exact instrument JSON preservation,
+publication visibility, stable product identities, selector pagination and cursor isolation,
+concurrent family-catalog operations, and restart reads. Former CQL reservation tests were replaced
+by the active PostgreSQL checks.
+
+Verification: all **22 Reference storage/convention tests** and **208 Reference domain unit tests**
+passed. Storage regression tests ran on disposable PostgreSQL infrastructure, including generated
+instrument/catalog databases. API Server Core compiled with zero warnings and errors. Semantic checks
+of ReferenceDb and the moved Reference repositories reported zero errors, unused imports and malformed
+XML documentation. This refactor did not restart the Development application or run a data deletion.
+
+The two focused futures-contract query tests also passed, including injected instrument-service/cancellation coverage. The affected Portfolio integration-test assembly compiled in an isolated output directory with zero warnings and errors. Disposable test containers were removed by their fixtures.
+
+
+## ScheduledTaskDb alignment (2026-10-12)
+
+`ScheduledTaskDbContext` is the sole PostgreSQL scheduled-task repository. `IScheduledTaskDbContext` combines the generic repository, read and write contracts; the existing domain scheduled-task read/projection contracts remain supported. `IDbContextFactory` exposes the typed context and schema. Host registrations resolve the same context for domain reads, projections and enlisted writes.
+
+- `ScheduledTaskDbContext.cs`: documented contract methods and ordinal snapshot/date mappers.
+- `ScheduledTaskDbContextExtensions.cs`: technical keyset cursor handling, revision-fenced accepted snapshot writes, and local transaction resources. Enlisted writes use the caller's event transaction without a separate commit; standalone projection writes commit the run and completed session date together.
+- `ScheduledTaskDbParameters.cs`: ordered `IBindValue` bindings.
+- `ScheduledTaskDbSql.cs`: the single parameterized runtime SQL catalog.
+- `Schema/ScheduledTaskSchemaSql.cs`: all PostgreSQL table/index DDL; `ScheduledTaskSchemaDb.cs` creates these objects additively.
+
+The obsolete Scylla paths and duplicate PostgreSQL store are removed. Persisted PostgreSQL table identities, MessagePack payloads, revision comparisons, query-scoped history cursors, output-tail stripping and connection-name fallback are retained. The bounded filesystem output reader lives in `Storage/FileSystem`, outside database persistence; scheduler policy, run lifecycle, event append and replay coordination remain in Domain.SystemAdmin.
+
+Regression verification uses disposable PostgreSQL infrastructure, covering restart reads, stale definition/catalog/run revisions, monotonic completed session dates, multi-page history, cursor isolation, atomic standalone writes, and enlisted source-event/projection commit and rollback. Architecture tests guard contracts, helper placement, schema/SQL ownership and absence of Scylla paths. Host compilation and SystemAdmin tests cover the changed registrations and artifact reader.
+
+Verification completed: **13 ScheduledTaskDb regression/architecture cases** and **155 SystemAdmin unit tests** passed. Storage, Api.Server.Core and both affected migration utilities compiled with zero warnings/errors. Semantic review found no unused imports or malformed XML documentation in ScheduledTaskDb. Tests created and disposed their own infrastructure; no Development data was changed.
+
+
+## SystemAdminDb alignment (2026-10-12)
+
+`SystemAdminDbContext` provides typed PostgreSQL reads and accepted projection writes through `ISystemAdminDbReadContext` and `ISystemAdminDbWriteContext`. Every context contract method is documented; ordinal mappers remain on the nonpartial context.
+
+The database folder contains the main context, three contracts, one `SystemAdminDbParameters.cs` binding catalog, one `SystemAdminDbSql.cs` runtime SQL catalog, one C# 14 receiver-helper catalog, and `Schema/SystemAdminSchemaDb.cs` plus `SystemAdminSchemaSql.cs`. Internal operation mapping support is consolidated with the receiver helpers. The schema executor owns dependency order; all creation, indexes, additive changes and drops are catalogued in the schema SQL file.
+
+Domain.SystemAdmin now owns `DatabaseBackupProjectionFactory`, which validates authoritative events, preserves the existing receipt hash and derives operation routing, terminal/verification times, eligibility, legal holds, policy enforcement, service readiness and retention approval. It supplies a `DatabaseBackupProjectionSnapshot` to storage. DbContext helpers bind these accepted facts, maintain revision fences and receipts, and preserve caller-owned transaction enlistment. Standalone read-model rebuild writes retain their existing local transaction boundary.
+
+`DatabaseBackupExecutionIntentRepository` owns domain decoding and dispatch coordination. The context exposes only typed enqueue, pending event-record reads and publication acknowledgement operations; SQL remains in the database catalog. Source append, projections, receipts and enqueue still share the command's PostgreSQL transaction. Backup-set completeness, run-statistics aggregation and recovery-objective query translation belong to domain query handlers. The filesystem backup output reader is outside the database folder in `Storage/FileSystem`.
+
+Stored table names, event payloads, receipt hashing, row revision comparisons and read-model response contracts are preserved. Verification uses disposable PostgreSQL infrastructure so projection clear/rebuild tests cannot alter Development databases.
+
+Verification completed: **16 SystemAdminDb schema, projection, rebuild, atomicity and architecture cases** and **161 SystemAdmin unit tests** passed. Api.Server.Core compiled with zero warnings/errors. Storage and the new domain repositories have no unused imports or malformed XML documentation. Disposable test infrastructure was cleaned up; no Development database data was changed.
+
+
+## TradeDb alignment (2026-10-12)
+
+TradeDb is PostgreSQL persistence with the following organization:
+
+    TradeDb/
+      TradeDbContext.cs
+      ITradeDbContext.cs
+      ITradeDbReadContext.cs
+      ITradeDbWriteContext.cs
+      IEnlistedTradeDbWriter.cs
+      TradeDbContextExtensions.cs
+      TradeDbParameters.cs
+      TradeDbSql.cs
+      Schema/
+        TradeSchemaDb.cs
+        TradeSchemaSql.cs
+
+The nonpartial context implements documented read/write capabilities and owns ordinal
+MapTo result mappings. The write capability includes the caller-owned PostgreSQL
+projection transaction contract. Operations use this repository directly rather than
+routing back through IDbContextFactory; the constructor retains that argument for host
+registration compatibility.
+
+The single parameter catalog consolidates the existing internal readonly binding records
+without changing their ordered values. The one receiver-helper catalog owns technical
+serialization, query cursor validation, immutable revision checks and persistence resource
+handling. Its small internal cursor/result records are declared at file scope. Separate
+PostgreSQL trade-flow, pipeline, regime and workflow stores are retired. SQL constants and
+fixed query builders reside in TradeDbSql; all schema creation and additive changes use
+Schema/TradeSchemaSql through TradeSchemaDb. Retired Scylla schema catalogs and provider
+fallback branches are removed.
+
+Domain.Trade repositories and projectors retain command audit, source-event append,
+accepted-event dispatch, notifications and replay coordination. The database-independent
+Domain.Trade.Shared/Persistence/TradeProjectionFacts owns accepted pipeline identity checks
+and workflow status/outcome interpretation. DbContext does not rerun selection, compose an
+order, call the broker, or dispatch actors.
+
+Accepted order, execution/fills, trade, position/routes and workflow/pipeline projections
+continue using the supplied transaction without a separate commit. Standalone writes retain
+their local transaction boundary. Table identities, MessagePack payloads, revision fences,
+daily position history semantics, routing generations and ascending history pages are
+preserved. Native workflow queries bind the PostgreSQL parameter array as one execution
+through TradeDbValues, avoiding the enumerable overload that would treat individual
+parameters as separate executions.
+
+Regression coverage uses disposable infrastructure and includes source/projection rollback,
+order revisions, position lifecycle and route removal, stale position protection, all 205
+position history rows through bounded pages, workflow read units and notifications,
+Regime Discovery immutable invocation conflicts, tied-timestamp pipeline pages and
+query-scope cursor rejection. Convention checks guard the ten-file structure, contracts,
+ordinal mapper ownership, receiver helpers and parameter binding. No Development database
+data is changed by this source refactor.
+
+
+Verification: all 33 TradeDb storage/architecture regression cases and all 1,496 trade
+domain unit cases passed. Api.Server.Core and the offline migration utility compiled
+with zero warnings and errors. TradeDb semantic checks found zero errors, unused imports
+and malformed XML documentation. Regression fixtures removed their own containers;
+Development services and databases were not restarted or modified.
+
+All 12 trade-flow qualification checks also passed after updating obsolete schema
+references, using a weekday session for market-tick replay, and asserting the existing
+disposable-plan projection contract. These qualification updates change test expectations
+and fixtures, not trading behavior.
+
+## TradePlanDb convention alignment
+
+TradePlanDb is PostgreSQL-only. Its persistence folder contains nine C# files:
+
+- TradePlanDbContext.cs: the non-partial public context implements the documented read/write contracts and owns ordinal result mapping.
+- ITradePlanDbContext.cs, ITradePlanDbReadContext.cs and ITradePlanDbWriteContext.cs: typed repository, query and mutation capabilities, including caller-owned transactions.
+- TradePlanDbContextExtensions.cs: C# 14 receiver helpers for accepted mutations, local transaction/resource ownership, identity validation and scoped keyset pagination. The internal cursor type is file-scoped here.
+- TradePlanDbParameters.cs: the position binding and the complete Iron Condor scalar binding; scalar ordinals are unchanged.
+- TradePlanDbSql.cs: native PostgreSQL positional SQL, immutable-revision conflict fences and deterministic paging query construction. No runtime CQL conversion remains.
+- Schema/TradePlanSchemaSql.cs: the single PostgreSQL DDL catalog for all plan/workflow tables, scalar columns, indexes and additive migrations, plus explicit administrative teardown.
+- Schema/TradePlanSchemaDb.cs: executes that catalog through SchemaDbContext.
+
+PostgresTradePlanStore, the extra scalar projector, the obsolete CQL catalogs and superseded per-operation binding files are retired. Physical table names, MessagePack payloads, risk scalar field ordering, revision conflict behavior and scoped descending history cursors remain unchanged.
+
+Caller-owned mutations never commit independently: source event, plan/activity rows or exit-stage rows participate in the supplied transaction. Standalone monitoring writes attempt one local transaction; failures are logged and the snapshot is dropped. This refactor adds no retry, plan replay, history repair or retained monitoring cache.
+
+ExitWorkflowProjectionBaseline resides in Domain.EventSourcing/TradePlan. It owns quiescence admission, baseline event construction/verification and controlled exit-stage reconstruction. Its stage read/lock uses ITradePlanDbReadContext.ReadExitWorkflowBaselineAsync; SQL and ordinal mapping remain in storage. This is explicit recovery of recorded exit-stage business facts, not replay of disposable monitoring plans. ExitWorkflowProjectionFacts in Domain.Trade.Shared owns the accepted stage consistency checks used by both persistence and baseline capture.
+
+Regression checks use disposable infrastructure, covering source/projection atomic commit and rollback, scalar-column round trips, conflicting revisions, one-attempt failure handling, standalone snapshot log/drop behavior, ordered scoped history, exit-stage persistence and verified baseline reconstruction into an isolated database. Architecture checks enforce the nine-file structure, typed public operations, mapper ownership and receiver helper layout.
+
+Verification: all 25 TradePlanDb storage/convention regressions and all 12 trade-flow qualification checks passed. The API host services and offline exit-workflow baseline utility compiled with zero warnings and errors. Semantic verification found zero errors, unused imports or malformed XML documentation. Tests used disposable infrastructure and isolated restore targets; no Development database data was changed.
+
+## TradeTickQuoteDb convention alignment
+
+TradeTickQuoteDb remains the ScyllaDB owner of raw Databento trade/quote observations and futures/option ticks. This provider exception keeps CQL query and schema catalogs; it does not introduce PostgreSQL dual writes or business event-log appends.
+
+Its persistence folder contains nine C# files:
+
+- TradeTickQuoteDbContext.cs: non-partial public typed operations and ordinal result mappings.
+- ITradeTickQuoteDbContext.cs, ITradeTickQuoteDbReadContext.cs and ITradeTickQuoteDbWriteContext.cs: documented repository/read/write contracts, retaining existing parameter names and defaults.
+- TradeTickQuoteDbContextExtensions.cs: C# 14 receiver helpers for ingestion binding, validation and partition-scoped technical batching. The unchanged Scylla prepared-value adapter is a file-scoped internal type alongside these helpers.
+- TradeTickQuoteDbParameters.cs: all eight binding declarations in one file, retaining their names, namespaces and ordinal values.
+- TradeTickQuoteDbCql.cs: the unchanged provider queries and mutations.
+- Schema/TradeTickQuoteSchemaCql.cs: the sole Scylla DDL catalog and ordered schema definitions, including the quote UDT before the quote table and the administrative drop statements.
+- Schema/TradeTickQuoteSchemaDb.cs: executes that dependency-ordered catalog through SchemaDbContext.
+
+The former Parameters folder and separate raw trade/quote binding and prepared-adapter files are consolidated. The six insert overload bodies move to receiver helpers without changing write behavior. Futures tick batches still group by contract/value date and contain at most 24 rows, writing both the identity and time indexes with the existing CQL batch behavior; Scylla batching is not a PostgreSQL transaction boundary. Option price/Greek columns remain double. Table identities, partition keys, CQL text, source timestamp precision, MessagePack event contracts and query result ordinals remain unchanged.
+
+Provider ownership exception to binding conventions: InsertTickQuoteData remains a single-use reference object implementing IScyllaOwnedBindValues. It must not become a copyable struct: it transfers its parameter array once and retains the encoded quote value until the executor releases it on success or failure. TickQuoteScyllaBindValue owns only provider encoding/metadata checks and buffer lifetime; its prepared-metadata cache is technical provider state. Quote encoding and pooling remain in Domain.MarketData.Feed.Shared. These internal resource owners may be file-scoped beside the bindings/helpers; they do not coordinate business workflows, schedule work or append events.
+
+Regression coverage uses a disposable CQL destination with separate PostgreSQL settings and no Development database access. It covers raw ownership routing, 55 futures ticks across batch boundaries, identity/time index consistency and deletion, option tick values/Greeks, raw trade identifier/decimal/uint/nanosecond precision, and every UDT field in one- and 512-quote segments with nullable prices. Additional checks guard single-use parameter transfer, pooled buffer reuse/size, CQL marker order, the nine-file layout, typed public methods and receiver helpers.
+
+Verification: all 15 targeted TradeTickQuoteDb routing, raw trade/quote, architecture, binding-order and buffer ownership regressions passed. Storage and Api.Server.Core compiled with zero warnings and errors. Final semantic verification found zero errors, unused imports or malformed XML documentation. The test infrastructure was disposable; Development data and running services were not changed.

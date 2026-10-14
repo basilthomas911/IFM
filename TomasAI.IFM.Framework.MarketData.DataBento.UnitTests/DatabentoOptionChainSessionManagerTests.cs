@@ -16,6 +16,62 @@ public sealed class DatabentoOptionChainSessionManagerTests
     private static readonly InstrumentKey Instrument = new(7, 43);
 
     [Fact]
+    public async Task Saved_statistics_are_seeded_and_replay_updates_them_without_publishing_historical_trades()
+    {
+        var previous = ValueDate.AddDays(-1);
+        var replay = Trade(1, 11_000_000_000);
+        var h = replay.Header;
+        replay = new(new TradeRecord64(new(h.InstrumentId, h.PublisherId, MarketRecordKind.Trade, 2,
+            h.EventTimestampNanoseconds, h.ReceiveTimestampNanoseconds, h.Sequence), 11_000_000_000, 12, 1, 2, 0));
+        var feed = new FakeChainFeed(replay, replay, Trade(2, 11_000_000_000), Statistic(3, 9, 600, ValueDate),
+            Statistic(4, 9, 400, previous), Statistic(5, 9, 999, ValueDate.AddDays(1)), Quote(6,10_000_000_000,12_000_000_000));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var state = new OptionChainStateStore(); var publisher = new CapturingChainPublisher(2);
+        var factory = new FakeFactory(feed);
+        await using var manager = new DatabentoOptionChainSessionManager(factory,
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            new FakeAggregation(), lastPrices, new FakeEnricher(), publisher, state, pollTimeout: TimeSpan.FromMilliseconds(5));
+        var request = Request() with { SavedStatistics = [new("ES20260918C6500", 20, ValueDate, 500, previous)] };
+        await manager.StartAsync(request);
+        var key = new OptionChainSessionKey("ES-202609", Maturity);
+        Assert.True(SpinWait.SpinUntil(() => state.TryGet(key,"ES20260918C6500", out var x) && x.OpenInterest == 600,
+            TimeSpan.FromSeconds(2)));
+        await publisher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(state.TryGet(key,"ES20260918C6500",out var observed));
+        Assert.Equal(24,observed.SessionVolume);
+        Assert.Equal(ValueDate,observed.VolumeValueDate);
+        Assert.Equal(600,observed.OpenInterest);
+        Assert.Equal(ValueDate,observed.OpenInterestValueDate);
+        await manager.StopAsync("ES-202609", Maturity);
+        Assert.Single(publisher.Trades); // only the live trade
+        Assert.NotNull(factory.Options);
+        Assert.True(factory.Options.StatisticsReplayStartTimestampNanoseconds > 0);
+        Assert.True(factory.Options.TradeReplayStartTimestampNanoseconds > 0);
+    }
+
+    [Fact]
+    public async Task Shared_chain_owner_inherits_dated_statistics_without_counting_the_last_trade_again()
+    {
+        var feed = new FakeChainFeed(Trade(1, 11_000_000_000), Statistic(2,9,500,ValueDate.AddDays(-1)));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var state = new OptionChainStateStore();
+        await using var manager = new DatabentoOptionChainSessionManager(new FakeFactory(feed),
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi,"GLBX.MDP3"),
+            new FakeAggregation(),lastPrices,new FakeEnricher(),new CapturingChainPublisher(1),state,
+            pollTimeout:TimeSpan.FromMilliseconds(5));
+        await manager.StartAsync(Request());
+        var key = new OptionChainSessionKey("ES-202609",Maturity);
+        Assert.True(SpinWait.SpinUntil(()=>state.TryGet(key,"ES20260918C6500",out var x)&&x.OpenInterest==500,TimeSpan.FromSeconds(2)));
+        var next = Request() with { ConnectionScopeId = "another-owner" };
+        await manager.StartAsync(next);
+        Assert.True(state.TryGet(new("ES-202609",Maturity,"", "another-owner"),"ES20260918C6500",out var inherited));
+        Assert.Equal(12,inherited.SessionVolume);
+        Assert.Equal(ValueDate,inherited.VolumeValueDate);
+        Assert.Equal(500,inherited.OpenInterest);
+        Assert.Equal(ValueDate.AddDays(-1),inherited.OpenInterestValueDate);
+    }
+
+    [Fact]
     public async Task Session_demultiplexes_transient_quote_and_trade_and_drains_on_stop()
     {
         var aggregation = new FakeAggregation();
@@ -400,9 +456,11 @@ public sealed class DatabentoOptionChainSessionManagerTests
     private sealed class FakeFactory(params FakeChainFeed[] feeds) : IDatabentoFeedFactory
     {
         internal int CreateCount { get; private set; }
+        internal DatabentoFeedOptions? Options { get; private set; }
         public IDatabentoOptionChainFeed CreateOptionChainFeed(DatabentoFeedOptions options)
         {
             CreateCount++;
+            Options = options;
             return feeds[Math.Min(CreateCount - 1, feeds.Length - 1)];
         }
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options) =>

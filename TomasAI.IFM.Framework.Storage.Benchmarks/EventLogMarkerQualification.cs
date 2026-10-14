@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Net;
@@ -94,7 +95,7 @@ internal static class EventLogMarkerQualification
                 await new EventSourceSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
                 await using var db = new NpgsqlConnection(direct);
                 await db.OpenAsync();
-                await Sql(db, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
+                await Sql(db, PortfolioSchemaSql.Financial);
                 await Sql(db, "ALTER TABLE event_log RENAME TO event_log");
                 if (schemaComparison && candidate)
                     await Sql(db, """

@@ -28,6 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../TomasAI.IFM.UI.Net.Composition/TomasAI.IFM.UI.Net.Composition.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Services\TomasAI.IFM.UI.Net.Services.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />

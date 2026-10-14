@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using Microsoft.Extensions.Logging;

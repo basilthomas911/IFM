@@ -16,4 +16,5 @@
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Application.Benchmarks" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
 </Project>

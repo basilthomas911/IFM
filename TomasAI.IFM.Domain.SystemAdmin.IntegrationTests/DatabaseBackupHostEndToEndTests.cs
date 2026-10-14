@@ -124,7 +124,7 @@ public sealed class DatabaseBackupHostEndToEndTests
             await projection.ClearDatabaseBackupProjectionsAsync(projectorName);
             var revision = 0L;
             foreach (var domainEvent in publicEvents)
-                await projection.ApplyDatabaseBackupEventAsync(
+                await projection.ApplyDatabaseBackupSnapshotAsync(
                     projectorName, domainEvent with { EventId = ++revision });
 
             var firstJournal = Journal(journalOptions, hostOptions);
@@ -171,7 +171,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                     state.Execute(DatabaseBackupEventTranslator.Translate(serviceEvent));
                     var domainEvent = Assert.IsAssignableFrom<DatabaseBackupEventContract>(state.Events.Single());
                     state.Events.Clear();
-                    await projection.ApplyDatabaseBackupEventAsync(
+                    await projection.ApplyDatabaseBackupSnapshotAsync(
                         projectorName, domainEvent with { EventId = Interlocked.Increment(ref revision) });
                     if (domainEvent is DatabaseOperationCompletedEvent) completed.TrySetResult();
                 });

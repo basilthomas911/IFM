@@ -68,13 +68,15 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
             var startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
             var expected = TradingDates(startDate, endDate);
             var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
-            var insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) }).Where(value => value.ValidSessionCount < options.MinimumValidDailySessions).ToArray();
+            var insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) }).Where(value => value.ValidSessionCount < options.MinimumValidDailySessions || HasStaleTail(coverage[value.Series.SeriesIdentity], expected)).ToArray();
             HistoricalDataLoaderState? loaded = null;
             if (insufficientSeries.Length > 0)
             {
                 foreach (var insufficient in insufficientSeries)
                 {
-                    loaded = await loader.ExecuteAsync(template with { DataLoadAttemptId = AttemptId(insufficient.Series.SeriesIdentity, startDate, endDate, options.NormalizationVersion), Series = [insufficient.Series], StartDate = startDate, EndDate = endDate, MaximumCostUsd = options.MaximumCostUsd, MaximumBytes = options.MaximumBytes, NormalizationVersion = options.NormalizationVersion }, cancellationToken).ConfigureAwait(false);
+                    var acquisitionStart = insufficient.ValidSessionCount < options.MinimumValidDailySessions ? startDate
+                        : expected.First(date => date > LastValidDate(coverage[insufficient.Series.SeriesIdentity]));
+                    loaded = await loader.ExecuteAsync(template with { DataLoadAttemptId = AttemptId(insufficient.Series.SeriesIdentity, acquisitionStart, endDate, options.NormalizationVersion), Series = [insufficient.Series], StartDate = acquisitionStart, EndDate = endDate, MaximumCostUsd = options.MaximumCostUsd, MaximumBytes = options.MaximumBytes, NormalizationVersion = options.NormalizationVersion }, cancellationToken).ConfigureAwait(false);
                 }
 
                 coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
@@ -110,6 +112,12 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
             gate.Release();
         }
     }
+
+    // Permit one not-yet-published completed session, but never treat weeks-old coverage as current.
+    static DateOnly LastValidDate(IReadOnlyList<FuturesEodObservationReadModel> observations) =>
+        observations.Where(value => value.IsComplete && value.IsValid).Select(value => value.ValueDate).DefaultIfEmpty().Max();
+    static bool HasStaleTail(IReadOnlyList<FuturesEodObservationReadModel> observations, DateOnly[] expected) =>
+        expected.Count(date => date > LastValidDate(observations)) > 1;
 
     static int ValidSessionCount(IReadOnlyList<FuturesEodObservationReadModel> observations) => observations.Where(static value => value.IsComplete && value.IsValid).Select(static value => value.ValueDate).Distinct().Count();
     static Guid AttemptId(MarketSeriesIdentity series, DateOnly startDate, DateOnly endDate, string normalizationVersion)

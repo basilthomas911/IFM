@@ -14,6 +14,63 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
     [Fact]
+    public async Task StaleTrailingHistoryAcquiresMissingDatesEvenWithTwoHundredSessions()
+    {
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var store = new MemoryObservationStore();
+        var end = new DateOnly(2024, 12, 31);
+        var start = end.AddDays(-364);
+        var tradingDates = Enumerable.Range(0, 365)
+            .Select(offset => start.AddDays(offset))
+            .Where(calendar.IsTradingDate)
+            .ToArray();
+        long sequence = 1;
+        foreach (var date in tradingDates.Take(tradingDates.Length - 5))
+            store.Raw.Add(Session(calendar, date, sequence++));
+        var api = new FillingHistoricalApi(calendar);
+        var loader = new HistoricalDataLoader(
+            api,
+            new MemoryDataLoaderStore(),
+            store,
+            new NullHistoricalReplayPublisher(),
+            calendar,
+            TimeProvider.System);
+        var replay = new RecordingDailyReplayPublisher();
+        var service = new HistoricalAnalyticsWarmupService(
+            new HistoricalAnalyticsWarmupOptions
+            {
+                Enabled = true
+            },
+            loader,
+            store,
+            replay,
+            calendar,
+            TimeProvider.System);
+        var request = new MarketDataHistoricalRequest
+        {
+            DataLoadAttemptId = Guid.NewGuid(),
+            Series = [new() { SeriesIdentity = Es, Schema = HistoricalDataSchema.OhlcvDaily }],
+            StartDate = start,
+            EndDate = end,
+            MaximumCostUsd = 10,
+            MaximumBytes = 1_073_741_824,
+            NormalizationVersion = "historical-daily-v1",
+            RequestedBy = "test",
+            AnalyticsTargetContractId = "ES-ACTIVE"
+        };
+
+        var result = await service.EnsureAsync(request, CancellationToken.None);
+
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.AcquiredAndReplayed, result.Outcome);
+        var acquisition = Assert.Single(api.Requests);
+        Assert.Equal(tradingDates[^5], acquisition.StartDate);
+        Assert.Equal(0, result.MissingSessionCount);
+        Assert.Equal(end, acquisition.EndDate);
+        Assert.True(result.ValidSessionCount >= 200);
+        Assert.Equal(1, replay.PublishCount);
+    }
+
+    [Fact]
     public async Task ProductionReplaysQualifiedStoredHistoryWithoutProviderAccess()
     {
         var fixture = new Fixture(enabled: true, seedCoverage: true);

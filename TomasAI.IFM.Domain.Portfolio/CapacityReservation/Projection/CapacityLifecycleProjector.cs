@@ -4,7 +4,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Command.Actor;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;

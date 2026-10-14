@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using TomasAI.IFM.Domain.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
@@ -65,9 +66,9 @@ public sealed class DatabaseBackupStateRepository(
                 if (source is not DatabaseBackupEventContract backup)
                     throw new InvalidDataException("Backup commands require complete backup source events.");
                 await transaction.AppendAsync(command.StreamId, command.CommandId, backup, version++, token).ConfigureAwait(false);
-                await target.ApplyDatabaseBackupEventAsync(transaction, "DatabaseBackupEventProjector", backup, token).ConfigureAwait(false);
+                await target.ApplyDatabaseBackupSnapshotAsync(transaction, "DatabaseBackupEventProjector", DatabaseBackupProjectionFactory.Create(backup), token).ConfigureAwait(false);
                 if (ToExecutionEvent(backup) is not null)
-                    await DatabaseBackupExecutionIntentStore.EnqueueAsync(transaction, backup, token).ConfigureAwait(false);
+                    await DatabaseBackupExecutionIntentRepository.EnqueueAsync(target, transaction, backup, token).ConfigureAwait(false);
             }
             return true;
         }, cancellationToken).ConfigureAwait(false);
@@ -85,7 +86,7 @@ public sealed class DatabaseBackupStateRepository(
             if (databases?.SystemAdminDb is { ProviderName: "System.Data.Postgres" })
             {
                 await SendConcreteEventAsync(context, executionEvent).ConfigureAwait(false);
-                await new DatabaseBackupExecutionIntentStore(transactions ?? throw new InvalidOperationException("Backup outbox requires PostgreSQL transactions."))
+                await new DatabaseBackupExecutionIntentRepository(databases.SystemAdminDb)
                     .MarkPublishedAsync(domainEvent).ConfigureAwait(false);
             }
             else

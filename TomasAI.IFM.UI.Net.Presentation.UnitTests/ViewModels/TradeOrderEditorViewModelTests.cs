@@ -598,4 +598,24 @@ public sealed class TradeOrderEditorViewModelTests
             Caption = "Remove Order Error",
         });
     }
+    [Fact]
+    public void Entry_buttons_follow_list_and_selection_rules()
+    {
+        var vm = new TradeOrderEditorViewModel(Substitute.For<IAppRoot>(), new DateOnly(2026,10,14), [], Substitute.For<IReferenceDataService>());
+        vm.CanCreateOrder.Should().BeTrue();
+        vm.CanDeleteOrder.Should().BeFalse();vm.CanAddTrade.Should().BeFalse();vm.CanRemoveTrade.Should().BeFalse();vm.CanLoadOrder.Should().BeFalse();
+        var order = new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId=1, Status="Closed" });
+        typeof(TradeOrderEditorViewModel).GetProperty(nameof(vm.FundOrders))!.SetValue(vm, new[]{order});
+        vm.CanDeleteOrder.Should().BeTrue();vm.CanAddTrade.Should().BeFalse();
+        vm.SelectFundOrder(0);vm.CanAddTrade.Should().BeTrue();
+        typeof(TradeOrderEditorViewModel).GetProperty(nameof(vm.FundOrderTrades))!.SetValue(vm,new[]{new PortfolioFundOrderTradeEditorModel { TradeId=1, TradeState=TradeState.NewTrade }});
+        vm.CanRemoveTrade.Should().BeTrue();vm.CanLoadOrder.Should().BeFalse();
+        vm.SelectFundOrderTrade(0);vm.CanLoadOrder.Should().BeFalse();
+        foreach(var state in Enum.GetValues<TradeState>().Where(state=>state!=TradeState.NewTrade)){
+            typeof(TradeOrderEditorViewModel).GetProperty(nameof(vm.FundOrderTrades))!.SetValue(vm,new[]{new PortfolioFundOrderTradeEditorModel { TradeId=1, TradeState=state }});
+            vm.CanLoadOrder.Should().BeTrue();vm.CanRemoveTrade.Should().BeTrue();
+        }
+        vm.SelectFundOrder(-1);vm.CanAddTrade.Should().BeFalse();vm.CanCreateOrder.Should().BeTrue();
+    }
+
 }

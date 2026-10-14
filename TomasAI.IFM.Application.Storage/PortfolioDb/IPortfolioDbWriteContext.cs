@@ -116,4 +116,18 @@ public interface IPortfolioDbWriteContext
     Task DeleteDraftPolicyAsync(
         DraftPolicyProjectionDeletion deletion,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Persists an accepted financial-history row supplied by its domain projector.</summary>
+    /// <param name="portfolioId">Portfolio identity.</param>
+    /// <param name="month">UTC calendar month encoded as YYYYMM.</param>
+    /// <param name="revision">Financial revision.</param>
+    /// <param name="operationId">Operation identity.</param>
+    /// <param name="eventId">Committed source-event identity.</param>
+    /// <param name="eventType">Source-event type name.</param>
+    /// <param name="committedAtUtc">Source commit time.</param>
+    /// <param name="payload">Serialized accepted source facts.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task completing after the row is persisted.</returns>
+    Task SaveFinancialHistoryAsync(int portfolioId, int month, long revision, Guid operationId, long eventId,
+        string eventType, DateTime committedAtUtc, string payload, CancellationToken cancellationToken = default);
 }

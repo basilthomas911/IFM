@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
+using TomasAI.IFM.Domain.Reference.Repository;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,12 +20,14 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 
-public sealed class PostgresInstrumentDefinitionTests
+[Collection("PostgreSQL plan atomicity")]
+[Trait("Infrastructure","SelfContained")]
+public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
     public async Task Exact_definitions_roundtrip_and_published_products_are_restart_safe()
     {
-        await using var isolated = await PostgresInstrumentTestDatabase.CreateAsync();
+        await using var isolated = await PostgresInstrumentTestDatabase.CreateAsync(fixture.Connection);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var token = timeout.Token;
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -42,7 +46,9 @@ public sealed class PostgresInstrumentDefinitionTests
                 objects.Add(typeof(IObjectRepository<ReferenceDbContext>), context);
                 return context;
             }
-            var db = Context(); var store = db.InstrumentDefinitions;
+            var db = Context();
+            InstrumentDefinitionStore Store() => new(Context(),new TradeStrategySymbolStore(new DbContextFactory(new DbContextResolver(_=>Context())),ids));
+            var store = Store();
             var row = ExactInstrumentDefinition.Parse("GLBX.MDP3", """
                 {"hd":{"rtype":19,"publisher_id":1,"instrument_id":42002230,"ts_event":"1788089407203111341"},"ts_recv":"1788480000000000000","raw_symbol":"OZRU7 P2020","asset":"OZR","instrument_class":"P","underlying_id":42000681,"currency":"USD","exchange":"XCBT","expiration":"1819390800000000000","activation":"1784928600000000000","strike_price":"2020000000000","high_limit_price":"9223372036854775807","unknown_future_field":{"x":"keep exactly"}}
                 """);
@@ -51,7 +57,7 @@ public sealed class PostgresInstrumentDefinitionTests
             Assert.Null(await store.GetSnapshotAsync(token));
             var product = new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "ZR", "USD", "XCBT");
             await store.PublishAsync(first, [product], token);
-            var restarted = Context().InstrumentDefinitions;
+            var restarted = Store();
             Assert.Equal(first.Id, (await restarted.GetSnapshotAsync(token))!.Id);
             var catalog = new StoredInstrumentDefinitionSymbolCatalog(restarted);
             var symbols = await catalog.GetAsync(TradeStrategyFamilyType.FuturesOption, token);

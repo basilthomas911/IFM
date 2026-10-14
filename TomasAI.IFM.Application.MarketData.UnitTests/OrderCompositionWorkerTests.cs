@@ -56,6 +56,45 @@ public sealed partial class OrderCompositionWorkerTests
     }
 
     [Fact]
+    public async Task Live_chain_bootstraps_saved_statistics_then_replay_and_live_updates_flow_into_serialized_snapshots()
+    {
+        using var prices = Prices(); using var feed = new ChainFeed();
+        var evidence = Substitute.For<IOptionTradeEvidenceWriter>();
+        await using var runtime = Runtime(Factory(feed), prices, tradeEvidence: evidence);
+        var request = Request() with { Statistics = [new("ES-option-call",100,Date,400,Date.AddDays(-1))] };
+        var bytes = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(request);
+        request = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<WorkerOptionChainRequest>(bytes!)!;
+        Assert.Single(request.Statistics);
+        Assert.True((await runtime.AcquireAsync(request,default)).Active);
+        var expected = MarketDataKinds.Statistics | MarketDataKinds.SessionVolume;
+        Assert.Equal(expected, feed.Subscription!.DataKinds & expected);
+        var capture = new CompositionSnapshotRequest(Guid.NewGuid(),request.ScopeId,"Daily",Generation,At,At.AddSeconds(2),true)
+            { AllowMissingOptionQuotes = true };
+        var before = Assert.Single((await runtime.ReadAsync(capture,null,default)).Instruments);
+        Assert.Equal(100,before.SessionVolume); Assert.Equal(400,before.OpenInterest);
+        Assert.Equal(Date.AddDays(-1),before.OpenInterestValueDate);
+        var ns = checked((At.UtcTicks-DateTimeOffset.UnixEpoch.UtcTicks)*100);
+        feed.Push(new(new TradeRecord64(new(10,1,MarketRecordKind.Trade,2,ns,ns,1),100_000_000_000,12,1,2,0)));
+        feed.Push(new(new QuoteRecord64(new(10,1,MarketRecordKind.TradeReplayComplete,0,ns,ns,0),0,0,0,0,0,0)));
+        feed.Push(new(new TradeRecord64(new(10,1,MarketRecordKind.Trade,0,ns+100,ns+100,2),100_000_000_000,12,1,2,0)));
+        var reference = checked((new DateTimeOffset(Date.ToDateTime(TimeOnly.MinValue),TimeSpan.Zero).UtcTicks-DateTimeOffset.UnixEpoch.UtcTicks)*100);
+        feed.Push(new(new StatisticsRecord64(new(10,1,MarketRecordKind.Statistics,0,ns+200,ns+200,3),long.MaxValue,500,reference,9,0,1,0)));
+        feed.Push(QuoteRecord(4, observed: At.AddMilliseconds(1)));
+        CompositionMarketInstrument after = before;
+        for (var i=0;i<200 && after.OpenInterest!=500;i++)
+        {
+            await Task.Delay(5);
+            after = Assert.Single((await runtime.ReadAsync(capture,null,default)).Instruments);
+        }
+        Assert.Equal(24,after.SessionVolume); Assert.Equal(500,after.OpenInterest);
+        Assert.Equal(Date,after.VolumeValueDate); Assert.Equal(Date,after.OpenInterestValueDate);
+        var wire = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Serialize(after);
+        var decoded = TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.Shared.Deserialize<CompositionMarketInstrument>(wire!)!;
+        Assert.Equal(after.SessionVolume,decoded.SessionVolume); Assert.Equal(after.OpenInterestValueDate,decoded.OpenInterestValueDate);
+        await evidence.Received(1).WriteAsync(Arg.Any<OptionTradeEvidence>(),Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Independent_background_chain_and_replacement_preserve_manual_and_business_owners()
     {
         using var prices = Prices(); using var manual = new ChainFeed(); using var background = new ChainFeed(); using var replacement = new ChainFeed();
@@ -398,7 +437,8 @@ public sealed partial class OrderCompositionWorkerTests
         readonly BoundedBatchChannel channel = new(4, 64);
         public int Stops; public bool Disposed; public bool FailStart; public bool FailStop;
         public ISynchronousBatchReader<MarketDataBatch64> Reader => channel;
-        public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) { }
+        public OptionChainSubscription? Subscription;
+        public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) { Subscription = subscription; }
         public void Start(TimeSpan timeout, Action<TimeSpan> consumer)
         { if (FailStart) throw new IOException("Injected start failure."); consumer(timeout); }
         public void Push(MarketRecord64 record)

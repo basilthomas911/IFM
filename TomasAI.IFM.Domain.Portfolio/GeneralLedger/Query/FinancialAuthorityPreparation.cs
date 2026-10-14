@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Persistence;

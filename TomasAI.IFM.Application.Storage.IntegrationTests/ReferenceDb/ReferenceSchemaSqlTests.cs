@@ -10,7 +10,8 @@ public sealed class ReferenceSchemaSqlTests
     {
         Assert.Contains("CREATE SCHEMA IF NOT EXISTS reference;", ReferenceSchemaSql.Create);
         Assert.Contains("CREATE TABLE IF NOT EXISTS reference.lookup_type", ReferenceSchemaSql.Create);
-        Assert.Contains("CREATE TABLE IF NOT EXISTS reference.reference_projection_state", ReferenceSchemaSql.Create);
+        Assert.Contains("CREATE TABLE IF NOT EXISTS reference.scheduled_job", ReferenceSchemaSql.Create);
+        Assert.DoesNotContain("CREATE TABLE IF NOT EXISTS reference.scheduled_job_by_name", ReferenceSchemaSql.Create);
         Assert.Contains("CREATE INDEX", ReferenceSchemaSql.Create);
         Assert.DoesNotContain("CLUSTERING ORDER", ReferenceSchemaSql.Create);
         Assert.Null(typeof(ReferenceSchemaSql).Assembly.GetType(

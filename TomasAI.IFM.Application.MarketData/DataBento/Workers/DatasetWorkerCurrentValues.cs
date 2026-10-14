@@ -24,6 +24,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
     readonly int capacity;
     readonly IDatabentoContractRegistrationRegistry? registrations;
     readonly Dictionary<string, DatasetState> datasets = new(StringComparer.Ordinal);
+    readonly Dictionary<string, (FuturesMarketPriceSnapshot Price, string Source)> bootstrapPrices = new(StringComparer.Ordinal);
     readonly Dictionary<string, FuturesMarketPriceSnapshot> prices = new(StringComparer.Ordinal);
     readonly Dictionary<string, FuturesSessionStatisticsSnapshot> statistics = new(StringComparer.Ordinal);
     readonly IDatabentoMarketDataCatalog catalog;
@@ -212,6 +213,12 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
                         if (!Matches(state, price.ContractId, price.ValueDate) || price.AssetTypeId != AssetTypeId.Futures)
                             return false;
                         prices[price.ContractId] = price;
+                        if (price.Trade is { } latestTrade && latestTrade.LastPrice > 0 && bootstrapPrices.ContainsKey(price.ContractId)
+                            && latestTrade.NormalizedTradeAction is not (NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear)
+                            && (latestTrade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) == 0
+                            && latestTrade.EventTimestamp > bootstrapPrices[price.ContractId].Price.Trade!.Value.EventTimestamp)
+                            bootstrapPrices[price.ContractId] = (price with { Quote = null, Trade = latestTrade with
+                                { NormalizedTradeConditionFlags = latestTrade.NormalizedTradeConditionFlags | NormalizedTradeConditionFlags.Replay } }, "RetainedLiveCache");
                         if (price.Trade is { } trade)
                             lastPrices.TryUpdateTrade(new LastTradeTickSnapshot(price.ContractId, price.ValueDate,
                                 trade.LastPrice, trade.LastSize, trade.SourceSequence, trade.EventTimestamp, trade.ReceiveTimestamp));
@@ -271,7 +278,40 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
 
     public bool TryGetLastTickPrice(string contractId, out FuturesMarketPriceSnapshot snapshot)
     {
-        lock (gate) return prices.TryGetValue(contractId, out snapshot);
+        lock (gate)
+        {
+            if (prices.TryGetValue(contractId, out snapshot) && snapshot.Trade is not null) return true;
+            if (lastPrices is not null && datasets.Values.Any(state => state.Admission.HasValue && state.Contracts.ContainsKey(contractId))
+                && bootstrapPrices.TryGetValue(contractId, out var seed))
+            { snapshot = seed.Price; return true; }
+            return prices.ContainsKey(contractId);
+        }
+    }
+
+    /// <summary>Seeds a historical estimate without publishing a live event or advancing feed health/sequence.</summary>
+    public bool SeedBootstrapPrice(DateOnly activeDate, FuturesMarketPriceSnapshot price, string source)
+    {
+        if (price.AssetTypeId != AssetTypeId.Futures || price.Trade is not { } trade || trade.LastPrice <= 0 || trade.EventTimestamp > DateTimeOffset.UtcNow
+            || trade.NormalizedTradeAction is NormalizedTradeAction.Cancel or NormalizedTradeAction.Clear
+            || (trade.NormalizedTradeConditionFlags & NormalizedTradeConditionFlags.UndefinedPrice) != 0) return false;
+        lock (gate)
+        {
+            if (lastPrices?.ValueDate != activeDate || !datasets.Values.Any(state => state.Admission.HasValue && state.Contracts.ContainsKey(price.ContractId))) return false;
+            if (prices.TryGetValue(price.ContractId, out var live) && live.Trade is not null) return false;
+            if (bootstrapPrices.TryGetValue(price.ContractId, out var old) && old.Price.Trade!.Value.EventTimestamp >= trade.EventTimestamp) return false;
+            bootstrapPrices[price.ContractId] = (price, source);
+            return true;
+        }
+    }
+
+    /// <summary>Reports the original seed and its source independently of live feed evidence.</summary>
+    public bool TryGetBootstrapPrice(string contractId, out FuturesMarketPriceSnapshot price, out string source)
+    {
+        lock (gate)
+        {
+            if (bootstrapPrices.TryGetValue(contractId, out var value)) { price = value.Price; source = value.Source; return true; }
+            price = default; source = string.Empty; return false;
+        }
     }
 
     public bool TryGetFuturesSessionStatistics(string contractId, out FuturesSessionStatisticsSnapshot snapshot)
@@ -297,6 +337,7 @@ public sealed class DatasetWorkerCurrentValues : IDisposable
             lastPrices = null;
             datasets.Clear();
             prices.Clear();
+            bootstrapPrices.Clear();
             statistics.Clear();
         }
     }

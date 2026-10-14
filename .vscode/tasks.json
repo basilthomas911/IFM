@@ -2,6 +2,77 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "IFM Rust UI: Build",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Build-RustUi.ps1"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Rust UI: Run Strategy Details",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Build-RustUi.ps1",
+        "-Run"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Rust UI: Run Live (Development)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/Start-IFMRustDevelopment.ps1"
+      ],
+      "dependsOn": [
+        "IFM: Prepare API + Rust UI Debug"
+      ],
+      "dependsOrder": "sequence",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Rust UI: Prepare Live (Development)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Wait for Development API",
+        "IFM Rust UI: Build"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Rust UI: Test",
+      "type": "process",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Test-RustUi.ps1",
+        "-Desktop",
+        "-Visual"
+      ],
+      "problemMatcher": []
+    },
+    {
       "label": "IFM: Build API Server (Debug)",
       "type": "process",
       "command": "dotnet",
@@ -148,6 +219,18 @@
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "IFM: Prepare API + Rust UI Debug",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Stop API + UI (Development)",
+        "IFM: Build API Server (Debug)",
+        "IFM Rust UI: Build",
+        "IFM: Build Server Manager (Debug)",
+        "IFM: Build Scheduler Host (Debug)"
+      ],
+      "problemMatcher": []
     }
   ]
 }

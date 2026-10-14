@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// Application entry point from a complete definition scope to a worker-owned qualified chain.
 /// Reference lookup and Treasury I/O run here, never inside a worker quote callback.
 /// </summary>
-public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null) : IAsyncDisposable
+public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null) : IAsyncDisposable
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, RefreshRegistration> registrations = new();
@@ -96,6 +96,21 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
 
             var expiry = request.DeadlineUtc < clock.GetUtcNow().AddSeconds(120) ? request.DeadlineUtc : clock.GetUtcNow().AddSeconds(120);
             var lease = new WorkerOptionChainRequest(scopeId, request.LeaseId, request.GenerationId, request.ValueDate, request.MaturityDate, expiry, resolved, SeparateContractConnection: request.SeparateContractConnection, IndependentChainConnection: request.IndependentChainConnection);
+            if (statistics is not null)
+            {
+                try
+                {
+                    var saved = await statistics.ReadOptionChainStatisticsAsync(resolved[0].Pricing.Contract.UnderlyingContractId,
+                        request.MaturityDate, request.ValueDate, linked.Token).ConfigureAwait(false);
+                    var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
+                    lease = lease with { Statistics = saved.Where(x => ids.Contains(x.ContractId)).ToImmutableArray() };
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger?.LogWarning(exception, "Saved option statistics unavailable for {Underlying}/{Expiry}; provider replay will bootstrap the chain",
+                        resolved[0].Pricing.Contract.UnderlyingContractId, request.MaturityDate);
+                }
+            }
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
             {

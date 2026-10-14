@@ -33,39 +33,100 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         }
     }
 
-    internal void UpdateTrade(
-        OptionChainSessionKey key,
-        string contractId,
-        LastTradeTickWithGreeksSnapshot trade)
+    internal void UpdateTrade(OptionChainSessionKey key, string contractId, LastTradeTickWithGreeksSnapshot trade)
+    {
+        lock (_sync)
+            _sessions[key][contractId] = _sessions[key][contractId] with { Trade = trade };
+    }
+
+    // Replay is counted separately from prices/callbacks. Its watermark survives physical connection expansion.
+    internal void AccumulateVolume(OptionChainSessionKey key, string contractId, uint size, long eventNanoseconds,
+        uint sequence, DateOnly valueDate)
     {
         lock (_sync)
         {
             var current = _sessions[key][contractId];
+            if (eventNanoseconds < current.LastVolumeEventNanoseconds ||
+                eventNanoseconds == current.LastVolumeEventNanoseconds && sequence <= current.LastVolumeSequence) return;
+            var observed = checked(current.ObservedSessionVolume + size);
+            var saved = current.VolumeValueDate == valueDate ? current.SessionVolume ?? 0 : 0;
             _sessions[key][contractId] = current with
             {
-                Trade = trade,
-                SessionVolume = current.SessionVolumeOfficial
-                    ? current.SessionVolume
-                    : checked((current.SessionVolume ?? 0) + trade.Tick.Size)
+                ObservedSessionVolume = observed,
+                LastVolumeEventNanoseconds = eventNanoseconds,
+                LastVolumeSequence = sequence,
+                SessionVolume = current.SessionVolumeOfficial && current.VolumeValueDate == valueDate ? saved :
+                    current.VolumeReplayComplete ? observed : Math.Max(saved, observed),
+                SessionVolumeOfficial = current.SessionVolumeOfficial && current.VolumeValueDate == valueDate,
+                VolumeValueDate = valueDate
             };
         }
     }
 
-    internal void UpdateStatistics(OptionChainSessionKey key, string contractId,
-        long? volume, long? openInterest, DateTimeOffset observedAtUtc)
+    internal void CompleteVolumeReplay(OptionChainSessionKey key, string contractId, DateOnly valueDate)
     {
         lock (_sync)
         {
             var current = _sessions[key][contractId];
             _sessions[key][contractId] = current with
             {
-                SessionVolume = volume ?? current.SessionVolume,
-                OpenInterest = openInterest ?? current.OpenInterest,
-                StatisticsAtUtc = observedAtUtc,
-                SessionVolumeOfficial = volume is not null || current.SessionVolumeOfficial
+                VolumeReplayComplete = true,
+                SessionVolume = current.SessionVolumeOfficial && current.VolumeValueDate == valueDate
+                    ? current.SessionVolume : current.ObservedSessionVolume,
+                SessionVolumeOfficial = current.SessionVolumeOfficial && current.VolumeValueDate == valueDate,
+                VolumeValueDate = valueDate
             };
         }
     }
+
+    internal void Seed(OptionChainSessionKey key, IReadOnlyList<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> saved,
+        DateOnly valueDate)
+    {
+        lock (_sync)
+        {
+            foreach (var value in saved)
+            {
+                if (!_sessions[key].TryGetValue(value.ContractId, out var current)) continue;
+                if (value.Volume is >= 0 && value.VolumeValueDate is { } vd && vd <= valueDate &&
+                    (current.VolumeValueDate is null || vd > current.VolumeValueDate))
+                    current = current with { SessionVolume = value.Volume, VolumeValueDate = vd, SessionVolumeOfficial = false };
+                if (value.OpenInterest is >= 0 && value.OpenInterestValueDate is { } od && od <= valueDate &&
+                    (current.OpenInterestValueDate is null || od > current.OpenInterestValueDate))
+                    current = current with { OpenInterest = value.OpenInterest, OpenInterestValueDate = od };
+                _sessions[key][value.ContractId] = current;
+            }
+        }
+    }
+
+    internal void CopyStatistics(OptionChainSessionKey source, OptionChainSessionKey target, string contractId)
+    {
+        lock (_sync)
+        {
+            var sourceState = _sessions[source][contractId];
+            var to = _sessions[target][contractId];
+            _sessions[target][contractId] = sourceState with { Route = to.Route, Quote = to.Quote, Trade = null };
+        }
+    }
+
+    internal void UpdateStatistics(OptionChainSessionKey key, string contractId,
+        long? volume, long? openInterest, DateOnly referenceDate, DateTimeOffset observedAtUtc)
+    {
+        lock (_sync)
+        {
+            var current = _sessions[key][contractId];
+            if (volume is >= 0 && Newer(referenceDate, observedAtUtc, current.VolumeValueDate, current.VolumeObservedAtUtc))
+                current = current with { SessionVolume = volume, VolumeValueDate = referenceDate,
+                    VolumeObservedAtUtc = observedAtUtc, SessionVolumeOfficial = true };
+            if (openInterest is >= 0 && Newer(referenceDate, observedAtUtc, current.OpenInterestValueDate, current.OpenInterestObservedAtUtc))
+                current = current with { OpenInterest = openInterest, OpenInterestValueDate = referenceDate, OpenInterestObservedAtUtc = observedAtUtc };
+            if (current.StatisticsAtUtc is null || observedAtUtc > current.StatisticsAtUtc)
+                current = current with { StatisticsAtUtc = observedAtUtc };
+            _sessions[key][contractId] = current;
+        }
+    }
+
+    static bool Newer(DateOnly date, DateTimeOffset observed, DateOnly? currentDate, DateTimeOffset? currentObserved) =>
+        currentDate is null || date > currentDate || date == currentDate && (currentObserved is null || observed >= currentObserved);
 
     internal void Remove(OptionChainSessionKey key)
     {

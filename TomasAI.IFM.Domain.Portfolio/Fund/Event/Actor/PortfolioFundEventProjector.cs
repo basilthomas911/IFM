@@ -47,7 +47,7 @@ public sealed class PortfolioFundEventProjector(
         IPostgresEventTransaction? owner, CancellationToken token)
         => (owner ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (transaction,ct) =>
         {
-            await PostgresPortfolioProjectionStore.ApplyAsync(transaction,source,
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(transaction,source,
                 facts ?? throw new InvalidOperationException("Older Portfolio events require verified baseline facts."),ct).ConfigureAwait(false);
             return true;
         },token);

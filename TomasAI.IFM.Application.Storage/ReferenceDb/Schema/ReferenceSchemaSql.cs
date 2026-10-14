@@ -1,11 +1,10 @@
 namespace TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
-
 /// <summary>Native PostgreSQL reference tables and explicit history-order indexes. No runtime CQL translation.</summary>
 public static class ReferenceSchemaSql
 {
     /// <summary>Drops the ReferenceDb PostgreSQL schema during an explicit schema teardown.</summary>
     public const string Drop = "DROP SCHEMA IF EXISTS reference CASCADE;";
-
+    /// <summary>Creates the active Reference tables and indexes without dropping existing data.</summary>
     public const string Create = """
         CREATE SCHEMA IF NOT EXISTS reference;
         
@@ -43,26 +42,8 @@ public static class ReferenceSchemaSql
         catalog text PRIMARY KEY, revision bigint, payload_json text
         );
         
-        CREATE TABLE IF NOT EXISTS reference.reference_projection_state (
-        projectionName text PRIMARY KEY,
-            generation uuid,
-            completed boolean,
-            completedOn timestamptz
-        );
         
-        CREATE TABLE IF NOT EXISTS reference.reference_projection_mutation (
-        projectionName text,
-            mutationId uuid,
-            startedOn timestamptz,
-            PRIMARY KEY (projectionName, mutationId)
-        );
         
-        CREATE TABLE IF NOT EXISTS reference.reference_projection_ownership (
-        projectionName text PRIMARY KEY,
-            ownerMutationId uuid,
-            conflicted boolean,
-            claimedOn timestamptz
-        );
         
         CREATE TABLE IF NOT EXISTS reference.lookup_type (
         LookupTypeName text,
@@ -116,19 +97,7 @@ public static class ReferenceSchemaSql
         CREATE UNIQUE INDEX IF NOT EXISTS scheduled_job_unique_id ON reference.scheduled_job(jobId);
         CREATE UNIQUE INDEX IF NOT EXISTS scheduled_job_unique_name ON reference.scheduled_job(jobName COLLATE "C");
 
-        CREATE TABLE IF NOT EXISTS reference.scheduled_job_by_name (
-        jobName text PRIMARY KEY,
-            jobId int,
-            reservationToken uuid
-        );
         
-        CREATE TABLE IF NOT EXISTS reference.scheduled_job_write_ownership (
-        scopeType text,
-            scopeKey text,
-            operationId uuid,
-            startedOn timestamptz,
-            PRIMARY KEY (scopeType, scopeKey)
-        );
         
         CREATE TABLE IF NOT EXISTS reference.trade_strategy_family (
         catalog text, tradeStrategyFamilyId int, definitionVersion bigint,

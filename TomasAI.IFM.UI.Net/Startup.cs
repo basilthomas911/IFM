@@ -68,12 +68,10 @@ namespace TomasAI.IFM.UI.Net
             _container = new Container();
             RegisterLogger();
             RegisterApplication();
-            RegisterBaseServices();
-            RegisterQueryServices();
-            RegisterCommandServices();
-            RegisterEventConsumers();
-            RegisterEventProducers();
-            RegisterPresentationServices();
+            new TomasAI.IFM.UI.Net.Composition.UiClientServiceRegistration(_container,config).Register();
+            _container.RegisterSingleton<YieldCurveRateEditViewModel>();
+            _container.RegisterSingleton<IViewNavigator>(()=>new WinFormsViewNavigator(viewType=>_container.GetInstance(typeof(IForm<>).MakeGenericType(viewType))));
+            _container.RegisterSingleton<IUserInteraction>(()=>new WinFormsUserInteraction());
             _container.Verify();
             return _container.GetInstance<IViewNavigator>();
         }
@@ -122,93 +120,11 @@ namespace TomasAI.IFM.UI.Net
         }
 
 
-        static void RegisterBaseServices()
-        {
-            var natsServerUri = _config!.GetValue<string>("AppSettings:NatsServerUri");
-            if (string.IsNullOrWhiteSpace(natsServerUri))
-                throw new InvalidOperationException("AppSettings:NatsServerUri is required.");
 
-            _container!.RegisterInstance(TimeProvider.System);
-            _container!.RegisterSingleton<IValueDateProvider, FuturesValueDateProvider>();
-            //_container!.RegisterSingleton<IJsonSerializer, SystemTextJsonSerializer>();
-            _container!.RegisterSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
-            _container!.RegisterInstance<INatsProducerOptions>(new NatsProducerOptions { Url = natsServerUri });
-            _container!.RegisterInstance<INatsConsumerOptions>(new NatsConsumerOptions { Url = natsServerUri });
-            _container!.RegisterInstance<INatsEventListenerOptions>(new NatsEventListenerOptions { Url = natsServerUri });
-            _container!.RegisterSingleton<NatsConnectionManager>();
-            _container!.RegisterSingleton<IActorProducer>(() => new NatsActorProducer(
-                _container.GetInstance<INatsProducerOptions>(),
-                _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
-                _container.GetInstance<NatsConnectionManager>()));
-            _container.RegisterSingleton<ISupervisorCommandApi>(() => new SupervisorCommandApi(
-                _container.GetInstance<IActorProducer>()));
-            _container!.Register<IActorEventListener>(() => new NatsActorEventListener(
-                _container.GetInstance<INatsEventListenerOptions>(),
-                _container.GetInstance<Microsoft.Extensions.Logging.ILogger>(),
-                _container.GetInstance<NatsConnectionManager>()));
 
-        }
 
-        static void RegisterQueryServices()
-        {
-            _container!.RegisterSingleton<IApplicationQueryApi, ApplicationQueryApi>();
-            _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
-            _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
-            _container!.RegisterSingleton<PortfolioFinancialApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>(
-                () => _container.GetInstance<PortfolioFinancialApi>());
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(
-                () => _container.GetInstance<PortfolioFinancialApi>());
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement.IRiskQueryApi, RiskQueryApi>();
-            _container!.RegisterSingleton<IPortfolioIdentityApi, PortfolioIdentityApi>();
-            _container!.RegisterSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
-            _container!.RegisterSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
-            _container!.RegisterSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment.IMarketConditionAssessmentQueryApi, MarketConditionAssessmentQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ServiceApi.IIntrinsicTimeStrategyWorkflowQueryApi, IntrinsicTimeStrategyWorkflowQueryApi>();
-            _container!.RegisterSingleton<IReferenceQueryApi, ReferenceQueryApi>();
-            _container!.RegisterSingleton<ITradeQueryApi, OptionTradeQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountQueryApi,
-                BrokerAccountQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Broker.IBrokerOrderCommandApi, TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Broker.IBrokerOrderQueryApi,
-                BrokerOrderQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.IOrderExecutionQueryApi,
-                OrderExecutionQueryApi>();
-            _container!.RegisterSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
-            _container!.RegisterSingleton<
-                TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi,
-                StrategyTradePlanQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionQueryApi,
-                StrategyPositionQueryApi>();
-            _container!.RegisterSingleton<IDatabaseBackupQueryApi, DatabaseBackupQueryApi>();
-        }
 
-        static void RegisterCommandServices()
-        {
-            _container!.RegisterSingleton<IApplicationCommandApi, ApplicationCommandApi>();
-            _container!.RegisterSingleton<IPortfolioCommandApi, PortfolioCommandApi>();
-            _container!.RegisterSingleton<IPortfolioFinancialPolicyCommandApi, PortfolioFinancialPolicyCommandApi>();
-            _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.BrokerAccount.Contracts.IBrokerAccountCommandApi,
-                BrokerAccountCommandApi>();
-            _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi.IScheduledTaskCommandApi, ScheduledTaskCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi.IScheduledTaskQueryApi, ScheduledTaskQueryApi>();
-            _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi,
-                StrategyPositionCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi, EstablishedTradeQueryApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeOrderLifecycleApi,
-                TradeOrderLifecycleApi>();
-            _container!.RegisterSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
-            _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
-            _container!.RegisterSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
-            _container!.RegisterSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
-            _container!.RegisterSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
-            _container!.RegisterSingleton<IReferenceCommandApi, ReferenceCommandApi>();
-            _container!.RegisterSingleton<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IParameterSetsApi, ParameterSetsApi>();
-        }
+
 
         /// <summary>Connects the shared command/query transport before the WinForms shell starts loading data.</summary>
         public static async ValueTask StartAsync(CancellationToken cancellationToken = default)
@@ -295,110 +211,11 @@ namespace TomasAI.IFM.UI.Net
             }
         }
 
-        static void RegisterEventConsumers()
-        {
-            _container!.RegisterSingleton<IFuturesEodDataUIEventConsumer, FuturesEodDataUIEventConsumer>();
-            _container!.RegisterSingleton<IFuturesTradeSignalUIEventConsumer, FuturesTradeSignalUIEventConsumer>();
-            _container!.RegisterSingleton<IMarketOutlookUIEventConsumer, MarketOutlookUIEventConsumer>();
-            _container!.RegisterSingleton<IFuturesRsiSignalUIEventConsumer, FuturesRsiSignalUIEventConsumer>();
-            _container!.RegisterSingleton<IFuturesBarDataUIEventConsumer, FuturesBarDataUIEventConsumer>();
-            _container!.RegisterSingleton<IFuturesOptionTickDataUIEventConsumer, FuturesOptionTickDataUIEventConsumer>();
-            _container!.RegisterSingleton<ITradePositionUIEventConsumer, TradePositionUIEventConsumer>();
-            _container!.RegisterSingleton<IMarketDataFeedResetUIEventConsumer, MarketDataFeedResetUIEventConsumer>();
-            _container!.RegisterSingleton<IMarketDataFeedStatusUIEventConsumer, MarketDataFeedStatusUIEventConsumer>();
-            _container!.RegisterSingleton<ITradePlanUIEventConsumer, TradePlanUIEventConsumer>();
-            _container!.RegisterSingleton<ITradePlacementUIEventConsumer, TradePlacementUIEventConsumer>();
-            _container!.RegisterSingleton<ITradePlanActionUIEventConsumer, TradePlanActionUIEventConsumer>();
-            _container!.RegisterSingleton<IMarketDataUIEventConsumer, MarketDataUIEventConsumer>();
-            _container!.RegisterSingleton<IStatusConsoleEventConsumer, StatusConsoleEventConsumer>();
-            _container!.RegisterSingleton<ICommandResponseUIEventConsumer, CommandResponseUIEventConsumer>();
-            // Calendar dashboard and editor own independent listener lifecycles and may be open concurrently.
-            _container!.Register<IEconomicCalendarUIEventConsumer, EconomicCalendarUIEventConsumer>(Lifestyle.Transient);
-            _container!.Register<ILookupTypeUIEventConsumer, LookupTypeUIEventConsumer>(Lifestyle.Transient);
-            _container!.Register<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>(Lifestyle.Transient);
-            _container!.Register<IScheduledTaskUIEventConsumer, ScheduledTaskUIEventConsumer>(Lifestyle.Transient);
-            // These consumers belong to individual view subscriptions. Their owners call StopAsync
-            // when closing, which unsubscribes and disposes the listener connection; sharing a
-            // singleton would let one window stop another window's notifications.
-            foreach (var consumerType in new[] { typeof(IEconomicCalendarUIEventConsumer), typeof(ILookupTypeUIEventConsumer), typeof(ISystemAdminUIEventConsumer), typeof(IScheduledTaskUIEventConsumer) })
-            {
-                _container.GetRegistration(consumerType)!.Registration.SuppressDiagnosticWarning(
-                    DiagnosticType.DisposableTransientComponent,
-                    "The owning view stops its independent listener and disposes its notification subscription when it closes.");
-            }
-            _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
-            _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();
-            _container!.RegisterSingleton<IFuturesItiSignalUIEventConsumer, FuturesItiSignalUIEventConsumer>();
-            _container!.RegisterSingleton<IIntrinsicTimeStrategyWorkflowUIEventConsumer, IntrinsicTimeStrategyWorkflowUIEventConsumer>();
-        }
 
-        static void RegisterEventProducers()
-        {
-            _container!.RegisterSingleton<IStatusConsoleEventProducer, StatusConsoleEventProducer>();
-            _container!.RegisterSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
-        }
 
-        static void RegisterPresentationServices()
-        {
-            _container!.RegisterInstance(_config!.GetSection("SupervisorControl").Get<SupervisorControlOptions>()
-                ?? new SupervisorControlOptions());
-            _container!.RegisterSingleton<CommandResponseEventService>();
-            _container.RegisterSingleton<ApplicationEventService>();
-            _container.RegisterSingleton<ApplicationQueryService>();
-            _container.RegisterSingleton<StatusConsoleService>();
-            _container.RegisterSingleton<MarketDataCommandService>();
-            _container.RegisterSingleton<MarketDataQueryService>();
-            _container.RegisterSingleton<IMarketDataOperationsHealthQueryService>(() =>
-            {
-                var configured = _config!.GetValue<string>("MarketDataOperationsHealth:Endpoint");
-                var endpoint = Uri.TryCreate(configured, UriKind.Absolute, out var uri) ? uri : null;
-                return new MarketDataOperationsHealthQueryService(
-                    new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }), endpoint, ownsHttpClient: true);
-            });
-            _container.Register<IActorHealthQueryService>(() =>
-            {
-                var configured = _config!.GetValue<string>("MarketDataOperationsHealth:Endpoint");
-                var operationsEndpoint = Uri.TryCreate(configured, UriKind.Absolute, out var uri) ? uri : null;
-                var endpoint = operationsEndpoint is null ? null : new Uri(operationsEndpoint, "/api/actor-health");
-                return new ActorHealthQueryService(
-                    new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }), endpoint, ownsHttpClient: true);
-            }, Lifestyle.Transient);
-            _container.RegisterSingleton<MarketDataEventService>();
-            _container.RegisterSingleton<OptionTradeSpreadBarDataEventService>();
-            _container.RegisterSingleton<MarketDataFeedCommandService>();
-            _container.RegisterSingleton<MarketDataFeedQueryService>();
-            _container.RegisterSingleton<MarketDataAnalyticsCommandService>();
-            _container.RegisterSingleton<MarketDataAnalyticsQueryService>();
-            _container.RegisterSingleton<MarketDataAnalyticsEventService>();
-            _container.RegisterSingleton<IOptionPricingService, OptionPricingService>();
-            _container.RegisterSingleton<SpreadDistributionJobService>();
-            _container.RegisterSingleton<StrategyOperationsService>();
-            _container.RegisterSingleton<TradeQueryService>();
-            _container.RegisterSingleton<TradePlacementCommandService>();
-            _container.RegisterSingleton<TradePlacementEventService>();
-            _container.RegisterSingleton<IOrderExecutionNotificationService>(() =>
-                new OrderExecutionNotificationService(() => _container.GetInstance<IActorEventListener>()));
-            _container.RegisterSingleton<TradePlanQueryService>();
-            _container.RegisterSingleton<StrategyTradePlanQueryService>();
-            _container.RegisterSingleton<StrategyPositionService>();
-            _container.RegisterSingleton<PortfolioTradeOrderService>();
-            _container.RegisterSingleton<TradePlanEventService>();
-            _container.RegisterSingleton<TradePlanActionEventService>();
-            _container.RegisterSingleton<TradePositionFeedEventService>();
-            _container.RegisterSingleton<IUiServiceCatalog, UiServiceCatalog>();
-            _container!.Register<IDatabaseBackupService, DatabaseBackupService>(Lifestyle.Transient);
-            _container!.Register<IScheduledTaskService, ScheduledTaskService>(Lifestyle.Transient);
-            _container.Register<IReferenceDataService, ReferenceDataService>(Lifestyle.Transient);
-            _container.Register<IEconomicCalendarService, EconomicCalendarService>(Lifestyle.Transient);
-            _container!.RegisterSingleton<YieldCurveRateEditViewModel>();
-            _container!.RegisterSingleton<IViewNavigator>(() =>
-                new WinFormsViewNavigator(viewType =>
-                {
-                    var formContract = typeof(IForm<>).MakeGenericType(viewType);
-                    return _container.GetInstance(formContract);
-                }));
-            _container.RegisterSingleton<IUserInteraction>(() => new WinFormsUserInteraction());
-        }
+
+
+
 
         /// <summary>
         /// create singleton instance of application root

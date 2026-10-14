@@ -1,5 +1,8 @@
+using TomasAI.IFM.Application.Storage.SchemaDb;
+
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 
+/// <summary>Scylla type/table definitions and dependency-ordered schema execution catalog.</summary>
 internal static class TradeTickQuoteSchemaCql
 {
     /// <summary>Stores only short-lived infrastructure capability probes, never application domain state.</summary>
@@ -97,4 +100,14 @@ CREATE TABLE IF NOT EXISTS ifm_recovery_probe (
     PRIMARY KEY (contractId, valueDate, tickId)
     ) WITH CLUSTERING ORDER BY (valueDate ASC, tickId ASC);
     """;
+    internal static readonly SchemaObjectDefinition[] Definitions =
+    [
+        new("ifm_recovery_probe", TradeTickQuoteSchemaCql.CreateRecoveryProbeTable, "DROP TABLE IF EXISTS ifm_recovery_probe;"),
+        new("tick_quote_item", TradeTickQuoteSchemaCql.CreateTickQuoteItemType, "DROP TYPE IF EXISTS tick_quote_item;"),
+        new("tick_trade_data", TradeTickQuoteSchemaCql.CreateTickTradeDataTable, "DROP TABLE IF EXISTS tick_trade_data;"),
+        new("tick_quote_data", TradeTickQuoteSchemaCql.CreateTickQuoteDataTable, "DROP TABLE IF EXISTS tick_quote_data;"),
+        new("futures_tick_data", TradeTickQuoteSchemaCql.CreateFuturesTickDataTable, "DROP TABLE IF EXISTS futures_tick_data;"),
+        new("futures_tick_data_by_time", TradeTickQuoteSchemaCql.CreateFuturesTickDataByTimeTable, "DROP TABLE IF EXISTS futures_tick_data_by_time;"),
+        new("futures_option_tick_data", TradeTickQuoteSchemaCql.CreateFuturesOptionTickDataTable, "DROP TABLE IF EXISTS futures_option_tick_data;")
+    ];
 }

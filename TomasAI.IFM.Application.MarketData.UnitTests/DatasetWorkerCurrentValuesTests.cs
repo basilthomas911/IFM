@@ -17,6 +17,57 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 public sealed class DatasetWorkerCurrentValuesTests
 {
     [Fact]
+    public void Bootstrap_retains_source_time_survives_recovery_and_never_replaces_live_trade()
+    {
+        using var values = new DatasetWorkerCurrentValues();
+        var identity = Admission("XCBF.PITCH");
+        values.ActivateDataset(identity, [Registration(Vx, identity.Dataset)]);
+        var seedTime = Now.AddDays(-1);
+        var seed = new FuturesMarketPriceSnapshot(Vx, 42, 1, AssetTypeId.Futures, ValueDate.AddDays(-1), null,
+            new FuturesMarketTradeSnapshot(19m, 1, 100, seedTime, seedTime, NormalizedTradeConditionFlags: NormalizedTradeConditionFlags.Replay));
+        Assert.True(values.SeedBootstrapPrice(ValueDate, seed, "TradeTickQuoteDb"));
+        Assert.True(values.TryGetLastTickPrice(Vx, out var cached));
+        Assert.Equal(seed, cached);
+        Assert.True(values.TryGetBootstrapPrice(Vx, out _, out var source));
+        Assert.Equal("TradeTickQuoteDb", source);
+        Assert.False(values.GetFuturesReader(Vx).TryGetLastTrade(out _));
+        Assert.False(values.IsFeedUp);
+        values.ClearDataset(identity.Dataset);
+        Assert.False(values.TryGetLastTickPrice(Vx, out _));
+        var replacement = identity with { GenerationId = Guid.NewGuid() };
+        values.ActivateDataset(replacement, [Registration(Vx, replacement.Dataset)]);
+        Assert.True(values.TryGetLastTickPrice(Vx, out cached));
+        Assert.Equal(seedTime, cached.Trade!.Value.EventTimestamp);
+        Assert.True(values.AcceptPublication(Price(replacement, Vx, 20m)));
+        Assert.False(values.SeedBootstrapPrice(ValueDate, seed with { Trade = seed.Trade!.Value with { LastPrice = 99m } }, "history"));
+        Assert.True(values.TryGetLastTickPrice(Vx, out cached));
+        Assert.Equal(20m, cached.Trade!.Value.LastPrice);
+        values.ClearDataset(replacement.Dataset);
+        values.ActivateDataset(replacement with { GenerationId = Guid.NewGuid() }, [Registration(Vx, replacement.Dataset)]);
+        Assert.True(values.TryGetLastTickPrice(Vx, out cached));
+        Assert.Equal(20m, cached.Trade!.Value.LastPrice);
+        Assert.True(values.TryGetBootstrapPrice(Vx, out _, out source));
+        Assert.Equal("RetainedLiveCache", source);
+        values.Stop();
+        Assert.False(values.TryGetLastTickPrice(Vx, out _));
+        Assert.False(values.TryGetBootstrapPrice(Vx, out _, out _));
+    }
+
+    [Fact]
+    public void Bootstrap_rejects_invalid_price_wrong_active_date_and_future_timestamp()
+    {
+        using var values = new DatasetWorkerCurrentValues();
+        var identity = Admission("XCBF.PITCH");
+        values.ActivateDataset(identity, [Registration(Vx, identity.Dataset)]);
+        var seed = new FuturesMarketPriceSnapshot(Vx, 42, 1, AssetTypeId.Futures, ValueDate, null,
+            new FuturesMarketTradeSnapshot(20m, 1, 1, Now, Now));
+        Assert.False(values.SeedBootstrapPrice(ValueDate.AddDays(1), seed, "history"));
+        Assert.False(values.SeedBootstrapPrice(ValueDate, seed with { Trade = seed.Trade!.Value with { LastPrice = 0m } }, "history"));
+        Assert.False(values.SeedBootstrapPrice(ValueDate, seed with { Trade = seed.Trade!.Value with { EventTimestamp = DateTimeOffset.UtcNow.AddDays(1) } }, "history"));
+        Assert.False(values.SeedBootstrapPrice(ValueDate, seed with { Trade = seed.Trade!.Value with { NormalizedTradeAction = NormalizedTradeAction.Cancel } }, "history"));
+    }
+
+    [Fact]
     public void ReplayVwapCheckpointWithoutPricePassesGenerationMirror()
     {
         using var values = new DatasetWorkerCurrentValues();

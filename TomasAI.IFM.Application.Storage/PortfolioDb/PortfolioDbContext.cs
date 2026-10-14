@@ -37,7 +37,7 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public Task<T?> ReadOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash = null, CancellationToken ct = default)
         where T : class, IFinancialCompletedEvent => this.RequiredTransactions.ExecuteAsync(
-            (db, cancellation) => PortfolioDbFinancialSupport.ReadOperationAsync<T>(db, portfolioId, operationId, inputHash, cancellation), ct);
+            (db, cancellation) => db.ReadFinancialOperationAsync<T>(portfolioId, operationId, inputHash, cancellation), ct);
 
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
@@ -48,7 +48,7 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
             var value = await db
                 .ScalarAsync(PortfolioDbSql.Financial.ReadBook, [portfolioId], cancellation)
                 .ConfigureAwait(false);
-            return value is string json ? PortfolioDbFinancialSupport.Decode<FinancialBookConfiguration>(json) : null;
+            return value is string json ? json.DecodeFinancialValue<FinancialBookConfiguration>() : null;
         }, ct);
 
     /// <inheritdoc />
@@ -67,7 +67,7 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
                     [environment, executionAccountReference],
                     cancellation)
                 .ConfigureAwait(false);
-            return value is string json ? PortfolioDbFinancialSupport.Decode<FinancialBookConfiguration>(json) : null;
+            return value is string json ? json.DecodeFinancialValue<FinancialBookConfiguration>() : null;
         }, ct);
     }
 
@@ -327,6 +327,13 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
             this.ToParameters(deletion.ToDeletionValues()), ct);
     }
 
+    /// <summary>Maps the JSON payload at ordinal zero to its typed projection model.</summary>
     internal static T MapToModel<T>(IObjectDataRecord row) where T : class => JsonSerializer.Deserialize<T>(row.GetString(0))
         ?? throw new InvalidOperationException($"Stored {typeof(T).Name} payload is invalid.");
+
+    /// <inheritdoc />
+    public Task SaveFinancialHistoryAsync(int portfolioId, int month, long revision, Guid operationId, long eventId,
+        string eventType, DateTime committedAtUtc, string payload, CancellationToken cancellationToken = default)
+        => this.WriteAsync("PortfolioFinancial.ProjectHistory", PortfolioDbSql.Financial.FinancialHistoryProjection.Insert01,
+            this.ToParameters(portfolioId, month, revision, operationId, eventId, eventType, committedAtUtc, new PortfolioJson(payload)), cancellationToken);
 }

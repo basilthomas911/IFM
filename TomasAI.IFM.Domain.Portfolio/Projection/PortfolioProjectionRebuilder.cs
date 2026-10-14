@@ -63,7 +63,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             if (facts is not null)
             {
                 await (transactions ?? throw new InvalidOperationException("Portfolio rebuild transaction is not registered.")).ExecuteOnceAsync(async (db,ct) => {
-                    await PostgresPortfolioProjectionStore.ApplyAsync(db,(IEvent)item,facts,ct).ConfigureAwait(false);
+                    await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,(IEvent)item,facts,ct).ConfigureAwait(false);
                     return true;
                 },cancellationToken).ConfigureAwait(false);
                 continue;

@@ -112,6 +112,43 @@ public sealed class TradeDbContextConventionTests
                 boundaries.Any(boundary => line.Contains(boundary, StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public void Folder_has_one_binding_helper_and_postgres_schema_catalog()
+    {
+        var folder = GetFolder();
+        string[] expected =
+        [
+            "IEnlistedTradeDbWriter.cs", "ITradeDbContext.cs", "ITradeDbReadContext.cs",
+            "ITradeDbWriteContext.cs", "TradeDbContext.cs", "TradeDbContextExtensions.cs",
+            "TradeDbParameters.cs", "TradeDbSql.cs",
+            Path.Combine("Schema", "TradeSchemaDb.cs"), Path.Combine("Schema", "TradeSchemaSql.cs")
+        ];
+        var actual = Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(folder, path)).OrderBy(path => path).ToArray();
+        Assert.Equal(expected.OrderBy(path => path).ToArray(), actual);
+        var context = File.ReadAllText(Path.Combine(folder, "TradeDbContext.cs"));
+        var schema = File.ReadAllText(Path.Combine(folder, "Schema", "TradeSchemaDb.cs"));
+        Assert.DoesNotContain("_dbFactory", context, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.Data.ScyllaDb", schema, StringComparison.Ordinal);
+        Assert.Contains("TradeSchemaSql.Create", schema, StringComparison.Ordinal);
+        Assert.Contains("TradeSchemaSql.Drop", schema, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Typed_write_contract_includes_caller_owned_projection_transactions()
+    {
+        Assert.True(typeof(IEnlistedTradeDbWriter).IsAssignableFrom(typeof(ITradeDbWriteContext)));
+        Assert.True(typeof(IEnlistedTradeDbWriter).IsAssignableFrom(typeof(ITradeDbContext)));
+    }
+
+    [Fact]
+    public void Native_workflow_reads_bind_one_execution_parameter_set()
+    {
+        var context = File.ReadAllText(Path.Combine(GetFolder(), "TradeDbContext.cs"));
+        Assert.DoesNotContain(".SetParameters(Values(", context, StringComparison.Ordinal);
+        Assert.Equal(6, context.Split(".SetParameters(new TradeDbValues(Values(", StringSplitOptions.None).Length - 1);
+    }
+
     private static bool SameSignature(MethodInfo contract, MethodInfo implementation)
         => contract.Name == implementation.Name
             && contract.ReturnType == implementation.ReturnType

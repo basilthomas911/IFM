@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ public sealed class PostgresBackupAtomicTests(PostgresTradePlanFixture fixture)
     [InlineData(true)]
     public async Task Backup_source_rows_receipt_and_execution_intent_commit_or_rollback_together(bool failBeforeCommit)
     {
-        var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(SystemAdminDbContext.SystemAdminDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(SystemAdminDbContext.SystemAdminDbConnection, fixture.Connection, "System.Data.Postgres");
         await new SystemAdminSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var db = new SystemAdminDbContext(settings, NullLogger<DbProvider>.Instance);
         var id = Guid.NewGuid();
@@ -35,8 +36,8 @@ public sealed class PostgresBackupAtomicTests(PostgresTradePlanFixture fixture)
         Func<Task> save = async () => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
         {
             await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
-            await db.ApplyDatabaseBackupEventAsync(transaction, "PostgresBackupAtomicTest", source, token);
-            await DatabaseBackupExecutionIntentStore.EnqueueAsync(transaction, source, token);
+            await db.ApplyDatabaseBackupSnapshotAsync(transaction, "PostgresBackupAtomicTest", DatabaseBackupProjectionFactory.Create(source), token);
+            await DatabaseBackupExecutionIntentRepository.EnqueueAsync(db, transaction, source, token);
             if (failBeforeCommit) throw new InvalidOperationException("Injected after backup rows and outbox before commit.");
             return true;
         });
@@ -49,7 +50,7 @@ public sealed class PostgresBackupAtomicTests(PostgresTradePlanFixture fixture)
         var receiptRows = await fixture.Transactions.ExecuteOnceAsync((transaction, token) => transaction.ScalarAsync(
             "SELECT count(*) FROM system_admin.database_backup_projection_receipt WHERE projector_name=$1 AND event_id=$2;", ["PostgresBackupAtomicTest", source.EventId], token));
         receiptRows.Should().Be(failBeforeCommit ? 0L : 1L);
-        var intents = new DatabaseBackupExecutionIntentStore(fixture.Transactions);
+        var intents = new DatabaseBackupExecutionIntentRepository(db);
         var recovered = await intents.ReadPendingAsync();
         if (failBeforeCommit) recovered.Should().NotContain(x => x.Id == source.Id);
         else

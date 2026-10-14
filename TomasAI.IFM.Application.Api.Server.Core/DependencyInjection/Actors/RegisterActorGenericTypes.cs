@@ -159,18 +159,24 @@ public static partial class CoreServiceRegistration
         siContainer.RegisterSingleton<IDataCacheService, DataCacheService>();
         siContainer.RegisterInstance<TimeProvider>(TimeProvider.System);
         siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskOutputReader>(
-        new TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskOutputReader(
+        new TomasAI.IFM.Application.Storage.FileSystem.ScheduledTaskOutputReader(
         config["ScheduledTasks:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "scheduled-tasks", "development", "TaskRuns")));
         siContainer.RegisterInstance<TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels.IDatabaseBackupOutputReader>(
         new TomasAI.IFM.Application.Storage.DatabaseBackupOutputReader(
         config["DatabaseBackup:OutputRoot"] ?? Path.Combine(Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT") ?? Directory.GetCurrentDirectory(), ".artifacts", "database-backup", "output")));
-        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>();
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>();
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.IScheduledTaskDbContext>(
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.IScheduledTaskDbReadContext>(
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
+        siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.IScheduledTaskDbWriteContext>(
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
         siContainer.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskReadStore>(
-        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
         siContainer.RegisterSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts.IScheduledTaskProjectionWriter>(
-        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
         siContainer.RegisterSingleton<TomasAI.IFM.Application.Storage.ScheduledTaskDb.IScheduledTaskTransactionalProjectionWriter>(
-        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>());
+        () => siContainer.GetInstance<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>());
         RegisterTradeBrokerEmulator(siContainer, config, logger);
         siContainer.RegisterSingleton<IDatabaseBackupExecutionOutbox, DatabaseBackupExecutionOutbox>();
         var projectorReliabilityOptions = config
@@ -232,7 +238,7 @@ public static partial class CoreServiceRegistration
         assemblies.AddRange(domainAssemblies);
         assemblies = assemblies.Distinct().ToList();
         var repositoryTypes = ObjectRepositoryDiscovery.Discover(assemblies)
-        .Where(static type => type != typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore)
+        .Where(static type => type != typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext)
         && type != typeof(SystemAdminDbContext)
         && type != typeof(EventSourceActorDbContext)
         && type != typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore))
@@ -242,9 +248,9 @@ public static partial class CoreServiceRegistration
         siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>>(
         siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
         typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore)).Registration);
-        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore>>(
+        siContainer.AddRegistration<IObjectRepository<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext>>(
         siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
-        typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskReadStore)).Registration);
+        typeof(TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskDbContext)).Registration);
         var eventSourceRegistration = EventLogQualification.Active is null
         ? Lifestyle.Singleton.CreateRegistration<EventSourceActorDbContext>(siContainer)
         : Lifestyle.Singleton.CreateRegistration(() => new EventSourceActorDbContext(

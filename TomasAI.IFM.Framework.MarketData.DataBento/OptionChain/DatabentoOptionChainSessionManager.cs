@@ -130,6 +130,12 @@ _capacity = capacity;
                 lock (_sync)
                 {
                     _state.Create(key, request.Routes);
+                    foreach (var route in request.Routes)
+                    {
+                        var source = shared.InterestedKeys[route.Definition.Instrument.InstrumentId].First();
+                        _state.CopyStatistics(source, key, route.FuturesOptionContractId);
+                    }
+                    _state.Seed(key, request.SavedStatistics, request.ValueDate);
                     shared.Selections.Add(key, request.Routes);
                     foreach (var route in request.Routes) shared.InterestedKeys[route.Definition.Instrument.InstrumentId].Add(key);
                     _sessions.Add(key, shared);
@@ -140,7 +146,7 @@ _capacity = capacity;
                         if (reader is null) continue;
                         var prices = reader.GetFuturesOptionReader(route.FuturesOptionContractId, request.ValueDate);
                         if (prices.TryGetLastQuoteWithGreeks(out var quote)) _state.UpdateQuote(key, route.FuturesOptionContractId, quote);
-                        // Trades are not copied: copying would count their volume a second time.
+                        // Copying accumulated statistics preserves volume without re-applying a trade.
                     }
                 }
                 return true;
@@ -171,6 +177,7 @@ _capacity = capacity;
                 catch { RemovePhysical(shared); throw; }
             }
             _state.Create(key, request.Routes);
+            _state.Seed(key, request.SavedStatistics, request.ValueDate);
             try
             {
                 StartPhysical(key, request.ValueDate, subscription, routes, selections);
@@ -198,7 +205,17 @@ _capacity = capacity;
         OptionChainSubscription subscription, Dictionary<uint, DatabentoOptionChainRoute> routes,
         Dictionary<OptionChainSessionKey, IReadOnlyList<DatabentoOptionChainRoute>> selections)
     {
-        var feed = _feeds.CreateOptionChainFeed(_feedOptions);
+        // Replay is streamed by the consumer after mapping acknowledgement; quote readiness does not wait for statistics.
+        var now = _time.GetUtcNow();
+        var earliest = now.AddHours(-23).AddMinutes(-55); // Stay within the provider's 24-hour replay boundary.
+        var sessionStart = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetSessionStartUtc(valueDate);
+        var tradeStart = sessionStart > earliest ? sessionStart : earliest;
+        if (tradeStart > now) tradeStart = now;
+        var feed = _feeds.CreateOptionChainFeed(_feedOptions with
+        {
+            StatisticsReplayStartTimestampNanoseconds = ToUnixNanoseconds(earliest),
+            TradeReplayStartTimestampNanoseconds = ToUnixNanoseconds(tradeStart)
+        });
         Session? session = null;
         try
         {
@@ -206,7 +223,7 @@ _capacity = capacity;
             var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             feed.Start(_startTimeout, remaining =>
             {
-                session = new Session(key, valueDate, feed, routes, subscription, selections);
+                session = new Session(key, valueDate, feed, routes, subscription, selections) { FullSessionReplay = tradeStart == sessionStart };
                 lock (_sync) foreach (var logicalKey in selections.Keys) _sessions[logicalKey] = session;
                 session.Worker = Task.Run(() => ProcessAsync(session, ready));
                 if (!ready.Task.Wait(remaining)) throw new TimeoutException("The option-chain consumer did not become ready before feed activation.");
@@ -325,6 +342,14 @@ _capacity = capacity;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep validation, native ownership and failure ordering in one method for this compatibility pass.")]
     private async ValueTask ProcessRecordAsync(Session session, MarketRecord64 record)
     {
+        if (record.Header.RecordKind == MarketRecordKind.StatisticsReplayComplete) return;
+        if (record.Header.RecordKind == MarketRecordKind.TradeReplayComplete)
+        {
+            // Native replay completion is emitted once per instrument, not once per logical owner.
+            if (session.FullSessionReplay && session.Routes.TryGetValue(record.Header.InstrumentId, out var completed))
+                UpdateLogicalStates(session, completed, key => _state.CompleteVolumeReplay(key, completed.FuturesOptionContractId, session.ValueDate));
+            return;
+        }
         if (!session.Routes.TryGetValue(record.Header.InstrumentId, out var route))
             throw new InvalidOperationException(
                 $"The option-chain record instrument {record.Header.InstrumentId} is not mapped.");
@@ -363,6 +388,11 @@ _capacity = capacity;
             case MarketRecordKind.Trade:
                 {
                     var trade = record.Trade;
+                    if (trade.Price != UndefinedPrice && trade.Action is not ((byte)'C') and not ((byte)'R'))
+                        UpdateLogicalStates(session, route, key => _state.AccumulateVolume(key, route.FuturesOptionContractId,
+                            trade.Size, trade.Header.EventTimestampNanoseconds, trade.Header.Sequence, session.ValueDate));
+                    // Historical volume reconstruction must not trigger pricing evidence, risk callbacks or trade workflows.
+                    if ((trade.Header.Flags & 2) != 0) break;
                     var tick = new LastTradeTickSnapshot(
                         route.FuturesOptionContractId,
                         session.ValueDate,
@@ -409,17 +439,20 @@ _capacity = capacity;
             throw new AggregateException("Option-chain session shutdown failed.", failures);
     }
 
+    private static ulong ToUnixNanoseconds(DateTimeOffset instant) =>
+        checked((ulong)(instant.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100UL);
+
     private void ApplyStatistics(Session session, DatabentoOptionChainRoute route, StatisticsRecord64 record)
     {
         if (record.UpdateAction != NewStatistic || record.Quantity < 0
             || record.Quantity == UndefinedStatisticQuantity) return;
         var referenceDate = DateOnly.FromDateTime(
             FromUnixNanoseconds(record.ReferenceTimestampNanoseconds).UtcDateTime);
-        long? volume = record.StatisticType == ClearedVolumeStatistic
-            && referenceDate == session.ValueDate ? record.Quantity : null;
+        if (referenceDate > session.ValueDate) return;
+        long? volume = record.StatisticType == ClearedVolumeStatistic ? record.Quantity : null;
         long? interest = record.StatisticType == OpenInterestStatistic ? record.Quantity : null;
         if (volume is null && interest is null) return;
-        UpdateLogicalStates(session, route, key => _state.UpdateStatistics(key, route.FuturesOptionContractId, volume, interest,
+        UpdateLogicalStates(session, route, key => _state.UpdateStatistics(key, route.FuturesOptionContractId, volume, interest, referenceDate,
             FromUnixNanoseconds(record.Header.EventTimestampNanoseconds)));
     }
 
@@ -489,6 +522,7 @@ _capacity = capacity;
             .GroupBy(x => x.Instrument).ToDictionary(group => group.Key, group => group.Select(x => x.Key).ToHashSet());
         internal Task? Worker;
         internal bool StopRequested;
+        internal bool FullSessionReplay;
 
         internal bool HasSameSelection(IReadOnlyList<DatabentoOptionChainRoute> candidates) =>
             Routes.Values.Select(route => route.FuturesOptionContractId)

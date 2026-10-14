@@ -10,40 +10,41 @@ using TomasAI.IFM.Shared.Storage;
 namespace TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 
 /// <summary>Owns direct ScyllaDB persistence for Databento trades and bounded quote segments.</summary>
+/// <param name="settings">The named ScyllaDB connection settings.</param>
+/// <param name="logger">Provider diagnostics.</param>
 public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILogger<DbProvider> logger)
     : ObjectDataRepository<TradeTickQuoteDbContext>(settings[TradeTickQuoteDbConnection], logger), ITradeTickQuoteDbContext
 {
+    /// <summary>The named ScyllaDB connection setting.</summary>
     public const string TradeTickQuoteDbConnection = "TradeTickQuoteDbConnection";
+    /// <summary>The concrete raw tick persistence context.</summary>
     public override TradeTickQuoteDbContext Database => this;
+    /// <summary>The typed raw tick query capability.</summary>
     public ITradeTickQuoteDbReadContext DbReader => this;
+    /// <summary>The typed ingestion mutation capability.</summary>
     public ITradeTickQuoteDbWriteContext DbWriter => this;
+    /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        var id = e.TickDataId;
-        var data = e.TradeData;
-        return this.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickTradeData)}", TradeTickQuoteDbCql.InsertTickTradeData)
-            .SetParameters(new InsertTickTradeData([(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (long)data.SourceSequence, data.EventTimestampNanoseconds, data.ReceiveTimestampNanoseconds, (short)data.HeaderFlags, data.PriceRaw, data.Price, (long)data.Size, (short)data.Action, (short)data.Side, (short)data.DbnFlags]))
-            .ExecuteCommandAsync();
-    }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+public Task InsertTickTradeDataAsync(FuturesTickTradeDataInsertedEvent e) => this.InsertTickTradeDataAsyncCore(e);
 
     /// <summary>Writes a bounded quote segment as one native CQL nested-UDT-list value.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2000", Justification = "InsertTickQuoteData transfers the encoded value through IScyllaOwnedBindValues.BindLifetime; the Scylla executor disposes it after binding/execution, including failure.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        var id = e.TickDataId;
-        var encoded = new TickQuoteScyllaBindValue(e.QuoteData);
-        object?[] values = [(sbyte)e.AssetTypeId, id.ContractId, id.ValueDate, TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId, id.TimestampUtc, id.TimestampUtc.Ticks, (short)e.SchemaVersion, e.Dataset, e.DefinitionDate, (int)e.PublisherId, (long)e.InstrumentId, e.Id, e.EventId, e.CommandId, e.AggregateId, e.EventSource, e.ReceivedOn, (short)e.EmissionReason, (short)e.QuoteCount, encoded];
-        return this.Use($"{nameof(TradeTickQuoteDbCql)}.{nameof(TradeTickQuoteDbCql.InsertTickQuoteData)}", TradeTickQuoteDbCql.InsertTickQuoteData)
-            .SetParameters(new InsertTickQuoteData(values, encoded))
-            .ExecuteCommandAsync();
-    }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
+public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e) => this.InsertTickQuoteDataAsyncCore(e);
 
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<BootstrapTradeRow>> GetLatestRawFuturesTradesAsync(string contractId, DateOnly throughDate, CancellationToken token = default)
+    {
+        this.ValidateScope(contractId, throughDate);
+        var rows = await this.Use(nameof(TradeTickQuoteDbCql.GetLatestRawFuturesTrades), TradeTickQuoteDbCql.GetLatestRawFuturesTrades)
+            .SetParameters(new BootstrapTradeParameters(contractId, throughDate))
+            .ExecuteQueryAsync(row => new BootstrapTradeRow(row.GetDateOnly(0), row.GetDecimal(1), row.GetLong(2), row.GetLong(3),
+                row.GetLong(4), row.GetLong(5), row.GetShort(6), row.GetShort(7), checked((uint)row.GetLong(8)), checked((ushort)row.GetInt(9))), token).ConfigureAwait(false);
+        return rows.ToArray();
+    }
 
     internal static FuturesTickDataV2ReadModel MapToFuturesTickData<TDataRecord>(TDataRecord e)
         where TDataRecord : IObjectDataRecord => new(contractId: e.GetString(0), valueDate: e.GetDateOnly(1), tickId: e.GetLong(2), tickTime: e.GetTimeOnly(3), price: e.GetDecimal(4), size: e.GetInt(5));
@@ -133,49 +134,16 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
     }
 
     /// <inheritdoc />
-    public Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel value)
-    {
-        this.ValidateTick(value);
-        return InsertFuturesTickDataAsync(new[] { value });
-    }
+    public Task InsertFuturesTickDataAsync(FuturesTickDataV2ReadModel value) => this.InsertFuturesTickDataAsyncCore(value);
 
     /// <inheritdoc />
-    public async Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> values)
-    {
-        this.ValidateTicks(values);
-        foreach (var partition in values.GroupBy(row => (row.ContractId, row.ValueDate)))
-        {
-            foreach (var batch in partition.Chunk(24))
-            {
-                List<object> commands =
-                [
-                    this.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickData), TradeTickQuoteDbCql.InsertFuturesTickData)
-                        .SetParameters(batch.Select(row => new InsertFuturesTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.Price, row.Size)))
-                        .QueueCommand(),
-                    this.Use(nameof(TradeTickQuoteDbCql.InsertFuturesTickDataByTime), TradeTickQuoteDbCql.InsertFuturesTickDataByTime)
-                        .SetParameters(batch.Select(row => new InsertFuturesTickDataByTime(row.ContractId, row.ValueDate, row.TickTime, row.TickId, row.Price, row.Size)))
-                        .QueueCommand()
-                ];
-                await this.ExecuteQueuedCommandsAsync(commands, useTransaction: true).ConfigureAwait(false);
-            }
-        }
-    }
+    public Task InsertFuturesTickDataAsync(ICollection<FuturesTickDataV2ReadModel> values) => this.InsertFuturesTickDataAsyncCore(values);
 
     /// <inheritdoc />
-    public Task InsertFuturesOptionTickDataAsync(FuturesOptionTickDataV2ReadModel value)
-    {
-        this.ValidateOptionTick(value);
-        return InsertFuturesOptionTickDataAsync(new[] { value });
-    }
+    public Task InsertFuturesOptionTickDataAsync(FuturesOptionTickDataV2ReadModel value) => this.InsertFuturesOptionTickDataAsyncCore(value);
 
     /// <inheritdoc />
-    public Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> values)
-    {
-        this.ValidateOptionTicks(values);
-        return this.Use(nameof(TradeTickQuoteDbCql.InsertFuturesOptionTickData), TradeTickQuoteDbCql.InsertFuturesOptionTickData)
-            .SetParameters(values.Select(row => new InsertFuturesOptionTickData(row.ContractId, row.ValueDate, row.TickId, row.TickTime, row.OptionPrice, row.BidPrice, row.AskPrice, row.BidSize, row.AskSize, row.ImpliedVolatility, row.UnderlyingPrice, row.Delta, row.Gamma, row.Vega, row.Theta, row.Rho)))
-            .ExecuteCommandAsync();
-    }
+    public Task InsertFuturesOptionTickDataAsync(ICollection<FuturesOptionTickDataV2ReadModel> values) => this.InsertFuturesOptionTickDataAsyncCore(values);
 
     /// <inheritdoc />
     public Task DeleteFuturesTickDataAsync(string contractId, DateOnly valueDate)
@@ -184,8 +152,12 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
         var parameters = new TickContractDateParameters(contractId, valueDate);
         List<object> commands =
         [
-            this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickData), TradeTickQuoteDbCql.DeleteFuturesTickData).SetParameters(parameters).QueueCommand(),
-            this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickDataByTime), TradeTickQuoteDbCql.DeleteFuturesTickDataByTime).SetParameters(parameters).QueueCommand()
+            this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickData), TradeTickQuoteDbCql.DeleteFuturesTickData)
+                .SetParameters(parameters)
+                .QueueCommand(),
+            this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesTickDataByTime), TradeTickQuoteDbCql.DeleteFuturesTickDataByTime)
+                .SetParameters(parameters)
+                .QueueCommand()
         ];
         return this.ExecuteQueuedCommandsAsync(commands, useTransaction: true);
     }
@@ -195,6 +167,7 @@ public sealed class TradeTickQuoteDbContext(IDbConnectionSettings settings, ILog
     {
         this.ValidateScope(contractId, valueDate);
         return this.Use(nameof(TradeTickQuoteDbCql.DeleteFuturesOptionTickData), TradeTickQuoteDbCql.DeleteFuturesOptionTickData)
-            .SetParameters(new TickContractDateParameters(contractId, valueDate)).ExecuteCommandAsync();
+            .SetParameters(new TickContractDateParameters(contractId, valueDate))
+                .ExecuteCommandAsync();
     }
 }

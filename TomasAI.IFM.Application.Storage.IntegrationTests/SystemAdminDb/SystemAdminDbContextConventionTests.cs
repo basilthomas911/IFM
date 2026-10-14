@@ -108,6 +108,25 @@ public sealed class SystemAdminDbContextConventionTests
                 boundaries.Any(boundary => line.Contains(boundary, StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public void Storage_has_one_binding_catalog_and_no_event_policy_or_dispatch_coordinator()
+    {
+        var folder = GetFolder();
+        Assert.False(File.Exists(Path.Combine(folder, "SystemAdminBackupSnapshotStore.cs")));
+        Assert.False(File.Exists(Path.Combine(folder, "DatabaseBackupExecutionIntentStore.cs")));
+        Assert.False(File.Exists(Path.Combine(folder, "DatabaseBackupOutputReader.cs")));
+        foreach (var path in Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories))
+        {
+            var source = File.ReadAllText(path);
+            if (source.Contains(": IBindValue", StringComparison.Ordinal)) Assert.Equal("SystemAdminDbParameters.cs", Path.GetFileName(path));
+            if (source.Contains("CREATE TABLE", StringComparison.Ordinal) || source.Contains("DROP TABLE", StringComparison.Ordinal))
+                Assert.Equal("SystemAdminSchemaSql.cs", Path.GetFileName(path));
+            Assert.DoesNotContain("DatabaseBackupEventContract", source, StringComparison.Ordinal);
+            Assert.DoesNotContain(".Events.Domain", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ComputeEventHash", source, StringComparison.Ordinal);
+        }
+    }
+
     private static bool SameSignature(MethodInfo contract, MethodInfo implementation)
         => contract.Name == implementation.Name
             && contract.ReturnType == implementation.ReturnType

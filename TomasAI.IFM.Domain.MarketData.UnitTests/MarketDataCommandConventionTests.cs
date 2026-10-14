@@ -42,6 +42,9 @@ public sealed class MarketDataCommandConventionTests
         Assert.False(remove.Execute(state).Success);
         Assert.False(change.Execute(state).Success);
         Assert.Equal(count, state.Events.Count);
+        Assert.True((remove with { Overwrite = true }).Execute(state).Success);
+        Assert.True((change with { Overwrite = true }).Execute(state).Success);
+        Assert.True(state.EconomicCalendarExists(calendar.Id));
     }
 
     [Fact]

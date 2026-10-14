@@ -32,13 +32,13 @@ public sealed class TradeOrderAtomicRepositoryTests(PostgresTradePlanFixture fix
     public async Task Repository_accepts_state_and_submits_handoff_only_after_required_commit(bool fail)
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
-        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();
         var tradeDb=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         factory.SetupGet(x=>x.TradeDb).Returns(tradeDb);
         var sourceDb=new Mock<IEventSourceActorDbContext>();
         sourceDb.SetupGet(x=>x.ProviderName).Returns("System.Data.Postgres");
-        sourceDb.SetupGet(x=>x.ConnectionString).Returns(PostgresTradePlanFixture.Connection);
+        sourceDb.SetupGet(x=>x.ConnectionString).Returns(fixture.Connection);
         var context=new Mock<ITradeOrderCommandContext>();context.SetupGet(x=>x.DbFactory).Returns(factory.Object);context.SetupGet(x=>x.DbEventSource).Returns(sourceDb.Object);
         var id=new TradeOrderId(Random.Shared.Next(60_000_000,70_000_000),1,1);var order=new TradeOrderDefinition {Id=id,Revision=1,DefinitionHash="repository-atomic"};
         var command=new CreateTradeOrderCommand {CommandId=Guid.NewGuid(),EntityId=id,Order=order,Subject=new ActorSubject(ActorType.Command,CreateTradeOrderCommand.Actor,CreateTradeOrderCommand.Verb,id.Format())};

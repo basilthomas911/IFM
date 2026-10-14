@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
@@ -47,6 +48,32 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 /// <summary>Tests native direct-observation transactions without event-log or Scylla schema dependencies.</summary>
 public sealed class PostgresEodObservationTests
 {
+    [Fact]
+    public async Task Calendar_fractional_timestamp_lookup_update_and_delete_use_the_actor_identity()
+    {
+        await using var infrastructure = new IsolatedIntegrationInfrastructure("calendar-identity");
+        await infrastructure.StartAsync();
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", infrastructure.PostgresConnectionString, "System.Data.Postgres");
+        await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var repositories = new Dictionary<Type, IObjectRepository>();
+        var factory = new DbContextFactory(new DbContextResolver(type => repositories[type]));
+        var board = new BlackboardService(Substitute.For<IRedisCache>(), new SystemTextJsonSerializer());
+        var db = new Storage.MarketDataDb.MarketDataDbContext(settings, factory, board, Substitute.For<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
+        repositories.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), db);
+        var timestamp = new DateTime(2026, 10, 13, 7, 33, 30, DateTimeKind.Utc).AddMilliseconds(482);
+        var original = new EconomicCalendarReadModel(timestamp, "US", "Precision regression", "1", "2", "3", timestamp, "Test");
+        var neighbor = original with { EventDate = timestamp.AddSeconds(1) };
+        await db.InsertEconomicCalendarAsync(original);
+        await db.InsertEconomicCalendarAsync(neighbor);
+        var loaded = await db.GetEconomicCalendarAsync(original.Id);
+        Assert.NotNull(loaded); Assert.Equal(timestamp, loaded.EventDate);
+        await db.UpdateEconomicCalendarAsync(original.Id, original with { Actual = "4" });
+        Assert.Equal("4", (await db.GetEconomicCalendarAsync(original.Id))!.Actual);
+        await db.DeleteEconomicCalendarAsync(original.Id);
+        Assert.Null(await db.GetEconomicCalendarAsync(original.Id));
+        Assert.Equal("1", (await db.GetEconomicCalendarAsync(neighbor.Id))!.Actual);
+    }
+
     static async Task VerifyCanonicalQueryMaintenanceAsync(Storage.MarketDataDb.MarketDataDbContext db, string connectionString)
     {
         var signal = SampleData.FuturesItiSignal1 with { ContractId = "MAINTENANCE-ITI", ValueDate = new DateOnly(2026,10,9), TimePeriod = TimeFrameType.Daily, SequenceId = 900, IntrinsicTime = new DateTime(2026,10,9,14,0,0,DateTimeKind.Utc) };

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Actors;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
@@ -6,7 +7,7 @@ using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
@@ -32,7 +33,7 @@ public sealed class ApplicationSchemaInitializer(
         var initializers = new Func<Task>[]
         {
             services.GetRequiredService<TradeSchemaDb>().CreateAllAsync,
-            services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>().CreateAllAsync,
+            services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>().CreateAllAsync,
             services.GetRequiredService<TradePlanSchemaDb>().CreateAllAsync,
             services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync,
             services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync,

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using FluentAssertions;
 using System;
 using System.Linq;
@@ -19,7 +20,9 @@ using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SystemAdminDb;
 
-public sealed class DatabaseBackupProjectionSchemaTests
+[Collection("PostgreSQL plan atomicity")]
+[Trait("Category", "SelfContained")]
+public sealed class DatabaseBackupProjectionSchemaTests(TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb.PostgresTradePlanFixture fixture)
 {
     static readonly string[] AuthoritativeTableNames =
     [
@@ -104,8 +107,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
     [Trait("Category", "PostgresIntegration")]
     public async Task PostgreSql_projection_is_idempotent_and_queryable()
     {
-        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_TEST_CONNECTION")
-            ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+        var connection = fixture.Connection;
         var settings = new DbConnectionSettings()
             .Add(SystemAdminDbContext.SystemAdminDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -153,11 +155,11 @@ public sealed class DatabaseBackupProjectionSchemaTests
         try
         {
             await db.ClearDatabaseBackupProjectionsAsync("Gate4Integration");
-            var first = await db.ApplyDatabaseBackupEventAsync("Gate4Integration", domainEvent);
-            var duplicate = await db.ApplyDatabaseBackupEventAsync("Gate4Integration", domainEvent);
+            var first = await db.ApplyDatabaseBackupSnapshotAsync("Gate4Integration", DatabaseBackupProjectionFactory.Create(domainEvent));
+            var duplicate = await db.ApplyDatabaseBackupSnapshotAsync("Gate4Integration", DatabaseBackupProjectionFactory.Create(domainEvent));
             var conflictingEvent = domainEvent with { SafeDiagnosticReference = "different-content" };
             Func<Task> applyConflict = async () =>
-                await db.ApplyDatabaseBackupEventAsync("Gate4Integration", conflictingEvent);
+                await db.ApplyDatabaseBackupSnapshotAsync("Gate4Integration", DatabaseBackupProjectionFactory.Create(conflictingEvent));
             var restorePointId = new DatabaseRestorePointId($"gate4-{Guid.NewGuid():N}");
             var verificationSourceEventId = Guid.NewGuid();
             var verification = new DatabaseOperationVerificationRecordedEvent
@@ -180,7 +182,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
                     ObservedUtc = DateTimeOffset.UtcNow
                 }
             };
-            await db.ApplyDatabaseBackupEventAsync("Gate4Integration", verification);
+            await db.ApplyDatabaseBackupSnapshotAsync("Gate4Integration", DatabaseBackupProjectionFactory.Create(verification));
             var row = await db.GetBackupOperationAsync(new GetDatabaseBackupOperationQuery
             {
                 EntityId = operationId,
@@ -215,8 +217,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
     [Trait("Category", "PostgresIntegration")]
     public async Task PostgreSql_authoritative_projection_tables_are_all_queryable()
     {
-        var connectionString = Environment.GetEnvironmentVariable("IFM_POSTGRES_TEST_CONNECTION")
-            ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+        var connectionString = fixture.Connection;
         var settings = new DbConnectionSettings()
             .Add(SystemAdminDbContext.SystemAdminDbConnection, connectionString, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();
@@ -235,8 +236,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
     [Trait("Category", "PostgresIntegration")]
     public async Task PostgreSql_full_rebuild_recreates_latest_operation_state_from_authoritative_events()
     {
-        var connection = Environment.GetEnvironmentVariable("IFM_POSTGRES_TEST_CONNECTION")
-            ?? "Host=localhost;Port=5432;Database=event-source-test-db";
+        var connection = fixture.Connection;
         var settings = new DbConnectionSettings()
             .Add(SystemAdminDbContext.SystemAdminDbConnection, connection, "System.Data.Postgres");
         var logger = Substitute.For<ILogger<DbProvider>>();

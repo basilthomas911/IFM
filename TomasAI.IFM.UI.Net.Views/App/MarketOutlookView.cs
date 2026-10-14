@@ -42,6 +42,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
                 InitializeComponent();
                 ConfigureTypographyAndAlignment();
                 ConfigureTdiRow();
+                foreach (var caption in Descendants(this).OfType<Label>())
+                    DarkTradingTheme.UseCaptionForeground(caption);
                 tlpMarketOutlook.RowCount = 3;
                 tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
                 tlpMarketOutlook.Controls.Add(_snapshotStatus, 0, 2);

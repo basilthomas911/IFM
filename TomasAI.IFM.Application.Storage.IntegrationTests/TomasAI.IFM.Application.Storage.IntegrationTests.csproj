@@ -53,4 +53,5 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Framework.Storage.Benchmarks/TomasAI.IFM.Framework.Storage.Benchmarks.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.OptionPricer/TomasAI.IFM.Domain.OptionPricer.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.MarketData.Securities/TomasAI.IFM.Domain.MarketData.Securities.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Reference/TomasAI.IFM.Domain.Reference.csproj" /></ItemGroup>
 </Project>

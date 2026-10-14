@@ -1,5 +1,6 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;

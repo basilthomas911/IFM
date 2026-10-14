@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Model;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;

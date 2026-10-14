@@ -70,14 +70,14 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         state.Apply(source, addEvent: true).Should().BeTrue();
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
         eventSource.ProviderName.Returns("System.Data.Postgres");
-        eventSource.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+        eventSource.ConnectionString.Returns(fixture.Connection);
         var target = Substitute.For<ITradeDbContext, IEnlistedTradeDbWriter>();
         target.ProviderName.Returns("System.Data.Postgres");
-        target.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+        target.ConnectionString.Returns(fixture.Connection);
         ((IEnlistedTradeDbWriter)target).ProjectWorkflowAsync(Arg.Any<IEnlistedPostgresTransaction>(), Arg.Any<WorkflowStrategyStateUpdatedEvent>(), Arg.Any<CancellationToken>())
             .Returns(async call =>
             {
-                await PostgresWorkflowSnapshotStore.ProjectAsync(call.ArgAt<IEnlistedPostgresTransaction>(0), call.ArgAt<WorkflowStrategyStateUpdatedEvent>(1), call.ArgAt<CancellationToken>(2));
+                await TradeDbContextExtensions.WorkflowProjectAsync(call.ArgAt<IEnlistedPostgresTransaction>(0), call.ArgAt<WorkflowStrategyStateUpdatedEvent>(1), call.ArgAt<CancellationToken>(2));
                 if (failAfterWrite) throw new InvalidOperationException("Injected repository projection failure.");
             });
         var databases = Substitute.For<IDbContextFactory>();
@@ -100,7 +100,7 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         if (!failAfterWrite)
         {
             var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings()
-                .Add("TradeDbConnection", PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+                .Add("TradeDbConnection", fixture.Connection, "System.Data.Postgres");
             var readFactory = Substitute.For<IDbContextFactory>();
             var read = new TradeDbContext(settings, readFactory,
                 Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(),
@@ -137,7 +137,7 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
         async Task Save() => await fixture.Transactions.ExecuteOnceAsync(async (db, token) =>
         {
             await db.AppendAsync(stream, commandId, source, 0, token);
-            await PostgresWorkflowSnapshotStore.ProjectAsync(db, source, token);
+            await TradeDbContextExtensions.WorkflowProjectAsync(db, source, token);
             if (failAfterWrites) throw new InvalidOperationException("Injected after all workflow projections before commit.");
             return true;
         });
@@ -173,8 +173,8 @@ public sealed class PostgresWorkflowSnapshotTests(PostgresTradePlanFixture fixtu
             }
             await db.ExecuteAsync("DELETE FROM trade.intrinsic_time_strategy_workflow_start_attempt WHERE requestedWorkflowId=$1;", [workflow.Value], token);
             await db.ExecuteAsync("DELETE FROM trade.risk_management_history WHERE invocation_id=$1;", [commandId], token);
-            await PostgresWorkflowSnapshotStore.ProjectAsync(db, persisted, token);
-            await PostgresWorkflowSnapshotStore.ProjectAsync(db, persisted, token);
+            await TradeDbContextExtensions.WorkflowProjectAsync(db, persisted, token);
+            await TradeDbContextExtensions.WorkflowProjectAsync(db, persisted, token);
             return true;
         });
         var restored = await fixture.Transactions.ExecuteOnceAsync((db, token) => db.ScalarAsync("SELECT statePayload FROM trade.intrinsic_time_strategy_workflow WHERE workflowId=$1;", [workflow.Value], token));

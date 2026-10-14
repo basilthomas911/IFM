@@ -207,6 +207,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     async Task StartCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        LastError = null;
         Interlocked.Exchange(ref _acceptEvents, 1);
         var workflowStarted = false;
         var signalStarted = false;

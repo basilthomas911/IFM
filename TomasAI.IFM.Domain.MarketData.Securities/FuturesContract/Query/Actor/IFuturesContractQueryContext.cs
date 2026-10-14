@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.Contracts;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -9,6 +10,8 @@ public interface IFuturesContractQueryContext : IQueryActorContext<FuturesContra
 {
     /// <summary>Gets the database-context factory.</summary>
     IDbContextFactory DbFactory { get; }
+    /// <summary>Gets the instrument-definition domain query service.</summary>
+    IInstrumentDefinitionStore InstrumentDefinitions { get; }
     /// <summary>Gets the actor logger.</summary>
     ILogger<FuturesContractQueryActor> Logger { get; }
 }

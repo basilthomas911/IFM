@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Schema;
 using Serilog;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
@@ -44,14 +45,14 @@ public static partial class ApiServerModes
                 databases.ReferenceSchema, databases.SecuritiesSchema, databases.TradeSchema,
                 databases.TradePlanSchema, databases.PortfolioSchema, databases.MarketDataSchema, databases.TradeTickQuoteSchema,
                 databases.OptionPricerSchema, databases.MarketDataServiceSchema,
-                app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb>()
+                app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>()
             ];
             foreach (var schema in schemas)
             {
                 var tables = await schema.ValidateTablesAsync(deadline.Token);
                 Console.WriteLine($"Recovery validation {schema.GetType().Name}: {tables} tables readable.");
             }
-            var financialTables = await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>()
+            var financialTables = await app.Services.GetRequiredService<TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema>()
                 .ValidateAsync(deadline.Token);
             Console.WriteLine($"Recovery validation PortfolioFinancialSchema: {financialTables} tables readable.");
             Console.WriteLine("Restored database application-provider validation completed; no hosted services, actors, feeds, migrations or HTTP listeners started.");

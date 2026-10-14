@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.State;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;

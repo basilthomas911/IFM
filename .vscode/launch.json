@@ -2,6 +2,45 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "IFM Rust UI: Live (Development; wait for API)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/.artifacts/rust-ui/app/ifm-ui-rust.exe",
+      "cwd": "${workspaceFolder}/.artifacts/rust-ui/app",
+      "preLaunchTask": "IFM Rust UI: Prepare Live (Development)",
+      "environment": [
+        {
+          "name": "IFM_RUST_UI_MODE",
+          "value": "live"
+        },
+        {
+          "name": "DOTNET_ENVIRONMENT",
+          "value": "Development"
+        }
+      ],
+      "symbolSearchPath": "${workspaceFolder}/.artifacts/rust-ui/app;${workspaceFolder}/TomasAI.IFM.UI.Rust/target/debug",
+      "presentation": {
+        "group": "IFM Development",
+        "order": 3
+      }
+    },
+    {
+      "name": "IFM Rust UI: Native Strategy Details",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/.artifacts/rust-ui/app/ifm-ui-rust.exe",
+      "cwd": "${workspaceFolder}/.artifacts/rust-ui/app",
+      "preLaunchTask": "IFM Rust UI: Build",
+      "symbolSearchPath": "${workspaceFolder}/.artifacts/rust-ui/app;${workspaceFolder}/TomasAI.IFM.UI.Rust/target/debug"
+    },
+    {
+      "name": "IFM Rust UI: Attach .NET bridge",
+      "justMyCode": false,
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}"
+    },
+    {
       "name": "IFM: API Server (Development)",
       "type": "coreclr",
       "request": "launch",
@@ -89,6 +128,25 @@
         "hidden": true
       },
       "postDebugTask": "IFM: Stop API + UI (Development)"
+    },
+    {
+      "name": "_IFM: Server Manager + Rust (compound)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/bin/Debug/net10.0-windows7.0/IFMServerManager.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/bin/Debug/net10.0-windows7.0",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "IFM_REPOSITORY_ROOT": "${workspaceFolder}",
+        "IFM_DEVELOPMENT_UI": "Rust"
+      },
+      "presentation": {
+        "hidden": true
+      },
+      "postDebugTask": "IFM: Stop API + UI (Development)"
     }
   ],
   "compounds": [
@@ -102,6 +160,18 @@
       "presentation": {
         "group": "IFM Development",
         "order": 1
+      }
+    },
+    {
+      "name": "IFM: API + Rust UI (Development)",
+      "configurations": [
+        "_IFM: Server Manager + Rust (compound)"
+      ],
+      "preLaunchTask": "IFM: Prepare API + Rust UI Debug",
+      "stopAll": true,
+      "presentation": {
+        "group": "IFM Development",
+        "order": 2
       }
     }
   ]

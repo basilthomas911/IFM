@@ -19,20 +19,20 @@ internal static class TradePipelineAtomicPersistence
         {
             await db.ReserveCommandAsync(request, ct).ConfigureAwait(false);
             await db.AppendAsync(request.StreamId, request.CommandId, candidate, 0, ct).ConfigureAwait(false);
-            var store = new PostgresPipelineResultStore();
+
             switch (candidate)
             {
                 case RegimeDiscoveryPipelineCompletedEvent regime:
-                    await PostgresRegimeDiscoveryStore.ProjectAsync(db, regime, ct).ConfigureAwait(false);
+                    await TradeDbContextExtensions.RegimeProjectAsync(db, regime, ct).ConfigureAwait(false);
                     break;
                 case OrderCompositionFunctionCompletedEvent composed:
-                    await store.ProjectAsync(db, composed, ct).ConfigureAwait(false);
+                    await TradeDbContextExtensions.PipelineProjectAsync(db, composed, ct).ConfigureAwait(false);
                     break;
                 case TradeSelectionFunctionCompletedEvent selected:
-                    await store.ProjectAsync(db, selected, ct).ConfigureAwait(false);
+                    await TradeDbContextExtensions.PipelineProjectAsync(db, selected, ct).ConfigureAwait(false);
                     break;
                 case MarketConditionAssessmentCompletedEvent assessed:
-                    await store.ProjectAsync(db, assessed, ct).ConfigureAwait(false);
+                    await TradeDbContextExtensions.PipelineProjectAsync(db, assessed, ct).ConfigureAwait(false);
                     break;
                 default:
                     throw new InvalidOperationException("Unsupported atomic pipeline result: " + candidate.GetType().Name);

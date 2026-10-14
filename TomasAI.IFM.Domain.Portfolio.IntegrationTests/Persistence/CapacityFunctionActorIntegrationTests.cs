@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.Actor;
 using TomasAI.IFM.Domain.Portfolio.CapacityReservation.Function.State;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;

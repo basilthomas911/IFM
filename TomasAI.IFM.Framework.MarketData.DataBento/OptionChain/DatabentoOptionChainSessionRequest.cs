@@ -8,6 +8,8 @@ public sealed record DatabentoOptionChainSessionRequest
     public string OptionContractId { get; init; } = string.Empty;
     /// <summary>Optional logical chain owner, allowing replacement coverage to coexist with manual sessions on the shared discovery connection.</summary>
     public string ConnectionScopeId { get; init; } = string.Empty;
+    /// <summary>Saved display statistics, seeded before the consumer starts; provider observations take precedence.</summary>
+    public IReadOnlyList<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> SavedStatistics { get; init; } = [];
     public required string FuturesContractId { get; init; }
     public required DateOnly ValueDate { get; init; }
     public required OptionChainSubscription Subscription { get; init; }

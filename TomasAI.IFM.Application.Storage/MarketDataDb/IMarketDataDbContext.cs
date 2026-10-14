@@ -14,6 +14,7 @@ public interface IMarketDataDbContext :
     IMarketDataDbReadContext,
     IMarketDataDbWriteContext,
     ICompositionPreparationStore,
+    TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore,
     TomasAI.IFM.Application.MarketData.Contracts.IStrategyOptionChainParameterStore,
     IOptionTradeEvidenceWriter,
     IOptionVolatilityRepository,

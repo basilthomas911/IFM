@@ -4,81 +4,9 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
-
-public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger)
-    : SchemaDbContext<TradeSchemaDb>(connectionSettings[TradeDbContext.TradeDbConnection], logger)
+/// <summary>Creates all PostgreSQL trade tables, indexes and additive changes from the single DDL catalog.</summary>
+public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILogger<DbProvider> logger) : SchemaDbContext<TradeSchemaDb>(connectionSettings[TradeDbContext.TradeDbConnection], logger)
 {
-    static readonly SchemaObjectDefinition[] Objects =
-    [
-        new("broker_account_read_model", "CREATE TABLE IF NOT EXISTS broker_account_read_model (account_alias text, revision bigint, account_definition blob, PRIMARY KEY (account_alias, revision)) WITH CLUSTERING ORDER BY (revision DESC);", "DROP TABLE IF EXISTS broker_account_read_model;"),
-        new("trade_order", TradeFlowSchemaCql.TradeOrder, "DROP TABLE IF EXISTS trade_order;"),
-        new("order_execution", TradeFlowSchemaCql.OrderExecution, "DROP TABLE IF EXISTS order_execution;"),
-        new("order_execution_fill", TradeFlowSchemaCql.ExecutionFill, "DROP TABLE IF EXISTS order_execution_fill;"),
-        new("established_trade", TradeFlowSchemaCql.EstablishedTrade, "DROP TABLE IF EXISTS established_trade;"),
-        new("established_trade_history", TradeFlowSchemaCql.EstablishedTradeHistory, "DROP TABLE IF EXISTS established_trade_history;"),
-        new("strategy_position_current", TradeFlowSchemaCql.PositionCurrent, "DROP TABLE IF EXISTS strategy_position_current;"),
-        new("strategy_position_history", TradeFlowSchemaCql.PositionHistory, "DROP TABLE IF EXISTS strategy_position_history;"),
-        new("open_position_route", TradeFlowSchemaCql.OpenPositionRoute, "DROP TABLE IF EXISTS open_position_route;"),
-        new("open_position_route_recovery", TradeFlowSchemaCql.OpenPositionRouteRecovery, "DROP TABLE IF EXISTS open_position_route_recovery;"),
-        new("risk_management_invocation", "CREATE TABLE IF NOT EXISTS risk_management_invocation (workflow_id uuid,invocation_id uuid,revision bigint,payload blob,content_hash text,PRIMARY KEY ((workflow_id,invocation_id),revision)) WITH CLUSTERING ORDER BY (revision DESC);", "DROP TABLE IF EXISTS risk_management_invocation;"),
-        new("risk_management_history", "CREATE TABLE IF NOT EXISTS risk_management_history (portfolio_id int,fund_id int,value_date date,evaluated_at_utc timestamp,invocation_id uuid,revision bigint,payload blob,PRIMARY KEY ((portfolio_id,fund_id,value_date),evaluated_at_utc,invocation_id)) WITH CLUSTERING ORDER BY (evaluated_at_utc DESC,invocation_id ASC);", "DROP TABLE IF EXISTS risk_management_history;"),
-        new("order_composition_invocation", OrderCompositionSchemaCql.Invocation, "DROP TABLE IF EXISTS order_composition_invocation;"),
-        new("order_composition_history", OrderCompositionSchemaCql.History, "DROP TABLE IF EXISTS order_composition_history;"),
-        new("option_leg", TradeSchemaCql.CreateOptionLegTable, "DROP TABLE IF EXISTS option_leg;"),
-        new("option_leg_data", TradeSchemaCql.CreateOptionLegDataTable, "DROP TABLE IF EXISTS option_leg_data;"),
-        new("option_trade", TradeSchemaCql.CreateOptionTradeTable, "DROP TABLE IF EXISTS option_trade;"),
-        new("option_trade_spread_bar_data", TradeSchemaCql.CreateOptionTradeSpreadBarDataTable, "DROP TABLE IF EXISTS option_trade_spread_bar_data;"),
-        new("option_trade_spread_data", TradeSchemaCql.CreateOptionTradeSpreadDataTable, "DROP TABLE IF EXISTS option_trade_spread_data;"),
-        new("regime_discovery", TradeSchemaCql.CreateRegimeDiscoveryTable, "DROP TABLE IF EXISTS regime_discovery;"),
-        new("market_condition", TradeSchemaCql.CreateMarketConditionTable, "DROP TABLE IF EXISTS market_condition;"),
-        new("trade_selection_invocation_event", TradeSelectionSchemaCql.Invocation, "DROP TABLE IF EXISTS trade_selection_invocation_event;"),
-        new("trade_selection_history_by_fund_date", TradeSelectionSchemaCql.History, "DROP TABLE IF EXISTS trade_selection_history_by_fund_date;"),
-        new("market_condition_assessment", "CREATE TABLE IF NOT EXISTS market_condition_assessment (workflow_id uuid PRIMARY KEY,payload blob,payload_sha256 text);", "DROP TABLE IF EXISTS market_condition_assessment;"),
-        new("market_condition_assessment_by_profile", "CREATE TABLE IF NOT EXISTS market_condition_assessment_by_profile (market_profile_id text,instrument_root text,target_horizon text,evaluated_at_utc timestamp,workflow_id uuid,payload blob,payload_sha256 text,PRIMARY KEY ((market_profile_id,instrument_root,target_horizon),evaluated_at_utc,workflow_id)) WITH CLUSTERING ORDER BY (evaluated_at_utc DESC,workflow_id ASC);", "DROP TABLE IF EXISTS market_condition_assessment_by_profile;"),
-        new("market_condition_by_fund", TradeSchemaCql.CreateMarketConditionByFundTable, "DROP TABLE IF EXISTS market_condition_by_fund;"),
-        ..EvidenceColumns("market_condition"),
-        ..EvidenceColumns("market_condition_by_fund"),
-        new("intrinsic_time_strategy_workflow", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow;"),
-        new("intrinsic_time_strategy_workflow_active", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_active;"),
-        new("intrinsic_time_strategy_workflow_start_attempt", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowStartAttemptByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_start_attempt;"),
-        new("intrinsic_time_strategy_workflow_timeline", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTimelineTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_timeline;"),
-        new("intrinsic_time_strategy_workflow_by_entity", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_by_entity;"),
-        new("intrinsic_time_strategy_workflow_by_status_day", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowByStatusDayTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_by_status_day;"),
-        new("trade_fill", TradeSchemaCql.CreateTradeFillTable, "DROP TABLE IF EXISTS trade_fill;"),
-        new("trade_fill_data", TradeSchemaCql.CreateTradeFillDataTable, "DROP TABLE IF EXISTS trade_fill_data;"),
-        new("trade_limit", TradeSchemaCql.CreateTradeLimitTable, "DROP TABLE IF EXISTS trade_limit;"),
-        new("trade_live_feed", TradeSchemaCql.CreateTradeLiveFeedTable, "DROP TABLE IF EXISTS trade_live_feed;"),
-        new("trade_placement_signal", TradeSchemaCql.CreateTradePlacementSignalTable, "DROP TABLE IF EXISTS trade_placement_signal;"),
-        new("trade_plan", TradeSchemaCql.CreateTradePlanTable, "DROP TABLE IF EXISTS trade_plan;"),
-        new("trade_plan_forward_loss_limit", TradeSchemaCql.CreateTradePlanForwardLossLimitTable, "DROP TABLE IF EXISTS trade_plan_forward_loss_limit;"),
-        new("trade_plan_forward_loss_ratio", TradeSchemaCql.CreateTradePlanForwardLossRatioTable, "DROP TABLE IF EXISTS trade_plan_forward_loss_ratio;"),
-        new("trade_position", TradeSchemaCql.CreateTradePositionTable, "DROP TABLE IF EXISTS trade_position;"),
-        new("trade_position_state", TradeSchemaCql.CreateTradePositionStateTable, "DROP TABLE IF EXISTS trade_position_state;"),
-        new("trade_type_limit", TradeSchemaCql.CreateTradeTypeLimitTable, "DROP TABLE IF EXISTS trade_type_limit;")
-    ];
-
-    static SchemaObjectDefinition[] EvidenceColumns(string table) =>
-    [
-        Column(table, "volatilityBehavior", "text"),
-        Column(table, "liquidityQuality", "text"),
-        Column(table, "dataQuality", "text"),
-        Column(table, "upstreamAlignment", "text"),
-        Column(table, "evidencePayload", "blob"),
-        Column(table, "conflictingEvidencePayload", "blob"),
-        Column(table, "blockingReasonsPayload", "blob"),
-        Column(table, "reasonsPayload", "blob"),
-        Column(table, "summaryText", "text")
-    ];
-
-    static SchemaObjectDefinition Column(string table, string column, string type) => new(
-        $"{table}_{column}",
-        $"ALTER TABLE {table} ADD {column} {type};",
-        $"ALTER TABLE {table} DROP {column};",
-        ["already exists", "conflicts with an existing column"]);
-
-    static readonly SchemaObjectDefinition[] PostgresObjects =
-        [new("trade",TradeSchemaSql.Create,"DROP SCHEMA IF EXISTS trade CASCADE;")];
-
-    protected override IReadOnlyList<SchemaObjectDefinition> Definitions =>
-        string.Equals(ProviderName,"System.Data.Postgres",StringComparison.Ordinal) ? PostgresObjects : Objects;
+    static readonly SchemaObjectDefinition[] Objects = [new("trade", TradeSchemaSql.Create, TradeSchemaSql.Drop)];
+    protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

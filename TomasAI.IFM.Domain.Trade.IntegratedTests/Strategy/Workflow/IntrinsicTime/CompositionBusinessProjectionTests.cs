@@ -253,7 +253,7 @@ public sealed partial class CompositionBusinessProjectionTests
             await f.Sql($"CREATE SCHEMA {f.schema}; CREATE TABLE {f.schema}.event_name_id(eventNameId integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,eventName text,eventTypeName text); CREATE TABLE {f.schema}.event_log(eventStreamId bigint,eventNameId integer,eventVersion bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,streamVersion bigint,eventPayload bytea NOT NULL,commandId uuid,eventTimestamp text);");
             await f.Sql(TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaSql.CreateBusinessSubscriptionJournal);
             await f.Sql("CREATE SCHEMA IF NOT EXISTS market_data_service;");
-            await f.Sql(Stage4SubscriptionSchemaSql.Create);
+            await f.Sql(MarketDataServiceSchemaSql.CreateDurableSubscriptions);
             await f.Sql(MarketDataServiceSchemaSql.CreateCompositionRoutePlan);
             f.settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection, c.ConnectionString, "System.Data.Postgres")
                 .Add(MarketDataServiceDbContext.MarketDataServiceDbConnection, c.ConnectionString, "System.Data.Postgres");

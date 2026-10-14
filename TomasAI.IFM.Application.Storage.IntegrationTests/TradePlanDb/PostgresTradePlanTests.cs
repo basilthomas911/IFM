@@ -1,3 +1,4 @@
+using NSubstitute;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
+using TomasAI.IFM.IntegrationTesting;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 
@@ -22,20 +24,23 @@ public sealed class PostgresTradePlanCollection : ICollectionFixture<PostgresTra
 
 public sealed class PostgresTradePlanFixture : IAsyncLifetime
 {
-    public const string Connection = "Host=localhost;Port=5432;Database=ifm_storage_refactor_test";
-    public DbConnectionSettings Settings { get; } = (DbConnectionSettings)new DbConnectionSettings()
-        .Add(EventSourceActorDbContext.EventSourceActorDbConnection, Connection, "System.Data.Postgres")
-        .Add(TradePlanDbContext.TradePlanDbConnection, Connection, "System.Data.Postgres");
+    readonly IsolatedIntegrationInfrastructure infrastructure = new("portfolioatomicity");
+    public string Connection => infrastructure.PostgresConnectionString;
+    public DbConnectionSettings Settings { get; private set; } = null!;
     public TradePlanDbContext Plans { get; private set; } = null!;
     public PostgresEventTransaction Transactions { get; private set; } = null!;
     public async Task InitializeAsync()
     {
+        await infrastructure.StartAsync();
+        Settings = (DbConnectionSettings)new DbConnectionSettings()
+            .Add(EventSourceActorDbContext.EventSourceActorDbConnection, Connection, "System.Data.Postgres")
+            .Add(TradePlanDbContext.TradePlanDbConnection, Connection, "System.Data.Postgres");
         await new EventSourceSchemaDb(Settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         await new TradePlanSchemaDb(Settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         Plans = new(Settings, NullLogger<DbProvider>.Instance);
         Transactions = new(Settings);
     }
-    public Task DisposeAsync() => Task.CompletedTask;
+    public async Task DisposeAsync() => await infrastructure.DisposeAsync();
 
     public async Task<long> EventCountAsync(string stream)
     {
@@ -73,6 +78,16 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         });
         (await fixture.EventCountAsync(stream)).Should().Be(1);
         (await fixture.Plans.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate)).Should().BeEquivalentTo(plan);
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
+        await connection.OpenAsync();
+        await using var scalars = new NpgsqlCommand("SELECT dailyPnl,forwardLossRatio,sequenceId FROM trade_plan.iron_condor_trade_plan WHERE positionId=$1 AND planRevision=$2;", connection);
+        scalars.Parameters.AddWithValue(plan.Position.Id.PositionId);
+        scalars.Parameters.AddWithValue(plan.PlanRevision);
+        await using var scalarReader = await scalars.ExecuteReaderAsync();
+        (await scalarReader.ReadAsync()).Should().BeTrue();
+        scalarReader.GetDecimal(0).Should().Be(-42m);
+        scalarReader.GetDouble(1).Should().Be(0.8);
+        scalarReader.GetInt64(2).Should().Be(1);
         var activity = await fixture.Plans.GetActivityAsync(plan.ValueDate, 500);
         activity.Items.Should().Contain(x => x.Position.Id == plan.Position.Id && x.PlanRevision == 1);
     }
@@ -139,5 +154,17 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         var conflict = plan with { ContentHash = "different-content", TotalPnl = -500m };
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Transactions.ExecuteOnceAsync(async (transaction, token) => { await fixture.Plans.ProjectMaterialAsync(transaction, conflict, token); return true; }));
         (await fixture.Plans.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate)).Should().BeEquivalentTo(plan);
+    }
+    [Fact]
+    public async Task Standalone_snapshot_conflict_is_logged_and_dropped_without_changing_the_saved_revision()
+    {
+        var logger = Substitute.For<Microsoft.Extensions.Logging.ILogger<DbProvider>>();
+        logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Error).Returns(true);
+        var target = new TradePlanDbContext(fixture.Settings, logger);
+        var plan = Plan();
+        await target.ProjectMaterialAsync(plan);
+        await target.ProjectMaterialAsync(plan with { ContentHash = "conflicting-snapshot", TotalPnl = -999m });
+        (await target.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate)).Should().BeEquivalentTo(plan);
+        logger.ReceivedCalls().Should().Contain(call => call.GetMethodInfo().Name == "Log" && call.GetArguments().Any(argument => argument is InvalidOperationException));
     }
 }

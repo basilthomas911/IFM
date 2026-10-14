@@ -1,9 +1,7 @@
 namespace TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
-
 public static class SystemAdminSchemaSql
 {
     public const string CreateSchema = "CREATE SCHEMA IF NOT EXISTS system_admin;";
-
     public const string CreateRecoveryOperation = """
 CREATE TABLE IF NOT EXISTS system_admin.database_recovery_operation (
     operation_id uuid PRIMARY KEY,
@@ -35,7 +33,6 @@ CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_history
 CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_backup_set
     ON system_admin.database_recovery_operation (backup_set_id) WHERE backup_set_id IS NOT NULL;
 """;
-
     public const string CreateRecoveryPhase = """
 CREATE TABLE IF NOT EXISTS system_admin.database_recovery_phase (
     operation_id uuid NOT NULL,
@@ -50,7 +47,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_phase (
     PRIMARY KEY (operation_id, phase, event_revision)
 );
 """;
-
     public const string CreateRecoveryRunStats = """
 CREATE TABLE IF NOT EXISTS system_admin.database_recovery_run_stats (
     operation_id uuid NOT NULL,
@@ -79,7 +75,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_run_stats (
     PRIMARY KEY (operation_id, phase, engine, statistics_revision)
 );
 """;
-
     public const string CreateRestorePoint = """
 CREATE TABLE IF NOT EXISTS system_admin.database_restore_point (
     restore_point_id text NOT NULL,
@@ -104,7 +99,6 @@ ALTER TABLE system_admin.database_restore_point
 CREATE INDEX IF NOT EXISTS ix_database_restore_point_latest
     ON system_admin.database_restore_point (source, protection_set_id, recovery_point_utc DESC);
 """;
-
     public const string CreateArtifactReplica = """
 CREATE TABLE IF NOT EXISTS system_admin.database_artifact_replica (
     artifact_replica_id text NOT NULL,
@@ -121,7 +115,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_artifact_replica (
     PRIMARY KEY (artifact_replica_id, source)
 );
 """;
-
     public const string CreateRecoveryError = """
 CREATE TABLE IF NOT EXISTS system_admin.database_recovery_error (
     operation_id uuid NOT NULL,
@@ -136,7 +129,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_error (
     PRIMARY KEY (operation_id, error_identity)
 );
 """;
-
     public const string CreateBackupPolicy = """
 CREATE TABLE IF NOT EXISTS system_admin.database_backup_policy (
     environment_identity text NOT NULL,
@@ -150,7 +142,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_policy (
     PRIMARY KEY (environment_identity, policy_id)
 );
 """;
-
     public const string CreateServiceHealth = """
 CREATE TABLE IF NOT EXISTS system_admin.database_backup_service_health (
     environment_identity text NOT NULL,
@@ -168,7 +159,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_service_health (
     PRIMARY KEY (environment_identity, source, host_id)
 );
 """;
-
     public const string CreateRetentionState = """
 CREATE TABLE IF NOT EXISTS system_admin.database_retention_state (
     plan_id uuid NOT NULL,
@@ -185,7 +175,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_retention_state (
     PRIMARY KEY (plan_id, source)
 );
 """;
-
     public const string CreateProjectionCheckpoint = """
 CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_checkpoint (
     projector_name text PRIMARY KEY,
@@ -194,7 +183,6 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_checkpoint (
     updated_utc timestamptz NOT NULL
 );
 """;
-
     public const string CreateProjectionReceipt = """
 CREATE TABLE IF NOT EXISTS system_admin.database_backup_projection_receipt (
     projector_name text NOT NULL,
@@ -215,4 +203,17 @@ CREATE TABLE IF NOT EXISTS system_admin.database_backup_execution_outbox (
 CREATE INDEX IF NOT EXISTS ix_database_backup_execution_pending
     ON system_admin.database_backup_execution_outbox(event_id) WHERE published_utc IS NULL;
 """;
+    public const string DropSchema = "DROP SCHEMA IF EXISTS system_admin;";
+    public const string DropRecoveryOperation = "DROP TABLE IF EXISTS system_admin.database_recovery_operation;";
+    public const string DropRecoveryPhase = "DROP TABLE IF EXISTS system_admin.database_recovery_phase;";
+    public const string DropRecoveryRunStats = "DROP TABLE IF EXISTS system_admin.database_recovery_run_stats;";
+    public const string DropRestorePoint = "DROP TABLE IF EXISTS system_admin.database_restore_point;";
+    public const string DropArtifactReplica = "DROP TABLE IF EXISTS system_admin.database_artifact_replica;";
+    public const string DropRecoveryError = "DROP TABLE IF EXISTS system_admin.database_recovery_error;";
+    public const string DropBackupPolicy = "DROP TABLE IF EXISTS system_admin.database_backup_policy;";
+    public const string DropServiceHealth = "DROP TABLE IF EXISTS system_admin.database_backup_service_health;";
+    public const string DropRetentionState = "DROP TABLE IF EXISTS system_admin.database_retention_state;";
+    public const string DropProjectionCheckpoint = "DROP TABLE IF EXISTS system_admin.database_backup_projection_checkpoint;";
+    public const string DropExecutionOutbox = "DROP TABLE IF EXISTS system_admin.database_backup_execution_outbox;";
+    public const string DropProjectionReceipt = "DROP TABLE IF EXISTS system_admin.database_backup_projection_receipt;";
 }

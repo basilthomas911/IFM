@@ -34,11 +34,11 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         var order=new TradeOrderDefinition { Id=id,Revision=1,Status=TradeOrderStatus.Draft,ValueDate=DateOnly.FromDateTime(acceptedAt),ValidUntilUtc=acceptedAt.AddMinutes(5) };
         var source=new TradeOrderChangedEvent { Id=Guid.NewGuid(),CommandId=Guid.NewGuid(),EntityId=id,TradeOrderDefinition=order,ReceivedOn=acceptedAt };
         var stream="native-trade-order-test-"+source.Id;
-        var store=new PostgresTradeFlowStore();
+
         async Task Write()=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await store.ProjectOrderAsync(db,order,source.ReceivedOn,ct);
+            await TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,order,source.ReceivedOn,ct);
             if(injectFailure) throw new InvalidOperationException("Injected after projection before commit.");
             return true;
         });
@@ -51,10 +51,10 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         {
             MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>((byte[])payload!).Should().BeEquivalentTo(order);
             var first=await fixture.Transactions.ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT to_jsonb(t)::text FROM trade.trade_order t WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND revision=$4;",[id.PortfolioId,id.FundId,id.OrderId,1],ct));
-            await fixture.Transactions.ExecuteAsync((db,ct)=>store.ProjectOrderAsync(db,source.TradeOrderDefinition,source.ReceivedOn,ct));
+            await fixture.Transactions.ExecuteAsync((db,ct)=>TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,source.TradeOrderDefinition,source.ReceivedOn,ct));
             var repeated=await fixture.Transactions.ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT to_jsonb(t)::text FROM trade.trade_order t WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND revision=$4;",[id.PortfolioId,id.FundId,id.OrderId,1],ct));
             repeated.Should().Be(first);
-            await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync((db,ct)=>store.ProjectOrderAsync(db,order with { Origin="Conflicting same revision" },source.ReceivedOn,ct)))
+            await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync((db,ct)=>TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,order with { Origin="Conflicting same revision" },source.ReceivedOn,ct)))
                 .Should().ThrowAsync<System.IO.InvalidDataException>();
         }
     }
@@ -71,10 +71,10 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
             EvidenceRevision = 1,
             OpeningValue = 100
         };
-        var store = new PostgresTradeFlowStore();
+
         async Task Write(EstablishedTradeDefinition value) => await fixture.Transactions.ExecuteOnceAsync(async (db,ct) =>
         {
-            await store.ProjectTradeAsync(db,value,ct);
+            await TradeDbContextExtensions.TradeFlowProjectTradeAsync(db,value,ct);
             return true;
         });
         async Task<EstablishedTradeDefinition> Read() => MessagePackBinarySerializer.Shared.Deserialize<EstablishedTradeDefinition>(
@@ -99,11 +99,11 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     {
         await fixture.Transactions.ExecuteAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
         var now=DateTime.UtcNow;var id=new StrategyPositionId(new TradeEntityId(Random.Shared.Next(20_000_000,30_000_000),1,1,1),Guid.NewGuid());
-        var store=new PostgresTradeFlowStore();
+
         var opening=new StrategyPositionSnapshot { Id=id,StrategyKind=TradeStrategyKind.IronCondor,Phase=StrategyPositionPhase.Open,
             PositionSequence=1,RouteGeneration=1,AsOfUtc=now,ValueDate=DateOnly.FromDateTime(now),IsOpen=true,
             Legs=[new StrategyPositionLeg { TradeLegId=Guid.NewGuid(),ContractId="native-route-"+id.PositionId,SignedQuantity=1 }] };
-        async Task Write(StrategyPositionSnapshot position)=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=> { await store.ProjectPositionAsync(db,position,ct); return true; });
+        async Task Write(StrategyPositionSnapshot position)=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=> { await TradeDbContextExtensions.TradeFlowProjectPositionAsync(db,position,ct); return true; });
         async Task<long> Count(string table)=>Convert.ToInt64(await fixture.Transactions.ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT count(*) FROM trade."+table+" WHERE positionId=$1;",[id.PositionId],ct)));
         await Write(opening);
         var daily=opening with { PositionSequence=2,Phase=StrategyPositionPhase.MarkToMarket,AsOfUtc=now.AddSeconds(1),HistoryAsOfUtc=now.AddSeconds(1),HistoryPositionSequence=2,DailyPnl=-10 };
@@ -113,7 +113,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         var row=await fixture.Transactions.ExecuteAsync((db,ct)=>db.ScalarAsync("SELECT payload FROM trade.strategy_position_history WHERE positionId=$1 AND positionSequence=2;",[id.PositionId],ct));
         MessagePackBinarySerializer.Shared.Deserialize<StrategyPositionSnapshot>((byte[])row!).Should().BeEquivalentTo(eod);
         var closed=eod with {PositionSequence=5,Phase=StrategyPositionPhase.Close,AsOfUtc=now.AddSeconds(4),HistoryAsOfUtc=now.AddSeconds(4),HistoryPositionSequence=5,IsOpen=false};
-        await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=> { await store.ProjectPositionAsync(db,closed,ct);throw new InvalidOperationException("Close rollback"); })).Should().ThrowAsync<InvalidOperationException>();
+        await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=> { await TradeDbContextExtensions.TradeFlowProjectPositionAsync(db,closed,ct);throw new InvalidOperationException("Close rollback"); })).Should().ThrowAsync<InvalidOperationException>();
         (await Count("open_position_route")).Should().Be(1);(await Count("open_position_route_recovery")).Should().Be(1);
         await Write(closed);await Write(daily);await Write(closed);
         (await Count("open_position_route")).Should().Be(0);(await Count("open_position_route_recovery")).Should().Be(0);(await Count("strategy_position_history")).Should().Be(3);
@@ -126,13 +126,13 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
         var id=new StrategyPositionId(new TradeEntityId(Random.Shared.Next(30_000_000,40_000_000),1,1,1),Guid.NewGuid());
         var from=new DateTime(2026,1,1,12,0,0,DateTimeKind.Utc);var to=from.AddDays(220);
-        var writer=new PostgresTradeFlowStore();var reader=new PostgresTradeFlowReadStore();
+
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             for(var index=0;index<205;index++)
             {
                 var at=from.AddDays(index);
-                await writer.ProjectPositionAsync(db,new StrategyPositionSnapshot {Id=id,StrategyKind=TradeStrategyKind.IronCondor,
+                await TradeDbContextExtensions.TradeFlowProjectPositionAsync(db,new StrategyPositionSnapshot {Id=id,StrategyKind=TradeStrategyKind.IronCondor,
                     PositionSequence=index+1,RouteGeneration=1,AsOfUtc=at,ValueDate=DateOnly.FromDateTime(at),
                     Phase=index==0?StrategyPositionPhase.Open:StrategyPositionPhase.EndOfDay,IsOpen=true,DailyPnl=-index},ct);
             }
@@ -141,14 +141,14 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         var seen=new List<StrategyPositionSnapshot>();byte[]? cursor=null;byte[]? firstCursor=null;
         do
         {
-            var page=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>reader.PositionHistoryAsync(db,id.PositionId,from,to,17,cursor,ct));
+            var page=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>TradeDbContextExtensions.TradeReadPositionHistoryAsync(db,id.PositionId,from,to,17,cursor,ct));
             page.Items.Length.Should().BeLessThanOrEqualTo(17);seen.AddRange(page.Items);
             cursor=page.PagingState;firstCursor??=cursor;
         }while(cursor is not null);
         seen.Should().HaveCount(205);seen.Select(x=>x.PositionSequence).Should().Equal(Enumerable.Range(1,205).Select(x=>(long)x));
         seen[0].Phase.Should().Be(StrategyPositionPhase.Open);
-        await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync((db,ct)=>reader.PositionHistoryAsync(db,Guid.NewGuid(),from,to,17,firstCursor,ct))).Should().ThrowAsync<ArgumentException>();
-        var current=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>reader.PositionAsync(db,id,ct));
+        await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync((db,ct)=>TradeDbContextExtensions.TradeReadPositionHistoryAsync(db,Guid.NewGuid(),from,to,17,firstCursor,ct))).Should().ThrowAsync<ArgumentException>();
+        var current=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>TradeDbContextExtensions.TradeReadPositionAsync(db,id,ct));
         current!.PositionSequence.Should().Be(205);
     }
 
@@ -156,7 +156,7 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
     public async Task Native_context_loads_latest_order_position_history_and_committed_routes()
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
-        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();var context=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         factory.SetupGet(x=>x.TradeDb).Returns(context);
         var trade=new TradeEntityId(Random.Shared.Next(40_000_000,50_000_000),1,1,1);var now=DateTime.UtcNow;
@@ -189,12 +189,12 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         var order=new TradeOrderDefinition {Id=id,Revision=1,DefinitionHash="audit-order"};
         var command=new CreateTradeOrderCommand {CommandId=Guid.NewGuid(),EntityId=id,Order=order,
             Subject=new ActorSubject(ActorType.Command,CreateTradeOrderCommand.Actor,CreateTradeOrderCommand.Verb,id.Format())};
-        var source=new TradeOrderChangedEvent {Id=Guid.NewGuid(),EntityId=id,TradeOrderDefinition=order,CommandId=command.CommandId,ReceivedOn=now};var writer=new PostgresTradeFlowStore();
+        var source=new TradeOrderChangedEvent {Id=Guid.NewGuid(),EntityId=id,TradeOrderDefinition=order,CommandId=command.CommandId,ReceivedOn=now};
         async Task Save()=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
             await db.ReserveCommandAsync(command,ct);
             await db.AppendAsync(command.StreamId,command.CommandId,source,0,ct);
-            await writer.ProjectOrderAsync(db,order,now,ct);
+            await TradeDbContextExtensions.TradeFlowProjectOrderAsync(db,order,now,ct);
             if(fail) throw new InvalidOperationException("Injected audit/source/material rollback");
             return true;
         });
@@ -222,15 +222,15 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
             CreatedOn=now,UpdatedOn=now,CreatedBy="fixture",UpdatedBy="fixture"};
         var spreads=new[] {new TradeTypeLimitReadModel {TradeId=tradeId,TradeType=TradeType.PutCreditSpread,MaxLossLimit=110.11m,MinProfitLimit=11.01m,MaxProfitLimit=40.04m},
             new TradeTypeLimitReadModel {TradeId=tradeId,TradeType=TradeType.CallCreditSpread,MaxLossLimit=90.09m,MinProfitLimit=9.01m,MaxProfitLimit=40.04m}};
-        var writer=new PostgresTradeFlowStore();
+
         async Task Save()=>await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
         {
-            await writer.ProjectMonitoringLimitsAsync(db,limit,spreads,ct);
+            await TradeDbContextExtensions.TradeFlowProjectMonitoringLimitsAsync(db,limit,spreads,ct);
             if(fail) throw new InvalidOperationException("Injected limit projection rollback");
             return true;
         });
         if(fail) await FluentActions.Awaiting(Save).Should().ThrowAsync<InvalidOperationException>();else await Save();
-        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();var context=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);factory.SetupGet(x=>x.TradeDb).Returns(context);
         var stored=await context.GetTradeLimitAsync(tradeId);var storedSpreads=await context.GetTradeTypeLimitsAsync(tradeId);
         if(fail) {stored.Should().BeNull();storedSpreads.Should().BeEmpty();}

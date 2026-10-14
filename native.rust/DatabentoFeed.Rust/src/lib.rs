@@ -386,8 +386,10 @@ mod exports {
                 size_of::<OptionChainSubscriptionV1>(),
                 subscription.abi_version,
             ) || subscription.contract_count != contract_count
-                || subscription.data_kinds & 7 == 0
-                || subscription.data_kinds & !7 != 0
+                || subscription.data_kinds & 15 == 0
+                || subscription.data_kinds & !31 != 0
+                || (subscription.data_kinds & MARKET_DATA_SESSION_VOLUME != 0
+                    && subscription.data_kinds & MARKET_DATA_TRADE == 0)
                 || subscription.reserved.iter().any(|&v| v != 0)
             {
                 return INVALID_ARGUMENT;
@@ -427,7 +429,7 @@ mod exports {
                     subscription_index: index as u32,
                     instrument_id: item.instrument_id,
                     publisher_id: item.publisher_id,
-                    data_kinds: subscription.data_kinds & 7,
+                    data_kinds: subscription.data_kinds,
                     input_symbology: 1,
                     requested_symbol: symbol.clone(),
                     raw_symbol: symbol,

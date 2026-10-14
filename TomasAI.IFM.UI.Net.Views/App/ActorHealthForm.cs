@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.Services.Operations;
 using TomasAI.IFM.Domain.Supervisor.Shared.Enums;
@@ -11,8 +11,8 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
 {
     readonly IActorHealthQueryService service;
-    readonly ISupervisorCommandApi commands;
     readonly SupervisorControlOptions controlOptions;
+    readonly TomasAI.IFM.UI.Net.ViewModels.App.ActorHealthControlModel controlModel;
     readonly CancellationTokenSource closing = new();
     readonly System.Windows.Forms.Timer timer = new() { Interval = 15000 };
     readonly DateTimePicker from = Picker("actorHealthFrom");
@@ -33,8 +33,9 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         SupervisorControlOptions controlOptions)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
-        this.commands = commands ?? throw new ArgumentNullException(nameof(commands));
+        ArgumentNullException.ThrowIfNull(commands);
         this.controlOptions = controlOptions ?? throw new ArgumentNullException(nameof(controlOptions));
+        controlModel = new(commands, controlOptions);
         Name = "ActorHealthForm";
         Text = "Actor Health";
         ClientSize = new Size(1280, 760);
@@ -57,16 +58,7 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
             refresh, mode
         ]);
         var controls = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        operation.Items.AddRange([
-            nameof(SupervisorActorOperationKind.Pause),
-            nameof(SupervisorActorOperationKind.Drain),
-            nameof(SupervisorActorOperationKind.Resume),
-            nameof(SupervisorActorOperationKind.Restart),
-            nameof(SupervisorActorOperationKind.Quarantine),
-            nameof(SupervisorActorOperationKind.Retire),
-            nameof(SupervisorActorOperationKind.Recycle),
-            nameof(SupervisorActorOperationKind.AcknowledgeIncident)
-        ]);
+        operation.Items.AddRange(TomasAI.IFM.UI.Net.ViewModels.App.ActorHealthControlModel.Operations.Select(x=>(object)x.ToString()).ToArray());
         operation.SelectedItem = nameof(SupervisorActorOperationKind.Restart);
         controls.Controls.AddRange([Caption("Selected mailbox action"), operation, reason, execute]);
         var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 390 };
@@ -363,16 +355,13 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
         execute.Enabled = false;
         try
         {
-            var result = await commands.ExecuteActorOperationAsync(target, generation, selectedOperation,
-                controlOptions.Requester, auditReason, controlOptions.Timeout, closing.Token);
-            selection.Text = result.Success
-                ? $"Supervisor command {result.Value?.Guid:D} accepted; refresh health for the projected outcome."
-                : $"Operation rejected or failed: {result.ErrorMessage}";
-            selection.ForeColor = result.Success ? Color.LightGreen : Color.Salmon;
+            selection.Text = await controlModel.ExecuteAsync(snapshot, new() { ActorType=target.ActorType, Name=target.Name, EntityId=target.EntityId }, generation, selectedOperation, auditReason, closing.Token);
+            selection.ForeColor = Color.LightGreen;
             reason.Clear();
             await RefreshAsync(closing.Token);
         }
         catch (OperationCanceledException) when (closing.IsCancellationRequested) { }
+        catch (Exception error) { selection.Text = "Operation rejected or failed: " + error.Message; selection.ForeColor = Color.Salmon; }
         finally { UpdateControlAvailability(); }
     }
 
@@ -399,10 +388,8 @@ public sealed class ActorHealthForm : DarkTradingForm, IForm<ActorHealthForm>
     {
         var authorityAvailable = snapshot is { ManualMutationEnabled: true }
             && !string.Equals(snapshot.SupervisorAuthorityState, nameof(SupervisorAuthorityState.HostRecoveryRequired), StringComparison.Ordinal);
-        var canExecute = controlOptions.Enabled && authorityAvailable
-            && !string.IsNullOrWhiteSpace(controlOptions.Requester) && controlOptions.Timeout > TimeSpan.Zero
-            && controlOptions.Timeout <= TimeSpan.FromMinutes(10) && reason.TextLength > 0
-            && TryGetSelectedTarget(out _, out _);
+        var hasTarget = TryGetSelectedTarget(out var target, out _);
+        var canExecute = controlModel.CanExecute(snapshot,hasTarget ? new(){ActorType=target.ActorType,Name=target.Name,EntityId=target.EntityId} : null, reason.Text);
         operation.Enabled = controlOptions.Enabled && authorityAvailable;
         reason.Enabled = controlOptions.Enabled && authorityAvailable;
         execute.Enabled = canExecute;

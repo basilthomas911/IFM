@@ -256,6 +256,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         {
             try
             {
+                if (editor.IsEditing) throw new InvalidOperationException("Save or discard the working copy before importing a historical version.");
                 migrate.Enabled = false; var index = table.CurrentRow?.Index ?? -1; if (index < 0 || index >= rows.Length) return;
                 var row = rows[index]; var preview = await api.PreviewLegacyMigrationAsync(row.Reference.SetId, row.Reference.Version, lifetime.Token);
                 if (!preview.Success || preview.Value is null) throw new InvalidOperationException(preview.ErrorMessage);

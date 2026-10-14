@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Npgsql;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;

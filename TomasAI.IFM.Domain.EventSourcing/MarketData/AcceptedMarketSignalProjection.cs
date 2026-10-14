@@ -46,7 +46,9 @@ public static class AcceptedMarketSignalProjection
             FuturesEmaSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesEmaSignalAsync(transaction,accepted.FuturesEmaSignal,token),
             FuturesBbSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesBbSignalAsync(transaction,accepted.FuturesBbSignal,token),
             FuturesVwapSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVwapSignalAsync(transaction,accepted.FuturesVwapSignal,token),
-            FuturesVxTermStructureSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVxTermStructureSignalAsync(transaction,accepted.FuturesVxTermStructureSignal,token),
+            FuturesVxTermStructureSignalUpdatedEvent { FuturesVxTermStructureSignal: not null } accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesVxTermStructureSignalAsync(transaction,accepted.FuturesVxTermStructureSignal,token),
+            // A single/stale curve leg advances replayable checkpoint state without producing a paired signal.
+            FuturesVxTermStructureSignalUpdatedEvent => Task.CompletedTask,
             FuturesTradeSignalUpdatedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesTradeSignalAsync(transaction,accepted.FuturesTradeSignal,source.EventId,token),
             FuturesItiSignalGeneratedEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,accepted.FuturesItiSignal,source.EventId,token),
             FuturesItiSignalHoldTradeSetEvent accepted => MarketDataDbContextExtensions.PersistAcceptedFuturesItiSignalAsync(transaction,accepted.FuturesItiSignal,source.EventId,token),

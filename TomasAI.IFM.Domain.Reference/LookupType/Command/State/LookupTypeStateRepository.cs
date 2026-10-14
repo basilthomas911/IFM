@@ -74,7 +74,6 @@ public class LookupTypeStateRepository(
             throw new InvalidOperationException("Lookup source events and ReferenceDb must share one PostgreSQL database/security identity.");
         var owner = transactions ?? throw new InvalidOperationException("Lookup persistence requires the PostgreSQL event transaction service.");
         var pending = new DomainEventCollection(state.Events);
-        var writer = new PostgresLookupStore();
         await owner.ExecuteAsync(async (transaction,token) =>
         {
             var version = state.CommittedStreamVersion;
@@ -83,9 +82,9 @@ public class LookupTypeStateRepository(
                 await transaction.AppendAsync(command.StreamId,command.CommandId,source,version++,token).ConfigureAwait(false);
                 await (source switch
                 {
-                    LookupTypeAddedEvent added => writer.InsertAsync(transaction,added.LookupType,token),
-                    LookupTypeChangedEvent changed => writer.UpdateAsync(transaction,changed.EntityId,changed.LookupType,token),
-                    LookupTypeRemovedEvent removed => writer.DeleteAsync(transaction,removed.EntityId,token),
+                    LookupTypeAddedEvent added => transaction.InsertLookupAsync(added.LookupType,token),
+                    LookupTypeChangedEvent changed => transaction.UpdateLookupAsync(changed.EntityId,changed.LookupType,token),
+                    LookupTypeRemovedEvent removed => transaction.DeleteLookupAsync(removed.EntityId,token),
                     _ => throw new InvalidOperationException("Unexpected lookup source event.")
                 }).ConfigureAwait(false);
             }

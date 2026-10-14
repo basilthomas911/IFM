@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using System.Text.Json;
 using Npgsql;
 using NpgsqlTypes;
@@ -8,7 +10,7 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 
-internal static class PortfolioDbContextExtensions
+public static class PortfolioDbContextExtensions
 {
     extension(PortfolioDbContext context)
     {
@@ -106,38 +108,7 @@ internal static class PortfolioDbContextExtensions
         internal PortfolioParameters ToParameters(params object?[] values)
             => values.ToPortfolioParameters();
 
-        /// <summary>Creates a financial book and its initial ledger configuration.</summary>
-        /// <param name="book">The financial book configuration.</param>
-        /// <param name="accounts">The ledger accounts.</param>
-        /// <param name="rules">The ledger posting rules.</param>
-        /// <param name="periodStart">The accounting-period start date.</param>
-        /// <param name="periodEnd">The accounting-period end date.</param>
-        /// <param name="cancellationToken">The token used to cancel the asynchronous operation.</param>
-        /// <returns>A task representing the asynchronous operation.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
-        internal Task CreateBookAsync(
-            FinancialBookConfiguration book,
-            IReadOnlyList<LedgerAccountDefinition> accounts,
-            IReadOnlyList<LedgerPostingRule> rules,
-            DateOnly periodStart,
-            DateOnly periodEnd,
-            CancellationToken cancellationToken = default)
-            => context.RequiredTransactions.ExecuteAsync(
-                async (db, cancellation) =>
-                {
-                    await PortfolioDbFinancialSupport.CreateBookAsync(
-                        db,
-                        book,
-                        accounts,
-                        rules,
-                        periodStart,
-                        periodEnd,
-                        Guid.NewGuid(),
-                        cancellation)
-                        .ConfigureAwait(false);
-                    return true;
-                },
-                cancellationToken);
+
     }
 
     extension<T>(PortfolioProjection<T> projection)
@@ -202,5 +173,117 @@ internal static class PortfolioDbContextExtensions
                 .ToArray();
             return new(parameters);
         }
+    }
+
+    extension(string json)
+    {
+        /// <summary>Decodes the persisted financial value using the existing financial serialization contract.</summary>
+        internal T DecodeFinancialValue<T>() => Newtonsoft.Json.JsonConvert.DeserializeObject<T>(json)
+            ?? throw new InvalidDataException($"Invalid stored {typeof(T).Name}.");
+    }
+
+    extension(EnlistedEventTransaction transaction)
+    {
+        /// <summary>Reads the committed operation receipt without applying or replaying a business operation.</summary>
+        internal async Task<T?> ReadFinancialOperationAsync<T>(int portfolioId, Guid operationId, string? inputHash, CancellationToken token)
+            where T : class, IFinancialCompletedEvent
+        {
+            var rows = await transaction.QueryAsync(PortfolioDbSql.Financial.PortfolioDbFinancialSupport.Select02,
+                [portfolioId, operationId], reader => (Hash: reader.GetString(0), Event: new EventLogReadModel(
+                    reader.GetInt64(1), reader.GetString(2), reader.GetString(3), reader.GetInt64(4),
+                    reader.GetFieldValue<byte[]>(5), reader.GetGuid(6), reader.GetString(7), reader.GetInt64(8))), token)
+                .ConfigureAwait(false);
+            if (rows.Count == 0) return null;
+            var row = rows.Single();
+            if (inputHash is not null && !string.Equals(inputHash, row.Hash, StringComparison.Ordinal))
+                throw new FinancialOperationException(FinancialReasons.RequestMismatch, "Operation identity was used for different input.");
+            return row.Event.ToDomainEvent() as T ?? throw new FinancialOperationException(FinancialReasons.RequestMismatch,
+                "Operation belongs to a different financial actor/result contract.", FinancialCommitDisposition.NoNewMutation, operationId);
+        }
+    }
+    extension(IEnlistedPostgresTransaction transaction)
+    {
+        /// <summary>Persists accepted business rows, indexes and deletions without reloading aggregate state.</summary>
+        public async Task PersistAcceptedPortfolioAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token = default)
+        {
+            ArgumentNullException.ThrowIfNull(transaction);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(facts);
+            if (facts.SchemaVersion != 1 || facts.Revision <= 0 || source.EventId <= 0 || facts.UpdatedAtUtc.Kind != DateTimeKind.Utc)
+                throw new InvalidOperationException("Accepted Portfolio projection facts require schema 1, committed identity, revision and UTC timestamp.");
+            await transaction.WritePortfolioAsync(source,facts,token)
+                .ConfigureAwait(false);
+            await transaction.WriteFundAsync(source,facts,token)
+                .ConfigureAwait(false);
+            await transaction.WriteCompositionAsync(source,facts,token)
+                .ConfigureAwait(false);
+            foreach (var value in facts.Policies)
+            {
+                var row = facts.ToAcceptedRow(value,source);
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Policy.Upsert,token,value.PolicyId,value.PolicyVersion,value.PortfolioId,value.OperatingState.ToString(),row.ToCommonValues())
+                .ConfigureAwait(false);
+            }
+            foreach (var tradeId in facts.DeletedTradeIds)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.DeleteTrade,token,tradeId,source.EventId)
+                .ConfigureAwait(false);
+            if (facts.DeletedOrderId > 0)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.DeleteOrder,token,facts.DeletedOrderId,source.EventId)
+                .ConfigureAwait(false);
+            if (facts.DeletedPolicyId > 0)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Policy.DeleteDraft,token,facts.DeletedPolicyPortfolioId,facts.DeletedPolicyId,source.EventId)
+                .ConfigureAwait(false);
+            if (facts.DeletedPortfolioId > 0)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Portfolio.DeleteDraft,token,facts.DeletedPortfolioId,source.EventId)
+                .ConfigureAwait(false);
+        }
+
+        private async Task WritePortfolioAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
+        {
+            if (facts.Portfolio is { } value)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Portfolio.Upsert,token,value.PortfolioId,value.PortfolioVersion,value.OperatingState.ToString(),facts.ToAcceptedRow(value,source).ToCommonValues(),checked((value.PortfolioId-1)/1000))
+                .ConfigureAwait(false);
+            if (facts.Allocation is { } allocation)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertAllocation,token,allocation.PortfolioId,allocation.FundId,allocation.AllocationVersion,facts.ToAcceptedRow(allocation,source).ToCommonValues())
+                .ConfigureAwait(false);
+            if (facts.RiskEnvelope is { } risk)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertEnvelope,token,risk.PortfolioId,risk.FundId,risk.EnvelopeVersion,facts.ToAcceptedRow(risk,source).ToCommonValues())
+                .ConfigureAwait(false);
+        }
+
+        private async Task WriteFundAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
+        {
+            if (facts.Fund is { } value)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.Upsert,token,value.PortfolioId,value.FundId,value.FundMandateVersion,value.OperatingState.ToString(),facts.ToAcceptedRow(value,source).ToCommonValues(),value.TradingYear,value.DecisionHorizon,value.EffectiveFromUtc)
+                .ConfigureAwait(false);
+            if (facts.Assignment is { } assigned)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertAssignment,token,assigned.PortfolioId,assigned.FundId,assigned.FundMandateVersion,assigned.TradeTemplateId,assigned.TradeTemplateVersion,facts.ToAcceptedRow(assigned,source).ToCommonValues())
+                .ConfigureAwait(false);
+        }
+
+        private async Task WriteCompositionAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
+        {
+            if (facts.Order is not { } order) return;
+            var row = PortfolioProjection<FundOrderProjectionReadModel>.Create(order,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc);
+            var month = new DateOnly(order.CreatedOnUtc.Year,order.CreatedOnUtc.Month,1);
+            await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertOrder,token,order.PortfolioId,order.FundId,month,order.CreatedOnUtc,order.OrderId,order.Status,row.ToCommonValues())
+                .ConfigureAwait(false);
+            foreach (var trade in facts.Trades)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertTrade,token,trade.OrderId,trade.TradeId,trade.PortfolioId,trade.FundId,
+                    PortfolioProjection<FundOrderTradeProjectionReadModel>.Create(trade,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc).ToCommonValues())
+                .ConfigureAwait(false);
+            if (facts.Composition is { } composition)
+                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Orders.UpsertComposition,token,composition.WorkflowId,composition.OrderId,composition.PortfolioId,composition.FundId,composition.Status,
+                    PortfolioProjection<FundCompositionWorkflowProjectionReadModel>.Create(composition,facts.OrderRevision,source.EventId,facts.UpdatedAtUtc).ToCommonValues())
+                .ConfigureAwait(false);
+        }
+
+        private Task<int> WritePortfolioValuesAsync(string sql,CancellationToken token,params object?[] values)
+            => transaction.ExecuteAsync(sql,(Npgsql.NpgsqlParameter[])values.ToPortfolioParameters().Bind(),token);
+    }
+    extension(PortfolioProjectionFacts facts)
+    {
+        /// <summary>Maps accepted values to their persisted event identity and revision.</summary>
+        private PortfolioProjection<T> ToAcceptedRow<T>(T value, IEvent source)
+            => PortfolioProjection<T>.Create(value, facts.Revision, source.EventId, facts.UpdatedAtUtc);
     }
 }

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.InstrumentDefinitions;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionChains;
 using FluentAssertions;

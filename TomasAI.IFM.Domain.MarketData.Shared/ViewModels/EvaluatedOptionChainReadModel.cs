@@ -19,4 +19,7 @@ public sealed record EvaluatedOptionChainReadModel(
     [Key(10)] public decimal? IvRank { get; init; }
     [Key(11)] public string IvRankStatus { get; init; } = "Waiting for IV observation";
     [Key(12)] public DateTimeOffset? BollingerAsOfUtc { get; init; }
+    /// <summary>The latest accepted underlying trade from the hot cache, independent of pricing fallbacks.</summary>
+    [Key(13)] public decimal? LastUnderlyingPrice { get; init; }
+    [Key(14)] public DateTimeOffset? LastUnderlyingTradeAtUtc { get; init; }
 }

@@ -47,6 +47,9 @@ public partial class App : System.Windows.Application
 
             var options = Configuration.GetSection("ServerManager").Get<ServerManagerOptions>()
                 ?? throw new InvalidOperationException("The ServerManager configuration section is missing.");
+            options.SelectDevelopmentUi(environment,
+                Environment.GetEnvironmentVariable("IFM_DEVELOPMENT_UI"),
+                Environment.GetEnvironmentVariable("IFM_REPOSITORY_ROOT"));
             options.Validate();
 
             var services = new ServiceCollection();

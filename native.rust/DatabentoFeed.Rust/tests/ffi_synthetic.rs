@@ -136,7 +136,101 @@ fn option_chain_accepts_zero_publisher_metadata() {
             .unwrap_or_else(|error| error.into_inner());
         assert_eq!(mappings.len(), 1);
         assert_eq!(mappings[0].instrument_id, 101);
+        assert_eq!(mappings[0].data_kinds, subscription.data_kinds);
         assert_eq!(mappings[0].publisher_id, 0);
+        drop(mappings);
+        assert_eq!(dbf_feed_destroy(feed.cast()), OK);
+    }
+}
+#[test]
+fn option_chain_accepts_statistics_and_session_volume() {
+    let mut value = config(0, 128);
+    value.feed_kind = FEED_OPTION_CHAIN;
+    let mut feed = ptr::null_mut();
+    unsafe {
+        assert_eq!(dbf_feed_create(&value, ptr::null(), 0, &mut feed), OK);
+        let symbol = b"ESM6 C5000";
+        let subscription = OptionChainSubscriptionV1 {
+            struct_size: size_of::<OptionChainSubscriptionV1>() as u32,
+            abi_version: ABI_VERSION,
+            data_kinds: MARKET_DATA_QUOTE | MARKET_DATA_TRADE | MARKET_DATA_STATISTICS | MARKET_DATA_SESSION_VOLUME,
+            contract_count: 1,
+            ..OptionChainSubscriptionV1::default()
+        };
+        let contract = OptionContractSelectionV1 {
+            struct_size: size_of::<OptionContractSelectionV1>() as u32,
+            abi_version: ABI_VERSION,
+            instrument_id: 101,
+            publisher_id: 0,
+            option_right: 1,
+            raw_symbol_length: symbol.len() as u32,
+            ..OptionContractSelectionV1::default()
+        };
+        assert_eq!(
+            dbf_feed_subscribe_option_chain(
+                feed,
+                &subscription,
+                &contract,
+                1,
+                symbol.as_ptr(),
+                symbol.len() as u32,
+                2_000,
+            ),
+            OK
+        );
+        let mappings = (*feed)
+            .mappings
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        assert_eq!(mappings.len(), 1);
+        assert_eq!(mappings[0].instrument_id, 101);
+        assert_eq!(mappings[0].data_kinds, subscription.data_kinds);
+        assert_eq!(mappings[0].publisher_id, 0);
+        drop(mappings);
+        assert_eq!(dbf_feed_destroy(feed.cast()), OK);
+    }
+}
+#[test]
+fn option_chain_rejects_session_volume_without_trades() {
+    let mut value = config(0, 128);
+    value.feed_kind = FEED_OPTION_CHAIN;
+    let mut feed = ptr::null_mut();
+    unsafe {
+        assert_eq!(dbf_feed_create(&value, ptr::null(), 0, &mut feed), OK);
+        let symbol = b"ESM6 C5000";
+        let subscription = OptionChainSubscriptionV1 {
+            struct_size: size_of::<OptionChainSubscriptionV1>() as u32,
+            abi_version: ABI_VERSION,
+            data_kinds: MARKET_DATA_QUOTE | MARKET_DATA_SESSION_VOLUME,
+            contract_count: 1,
+            ..OptionChainSubscriptionV1::default()
+        };
+        let contract = OptionContractSelectionV1 {
+            struct_size: size_of::<OptionContractSelectionV1>() as u32,
+            abi_version: ABI_VERSION,
+            instrument_id: 101,
+            publisher_id: 0,
+            option_right: 1,
+            raw_symbol_length: symbol.len() as u32,
+            ..OptionContractSelectionV1::default()
+        };
+        assert_eq!(
+            dbf_feed_subscribe_option_chain(
+                feed,
+                &subscription,
+                &contract,
+                1,
+                symbol.as_ptr(),
+                symbol.len() as u32,
+                2_000,
+            ),
+            INVALID_ARGUMENT
+        );
+        let mappings = (*feed)
+            .mappings
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        assert!(mappings.is_empty());
         drop(mappings);
         assert_eq!(dbf_feed_destroy(feed.cast()), OK);
     }

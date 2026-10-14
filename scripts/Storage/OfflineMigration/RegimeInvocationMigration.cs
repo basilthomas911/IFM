@@ -34,7 +34,7 @@ internal static class RegimeInvocationMigration
                     ?? throw new InvalidDataException("Persisted Regime Discovery source type differs.");
                 await transactions.ExecuteOnceAsync(async (db, token) =>
                 {
-                    await PostgresRegimeDiscoveryStore.ProjectAsync(db, source, token).ConfigureAwait(false);
+                    await TradeDbContextExtensions.RegimeProjectAsync(db, source, token).ConfigureAwait(false);
                     return true;
                 }).ConfigureAwait(false);
                 rebuilt++;

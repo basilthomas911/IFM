@@ -35,6 +35,20 @@ public sealed class InstrumentDefinitionClientTests
         Assert.Equal(Definition, Assert.Single(rows).Json);
     }
     [Fact]
+    public async Task Bounded_parent_request_uses_provider_symbology_and_keeps_exact_fields()
+    {
+        using var http=new HttpClient(new Handler(async request=>{
+            if(request.Method==HttpMethod.Get)return new(HttpStatusCode.OK){Content=new StringContent("{\"schema\":{\"definition\":{\"end\":\"2026-10-13T00:00:00Z\"}}}")};
+            var body=await request.Content!.ReadAsStringAsync();Assert.Contains("symbols=ES.FUT%2CES.OPT",body);Assert.Contains("stype_in=parent",body);Assert.DoesNotContain("ALL_SYMBOLS",body);
+            return new(HttpStatusCode.OK){Content=new StringContent(Definition+"\n")};
+        }));
+        using var client=new DatabentoInstrumentDefinitionClient(http,()=>"test-only-credential");
+        var rows=new List<ExactInstrumentDefinition>();await foreach(var row in client.ReadLatestParentsAsync("GLBX.MDP3",["ES.FUT","ES.OPT"]))rows.Add(row);
+        Assert.Equal(Definition,Assert.Single(rows).Json);
+        Assert.Throws<ArgumentException>(()=>client.ReadLatestParentsAsync("GLBX.MDP3",["ALL_SYMBOLS"]));
+        Assert.Throws<ArgumentException>(()=>client.ReadLatestParentsAsync("GLBX.MDP3",Enumerable.Repeat("ES.FUT",17).ToArray()));
+    }
+    [Fact]
     public async Task Provider_failure_is_not_treated_as_an_empty_success()
     {
         using var http = new HttpClient(new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden))));

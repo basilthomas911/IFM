@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb;
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Storage;
@@ -53,6 +55,8 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
     public IPortfolioDbContext PortfolioDb => (_dbContextResolver.Resolve<PortfolioDbContext>() as IPortfolioDbContext)!;
+    public IScheduledTaskDbContext ScheduledTaskDb => (_dbContextResolver.Resolve<ScheduledTaskDbContext>() as IScheduledTaskDbContext)!;
+    public ScheduledTaskSchemaDb ScheduledTaskSchema => (_dbContextResolver.Resolve<ScheduledTaskSchemaDb>() as ScheduledTaskSchemaDb)!;
     public IMarketDataServiceDbContext MarketDataServiceDb =>
         (_dbContextResolver.Resolve<MarketDataServiceDbContext>() as IMarketDataServiceDbContext)!;
 

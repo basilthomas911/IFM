@@ -2129,8 +2129,10 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
     }
     if (!valid_struct(subscription->struct_size, sizeof(*subscription), subscription->abi_version)
         || subscription->contract_count != contract_count
-        || (subscription->data_kinds & 7u) == 0
-        || (subscription->data_kinds & ~7u) != 0
+        || (subscription->data_kinds & 15u) == 0
+        || (subscription->data_kinds & ~31u) != 0
+        || ((subscription->data_kinds & DBF_MARKET_DATA_SESSION_VOLUME) != 0
+            && (subscription->data_kinds & DBF_MARKET_DATA_TRADE) == 0)
         || subscription->reserved[0] != 0 || subscription->reserved[1] != 0) {
         return DBF_INVALID_ARGUMENT;
     }
@@ -2157,7 +2159,7 @@ dbf_status DBF_CALL dbf_feed_subscribe_option_chain(
             mapping.instrument_id = contract.instrument_id;
             mapping.publisher_id = contract.publisher_id;
             mapping.input_symbology = 1u;
-            mapping.data_kinds = subscription->data_kinds & 7u;
+            mapping.data_kinds = subscription->data_kinds;
             mapping.raw_symbol.assign(
                 reinterpret_cast<const char*>(utf8_blob + contract.raw_symbol_offset),
                 contract.raw_symbol_length);

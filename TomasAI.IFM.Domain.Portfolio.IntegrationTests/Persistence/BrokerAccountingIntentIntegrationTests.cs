@@ -1,6 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Shared.EventModelActor;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;

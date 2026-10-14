@@ -147,6 +147,8 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void One_hundred_thousand_position_updates_replay_deterministically_and_reject_stale_ticks()
     {
+        // Monday during the futures session; weekend marks are deliberately rejected.
+        var tradingTime = new DateTime(2026, 9, 14, 16, 0, 0, DateTimeKind.Utc);
         var tradeId = new TradeEntityId(11, 22, 33, 44);
         var positionId = new StrategyPositionId(
             tradeId,
@@ -171,17 +173,17 @@ public sealed class TradeFlowQualificationTests
                     SignedQuantity = 1,
                     OpeningPrice = 5_000m,
                     CurrentPrice = 5_000m,
-                    LastPriceAtUtc = Now
+                    LastPriceAtUtc = tradingTime
                 }
             ],
             MarketValue = 5_000m,
-            AsOfUtc = Now,
+            AsOfUtc = tradingTime,
             IsOpen = true
         });
 
         for (var sourceSequence = 1L; sourceSequence <= 100_000; sourceSequence++)
         {
-            var occurredAtUtc = Now.AddTicks(sourceSequence);
+            var occurredAtUtc = tradingTime.AddTicks(sourceSequence);
             var price = 5_000m + sourceSequence / 100m;
             state.UpdateLeg(legId, "ESZ6", price, sourceSequence, occurredAtUtc, 1)
                 .Accepted.Should().BeTrue();
@@ -204,7 +206,7 @@ public sealed class TradeFlowQualificationTests
             MessagePackSerializer.Serialize(finalSnapshot)));
 
         recovered.Current.Should().BeEquivalentTo(finalSnapshot);
-        recovered.UpdateLeg(legId, "ESZ6", 6_001m, 100_001, Now.AddTicks(100_001), 1)
+        recovered.UpdateLeg(legId, "ESZ6", 6_001m, 100_001, tradingTime.AddTicks(100_001), 1)
             .Accepted.Should().BeTrue();
         recovered.Current!.PositionSequence.Should().Be(100_002);
         recovered.Current.Legs.Single().LastSourceSequence.Should().Be(100_001);
@@ -286,25 +288,18 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Additive_trade_plan_schema_has_one_immutable_history_table_per_strategy()
     {
-        string[] creates =
-        [
-            TradePlanSchemaCql.IronCondor,
-            TradePlanSchemaCql.VerticalSpread,
-            TradePlanSchemaCql.Futures,
-            TradePlanSchemaCql.ActivityByDate,
-            TradePlanSchemaCql.ExitWorkflow
-        ];
-
-        creates.Should().OnlyContain(sql => sql.Contains("CREATE TABLE IF NOT EXISTS", StringComparison.Ordinal));
-        creates.Take(3).Should().OnlyContain(sql =>
-            sql.Contains("planRevision bigint", StringComparison.Ordinal) &&
-            sql.Contains("CLUSTERING ORDER BY (planRevision DESC)", StringComparison.Ordinal));
-        creates.Should().OnlyContain(sql => !sql.Contains("DROP ", StringComparison.OrdinalIgnoreCase));
-        creates.Distinct(StringComparer.Ordinal).Should().HaveCount(5);
+        var sql = TradePlanSchemaSql.Create;
+        string[] tables = ["iron_condor_trade_plan", "vertical_spread_trade_plan", "futures_trade_plan", "position_trade_plan_activity_by_date", "position_exit_workflow"];
+        foreach (var table in tables)
+            sql.Should().Contain("CREATE TABLE IF NOT EXISTS trade_plan." + table);
+        sql.Should().Contain("planRevision bigint");
+        sql.Should().Contain("PRIMARY KEY (portfolioId,fundId,orderId,tradeId,positionId,valueDate,planRevision)");
+        sql.Should().Contain("CREATE INDEX IF NOT EXISTS position_trade_plan_activity_recent");
+        sql.Should().NotContain("DROP ");
     }
 
     [Fact]
-    public void Strategy_position_projectors_own_durable_plan_projection_recovery()
+    public void Strategy_position_projectors_describe_disposable_plan_projection_notifications()
     {
         typeof(IronCondorPositionEventProjector).GetProperty(nameof(IronCondorPositionEventProjector.ProjectedEventTypes))
             .Should().NotBeNull();
@@ -327,11 +322,11 @@ public sealed class TradeFlowQualificationTests
         monitoringPlan.RequiresDurableProjection.Should().BeFalse();
         monitoringPlan.RequiredProjection.Should().Be(new DurableProjectionRequirement(
             nameof(FuturesIronCondorTradePositionCommandActor), nameof(IronCondorPositionEventProjector), EventProjectorStageType.ApplyProjection));
-        AssertRequiredProjection(
+        AssertDisposableProjection(
             new VerticalSpreadTradePlanUpdatedEvent { Plan = new StrategyTradePlanSnapshot { MaterialChange = true } },
             nameof(FuturesVerticalSpreadTradePositionCommandActor),
             nameof(VerticalSpreadPositionEventProjector));
-        AssertRequiredProjection(
+        AssertDisposableProjection(
             new FuturesTradePlanUpdatedEvent { Plan = new StrategyTradePlanSnapshot { MaterialChange = true } },
             nameof(FuturesTradePositionCommandActor),
             nameof(FuturesPositionEventProjector));
@@ -340,12 +335,12 @@ public sealed class TradeFlowQualificationTests
         new FuturesTradePlanUpdatedEvent().RequiresDurableProjection.Should().BeFalse();
     }
 
-    static void AssertRequiredProjection(
+    static void AssertDisposableProjection(
         IRequireDurableProjection sourceEvent,
         string actorName,
         string projectorName)
     {
-        sourceEvent.RequiresDurableProjection.Should().BeTrue();
+        sourceEvent.RequiresDurableProjection.Should().BeFalse();
         sourceEvent.RequiredProjection.ActorName.Should().Be(actorName);
         sourceEvent.RequiredProjection.ProjectorName.Should().Be(projectorName);
         sourceEvent.RequiredProjection.InitialStage.Should().Be(EventProjectorStageType.ApplyProjection);
@@ -393,18 +388,17 @@ public sealed class TradeFlowQualificationTests
     [Fact]
     public void Additive_trade_flow_schema_contains_recovery_and_history_without_destructive_create_statements()
     {
-        string[] creates =
+        var schema = TradeSchemaSql.Create;
+        string[] tables =
         [
-            TradeFlowSchemaCql.TradeOrder, TradeFlowSchemaCql.OrderExecution,
-            TradeFlowSchemaCql.ExecutionFill, TradeFlowSchemaCql.EstablishedTrade,
-            TradeFlowSchemaCql.EstablishedTradeHistory, TradeFlowSchemaCql.PositionCurrent,
-            TradeFlowSchemaCql.PositionHistory, TradeFlowSchemaCql.OpenPositionRoute,
-            TradeFlowSchemaCql.OpenPositionRouteRecovery
+            "trade_order", "order_execution", "order_execution_fill",
+            "established_trade", "established_trade_history", "strategy_position_current",
+            "strategy_position_history", "open_position_route", "open_position_route_recovery"
         ];
-
-        creates.Should().OnlyContain(sql => sql.Contains("CREATE TABLE IF NOT EXISTS", StringComparison.Ordinal));
-        creates.Should().OnlyContain(sql => !sql.Contains("DROP ", StringComparison.OrdinalIgnoreCase));
-        TradeFlowSchemaCql.EstablishedTradeHistory.Should().Contain(
+        foreach (var table in tables)
+            schema.Should().Contain("CREATE TABLE IF NOT EXISTS trade." + table);
+        schema.Should().NotContain("DROP ");
+        schema.Should().Contain(
             "orderId, tradeId, evidenceRevision)",
             "each evidence amendment must append an immutable history row");
     }

@@ -39,7 +39,6 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
     [InlineData("ReferenceDb", "ReferenceDbCql")]
     [InlineData("SecuritiesDb", "SecuritiesDbCql")]
     [InlineData("MarketDataDb", "MarketDataDbCql")]
-    [InlineData("TradeDb", "TradeDbCql")]
     public void EveryScyllaParameterCatalogBinding_MatchesCqlMarkerOrder(
         string catalogNamespace,
         string cqlTypeName)
@@ -60,6 +59,10 @@ public sealed class ScyllaDbPositionalParameterCatalogTests
         foreach (var bindType in bindTypes)
             AssertBindingMatchesCql(bindType, cqlType);
     }
+
+    [Fact]
+    public void Raw_tick_quote_bindings_match_cql_marker_order()
+        => EveryScyllaParameterCatalogBinding_MatchesCqlMarkerOrder("TradeTickQuoteDb", "TradeTickQuoteDbCql");
 
     static bool IsOpaqueBindingAdapter(Type type)
     {

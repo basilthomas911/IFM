@@ -1,5 +1,4 @@
 namespace TomasAI.IFM.Application.Storage;
-
 public static class SystemAdminDbSql
 {
     public const string GetBackupPhases = """
@@ -17,13 +16,11 @@ FROM system_admin.database_backup_projection_receipt
 WHERE projector_name = $1 AND event_id = $2
 FOR UPDATE;
 """;
-
     public const string InsertProjectionReceipt = """
 INSERT INTO system_admin.database_backup_projection_receipt
     (projector_name, event_id, event_hash, source_event_id, applied_utc)
 VALUES ($1, $2, $3, $4, $5);
 """;
-
     public const string UpsertProjectionCheckpoint = """
 INSERT INTO system_admin.database_backup_projection_checkpoint
     (projector_name, last_event_id, applied_count, updated_utc)
@@ -33,13 +30,11 @@ ON CONFLICT (projector_name) DO UPDATE SET
     applied_count = system_admin.database_backup_projection_checkpoint.applied_count + 1,
     updated_utc = EXCLUDED.updated_utc;
 """;
-
     public const string GetProjectionCheckpoint = """
 SELECT projector_name, last_event_id, applied_count, updated_utc
 FROM system_admin.database_backup_projection_checkpoint
 WHERE projector_name = $1;
 """;
-
     public const string UpsertOperation = """
 INSERT INTO system_admin.database_recovery_operation
     (operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
@@ -69,14 +64,12 @@ ON CONFLICT (operation_id) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.state_revision > system_admin.database_recovery_operation.state_revision;
 """;
-
     public const string InsertPhase = """
 INSERT INTO system_admin.database_recovery_phase
     (operation_id, phase, event_revision, outcome, progress_percent, observed_utc, host_id, last_event_id, last_source_event_id)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 ON CONFLICT (operation_id, phase, event_revision) DO NOTHING;
 """;
-
     public const string UpsertRestorePoint = """
 INSERT INTO system_admin.database_restore_point
     (restore_point_id, source, backup_set_id, protection_set_id, recovery_point_utc,
@@ -97,7 +90,6 @@ ON CONFLICT (restore_point_id, source) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_restore_point.source_revision;
 """;
-
     public const string UpsertArtifactReplica = """
 INSERT INTO system_admin.database_artifact_replica
     (artifact_replica_id, source, operation_id, artifact_id, engine, replica_state,
@@ -112,7 +104,6 @@ ON CONFLICT (artifact_replica_id, source) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_artifact_replica.source_revision;
 """;
-
     public const string UpsertRecoveryError = """
 INSERT INTO system_admin.database_recovery_error
     (operation_id, error_identity, classification, safe_diagnostic_reference, observed_utc,
@@ -127,7 +118,6 @@ ON CONFLICT (operation_id, error_identity) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_recovery_error.source_revision;
 """;
-
     public const string UpsertPolicy = """
 INSERT INTO system_admin.database_backup_policy
     (environment_identity, policy_id, policy_revision, definition_json, enforced,
@@ -142,7 +132,6 @@ ON CONFLICT (environment_identity, policy_id) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_backup_policy.source_revision;
 """;
-
     public const string UpsertServiceHealth = """
 INSERT INTO system_admin.database_backup_service_health
     (environment_identity, source, host_id, capability_state, ready, last_service_sequence,
@@ -160,7 +149,6 @@ ON CONFLICT (environment_identity, source, host_id) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_backup_service_health.source_revision;
 """;
-
     public const string UpsertRetention = """
 INSERT INTO system_admin.database_retention_state
     (plan_id, source, plan_revision, evaluation_boundary_utc, retain_json, delete_json,
@@ -178,7 +166,6 @@ ON CONFLICT (plan_id, source) DO UPDATE SET
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.source_revision > system_admin.database_retention_state.source_revision;
 """;
-
     public const string InsertRunStatistics = """
 INSERT INTO system_admin.database_recovery_run_stats
     (operation_id, source, phase, engine, statistics_revision, started_utc, completed_utc,
@@ -188,7 +175,6 @@ INSERT INTO system_admin.database_recovery_run_stats
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 ON CONFLICT (operation_id, phase, engine, statistics_revision) DO NOTHING;
 """;
-
     public const string GetProtectionSets = """
 SELECT protection_set_id, source, MAX(policy_revision)
 FROM system_admin.database_recovery_operation
@@ -196,13 +182,11 @@ WHERE ($1 = 0 OR source = $1)
 GROUP BY protection_set_id, source
 ORDER BY protection_set_id, source;
 """;
-
     public const string GetPolicy = """
 SELECT policy_id, environment_identity, policy_revision, definition_json::text, enforced
 FROM system_admin.database_backup_policy
 WHERE environment_identity = $1 AND policy_id = $2;
 """;
-
     public const string OperationColumns = """
 operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
 progress_percent, state_revision, created_utc, completed_utc, safe_diagnostic_reference,
@@ -211,7 +195,6 @@ backup_lineage_json,
 COALESCE((SELECT engine FROM system_admin.database_recovery_run_stats stats
           WHERE stats.operation_id = database_recovery_operation.operation_id ORDER BY statistics_revision DESC LIMIT 1), 0) AS engine
 """;
-
     public static readonly string GetOperation = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE operation_id = $1;";
     public static readonly string ListOperations = $"""
 SELECT {OperationColumns}
@@ -228,7 +211,6 @@ LIMIT $6;
     public static readonly string GetBackupSetOperations = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE backup_set_id = $1 ORDER BY operation_id;";
     public static readonly string GetRestoreOperation = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE operation_id = $1 AND operation_kind IN (3,4,5);";
     public static readonly string ListRestoreDrills = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE operation_kind = 4 AND ($1 = 0 OR source = $1) ORDER BY created_utc DESC LIMIT $2;";
-
     public const string RestorePointColumns = """
 restore_point_id, backup_set_id, protection_set_id, source, recovery_point_utc,
 verification_level, verified_utc, restore_tested_utc, eligible, legal_hold, manifest_revision,
@@ -248,7 +230,6 @@ LIMIT $6;
     public static readonly string GetRestorePoint = $"SELECT {RestorePointColumns} FROM system_admin.database_restore_point WHERE restore_point_id = $1 AND source = $2;";
     public static readonly string GetLatestVerified = $"SELECT {RestorePointColumns} FROM system_admin.database_restore_point WHERE source = $1 AND protection_set_id = $2 AND eligible AND verified_utc IS NOT NULL ORDER BY recovery_point_utc DESC LIMIT 1;";
     public static readonly string GetLatestRestoreTested = $"SELECT {RestorePointColumns} FROM system_admin.database_restore_point WHERE source = $1 AND protection_set_id = $2 AND eligible AND restore_tested_utc IS NOT NULL ORDER BY recovery_point_utc DESC LIMIT 1;";
-
     public const string GetRetention = """
 SELECT plan_id, source, plan_revision, evaluation_boundary_utc, retain_json::text,
        delete_json::text, approved, outcome
@@ -257,7 +238,6 @@ WHERE ($1 = 0 OR source = $1) AND ($2 IS NULL OR plan_id = $2)
 ORDER BY evaluation_boundary_utc DESC
 LIMIT 1;
 """;
-
     public const string GetServiceHealth = """
 SELECT source, host_id, capability_state, ready, last_service_sequence, observed_utc,
        safe_diagnostic_reference
@@ -265,7 +245,6 @@ FROM system_admin.database_backup_service_health
 WHERE environment_identity = $1 AND ($2 = 0 OR source = $2)
 ORDER BY source, host_id;
 """;
-
     public const string GetRunStatistics = """
 SELECT source, statistics_revision, engine, phase, started_utc, completed_utc, elapsed_ticks,
        source_bytes, stored_bytes, transferred_bytes, restored_bytes, artifact_count,
@@ -275,7 +254,6 @@ FROM system_admin.database_recovery_run_stats
 WHERE operation_id = $1
 ORDER BY statistics_revision, phase, engine;
 """;
-
     public const string ClearProjections = """
 TRUNCATE TABLE
     system_admin.database_recovery_phase,
@@ -288,7 +266,15 @@ TRUNCATE TABLE
     system_admin.database_retention_state,
     system_admin.database_recovery_operation;
 """;
-
     public const string ClearProjectionReceipts = "DELETE FROM system_admin.database_backup_projection_receipt WHERE projector_name = $1;";
     public const string ClearProjectionCheckpoint = "DELETE FROM system_admin.database_backup_projection_checkpoint WHERE projector_name = $1;";
+    public const string EnqueueExecutionIntent = "INSERT INTO system_admin.database_backup_execution_outbox(event_id,event_uuid) VALUES($1,$2) ON CONFLICT(event_id) DO NOTHING;";
+    public const string ReadPendingExecutionIntents = """
+SELECT n.eventtypename,l.eventversion,l.eventpayload
+FROM system_admin.database_backup_execution_outbox o
+JOIN event_log l ON l.eventversion=o.event_id
+JOIN event_name_id n USING(eventnameid)
+WHERE o.published_utc IS NULL ORDER BY o.event_id LIMIT 100;
+""";
+    public const string MarkExecutionIntentPublished = "UPDATE system_admin.database_backup_execution_outbox SET published_utc=$1 WHERE event_id=$2 AND event_uuid=$3 AND published_utc IS NULL;";
 }

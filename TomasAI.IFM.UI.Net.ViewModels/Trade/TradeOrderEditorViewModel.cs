@@ -187,18 +187,16 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <summary>Gets the single-flight fund loading operation.</summary>
     public IAsyncOperation LoadOperation { get; }
 
-    public bool CanCreateOrder => !IsBusy && SelectedFund is not null;
-    public bool CanLoadOrder => !IsBusy && SelectedFundOrder is not null
-        && SelectedFundOrderTrade is { } trade && TradeMonitoringPolicy.CanLoad(trade.TradeState)
-        && trade.ExecutionOrderId > 0 && trade.ExecutionTradeId > 0;
-    public bool CanDeleteOrder => !IsBusy
-        && SelectedFundOrder is { } order && PortfolioFundOrderEditorPolicy.CanDeleteOrder(order);
-    public bool CanAddTrade => !IsBusy
-        && SelectedFundOrder is { } order && PortfolioFundOrderEditorPolicy.CanAddTrade(order);
-    public bool CanRemoveTrade => !IsBusy
-        && SelectedFundOrder is { } order
-        && SelectedFundOrderTrade is { } trade
-        && PortfolioFundOrderEditorPolicy.CanRemoveTrade(order, trade);
+    /// <summary>The entry button is always available; Save validates the selected Portfolio and Fund.</summary>
+    public bool CanCreateOrder => true;
+    /// <summary>Loads the selected trade once it has progressed beyond New Trade.</summary>
+    public bool CanLoadOrder => SelectedFundOrderTrade is { TradeState: not TradeState.NewTrade };
+    /// <summary>Enables deletion when the order list contains an order.</summary>
+    public bool CanDeleteOrder => FundOrders.Count > 0;
+    /// <summary>Enables trade entry whenever an order is selected.</summary>
+    public bool CanAddTrade => SelectedFundOrder is not null;
+    /// <summary>Enables removal when the selected order contains trades.</summary>
+    public bool CanRemoveTrade => FundOrderTrades.Count > 0;
     public bool CanEndOfDay => HasMutableOpenOrder && SelectedFundOrderTrade is not null;
     public bool CanSubmitOrder => HasMutableOpenOrder
         && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade

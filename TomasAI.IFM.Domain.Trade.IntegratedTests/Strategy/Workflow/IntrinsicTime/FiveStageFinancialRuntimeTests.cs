@@ -43,7 +43,7 @@ public sealed partial class TradeSelectionRuntimeTests
         await producer.StartAsync(new(ActorType.Realtime, $"FiveStageFinancial{Guid.NewGuid():N}"));
         try
         {
-            await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema(FinancialBoundaryTransactions()).InitializeAsync();
+            await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema(FinancialBoundaryTransactions()).InitializeAsync();
             new RiskEvaluator().Calculate(await RiskFixture.Command(variant, horizon: horizon));
             assessment = AssessmentFixture.Command(horizon, DateTime.UtcNow, $"FIVE{Guid.NewGuid():N}");
             // This is a persistence/financial correctness gate, not a production quote-age latency gate.

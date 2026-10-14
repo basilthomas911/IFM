@@ -557,7 +557,7 @@ public partial class TradeOrderEditorForm
         var easternToday = EasternTime.GetNow(TimeProvider.System);
         dtpTradeDate.Value = _viewModel!.ValueDate.HasValue ? _viewModel.ValueDate.Value.ToDateTime(TimeOnly.MinValue) : easternToday.Date;
         btnLoadOrder.Enabled = false;
-        btnCreateOrder.Enabled = false;
+        btnCreateOrder.Enabled = true;
         btnDeleteOrder.Enabled = false;
         var dtpList = new List<DateTimePicker> { dtpFrom, dtpTo };
         dtpList.ForEach(o => o.Enabled = false);
@@ -833,10 +833,10 @@ public partial class TradeOrderEditorForm
             ? $"Remove Trade {selectedTrade.TradeId} From Order {tradeOrder.OrderId}" : "Remove Trade";
         btnCreateFund.Enabled = false;
         btnLoadOrder.Enabled = _viewModel.CanLoadOrder;
-        btnCreateOrder.Enabled = _viewModel.CanCreateOrder;
-        btnDeleteOrder.Enabled = _viewModel.CanDeleteOrder;
-        btnAddTrade.Enabled = _viewModel.CanAddTrade;
-        btnRemoveTrade.Enabled = _viewModel.CanRemoveTrade;
+        btnCreateOrder.Enabled = true;
+        btnDeleteOrder.Enabled = lstTradeOrders.Items.Count > 0;
+        btnAddTrade.Enabled = lstTradeOrders.SelectedItems.Count > 0;
+        btnRemoveTrade.Enabled = lstTrades.Items.Count > 0;
         btnEndOfDay.Enabled = _viewModel.SelectedPortfolio is not null && _viewModel.SelectedFundOrderTrade is not null;
         btnSubmitOrder.Enabled = _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = _viewModel.CanUseLiveFeed;
@@ -935,11 +935,6 @@ public partial class TradeOrderEditorForm
                 pnlTradeBlotter.Controls.Add(blotter);
                 AlignTradePositionHeader();
                 if (cbLiveFeed.Checked) await blotter.SetLiveFeedAsync(true);
-            }
-            if (lstTradeOrders.SelectedIndices.Count > 0)
-            {
-                btnAddTrade.Enabled = true;
-                btnRemoveTrade.Enabled = false;
             }
             UpdateButtons();
 
@@ -1110,6 +1105,7 @@ public partial class TradeOrderEditorForm
     }
     async void btnCreateOrder_Click(object sender, EventArgs e)
     {
+        if (_viewModel.SelectedFund is null) { this.ShowErrorMessage("Select a Fund before creating an order.", "Add Order"); return; }
         var fundId = _viewModel.GetFundId(ddlFund.SelectedIndex);
         var vm = new FundOrderEditorViewModel(
             fundId,

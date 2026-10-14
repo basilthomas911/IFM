@@ -1,5 +1,5 @@
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.CapacityReservationIntegrationTests;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;

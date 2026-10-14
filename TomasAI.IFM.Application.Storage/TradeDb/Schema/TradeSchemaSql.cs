@@ -1,8 +1,8 @@
 namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
-
 /// <summary>Native PostgreSQL trade tables and explicit history-order indexes. No runtime CQL translation.</summary>
 public static class TradeSchemaSql
 {
+    public const string Drop = "DROP SCHEMA IF EXISTS trade CASCADE;";
     public const string Create = """
         CREATE SCHEMA IF NOT EXISTS trade;
         

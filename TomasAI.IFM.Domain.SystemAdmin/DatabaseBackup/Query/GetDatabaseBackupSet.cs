@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Model;
@@ -16,7 +17,23 @@ public static class GetDatabaseBackupSet
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetBackupSetAsync(query, cancellationToken)).ConfigureAwait(false);
+        var operations = await dbContext.GetBackupSetOperationsAsync(query.BackupSetId!.Value.Value, cancellationToken).ConfigureAwait(false);
+        var result = BuildReadModel(query, operations);
         await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+    }
+    /// <summary>Builds backup-set completeness from persisted operation facts.</summary>
+    internal static DatabaseBackupSetReadModel? BuildReadModel(GetDatabaseBackupSetQuery query, DatabaseBackupOperationReadModel[] operations)
+    {
+        if (operations.Length == 0) return null;
+        return new DatabaseBackupSetReadModel
+        {
+            BackupSetId = query.BackupSetId.Value,
+            Source = operations[0].Source,
+            OperationIds = [.. operations.Select(static operation => operation.OperationId)],
+            RequiredOperationCount = operations.Length,
+            CompletedOperationCount = operations.Count(static operation => operation.Outcome == DatabaseRecoveryOutcome.Succeeded),
+            Complete = operations.All(static operation => operation.Outcome == DatabaseRecoveryOutcome.Succeeded),
+            Revision = operations.Max(static operation => operation.StateRevision)
+        };
     }
 }

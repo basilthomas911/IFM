@@ -36,6 +36,22 @@ public sealed class OptionSpreadLegSelectionTests
         Assert.Empty(OptionSpreadLegSelection.ShortCandidates(rows, true, .16m, null));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Frozen_emulator_opt_in_preserves_delta_limits_and_live_stale_rejection(bool call)
+    {
+        var rows = new[] { Contract("above", .161, call), Contract("nearest", .155, call), Contract("far", .10, call) }
+            .Select(x => x with { IsStale = true }).ToArray();
+        Assert.Empty(OptionSpreadLegSelection.ShortCandidates(rows, call, .16m, null));
+        Assert.Equal(new[] { "nearest", "far" }, OptionSpreadLegSelection.ShortCandidates(rows, call, .16m, null,
+            allowFrozenEmulatorPreview: true).Select(x => x.ContractId));
+        Assert.Empty(OptionSpreadLegSelection.ShortCandidates([
+            rows[0] with { Delta = null }, rows[1] with { GreeksValid = false },
+            rows[2] with { Delta = double.NaN }], call, .16m, null, allowFrozenEmulatorPreview: true));
+        Assert.All(rows, x => Assert.True(x.IsStale));
+    }
+
     private static EvaluatedOptionContractReadModel Contract(string id, double delta, bool call) => new(
         id, 5000m, call, 1m, 2m, 1, 1, null, null, .2, 1.5, call ? delta : -delta,
         null, null, null, null, null, null, true, false, DateTimeOffset.UtcNow, null, DateTimeOffset.UtcNow);

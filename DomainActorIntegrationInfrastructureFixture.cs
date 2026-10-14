@@ -25,9 +25,8 @@ public static class DomainActorIntegrationInfrastructureFixture
     static readonly IReadOnlyDictionary<string, string> CqlConnections =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["MarketDataDbConnection"] = "marketdata",
-            ["ReferenceDbConnection"] = "reference",
             ["SecuritiesDbConnection"] = "securities",
+            ["TradeTickQuoteDbConnection"] = "tradetickquote",
             ["TradeDbConnection"] = "trade",
             ["TradePlanDbConnection"] = "tradeplan"
         };
@@ -37,6 +36,8 @@ public static class DomainActorIntegrationInfrastructureFixture
         "ConfigurationDbConnection",
         "EventSourceActorDbConnection",
         "MarketDataServiceDbConnection",
+        "MarketDataDbConnection",
+        "ReferenceDbConnection",
         "OptionPricerDbConnection",
         "PortfolioDbConnection",
         "SequenceIdDbConnection",
@@ -113,13 +114,13 @@ public static class DomainActorIntegrationInfrastructureFixture
         SetEnvironment("IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_QUALIFICATION_POSTGRES_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_QUALIFICATION_SCYLLA_PORT", infrastructure.CqlPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        SetEnvironment("IFM_TEST_MARKET_DATA_CONNECTION", cqlConnections["MarketDataDbConnection"]);
+        SetEnvironment("IFM_TEST_MARKET_DATA_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_TEST_OPTION_PRICER_CONNECTION", postgresTestConnection);
-        SetEnvironment("IFM_TEST_REFERENCE_CONNECTION", cqlConnections["ReferenceDbConnection"]);
+        SetEnvironment("IFM_TEST_REFERENCE_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_TEST_SECURITIES_CONNECTION", cqlConnections["SecuritiesDbConnection"]);
         SetEnvironment("IFM_TEST_TRADE_PLAN_CONNECTION", cqlConnections["TradePlanDbConnection"]);
         SetEnvironment("IFM_TEST_TRADE_CONNECTION", cqlConnections["TradeDbConnection"]);
-        SetEnvironment("IFM_BOOTSTRAP_TEST_REFERENCE_CONNECTION", cqlConnections["ReferenceDbConnection"]);
+        SetEnvironment("IFM_BOOTSTRAP_TEST_REFERENCE_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_BOOTSTRAP_TEST_SEQUENCE_CONNECTION", postgresTestConnection);
         var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "qualification", $"acceptance-{infrastructure.RunId}");
         Directory.CreateDirectory(artifactDirectory);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Globalization;
@@ -221,7 +222,7 @@ public static class EventLogV2Benchmark
             await new EventSourceSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
             await using var connection = new NpgsqlConnection(directConnectionString);
             await connection.OpenAsync();
-            await Execute(connection, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
+            await Execute(connection, PortfolioSchemaSql.Financial);
             if (variant != Variant.Baseline)
                 await Execute(connection, "ALTER TABLE event_log RENAME TO event_log");
             if (ConsolidatesIndexes(variant))

@@ -16,7 +16,20 @@ public static class GetDatabaseRecoveryRunStats
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetRecoveryRunStatsAsync(query, cancellationToken)).ConfigureAwait(false);
+        var rows = await dbContext.GetRecoveryRunStatisticsAsync(query.OperationId!.Value.Value, cancellationToken).ConfigureAwait(false);
+        var result = BuildReadModel(query, rows);
         await (DatabaseBackupQueryReply.OptionalAsync(context, query, result)).ConfigureAwait(false);
+    }
+    /// <summary>Builds run statistics and latest revision from persisted observations.</summary>
+    internal static DatabaseRecoveryRunStatsReadModel? BuildReadModel(GetDatabaseRecoveryRunStatsQuery query, DatabaseBackupStatisticsObservation[] rows)
+    {
+        if (rows.Length == 0) return null;
+        return new DatabaseRecoveryRunStatsReadModel
+        {
+            OperationId = query.OperationId.Value,
+            Source = rows[0].Source,
+            StatisticsRevision = rows.Max(static row => row.Revision),
+            Statistics = [.. rows.Select(static row => row.Statistics)]
+        };
     }
 }

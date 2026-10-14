@@ -20,7 +20,7 @@ public static class GetInstrumentDefinitions
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(query);
-        var result = await (context.DbFactory.ReferenceDb.InstrumentDefinitions.GetSelectionPageAsync(
+        var result = await (context.InstrumentDefinitions.GetSelectionPageAsync(
             query.Request, DateTimeOffset.UtcNow, cancellationToken)).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await (context.ReplyAsync(query.Subject.ThreadId, GetInstrumentDefinitionsQuery.Verb,

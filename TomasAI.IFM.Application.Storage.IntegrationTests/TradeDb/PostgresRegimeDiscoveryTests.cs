@@ -55,13 +55,13 @@ public sealed class PostgresRegimeDiscoveryTests(PostgresTradePlanFixture fixtur
             InputWorkflowRevision = 1, ReceivedOn = now, CompletedAtUtc = now, ExpiresAtUtc = request.ExpiresAtUtc, SignalSnapshotId = signal,
             ParameterPayloadSha256 = new string('A', 64), Result = StrategyStageResultEnvelope.CreateRegime(result)
         };
-        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection, fixture.Connection, "System.Data.Postgres");
         var factory = new Mock<IDbContextFactory>();
         var target = new TradeDbContext(settings, factory.Object, Mock.Of<ISequenceIdGenerator>(), NullLogger<DbProvider>.Instance);
         factory.SetupGet(x => x.TradeDb).Returns(target);
         var source = new Mock<IEventSourceActorDbContext>();
         source.SetupGet(x => x.ProviderName).Returns("System.Data.Postgres");
-        source.SetupGet(x => x.ConnectionString).Returns(PostgresTradePlanFixture.Connection);
+        source.SetupGet(x => x.ConnectionString).Returns(fixture.Connection);
         var owner = new Mock<IPostgresEventTransaction>();
         owner.Setup(x => x.ExecuteOnceAsync(It.IsAny<Func<EnlistedEventTransaction, CancellationToken, Task<RegimeDiscoveryPipelineCompletedEvent>>>(), It.IsAny<CancellationToken>()))
             .Returns((Func<EnlistedEventTransaction, CancellationToken, Task<RegimeDiscoveryPipelineCompletedEvent>> operation, CancellationToken ct) =>
@@ -77,10 +77,10 @@ public sealed class PostgresRegimeDiscoveryTests(PostgresTradePlanFixture fixtur
         else
         {
             projected!.SourceEventId.Should().Be(candidate.Id);
-            await fixture.Transactions.ExecuteOnceAsync(async (db, ct) => { await PostgresRegimeDiscoveryStore.ProjectAsync(db, candidate, ct); return true; });
+            await fixture.Transactions.ExecuteOnceAsync(async (db, ct) => { await TradeDbContextExtensions.RegimeProjectAsync(db, candidate, ct); return true; });
             await FluentActions.Awaiting(() => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
             {
-                await PostgresRegimeDiscoveryStore.ProjectAsync(db, candidate with { CompletedAtUtc = now.AddSeconds(1) }, ct);
+                await TradeDbContextExtensions.RegimeProjectAsync(db, candidate with { CompletedAtUtc = now.AddSeconds(1) }, ct);
                 return true;
             })).Should().ThrowAsync<InvalidDataException>();
             (await target.GetRegimeDiscoveryAsync(workflow))!.TerminalAtUtc.Should().BeCloseTo(now, TimeSpan.FromMilliseconds(1));

@@ -20,6 +20,28 @@ public sealed class ServerManagerOptions
 
     public TimeSpan ShutdownTimeout => TimeSpan.FromSeconds(ShutdownTimeoutSeconds);
 
+    /// <summary>Selects the Development desktop while preserving managed API and scheduler lifecycle.</summary>
+    public void SelectDevelopmentUi(string environment, string? selection, string? repositoryRoot)
+    {
+        if (string.IsNullOrWhiteSpace(selection) || selection.Equals("WinForms", StringComparison.OrdinalIgnoreCase))
+            return;
+        if (!selection.Equals("Rust", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Unknown Development UI selection '{selection}'.");
+        if (!environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Rust desktop selection is available only in Development.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryRoot);
+        var ui = Processes.Single(process => process.Key.Equals("ui", StringComparison.OrdinalIgnoreCase));
+        ui.DisplayName = "Rust UI";
+        ui.WorkingDirectory = Path.Combine(Path.GetFullPath(repositoryRoot), ".artifacts", "rust-ui", "app");
+        ui.ExecutablePath = "ifm-ui-rust.exe";
+        ui.Arguments.Clear();
+        ui.EnvironmentVariables["DOTNET_ENVIRONMENT"] = "Development";
+        ui.EnvironmentVariables["IFM_RUST_UI_MODE"] = "live";
+        ui.EnvironmentVariables["IFM_UI_START_MAXIMIZED"] = "true";
+        ui.WindowStyle = ProcessWindowStyle.Maximized;
+        ui.ShutdownMode = ProcessShutdownMode.CloseMainWindow;
+    }
+
     public void Validate()
     {
         if (MaximumLogEntries <= 0)

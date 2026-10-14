@@ -870,6 +870,22 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
             throw;
         }
     }
+    /// <summary>Reads the latest available saved volume and open interest independently, excluding future reference dates.</summary>
+    /// <param name="underlyingContractId">The exact underlying futures contract.</param>
+    /// <param name="expiryDate">The option expiry whose statistics are read.</param>
+    /// <param name="valueDate">The latest admissible observation/reference date.</param>
+    /// <param name="cancellationToken">Cancels the storage query.</param>
+    /// <returns>Dated, nullable statistics suitable for seeding a live chain.</returns>
+    public async Task<ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot>> ReadOptionChainStatisticsAsync(
+        string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken)
+    {
+        var rows = await _dbFactory.MarketDataDb.Use(nameof(MarketDataDbSql.GetOptionChainStatistics), MarketDataDbSql.GetOptionChainStatistics)
+            .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate) { PostgreSql = true })
+            .ExecuteQueryAsync(row => new TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot(
+                row.GetString(0), row.IsNull(1) ? null : row.GetLong(1), row.IsNull(2) ? null : row.GetDateOnly(2),
+                row.IsNull(3) ? null : row.GetLong(3), row.IsNull(4) ? null : row.GetDateOnly(4)), cancellationToken).ConfigureAwait(false);
+        return rows.ToImmutableArray();
+    }
     /// <summary>
     /// Asynchronously retrieves the most recent tick price data for a specified futures option contract on a given
     /// date.

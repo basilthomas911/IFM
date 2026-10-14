@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
@@ -58,9 +59,9 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
             {
                 if (string.Equals(db.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
                     return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
-                var outcome = await db.ApplyDatabaseBackupEventAsync(
+                var outcome = await db.ApplyDatabaseBackupSnapshotAsync(
                     execution.ProjectorName,
-                    (DatabaseBackupEventContract)domainEvent,
+                    DatabaseBackupProjectionFactory.Create((DatabaseBackupEventContract)domainEvent),
                     execution.CancellationToken).ConfigureAwait(false);
                 return new EventProjectionApplyResult(outcome);
             },
@@ -68,7 +69,7 @@ public sealed class DatabaseBackupEventProjector : BaseEventProjector<DatabaseBa
             (domainEvent, exception) => Fail((DatabaseBackupEventContract)domainEvent, exception),
             useDurableReplay: useDurableReplay).WithReadModelRebuild(async (source,token)=>
             {
-                await db.ApplyDatabaseBackupEventAsync(nameof(DatabaseBackupEventProjector),(DatabaseBackupEventContract)source,token).ConfigureAwait(false);
+                await db.ApplyDatabaseBackupSnapshotAsync(nameof(DatabaseBackupEventProjector),DatabaseBackupProjectionFactory.Create((DatabaseBackupEventContract)source),token).ConfigureAwait(false);
             });
 
     static DatabaseBackupProjectionCompletedEvent Complete(DatabaseBackupEventContract source) => new()

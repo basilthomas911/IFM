@@ -12,6 +12,9 @@ public static class DarkTradingTheme
     public const int ButtonGap = 4;
     public static readonly Color Background = Color.Black;
     public static readonly Color Foreground = Color.White;
+    public static readonly Color CaptionForeground = Color.LightGray;
+    static readonly ConditionalWeakTable<Label, CaptionState> CaptionStates = new();
+    sealed class CaptionState { public bool Active; public bool ExplicitCaption; public Color Original; }
     public static readonly Color Border = Color.Gray;
     public static readonly Color DisabledText = Color.Gray;
     public static readonly Color CommandSurface = Color.FromArgb(45, 45, 48);
@@ -102,6 +105,11 @@ public static class DarkTradingTheme
                 link.DisabledLinkColor = DisabledText;
                 break;
             case Label label:
+                label.TextChanged -= CaptionChanged;
+                label.TextChanged += CaptionChanged;
+                label.ForeColorChanged -= CaptionChanged;
+                label.ForeColorChanged += CaptionChanged;
+                CaptionChanged(label, EventArgs.Empty);
                 label.Paint -= PaintDisabledLabel;
                 label.Paint += PaintDisabledLabel;
                 break;
@@ -367,6 +375,31 @@ public static class DarkTradingTheme
         TextRenderer.DrawText(e.Graphics, button.Text, button.Font, bounds, Color.Gray,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter
             | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+    }
+
+    /// <summary>Applies caption styling to labels whose captions do not end with a colon.</summary>
+    public static void UseCaptionForeground(Label label)
+    {
+        CaptionStates.GetValue(label, static _ => new CaptionState()).ExplicitCaption = true;
+        label.ForeColorChanged -= CaptionChanged;
+        label.ForeColorChanged += CaptionChanged;
+        CaptionChanged(label, EventArgs.Empty);
+    }
+
+    static void CaptionChanged(object? sender, EventArgs e)
+    {
+        if (sender is not Label label) return;
+        var state = CaptionStates.GetValue(label, static _ => new CaptionState());
+        if (state.ExplicitCaption || label.Text.TrimEnd().EndsWith(':'))
+        {
+            if (!state.Active) { state.Original = label.ForeColor; state.Active = true; }
+            if (label.ForeColor != CaptionForeground) label.ForeColor = CaptionForeground;
+        }
+        else if (state.Active)
+        {
+            state.Active = false;
+            if (label.ForeColor == CaptionForeground) label.ForeColor = state.Original;
+        }
     }
 
     static void PaintDisabledLabel(object? sender, PaintEventArgs e)

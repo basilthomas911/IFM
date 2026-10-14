@@ -13,8 +13,6 @@ partial class OperationsView
 
     void InitializeComponent()
     {
-        pnlTitle = new Panel();
-        lblTitle = new Label();
         operationsTabs = new DarkTabControl();
         tabStrategy = new TabPage();
         pnlStrategyHeader = new TableLayoutPanel();
@@ -40,7 +38,6 @@ partial class OperationsView
         tabTraffic = new TabPage();
         tabErrors = new TabPage();
         tabSaturation = new TabPage();
-        pnlTitle.SuspendLayout();
         operationsTabs.SuspendLayout();
         tabStrategy.SuspendLayout();
         pnlStrategyHeader.SuspendLayout();
@@ -50,25 +47,6 @@ partial class OperationsView
         strategySplitter.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)itiChart).BeginInit();
         SuspendLayout();
-        //
-        // pnlTitle
-        //
-        pnlTitle.BackColor = Color.Black;
-        pnlTitle.Controls.Add(lblTitle);
-        pnlTitle.Dock = DockStyle.Top;
-        pnlTitle.Location = new Point(0, 0);
-        pnlTitle.Name = "pnlTitle";
-        pnlTitle.Size = new Size(527, 25);
-        pnlTitle.TabIndex = 0;
-        //
-        // lblTitle
-        //
-        lblTitle.AutoSize = true;
-        lblTitle.Dock = DockStyle.Left;
-        lblTitle.Font = new Font("Microsoft Sans Serif", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-        lblTitle.ForeColor = Color.White;
-        lblTitle.Padding = new Padding(0, 3, 0, 0);
-        lblTitle.Text = "Operations";
         //
         // operationsTabs
         //
@@ -80,10 +58,10 @@ partial class OperationsView
         operationsTabs.BackColor = Color.Black;
         operationsTabs.Dock = DockStyle.Fill;
         operationsTabs.ForeColor = Color.White;
-        operationsTabs.Location = new Point(0, 25);
+        operationsTabs.Location = new Point(0, 0);
         operationsTabs.Name = "operationsTabs";
         operationsTabs.SelectedIndex = 0;
-        operationsTabs.Size = new Size(527, 796);
+        operationsTabs.Size = new Size(527, 821);
         operationsTabs.TabIndex = 1;
         operationsTabs.SelectedIndexChanged += operationsTabs_SelectedIndexChanged;
         //
@@ -271,11 +249,8 @@ partial class OperationsView
         AutoScaleMode = AutoScaleMode.Font;
         BackColor = Color.Black;
         Controls.Add(operationsTabs);
-        Controls.Add(pnlTitle);
         Name = "OperationsView";
         Size = new Size(527, 821);
-        pnlTitle.ResumeLayout(false);
-        pnlTitle.PerformLayout();
         operationsTabs.ResumeLayout(false);
         pnlStrategyHeader.ResumeLayout(false);
         tabStrategy.ResumeLayout(false);
@@ -301,8 +276,6 @@ partial class OperationsView
         page.Controls.Add(label);
     }
 
-    Panel pnlTitle = null!;
-    Label lblTitle = null!;
     TabControl operationsTabs = null!;
     TabPage tabStrategy = null!;
     TabPage tabLatency = null!;

@@ -362,6 +362,24 @@ public static class MarketDataDbSql
         UPDATE market_data.futures_option_chain_quote_data SET impliedVolatility = $1, underlyingPrice = $2, delta = $3, gamma = $4, vega = $5, theta = $6, rho = $7 WHERE underlyingContractId = $8 AND expiryDate = $9 AND valueDate = $10 AND contractId = $11 AND tickId = $12;
         """;
 
+    public const string GetOptionChainStatistics = """
+        WITH scope AS (
+            SELECT contractId, valueDate, volume, volumeValueDate, openInterest, openInterestValueDate
+            FROM market_data.futures_option_chain_quote_data
+            WHERE underlyingContractId = $1 AND expiryDate = $2 AND valueDate <= $3
+        ), volumes AS (
+            SELECT DISTINCT ON (contractId) contractId, volume, volumeValueDate FROM scope
+            WHERE volume IS NOT NULL AND volume >= 0 AND volumeValueDate IS NOT NULL AND volumeValueDate <= $3
+            ORDER BY contractId, volumeValueDate DESC, valueDate DESC
+        ), interest AS (
+            SELECT DISTINCT ON (contractId) contractId, openInterest, openInterestValueDate FROM scope
+            WHERE openInterest IS NOT NULL AND openInterest >= 0 AND openInterestValueDate IS NOT NULL AND openInterestValueDate <= $3
+            ORDER BY contractId, openInterestValueDate DESC, valueDate DESC
+        )
+        SELECT COALESCE(v.contractId, i.contractId), v.volume, v.volumeValueDate, i.openInterest, i.openInterestValueDate
+        FROM volumes v FULL OUTER JOIN interest i ON v.contractId = i.contractId;
+        """;
+
     public const string GetFuturesOptionChainQuoteData = """
         SELECT contractId AS "ContractId", valueDate AS "ValueDate", tickId AS "TickId", tickTime AS "TickTime", optionPrice AS "OptionPrice", bidPrice AS "BidPrice", askPrice AS "AskPrice", bidSize AS "BidSize", askSize AS "AskSize", impliedVolatility AS "ImpliedVolatility", underlyingPrice AS "UnderlyingPrice", delta AS "Delta", gamma AS "Gamma", vega AS "Vega", theta AS "Theta", rho AS "Rho", volume AS "Volume", openInterest AS "OpenInterest", volumeValueDate AS "VolumeValueDate", openInterestValueDate AS "OpenInterestValueDate" FROM market_data.futures_option_chain_quote_data WHERE underlyingContractId = $1 AND expiryDate = $2 AND valueDate = $3 ORDER BY contractId;
         """;
@@ -549,7 +567,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
     public const string GetEconomicCalendarV2ById = """
-        SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy" FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate = $3 AND eventName = $4;
+        SELECT eventDate AS "EventDate", countryCode AS "CountryCode", eventName AS "EventName", actual AS "Actual", forecast AS "Forecast", prior AS "Prior", impact AS "Impact", unit AS "Unit", change AS "Change", changePercentage AS "ChangePercentage", createdOn AS "CreatedOn", createdBy AS "CreatedBy" FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate >= date_trunc('second', $3::timestamptz) AND eventDate < date_trunc('second', $3::timestamptz) + INTERVAL '1 second' AND eventName = $4;
         """;
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
@@ -564,7 +582,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
     public const string DeleteEconomicCalendarV2 = """
-        DELETE FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate = $3 AND eventName = $4;
+        DELETE FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate >= date_trunc('second', $3::timestamptz) AND eventDate < date_trunc('second', $3::timestamptz) + INTERVAL '1 second' AND eventName = $4;
         """;
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
@@ -574,7 +592,7 @@ public static class MarketDataDbSql
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>
     public const string GetEconomicCalendarV2CommandId = """
-        SELECT commandId AS "CommandId" FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate = $3 AND eventName = $4;
+        SELECT commandId AS "CommandId" FROM market_data.economic_calendar WHERE countryCode = $1 AND monthBucket = $2 AND eventDate >= date_trunc('second', $3::timestamptz) AND eventDate < date_trunc('second', $3::timestamptz) + INTERVAL '1 second' AND eventName = $4;
         """;
 
     /// <summary>Native PostgreSQL market observation persistence.</summary>

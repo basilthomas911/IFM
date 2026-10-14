@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using System.Reflection;
 using FluentAssertions;
 using MessagePack;

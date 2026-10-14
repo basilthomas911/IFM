@@ -23,9 +23,28 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.PortfolioDb;
 public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Financial_history_context_write_preserves_identity_payload_and_duplicate_delivery()
+    {
+        var settings = new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection, fixture.Connection, "System.Data.Postgres");
+        await new PortfolioSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var context = new PortfolioDbContext(settings, NullLogger<DbProvider>.Instance);
+        var portfolioId = Random.Shared.Next(100000000, 900000000);
+        var operationId = Guid.NewGuid();
+        var time = DateTime.UtcNow;
+        var month = time.Year * 100 + time.Month;
+        for (var delivery = 0; delivery < 2; delivery++)
+            await context.SaveFinancialHistoryAsync(portfolioId, month, 7, operationId, 123,
+                "AcceptedFinancialEvent", time, "{\"amount\":12.5}");
+        var rows = await fixture.Transactions.ExecuteOnceAsync((db, token) => db.QueryAsync(
+            "SELECT source_event_id,operation_id,financial_revision,payload_json->>'amount' FROM portfolio.financial_operation_by_portfolio_month WHERE portfolio_id=$1;",
+            [portfolioId], reader => (Event: reader.GetInt64(0), Operation: reader.GetGuid(1), Revision: reader.GetInt64(2), Amount: reader.GetString(3)), token));
+        rows.Should().ContainSingle().Which.Should().Be((123L, operationId, 7L, "12.5"));
+    }
+
+    [Fact]
     public async Task Accepted_fund_policy_and_composition_rows_rebuild_without_aggregate_reads()
     {
-        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",fixture.Connection,"System.Data.Postgres");
         await new PortfolioSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var id=Random.Shared.Next(100000000,900000000);
         var time=DateTime.UtcNow;
@@ -44,7 +63,7 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         var stream="accepted-fund-"+Guid.NewGuid().ToString("N");
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,source,facts,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,facts,ct);
             return true;
         });
         var original=new System.Collections.Generic.Dictionary<string,string[]>();
@@ -52,8 +71,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         var accepted=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT n.EventTypeName,l.EventVersion,l.EventPayload FROM event_log l JOIN event_name_id n ON n.EventNameId=l.EventNameId JOIN event_stream_id s ON s.EventStreamId=l.EventStreamId WHERE s.EventStream=$1;",[stream],r=>(TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundCompositionReservedEvent)new EventStreamReadModel {EventTypeName=r.GetString(0),EventVersion=r.GetInt64(1),EventData=r.GetFieldValue<byte[]>(2)}.ToDomainEvent(),ct));
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             foreach(var table in tables) await db.ExecuteAsync("DELETE FROM portfolio."+table+" WHERE portfolio_id=$1;",[id],ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted.Single(),accepted.Single().ProjectionFacts!,ct);
             return true;
         });
         foreach(var table in tables)(await RowsAsync(table)).Should().Equal(original[table],table);
@@ -62,9 +81,9 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
     [Fact]
     public async Task Compound_fence_rolls_back_both_streams_and_rows_when_second_append_conflicts()
     {
-        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",fixture.Connection,"System.Data.Postgres");
         await new PortfolioSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
-        await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema(fixture.Transactions).InitializeAsync();
+        await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema(fixture.Transactions).InitializeAsync();
         var id=Random.Shared.Next(100000000,900000000);
         var time=DateTime.UtcNow;
         var command=Guid.NewGuid();
@@ -74,7 +93,7 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         var second=new PortfolioOperatingStateChangedEvent {Id=Guid.NewGuid(),CommandId=command,Revision=1,OccurredOnUtc=time,ReceivedOn=time,
             State=PortfolioOperatingState.Disabled,ProjectionFacts=first.ProjectionFacts! with {Portfolio=aggregate.Current! with {OperatingState=PortfolioOperatingState.Disabled}}};
         var prefix="compound-fence-"+Guid.NewGuid().ToString("N");
-        var fence=new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioAuthorityFence(fixture.Transactions);
+        var fence=new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence(fixture.Transactions);
         await FluentActions.Awaiting(()=>fence.AppendBatchAsync(id,[new(null,prefix+"-first",first,0,true),new(null,prefix+"-second",second,1,true)]))
             .Should().ThrowAsync<Exception>();
         (await fixture.EventCountAsync(prefix+"-first")).Should().Be(0);
@@ -109,16 +128,16 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
     [Fact]
     public async Task Financial_admission_fence_writes_accepted_portfolio_rows_in_its_source_transaction()
     {
-        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",fixture.Connection,"System.Data.Postgres");
         await new PortfolioSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
-        await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema(fixture.Transactions).InitializeAsync();
+        await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema(fixture.Transactions).InitializeAsync();
         var id=Random.Shared.Next(100000000,900000000);
         var time=DateTime.UtcNow;
         var aggregate=new PortfolioAggregate();
         var source=aggregate.Create(Guid.NewGuid(),new PortfolioReadModel {PortfolioId=id,PortfolioVersion=1,Name="accepted fence",OperatingState=PortfolioOperatingState.Draft,EffectiveFromUtc=time,CreatedOnUtc=time,CreatedBy="integration"},time,"integration");
         PortfolioAcceptedProjection.Capture(source,aggregate);
         var stream="accepted-fence-"+Guid.NewGuid().ToString("N");
-        await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioAuthorityFence(fixture.Transactions)
+        await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence(fixture.Transactions)
             .AppendAsync(id,null,stream,source,0,true);
         (await fixture.EventCountAsync(stream)).Should().Be(1);
         var rows=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT source_event_id,payload_json::text FROM portfolio.portfolio_by_id WHERE portfolio_id=$1;",[id],r=>(r.GetInt64(0),r.GetString(1)),ct));
@@ -130,7 +149,7 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
     [Fact]
     public async Task Accepted_portfolio_state_and_source_roll_back_together_and_rebuild_from_exact_persisted_facts()
     {
-        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add("PortfolioDbConnection",fixture.Connection,"System.Data.Postgres");
         await new PortfolioSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var id=Random.Shared.Next(100000000,900000000);
         var time=DateTime.UtcNow;
@@ -142,7 +161,7 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         async Task<string[]> RowsAsync()=> (await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT row_to_json(t)::text FROM portfolio.portfolio_by_id t WHERE portfolio_id=$1 UNION ALL SELECT row_to_json(t)::text FROM portfolio.portfolio_by_state t WHERE portfolio_id=$1 ORDER BY 1;",[id],r=>r.GetString(0),ct))).ToArray();
         await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync<bool>(async(db,ct)=>{
             await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,source,source.ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
             await db.ExecuteAsync("SELECT 1/0;",[],ct);
             return true;
         })).Should().ThrowAsync<Npgsql.PostgresException>();
@@ -150,7 +169,7 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         (await RowsAsync()).Should().BeEmpty();
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             await db.AppendAsync(stream,source.CommandId,source,0,ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,source,source.ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,source,source.ProjectionFacts!,ct);
             return true;
         });
         var original=await RowsAsync();
@@ -161,8 +180,8 @@ public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixt
         await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{
             await db.ExecuteAsync("DELETE FROM portfolio.portfolio_by_state WHERE portfolio_id=$1;",[id],ct);
             await db.ExecuteAsync("DELETE FROM portfolio.portfolio_by_id WHERE portfolio_id=$1;",[id],ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,accepted,accepted.ProjectionFacts!,ct);
-            await PostgresPortfolioProjectionStore.ApplyAsync(db,accepted,accepted.ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
+            await PortfolioDbContextExtensions.PersistAcceptedPortfolioAsync(db,accepted,accepted.ProjectionFacts!,ct);
             return true;
         });
         (await RowsAsync()).Should().Equal(original);

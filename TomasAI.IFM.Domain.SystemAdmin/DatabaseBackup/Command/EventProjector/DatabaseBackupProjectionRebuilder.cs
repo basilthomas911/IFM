@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
@@ -26,8 +27,8 @@ public sealed class DatabaseBackupProjectionRebuilder(ISystemAdminDbContext syst
         foreach (var domainEvent in events)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            switch (await systemAdminDb.ApplyDatabaseBackupEventAsync(
-                projectorName, domainEvent, cancellationToken).ConfigureAwait(false))
+            switch (await systemAdminDb.ApplyDatabaseBackupSnapshotAsync(
+                projectorName, DatabaseBackupProjectionFactory.Create(domainEvent), cancellationToken).ConfigureAwait(false))
             {
                 case EventProjectionApplyOutcome.Applied: applied++; break;
                 case EventProjectionApplyOutcome.AlreadyApplied: alreadyApplied++; break;

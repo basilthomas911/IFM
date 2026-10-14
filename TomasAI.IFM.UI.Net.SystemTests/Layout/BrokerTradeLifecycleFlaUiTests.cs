@@ -15,7 +15,7 @@ using System.Runtime.InteropServices;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using System.Windows.Forms;

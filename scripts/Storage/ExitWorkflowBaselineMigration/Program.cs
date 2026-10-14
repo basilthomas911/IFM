@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.EventSourcing.TradePlan;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;

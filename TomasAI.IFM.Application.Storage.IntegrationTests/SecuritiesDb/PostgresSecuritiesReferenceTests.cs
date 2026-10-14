@@ -20,7 +20,7 @@ public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fi
     public async Task Immutable_bundle_context_reads_saved_payload_and_refuses_conflicting_content()
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(SecuritiesSchemaSql.Create,[],ct));
-        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,fixture.Connection,"System.Data.Postgres");
         var context=new SecuritiesDbContext(settings,Mock.Of<IDbContextFactory>(),NullLogger<DbProvider>.Instance);
         var id="bundle-"+Guid.NewGuid().ToString("N");
         await context.InsertOptionPricingReferenceBundleAsync(id,"{\"accepted\":true}");
@@ -54,7 +54,7 @@ public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fi
     public async Task Published_definitions_are_available_offline_and_failed_refresh_preserves_previous_generation()
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(SecuritiesSchemaSql.Create,[],ct));
-        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();
         var context=new SecuritiesDbContext(settings,factory.Object,NullLogger<DbProvider>.Instance);
         factory.SetupGet(x=>x.SecuritiesDb).Returns(context);
@@ -86,7 +86,7 @@ public sealed class PostgresSecuritiesReferenceTests(PostgresTradePlanFixture fi
     public async Task Contract_source_canonical_and_symbol_projection_commit_and_roll_back_together()
     {
         await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(SecuritiesSchemaSql.Create,[],ct));
-        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add(SecuritiesDbContext.SecuritiesDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();
         var context=new SecuritiesDbContext(settings,factory.Object,NullLogger<DbProvider>.Instance);
         factory.SetupGet(value=>value.SecuritiesDb).Returns(context);

@@ -1,5 +1,5 @@
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
-/// <summary>Reads only persisted ScyllaDB scheduled-task projections.</summary>
+/// <summary>Reads only persisted PostgreSQL scheduled-task projections.</summary>
 public interface IScheduledTaskReadStore
 {
     /// <summary>Reads the latest successfully finalized session for restart-safe operational date rollover.</summary>

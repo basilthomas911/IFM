@@ -15,4 +15,5 @@ public sealed record WorkerOptionChainRequest(
     [property: Key(6)] ImmutableArray<WorkerOptionDefinition> Options,
     [property: Key(7)] string? ExpectedContextDigest = null,
     [property: Key(8)] bool SeparateContractConnection = false,
-    [property: Key(9), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool IndependentChainConnection = false);
+    [property: Key(9), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool IndependentChainConnection = false,
+    [property: Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics = default);

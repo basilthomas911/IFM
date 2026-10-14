@@ -16,7 +16,11 @@ public static class GetDatabaseRecoveryObjectiveCompliance
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(query);
-        var result = await (dbContext.GetRecoveryObjectiveComplianceAsync(query, cancellationToken)).ConfigureAwait(false);
+        var result = await (dbContext.GetProtectionSetsAsync(new GetDatabaseProtectionSetsQuery
+        {
+            EntityId = query.EntityId, Request = query.Request, Source = query.Source,
+            Subject = query.Subject, PageSize = query.PageSize
+        }, cancellationToken)).ConfigureAwait(false);
         await (DatabaseBackupQueryReply.RequiredAsync(context, query, result)).ConfigureAwait(false);
     }
 }

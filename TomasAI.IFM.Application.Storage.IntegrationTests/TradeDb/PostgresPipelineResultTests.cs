@@ -55,12 +55,12 @@ public sealed class PostgresPipelineResultTests(PostgresTradePlanFixture fixture
             InputWorkflowRevision=request.InputWorkflowRevision,Result=TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model.StrategyStageResultEnvelope.CreateAssessment(result),
             Snapshot=snapshot,CompletedAtUtc=request.RequestedAtUtc,RequestFingerprint=new string('A',64)
         };
-        var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
         var factory=new Mock<IDbContextFactory>();
         var context=new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
         factory.SetupGet(x=>x.TradeDb).Returns(context);
         var source=new Mock<IEventSourceActorDbContext>();source.SetupGet(x=>x.ProviderName).Returns("System.Data.Postgres");
-        source.SetupGet(x=>x.ConnectionString).Returns(PostgresTradePlanFixture.Connection);
+        source.SetupGet(x=>x.ConnectionString).Returns(fixture.Connection);
         var owner=new Mock<IPostgresEventTransaction>();
         owner.Setup(x=>x.ExecuteOnceAsync(It.IsAny<Func<EnlistedEventTransaction,CancellationToken,Task<MarketConditionAssessmentCompletedEvent>>>(),It.IsAny<CancellationToken>()))
             .Returns((Func<EnlistedEventTransaction,CancellationToken,Task<MarketConditionAssessmentCompletedEvent>> operation,CancellationToken ct)=>

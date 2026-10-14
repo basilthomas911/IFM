@@ -39,14 +39,14 @@ public sealed class PostgresStrategyPlanRepositoryTests(PostgresTradePlanFixture
         plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
         var source = Substitute.For<IEventSourceActorDbContext>();
         source.ProviderName.Returns("System.Data.Postgres");
-        source.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+        source.ConnectionString.Returns(fixture.Connection);
         var factory = Substitute.For<IDbContextFactory>();
         ITradePlanDbContext target = fixture.Plans;
         if (failAfterPlanWrite)
         {
             target = Substitute.For<ITradePlanDbContext>();
             target.ProviderName.Returns("System.Data.Postgres");
-            target.ConnectionString.Returns(PostgresTradePlanFixture.Connection);
+            target.ConnectionString.Returns(fixture.Connection);
             target.ProjectMaterialAsync(Arg.Any<IEnlistedPostgresTransaction>(), Arg.Any<StrategyTradePlanSnapshot>(), Arg.Any<CancellationToken>())
                 .Returns(async call =>
                 {

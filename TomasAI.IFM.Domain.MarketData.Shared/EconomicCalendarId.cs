@@ -13,12 +13,26 @@ namespace TomasAI.IFM.Domain.MarketData.Shared;
 [MessagePackObject(AllowPrivate = true)]
 public record EconomicCalendarId(
     /// <summary>The UTC date and time of the economic calendar event.</summary>
-    [property: Key(0)] DateTime EventDate,
+    DateTime EventDate,
     /// <summary>ISO country code associated with the event.</summary>
     [property: Key(1)] string CountryCode,
     /// <summary>Descriptive name of the economic calendar event.</summary>
     [property: Key(2)] string EventName) : IActorEntityId
 {
+    [IgnoreMember]
+    DateTime eventDate = Normalize(EventDate);
+
+    /// <summary>UTC identity at the whole-second precision used by actor routes. The event read model retains its full timestamp.</summary>
+    [Key(0)]
+    public DateTime EventDate
+    {
+        get => eventDate;
+        init => eventDate = Normalize(value);
+    }
+
+    static DateTime Normalize(DateTime value)
+        => value == DateTime.MaxValue ? value : new DateTime(value.Ticks - value.Ticks % TimeSpan.TicksPerSecond, value.Kind);
+
     /// <summary>
     /// Parameterless constructor for serializers; initializes to defaults.
     /// </summary>

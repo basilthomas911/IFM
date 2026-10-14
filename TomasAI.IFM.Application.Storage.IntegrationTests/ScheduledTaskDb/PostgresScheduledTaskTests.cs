@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,12 +15,14 @@ using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ScheduledTaskDb;
 
-public sealed class PostgresScheduledTaskTests
+[Collection("PostgreSQL plan atomicity")]
+[Trait("Category", "SelfContained")]
+public sealed class PostgresScheduledTaskTests(TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb.PostgresTradePlanFixture fixture)
 {
-    const string Connection = "Host=localhost;Port=5432;Database=ifm_storage_refactor_test";
-    static async Task<ScheduledTaskReadStore> Store()
+    string Connection => fixture.Connection;
+    async Task<ScheduledTaskDbContext> Store()
     {
-        var settings = new DbConnectionSettings().Add(ScheduledTaskReadStore.ConnectionName, Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add(ScheduledTaskDbContext.ConnectionName, Connection, "System.Data.Postgres");
         await new ScheduledTaskSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         return new(settings, NullLogger<DbProvider>.Instance);
     }
@@ -80,6 +83,42 @@ public sealed class PostgresScheduledTaskTests
         finally
         {
             await using var command = new NpgsqlCommand($"ALTER TABLE scheduled_task.futures_completed_end_of_day DROP CONSTRAINT {name};", connection); await command.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Source_event_run_and_completed_date_share_the_callers_transaction(bool failAfterProjection)
+    {
+        var store = await Store();
+        var run = Run("enlisted-" + Guid.NewGuid(), new(Guid.NewGuid()), DateTimeOffset.UtcNow);
+        var stream = "scheduled-atomic-" + Guid.NewGuid().ToString("N");
+        var source = new TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent
+        {
+            CommandId = Guid.NewGuid(), EntityId = run.Id, ScheduledTaskRun = run,
+            AggregateId = run.Id.Value.ToString()
+        };
+        async Task Write() => await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        {
+            await transaction.AppendAsync(stream, source.CommandId, source, 0, token);
+            await store.ProjectAsync(transaction, run, token);
+            if (failAfterProjection) await transaction.ExecuteAsync("SELECT 1/0;", [], token);
+            return true;
+        });
+        if (failAfterProjection) await Assert.ThrowsAsync<PostgresException>(Write);
+        else await Write();
+        (await fixture.EventCountAsync(stream)).Should().Be(failAfterProjection ? 0 : 1);
+        var loaded = await store.GetRunAsync(run.Environment, run.HostId, run.ScheduleId, run.Id, run.IntendedFireTimeUtc);
+        if (failAfterProjection)
+        {
+            loaded.Should().BeNull();
+            (await store.GetCompletedEndOfDayAsync(run.Environment)).Should().BeNull();
+        }
+        else
+        {
+            loaded.Should().BeEquivalentTo(run);
+            (await store.GetCompletedEndOfDayAsync(run.Environment)).Should().Be(run.CompletedEndOfDayValueDate);
         }
     }
 }

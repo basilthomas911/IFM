@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Query;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Shared.EventModelActor;

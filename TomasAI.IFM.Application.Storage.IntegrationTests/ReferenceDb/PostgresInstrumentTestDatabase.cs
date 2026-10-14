@@ -9,11 +9,12 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 internal sealed class PostgresInstrumentTestDatabase : IAsyncDisposable
 {
     readonly string name = "ifm_instrument_test_" + Guid.NewGuid().ToString("N");
-    const string Admin = "Host=localhost;Port=5432;Database=postgres;Pooling=false";
-    public string Connection => "Host=localhost;Port=5432;Database=" + name;
-    public static async Task<PostgresInstrumentTestDatabase> CreateAsync()
+    readonly string admin;
+    PostgresInstrumentTestDatabase(string connection) => admin = new NpgsqlConnectionStringBuilder(connection) { Database="postgres",Pooling=false }.ConnectionString;
+    public string Connection => new NpgsqlConnectionStringBuilder(admin) { Database=name,Pooling=false }.ConnectionString;
+    public static async Task<PostgresInstrumentTestDatabase> CreateAsync(string adminConnection)
     {
-        var database = new PostgresInstrumentTestDatabase();
+        var database = new PostgresInstrumentTestDatabase(adminConnection);
         await database.ExecuteAdminAsync("CREATE DATABASE");
         return database;
     }
@@ -21,7 +22,7 @@ internal sealed class PostgresInstrumentTestDatabase : IAsyncDisposable
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^ifm_instrument_test_[a-f0-9]{32}$"))
             throw new InvalidOperationException("Unowned database name.");
-        await using var connection = new NpgsqlConnection(PostgresObjectDataRepositoryConnection.ResolveHostConnectionString(Admin));
+        await using var connection = new NpgsqlConnection(PostgresObjectDataRepositoryConnection.ResolveHostConnectionString(admin));
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(operation + " " + name + (operation == "DROP DATABASE" ? " WITH (FORCE)" : ""), connection);
         await command.ExecuteNonQueryAsync();

@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;

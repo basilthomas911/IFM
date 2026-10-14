@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;

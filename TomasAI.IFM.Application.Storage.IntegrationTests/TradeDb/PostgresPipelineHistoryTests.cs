@@ -44,10 +44,10 @@ public sealed class PostgresPipelineHistoryTests(PostgresTradePlanFixture fixtur
             {
                 if (composition)
                 {
-                    var read = await PostgresPipelineReadStore.CompositionHistoryAsync(db, portfolio, 1, date, 2, cursor, ct);
+                    var read = await TradeDbContextExtensions.PipelineReadCompositionHistoryAsync(db, portfolio, 1, date, 2, cursor, ct);
                     return (Ids: read.Items.Select(r => r.InvocationId).ToArray(), Cursor: read.PagingState);
                 }
-                var selection = await PostgresPipelineReadStore.SelectionHistoryAsync(db, portfolio, 1, date, 2, cursor, ct);
+                var selection = await TradeDbContextExtensions.PipelineReadSelectionHistoryAsync(db, portfolio, 1, date, 2, cursor, ct);
                 return (Ids: selection.Items.Select(r => r.InvocationId).ToArray(), Cursor: selection.PagingState);
             });
             actual.AddRange(page.Ids);
@@ -59,8 +59,8 @@ public sealed class PostgresPipelineHistoryTests(PostgresTradePlanFixture fixtur
         firstCursor.Should().NotBeNull();
         await FluentActions.Awaiting(() => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
         {
-            if (composition) await PostgresPipelineReadStore.CompositionHistoryAsync(db, portfolio, 2, date, 2, firstCursor, ct);
-            else await PostgresPipelineReadStore.SelectionHistoryAsync(db, portfolio, 2, date, 2, firstCursor, ct);
+            if (composition) await TradeDbContextExtensions.PipelineReadCompositionHistoryAsync(db, portfolio, 2, date, 2, firstCursor, ct);
+            else await TradeDbContextExtensions.PipelineReadSelectionHistoryAsync(db, portfolio, 2, date, 2, firstCursor, ct);
             return true;
         })).Should().ThrowAsync<ArgumentException>();
     }

@@ -16,7 +16,8 @@ public static class GetEvaluatedOptionChain
         if (result.Success && result.Value is { } chain && !q.ReleaseOnly)
         {
             var date = c.MarketSessionAuthority.Current.OperationalValueDate;
-            var model = chain;
+            var lastTrade = UnderlyingLastTradePrice.Read(c.MarketDataApi, q.UnderlyingContractId);
+            var model = chain with { LastUnderlyingPrice = lastTrade.Price, LastUnderlyingTradeAtUtc = lastTrade.At };
             try
             {
                 var bb = await c.DbFactory.MarketDataDb.DbReader.GetLatestFuturesBollingerBandSignalForTimeFrameAsync(

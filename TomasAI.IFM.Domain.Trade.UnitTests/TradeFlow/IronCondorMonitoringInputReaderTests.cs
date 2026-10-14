@@ -156,7 +156,7 @@ public sealed class IronCondorMonitoringInputReaderTests
         var market = Substitute.For<TomasAI.IFM.Application.Storage.MarketDataDb.IMarketDataDbContext>();
         var securities = Substitute.For<TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext>();
         var options = Substitute.For<TomasAI.IFM.Application.Storage.OptionPricerDb.IOptionPricerDbContext>();
-        var financial = Substitute.For<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialQueryStore>();
+        var financial = Substitute.For<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialQueryStore>();
         databases.TradeDb.Returns(trades); databases.MarketDataDb.Returns(market);
         databases.SecuritiesDb.Returns(securities); databases.OptionPricerDb.Returns(options);
         var (legs, _) = IronCondorOptionCalculatorTests.Evidence(atUtc: DateTimeOffset.UtcNow);

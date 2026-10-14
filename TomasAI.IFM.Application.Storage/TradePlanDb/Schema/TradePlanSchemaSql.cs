@@ -181,4 +181,6 @@ ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS riskParam
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS riskParameterSetHash text;
 CREATE INDEX IF NOT EXISTS position_trade_plan_activity_recent ON trade_plan.position_trade_plan_activity_by_date (valueDate,calculatedAtUtc DESC,portfolioId DESC,fundId DESC,orderId DESC,tradeId DESC,positionId DESC,planRevision DESC);
 """;
+    /// <summary>Explicit schema removal for administrative teardown.</summary>
+    public const string Drop = "DROP SCHEMA IF EXISTS trade_plan CASCADE;";
 }

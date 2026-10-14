@@ -26,8 +26,8 @@ public sealed class PostgresParameterAtomicTests(PostgresTradePlanFixture fixtur
     public async Task Accepted_parameters_audit_assignments_startup_and_cache_policy_share_source_transaction_and_rebuild()
     {
         var sourceSettings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings();
-        sourceSettings.Add(ConfigurationDbContext.ConfigurationDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
-        sourceSettings.Add(MarketDataDbContext.MarketDataDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        sourceSettings.Add(ConfigurationDbContext.ConfigurationDbConnection, fixture.Connection, "System.Data.Postgres");
+        sourceSettings.Add(MarketDataDbContext.MarketDataDbConnection, fixture.Connection, "System.Data.Postgres");
         await new ConfigurationSchemaDb(sourceSettings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         await new MarketDataSchemaDb(sourceSettings, NullLogger<DbProvider>.Instance).CreateAllAsync();
         var factory = new Mock<IDbContextFactory>();

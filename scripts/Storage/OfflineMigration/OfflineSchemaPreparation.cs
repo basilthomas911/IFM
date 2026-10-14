@@ -36,10 +36,10 @@ internal static class OfflineSchemaPreparation
             new TomasAI.IFM.Application.Storage.SystemAdminDb.Schema.SystemAdminSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb(settings,logger),
-            new TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb(settings,logger)
+            new TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb(settings,logger)
         ];
         foreach (var schema in schemas) await schema.CreateAllAsync().ConfigureAwait(false);
-        await new TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema(new PostgresEventTransaction(settings))
+        await new TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema(new PostgresEventTransaction(settings))
             .InitializeAsync().ConfigureAwait(false);
         foreach (var schema in schemas) await schema.ValidateTablesAsync().ConfigureAwait(false);
     }

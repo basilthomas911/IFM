@@ -35,11 +35,11 @@ internal static class SchemaInventory
             ("SystemAdminDb",new TomasAI.IFM.Application.Storage.SystemAdminDb.Schema.SystemAdminSchemaDb(settings,logger)),
             ("TradeDb",new TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb(settings,logger)),
             ("TradePlanDb",new TomasAI.IFM.Application.Storage.TradePlanDb.Schema.TradePlanSchemaDb(settings,logger)),
-            ("ScheduledTaskDb",new TomasAI.IFM.Application.Storage.ScheduledTaskDb.ScheduledTaskSchemaDb(settings,logger)),
+            ("ScheduledTaskDb",new TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb(settings,logger)),
             ("TradeTickQuoteDb",new TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema.TradeTickQuoteSchemaDb(settings,logger))
         ];
         var financialTables = System.Text.RegularExpressions.Regex.Matches(
-            TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema.Ddl,
+            TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Financial,
             @"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<table>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*\(",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.NonBacktracking)
             .Select(match => match.Groups["table"].Value).Distinct(StringComparer.Ordinal);

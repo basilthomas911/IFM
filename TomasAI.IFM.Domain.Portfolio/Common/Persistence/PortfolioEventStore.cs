@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;

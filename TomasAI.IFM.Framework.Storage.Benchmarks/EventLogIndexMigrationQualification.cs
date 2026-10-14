@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Text.Json;
 using System.Diagnostics;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
@@ -96,7 +97,7 @@ internal static class EventLogIndexMigrationQualification
                 await schema.CreateAllAsync();
                 await using var db = new NpgsqlConnection(direct);
                 await db.OpenAsync();
-                await Sql(db, PortfolioDbSql.Financial.PortfolioFinancialSchema.Create01);
+                await Sql(db, PortfolioSchemaSql.Financial);
                 var streamId = Convert.ToInt64(await Sql(db,
                     "INSERT INTO event_stream_id(eventstream) VALUES('MigrationProbe') RETURNING eventstreamid"));
                 var eventNameId = Convert.ToInt32(await Sql(db,

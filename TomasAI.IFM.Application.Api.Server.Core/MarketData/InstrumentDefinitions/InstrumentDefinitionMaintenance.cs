@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.TradeStrategySymbols;
@@ -39,10 +40,11 @@ internal static class InstrumentDefinitionMaintenance
             TradeStrategySymbolDatasets = configuration.GetSection("AppSettings:Databento:TradeStrategySymbolDatasets").Get<string[]>() ?? []
         };
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        var refresh = new InstrumentDefinitionRefresh(new DatabentoInstrumentDefinitionClient(http), referenceDb.InstrumentDefinitions,
+        var definitions = new InstrumentDefinitionStore(referenceDb,new TradeStrategySymbolStore(factory,new PostgresSequenceIdGenerator(sequenceDb)));
+        var refresh = new InstrumentDefinitionRefresh(new DatabentoInstrumentDefinitionClient(http), definitions,
             options, TimeProvider.System, logs.CreateLogger<InstrumentDefinitionRefresh>());
         var snapshot = await refresh.RefreshAsync(cancellationToken);
-        var catalog = new StoredInstrumentDefinitionSymbolCatalog(referenceDb.InstrumentDefinitions);
+        var catalog = new StoredInstrumentDefinitionSymbolCatalog(definitions);
         foreach (var family in new[] { TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.Futures,
             TomasAI.IFM.Domain.Reference.Shared.ViewModels.TradeStrategyFamilyType.FuturesOption })
         {

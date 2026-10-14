@@ -119,6 +119,24 @@ public sealed class ReferenceDbContextConventionTests
                 boundaries.Any(boundary => line.Contains(boundary, StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public void PostgreSql_context_has_one_binding_catalog_and_no_domain_service_factories()
+    {
+        var folder=Path.Combine(FindRepositoryRoot(),"TomasAI.IFM.Application.Storage","ReferenceDb");
+        var assembly=typeof(ReferenceDbContext).Assembly;
+        Assert.False(File.Exists(Path.Combine(folder,"ReferenceDbCql.cs")));
+        Assert.True(File.Exists(Path.Combine(folder,"ReferenceDbParameters.cs")));
+        Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.InstrumentDefinitionStore"));
+        Assert.Null(assembly.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.TradeStrategyFamilyBootstrapper"));
+        Assert.Null(typeof(IReferenceDbContext).GetProperty("InstrumentDefinitions"));
+        foreach(var path in Directory.GetFiles(folder,"*.cs",SearchOption.AllDirectories))
+        {
+            var source=File.ReadAllText(path);
+            if (source.Contains(": IBindValue",StringComparison.Ordinal)) Assert.Equal("ReferenceDbParameters.cs",Path.GetFileName(path));
+            if (source.Contains("CREATE TABLE",StringComparison.Ordinal)) Assert.Equal("ReferenceSchemaSql.cs",Path.GetFileName(path));
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

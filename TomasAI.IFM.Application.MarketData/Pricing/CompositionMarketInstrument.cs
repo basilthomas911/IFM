@@ -25,4 +25,6 @@ public sealed record CompositionMarketInstrument(
     [Key(11)] public string? QuoteUnavailableReason { get; init; }
     [Key(12)] public DateTimeOffset? LastQuoteEventAtUtc { get; init; }
     [Key(13)] public DateTimeOffset? LastQuoteReceivedAtUtc { get; init; }
+    [Key(14)] public DateOnly? VolumeValueDate { get; init; }
+    [Key(15)] public DateOnly? OpenInterestValueDate { get; init; }
 }

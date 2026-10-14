@@ -109,11 +109,11 @@ public sealed class PortfolioDbContextConventionTests
         Assert.Equal(shared, typeof(FinancialDevelopmentPolicy).Assembly);
         Assert.Equal(shared, typeof(LedgerCommitInfo).Assembly);
         Assert.NotEqual(storage, typeof(FinancialWorkflowRecoveryPage).Assembly);
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityExpiryDispatch"));
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialAuthorityPreparationSnapshot"));
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialDevelopmentPolicy"));
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialWorkflowRecoveryPage"));
-        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerCommitInfo"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Domain.Portfolio.Financial.Repository.CapacityExpiryDispatch"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialAuthorityPreparationSnapshot"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialDevelopmentPolicy"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialWorkflowRecoveryPage"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Domain.Portfolio.Financial.Repository.LedgerCommitInfo"));
     }
 
     [Fact]
@@ -134,6 +134,19 @@ public sealed class PortfolioDbContextConventionTests
         foreach (var file in files)
             Assert.DoesNotContain(File.ReadAllLines(file), line =>
                 boundaries.Any(boundary => line.Contains(boundary, StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Financial_coordination_is_domain_owned_and_storage_has_one_schema_catalog()
+    {
+        var storage = typeof(PortfolioDbContext).Assembly;
+        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.GeneralLedgerStore"));
+        Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialReadProjectionRebuilder"));
+        Assert.NotEqual(storage, typeof(TomasAI.IFM.Domain.Portfolio.Financial.Repository.GeneralLedgerStore).Assembly);
+        var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "PortfolioDb");
+        Assert.Equal(new[] { "PortfolioSchemaSql.cs" }, Directory.GetFiles(Path.Combine(folder, "Schema"), "*Sql.cs").Select(Path.GetFileName));
+        Assert.Empty(Directory.GetFiles(folder, "*Cql*", SearchOption.AllDirectories));
+        Assert.False(File.Exists(Path.Combine(folder, "PostgresPortfolioProjectionStore.cs")));
     }
 
     private static bool SameSignature(MethodInfo contract, MethodInfo implementation)

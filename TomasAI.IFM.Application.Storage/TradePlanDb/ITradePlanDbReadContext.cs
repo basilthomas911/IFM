@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
@@ -73,4 +74,9 @@ public interface ITradePlanDbReadContext
         int pageSize,
         byte[]? pagingState = null,
         CancellationToken cancellationToken = default);
+    /// <summary>Reads all recorded exit stages under a shared table lock for an explicitly quiesced baseline capture.</summary>
+    /// <param name="transaction">The transaction retaining the table lock until its owner completes.</param>
+    /// <param name="cancellationToken">Cancels the ordered query.</param>
+    /// <returns>All persisted stage snapshots in deterministic identity and revision order.</returns>
+    Task<IReadOnlyList<ExitPositionWorkflowProjection>> ReadExitWorkflowBaselineAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default);
 }

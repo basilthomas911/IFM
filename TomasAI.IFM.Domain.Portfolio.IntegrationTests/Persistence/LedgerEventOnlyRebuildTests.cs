@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Command;
 using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
@@ -9,7 +10,7 @@ using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Extensions;
 using FluentAssertions;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;
 
@@ -273,9 +274,9 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             builder.Database=sourceDatabase;
             var sourceSettings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,builder.ConnectionString,"System.Data.Postgres");
             await new EventSourceSchemaDb(sourceSettings,NullLogger<DbProvider>.Instance).CreateAllAsync();var sourceOwner=new PostgresEventTransaction(sourceSettings);
-            await sourceOwner.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbSql.Schema.Create,[],ct));
+            await sourceOwner.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
             var book=await PortfolioOrderCompositionIntegrationTests.CreateOrderBook(owner:sourceOwner);
-            if(includeComposition) await new TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioOrderCompositionStore(sourceOwner)
+            if(includeComposition) await new TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioOrderCompositionStore(sourceOwner)
                 .EvaluateAsync(PortfolioOrderCompositionIntegrationTests.Request(book),PortfolioOrderCompositionIntegrationTests.Evaluate);
             var service=new FinancialProjectionBaseline(sourceOwner);
             await FluentActions.Awaiting(()=>service.CaptureAsync(false)).Should().ThrowAsync<ArgumentException>();
@@ -292,7 +293,7 @@ public sealed class LedgerEventOnlyRebuildTests(PortfolioEventStoreFixture fixtu
             later.Should().ContainSingle();
             builder.Database=database;var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,builder.ConnectionString,"System.Data.Postgres");
             await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();var target=new PostgresEventTransaction(settings);await new PortfolioFinancialSchema(target).InitializeAsync();
-            await target.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbSql.Schema.Create,[],ct));
+            await target.ExecuteAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
             // The new target schema pre-registers event names. Replace only that empty target registry with source identities.
             await target.ExecuteAsync((db,ct)=>db.ExecuteAsync("DELETE FROM event_name_id WHERE NOT EXISTS(SELECT 1 FROM event_log);",[],ct));
             // Preserve the source log identities referenced by baseline receipts. No source rows are removed or overwritten.

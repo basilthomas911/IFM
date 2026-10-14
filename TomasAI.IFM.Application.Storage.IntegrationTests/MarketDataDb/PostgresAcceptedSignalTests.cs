@@ -33,6 +33,33 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Vx_checkpoint_only_event_commits_and_replays_without_inserting_or_erasing_a_paired_signal()
+    {
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection",fixture.Connection,"System.Data.Postgres");
+        await new MarketDataSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var key = "vx-checkpoint-"+Guid.NewGuid().ToString("N");
+        var date = new DateOnly(2026,10,13);var now = new DateTimeOffset(2026,10,13,12,0,0,TimeSpan.Zero);
+        var checkpoint = new FuturesVxTermStructureSignalUpdatedEvent { CommandId=Guid.NewGuid(),FuturesVxTermStructureCheckpoint=new() {Front=new(){ContractId=key,Expiry=date.AddDays(20),Price=20.25m,SourceSequence=1,SourceTimestampUtc=now,StreamEpochId=Guid.NewGuid()}} };
+        await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
+        {
+            await db.AppendAsync(key,checkpoint.CommandId,checkpoint,0,ct);
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,checkpoint,ct));return true;
+        });
+        var persisted=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.QueryAsync("SELECT n.EventTypeName,l.EventVersion,l.EventPayload FROM event_log l JOIN event_name_id n ON n.EventNameId=l.EventNameId JOIN event_stream_id s ON s.EventStreamId=l.EventStreamId WHERE s.EventStream=$1 ORDER BY l.EventVersion;",[key],reader=>new EventStreamReadModel{EventTypeName=reader.GetString(0),EventVersion=reader.GetInt64(1),EventData=reader.GetFieldValue<byte[]>(2)}.ToDomainEvent(),ct));
+        var restored=Assert.IsType<FuturesVxTermStructureSignalUpdatedEvent>(Assert.Single(persisted));
+        Assert.Null(restored.FuturesVxTermStructureSignal);Assert.Equal(checkpoint.FuturesVxTermStructureCheckpoint,restored.FuturesVxTermStructureCheckpoint);
+        async Task<long> CountAsync()=>Convert.ToInt64(await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ScalarAsync("SELECT count(*) FROM market_data.futures_vx_term_structure_signal WHERE configurationId=$1",[key],ct)));
+        Assert.Equal(0,await CountAsync());
+        var paired=checkpoint with{CommandId=Guid.NewGuid(),FuturesVxTermStructureSignal=new(){ValueDate=date,ConfigurationId=key,FrontVxContractId=key,BackVxContractId=key+"back",FrontExpiry=date.AddDays(20),BackExpiry=date.AddDays(50),FrontVxPrice=20.25m,BackVxPrice=21.5m,FrontSourceTimestampUtc=now,BackSourceTimestampUtc=now,CalculatedAtUtc=now,IsValid=true}};
+        await fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>
+        {
+            await db.AppendAsync(key,paired.CommandId,paired,1,ct);Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,paired,ct));
+            Assert.True(await AcceptedMarketSignalProjection.TryProjectAsync(db,restored,ct));return true;
+        });
+        Assert.Equal(1,await CountAsync());
+    }
+
+    [Fact]
     public async Task Postgres_committed_stream_version_includes_non_snapshot_source_events()
     {
         var stream = "filtered-stream-metadata-" + Guid.NewGuid().ToString("N");
@@ -53,7 +80,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
     [Fact]
     public async Task Startup_can_initialize_named_option_chain_tables_without_replacing_existing_policy_rows()
     {
-        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection", fixture.Connection, "System.Data.Postgres");
         var schema = new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance);
         string[] names = ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"];
         await schema.CreateAsync(names);
@@ -83,7 +110,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
     [Fact]
     public async Task Postgres_option_chain_policy_publication_roundtrips_and_rejects_stale_revision()
     {
-        var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection, fixture.Connection, "System.Data.Postgres");
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAsync(["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"]);
         var db = MarketDataDbContextTestFactory.Create(settings[MarketDataDbContext.MarketDataDbConnection]);
         var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterDefaults.IronCondor(Guid.NewGuid(), Guid.NewGuid(), 1) with { Enabled = true };
@@ -110,7 +137,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
     [Fact]
     public async Task Accepted_analytic_sources_and_rows_are_atomic_and_reconstruct_identically_without_calculators()
     {
-        var settings=new DbConnectionSettings().Add("MarketDataDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings=new DbConnectionSettings().Add("MarketDataDbConnection",fixture.Connection,"System.Data.Postgres");
         await new MarketDataSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var key="accepted-"+Guid.NewGuid().ToString("N");
         var date=new DateOnly(2026,10,11);
@@ -192,7 +219,7 @@ public sealed class PostgresAcceptedSignalTests(PostgresTradePlanFixture fixture
     [Fact]
     public async Task Live_feed_state_commits_with_source_and_rebuilds_without_starting_subscriptions()
     {
-        var settings = new DbConnectionSettings().Add("MarketDataDbConnection",PostgresTradePlanFixture.Connection,"System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add("MarketDataDbConnection",fixture.Connection,"System.Data.Postgres");
         await new MarketDataSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var key = "accepted-live-"+Guid.NewGuid().ToString("N");
         var id = Random.Shared.Next(10000000,int.MaxValue);

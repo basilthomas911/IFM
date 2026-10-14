@@ -17,7 +17,17 @@ public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<st
     /// <param name="dataset">The Databento dataset identifier.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>The read latest async result.</returns>
-    public async IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestAsync(string dataset, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestAsync(string dataset, CancellationToken cancellationToken = default)
+        => ReadLatestCoreAsync(dataset, "ALL_SYMBOLS", "raw_symbol", cancellationToken);
+    /// <summary>Reads exact definitions for a bounded set of provider parent symbols without replacing the global catalog.</summary>
+    public IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestParentsAsync(string dataset, IReadOnlyList<string> parents, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parents);
+        if(parents.Count is <1 or >16 || parents.Any(x=>string.IsNullOrWhiteSpace(x)||x.Length>64||!System.Text.RegularExpressions.Regex.IsMatch(x,@"^[A-Z0-9]+\.(FUT|OPT)$")))
+            throw new ArgumentException("Select up to sixteen provider FUT/OPT parent symbols.",nameof(parents));
+        return ReadLatestCoreAsync(dataset,string.Join(',',parents),"parent",cancellationToken);
+    }
+    async IAsyncEnumerable<ExactInstrumentDefinition> ReadLatestCoreAsync(string dataset,string symbols,string symbology,[EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataset);
         var key = getApiKey is null ? Environment.GetEnvironmentVariable("DATABENTO_API_KEY") : getApiKey();
@@ -39,8 +49,8 @@ public sealed class DatabentoInstrumentDefinitionClient(HttpClient http, Func<st
         {
             ["dataset"] = dataset,
             ["schema"] = "definition",
-            ["symbols"] = "ALL_SYMBOLS",
-            ["stype_in"] = "raw_symbol",
+            ["symbols"] = symbols,
+            ["stype_in"] = symbology,
             ["start"] = start,
             ["end"] = end,
             ["encoding"] = "json",

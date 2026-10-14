@@ -19,7 +19,7 @@ public sealed class PostgresSequenceRecoveryTests(PostgresTradePlanFixture fixtu
     [Fact]
     public async Task Recovery_checks_all_sequences_without_allocating_ids_and_rejects_missing_functions()
     {
-        var settings = new DbConnectionSettings().Add(SequenceIdDbContext.SequenceIdDbConnection, PostgresTradePlanFixture.Connection, "System.Data.Postgres");
+        var settings = new DbConnectionSettings().Add(SequenceIdDbContext.SequenceIdDbConnection, fixture.Connection, "System.Data.Postgres");
         var schema = new SequenceIdSchemaDb(settings, NullLogger<DbProvider>.Instance);
         await schema.CreateAllAsync();
         var sql = "SELECT jsonb_agg(to_jsonb(s) ORDER BY name)::text FROM (" + string.Join(" UNION ALL ",

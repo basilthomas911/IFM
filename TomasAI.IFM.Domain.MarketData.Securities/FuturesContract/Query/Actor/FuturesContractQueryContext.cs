@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.MarketData.Contracts;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -13,14 +14,17 @@ IFuturesContractQueryContext
 {
     /// <summary>Initializes a futures-contract query context.</summary>
     public FuturesContractQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
-        ILogger<FuturesContractQueryActor> logger)
+        ILogger<FuturesContractQueryActor> logger, IInstrumentDefinitionStore instrumentDefinitions)
         : base(supervisor, new ActorMailboxId(ActorType.Query, FuturesContractQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
+        InstrumentDefinitions = IsArgumentNull.Set(instrumentDefinitions);
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
+    /// <inheritdoc/>
+    public IInstrumentDefinitionStore InstrumentDefinitions { get; }
     /// <inheritdoc/>
     public ILogger<FuturesContractQueryActor> Logger { get; }
 }

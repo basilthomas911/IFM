@@ -280,6 +280,8 @@ public static partial class CoreServiceRegistration
         if (stage3Options.Enabled)
         {
             services.AddSingleton<DatasetWorkerCurrentValues>();
+            if (feedOptions.DataSource == FeedDataSourceMode.DatabentoLive)
+                services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.MarketData.VxBootstrapPriceService>();
             services.AddSingleton((config.GetSection("MarketDataRecovery:Stage3:RealtimePublisher")
             .Get<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.RealtimeTickPublisherPolicy>()
             ?? new TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.RealtimeTickPublisherPolicy()).Validate());
@@ -361,6 +363,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionPreparationStore>(provider =>
         provider.GetRequiredService<IMarketDataDbContext>());
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.CompositionPreparationService>();
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Contracts.IOptionChainStatisticsStore>(provider =>
+        provider.GetRequiredService<IMarketDataDbContext>());
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.QualifiedCompositionDiscovery>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketPreparation>();
         TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCacheServiceCollectionExtensions

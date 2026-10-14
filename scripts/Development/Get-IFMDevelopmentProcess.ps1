@@ -98,6 +98,7 @@ $results = foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
             "IFMServerManager" { $role = "manager" }
             "TomasAI.IFM.Application.Api.Server" { $role = "api" }
             "TomasAI.IFM.UI.Net" { $role = "ui" }
+            "ifm-ui-rust" { $role = "ui" }
             "TomasAI.IFM.Application.ServerManager.SchedulerHost" { $role = "scheduler" }
             "dotnet" {
                 $entryModule = $process.Modules | Where-Object {

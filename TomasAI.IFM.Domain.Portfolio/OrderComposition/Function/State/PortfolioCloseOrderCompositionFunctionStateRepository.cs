@@ -1,5 +1,5 @@
 using TomasAI.IFM.Application.Storage.PortfolioDb;
-using TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition;
+using TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository;
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.OrderComposition.Model;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;

@@ -78,7 +78,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             var owner = _transactions ?? throw new InvalidOperationException("Workflow reconstruction requires the PostgreSQL transaction service.");
             await owner.ExecuteOnceAsync(async (transaction, cancellation) =>
             {
-                await PostgresWorkflowSnapshotStore.ProjectAsync(transaction, snapshot, cancellation).ConfigureAwait(false);
+                await TradeDbContextExtensions.WorkflowProjectAsync(transaction, snapshot, cancellation).ConfigureAwait(false);
                 return true;
             }, token).ConfigureAwait(false);
             return;
@@ -117,7 +117,7 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector : ConventionalEv
             var tradeDb = _actorContext.DbFactory.TradeDb;
             if (string.Equals(tradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             {
-                var active = PostgresWorkflowSnapshotStore.Active(snapshot);
+                var active = TradeDbContextExtensions.WorkflowActive(snapshot);
                 if (active is not null) _cache.Set(active);
                 else _cache.Remove(entityKey);
             }

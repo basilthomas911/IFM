@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -5,7 +6,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.PortfolioFinancial;
+using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 
@@ -58,7 +59,7 @@ static async Task VerifyIsolatedAsync(TomasAI.IFM.Domain.Portfolio.Shared.Financ
         var settings=new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,targetIdentity.ConnectionString,"System.Data.Postgres");
         await new EventSourceSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         var target=new PostgresEventTransaction(settings);await new PortfolioFinancialSchema(target).InitializeAsync();
-        if(source.SchemaVersion==2) await target.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioDbSql.Schema.Create,[],ct));
+        if(source.SchemaVersion==2) await target.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaSql.Portfolio,[],ct));
         var versions=new HashSet<long>{source.EventId};
         foreach(var image in source.Tables.Where(t=>t.Name is "financial_operation_receipt" or "financial_history_receipt"))
             foreach(var row in JsonDocument.Parse(image.RowsJson).RootElement.EnumerateArray()) versions.Add(row.GetProperty("event_version").GetInt64());

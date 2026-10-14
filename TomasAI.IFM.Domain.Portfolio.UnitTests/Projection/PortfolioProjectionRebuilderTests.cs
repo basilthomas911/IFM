@@ -94,5 +94,8 @@ public sealed class PortfolioProjectionRebuilderTests
         public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveFinancialHistoryAsync(int portfolioId, int month, long revision, Guid operationId, long eventId,
+            string eventType, DateTime committedAtUtc, string payload, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("Financial history is outside this projection test double.");
     }
 }

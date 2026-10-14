@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -426,7 +427,7 @@ public static class Startup
 
         void RegisterStorageServices()
         {
-            services.AddSingleton<TomasAI.IFM.Application.Storage.ReferenceDb.ITradeStrategyFamilyCatalogStore, TomasAI.IFM.Application.Storage.ReferenceDb.TradeStrategyFamilyCatalogStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Reference.Repository.ITradeStrategyFamilyCatalogStore, TomasAI.IFM.Domain.Reference.Repository.TradeStrategyFamilyCatalogStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.TradeStrategyFamilyCreationService>();
             services.AddSingleton<TomasAI.IFM.Domain.Reference.StrategyCatalog.StrategyCatalogService>();
             // Match production's implemented selector capabilities; unsupported downstream capabilities remain denied.
@@ -458,31 +459,31 @@ public static class Startup
                 .Add("PortfolioDbConnection", config["IFM_TEST_POSTGRES_CONNECTION"] ?? config.GetConnectionString("PortfolioDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
             );
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioFinancialSchema>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioFinancialSchema>();
             services.AddSingleton(provider => new TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialDevelopmentPolicy(
                 provider.GetRequiredService<IHostEnvironment>().IsDevelopment()));
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IGeneralLedgerStore,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.GeneralLedgerStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.ICapacityReservationStore,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.CapacityReservationStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IGeneralLedgerStore,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.GeneralLedgerStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ICapacityReservationStore,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.CapacityReservationStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model.FinancialIdentityAllocator>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialAuthorityPreparationStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialHistoryProjection,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialHistoryProjection>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IFinancialQueryStore,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialQueryStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialAuthorityPreparationStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialHistoryProjection,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryProjection>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialQueryStore,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialQueryStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi,
                 TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi>();
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.IPortfolioOrderCompositionApi>(provider =>
                 (TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi)provider.GetRequiredService<
                     TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>());
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.AccountingExportStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.EmulatorExecutionStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.IPortfolioAuthorityFence,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.PortfolioAuthorityFence>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.FinancialHistoryJournal>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioFinancial.ILedgerConfigurationStore,
-                TomasAI.IFM.Application.Storage.PortfolioFinancial.LedgerConfigurationStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.AccountingExportStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.EmulatorExecutionStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IPortfolioAuthorityFence,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.PortfolioAuthorityFence>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.FinancialHistoryJournal>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Financial.Repository.ILedgerConfigurationStore,
+                TomasAI.IFM.Domain.Portfolio.Financial.Repository.LedgerConfigurationStore>();
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Identity.IPortfolioBusinessIdAllocator, TomasAI.IFM.Domain.Portfolio.Identity.PortfolioBusinessIdAllocator>();
             services.AddSingleton(new TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalOptions());
             services.AddSingleton<TomasAI.IFM.Domain.Portfolio.Operations.IPortfolioOperationalGuard, TomasAI.IFM.Domain.Portfolio.Operations.PortfolioOperationalGuard>();
@@ -496,8 +497,8 @@ public static class Startup
             services.AddSingleton<IDbCache, DbCache>();
             services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction,
                 TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioOrderCompositionStore>();
-            services.AddSingleton<TomasAI.IFM.Application.Storage.PortfolioDb.OrderComposition.PortfolioCloseOrderCompositionStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioOrderCompositionStore>();
+            services.AddSingleton<TomasAI.IFM.Domain.Portfolio.OrderComposition.Repository.PortfolioCloseOrderCompositionStore>();
             services.AddSingleton<IDbContextResolver>(_ => new DbContextResolver(e => GetContainerInstance(e)!));
             services.AddSingleton<IDbContextFactory, DbContextFactory>();
             services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
