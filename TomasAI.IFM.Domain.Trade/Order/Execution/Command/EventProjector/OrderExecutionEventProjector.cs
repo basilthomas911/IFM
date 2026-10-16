@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -36,6 +37,7 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
 
     async Task ProjectAsync(OrderExecutionChangedEvent changed)
     {
+        context.Logger.LogInformation("OrderSubmission ExecutionEvent OrderId={OrderId} ExecutionId={ExecutionId} SourceEventId={SourceEventId} Status={Status} FilledQuantity={FilledQuantity} FillCount={FillCount}", changed.OrderExecutionDefinition.TradeOrderId.Format(), changed.EntityId.Format(), changed.Id, changed.OrderExecutionDefinition.Status, changed.OrderExecutionDefinition.CumulativeFilledQuantity, changed.OrderExecutionDefinition.Fills.Length);
         if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             await context.DbFactory.TradeDb.UpsertOrderExecutionAsync(changed.OrderExecutionDefinition).ConfigureAwait(false);
         if (changed.OrderExecutionDefinition.Status == OrderExecutionStatus.Pending && changed.OrderExecutionDefinition.Channel == ExecutionChannel.Broker)
@@ -95,6 +97,7 @@ public sealed class OrderExecutionEventProjector : ConventionalEventProjector<Or
                 OperationId = operationId,
                 EffectiveAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc)
             };
+            context.Logger.LogInformation("OrderSubmission BrokerOrderCreateRequested ExecutionId={ExecutionId} BrokerOrderId={BrokerOrderId} OperationId={OperationId} CommandId={CommandId}", changed.EntityId.Format(), brokerOrderId.Format(), operationId, create.CommandId);
             Ensure(await context.ActorService.RequestAsync<CreateBrokerOrderCommand, BrokerOrderId>(create).ConfigureAwait(false));
         }
 

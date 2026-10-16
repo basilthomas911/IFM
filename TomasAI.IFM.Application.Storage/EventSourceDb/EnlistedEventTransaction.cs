@@ -73,7 +73,18 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         var envelope=CommandAudit.CommandAuditEnvelope.Create(command,new CommandAudit.CommandAuditMessagePackCodec());
         var results=await CommandAudit.CommandAuditPostgres.ReserveAsync(connection,transaction,[envelope],cancellationToken).ConfigureAwait(false);
         if(results[0].PayloadConflict) throw new CommandAudit.CommandAuditPayloadConflictException(command.CommandId);
-        if(!results[0].Accepted) throw new CommandAudit.CommandAuditDuplicateException(command.CommandId);
+        if (!results[0].Accepted)
+        {
+            if (command is IRecoverableCommandAudit)
+            {
+                // ReserveAsync already verified the exact retry payload. Serialize orphan recovery
+                // against another recovery attempt; committed events always remain duplicates.
+                await ScalarAsync("SELECT commandid FROM command_log WHERE commandid=$1 FOR UPDATE;", [command.CommandId], cancellationToken).ConfigureAwait(false);
+                var committed = await ScalarAsync("SELECT EXISTS(SELECT 1 FROM event_log WHERE commandid=$1);", [command.CommandId], cancellationToken).ConfigureAwait(false);
+                if (committed is false) return;
+            }
+            throw new CommandAudit.CommandAuditDuplicateException(command.CommandId);
+        }
     }
 
     public async Task<long> AppendAsync(string stream, Guid commandId, IEvent domainEvent,

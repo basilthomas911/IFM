@@ -6,15 +6,20 @@ use ifm_ui_rust::{
 };
 use std::collections::BTreeMap;
 fn fixture(editing: bool) -> (Catalog, ContractPublication) {
-    let context=BTreeMap::from([("editing".into(),if editing{"True"}else{"False"}.into()),("canEdit".into(),"True".into()),("hasPayload".into(),"True".into()),("name".into(),"Fixture parameters".into()),("selectedId".into(),"fixture:1".into()),("component".into(),"fixture".into()),("components".into(),r#"[{"AreaCode":"fixture","AreaName":"Fixture area","ComponentCode":"fixture","Name":"Fixture component"}]"#.into()),("fields".into(),r#"[{"Path":"/Risk/AdverseMove","Value":"0.20","Kind":4,"Group":"Risk","Name":"Adverse move"}]"#.into()),("signals".into(),"[]".into()),("observations".into(),"[]".into()),("intervals".into(),"[]".into())]);
+    let mut context:BTreeMap<String,String>=BTreeMap::from([("editing".into(),if editing{"True"}else{"False"}.into()),("canEdit".into(),"True".into()),("hasPayload".into(),"True".into()),("name".into(),"Fixture parameters".into()),("selectedId".into(),"fixture:1".into()),("component".into(),"fixture".into()),("components".into(),r#"[{"AreaCode":"fixture","AreaName":"Fixture area","ComponentCode":"fixture","Name":"Fixture component"}]"#.into()),("fields".into(),r#"[{"Path":"/Risk/AdverseMove","Value":"0.20","Kind":4,"Group":"Risk","Name":"Adverse move"}]"#.into()),("signals".into(),"[]".into()),("observations".into(),"[]".into()),("intervals".into(),"[]".into())]);
+    let mut documents = BTreeMap::new();
+    for key in ["components", "fields", "signals", "observations", "intervals"] {
+        let value: serde_json::Value=serde_json::from_str(&context.remove(key).unwrap()).unwrap();
+        documents.insert(key.into(),ifm_ui_rust::wire::encode_value(&value).unwrap().into());
+    }
     (
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap(),
         ContractPublication {
             generation: 7,
             status: "Ready".into(),
-            result: ContractResult {
+            result: ContractResult { documents,
                 view: "parameter-sets".into(),
-                rows: vec![ContractRow {
+                rows: vec![ContractRow { data: None,
                     id: "fixture:1".into(),
                     fields: BTreeMap::from([
                         ("name".into(), "Fixture parameters".into()),
@@ -50,8 +55,7 @@ fn saving_sends_exact_scalar_working_copy_and_correlated_version_once() {
     assert_eq!(intent["intent"], "save-draft");
     assert_eq!(intent["originalId"], "fixture:1");
     assert_eq!(intent["expectedGeneration"], 7);
-    let fields: serde_json::Value =
-        serde_json::from_str(intent["fields"]["changes"].as_str().unwrap()).unwrap();
+    let fields = &intent["documents"]["changes"];
     assert_eq!(fields[0]["Value"], "0.1234567890123456789");
     assert_eq!(fields[0]["Kind"], 4);
     assert!(h.state().0.pending.is_some());

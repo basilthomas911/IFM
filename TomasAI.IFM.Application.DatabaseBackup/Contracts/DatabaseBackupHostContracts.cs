@@ -35,5 +35,6 @@ public sealed record DatabaseBackupSourceHealth(
 public interface IDatabaseBackupSourceHealthRegistry
 {
     IReadOnlyCollection<DatabaseBackupSourceHealth> Snapshot();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1716",Justification="Preserve the established public interface member used by existing consumers.")]
     void Set(BackupSource source, bool enabled, bool ready, string status);
 }

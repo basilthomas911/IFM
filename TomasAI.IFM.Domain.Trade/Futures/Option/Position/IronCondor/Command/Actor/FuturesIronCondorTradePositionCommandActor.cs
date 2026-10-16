@@ -77,6 +77,8 @@ public sealed class FuturesIronCondorTradePositionCommandActor(ICommandActorCont
         [typeof(CorrectIronCondorPositionBasisCommand)] = static (command, state) => ((CorrectIronCondorPositionBasisCommand)command).Execute(state),
         [typeof(SnapshotIronCondorPositionCommand)] = static (command, state) => ((SnapshotIronCondorPositionCommand)command).Execute(state)
     }.ToFrozenDictionary();
+    protected override bool PersistsCommandAuditAtomically(ICommand command)
+        => string.Equals(services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
     protected override bool IsResidentCommand(ICommand command) => command is UpdateIronCondorPositionLegMarketPriceCommand or ChangeTradeLegDataCommand;
     protected override bool IsResidentMessage(ActorSubject subject) => subject.Verb is UpdateIronCondorPositionLegMarketPriceCommand.Verb or ChangeTradeLegDataCommand.Verb;
     protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);

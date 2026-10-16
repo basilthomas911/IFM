@@ -77,6 +77,7 @@ public static class CompositionSnapshotAdapter
         ArgumentNullException.ThrowIfNull(x);
         var converted = new DomainPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId, x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc, x.Instruments.Select(From).ToImmutableArray(), "")
         {
+            StrategyOptionChainParameters = x.StrategyOptionChainParameters,
             StrategyOptionChainParametersJson = x.StrategyOptionChainParametersJson,
             StrategyOptionChainBias = x.StrategyOptionChainBias,
             StrategyOptionChainValueDate = x.StrategyOptionChainValueDate
@@ -195,6 +196,7 @@ public static class CompositionSnapshotAdapter
         ArgumentNullException.ThrowIfNull(x);
         var converted = new AppPricing.MarketCompositionSnapshot(x.SchemaVersion, x.SnapshotId, x.ScopeId, x.ScopeToken, x.Horizon, x.GenerationId, x.EvaluatedAtUtc, x.ValidUntilUtc, x.Instruments.Select(To).ToImmutableArray(), "")
         {
+            StrategyOptionChainParameters = x.StrategyOptionChainParameters,
             StrategyOptionChainParametersJson = x.StrategyOptionChainParametersJson,
             StrategyOptionChainBias = x.StrategyOptionChainBias,
             StrategyOptionChainValueDate = x.StrategyOptionChainValueDate

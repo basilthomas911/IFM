@@ -15,7 +15,7 @@ public static class ParameterAssignmentModel
         var assignmentId = ParameterAssignmentPolicyModel.AssignmentId(scope);
         if ((current?.Revision ?? 0) != expectedRevision)
             throw new InvalidOperationException("PARAM.REVISION_CONFLICT");
-        if (current is not null && (current.Scope != scope || current.AssignmentId != assignmentId))
+        if (current is not null && (ParameterAssignmentPolicyModel.AssignmentId(current.Scope) != assignmentId || current.AssignmentId != assignmentId))
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.SCOPE_INVALID");
 #pragma warning restore MA0015
@@ -25,7 +25,7 @@ public static class ParameterAssignmentModel
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.REFERENCE_INVALID");
 #pragma warning restore MA0015
-        if (!string.Equals(ParameterCanonicalPayloadModel.Hash(version.PayloadJson),version.Reference.PayloadSha256,StringComparison.Ordinal))
+        if (!string.Equals(version.Parameters is null ? ParameterCanonicalPayloadModel.Hash(version.PayloadJson) : version.ReferenceCodec==ParameterValueCodec.Codec ? ParameterValueCodec.Hash(version.Parameters) : version.Reference.PayloadSha256,version.Reference.PayloadSha256,StringComparison.Ordinal))
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.PAYLOAD_HASH_MISMATCH");
 #pragma warning restore MA0015

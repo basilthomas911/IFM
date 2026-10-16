@@ -10,13 +10,15 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests;
 public sealed class JetStreamRetentionIntegrationTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Interest_stream_removes_message_only_after_both_consumers_acknowledge()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var streamName = $"IFM_RETENTION_TEST_{suffix}";
         var subject = $"ifm.retention.test.{suffix}";
         var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
-        await using var client = new NatsClient(url);
+var client = new NatsClient(url);
+await using var clientDisposal = client.ConfigureAwait(true);
         await client.ConnectAsync();
         var jetStream = client.CreateJetStreamContext();
         try
@@ -57,11 +59,11 @@ public sealed class JetStreamRetentionIntegrationTests
     private static async Task AcknowledgeOneAsync(INatsJSConsumer consumer)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await foreach (var message in consumer.ConsumeAsync<byte[]>(
+        await foreach (var message in (consumer.ConsumeAsync<byte[]>(
             serializer: new NatsByteArrayMessageSerializer(),
-            cancellationToken: timeout.Token))
+            cancellationToken: timeout.Token)).ConfigureAwait(true))
         {
-            await message.AckAsync(cancellationToken: timeout.Token);
+            await (message.AckAsync(cancellationToken: timeout.Token)).ConfigureAwait(true);
             break;
         }
     }

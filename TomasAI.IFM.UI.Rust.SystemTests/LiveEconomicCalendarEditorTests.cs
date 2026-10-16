@@ -12,7 +12,7 @@ public unsafe class LiveEconomicCalendarEditorTests
         var old = Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");
         Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE", "live");
         delegate* unmanaged[Cdecl]<uint, ApiV1*, uint, int> get = &BridgeBootstrap.GetApi;
-        ApiV2 api; Assert.Equal(0, get(2, (ApiV1*)&api, 48));
+        ApiV4 api; Assert.Equal(0, get(4, (ApiV1*)&api, 48));
         ulong handle; Assert.Equal(0, api.Base.Create(&handle));
         string? disposableId = null;
         ContractEditorPublication? state = null;
@@ -60,9 +60,9 @@ public unsafe class LiveEconomicCalendarEditorTests
             Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE", old);
         }
     }
-    static ContractEditorPublication Run(ApiV2 api, ulong handle, ContractEditorIntent intent)
+    static ContractEditorPublication Run(ApiV4 api, ulong handle, ContractEditorIntent intent)
     {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(intent, Json);
+        var bytes = BridgeWire.Serialize(intent);
         fixed (byte* p = bytes) Assert.Equal(0, api.Submit(handle, p, bytes.Length));
         var deadline = DateTime.UtcNow.AddSeconds(45);
         do
@@ -70,7 +70,7 @@ public unsafe class LiveEconomicCalendarEditorTests
             int n; api.Base.Copy(handle, 5, null, 0, &n);
             var snapshot = new byte[n];
             fixed (byte* p = snapshot) { if (api.Base.Copy(handle, 5, p, n, &n) != 0) continue; }
-            var result = JsonSerializer.Deserialize<ContractEditorPublication>(snapshot, Json)!;
+            var result = BridgeWire.Deserialize<ContractEditorPublication>(snapshot)!;
             var outcome = result.Outcomes.SingleOrDefault(x => x.RequestId == intent.RequestId);
             if (!result.Busy && outcome is not null && outcome.State != "Pending") { Assert.True(outcome.State == "Completed", outcome.Message); return result; }
             Thread.Sleep(100);

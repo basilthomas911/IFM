@@ -52,8 +52,8 @@ public sealed class ParameterSetsReferenceFormTests
         var api = Substitute.For<IParameterSetsApi>();
         api.ComponentsAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<ParameterComponentSummary[]>([new RegimeDiscoveryParameterModel().Summary]));
         api.VersionsAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>(), Arg.Any<string>()).Returns(new ServiceOk<ParameterSetVersion[]>([]));
-        api.PreviewAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<bool>())
-            .Returns(call => new ServiceOk<string>(System.Text.Json.JsonSerializer.Serialize(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0), (Domain.MarketData.Analytics.Shared.TimeFrameType)call.ArgAt<int>(2)))));
+        api.PreviewValuesAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<ParameterSetValue?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceOk<ParameterSetValue>(ParameterSetValue.From(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0), (Domain.MarketData.Analytics.Shared.TimeFrameType)call.ArgAt<int>(2)))));
 
         using var form = new ReferenceForm(Substitute.For<IAppRoot>(), service, api);
         form.LoadViewModel(new ReferenceViewModel(service)); form.Show(); PumpUntil(() => Selector(form).Items.Count >= 3);

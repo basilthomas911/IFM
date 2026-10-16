@@ -10,13 +10,13 @@ public unsafe class LiveQualificationTests
  {
   AssertBackendReady();
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV1 api;get(1,&api,40);ulong handle;Assert.Equal(0,api.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 table;Assert.Equal(0,get(4,(ApiV1*)&table,(uint)sizeof(ApiV4)));var api=table.Base;ulong handle;Assert.Equal(0,api.Create(&handle));
   string status="No publication";
   try {
    var deadline=DateTime.UtcNow.AddSeconds(30);
    do {
     int size;var code=api.Copy(handle,0,null,0,&size);if(code<0)throw new Exception("Copy failed "+code);
-    if(size>0){var bytes=new byte[size];fixed(byte* p=bytes)code=api.Copy(handle,0,p,size,&size);if(code==0){using var json=JsonDocument.Parse(bytes);var data=json.RootElement;
+    if(size>0){var bytes=new byte[size];fixed(byte* p=bytes)code=api.Copy(handle,0,p,size,&size);if(code==0){using var json=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(bytes,BridgeWire.Options));var data=json.RootElement;
       var dir=Environment.GetEnvironmentVariable("IFM_RUST_TEST_ARTIFACTS")??".artifacts/rust-ui/tests";Directory.CreateDirectory(dir);File.WriteAllBytes(Path.Combine(dir,"live-qualification.json"),bytes);
       if(data.TryGetProperty("error",out var error))throw new Exception(error.GetString());
       status=data.GetProperty("status").GetString()!;

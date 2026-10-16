@@ -32,7 +32,7 @@ public sealed class ParameterSetEditorTests
             .Should().BeEquivalentTo([("Daily", "1"), ("Weekly", "10"), ("Monthly", "30")]);
         editor.SetFields(fields.Select(field => field.Name == "Weekly" ? field with { Value = "11" } : field));
 
-        JsonSerializer.Deserialize<FuturesItiSignalParameterSet>(editor.Payload())!
+        editor.Payload().Get<FuturesItiSignalParameterSet>()
             .DefaultTradingDays.Weekly.Should().Be(11);
     }
     static ParameterSetVersion Version()
@@ -49,7 +49,7 @@ public sealed class ParameterSetEditorTests
     {
         var saved = Version(); var json = System.Text.Json.Nodes.JsonNode.Parse(saved.PayloadJson)!; json["FutureField"] = 123;
         saved = saved with { PayloadJson = json.ToJsonString() }; var editor = new ParameterSetEditorModel(); editor.Load(saved, 3);
-        editor.CanEdit.Should().BeFalse(); editor.Payload().Should().Be(saved.PayloadJson); editor.SetId.Should().Be(saved.Reference.SetId);
+        editor.CanEdit.Should().BeFalse(); editor.HistoricalDocument.Should().Be(saved.PayloadJson); editor.SetId.Should().Be(saved.Reference.SetId);
         Action edit = () => editor.BeginEdit(); edit.Should().Throw<InvalidOperationException>();
     }
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ParameterSetEditorTests
     {
         var saved = Version() with { SchemaVersion = 99, PayloadJson = "{\"SchemaVersion\":99,\"Future\":true}" };
         var editor = new ParameterSetEditorModel(); editor.Load(saved, 3);
-        editor.Parameters.Should().BeNull(); editor.CanEdit.Should().BeFalse(); editor.Payload().Should().Be(saved.PayloadJson);
+        editor.Parameters.Should().BeNull(); editor.CanEdit.Should().BeFalse(); editor.HistoricalDocument.Should().Be(saved.PayloadJson);
     }
     [Fact]
     public void Editing_a_working_copy_does_not_mutate_a_published_version()

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
@@ -35,7 +36,7 @@ public static class PublishParameterVersion
         if (parameterChange.RejectionReason is null && parameterChange.ParameterVersion is { } version
             && string.Equals(version.Reference.ComponentCode,ParameterSchemaRegistry.StrategyOptionChainCacheComponent,StringComparison.Ordinal))
         {
-            var policy = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet.Read(version.PayloadJson);
+            var policy = version.Values().Get<StrategyOptionChainParameterSet>();
             if (policy.Enabled)
             {
                 var definition = await context.ConfigurationDb.GetStrategyCatalogAsync(new(
@@ -70,7 +71,7 @@ public static class PublishParameterVersion
         }
         catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            parameterChange = new(null, state.CatalogRevision, hash, "", rejection.Message);
+            parameterChange = new(null, state.CatalogRevision, hash, null, rejection.Message);
             return false;
         }
     }
@@ -87,7 +88,7 @@ public static class PublishParameterVersion
             EntityId = command.EntityId,
             Revision = parameterChange.CatalogRevision,
             RequestHash = parameterChange.RequestHash,
-            VersionJson = JsonSerializer.Serialize(parameterChange.ParameterVersion),
-            AuditJson = parameterChange.ParameterAuditJson,
+            Version = parameterChange.ParameterVersion,
+            Audit = parameterChange.ParameterAudit,
         };
 }

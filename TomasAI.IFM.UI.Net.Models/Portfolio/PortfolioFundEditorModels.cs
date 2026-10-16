@@ -172,20 +172,33 @@ public static class PortfolioFundOrderEditorPolicy
 {
     public const int MaximumTradeCount = 2;
     /// <summary>Returns whether the trade has economic evidence that prevents deletion.</summary>
-    public static bool HasEconomicEvidence(PortfolioFundOrderTradeEditorModel trade) => trade.TradeState switch
+    public static bool HasEconomicEvidence(PortfolioFundOrderTradeEditorModel trade) 
+    {
+        ArgumentNullException.ThrowIfNull(trade);
+        return trade.TradeState switch
     { TradeState.NewTrade => false, TradeState.OrderCancelled => trade.HasFillEvidence is not false, _ => true };
+    }
     /// <summary>Returns whether a trade may be removed.</summary>
     public static bool CanRemoveTrade(PortfolioFundOrderEditorModel order, PortfolioFundOrderTradeEditorModel trade)
-        => order.Status == nameof(FundCompositionState.Draft) && order.Trades.Length < MaximumTradeCount && !HasEconomicEvidence(trade)
+        
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        return order.Status == nameof(FundCompositionState.Draft) && order.Trades.Length < MaximumTradeCount && !HasEconomicEvidence(trade)
            && order.Trades.All(candidate => candidate.TradeState is not (TradeState.TradeToClose or TradeState.OrderCompleted));
+    }
     /// <summary>Returns whether an economically inactive order may be deleted.</summary>
     public static bool CanDeleteOrder(PortfolioFundOrderEditorModel order)
-        => order.Status == nameof(FundCompositionState.Draft)
+        
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        return order.Status == nameof(FundCompositionState.Draft)
            && (order.Trades.Length == 0
                || order.Trades is [{ TradeState: TradeState.NewTrade }]);
+    }
     /// <summary>Returns whether another trade may be added.</summary>
     public static bool CanAddTrade(PortfolioFundOrderEditorModel order)
     {
+        ArgumentNullException.ThrowIfNull(order);
         if (order.Status != nameof(FundCompositionState.Draft) || order.Trades.Length >= MaximumTradeCount) return false;
         if (order.Trades.Length == 0) return true;
         var opening = order.Trades.SingleOrDefault(trade => trade.PrimaryTrade);

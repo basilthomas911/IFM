@@ -21,7 +21,7 @@ public sealed class OptionChainStatisticsLiveTests
         var previous = Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");
         Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE", "live");
         delegate* unmanaged[Cdecl]<uint, ApiV1*, uint, int> get = &BridgeBootstrap.GetApi;
-        ApiV2 api; Assert.Equal(0,get(2,(ApiV1*)&api,(uint)sizeof(ApiV2)));
+        ApiV4 api; Assert.Equal(0,get(4,(ApiV1*)&api,(uint)sizeof(ApiV4)));
         ulong handle; Assert.Equal(0,api.Base.Create(&handle));
         try
         {
@@ -72,7 +72,40 @@ public sealed class OptionChainStatisticsLiveTests
         finally { api.Base.Destroy(handle);Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",previous); }
     }
 
-    static unsafe ContractEditorPublication Read(ApiV2 api,ulong handle)
+    [Fact]
+    public unsafe void Live_market_selection_chain_survives_repeated_reads_with_background_cache_owners()
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
+        var previous = Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");
+        Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE", "live");
+        delegate* unmanaged[Cdecl]<uint, ApiV1*, uint, int> get = &BridgeBootstrap.GetApi;
+        ApiV4 api; Assert.Equal(0, get(4, (ApiV1*)&api, (uint)sizeof(ApiV4)));
+        ulong handle; Assert.Equal(0, api.Base.Create(&handle));
+        try
+        {
+            var current = Send(api, handle, "load", new());
+            current = Send(api, handle, "compose", new() { ["tradeId"] = current.Result.Context!["tradeId"] });
+            current = Send(api, handle, "chain", new()
+            {
+                ["live"] = "true", ["expiry"] = "2026-11-20",
+                ["putDelta"] = "16", ["callDelta"] = "16", ["putWidth"] = "50", ["callWidth"] = "50"
+            });
+            for (var read = 0; read < 8; read++)
+            {
+                var row = Assert.Single(current.Result.Rows, x => x.Fields.GetValueOrDefault("kind") == "market");
+                Assert.NotNull(row.Data);
+                using var chain = JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(row.Data, BridgeWire.Options));
+                Assert.NotEmpty(chain.RootElement.GetProperty("contracts").EnumerateArray());
+                Assert.Equal("True", current.Result.Context!["live"]);
+                Thread.Sleep(1000);
+                current = Send(api, handle, "refresh-chain", new());
+            }
+        }
+        finally { api.Base.Destroy(handle); Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE", previous); }
+    }
+
+    static unsafe ContractEditorPublication Read(ApiV4 api,ulong handle)
     {
         for (var retry=0;retry<10;retry++)
         {
@@ -82,18 +115,18 @@ public sealed class OptionChainStatisticsLiveTests
             fixed(byte* p=bytes)copied=api.Base.Copy(handle,8,p,length,&length);
             if(copied==1)continue;
             Assert.Equal(0,copied);
-            return JsonSerializer.Deserialize<ContractEditorPublication>(bytes.AsSpan(0,length),new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            return BridgeWire.Deserialize<ContractEditorPublication>(bytes.AsMemory(0,length))!;
         }
         throw new TimeoutException("Trade publication grew repeatedly while copying");
     }
-    static unsafe ContractEditorPublication Send(ApiV2 api,ulong handle,string action,Dictionary<string,string> fields)
+    static unsafe ContractEditorPublication Send(ApiV4 api,ulong handle,string action,Dictionary<string,string> fields)
     {
         var id=Guid.NewGuid();
         for(var retry=0;;retry++)
         {
             var current=Read(api,handle);
             var request=new ContractEditorIntent(1,id,"trade-orders",action,current.Generation,current.Result.Context?.GetValueOrDefault("orderId"),fields);
-            var bytes=JsonSerializer.SerializeToUtf8Bytes(request,new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var bytes=BridgeWire.Serialize(request);
             int status;fixed(byte* p=bytes)status=api.Submit(handle,p,bytes.Length);
             if(status==0)break;
             Assert.True(retry<5 && status is -4 or -5,"Read request rejected: "+status);Thread.Sleep(100);

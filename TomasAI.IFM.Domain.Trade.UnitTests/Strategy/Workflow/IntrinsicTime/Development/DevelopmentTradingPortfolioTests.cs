@@ -28,7 +28,7 @@ public sealed class DevelopmentTradingPortfolioTests
         first.Select(x => x.ParameterSetId).Should().Equal(second.Select(x => x.ParameterSetId));
         first.Select(x => x.TargetHorizon()).Should().Equal(
             TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly);
-        first.Should().OnlyContain(x => x.Version == 2);
+        first.Should().OnlyContain(x => x.Version == (x.TargetHorizon() == TimeFrameType.Daily ? 2 : 3));
         first.Single(x => x.TargetHorizon() == TimeFrameType.Daily).SchemaVersion.Should().Be(1);
         first.Where(x => x.TargetHorizon() != TimeFrameType.Daily).Should().OnlyContain(x => x.SchemaVersion == 3 && x.MinimumWingWidth == 50 && x.MaximumWingWidth == 50);
         foreach (var profile in DevelopmentTradingPortfolioDefaults.OptionCacheProfiles())
@@ -55,8 +55,11 @@ public sealed class DevelopmentTradingPortfolioTests
         deployments.Where(x => x.Horizon != TimeFrameType.Daily).Should().OnlyContain(x => !x.Code.Contains("Future"));
         foreach (var deployment in deployments)
         {
-            deployment.Key.Version.Should().Be(2);
-            deployment.PipelineParameters.Single(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition).Version.Should().Be(2);
+            deployment.Key.Version.Should().Be(DevelopmentTradingPortfolioDefaults.DeploymentVersion(deployment.Horizon));
+            deployment.PipelineParameters.Single(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition).Version.Should().Be(deployment.Horizon == TimeFrameType.Daily ? 2 : 3);
+            var composition = DevelopmentTradingPortfolioDefaults.ConstructionPolicies().Single(x => x.TargetHorizon() == deployment.Horizon);
+            var reference = deployment.PipelineParameters.Single(x => x.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogPipelineParameterKind.OrderComposition);
+            reference.Hash.Should().Be(composition.Hash());
         }
         foreach (var definition in definitions.Where(x => x.Key.Kind == TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.ParameterSet))
         {
@@ -105,6 +108,24 @@ public sealed class DevelopmentTradingPortfolioTests
         ((bool)method.Invoke(null, [expected, new[] { TimeFrameType.Weekly }])!).Should().BeTrue();
         ((bool)method.Invoke(null, [expected.Take(2), new[] { TimeFrameType.Weekly }])!).Should().BeFalse();
         ((bool)method.Invoke(null, [expected, new[] { TimeFrameType.Monthly }])!).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Migration_recognizes_exact_version_two_permissions_but_rejects_modified_or_mixed_sets()
+    {
+        var method = typeof(DevelopmentTradingPortfolioProvisioner).GetMethod("LegacyDeployments", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        var frames = new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly };
+        var previous = frames.SelectMany(h => (h == TimeFrameType.Daily ? new[] { "Future" } : new[] { "Vertical", "IronCondor" })
+            .Select(f => (TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey?)new TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey(
+                TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment,
+                TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogExamples.StableId($"Development{h}{f}"), 2))).ToArray();
+        ((bool)method.Invoke(null, [previous, frames])!).Should().BeTrue();
+        ((bool)method.Invoke(null, [previous.Skip(1), frames])!).Should().BeFalse();
+        var changed = previous.ToArray();
+        changed[1] = changed[1]! with { Version = 3 };
+        ((bool)method.Invoke(null, [changed, frames])!).Should().BeFalse();
+        changed[1] = changed[0];
+        ((bool)method.Invoke(null, [changed, frames])!).Should().BeFalse();
     }
 
     [Theory]

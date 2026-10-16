@@ -191,7 +191,7 @@ public sealed class EmulatorActorWorkflowIntegrationTests
                 StartOrderExecutionCommand c => c.Execute(Execution), SubmitOrderExecutionCommand c => c.Execute(Execution),
                 AddOrderExecutionFillCommand c => c.Execute(Execution), UpdateOrderExecutionFillCostCommand c => c.Execute(Execution),
                 AcceptOrderExecutionCommand c => c.Execute(Execution), CancelOrderExecutionCommand c => c.Execute(Execution),
-                RejectOrderExecutionCommand c => c.Execute(Execution), CreateBrokerOrderCommand c => c.Execute(Broker, _accounts),
+                RejectOrderExecutionCommand c => c.Execute(Execution), CreateBrokerOrderCommand c => c.Execute(Broker),
                 RecordBrokerDispatchCommand c => c.Execute(Broker), RecordBrokerOrderObservationCommand c => c.Execute(Broker),
                 RequestBrokerOrderLimitUpdateCommand c => c.Execute(Broker), RequestBrokerOrderCancelCommand c => c.Execute(Broker),
                 _ => throw new InvalidOperationException(command.GetType().Name)

@@ -12,9 +12,9 @@ fn fixture() -> (Catalog, ContractPublication) {
         generation: 7,
         status: "Ready".into(),
         busy: false,
-        result: ContractResult {
+        result: ContractResult { documents: Default::default(),
             view: "scheduled-tasks".into(),
-            rows: vec![ContractRow {
+            rows: vec![ContractRow { data: None,
                 id: "task-id".into(),
                 fields: BTreeMap::from([
                     ("name".into(), "Market close".into()),
@@ -86,9 +86,9 @@ fn recorded_status_colors_preserve_business_outcome() {
 fn cached_date_tree_expands_collapses_and_selects_the_exact_run() {
     let (c, mut s) = fixture();
     let run = serde_json::json!({"id":"run-id","intendedFireTimeUtc":"2026-10-13T21:01:00Z","status":"Succeeded","stage":"Complete","detail":"Finished","startedAtUtc":"2026-10-13T21:01:02Z"});
-    s.result.context.insert(
+    s.result.documents.insert(
         "histories".into(),
-        serde_json::json!({"task-id":[run]}).to_string(),
+        ifm_ui_rust::wire::encode_value(&serde_json::json!({"task-id":[run]})).unwrap().into(),
     );
     s.result
         .context

@@ -48,9 +48,14 @@ public sealed class ActorScheduledTaskRunCoordinator(SchedulerHostOptions option
         var terminalRecorded = false;
         try
         {
-            if (task.RequiredEnvironment != options.Environment || !task.IsExecutableAvailable(options)) throw new InvalidOperationException("Approved task executable is unavailable or belongs to another environment.");
-            var blockingDependency = await dependencies.FindBlockingDependencyAsync(task, admissionDeadline.Token);
-            if (blockingDependency is not null) throw new InvalidOperationException(blockingDependency);
+            if (ScheduledTaskExecutionPolicy.RequiresAdmission(task.TaskKey, options.Environment))
+            {
+                if (task.RequiredEnvironment != options.Environment || !task.IsExecutableAvailable(options)) throw new InvalidOperationException("Approved task executable is unavailable or belongs to another environment.");
+                var blockingDependency = await dependencies.FindBlockingDependencyAsync(task, admissionDeadline.Token);
+                if (blockingDependency is not null) throw new InvalidOperationException(blockingDependency);
+            }
+            else
+                logger.LogInformation("Development market lifecycle runtime admission checks are disabled for {RunId}.", runId.Format());
             await ownership.EnsureOwnedAsync(admissionDeadline.Token);
             var directory = Path.Combine(options.TaskRunRoot, task.TaskKey, runId.Format());
             Directory.CreateDirectory(directory);

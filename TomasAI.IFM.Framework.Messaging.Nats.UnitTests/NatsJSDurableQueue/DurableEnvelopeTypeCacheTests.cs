@@ -16,6 +16,7 @@ public sealed class DurableEnvelopeTypeCacheTests
         .CreateDelegate<Func<byte[], IEvent>>();
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void ConcurrentBinaryAndLegacyEnvelopes_PreserveEventPayloadAndIdentity()
     {
         var value = SampleData.Event("cached-type");
@@ -29,6 +30,7 @@ public sealed class DurableEnvelopeTypeCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void WarmTypeCache_DoesNotReuseAnEarlierEventsPayload()
     {
         foreach (var label in new[] { "first", "second" })
@@ -41,6 +43,7 @@ public sealed class DurableEnvelopeTypeCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void InvalidAndMissingTypes_RemainRejectedAfterSuccessfulResolution()
     {
         _ = Deserialize(Serialize(SampleData.Event(), "type-cache-test"));

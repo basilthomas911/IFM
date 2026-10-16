@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJsonCompatibilityTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Existing_wire_metadata_reads_identically_without_type_activation()
     {
         var serializer = new NatsJsonDataSerializer();
@@ -23,6 +24,7 @@ public sealed class NatsJsonCompatibilityTests
     [Theory]
     [InlineData("Unknown.Not.Installed, MissingAssembly")]
     [InlineData("System.IO.FileInfo, System.Private.CoreLib")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Existing_reader_ignores_type_metadata_and_matches_explicit_none(string typeName)
     {
         var json = JsonConvert.SerializeObject(new Dictionary<string, object> { ["$type"] = typeName, ["Name"] = "trade", ["Revision"] = 9 });
@@ -33,6 +35,8 @@ public sealed class NatsJsonCompatibilityTests
         original!.Name.Should().Be("trade");
         original.Revision.Should().Be(9);
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
 
     public sealed class Payload
     {

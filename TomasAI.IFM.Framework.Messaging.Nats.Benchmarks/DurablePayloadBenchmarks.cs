@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class DurablePayloadBenchmarks
 {
     SerializationBenchmarks.BenchmarkEnvelope _event = null!;
@@ -19,6 +20,7 @@ public class DurablePayloadBenchmarks
     public int PayloadSize { get; set; }
 
     [GlobalSetup]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void Setup()
     {
         var payload = GC.AllocateUninitializedArray<byte>(PayloadSize);
@@ -35,8 +37,7 @@ public class DurablePayloadBenchmarks
     [Benchmark(Description = "Durable polymorphic payload plus retained envelope")]
     public byte[] SerializeDurableEnvelope()
     {
-        var eventPayload = MessagePackSerializer.Serialize(
-            typeof(SerializationBenchmarks.BenchmarkEnvelope),
+        var eventPayload = MessagePackSerializer.Serialize<SerializationBenchmarks.BenchmarkEnvelope>(
             _event,
             MessagePackBinarySerializer.Options);
         var envelope = new DurableBenchmarkEnvelope(
@@ -47,6 +48,9 @@ public class DurablePayloadBenchmarks
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed record DurableBenchmarkEnvelope(
         [property: Key(0)] int Version,
         [property: Key(1)] string EventType,

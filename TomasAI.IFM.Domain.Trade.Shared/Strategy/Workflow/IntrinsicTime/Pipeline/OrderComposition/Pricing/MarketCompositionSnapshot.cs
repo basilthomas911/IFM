@@ -24,4 +24,5 @@ public sealed record MarketCompositionSnapshot(
     /// <summary>Accepted operational value date of the prepared strategy scope.</summary>
     [Key(12), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public DateOnly? StrategyOptionChainValueDate { get; init; }
+    [Key(13)] public TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet? StrategyOptionChainParameters {get;init;}
 }

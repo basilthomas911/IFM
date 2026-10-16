@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class WindowsKillOnCloseJob : IDisposable
 {
@@ -109,10 +110,12 @@ public sealed class WindowsKillOnCloseJob : IDisposable
 
     private static class NativeMethods
     {
-        [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", SetLastError = true, CharSet = CharSet.Unicode)]
         internal static extern SafeJobHandle CreateJobObject(IntPtr securityAttributes, string? name);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool SetInformationJobObject(
             SafeJobHandle job,
@@ -120,11 +123,13 @@ public sealed class WindowsKillOnCloseJob : IDisposable
             IntPtr information,
             uint informationLength);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool AssignProcessToJobObject(SafeJobHandle job, IntPtr process);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool CloseHandle(IntPtr handle);
     }

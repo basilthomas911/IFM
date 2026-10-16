@@ -56,7 +56,7 @@ public sealed record RenameParameterSetCommand : IParameterSetMutation
     [Key(9)] public string Name { get; init; } = string.Empty;
     [Key(10)] public string Description { get; init; } = string.Empty;
     [Key(11)] public int SchemaVersion { get; init; } = 2;
-    [Key(12)] public string PayloadJson { get; init; } = "{}";
+    [Key(12)] public string PayloadJson { get; init; } = string.Empty;
     [IgnoreMember] public string CommandName => nameof(RenameParameterSetCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

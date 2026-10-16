@@ -20,6 +20,8 @@ public sealed record ParameterSetRenamedEvent : IParameterSetFact
     [Key(9)] public string RequestHash { get; init; } = string.Empty;
     [Key(10)] public string VersionJson { get; init; } = string.Empty;
     [Key(11)] public string AuditJson { get; init; } = string.Empty;
+    [Key(12)] public ParameterSetVersion? Version { get; init; }
+    [Key(13)] public ParameterAuditEntry? Audit { get; init; }
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(ParameterSetRenamedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

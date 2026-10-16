@@ -151,6 +151,12 @@ public static partial class CoreServiceRegistration
     static void RegisterCommandApiServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"registering command api services...",nameof(CoreServiceRegistration),nameof(RegisterCommandApiServices));
+        services.AddSingleton<TomasAI.IFM.Domain.SystemAdmin.MarketClose.IMarketCloseOperations,
+            TomasAI.IFM.Application.Api.Server.Core.MarketData.Sessions.MarketCloseOperations>();
+        services.AddSingleton(provider => new TomasAI.IFM.Domain.SystemAdmin.MarketClose.MarketCloseCoordinator(
+            provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority>(),
+            provider.GetRequiredService<TomasAI.IFM.Domain.SystemAdmin.MarketClose.IMarketCloseOperations>(),
+            TimeProvider.System, provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.SystemAdmin.MarketClose.MarketCloseCoordinator>>()));
         services.AddSingleton<IApplicationCommandApi>(provider =>
         new TomasAI.IFM.Application.Api.Nats.Client.ApplicationCommandApi(
         provider.GetRequiredService<IActorProducer>()));

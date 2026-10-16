@@ -21,6 +21,8 @@ public sealed record ParameterStartupChangedEvent : IEvent<ParameterStartupEntit
     [Key(10)] public string RunJson { get; init; } = string.Empty;
     [Key(11)] public bool Released { get; init; }
     [Key(12)] public string ReportJson { get; init; } = string.Empty;
+    [Key(13)] public ParameterStartupRun? Run {get;init;}
+    [Key(14)] public ParameterSignalStartupReport? Report {get;init;}
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(ParameterStartupChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

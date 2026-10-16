@@ -37,15 +37,27 @@ public class NatsActorConsumer(
     readonly ActorAdmissionOptions _admissionOptions = admissionOptions ?? new ActorAdmissionOptions();
     int _disposeStarted;
 
-    /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
-    public async ValueTask DisposeAsync()
-    {
-        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
-        try { await StopAsync().ConfigureAwait(false); }
-        finally { _lifecycleGate.Dispose(); }
-        GC.SuppressFinalize(this);
-    }
+    readonly object _disposeGate = new();
+    Task? _disposeTask;
 
+    /// <summary>Joins transport shutdown; concurrent disposal and late supervisor stops remain idempotent.</summary>
+    public ValueTask DisposeAsync()
+    {
+        lock (_disposeGate)
+        {
+            if (_disposeTask is null)
+            {
+                Volatile.Write(ref _disposeStarted, 1);
+                _disposeTask = StopAsync().AsTask();
+            }
+            GC.SuppressFinalize(this);
+            return new ValueTask(_disposeTask);
+        }
+    }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2213",Justification="Lifecycle waiters may still observe this managed semaphore after disposal begins; it has no allocated WaitHandle and is reclaimed with the consumer.")]
+
+    // StopAsync can still be called by the supervisor after container disposal begins.
+    // Keep this managed gate usable until the consumer is collected; no wait handle is created.
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     IActorSupervisor _supervisor = default!;
     ActorType _actorType;
@@ -79,6 +91,7 @@ public class NatsActorConsumer(
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeStarted) != 0, this);
             _actorType = BindActorType(_actorType, actorType);
             await StartCoreAsync(supervisor, actorType, consumerName, cancellationToken).ConfigureAwait(false);
         }

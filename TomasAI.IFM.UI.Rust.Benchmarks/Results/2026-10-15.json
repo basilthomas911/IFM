@@ -1,0 +1,333 @@
+{
+  "scope": "Managed bridge microbenchmarks and deterministic mixed workload; not a live quote-to-render latency measurement.",
+  "executedLocalDate": "2026-10-15",
+  "runtime": ".NET 10.0.10 x64",
+  "cpu": "AMD Ryzen Threadripper 1950X; 32 logical cores",
+  "benchmarkConfiguration": {
+    "rows": [
+      100,
+      1000
+    ],
+    "gcModes": [
+      "Workstation",
+      "Server"
+    ],
+    "warmupIterations": 2,
+    "measurementIterations": 5,
+    "iterationMilliseconds": 150,
+    "launches": 1
+  },
+  "benchmarkCases": [
+    {
+      "method": "ReadPublication",
+      "gc": "Server",
+      "rows": 100,
+      "beforeMeanNs": 20380.0,
+      "afterMeanNs": 27.62,
+      "beforeAllocatedBytes": 13793.28,
+      "afterAllocatedBytes": 0.0,
+      "speedup": 737.8711078928312,
+      "allocationReductionPercent": 100.0
+    },
+    {
+      "method": "EncodeMarketDocument",
+      "gc": "Server",
+      "rows": 100,
+      "beforeMeanNs": 96980.0,
+      "afterMeanNs": 72865.98,
+      "beforeAllocatedBytes": 164884.48,
+      "afterAllocatedBytes": 39608.0,
+      "speedup": 1.3309366044346074,
+      "allocationReductionPercent": 75.97833343684015
+    },
+    {
+      "method": "RefreshPublication",
+      "gc": "Server",
+      "rows": 100,
+      "beforeMeanNs": 34640.0,
+      "afterMeanNs": 26847.56,
+      "beforeAllocatedBytes": 14540.8,
+      "afterAllocatedBytes": 14488.0,
+      "speedup": 1.2902476053689795,
+      "allocationReductionPercent": 0.36311619718308874
+    },
+    {
+      "method": "ReadPublication",
+      "gc": "Workstation",
+      "rows": 100,
+      "beforeMeanNs": 19850.0,
+      "afterMeanNs": 26.93,
+      "beforeAllocatedBytes": 13793.28,
+      "afterAllocatedBytes": 0.0,
+      "speedup": 737.0961752692165,
+      "allocationReductionPercent": 100.0
+    },
+    {
+      "method": "EncodeMarketDocument",
+      "gc": "Workstation",
+      "rows": 100,
+      "beforeMeanNs": 167670.0,
+      "afterMeanNs": 71513.72,
+      "beforeAllocatedBytes": 164884.48,
+      "afterAllocatedBytes": 39608.0,
+      "speedup": 2.344585067033291,
+      "allocationReductionPercent": 75.97833343684015
+    },
+    {
+      "method": "RefreshPublication",
+      "gc": "Workstation",
+      "rows": 100,
+      "beforeMeanNs": 34130.0,
+      "afterMeanNs": 27958.74,
+      "beforeAllocatedBytes": 14540.8,
+      "afterAllocatedBytes": 14485.0,
+      "speedup": 1.2207274004479458,
+      "allocationReductionPercent": 0.38374779929577496
+    },
+    {
+      "method": "ReadPublication",
+      "gc": "Server",
+      "rows": 1000,
+      "beforeMeanNs": 275280.0,
+      "afterMeanNs": 26.2,
+      "beforeAllocatedBytes": 134400.0,
+      "afterAllocatedBytes": 0.0,
+      "speedup": 10506.870229007634,
+      "allocationReductionPercent": 100.0
+    },
+    {
+      "method": "EncodeMarketDocument",
+      "gc": "Server",
+      "rows": 1000,
+      "beforeMeanNs": 956510.0,
+      "afterMeanNs": 834911.97,
+      "beforeAllocatedBytes": 1577820.16,
+      "afterAllocatedBytes": 395104.0,
+      "speedup": 1.1456417375355152,
+      "allocationReductionPercent": 74.95886983723163
+    },
+    {
+      "method": "RefreshPublication",
+      "gc": "Server",
+      "rows": 1000,
+      "beforeMeanNs": 272530.0,
+      "afterMeanNs": 177295.88,
+      "beforeAllocatedBytes": 135178.24,
+      "afterAllocatedBytes": 135091.0,
+      "speedup": 1.5371479585425223,
+      "allocationReductionPercent": 0.06453701424133929
+    },
+    {
+      "method": "ReadPublication",
+      "gc": "Workstation",
+      "rows": 1000,
+      "beforeMeanNs": 276250.0,
+      "afterMeanNs": 29.3,
+      "beforeAllocatedBytes": 134440.96,
+      "afterAllocatedBytes": 0.0,
+      "speedup": 9428.327645051195,
+      "allocationReductionPercent": 100.0
+    },
+    {
+      "method": "EncodeMarketDocument",
+      "gc": "Workstation",
+      "rows": 1000,
+      "beforeMeanNs": 1229340.0,
+      "afterMeanNs": 732498.59,
+      "beforeAllocatedBytes": 1577850.88,
+      "afterAllocatedBytes": 395104.0,
+      "speedup": 1.6782830940329865,
+      "allocationReductionPercent": 74.95935737602782
+    },
+    {
+      "method": "RefreshPublication",
+      "gc": "Workstation",
+      "rows": 1000,
+      "beforeMeanNs": 488510.0,
+      "afterMeanNs": 211231.78,
+      "beforeAllocatedBytes": 135290.88,
+      "afterAllocatedBytes": 135236.0,
+      "speedup": 2.3126728373921766,
+      "allocationReductionPercent": 0.040564448985769275
+    }
+  ],
+  "mixedWorkloadProbes": {
+    "before": {
+      "0": {
+        "serverGc": false,
+        "rows": 1000,
+        "iterations": 1000,
+        "readsPerIteration": 25,
+        "elapsedSeconds": 7.2580859,
+        "allocatedBytes": 4260877320,
+        "collections": [
+          931,
+          931,
+          931
+        ],
+        "gcPauseMs": 1046.045,
+        "lockContentions": 0,
+        "maxPendingThreadPoolItems": 0,
+        "managedHeapBytes": 2151928,
+        "privateBytes": 21680128,
+        "workingSetBytes": 49655808,
+        "peakWorkingSetBytes": 58318848,
+        "processThreads": 10,
+        "averageRefreshUs": 254.36420000000012,
+        "averageEncodeUs": 852.3426000000004,
+        "readP50Us": 186.5,
+        "readP95Us": 271,
+        "readP99Us": 1357.6
+      },
+      "1": {
+        "serverGc": true,
+        "rows": 1000,
+        "iterations": 1000,
+        "readsPerIteration": 25,
+        "elapsedSeconds": 8.2816257,
+        "allocatedBytes": 4260802816,
+        "collections": [
+          195,
+          163,
+          161
+        ],
+        "gcPauseMs": 283.63,
+        "lockContentions": 0,
+        "maxPendingThreadPoolItems": 0,
+        "managedHeapBytes": 36862912,
+        "privateBytes": 170835968,
+        "workingSetBytes": 161873920,
+        "peakWorkingSetBytes": 204644352,
+        "processThreads": 74,
+        "averageRefreshUs": 328.87349999999964,
+        "averageEncodeUs": 980.3810000000011,
+        "readP50Us": 219.8,
+        "readP95Us": 273.1,
+        "readP99Us": 1104
+      }
+    },
+    "after": {
+      "0": {
+        "serverGc": false,
+        "rows": 1000,
+        "iterations": 1000,
+        "readsPerIteration": 25,
+        "elapsedSeconds": 1.48193,
+        "allocatedBytes": 438067536,
+        "collections": [
+          99,
+          33,
+          33
+        ],
+        "gcPauseMs": 48.48,
+        "lockContentions": 0,
+        "maxPendingThreadPoolItems": 0,
+        "managedHeapBytes": 6130832,
+        "privateBytes": 35057664,
+        "workingSetBytes": 62484480,
+        "peakWorkingSetBytes": 62488576,
+        "processThreads": 11,
+        "averageRefreshUs": 281.68770000000046,
+        "averageEncodeUs": 1197.5793999999999,
+        "readP50Us": 0.1,
+        "readP95Us": 1.7,
+        "readP99Us": 2.4
+      },
+      "1": {
+        "serverGc": true,
+        "rows": 1000,
+        "iterations": 1000,
+        "readsPerIteration": 25,
+        "elapsedSeconds": 1.4697022,
+        "allocatedBytes": 438079680,
+        "collections": [
+          133,
+          33,
+          33
+        ],
+        "gcPauseMs": 66.128,
+        "lockContentions": 0,
+        "maxPendingThreadPoolItems": 0,
+        "managedHeapBytes": 3474256,
+        "privateBytes": 45281280,
+        "workingSetBytes": 60891136,
+        "peakWorkingSetBytes": 60895232,
+        "processThreads": 43,
+        "averageRefreshUs": 295.61599999999976,
+        "averageEncodeUs": 1171.6781000000003,
+        "readP50Us": 0.1,
+        "readP95Us": 1.4,
+        "readP99Us": 2.4
+      }
+    }
+  },
+  "implementation": [
+    {
+      "area": "Publication reuse",
+      "change": "Generation-cached managed snapshots and MessagePack buffers; confirmation/submission overlays invalidate separately."
+    },
+    {
+      "area": "Publication sections",
+      "change": "Quote refreshes reuse fund/order workspace, expiry choices and execution evidence; ABI v4 remains unchanged."
+    },
+    {
+      "area": "Typed serialization",
+      "change": "Generated market-chain and selected-leg display DTOs; direct high-volume envelope formatter; editor fallback remains."
+    },
+    {
+      "area": "Display coalescing",
+      "change": "Sidebar display invalidations coalesce at 40 ms; source console events and trading acknowledgements are retained."
+    },
+    {
+      "area": "Temporary collections",
+      "change": "Stream document encoding without Project trees; cache stable expiries, evidence and submission contexts."
+    },
+    {
+      "area": "Session execution",
+      "change": "Bounded single-consumer asynchronous owners replace per-operation Task.Run in all three editor gateways."
+    },
+    {
+      "area": "Lock scope",
+      "change": "Gateway snapshot locks rebuild only on generation changes; sidebar projection/encoding runs outside its state lock."
+    },
+    {
+      "area": "Buffers",
+      "change": "Dedicated bounded ArrayPool for transient encoding; exact owned output arrays never returned to the pool."
+    },
+    {
+      "area": "Retention and shutdown",
+      "change": "Bound read-only inspection/lookup outcome histories; retain mutation deduplication; drain owners before model disposal."
+    },
+    {
+      "area": "GC selection",
+      "change": "Explicit workstation/background GC. Both modes benchmarked; no application GC.Collect calls."
+    }
+  ],
+  "tests": {
+    "managedIsolatedPassed": 27,
+    "liveDevelopmentApiPassed": 2,
+    "rustPassed": 85,
+    "embeddedDotnetPassed": 1,
+    "liveActions": "Read-only load and frozen blotter composition. No order submitted.",
+    "baselineFailures": "Initial run: 7 passed; 2 live failures because API was stopped and artifact path unset. Stale runs/data JSON assertions were updated to existing MessagePack document fields."
+  },
+  "tradeoffs": [
+    "Workstation mixed-workload private memory increased from about 20.7 MiB to 33.4 MiB; retained snapshots and formatter caches exchange bounded memory for fewer allocations.",
+    "Optimized server GC used more process threads and private bytes than workstation; elapsed totals were similar.",
+    "Neither mixed-workload probe had lock contention; a contention improvement is not established.",
+    "Short benchmark timings have run-to-run noise; allocation counts are the stronger comparison.",
+    "Existing editor/model reflection fallback remains; this is not complete NativeAOT qualification."
+  ],
+  "artifacts": {
+    "before": ".artifacts/rust-ui/performance/before",
+    "after": ".artifacts/rust-ui/performance/after-final",
+    "logs": ".artifacts/rust-ui/tests/performance-*.log"
+  },
+  "baselineAssemblySha256": "42baf637174fbbaf6ebd405386c0d46c9ab057b8ce3f1002f2bf4186a17e4ed9",
+  "afterAssemblySha256": "847a7d0554826c36d3e2892e87ee52404bcc5a8278feea7954668e5bfa463f99",
+  "deployment": {
+    "managedReleaseSha256": "847a7d0554826c36d3e2892e87ee52404bcc5a8278feea7954668e5bfa463f99",
+    "path": ".artifacts\\rust-ui\\app\\managed",
+    "matchesTestedRelease": true
+  }
+}

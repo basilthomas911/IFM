@@ -5,6 +5,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.BDDTests;
 public sealed class ApplicationStartupScenarios
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Given_a_healthy_boot_when_startup_is_planned_then_the_feed_starts_after_analytics()
     {
         Assert.Equal(
@@ -31,6 +32,7 @@ public sealed class ApplicationStartupScenarios
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Given_an_optional_failure_when_required_work_succeeds_then_startup_is_degraded()
     {
         var results = SuccessfulResults();
@@ -43,6 +45,7 @@ public sealed class ApplicationStartupScenarios
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Given_a_required_failure_and_skipped_dependents_then_startup_is_failed()
     {
         var results = SuccessfulResults();
@@ -59,6 +62,7 @@ public sealed class ApplicationStartupScenarios
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Given_a_scheduled_close_when_all_work_is_satisfied_then_state_is_scheduled_stopped()
     {
         var results = SuccessfulResults();

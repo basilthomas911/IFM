@@ -172,6 +172,7 @@ public sealed class RustOptionModelTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void RustScalarPriceAndGreeksMatchManagedAcrossRandomizedDomain()
     {
         const int caseCount = 100_000;
@@ -201,6 +202,7 @@ public sealed class RustOptionModelTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void RustImpliedVolatilityMatchesManagedAcrossRandomizedSolvableDomain()
     {
         const int caseCount = 5_000;
@@ -237,6 +239,7 @@ public sealed class RustOptionModelTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void RustBatchOperationsMatchManagedAcrossRandomizedDomain()
     {
         const int caseCount = 4_096;
@@ -286,6 +289,7 @@ public sealed class RustOptionModelTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void RustGreeksAgreeWithIndependentFiniteDifferences()
     {
         const int caseCount = 250;
@@ -413,6 +417,7 @@ public sealed class RustOptionModelTests
         var scale = Math.Max(Math.Abs(expected), 1.0);
         Math.Abs(actual - expected).Should().BeLessThanOrEqualTo(tolerance * scale);
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
 
     private static double Next(Random random, double minimum, double maximum) =>
         minimum + ((maximum - minimum) * random.NextDouble());

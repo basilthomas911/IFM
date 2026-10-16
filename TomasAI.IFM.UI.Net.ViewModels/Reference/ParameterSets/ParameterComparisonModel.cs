@@ -4,6 +4,15 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Reference.ParameterSets;
 public sealed record ParameterDifference(string Path, string Before, string After);
 public static class ParameterComparisonModel
 {
+    public static ParameterDifference[] Compare(TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue before,TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue after)
+    {
+        var a=ParameterFieldEditorModel.Read(before,true).ToDictionary(x=>x.Path,x=>x.Value,StringComparer.Ordinal);
+        var b=ParameterFieldEditorModel.Read(after,true).ToDictionary(x=>x.Path,x=>x.Value,StringComparer.Ordinal);
+        return a.Keys.Concat(b.Keys).Distinct(StringComparer.Ordinal).OrderBy(x=>x,StringComparer.Ordinal)
+            .Where(key=>a.GetValueOrDefault(key,"(absent)")!=b.GetValueOrDefault(key,"(absent)"))
+            .Select(key=>new ParameterDifference(key,a.GetValueOrDefault(key,"(absent)"),b.GetValueOrDefault(key,"(absent)"))).ToArray();
+    }
+
     public static ParameterDifference[] Compare(string before, string after)
     {
         using var left = JsonDocument.Parse(before); using var right = JsonDocument.Parse(after); var result = new List<ParameterDifference>();

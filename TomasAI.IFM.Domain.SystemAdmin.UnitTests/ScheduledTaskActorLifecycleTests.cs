@@ -13,9 +13,34 @@ public sealed class ScheduledTaskActorLifecycleTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 7, 21, 1, 0, TimeSpan.Zero);
     private static readonly ScheduledTaskId Id = new(Guid.NewGuid());
-    private static readonly ScheduledTaskSchedule Schedule = new() { TaskKey = ScheduledTaskKeys.FuturesMarketClose, Name = "Market close", Expression = "0 1 17 ? * MON-FRI", MaximumRuntimeSeconds = 120 };
+    private static readonly ScheduledTaskSchedule Schedule = new() { TaskKey = "qualification-task", Name = "Market close", Expression = "0 1 17 ? * MON-FRI", MaximumRuntimeSeconds = 120 };
     private static ScheduledTaskCatalog Catalog => new() { Id = new(Guid.NewGuid()), HostId = "development", Environment = "Development", Projects = [new() { TaskKey = Schedule.TaskKey, ProjectName = "FuturesMarketClose", ManifestVersion = "1", ArtifactDigest = "sha256:abc", Platform = "Windows", Available = true, MaximumRuntimeSeconds = 300 }], HostCapability = new() { HostId = "development", Environment = "Development", Platform = "Windows", Ready = true, ObservedAtUtc = Now, Generation = 1 } };
     private static ScheduledTaskDefinition Installed => new() { Id = Id, Revision = 3, DesiredRevision = 2, AppliedRevision = 2, Schedule = Schedule, Enabled = true, AppliedEnabled = true, InstallationStatus = ScheduledTaskInstallationStatus.Applied, ManifestVersion = "1", ReviewedArtifactDigest = "sha256:abc" };
+    [Theory]
+    [InlineData(ScheduledTaskKeys.FuturesMarketOpen)]
+    [InlineData(ScheduledTaskKeys.FuturesMarketClose)]
+    public void Development_market_lifecycle_runs_without_catalog_installation_timing_or_overlap_admission(string taskKey)
+    {
+        var definition = Installed with
+        {
+            Schedule = Schedule with { TaskKey = taskKey, Environment = "Development" },
+            AppliedRevision = 0, AppliedEnabled = false, InstallationStatus = ScheduledTaskInstallationStatus.Pending,
+            ActiveRunId = Guid.NewGuid(), LastAdmittedFireUtc = Now.AddDays(1)
+        };
+        var command = Admission() with { IntendedFireTimeUtc = Now.AddMinutes(-30), DefinitionRevision = 0 };
+        var result = ScheduledTaskComputation.Compute(command, definition, Now, null);
+        Assert.True(result.Accepted, result.RejectionReason);
+        Assert.Equal(command.RunId, result.ScheduledTaskDefinition!.ActiveRunId);
+    }
+
+    [Theory]
+    [InlineData(ScheduledTaskKeys.FuturesMarketOpen, "Development", false)]
+    [InlineData(ScheduledTaskKeys.FuturesMarketOpen, "Production", true)]
+    [InlineData(ScheduledTaskKeys.FuturesMarketClose, "Development", false)]
+    [InlineData(ScheduledTaskKeys.FuturesMarketClose, "Production", true)]
+    public void Admission_policy_is_explicit(string task, string environment, bool required)
+        => Assert.Equal(required, ScheduledTaskExecutionPolicy.RequiresAdmission(task, environment));
+
     [Fact]
     public void Same_manifest_with_changed_code_digest_requires_review_before_admission()
     {
@@ -97,6 +122,19 @@ public sealed class ScheduledTaskActorLifecycleTests
         var failed = ScheduledTaskRunComputation.Compute(new FailScheduledTaskRunCommand { CommandId = Guid.NewGuid(), EntityId = id, Stage = "Maintenance", Detail = "Backup unavailable", FinishedAtUtc = Now }, completed, Now).ScheduledTaskRun!;
         Assert.Equal(finalized.ValueDate, failed.CompletedEndOfDayValueDate);
     }
+    [Fact]
+    public void Intraday_close_completion_is_accepted_after_feed_stop()
+    {
+        var intraday = Now.AddHours(-8);
+        var id = new ScheduledTaskId(Guid.NewGuid());
+        var stopped = new ScheduledTaskRun { Id = id, Revision = 3, TaskKey = ScheduledTaskKeys.FuturesMarketClose,
+            Status = ScheduledTaskRunStatus.Running, Stage = "FeedsStopped", ValueDate = new(2026,10,7), IntendedFireTimeUtc = intraday, StartedAtUtc = intraday };
+        var result = ScheduledTaskRunComputation.Compute(new RecordScheduledTaskRunStageCommand
+        { CommandId = Guid.NewGuid(), EntityId = id, ValueDate = new(2026,10,7), Stage = "PositionsFinalized" }, stopped, intraday);
+        Assert.True(result.Accepted, result.RejectionReason);
+        Assert.Equal(new DateOnly(2026,10,7), result.ScheduledTaskRun!.CompletedEndOfDayValueDate);
+    }
+
     [Fact]
     public async Task Only_persisted_EOD_completion_notification_advances_operational_date()
     {

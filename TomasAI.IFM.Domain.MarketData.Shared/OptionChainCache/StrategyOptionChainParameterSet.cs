@@ -60,7 +60,7 @@ public sealed record StrategyOptionChainParameterSet
     /// <summary>Serializes the complete validated global policy.</summary>
     public string Serialize() { Validate(); return JsonSerializer.Serialize(this); }
     /// <summary>Fingerprints exact policy inputs with SHA256.</summary>
-    public string Hash() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Serialize())));
+    public string Hash() { Validate(); return Convert.ToHexStringLower(SHA256.HashData(MessagePackSerializer.Serialize(this,MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None)))); }
     /// <summary>Reads and validates persisted policy JSON; unknown fields are rejected.</summary>
     public static StrategyOptionChainParameterSet Read(string json)
     {

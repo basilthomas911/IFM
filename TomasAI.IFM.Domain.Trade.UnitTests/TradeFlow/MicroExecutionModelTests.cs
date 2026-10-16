@@ -29,15 +29,15 @@ public sealed class MicroExecutionModelTests
     }
 
     [Fact]
-    public void Unknown_outcome_reconciles_and_closed_gate_cancels_only_a_known_opening_order()
+    public void Unknown_outcome_reconciles_without_reapplying_upstream_risk_admission()
     {
         var policy = Policy();
         policy.Decide(Input() with { OutcomeUnknown = true }).Action
             .Should().Be(MicroExecutionAction.Reconcile);
         policy.Decide(Input() with { GateAllowsNewRisk = false }).Action
-            .Should().Be(MicroExecutionAction.Cancel);
+            .Should().Be(MicroExecutionAction.UpdateLimit);
         policy.Decide(Input() with { GateAllowsNewRisk = false, BrokerAcknowledged = false }).Action
-            .Should().Be(MicroExecutionAction.Wait);
+            .Should().Be(MicroExecutionAction.Place);
     }
 
     [Fact]

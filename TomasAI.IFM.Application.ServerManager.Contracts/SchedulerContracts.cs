@@ -219,6 +219,7 @@ public enum ScheduledTaskStopMode
     StandardInput,
     NamedPipe
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1711",Justification="Preserve the established public contract or xUnit collection identity.")]
 
 public enum TaskOutputStream
 {

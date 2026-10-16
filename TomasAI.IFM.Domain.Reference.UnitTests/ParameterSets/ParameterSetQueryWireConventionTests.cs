@@ -10,10 +10,10 @@ public sealed class ParameterSetQueryWireConventionTests
 {
     public static TheoryData<Type> QueryTypes => new()
     {
+        typeof(PreviewTypedParameterDraftQuery),
+        typeof(ValidateTypedParameterCandidateQuery),
         typeof(ListParameterComponentsQuery),
         typeof(ListParameterVersionsQuery),
-        typeof(ValidateParameterCandidateQuery),
-        typeof(CreateParameterDraftPreviewQuery),
         typeof(GetParameterSetStateQuery),
         typeof(GetParameterAssignmentQuery),
         typeof(GetParameterSchemaQuery),
@@ -42,6 +42,21 @@ public sealed class ParameterSetQueryWireConventionTests
             .Should().Equal(properties.Select(item => item.Property.PropertyType));
         var roundTrip = typeof(ParameterSetQueryWireConventionTests).GetMethod(nameof(RoundTrip), BindingFlags.NonPublic | BindingFlags.Static)!;
         roundTrip.MakeGenericMethod(queryType).Invoke(null, null);
+    }
+
+    [Fact]
+    public void Explicit_assignment_scope_round_trips_and_original_four_field_queries_still_read()
+    {
+        var scope = TomasAI.IFM.Domain.Reference.ParameterSets.Model.OptionSpreadStrategyParameterScopeModel.IronCondor();
+        var query = new GetParameterAssignmentQuery { Scope = scope };
+        MessagePackSerializer.Deserialize<GetParameterAssignmentQuery>(MessagePackSerializer.Serialize(query)).Scope.Should().Be(scope);
+        var bytes = MessagePackSerializer.Serialize(new GetParameterAssignmentQuery());
+        bytes[0].Should().Be(0x95); // Five-field array; the appended optional scope is nil.
+        bytes[^1].Should().Be(0xc0);
+        bytes[0] = 0x94;
+        var old = MessagePackSerializer.Deserialize<GetParameterAssignmentQuery>(bytes.AsMemory(0, bytes.Length - 1));
+        old.Scope.Should().BeNull();
+        old.WorkflowDefinitionId.Should().BeEmpty();
     }
 
     static void RoundTrip<T>() where T : new()

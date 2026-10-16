@@ -10,6 +10,7 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public sealed class NatsConsumerOptionsTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void CoreDefaults_PreserveExistingBoundedCapacities()
     {
         var options = new NatsConsumerOptions();
@@ -25,6 +26,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void JetStreamDefaults_PreserveExistingOutstandingCapacities()
     {
         var options = new NatsJetStreamConsumerOptions();
@@ -39,6 +41,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void JetStreamThreshold_CannotExceedMaxMessages()
     {
         var options = new NatsJetStreamConsumerOptions
@@ -55,6 +58,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enforce_BlocksRequiredNonDurableCoreTraffic()
     {
         var admission = CreateEnforcedAdmissionOptions();
@@ -75,6 +79,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enforce_AcceptsExplicitRecoverableCoreTraffic()
     {
         var admission = CreateEnforcedAdmissionOptions();
@@ -95,6 +100,7 @@ public sealed class NatsConsumerOptionsTests
     [InlineData(ActorType.Command)]
     [InlineData(ActorType.Query)]
     [InlineData(ActorType.Function)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enforce_RequiresRequestReplyOnlyForRequestReplyActors(ActorType actorType)
     {
         var admission = CreateEnforcedAdmissionOptions();
@@ -116,6 +122,7 @@ public sealed class NatsConsumerOptionsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enforce_RequiresOwnedJetStreamFanoutPayloads()
     {
         var options = new NatsJetStreamConsumerOptions
@@ -132,6 +139,8 @@ public sealed class NatsConsumerOptionsTests
     [Theory]
     [InlineData(ActorType.Unknown, CoreNatsTrafficClass.Unknown)]
     [InlineData(ActorType.Command, CoreNatsTrafficClass.Optional)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task EnforcedConsumer_BlocksIncompatibleManuallyStartedTrafficType(
         ActorType actorType,
         CoreNatsTrafficClass trafficClass)

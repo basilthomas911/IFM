@@ -26,6 +26,8 @@ public sealed class NatsTransportOverloadIntegrationTests
     [InlineData(ActorType.Command, false)]
     [InlineData(ActorType.Query, true)]
     [InlineData(ActorType.Query, false)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task CoreRequest_OverloadReturnsTypedRetryableFailure(
         ActorType actorType,
         bool useOwnedPayload)
@@ -63,7 +65,8 @@ public sealed class NatsTransportOverloadIntegrationTests
         {
             await consumer.StartAsync(supervisor, actorType, $"overload-{Guid.NewGuid():N}");
             await Task.Delay(250);
-            await using var client = new NatsClient(_url);
+var client = new NatsClient(_url);
+await using var clientDisposal = client.ConfigureAwait(true);
             await client.ConnectAsync();
             using var timeout = new CancellationTokenSource(TestTimeout);
 
@@ -89,6 +92,9 @@ public sealed class NatsTransportOverloadIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2012",Justification="This ValueTask invocation configures or verifies an NSubstitute call, rather than executing asynchronous work.")]
     public async Task JetStreamOverload_DelaysNakAndRedeliversAfterAdmissionRecovers()
     {
         var resourceId = Guid.NewGuid().ToString("N");
@@ -146,7 +152,8 @@ public sealed class NatsTransportOverloadIntegrationTests
             options,
             Substitute.For<ILogger>(),
             admissionOptions: admission);
-        await using var client = new NatsClient(_url);
+var client = new NatsClient(_url);
+await using var clientDisposal = client.ConfigureAwait(true);
         await client.ConnectAsync();
         var jetStream = client.CreateJetStreamContext();
 
@@ -209,7 +216,7 @@ public sealed class NatsTransportOverloadIntegrationTests
     {
         try
         {
-            await jetStream.DeleteStreamAsync(streamName);
+            await (jetStream.DeleteStreamAsync(streamName)).ConfigureAwait(true);
         }
         catch (NatsJSApiException)
         {
@@ -226,7 +233,7 @@ public sealed class NatsTransportOverloadIntegrationTests
 
         try
         {
-            await jetStream.DeleteConsumerAsync(streamName, consumerName);
+            await (jetStream.DeleteConsumerAsync(streamName, consumerName)).ConfigureAwait(true);
         }
         catch (NatsJSApiException)
         {

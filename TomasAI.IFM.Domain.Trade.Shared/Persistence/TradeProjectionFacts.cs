@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Trade.Shared.Persistence", Justification = "Preserve the published domain namespace.")]
 namespace TomasAI.IFM.Domain.Trade.Shared.Persistence;
 
 /// <summary>Interprets already accepted trade workflow facts without database access or rerunning a pipeline.</summary>
@@ -20,7 +21,7 @@ public static class TradeProjectionFacts
         var result = MarketConditionAssessmentContracts.ReadResult(completed.Result);
         if (!string.Equals(completed.Snapshot.ComputeHash(), result.SnapshotSha256, StringComparison.Ordinal)
             || !string.Equals(completed.Snapshot.PayloadSha256, result.SnapshotSha256, StringComparison.Ordinal))
-            throw new ArgumentException("Assessment projection snapshot hash mismatch.", nameof(result));
+            throw new ArgumentException("Assessment projection snapshot hash mismatch.", nameof(completed));
         return result;
     }
 
@@ -82,16 +83,23 @@ public static class TradeProjectionFacts
     }
 
     /// <summary>Maps the accepted state-machine status to its workflow read-model status.</summary>
-    public static StrategyWorkflowStatus Status(IntrinsicTimeStrategyWorkflowView state) => state.Status switch
+    public static StrategyWorkflowStatus Status(IntrinsicTimeStrategyWorkflowView state) 
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state.Status switch
     {
         WorkflowStrategyMachineStatus.Empty => StrategyWorkflowStatus.None,
         WorkflowStrategyMachineStatus.Started => StrategyWorkflowStatus.Running,
         WorkflowStrategyMachineStatus.Completed => StrategyWorkflowStatus.Completed,
         _ => StrategyWorkflowStatus.Stopped
     };
+    }
 
     /// <summary>Preserves an explicit outcome and otherwise derives it from the terminal accepted status.</summary>
-    public static StrategyWorkflowOutcome Outcome(IntrinsicTimeStrategyWorkflowView state) => state.Outcome != StrategyWorkflowOutcome.None ? state.Outcome : state.Status switch
+    public static StrategyWorkflowOutcome Outcome(IntrinsicTimeStrategyWorkflowView state) 
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return state.Outcome != StrategyWorkflowOutcome.None ? state.Outcome : state.Status switch
     {
         WorkflowStrategyMachineStatus.Completed => StrategyWorkflowOutcome.Completed,
         WorkflowStrategyMachineStatus.Failed => StrategyWorkflowOutcome.PipelineFailed,
@@ -99,4 +107,5 @@ public static class TradeProjectionFacts
         WorkflowStrategyMachineStatus.Cancelled => StrategyWorkflowOutcome.Cancelled,
         _ => StrategyWorkflowOutcome.None
     };
+    }
 }

@@ -16,23 +16,23 @@ public record LogEvent : IActorEntityId
 {
     /// <summary>UTC/local timestamp when the log event occurred.</summary>
     [Key(0)]
-    [JsonProperty("Timestamp")]
+    [JsonProperty(nameof(Timestamp))]
     public DateTime Timestamp { get; init; }
 
     /// <summary>Log severity level (e.g., Information, Warning, Error).</summary>
     [Key(1)]
-    [JsonProperty("Level")]
+    [JsonProperty(nameof(Level))]
     public string Level { get; init; } = "Information";
 
     /// <summary>Fully rendered log message text.</summary>
     [Key(2)]
-    [JsonProperty("RenderedMessage")]
+    [JsonProperty(nameof(RenderedMessage))]
     public string RenderedMessage { get; init; } = string.Empty;
 
     /// <summary>Additional structured log properties (flattened key/value pairs).</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0016", Justification = "Preserve the concrete collection type in the existing configuration/message/actor listener contract.")]
     [Key(3)]
-    [JsonProperty("Properties")]
+    [JsonProperty(nameof(Properties))]
     public Dictionary<string, string> Properties { get; init; } = new(StringComparer.Ordinal);
 
     /// <summary>

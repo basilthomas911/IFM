@@ -177,6 +177,7 @@ public static partial class CoreServiceRegistration
         TomasAI.IFM.Application.Storage.EventSourceDb.PostgresEventTransaction>();
         RegisterPortfolioFinancialServices.Register(services);
         services.AddSingleton<TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild.ConfigurationProjectionBaseline>();
+        services.AddSingleton<TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService>();
         services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.IWorkflowRiskProjection>(provider =>

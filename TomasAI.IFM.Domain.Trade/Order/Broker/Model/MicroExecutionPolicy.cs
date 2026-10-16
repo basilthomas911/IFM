@@ -11,8 +11,8 @@ public sealed class MicroExecutionPolicy(IMicroExecutionConstraintEvaluator cons
             return new(MicroExecutionAction.Reconcile, allowed, null, "OutcomeUnknown");
         if ((allowed & MicroExecutionActionMask.Escalate) != MicroExecutionActionMask.None && (allowed & MicroExecutionActionMask.Cancel) == MicroExecutionActionMask.None)
             return new(MicroExecutionAction.Escalate, allowed, null, "DeadlineWithoutKnownOrder");
-        if ((allowed & MicroExecutionActionMask.Cancel) != MicroExecutionActionMask.None && (input.NowUtc >= input.DeadlineUtc || input.Opening && !input.GateAllowsNewRisk))
-            return new(MicroExecutionAction.Cancel, allowed, null, "DeadlineOrGateClosed");
+        if ((allowed & MicroExecutionActionMask.Cancel) != MicroExecutionActionMask.None && input.NowUtc >= input.DeadlineUtc)
+            return new(MicroExecutionAction.Cancel, allowed, null, "Deadline");
         if ((allowed & MicroExecutionActionMask.Place) != MicroExecutionActionMask.None)
             return new(MicroExecutionAction.Place, allowed, input.CurrentLimit, "InitialPlace");
         if ((allowed & MicroExecutionActionMask.UpdateLimit) != MicroExecutionActionMask.None)

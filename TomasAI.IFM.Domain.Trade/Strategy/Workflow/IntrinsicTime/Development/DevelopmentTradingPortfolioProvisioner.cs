@@ -109,7 +109,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
             {
                 SchemaVersion = 2,
                 ParameterSetId = DevelopmentTradingPortfolioDefaults.ActivationId(now.Year, activationHorizon),
-                Version = 3,
+                Version = activationHorizon == TimeFrameType.Daily ? 3 : 4,
                 PortfolioId = 0,
                 FundId = null,
                 InstrumentRoot = options.InstrumentRoot,
@@ -231,19 +231,19 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
                 {
                     TradeFamilyLimits = policy.TradeFamilyLimits
                 };
-                if (policy.PolicyVersion != 1 || !string.Equals(policy.CanonicalSha256(), prior.CanonicalSha256(), StringComparison.Ordinal) || !LegacyDeployments(policy.TradeFamilyLimits.Select(x => x.CatalogDeployment), DevelopmentTradingPortfolioOptions.Horizons))
+                if (!string.Equals(policy.CanonicalSha256(), prior.CanonicalSha256(), StringComparison.Ordinal) || !LegacyDeployments(policy.TradeFamilyLimits.Select(x => x.CatalogDeployment), DevelopmentTradingPortfolioOptions.Horizons))
                     throw new InvalidOperationException("Existing Development financial policy has unrelated changes; cannot migrate automatically.");
                 strategyPermissionsChanged = true;
                 var replacement = expected with
                 {
-                    PolicyVersion = 2,
+                    PolicyVersion = policy.PolicyVersion + 1,
                     OperatingState = PortfolioFinancialPolicyState.Draft
                 };
                 await RequireSuccess(policies.AddPolicyVersionAsync(replacement, policy.AggregateRevision, token), "Migrate Development strategy permissions").ConfigureAwait(false);
                 policy = await RequiredEventually(async () =>
                 {
                     var result = await queries.GetPolicyAsync(policy.PolicyId, cancellationToken: token).ConfigureAwait(false);
-                    return result.Value?.PolicyVersion == 2 ? result : new ServiceResult<PortfolioFinancialPolicyReadModel>(false, 0, "Projection pending", null);
+                    return result.Value?.PolicyVersion == replacement.PolicyVersion ? result : new ServiceResult<PortfolioFinancialPolicyReadModel>(false, 0, "Projection pending", null);
                 }, "Read migrated Development policy", token).ConfigureAwait(false);
             }
         }
@@ -307,7 +307,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
             fund = matches.OrderByDescending(x => x.FundMandateVersion).First();
         if (!fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment).SequenceEqual(deployments.Cast<CatalogKey?>()) || !fund.EligibleAssetTypes.SequenceEqual(horizon == TimeFrameType.Daily ? new[] { "Futures" } : new[] { "FuturesOption" }))
         {
-            if (fund.FundMandateVersion != 1 || !LegacyDeployments(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), [horizon]))
+            if (!LegacyDeployments(fund.PermittedTradeStrategyFamilies.Select(x => x.CatalogDeployment), [horizon]))
                 throw new InvalidOperationException($"Existing {horizon} Development Fund contains unrelated permissions; cannot migrate automatically.");
             strategyPermissionsChanged = true;
             var approved = Fund(portfolio.PortfolioId, fund.FundId, code, horizon, deployments);
@@ -694,12 +694,17 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
 
     decimal FundCapital(TimeFrameType horizon) => FundCapitalByIndex(Array.IndexOf(DevelopmentTradingPortfolioOptions.Horizons, horizon));
     decimal FundCapitalByIndex(int index) => DevelopmentTradingPortfolioDefaults.CapitalAllocations(options.DevelopmentCapital)[index];
-    /// <summary>Recognizes only the original reserved manifest before migrating exact strategy permissions.</summary>
+    /// <summary>Recognizes only exact prior reserved manifests before migrating strategy permission references.</summary>
     static bool LegacyDeployments(IEnumerable<CatalogKey?> actual, IEnumerable<TimeFrameType> horizons)
     {
         var keys = actual.ToArray();
-        var expected = horizons.SelectMany(h => DeploymentFamilies.Select(f => new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{h}{f}"), 1))).ToArray();
-        return keys.Length == expected.Length && keys.Distinct().Count() == keys.Length && expected.All(x => keys.Contains(x));
+        var frames = horizons.ToArray();
+        var original = frames.SelectMany(h => DeploymentFamilies.Select(f => new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{h}{f}"), 1))).ToArray();
+        var previous = frames.SelectMany(h => (h == TimeFrameType.Daily ? new[] { "Future" } : new[] { "Vertical", "IronCondor" })
+            .Select(f => new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{h}{f}"), 2))).ToArray();
+        return keys.Distinct().Count() == keys.Length
+            && (keys.Length == original.Length && original.All(x => keys.Contains(x))
+                || keys.Length == previous.Length && previous.All(x => keys.Contains(x)));
     }
 
     static string DevelopmentDeploymentCode(CatalogKey key)
@@ -715,7 +720,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
             )
             {
                 var code = $"Development{horizon}{family}";
-                if (key == new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId(code), 2))
+                if (key == new CatalogKey(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId(code), DevelopmentTradingPortfolioDefaults.DeploymentVersion(horizon)))
                     return code;
             }
 
@@ -840,7 +845,7 @@ public sealed class DevelopmentTradingPortfolioProvisioner(DevelopmentTradingPor
                 definitions.Add(parameter);
                 var deployment = StrategyCatalogExamples.New(StrategyCatalogKind.Deployment, $"Development{horizon}{group.Code}", $"Development {horizon} {group.Code}")with
                 {
-                    Key = new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{horizon}{group.Code}"), 2),
+                    Key = new(StrategyCatalogKind.Deployment, StrategyCatalogExamples.StableId($"Development{horizon}{group.Code}"), DevelopmentTradingPortfolioDefaults.DeploymentVersion(horizon)),
                     Parent = strategy.Key,
                     Horizon = horizon,
                     Variants = selected.Select(x => x.Key).ToArray(),

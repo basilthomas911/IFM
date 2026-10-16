@@ -28,26 +28,22 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataFeedCommandApi
 {
     /// <summary>
-    /// Starts a market data feed for the specified futures contracts and value date.
+    /// Starts the API-owned current market session using its prepared subscriptions.
     /// </summary>
-    /// <param name="futuresContracts">The collection of futures contracts to include in the feed.</param>
-    /// <param name="valueDate">The value date for the market data feed.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     /// <exception cref="ArgumentNullException">Thrown when required arguments are null.</exception>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Typed client transport boundary converts failures to the declared ServiceResult via OnError rather than throwing across the API contract.")]
-    public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync(
-        ICollection<FuturesContractV3ReadModel> futuresContracts,
-        DateOnly valueDate)
+    public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync()
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
         try
         {
-            var entityId = new MarketDataFeedId(valueDate);
-            var cmd = new StartMarketDataFeedCommand([.. IsArgumentNull.Set(futuresContracts)], valueDate, false)
+            var entityId = new MarketDataFeedId();
+            var cmd = new StartMarketDataFeedCommand()
             {
                 CommandId = cmdId,
-                Subject = new ActorSubject(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, "current"),
                 ErrorCode = StartMarketDataFeedCommand.ErrorId
             };
             serviceResult = await (RequestCommandAsync(cmd!, entityId)).ConfigureAwait(false);

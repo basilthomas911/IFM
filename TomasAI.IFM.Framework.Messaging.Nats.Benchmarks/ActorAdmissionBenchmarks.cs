@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 [InProcess]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorAdmissionBenchmarks
 {
     ActorThreadQueueV2 _queue = null!;
@@ -83,6 +85,8 @@ public class ActorAdmissionBenchmarks
 [InProcess]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorAdmissionRejectionBenchmarks
 {
     ActorAdmissionController _globalCount = null!;

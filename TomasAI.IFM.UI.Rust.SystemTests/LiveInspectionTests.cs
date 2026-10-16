@@ -8,10 +8,10 @@ public unsafe class LiveInspectionTests
  {
   using var http=new HttpClient();Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;get(2,(ApiV1*)&api,48);ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;get(4,(ApiV1*)&api,48);ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   try{
    string? workflow=null;var deadline=DateTime.UtcNow.AddSeconds(30);
-   do{var bytes=Copy(api,handle,0);if(bytes.Length>0){using var data=JsonDocument.Parse(bytes);if(data.RootElement.TryGetProperty("workflowId",out var id)&&id.GetString() is {Length:>0} value)workflow=value;}if(workflow is null)Thread.Sleep(100);}while(workflow is null&&DateTime.UtcNow<deadline);
+   do{var bytes=Copy(api,handle,0);if(bytes.Length>0){using var data=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(bytes,BridgeWire.Options));if(data.RootElement.TryGetProperty("workflowId",out var id)&&id.GetString() is {Length:>0} value)workflow=value;}if(workflow is null)Thread.Sleep(100);}while(workflow is null&&DateTime.UtcNow<deadline);
    Assert.NotNull(workflow);
    var history=Run(api,handle,"observation","history",new(){["profile"]="ES.Standard",["horizon"]="Daily"});
    var exact=Run(api,handle,"observation","open",new(){["workflow"]=workflow});Assert.NotNull(exact.Result.Detail);Assert.Equal(workflow,exact.Result.Detail.WorkflowId);Assert.Equal(3,exact.Result.Detail.Roots.Length);
@@ -22,11 +22,11 @@ public unsafe class LiveInspectionTests
  }
  internal static string ReadWorkflowIdentity()
  {
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;get(2,(ApiV1*)&api,48);ulong handle;Assert.Equal(0,api.Base.Create(&handle));
-  try{var deadline=DateTime.UtcNow.AddSeconds(30);do{var bytes=Copy(api,handle,0);if(bytes.Length>0){using var data=JsonDocument.Parse(bytes);if(data.RootElement.TryGetProperty("workflowId",out var id)&&id.GetString() is {Length:>0} value)return value;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("The live API did not supply an existing workflow");}finally{Assert.Equal(0,api.Base.Destroy(handle));}
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;get(4,(ApiV1*)&api,48);ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  try{var deadline=DateTime.UtcNow.AddSeconds(30);do{var bytes=Copy(api,handle,0);if(bytes.Length>0){using var data=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(bytes,BridgeWire.Options));if(data.RootElement.TryGetProperty("workflowId",out var id)&&id.GetString() is {Length:>0} value)return value;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("The live API did not supply an existing workflow");}finally{Assert.Equal(0,api.Base.Destroy(handle));}
  }
- static byte[] Copy(ApiV2 api,ulong handle,uint kind){for(var attempt=0;attempt<3;attempt++){int n;api.Base.Copy(handle,kind,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes){var result=api.Base.Copy(handle,kind,p,n,&n);if(result==1)continue;Assert.Equal(0,result);}return bytes;}throw new InvalidOperationException("Publication grew beyond bounded retries");}
- static InspectionPublication Run(ApiV2 api,ulong handle,string view,string action,Dictionary<string,string> fields){var intent=new InspectionIntent(1,Guid.NewGuid(),view,action,fields);var bytes=JsonSerializer.SerializeToUtf8Bytes(intent,Json);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(30);do{var publication=JsonSerializer.Deserialize<InspectionPublication>(Copy(api,handle,4),Json)!;var outcome=publication.Outcomes.FirstOrDefault(x=>x.RequestId==intent.RequestId);if(outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);return publication;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("Inspection "+view+" "+action);}
+ static byte[] Copy(ApiV4 api,ulong handle,uint kind){for(var attempt=0;attempt<3;attempt++){int n;api.Base.Copy(handle,kind,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes){var result=api.Base.Copy(handle,kind,p,n,&n);if(result==1)continue;Assert.Equal(0,result);}return bytes;}throw new InvalidOperationException("Publication grew beyond bounded retries");}
+ static InspectionPublication Run(ApiV4 api,ulong handle,string view,string action,Dictionary<string,string> fields){var intent=new InspectionIntent(1,Guid.NewGuid(),view,action,fields);var bytes=BridgeWire.Serialize(intent);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(30);do{var publication=BridgeWire.Deserialize<InspectionPublication>(Copy(api,handle,4))!;var outcome=publication.Outcomes.FirstOrDefault(x=>x.RequestId==intent.RequestId);if(outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);return publication;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("Inspection "+view+" "+action);}
 }
 
 static class LiveFundSelection

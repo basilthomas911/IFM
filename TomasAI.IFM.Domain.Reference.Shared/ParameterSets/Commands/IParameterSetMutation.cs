@@ -13,4 +13,5 @@ public interface IParameterSetMutation : ICommand<ParameterSetEntityId>
     string Description { get; }
     int SchemaVersion { get; }
     string PayloadJson { get; }
+    ParameterSetValue? Parameters => null;
 }

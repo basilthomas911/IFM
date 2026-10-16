@@ -10,10 +10,13 @@ public sealed record PortfolioIdentityAllocationModel
     public string Error { get; init; } = string.Empty;
     public bool IsSuccessful => PortfolioId is not null && PortfolioId.Validate().Count == 0 && string.IsNullOrEmpty(Error);
 
-    public static PortfolioIdentityAllocationModel Success(PortfolioId id) =>
-        id.Validate().Count == 0
+    public static PortfolioIdentityAllocationModel Success(PortfolioId id) 
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return id.Validate().Count == 0
             ? new() { PortfolioId = id }
             : throw new ArgumentException("A positive Portfolio ID is required.", nameof(id));
+    }
 
     public static PortfolioIdentityAllocationModel Failure(string error) =>
         string.IsNullOrWhiteSpace(error)

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.MarketData.UnitTests;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public static class SampleData
 {
@@ -21,5 +22,6 @@ public static class SampleData
         return buffer;
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public readonly record struct TestMessage(int Id, decimal Price);

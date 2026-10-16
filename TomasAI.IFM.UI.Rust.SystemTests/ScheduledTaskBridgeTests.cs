@@ -23,7 +23,7 @@ public class ScheduledTaskBridgeTests
  [Fact] public async Task Shared_model_preserves_task_revision_and_full_output_paging()
  {
   var service=Service();using var session=new ScheduledTaskSession(service);
-  await session.ExecuteAsync(Intent("load"));var history=await session.ExecuteAsync(Intent("history"));Assert.Contains("Succeeded",history.Context!["runs"]);
+  await session.ExecuteAsync(Intent("load"));var history=await session.ExecuteAsync(Intent("history"));Assert.Contains("Succeeded",MessagePack.MessagePackSerializer.ConvertToJson(history.Documents["runs"]));
   var first=await session.ExecuteAsync(Intent("output"));Assert.Equal("first line\n",first.Context!["output"]);Assert.Equal("False",first.Context["outputEnd"]);
   var final=await session.ExecuteAsync(Intent("more-output"));Assert.Equal("first line\nlast line",final.Context!["output"]);Assert.Equal("True",final.Context["outputEnd"]);
   await session.ExecuteAsync(Intent("enable"));await service.Received(1).SetEnabledAsync(Id,7,true,Arg.Any<CancellationToken>());

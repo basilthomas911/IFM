@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Framework.Serialization.UnitTests;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public static class SampleData
 {
@@ -16,10 +17,11 @@ public static class SampleData
 /// </summary>
 /// <remarks>
 /// Follows the StopFuturesOptionTickDataStreamingCommand pattern:
-/// - Base keys 0–5 are reserved by BaseCommand{TEntityId}.
+/// - Base keys 0ï¿½5 are reserved by BaseCommand{TEntityId}.
 /// - Custom properties start at key 6.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 public record TestCommand
     : ICommand<TestId>
 {
@@ -39,8 +41,10 @@ public record TestCommand
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => $"{Subject.StreamId}";
     [IgnoreMember] public string EventSource => $"{Actor}Actor";
-    [IgnoreMember] public DateTime OriginatedOn => DateTime.UtcNow;
-    [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    [IgnoreMember] [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
+public DateTime OriginatedOn => DateTime.UtcNow;
+    [IgnoreMember] [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
+public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Sample message payload.</summary>
     [Key(6)]
@@ -97,6 +101,7 @@ public record TestCommand
 ///   the date formatted as "yyyy-MM-dd".
 /// </remarks>
 [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 public readonly record struct TestId : IActorEntityId
 {
     /// <summary>As-of (value) date.</summary>

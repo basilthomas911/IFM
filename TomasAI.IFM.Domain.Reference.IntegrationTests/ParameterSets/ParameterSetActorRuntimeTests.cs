@@ -20,6 +20,31 @@ namespace TomasAI.IFM.Domain.Reference.IntegrationTests.ParameterSets;
 public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastructureFixture infrastructure)
 {
     [Fact]
+    public async Task Typed_parameter_preview_and_validation_round_trip_through_real_api_actor()
+    {
+        var api = new ParameterSetsApi(infrastructure.ActorProducer);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        foreach (var descriptor in new IParameterComponentDescriptor[]
+        {
+            new RegimeDiscoveryParameterModel(),new FuturesItiSignalParameterModel(),new OptionVolatilitySeriesParameterModel(),
+            new OptionVolatilityConsumerRulesParameterModel(),new OptionVolatilityRetentionParameterModel(),
+            new IronCondorMarketSelectionParameterModel(),new VerticalSpreadMarketSelectionParameterModel(),new StrategyOptionChainParameterModel()
+        })
+        {
+            var id=Guid.NewGuid();
+            var preview=await api.PreviewValuesAsync(id,descriptor.Summary.ComponentCode,token:deadline.Token);
+            Assert.True(preview.Success,preview.ErrorMessage);
+            Assert.NotNull(preview.Value);
+            Assert.Equal(id,preview.Value.SetId);
+            var validation=await api.ValidateValuesAsync(preview.Value,descriptor.Summary.ComponentCode,preview.Value.SchemaVersion,deadline.Token);
+            Assert.True(validation.Success,validation.ErrorMessage);
+            Assert.NotNull(validation.Value);
+            Assert.True(validation.Value.IsValid,string.Join(";",validation.Value.Issues.Select(x=>x.Message)));
+            Assert.Equal(ParameterValueCodec.Hash(preview.Value),validation.Value.CandidateSha256);
+        }
+    }
+
+    [Fact]
     public async Task Global_cache_policy_actor_publication_projects_exact_payload_into_scylla()
     {
         var api = new ParameterSetsApi(infrastructure.ActorProducer);
@@ -30,12 +55,12 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
         {
             CommandId = Guid.NewGuid(), EntityId = new(id),
             ComponentCode = "market-data.strategy-option-chain-cache", Name = payload.Name,
-            SchemaVersion = 1, PayloadJson = payload.Serialize()
+            SchemaVersion = 1, Parameters = ParameterSetValue.From(payload)
         }, deadline.Token);
         Assert.True(created.Success, created.ErrorMessage);
         var command = new PublishParameterVersionCommand
         { CommandId = Guid.NewGuid(), EntityId = new(id), Version = 1, ExpectedRevision = 1, ComponentCode = "market-data.strategy-option-chain-cache",
-            Name = payload.Name, SchemaVersion = 1, PayloadJson = payload.Serialize() };
+            Name = payload.Name, SchemaVersion = 1 };
         var published = await api.PublishAsync(command, deadline.Token);
         Assert.True(published.Success, published.ErrorMessage);
         Assert.True((await api.PublishAsync(command, deadline.Token)).Success);
@@ -74,7 +99,7 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
             ComponentCode = descriptor.Summary.ComponentCode,
             Name = descriptor.Summary.Name,
             SchemaVersion = descriptor.Summary.SchemaVersions.Single(),
-            PayloadJson = descriptor.CreateDraftPayload(setId)
+            Parameters = descriptor.CreateTypedDraft(setId)
         }, token);
         Assert.True(created.Success, created.ErrorMessage);
         var versionDraft = (await api.StateAsync(setId, token)).Value!.Versions.Single();
@@ -82,8 +107,7 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
         {
             CommandId = Guid.NewGuid(), EntityId = new(setId), Version = 1, ExpectedRevision = 1,
             ComponentCode = versionDraft.Reference.ComponentCode, Name = versionDraft.Name,
-            Description = versionDraft.Description, SchemaVersion = versionDraft.SchemaVersion,
-            PayloadJson = versionDraft.PayloadJson
+            Description = versionDraft.Description, SchemaVersion = versionDraft.SchemaVersion
         }, token);
         Assert.True(published.Success, published.ErrorMessage);
         var version = (await api.StateAsync(setId, token)).Value!.Versions.Single();
@@ -118,8 +142,8 @@ public sealed class ParameterSetActorRuntimeTests(ReferenceIntegrationInfrastruc
     public async Task Real_actor_routes_complete_parameter_lifecycle_and_keep_frozen_startup_versions()
     {
         var api = new ParameterSetsApi(infrastructure.ActorProducer); using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45)); var token = deadline.Token;
-        var id = Guid.NewGuid(); var draft = await api.PreviewAsync(id, token); Assert.True(draft.Success, draft.ErrorMessage);
-        var create = new CreateParameterSetCommand { CommandId = Guid.NewGuid(), EntityId = new(id), Name = "Runtime acceptance", SchemaVersion = ParameterSchemaRegistry.CurrentRegimeSchemaVersion, PayloadJson = draft.Value! };
+        var id = Guid.NewGuid(); var draft = await api.PreviewValuesAsync(id,ParameterSchemaRegistry.RegimeComponent,token:token); Assert.True(draft.Success, draft.ErrorMessage);
+        var create = new CreateParameterSetCommand { CommandId = Guid.NewGuid(), EntityId = new(id), Name = "Runtime acceptance", SchemaVersion = ParameterSchemaRegistry.CurrentRegimeSchemaVersion, Parameters = draft.Value! };
         var created = await api.CreateAsync(create, token); Assert.True(created.Success, created.ErrorMessage);
         var repeated = await api.CreateAsync(create, token); Assert.True(repeated.Success, repeated.ErrorMessage);
         var saved = await api.StateAsync(id, token); Assert.True(saved.Success, saved.ErrorMessage); Assert.Equal(1, saved.Value!.Revision);

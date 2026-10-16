@@ -16,6 +16,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that Serialize&lt;T&gt;(null) returns null for reference types.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Serialize_Typed_Null_ReturnsNull()
     {
         // arrange
@@ -32,6 +33,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that Serialize(object) returns null for a null instance.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Serialize_Object_Null_ReturnsNull()
     {
         // arrange
@@ -48,6 +50,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that Deserialize&lt;T&gt;(null) returns default(T) for value and reference types.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Deserialize_Typed_Null_ReturnsDefault()
     {
         // arrange
@@ -66,6 +69,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that Deserialize&lt;T&gt; with an empty payload returns default(T).
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Deserialize_Typed_Empty_ReturnsDefault()
     {
         // arrange
@@ -84,6 +88,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that Deserialize(object) returns null for null and empty payloads.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Deserialize_Object_NullOrEmpty_ReturnsNull()
     {
         // arrange
@@ -103,6 +108,7 @@ public class MessagePackBinarySerializerTests
     /// Round-trip a primitive value using typed serialization and ensure equality.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Roundtrip_Typed_Primitive_Ok()
     {
         // arrange
@@ -120,6 +126,7 @@ public class MessagePackBinarySerializerTests
     /// Round-trip a POCO using typed serialization (contractless resolver).
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Roundtrip_Typed_Poco_Contractless_Ok()
     {
         // arrange
@@ -150,6 +157,7 @@ public class MessagePackBinarySerializerTests
     /// Round-trip a POCO using typed serialization (contractless resolver).
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Roundtrip_Typed_Generic_Contractless_Ok()
     {
         // arrange
@@ -168,6 +176,8 @@ public class MessagePackBinarySerializerTests
     /// Round-trip a list of POCOs using typed serialization to verify collection support.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1861",Justification="Inline arrays make this bounded test fixture explicit and are not a production allocation path.")]
     public void Roundtrip_Typed_Collection_Ok()
     {
         // arrange
@@ -198,6 +208,7 @@ public class MessagePackBinarySerializerTests
     /// Round-trip a dictionary using typed serialization to verify key/value mapping.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Roundtrip_Typed_Dictionary_Ok()
     {
         // arrange
@@ -231,6 +242,7 @@ public class MessagePackBinarySerializerTests
     /// Verify that deserializing invalid/corrupt payload using the typed API throws an exception.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Deserialize_Typed_InvalidBytes_Throws()
     {
         // arrange
@@ -242,6 +254,7 @@ public class MessagePackBinarySerializerTests
         // assert
         Assert.ThrowsAny<Exception>(act);
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
 
     private static byte[] GetRandomBytes(int length)
     {
@@ -250,25 +263,34 @@ public class MessagePackBinarySerializerTests
         rnd.NextBytes(bytes);
         return bytes;
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public class SimplePoco
     {
         public int Id { get; set; }
         public string? Name { get; set; }
         public DateTime When { get; set; }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
         public double[]? Values { get; set; }
         public ChildPoco? Child { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public class ChildPoco
     {
         public string? Code { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public class Animal
     {
         public string? Name { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
 
     public sealed class Dog : Animal
     {

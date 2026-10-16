@@ -1,3 +1,6 @@
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Validation;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
@@ -72,7 +75,13 @@ public class MarketDataFeedCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<MarketDataFeedCommandActor> context,
         IActorMessage message)
-        => ParseMappedCommand(context, message, _parseMap);
+    {
+        var command = ParseMappedCommand(context, message, _parseMap);
+        return command is StartMarketDataFeedCommand start
+            ? start.ResolveSession(context.Container.Resolve<IFuturesMarketSessionAuthority>().Current,
+                context.Container.Resolve<TimeProvider>().GetUtcNow())
+            : command;
+    }
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
@@ -101,34 +110,48 @@ public class MarketDataFeedCommandActor(
     /// <returns>A ValueTask that represents the asynchronous operation. The result contains a ServiceResult wrapping a
     /// GuidResult with the command's unique identifier.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(command);
         var marketDataFeedState = IsArgumentNull.Set((state as MarketDataFeedCommandState)!);
         var receiveFunc = ResolveMappedCommandHandler(command, _receiveMap);
-        return ValueTask.FromResult(receiveFunc.Invoke(command, context, marketDataFeedState));
+        return await receiveFunc.Invoke(command, context, marketDataFeedState).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding market data feed command
     /// logic on a given state.
     /// </summary>
-    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
-        MarketDataFeedCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
-        MarketDataFeedCommandState, ServiceResult<GuidResult>>>()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<MarketDataFeedCommandActor>,
+        MarketDataFeedCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<MarketDataFeedCommandActor>,
+        MarketDataFeedCommandState, ValueTask<ServiceResult<GuidResult>>>>()
         {
-            [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StartMarketDataFeedCommand)!.Execute(state),
-            [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StopMarketDataFeedCommand)!.Execute(state),
-            [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => (cmd as ResetMarketDataFeedCommand)!.Execute(state),
-            [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as AddTradeLiveFeedCommand)!.Execute(state),
-            [typeof(RemoveTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as RemoveTradeLiveFeedCommand)!.Execute(state),
-            [typeof(TurnTradeLiveFeedOnCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOnCommand)!.Execute(state),
-            [typeof(TurnTradeLiveFeedOffCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOffCommand)!.Execute(state),
-            [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => (cmd as DeleteStreamingRequestIdCommand)!.Execute(state),
-            [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as HaltTradeLiveFeedCommand)!.Execute(state)
+            [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => ExecuteStartAsync((StartMarketDataFeedCommand)cmd, context, state),
+            [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as StopMarketDataFeedCommand)!.Execute(state)),
+            [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as ResetMarketDataFeedCommand)!.Execute(state)),
+            [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as AddTradeLiveFeedCommand)!.Execute(state)),
+            [typeof(RemoveTradeLiveFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as RemoveTradeLiveFeedCommand)!.Execute(state)),
+            [typeof(TurnTradeLiveFeedOnCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as TurnTradeLiveFeedOnCommand)!.Execute(state)),
+            [typeof(TurnTradeLiveFeedOffCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as TurnTradeLiveFeedOffCommand)!.Execute(state)),
+            [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as DeleteStreamingRequestIdCommand)!.Execute(state)),
+            [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => ValueTask.FromResult((cmd as HaltTradeLiveFeedCommand)!.Execute(state))
         };
+
+    /// <summary>Loads the API-prepared assignments without discovering contracts in the caller.</summary>
+    static async ValueTask<ServiceResult<GuidResult>> ExecuteStartAsync(StartMarketDataFeedCommand start, ICommandActorContext<MarketDataFeedCommandActor> context, MarketDataFeedCommandState state)
+    {
+        var assignments = await context.Container.Resolve<IDatabentoContractAuthority>()
+            .ReconcileAsync(start.ValueDate, nameof(MarketDataFeedCommandActor), CancellationToken.None).ConfigureAwait(false);
+        var contracts = assignments.Select(assignment => new FuturesContractV3ReadModel(
+            assignment.ContractId, assignment.Description, assignment.RootSymbol, assignment.LocalSymbol,
+            assignment.SecurityType, assignment.Currency, assignment.Exchange, assignment.Multiplier,
+            assignment.LastTradeDate, assignment.ContractRole != DatabentoContractRole.VxSecondMonth, true)).ToArray();
+        context.Logger.LogInformation("Starting API-owned market session {ValueDate} with {ContractCount} prepared contracts; CommandId={CommandId}.",
+            start.ValueDate, contracts.Length, start.CommandId);
+        return start.Execute(state, contracts);
+    }
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -161,9 +184,7 @@ public class MarketDataFeedCommandActor(
                 var e = (StartMarketDataFeedCommand)cmd; return new List<ValidationError>()
                     .ValidateCommandId(e.CommandId, e.CommandName)
                     .ValidateEntityId(e.EntityId, e.CommandName)
-                    .ValidateFuturesContracts(e.FuturesContracts)
-                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate")
-                    .ValidateResetStream(e.ResetStream, e.CommandName);
+                    .ValidateDateOnly(e.ValueDate, e.CommandName, "ValueDate");
             },
             [typeof(StopMarketDataFeedCommand)] = cmd =>
             {

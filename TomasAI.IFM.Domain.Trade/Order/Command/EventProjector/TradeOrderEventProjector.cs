@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -27,6 +28,7 @@ public sealed class TradeOrderEventProjector : ConventionalEventProjector<TradeO
 
     async Task ProjectAsync(TradeOrderChangedEvent changed)
     {
+        context.Logger.LogInformation("OrderSubmission TradeOrderEvent OrderId={OrderId} PortfolioEventId={PortfolioEventId} SourceEventId={SourceEventId} Status={Status} ExecutionAttemptId={ExecutionAttemptId}", changed.TradeOrderDefinition.Id.Format(), changed.TradeOrderDefinition.PortfolioApprovalId, changed.Id, changed.TradeOrderDefinition.Status, changed.ExecutionAttemptId);
         // Native PostgreSQL rows already committed with the source event in the state repository.
         if (!string.Equals(context.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
             await context.DbFactory.TradeDb.UpsertTradeOrderAsync(changed.TradeOrderDefinition).ConfigureAwait(false);

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +24,40 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 [Collection("PostgreSQL plan atomicity")]
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
+    [Fact]
+    public async Task EOD_retry_can_resume_matching_orphan_audit_but_not_change_payload_or_repeat_committed_events()
+    {
+        var id = new StrategyPositionId(new(999, 1, 1, 1), Guid.NewGuid());
+        var boundary = DateTime.UtcNow;
+        var command = new EndOfDayFuturesPositionCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = id, ValueDate = DateOnly.FromDateTime(boundary), EffectiveAtUtc = boundary,
+            Subject = new(ActorType.Command, FuturesPositionActorNames.Command, EndOfDayFuturesPositionCommand.Verb, id.Format())
+        };
+        // Reproduce the old separate audit reservation without committing a source fact.
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) => { await db.ReserveCommandAsync(command, ct); return true; });
+        var conflict = () => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        { await db.ReserveCommandAsync(command with { EffectiveAtUtc = boundary.AddSeconds(1) }, ct); return true; });
+        await FluentActions.Awaiting(conflict).Should().ThrowAsync<CommandAuditPayloadConflictException>();
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(0);
+        var source = new FuturesPositionChangedEvent
+        {
+            Id = Guid.NewGuid(), EntityId = id, CommandId = command.CommandId, ReceivedOn = boundary,
+            PositionSnapshot = new() { Id = id, StrategyKind = TradeStrategyKind.FuturesOutright, ValueDate = command.ValueDate,
+                LatestSealedValueDate = command.ValueDate, CloseBoundaryUtc = boundary, PositionSequence = 1, Phase = StrategyPositionPhase.EndOfDay }
+        };
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            await db.ReserveCommandAsync(command, ct);
+            await db.AppendAsync(command.StreamId, command.CommandId, source, 0, ct);
+            return true;
+        });
+        var duplicate = () => fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        { await db.ReserveCommandAsync(command, ct); return true; });
+        await FluentActions.Awaiting(duplicate).Should().ThrowAsync<CommandAuditDuplicateException>();
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(1);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -64,7 +64,8 @@ public static partial class CoreServiceRegistration
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
         builder.Services.AddSingleton(siContainer);
-        builder.Services.AddSimpleInjector(siContainer);
+        // ApiServerLifecycle owns asynchronous disposal; the default wrapper disposes synchronously.
+        builder.Services.AddSimpleInjector(siContainer, options => options.DisposeContainerWithServiceProvider = false);
 
         return builder;
     }

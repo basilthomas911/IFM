@@ -20,6 +20,8 @@ public sealed record ParameterAssignmentChangedEvent : IEvent<ParameterAssignmen
     [Key(9)] public string RequestHash { get; init; } = string.Empty;
     [Key(10)] public string AssignmentJson { get; init; } = string.Empty;
     [Key(11)] public string AuditJson { get; init; } = string.Empty;
+    [Key(12)] public ParameterAssignmentRevision? Assignment {get;init;}
+    [Key(13)] public ParameterAuditEntry? Audit {get;init;}
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(ParameterAssignmentChangedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;

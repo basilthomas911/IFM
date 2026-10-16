@@ -67,6 +67,8 @@ public static class ScheduledTaskComputation
     /// <summary>Reserves one occurrence only after installation, freshness and overlap guards pass.</summary>
     private static ScheduledTaskChange Admit(AdmitScheduledTaskRunCommand command, ScheduledTaskDefinition current, ScheduledTaskDefinition next, ScheduledTaskCatalog? catalog, DateTimeOffset now)
     {
+        if (!ScheduledTaskExecutionPolicy.RequiresAdmission(current.Schedule.TaskKey, current.Schedule.Environment))
+            return new(next with { ActiveRunId = command.RunId, LastAdmittedFireUtc = command.IntendedFireTimeUtc });
         if (!current.Enabled || !current.AppliedEnabled || current.InstallationStatus != ScheduledTaskInstallationStatus.Applied || current.AppliedRevision != current.DesiredRevision) return Reject("RUN.NOT_INSTALLED", "enabled desired revision is not confirmed installed");
         if (command.DefinitionRevision != current.DesiredRevision || !string.Equals(command.HostId,current.Schedule.HostId,StringComparison.Ordinal) || !string.Equals(command.Environment,current.Schedule.Environment,StringComparison.Ordinal) || command.RunId == Guid.Empty) return Reject("RUN.TARGET_MISMATCH", "run does not match installed definition and host");
         if (!command.Manual && !ScheduledTaskTimingRules.IsOccurrence(current.Schedule, command.IntendedFireTimeUtc)) return Reject("RUN.NOT_SCHEDULED", "intended fire instant does not match configured timing");

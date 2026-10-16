@@ -76,8 +76,8 @@ public static class ApplySignalStartupPlan
             EntityId = command.EntityId,
             RunId = command.RunId,
             Revision = startupChange.Revision,
-            RunJson = startupChange.StartupRun is null ? "" : JsonSerializer.Serialize(startupChange.StartupRun),
-            ReportJson = startupChange.StartupReport is null ? "" : JsonSerializer.Serialize(startupChange.StartupReport),
+            Run = startupChange.StartupRun,
+            Report = startupChange.StartupReport,
             Released = startupChange.Released
         };
 }

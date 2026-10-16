@@ -18,7 +18,20 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 /// <summary>Creates broker-neutral manual Futures, Vertical Spread and Iron Condor opening candidates.</summary>
 public sealed class BrokerManualTradeOrderViewModel
 {
-    const string EmulatorAccountAlias = "IFM-EMULATOR-PAPER";
+    /// <summary>Gets the composition/correlation identity retained while an outcome is unconfirmed.</summary>
+    public Guid SubmissionId { get; private set; } = Guid.NewGuid();
+    /// <summary>Indicates that submission may have committed and another submission must not be attempted.</summary>
+    public bool RequiresSubmissionReconciliation { get; private set; }
+    /// <summary>Gets submission progress separately from broker execution evidence.</summary>
+    public string SubmissionStatus { get; private set; } = "";
+    /// <summary>Gets the Portfolio event authorizing the accepted order identities.</summary>
+    public Guid SubmissionEventId { get; private set; }
+    /// <summary>True only after the broker acknowledges every submitted component, or a manual submission completes.</summary>
+    public bool BrokerAccepted { get; private set; }
+    bool DevelopmentManual => _appRoot.AppEnvironment == "Development"
+        && _appRoot.TradeExecution.Environment == BrokerEnvironment.Emulator;
+    bool submissionStarted;
+    bool knownDeclined;
     readonly IAppRoot _appRoot;
     readonly int _portfolioId;
     readonly PortfolioFundOrderEditorModel _fundOrder;
@@ -58,8 +71,8 @@ public sealed class BrokerManualTradeOrderViewModel
     /// <summary>Gets the selected Fund order.</summary>
     public PortfolioFundOrderEditorModel FundOrder => _fundOrder;
 
-    /// <summary>Gets the exact synthetic broker account controlled by this editor.</summary>
-    public BrokerAccountId BrokerAccountId => new(EmulatorAccountAlias);
+    /// <summary>Gets the configured broker account used by this editor.</summary>
+    public BrokerAccountId BrokerAccountId => new(_appRoot.TradeExecution.AccountAlias);
 
     /// <summary>Gets the exact broker-neutral contract identifiers rendered in the editor.</summary>
     private (string ContractId, decimal Strike, bool IsCall)[]? _selectedOptionLegs;
@@ -194,22 +207,37 @@ public sealed class BrokerManualTradeOrderViewModel
     public async Task<Guid> SubmitAsync(int quantity, decimal signedNetDebitLimit,
         ITradeOrderConfirmationService confirmationService, CancellationToken cancellationToken = default)
     {
+        if (submissionStarted) {
+            _appRoot.DiagnosticLogger.LogWarning("OrderSubmission DuplicateAttemptBlocked SubmissionId={SubmissionId} PortfolioEventId={PortfolioEventId}",SubmissionId,SubmissionEventId);
+            throw new InvalidOperationException("A submission already exists for this editor. Reconcile its order/execution before another submission.");
+        }
+        if (knownDeclined) { SubmissionId = Guid.NewGuid(); knownDeclined = false; }
         var logger = _appRoot.DiagnosticLogger;
+        using var logScope = logger.BeginScope(new Dictionary<string, object> { ["SubmissionId"] = SubmissionId, ["PortfolioId"] = _portfolioId, ["FundId"] = _trade.FundId, ["SetupOrderId"] = _trade.OrderId, ["SetupTradeId"] = _trade.TradeId });
+        logger.LogInformation("OrderSubmission Started SubmissionId={SubmissionId}", SubmissionId);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        Exception? submissionError = null;
         try
         {
             var commandId = await SubmitCoreAsync(quantity, signedNetDebitLimit, confirmationService, cancellationToken).ConfigureAwait(false);
             logger.LogInformation("{Component}.{Method} completed; PortfolioId={PortfolioId}; FundId={FundId}; OrderId={OrderId}; TradeId={TradeId}; Quantity={Quantity}; OrderPrice={OrderPrice}; Strategy={Strategy}; CommandId={CommandId}; Outcome={Outcome}; ElapsedMilliseconds={ElapsedMilliseconds}",
                 nameof(BrokerManualTradeOrderViewModel), nameof(SubmitAsync), _portfolioId, _trade.FundId,
                 _trade.OrderId, _trade.TradeId, quantity, signedNetDebitLimit, StrategyKind, commandId,
-                commandId == Guid.Empty ? "NotSubmitted" : "Submitted", System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                commandId == Guid.Empty ? "NotSubmitted" : SubmissionStatus, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             return commandId;
         }
         catch (Exception exception)
         {
+            submissionError = exception;
+            SubmissionStatus = (RequiresSubmissionReconciliation ? "Submission outcome unconfirmed; reconcile before retry. " : "Submission failed: ") + exception.Message;
             logger.LogError(exception, "{Component}.{Method} failed; PortfolioId={PortfolioId}; TradeId={TradeId}; Quantity={Quantity}; OrderPrice={OrderPrice}",
                 nameof(BrokerManualTradeOrderViewModel), nameof(SubmitAsync), _portfolioId, _trade.TradeId, quantity, signedNetDebitLimit);
             throw;
+        }
+        finally
+        {
+            if (confirmationService is ITradeOrderSubmissionConfirmationService dialog)
+                await dialog.CompleteSubmissionAsync(submissionError is null ? null : SubmissionStatus).ConfigureAwait(false);
         }
     }
 
@@ -244,19 +272,46 @@ public sealed class BrokerManualTradeOrderViewModel
             OrderActionType.Open, quantity, 0, _brokerOrderType == BrokerOrderType.Market ? OrderType.Market : OrderType.Limit, signedNetDebitLimit,
             cashAmount, totalCommission, cashAmount + totalCommission, 0m,
             TradeFillType.Broker, now, Environment.UserName, now, Environment.UserName);
+        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission ConfirmationRequested SubmissionId={SubmissionId}", SubmissionId);
+        var candidate = await CreateCandidateAsync(quantity, signedNetDebitLimit, cancellationToken).ConfigureAwait(false);
         var confirmation = confirmationService is ITradeOrderLegConfirmationService legConfirmation
             ? await legConfirmation.ConfirmAsync(summary, confirmationLegs, cancellationToken).ConfigureAwait(false)
             : await confirmationService.ConfirmAsync(summary, cancellationToken).ConfigureAwait(false);
-        if (!confirmation.IsConfirmed)
-            return Guid.Empty;
+        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission ConfirmationDecision SubmissionId={SubmissionId} Confirmed={Confirmed} FillType={FillType}", SubmissionId, confirmation.IsConfirmed, confirmation.TradeFillType);
+        if (!confirmation.IsConfirmed) { SubmissionStatus = "Submission cancelled"; return Guid.Empty; }
+        SubmissionStatus = "Submitting";
 
-        var candidate = await CreateCandidateAsync(quantity, signedNetDebitLimit,
-            confirmation.TradeFillType, cancellationToken).ConfigureAwait(false);
         var channel = confirmation.TradeFillType == TradeFillType.Broker ? ExecutionChannel.Broker : ExecutionChannel.Manual;
+        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission CandidateValidated SubmissionId={SubmissionId} CompositionId={CompositionId} Account={Account} Environment={Environment} Contracts={Contracts}", SubmissionId, candidate.CompositionId, candidate.BrokerAccountAlias, candidate.BrokerEnvironment, string.Join(",", ContractIds));
+        submissionStarted = true;
+        RequiresSubmissionReconciliation = true;
         var result = _trade.PrimaryTrade
-            ? await _appRoot.Services.PortfolioTradeOrders.SubmitOpeningAsync(_portfolioId, candidate, channel, cancellationToken).ConfigureAwait(false)
+            ? await _appRoot.Services.PortfolioTradeOrders.SubmitOpeningAsync(_portfolioId, candidate, channel, cancellationToken, RecordAccepted).ConfigureAwait(false)
             : await SubmitClosingAsync(candidate, channel, cancellationToken).ConfigureAwait(false);
         SubmittedTradeOrders = result.TradeOrders;
+        if (result.Status != PortfolioOrderCompositionStatus.ExecuteTradeOrders || result.TradeOrders.Count == 0)
+        {
+            RequiresSubmissionReconciliation = false;
+            submissionStarted = false;
+            knownDeclined = true;
+            SubmissionStatus = "Portfolio declined: " + (result.FundDecisions.Count == 0 ? "No fund accepted the candidate" : string.Join("; ", result.FundDecisions.Select(x => $"Fund {x.FundId}: {x.ReasonCode}")));
+            throw new InvalidOperationException(SubmissionStatus);
+        }
+        RequiresSubmissionReconciliation = channel == ExecutionChannel.Broker || result.DispatchError is not null;
+        SubmissionStatus = result.DispatchError is null ? "Portfolio accepted; broker acknowledgement pending" : "Portfolio accepted; dispatch unconfirmed. " + result.DispatchError;
+        if (result.DispatchError is not null) throw new InvalidOperationException(SubmissionStatus);
+        if (channel == ExecutionChannel.Broker)
+        {
+            SubmissionStatus = "Awaiting broker acceptance";
+            try { await TomasAI.IFM.UI.Net.Services.Trade.BrokerSubmissionAcknowledgement.WaitAsync(
+                _appRoot.Services.BrokerOrders, result.TradeOrders, cancellationToken).ConfigureAwait(false); }
+            catch (TomasAI.IFM.UI.Net.Services.Trade.BrokerOrderRejectedException)
+            { RequiresSubmissionReconciliation = false; throw; }
+            BrokerAccepted = true;
+            SubmissionStatus = "Broker accepted";
+        }
+        else { BrokerAccepted = true; SubmissionStatus = "Manual order submitted"; }
+        RequiresSubmissionReconciliation = false;
         return result.PortfolioEventId;
     }
 
@@ -288,12 +343,20 @@ public sealed class BrokerManualTradeOrderViewModel
             Position = reference, StrategyKind = candidate.StrategyKind, ValueDate = candidate.ValueDate,
             ValidUntilUtc = candidate.ValidUntilUtc, Origin = candidate.Origin, Component = component,
             EvidenceHash = candidate.EvidenceHash, PositionType = PortfolioExecutionPositionType.Closing, SetupTrade = candidate.SetupTrade
-        }, channel, cancellationToken).ConfigureAwait(false);
+        }, channel, cancellationToken, RecordAccepted).ConfigureAwait(false);
     }
 
-    async Task<PortfolioOrderCandidate> CreateCandidateAsync(int quantity, decimal limit,
-        TradeFillType fillType, CancellationToken cancellationToken)
+    void RecordAccepted(TomasAI.IFM.UI.Net.Services.Trade.PortfolioTradeOrderSubmissionResult result)
     {
+        SubmittedTradeOrders = result.TradeOrders;
+        SubmissionEventId = result.PortfolioEventId;
+        SubmissionStatus = "Portfolio accepted; dispatching to broker";
+        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission PortfolioAcceptedPublished SubmissionId={SubmissionId} PortfolioEventId={PortfolioEventId} OrderIds={OrderIds}",SubmissionId,result.PortfolioEventId,string.Join(",",result.TradeOrders.Select(x=>x.Id.Format())));
+    }
+
+    async Task<PortfolioOrderCandidate> CreateCandidateAsync(int quantity, decimal limit, CancellationToken cancellationToken)
+    {
+        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission CandidateValidationStarted SubmissionId={SubmissionId} PortfolioId={PortfolioId} FundId={FundId}", SubmissionId, _portfolioId, _trade.FundId);
         var contractIds = ContractIds;
         var requiredLegs = StrategyKind == TradeStrategyKind.FuturesOutright ? 1 : StrategyKind == TradeStrategyKind.IronCondor ? 4 : 2;
         if (contractIds.Length != requiredLegs || contractIds.Any(string.IsNullOrWhiteSpace))
@@ -301,30 +364,37 @@ public sealed class BrokerManualTradeOrderViewModel
                 $"{StrategyKind} requires exactly {requiredLegs} broker-neutral contract identifier(s). " +
                 "Use the reference format P4500:4490 or C4500:4510 for a Vertical Spread.");
 
-        var fund = await _appRoot.Services.PortfolioQueries
-            .GetFundAsync(_portfolioId, _trade.FundId, cancellationToken: cancellationToken).ConfigureAwait(false);
-        if (!fund.Success || fund.Value is null)
-            throw new InvalidOperationException(
-                $"Portfolio Fund {_portfolioId}.{_trade.FundId} is unavailable ({fund.ErrorCode}): {fund.ErrorMessage}");
-        var assignments = await _appRoot.Services.PortfolioQueries.GetAssignmentsAsync(
-            _portfolioId, _trade.FundId, fund.Value.FundMandateVersion, cancellationToken).ConfigureAwait(false);
-        if (!assignments.Success || assignments.Value is null)
-            throw new InvalidOperationException(
-                $"Portfolio assignments are unavailable ({assignments.ErrorCode}): {assignments.ErrorMessage}");
-        var familyName = StrategyKind == TradeStrategyKind.FuturesOutright ? "Futures" : StrategyKind == TradeStrategyKind.IronCondor ? "IronCondor" : "VerticalSpread";
         var now = DateTime.UtcNow;
-        var assignment = assignments.Value
-            .Where(value => value.IsEffectiveAt(now) && value.TradeStrategyFamily?.CatalogDeployment is not null
-                && (value.UnderlyingUniverse.Contains(_baseContract.Symbol, StringComparer.OrdinalIgnoreCase)
-                    || value.UnderlyingUniverse.Contains(_baseContract.ContractId, StringComparer.OrdinalIgnoreCase))
-                && value.TradeFamily.Contains(familyName, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(value => value.Priority)
-            .ThenByDescending(value => value.AssignmentVersion)
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException(
-                $"No effective {familyName} deployment is assigned to Portfolio Fund " +
-                $"{_portfolioId}.{_trade.FundId} for {_baseContract.Symbol}.");
+        TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey deployment = default;
+        var horizon = "Manual";
+        if (!DevelopmentManual)
+        {
+            var fund = await _appRoot.Services.PortfolioQueries
+                .GetFundAsync(_portfolioId, _trade.FundId, cancellationToken: cancellationToken).ConfigureAwait(false);
+            if (!fund.Success || fund.Value is null)
+                throw new InvalidOperationException(
+                    $"Portfolio Fund {_portfolioId}.{_trade.FundId} is unavailable ({fund.ErrorCode}): {fund.ErrorMessage}");
+            var assignments = await _appRoot.Services.PortfolioQueries.GetAssignmentsAsync(
+                _portfolioId, _trade.FundId, fund.Value.FundMandateVersion, cancellationToken).ConfigureAwait(false);
+            if (!assignments.Success || assignments.Value is null)
+                throw new InvalidOperationException(
+                    $"Portfolio assignments are unavailable ({assignments.ErrorCode}): {assignments.ErrorMessage}");
+            var familyName = StrategyKind == TradeStrategyKind.FuturesOutright ? "Futures" : StrategyKind == TradeStrategyKind.IronCondor ? "IronCondor" : "VerticalSpread";
+            var assignment = assignments.Value
+                .Where(value => value.IsEffectiveAt(now) && value.TradeStrategyFamily?.CatalogDeployment is not null
+                    && (value.UnderlyingUniverse.Contains(_baseContract.Symbol, StringComparer.OrdinalIgnoreCase)
+                        || value.UnderlyingUniverse.Contains(_baseContract.ContractId, StringComparer.OrdinalIgnoreCase))
+                    && value.TradeFamily.Contains(familyName, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(value => value.Priority)
+                .ThenByDescending(value => value.AssignmentVersion)
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException(
+                    $"No effective {familyName} deployment is assigned to Portfolio Fund " +
+                    $"{_portfolioId}.{_trade.FundId} for {_baseContract.Symbol}.");
 
+            deployment = assignment.TradeStrategyFamily!.CatalogDeployment!;
+            horizon = assignment.DecisionHorizon;
+        }
         if (!decimal.TryParse(_baseContract.Multiplier, NumberStyles.Number,
                 CultureInfo.InvariantCulture, out var multiplier) || multiplier <= 0)
             throw new InvalidOperationException(
@@ -332,27 +402,12 @@ public sealed class BrokerManualTradeOrderViewModel
 
         var legs = CreateLegs(contractIds, quantity, multiplier);
         var componentId = Guid.NewGuid();
-        var compositionId = Guid.NewGuid();
+        var compositionId = SubmissionId;
         var evidence = string.Join('|', _portfolioId, _trade.FundId, compositionId, componentId,
             StrategyKind, limit, quantity, _brokerOrderType, _brokerAlgorithm, _timeInForce, _algorithmPace,
             string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
         var approvalReference = string.Empty;
-        if (fillType == TradeFillType.Broker)
-        {
-            var account = await GetAccountAsync(cancellationToken).ConfigureAwait(false);
-            if (!account.Success || account.Value is null)
-                throw new InvalidOperationException(
-                    $"The emulator account is unavailable ({account.ErrorCode}): {account.ErrorMessage}");
-            if (!account.Value.DevelopmentQualificationsExempt && (account.Value.QualificationStatus != BrokerAccountQualificationStatus.Accepted ||
-                account.Value.Gate != BrokerAccountOperationalGate.Open || account.Value.ApprovalId == Guid.Empty))
-                throw new InvalidOperationException(
-                    $"The emulator account cannot accept opening risk. " +
-                    $"Qualification={account.Value.QualificationStatus}; Gate={account.Value.Gate}; " +
-                    $"Reason={account.Value.Reason}");
-            approvalReference = account.Value.DevelopmentQualificationsExempt ? "DevelopmentEmulatorQualificationExempt" : account.Value.ApprovalId.ToString("N");
-        }
-
         var notional = Math.Abs(limit * quantity * multiplier);
         var maximumLoss = StrategyKind != TradeStrategyKind.FuturesOutright
             ? Math.Max(notional, SelectedOrderPriceRisk.MaximumOptionLoss(legs, limit, quantity)) : notional;
@@ -360,7 +415,7 @@ public sealed class BrokerManualTradeOrderViewModel
         {
             CompositionId = compositionId,
             WorkflowId = Guid.NewGuid(),
-            DecisionHorizon = assignment.DecisionHorizon,
+            DecisionHorizon = horizon,
             StrategyKind = (PortfolioExecutionStrategyKind)StrategyKind,
             ValueDate = _trade.RequestedTradeDate,
             ValidUntilUtc = now.AddMinutes(5),
@@ -385,11 +440,11 @@ public sealed class BrokerManualTradeOrderViewModel
                 UnderlyingContract = _baseContract, TradeType = _trade.TradeType, SelectedLegs = legs,
                 SelectedQuoteInputsJson = _selectedQuoteInputs, Quantity = quantity, OrderPrice = limit,
                 RequiredCapital = maximumLoss, MaximumLoss = maximumLoss, Notional = notional,
-                Deployment = assignment.TradeStrategyFamily!.CatalogDeployment, BrokerOrderType = _brokerOrderType,
+                Deployment = deployment, BrokerOrderType = _brokerOrderType,
                 BrokerAlgorithm = _brokerAlgorithm, TimeInForce = _timeInForce, AlgorithmPace = _algorithmPace
             }, now),
             EvidenceHash = hash,
-            DeploymentKey = assignment.TradeStrategyFamily!.CatalogDeployment!,
+            DeploymentKey = deployment!,
             MaximumLoss = maximumLoss,
             StressLoss = maximumLoss,
             Notional = notional,
@@ -397,8 +452,8 @@ public sealed class BrokerManualTradeOrderViewModel
             ProductExchange = _baseContract.Exchange,
             ProductCurrency = _baseContract.Currency,
             PositionType = PortfolioExecutionPositionType.Opening,
-            BrokerAccountAlias = EmulatorAccountAlias,
-            BrokerEnvironment = PortfolioBrokerEnvironment.Emulator,
+            BrokerAccountAlias = _appRoot.TradeExecution.AccountAlias,
+            BrokerEnvironment = (PortfolioBrokerEnvironment)_appRoot.TradeExecution.Environment,
             MicroExecutionProfileId = "ManualPriceImprovement",
             MicroExecutionProfileVersion = 1,
             MicroExecutionProfileHash = hash,

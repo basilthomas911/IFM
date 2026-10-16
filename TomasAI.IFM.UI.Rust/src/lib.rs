@@ -1,3 +1,4 @@
+pub mod wire;
 use crate::presentation::TradingLabelUi as _;
 pub mod contract_editor;
 pub mod lookup_editor;

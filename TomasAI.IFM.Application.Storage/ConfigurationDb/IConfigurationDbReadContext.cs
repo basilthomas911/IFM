@@ -1,3 +1,4 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.Reference.Shared.Lookups;
@@ -149,4 +150,16 @@ public interface IConfigurationDbReadContext
     /// <returns>The parameter-set versions.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     Task<ParameterSetVersion[]> GetParameterSetsAsync(string componentCode, Guid? setId = null, CancellationToken cancellationToken = default, int limit = 100, string afterName = "", Guid? afterSetId = null, int afterVersion = 0);
+
+    /// <summary>Reads typed scalar/child rows in the caller's transaction and verifies their content fingerprint.</summary>
+    Task<ParameterSetValue?> GetTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default);
+
+    /// <summary>Reads and verifies one immutable assignment projection revision.</summary>
+    Task<ParameterAssignmentRevision?> GetParameterAssignmentProjectionAsync(IEnlistedPostgresTransaction transaction, Guid assignmentId, long revision, CancellationToken cancellationToken = default);
+    /// <summary>Reads and verifies the typed audit projection for an accepted operation.</summary>
+    Task<ParameterAuditEntry?> GetParameterAuditProjectionAsync(IEnlistedPostgresTransaction transaction, Guid operationId, CancellationToken cancellationToken = default);
+    /// <summary>Reads a frozen startup projection and its exact typed parameter versions.</summary>
+    Task<ParameterStartupRun?> GetParameterStartupProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken = default);
+    /// <summary>Reads and verifies a startup preparation report projection.</summary>
+    Task<ParameterSignalStartupReport?> GetParameterStartupReportProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken = default);
 }

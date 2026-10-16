@@ -1,3 +1,4 @@
+use crate::wire::WireNumber as _;
 use crate::presentation::TradingLabelUi as _;
 use super::order_layout::{at, rect};
 use super::*;
@@ -28,7 +29,7 @@ pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
         egui::RichText::new(strike).color(color).strong()).halign(egui::Align::Center).truncate());
 }
 pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
-    let Some(number) = v[key].as_f64() else {
+    let Some(number) = v[key].wire_number() else {
         return if v[key].is_null() {
             "-".into()
         } else {
@@ -58,13 +59,22 @@ pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
 }
 // Position caption/value glyphs on the same text line, independent of control padding.
 fn market_header_text(ui: &mut egui::Ui, bounds: egui::Rect, text: &str, align: egui::Align) {
+    market_header_text_colored(ui, bounds, text, align, None);
+}
+fn market_header_text_colored(ui: &mut egui::Ui, bounds: egui::Rect, text: &str, align: egui::Align, color: Option<Color32>) {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let height = ui.fonts(|fonts| fonts.row_height(&font));
     let text_bounds = egui::Rect::from_min_size(
         egui::pos2(bounds.left(), bounds.center().y - height / 2.),
         egui::vec2(bounds.width(), height),
     );
-    let label = crate::presentation::label_widget(egui::RichText::new(text).font(font)).halign(align);
+    let mut rich = egui::RichText::new(text).font(font);
+    if let Some(color) = color { rich = rich.color(color); }
+    let label = if color.is_some() {
+        egui::Label::new(rich)
+    } else {
+        crate::presentation::label_widget(rich)
+    }.halign(align);
     ui.place(text_bounds, if align == egui::Align::RIGHT {
         label.wrap_mode(egui::TextWrapMode::Extend)
     } else {
@@ -161,7 +171,7 @@ impl TradeWorkspace {
         };
         let iron = kind.contains("IronCondor");
         let future = kind == "FuturesOutright";
-        let editable = flag(s, "editable") && self.interaction_ready(s);
+        let editable = !flag(s, "submissionUnconfirmed") && flag(s, "editable") && self.interaction_ready(s);
         let trade_key = context(s, "tradeId");
         if self.draft.get("blotterTrade").map(String::as_str) != Some(trade_key) {
             for key in [
@@ -594,7 +604,7 @@ impl TradeWorkspace {
                     rect(o, p, xs[i] - labels[i], y, labels[i] - 10., 27.),
                     caption,
                     |ui| {
-                        market_header_text(ui, ui.max_rect(), caption, egui::Align::RIGHT);
+                        market_header_text_colored(ui, ui.max_rect(), caption, egui::Align::RIGHT, Some(crate::presentation::CAPTION_FOREGROUND));
                     },
                 );
                 let r = rect(o, p, xs[i], y, widths[i], 27.);
@@ -640,7 +650,7 @@ impl TradeWorkspace {
                 rect(o, p, xs[i] - labels[i], 176., labels[i] - 10., 27.),
                 caption,
                 |ui| {
-                    market_header_text(ui, ui.max_rect(), caption, egui::Align::RIGHT);
+                    market_header_text_colored(ui, ui.max_rect(), caption, egui::Align::RIGHT, Some(crate::presentation::CAPTION_FOREGROUND));
                 },
             );
             let r = rect(
@@ -689,7 +699,7 @@ impl TradeWorkspace {
             rect(o, p, xs[4] - labels[4], 176., labels[4] - 10., 27.),
             "liquidity-label",
             |ui| {
-                market_header_text(ui, ui.max_rect(), "LIQUIDITY:", egui::Align::RIGHT);
+                market_header_text_colored(ui, ui.max_rect(), "LIQUIDITY:", egui::Align::RIGHT, Some(crate::presentation::CAPTION_FOREGROUND));
             },
         );
         let liquidity = text(&market, "windowMethod");
@@ -702,11 +712,13 @@ impl TradeWorkspace {
             &[liquidity.as_str()],
             editable,
         );
+        let market_viewport = rect(o, p, 14., 233., w - 28., (h - 233. - 195.).max(100.));
         at(
             ui,
-            rect(o, p, 14., 233., w - 28., (h - 233. - 195.).max(100.)),
+            market_viewport,
             "marketSelectionGrid",
             |ui| {
+                ui.set_clip_rect(ui.clip_rect().intersect(market_viewport.shrink(1. / p)));
                 action = ui
                     .add_enabled_ui(editable, |ui| self.option_grid(ui, s, &market))
                     .inner
@@ -747,6 +759,8 @@ impl TradeWorkspace {
             rect(o, p, 14., h - 161., w - 28., 150.),
             "selectedStrategyLegsGrid",
             |ui| {
+                let bounds = ui.max_rect().shrink(1. / p);
+                ui.set_clip_rect(ui.clip_rect().intersect(bounds));
                 self.selected_grid(ui, s);
             },
         );
@@ -786,14 +800,22 @@ impl TradeWorkspace {
         let mut action = None;
         let preview = value(s, "broker-preview");
         let fields = &preview["fields"];
+        let leg_grid_bounds = rect(o, p, 26., 123., w - 52., 136.);
         at(
             ui,
-            rect(o, p, 26., 123., w - 52., 136.),
+            leg_grid_bounds,
             "brokerPreviewLegGrid",
             |ui| {
-                if self.leg_grid(ui, s, editable, 136. / p) {
-                    action = Some("preview-draft");
-                }
+                // Anchor the border to the assigned viewport, never to measured cell content.
+                let bounds = leg_grid_bounds;
+                ui.scope_builder(egui::UiBuilder::new().max_rect(bounds.shrink(1. / p)), |ui| {
+                    ui.set_clip_rect(ui.clip_rect().intersect(bounds.shrink(1. / p)));
+                    if self.leg_grid(ui, s, editable, 134. / p) {
+                        action = Some("preview-draft");
+                    }
+                });
+                ui.painter().rect_stroke(bounds, 0., egui::Stroke::new(1. / p,
+                    Color32::from_rgb(80, 80, 84)), egui::StrokeKind::Inside);
             },
         );
         self.controls.insert(
@@ -855,14 +877,15 @@ impl TradeWorkspace {
             ],
         ];
         for (index, row) in rows.iter().enumerate() {
-            let y = 265. + index as f32 * 69. + if index >= 3 { 27. } else { 0. };
+            let y = 279. + index as f32 * 69. + if index >= 3 { 27. } else { 0. };
             let total: f32 = row.iter().map(|(_, _, v)| v).sum();
             let budget = w - 58. - 10. * (row.len() - 1) as f32;
             let mut x = 29.;
             for (caption, key, weight) in row {
                 let width = (budget * weight / total).round();
-                at(ui, rect(o, p, x, y + 3., width, 30.), caption, |ui| {
-                    ui.trading_label(egui::RichText::new(format!("{caption}:")).color(Color32::LIGHT_GRAY));
+                // Keep captions just above their fields on a shared text baseline.
+                at(ui, rect(o, p, x, y + 17., width, 17.), caption, |ui| {
+                    market_header_text(ui, ui.max_rect(), &format!("{caption}:"), egui::Align::LEFT);
                 });
                 let r = rect(
                     o,
@@ -976,7 +999,7 @@ impl TradeWorkspace {
         }
         at(
             ui,
-            rect(o, p, 26., 472., w - 52., 27.),
+            rect(o, p, 26., 486., w - 52., 27.),
             "broker-economics-header",
             |ui| {
                 ui.painter().rect_filled(ui.max_rect(), 0., Color32::BLACK);
@@ -1239,8 +1262,8 @@ impl TradeWorkspace {
                     for column in 0..12 {
                         row.col(|ui| {
                             let mid = leg["bid"]
-                                .as_f64()
-                                .zip(leg["ask"].as_f64())
+                                .wire_number()
+                                .zip(leg["ask"].wire_number())
                                 .map(|(b, a)| format!("{:.2}", (b + a) / 2.))
                                 .unwrap_or_default();
                             if column == 5 {
@@ -1272,7 +1295,9 @@ impl TradeWorkspace {
                                             mid
                                         }
                                     }
-                                    9 => text(leg, "delta"),
+                                    9 => leg["delta"].wire_number()
+                                        .map(|delta| format!("{delta:.6}"))
+                                        .unwrap_or_default(),
                                     _ => chrono::DateTime::parse_from_rfc3339(&text(
                                         leg,
                                         "quoteAtUtc",

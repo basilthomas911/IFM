@@ -46,10 +46,7 @@ public sealed class ParameterStartupSnapshotModel
         }
         Scopes = Array.AsReadOnly(scopes.Values.OrderBy(x => x.AssignmentId).ToArray());
         Assignments = Array.AsReadOnly(assignments.Values.OrderBy(x => x.Assignment.AssignmentId).ToArray());
-        Fingerprint = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new
-        {
-            Assignments = Scopes
-        }));
+        Fingerprint = ParameterBinaryFingerprint.Hash(Scopes.ToArray());
     }
 
     public AppliedParameterAssignment? Resolve(ParameterAssignmentScope scope, Guid startupRunId)

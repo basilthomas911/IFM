@@ -1,11 +1,13 @@
-﻿using Black76OptionPricer;
+using Black76OptionPricer;
 using System.Diagnostics;
 using TomasAI.IFM.Framework.OptionPricer.Black76;
 
 namespace Black76OptionPricer.TestApp;
 
-internal class Program
+internal sealed class Program
 {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1303",Justification="The existing Development UI uses fixed English captions.")]
     private static void Main()
     {
         double F = 5300.0;
@@ -72,7 +74,7 @@ internal class Program
         // OTM implied vol
         double otmPutPrice = OptionModel.Price(F, 5100.0, r, 0.22, T, put);
         double ivOtm = OptionModel.ImpliedVolatility(F, 5100.0, r, otmPutPrice, T, put);
-        Console.WriteLine($"OTM Put IV (K=5100, σ=0.22) : {ivOtm:F10}  (expected 0.22)");
+        Console.WriteLine($"OTM Put IV (K=5100, Ïƒ=0.22) : {ivOtm:F10}  (expected 0.22)");
         Console.WriteLine();
 
         // --- Batch Pricing ---

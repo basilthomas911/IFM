@@ -29,23 +29,20 @@ public static class ParameterAssignmentPolicyModel
         if (!string.Equals(version.Reference.ComponentCode,scope.ComponentCode,StringComparison.Ordinal)) throw new ArgumentException("PARAM.REFERENCE_INVALID");
 #pragma warning restore MA0015
         var descriptor = ParameterComponentModelRegistry.Get(scope.ComponentCode);
-        if (descriptor.Validate(version.PayloadJson, version.SchemaVersion)
+        if (descriptor.ValidateTyped(version.Values(), version.SchemaVersion)
             .Any(issue => issue.Severity == ParameterIssueSeverity.Error))
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.VERSION_INVALID");
 #pragma warning restore MA0015
-        using var document = JsonDocument.Parse(version.PayloadJson);
-        if (!document.RootElement.TryGetProperty("ParameterSetId", out var setId)
-            || setId.GetGuid() != version.Reference.SetId
-            || !document.RootElement.TryGetProperty("Version", out var payloadVersion)
-            || payloadVersion.GetInt32() != version.Reference.Version)
+        var values=version.Values();
+        if(values.SetId!=version.Reference.SetId||values.Version!=version.Reference.Version)
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             throw new ArgumentException("PARAM.REFERENCE_INVALID");
 #pragma warning restore MA0015
         if (string.Equals(scope.ComponentCode,RegimeDiscoveryParameterModel.ComponentCode,StringComparison.Ordinal))
         {
             var horizon = WorkflowParameterScopeModel.Validate(scope);
-            var payload = JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(version.PayloadJson)!;
+            var payload = version.Values().Get<RegimeDiscoveryParameterSet>();
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
             if (payload.TargetHorizon != horizon) throw new ArgumentException("PARAM.HORIZON_MISMATCH");
 #pragma warning restore MA0015

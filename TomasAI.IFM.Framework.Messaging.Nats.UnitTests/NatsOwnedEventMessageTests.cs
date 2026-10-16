@@ -14,6 +14,7 @@ public class NatsOwnedEventMessageTests
 {
     [Fact]
     [Trait("Category", "Verification")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void FanoutBranches_ReleaseSharedPayloadOnlyAfterLastOwner()
     {
         var sourceEvent = CreateEvent();
@@ -48,6 +49,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void FanoutBranches_PreserveIngressTraceContext()
     {
         var traceContext = new ActivityContext(
@@ -66,6 +68,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task DeliveryCoordinator_AcksExactlyOnceAfterEverySuccessfulHandoff()
     {
         var acknowledgements = 0;
@@ -96,6 +99,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task DeliveryCoordinator_NaksExactlyOnceWhenAnyHandoffFails()
     {
         var acknowledgements = 0;
@@ -123,6 +127,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task OwnedBranches_FinalizeDurableDeliveryFromProcessingOutcomeExactlyOnce()
     {
         var acknowledgements = 0;
@@ -149,6 +154,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void DeliveryCoordinator_RetainsConfiguredDelayedNak()
     {
         var delay = TimeSpan.FromMilliseconds(175);
@@ -162,6 +168,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void FanoutRoutes_DeduplicatesPrimaryAndPreservesEventIdentity()
     {
         var source = CreateEvent().Subject;
@@ -179,6 +186,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void FanoutRoutes_ListenerOnlyEventHasNoActorDestinations()
     {
         var source = CreateEvent().Subject;
@@ -192,6 +200,7 @@ public class NatsOwnedEventMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void FanoutRoutes_ActorlessSourceCanStillRouteToRegisteredMailbox()
     {
         var source = CreateEvent().Subject;
@@ -230,6 +239,8 @@ public class NatsOwnedEventMessageTests
     };
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed record TestEvent : IEvent
     {
         [Key(0)] public ActorSubject Subject { get; init; }

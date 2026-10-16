@@ -1,106 +1,66 @@
-# Futures Market Close Scheduled Task â€” Implementation Details
+# Futures Market Close
 
-## Purpose
+## Execution boundary
 
-`TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose` is a one-shot .NET 10 Worker scheduled for 17:01
-`America/New_York`, Monday through Friday. It records the dated IFM close request, removes completed NATS
-JetStream transport history, and submits durable DatabaseBackup commands for configured protection sets.
+The one-shot task calls `IMarketCloseApi.CloseMarketAsync()` on the running API server.
+It sends an empty HTTP POST to `/api/market-data/close`: no date, contract list, position IDs,
+or scheduler-run parameters. `ApiServer:BaseUrl` selects the API address.
 
-JetStream is transport storage. PostgreSQL event sourcing remains the durable business record. End-of-day maintenance
-purges messages while retaining stream definitions, durable consumer definitions, and PostgreSQL events.
+Development Market Open and Market Close bypass runtime scheduler admission policy, artifact
+matching, dependency admission and the worker admission wait. Other environments retain scheduler
+admission. The close endpoint requires authorization outside Development.
 
-## Runtime workflow
+## Backend workflow
 
-1. Start one NATS actor-producer mailbox for the scheduled task.
-2. Submit the dated application-shutdown command and stop if the command is rejected.
-3. Capture the last sequence and message count for `EventStream` and each production projector PROCESS/REPLAY
-   stream.
-4. For each non-empty stream, wait up to the configured drain timeout for the relevant durable consumer to have zero
-   pending and zero acknowledgement-pending messages.
-5. Purge only messages below `captured last sequence + 1`. Messages published after the watermark remain available.
-6. Submit one `RequestDatabaseBackupCommand` per configured protection set.
-7. Report the task as failed if JetStream maintenance failed, after backup requests have still been submitted.
-8. Stop the producer and host.
+`Domain.SystemAdmin/MarketClose/MarketCloseCoordinator` owns sequencing and serializes close calls.
+`Api.Server.Core/MarketData/Sessions/MarketCloseOperations` adapts the existing actor APIs and transport maintenance.
 
-The application-shutdown command currently records the lifecycle request; final application-wide shutdown orchestration
-remains deferred. JetStream safety therefore does not depend on a fixed delay or an assumed process stop. Consumer
-drain state and a captured sequence watermark are the deletion boundary.
+1. Resolve the execution date once from the API clock and Eastern exchange-session rules. Explicit execution is permitted at any time.
+   Intraday close uses the actual execution time, and retries reuse the original persisted boundary.
+2. Read the durable EOD completion marker. A completed date still stops feeds and performs maintenance without repeating position finalization.
+3. Create an API-owned execution record using existing event-sourced scheduled-run receipts.
+   Its accepted/start records are bookkeeping and invoke no schedule-admission policy.
+4. Stop feeds and await that exact stop command's terminal completion event.
+5. Persist `FeedsStopped`; page all open positions, deduplicate routes and skip already-sealed dates.
+6. Submit deterministic position EOD commands for the captured date and close boundary.
+7. Persist `PositionsFinalized` only after every position source commitment succeeds. The existing
+   atomic projection updates `scheduled_task.futures_completed_end_of_day`, including direct launches.
+8. Purge only completed/drained JetStream transport messages using the existing maintenance implementation.
+9. Record completion and return the backend-confirmed date, execution ID and position count.
 
-## Purge scope and safety
+The API uses its shutdown token and a bounded deadline; a task/client disconnect does not cancel
+financial EOD in progress. Failures are logged and recorded. A maintenance failure does not undo a
+committed EOD marker. A retry of a finalized date stops feeds again and repeats maintenance.
 
-The checked-in production selectors are:
+## Backup ownership
 
-- exact stream `EventStream`;
-- streams matching `^IFM_[A-Z][A-Za-z0-9]*Projector_(PROCESS|REPLAY)$`.
-
-Lowercase integration, recovery-test, and other transient stream names are excluded. On `EventStream`, only the
-production `EventConsumer` participates in the drain gate; abandoned integration-test consumers cannot block the
-production close task. Every consumer on a selected projector stream participates in its drain gate.
-
-A selected non-empty stream is not purged when:
-
-- its required production consumer does not exist;
-- any relevant consumer has pending messages;
-- any relevant consumer has an unacknowledged delivery;
-- the drain timeout expires; or
-- NATS rejects inspection or purge.
-
-The NATS purge request uses `Seq = captured LastSeq + 1`, whose server contract removes messages up to but excluding
-that sequence. A concurrent message with a greater sequence is retained. The task never deletes stream or consumer
-definitions.
-
-## Message and authorization contract
-
-Each backup request uses:
-
-- `BackupSource.LocalWorkstation`;
-- `DatabaseConsistencyMode.EngineConsistent`;
-- `DatabaseRequestOrigin.ScheduledTask`;
-- the configured `DatabaseBackup:Mode` (`Full`, `Automatic`, or `Incremental`);
-- caller role `database-backup-operator`;
-- the configured environment identity;
-- the required configured logical destination; and
-- a unique request/correlation identifier that also becomes the command identifier.
-
-The scheduled task enters actor workflows through Command messages. It does not publish execution events or call
-business storage implementations directly.
+Market Close does not request, configure or depend on database backups. Backups are a separate
+scheduled operation. No backup task is scheduled by this change.
 
 ## Configuration
 
-| Key | Required | Purpose |
-| --- | --- | --- |
-| `Nats:Url` | No | NATS endpoint; defaults to `nats://localhost:4222`. |
-| `JetStreamEndOfDayPurge:DrainTimeoutSeconds` | Yes | Per-stream bounded drain wait. |
-| `JetStreamEndOfDayPurge:DrainPollMilliseconds` | Yes | Interval between consumer-state reads. |
-| `JetStreamEndOfDayPurge:EventStreamConsumerName` | Yes | Production shared-event durable consumer. |
-| `JetStreamEndOfDayPurge:StreamNamePatterns` | Yes | Anchored production stream selectors. |
-| `DatabaseBackup:EnvironmentIdentity` | Yes | Identity of the local environment being protected. |
-| `DatabaseBackup:Destination` | No | Required logical destination; defaults to `online-vault`. |
-| `DatabaseBackup:Mode` | No | Backup selection mode; checked-in configuration uses `Automatic`. |
-| `DatabaseBackup:ProtectionSets` | Yes | Non-empty list of protection-set identifiers to submit. |
-| `Serilog:*` | Yes for configured logging | Console/file logging policy. |
+- Task: `ApiServer:BaseUrl` (Development default `http://localhost:22543/`).
+- Backend: existing `Nats:Url`; optional `JetStreamEndOfDayPurge` overrides the maintenance defaults.
+- Task logging and telemetry remain configured normally.
 
-## Scheduler ownership
+## Verification
 
-The Scheduler Host catalog declares manifest version 3 for this task. Schedule
-`e296cd36-738e-47c9-b207-3fd7f8b6a0d0` is explicitly approved and uses Quartz cron
-`0 1 17 ? * MON-FRI` in `America/New_York` with `DoNothing` misfire behavior.
+Isolated tests cover intraday execution and stable retry boundaries, pinned dates, paginated/deduplicated positions,
+already-sealed positions, stop/EOD failures, durable completion ordering, maintenance retries,
+parameterless HTTP requests and Development admission policy. Live execution is an explicit operational action, including during trading hours.
 
-An enabled deployment seed requires a non-empty `ActivationApprovalReference` and an available, hash-valid deployed
-executable. Seed reconciliation updates an existing definition only while `updated_by` remains
-`deployment-seed`. Once an operator changes the definition, later deployments preserve the operator-owned version.
+### Development intraday validation — 2026-10-15
 
-## Operational behavior
+Executed the parameterless task against the managed Development API at 07:42 ET, during trading hours.
+The task returned HTTP 200 and exit code 0 in approximately 26 seconds. Run
+`641433f5-ca2c-4413-879a-e0ae10acb27f` is durably `Succeeded` / `MarketClosed`, with
+`CompletedEndOfDayValueDate=2026-10-15`. One position was finalized. Read-only actor queries
+confirmed feeds stopped and operational value date advanced to 2026-10-16; live health reported
+planned closure. The scheduler deployment was updated to the same tested task build.
 
-- Full and incremental requests use the same scheduled task. In `Automatic` mode, the backup host chooses
-  incremental only when its parent and policy checks pass.
-- A purge failure is logged with the blocked stream and consumer counts. Database backup requests are still submitted,
-  and the scheduled run exits as failed.
-- A rejected lifecycle command or backup request produces a failed run.
-- Cancellation propagates through producer startup, consumer drain waits, purge calls, and backup requests.
-- Producer and host shutdown execute from `finally`.
-- The task uses the shared one-shot runtime and cooperative Scheduler Host control-pipe cancellation.
-
-Do not add database-name enumeration, per-database backup types, Core NATS completion listeners, unbounded drain
-polling, or whole-stream deletion. The durable actor workflow owns recovery; this task owns bounded end-of-day
-transport retention.
+The first attempt exposed duplicate command-audit reservation in position EOD persistence.
+PostgreSQL position actors now let the atomic event/projection transaction own that reservation.
+Identical EOD retries can recover an orphan reservation under a row lock after payload verification;
+changed payloads and already-committed events remain rejected. The isolated PostgreSQL regression
+passed, alongside 33 close/scheduler and 18 position tests. API build completed with zero errors
+and existing dependency advisory warnings. No backup operation is invoked by Market Close.

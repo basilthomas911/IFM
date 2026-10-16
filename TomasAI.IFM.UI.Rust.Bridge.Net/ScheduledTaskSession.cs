@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using TomasAI.IFM.UI.Net.Models.SystemAdmin;
 using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
@@ -7,7 +6,6 @@ namespace TomasAI.IFM.UI.Rust.Bridge.Net;
 /// <summary>Adapts the shared scheduled-task view model without installing or executing tasks in the renderer.</summary>
 public sealed class ScheduledTaskSession : IDisposable
 {
-    static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     readonly RustClientServiceScope? scope;
     readonly ScheduledTasksViewModel model;
     readonly Task ready;
@@ -122,9 +120,9 @@ public sealed class ScheduledTaskSession : IDisposable
         var state = model.State;
         return new("scheduled-tasks",state.Schedules.Where(x=>!x.Removed).Select(x=>new ContractEditorRow(x.Id.ToString("D"),Fields(x))).ToArray(),
             new(){["taskKey"]=state.Projects.Where(x=>x.Available).Select(x=>x.TaskKey).ToArray()},
-            cursor is not null, new(){["hostStatus"]=state.HostStatus,["histories"]=JsonSerializer.Serialize(histories,Json),["nextFires"]=JsonSerializer.Serialize(nextFires,Json),["runs"]=JsonSerializer.Serialize(runs,Json),["output"]=output,
-                ["outputRun"]=outputRun?.ToString("D") ?? "",["outputEnd"]=outputEnd.ToString(),["historySchedule"]=historySchedule?.ToString("D") ?? "",
-                ["preview"]=preview is null ? "" : JsonSerializer.Serialize(preview,Json),["projects"]=JsonSerializer.Serialize(state.Projects,Json)});
+            cursor is not null, new(){["hostStatus"]=state.HostStatus,["output"]=output,
+                ["outputRun"]=outputRun?.ToString("D") ?? "",["outputEnd"]=outputEnd.ToString(),["historySchedule"]=historySchedule?.ToString("D") ?? ""
+                }){Documents=new(){["histories"]=BridgeDocument.Encode(histories,true),["nextFires"]=BridgeDocument.Encode(nextFires,true),["runs"]=BridgeDocument.Encode(runs,true),["preview"]=BridgeDocument.Encode(preview,true),["projects"]=BridgeDocument.Encode(state.Projects,true)}};
     }
     static ScheduledTaskDefinitionUiModel Required(ScheduledTaskDefinitionUiModel? row) => row is {Removed:false} ? row : throw new InvalidOperationException("Select a current schedule");
     ScheduledTaskScheduleUiModel ReadSchedule(ContractEditorIntent i) => new(Field(i,"taskKey"),Field(i,"name"),model.Environment,model.HostId,

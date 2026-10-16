@@ -98,4 +98,7 @@ public interface IConfigurationDbWriteContext
     Task PublishRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime effectiveFromUtc, CancellationToken cancellationToken = default);
     /// <summary>Materializes the accepted retirement of a Regime Discovery version.</summary>
     Task RetireRegimeDiscoveryAsync(IEnlistedPostgresTransaction transaction, Guid parameterSetId, int version, DateTime retiredAtUtc, CancellationToken cancellationToken = default);
+
+    /// <summary>Inserts immutable typed parameter rows in the source event transaction; identical replays are idempotent.</summary>
+    Task InsertTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, ParameterSetValue value, CancellationToken cancellationToken = default);
 }

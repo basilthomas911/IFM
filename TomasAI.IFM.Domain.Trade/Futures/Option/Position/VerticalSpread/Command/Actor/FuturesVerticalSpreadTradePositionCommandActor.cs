@@ -74,6 +74,8 @@ public sealed class FuturesVerticalSpreadTradePositionCommandActor(ICommandActor
         [typeof(CorrectVerticalSpreadPositionBasisCommand)] = static (command, state) => ((CorrectVerticalSpreadPositionBasisCommand)command).Execute(state),
         [typeof(SnapshotVerticalSpreadPositionCommand)] = static (command, state) => ((SnapshotVerticalSpreadPositionCommand)command).Execute(state)
     }.ToFrozenDictionary();
+    protected override bool PersistsCommandAuditAtomically(ICommand command)
+        => string.Equals(services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
     protected override bool IsResidentCommand(ICommand command) => command is UpdateVerticalSpreadPositionLegMarketPriceCommand or ChangeTradeLegDataCommand;
     protected override bool IsResidentMessage(ActorSubject subject) => subject.Verb is UpdateVerticalSpreadPositionLegMarketPriceCommand.Verb or ChangeTradeLegDataCommand.Verb;
     protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesVerticalSpreadTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);

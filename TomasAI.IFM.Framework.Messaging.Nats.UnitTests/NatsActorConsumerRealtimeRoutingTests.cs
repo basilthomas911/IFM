@@ -14,6 +14,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
         new(ActorType.Realtime, "FuturesMarketPrice", "Updated", "ESZ26");
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Realtime_IncludesPrimaryAndDeduplicatedRegisteredRoutes()
     {
         var routedMailbox =
@@ -39,6 +40,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Realtime_RouteCanOverrideOnlyDestinationSchedulingEntity()
     {
         var routedMailbox = new ActorMailboxId(
@@ -63,6 +65,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Realtime_RejectsRoutingWhenPrimaryActorIsMissing()
     {
         var supervisor = Substitute.For<IActorSupervisor>();
@@ -78,6 +81,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void LegacyCommand_RemainsDirectAndDoesNotConsultRealtimeRoutes()
     {
         var command = new ActorSubject(
@@ -98,6 +102,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Consumer_BindsToOneBackendActorType()
     {
         var bound = NatsActorConsumer.BindActorType(
@@ -114,6 +119,7 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Consumer_RejectsNotifyActorType()
     {
         var bindNotify = () => NatsActorConsumer.BindActorType(
@@ -125,6 +131,8 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void RoutedMessage_ExposesDestinationSubjectAndOriginalPayload()
     {
         byte[] payload = [1, 2, 3, 4];

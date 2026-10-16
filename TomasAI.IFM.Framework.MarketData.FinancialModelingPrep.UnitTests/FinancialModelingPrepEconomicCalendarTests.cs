@@ -3,6 +3,8 @@ namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.UnitTests;
 public sealed class FinancialModelingPrepEconomicCalendarTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Get_maps_utc_nullable_and_supplemental_fields_and_filters_country()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -52,6 +54,8 @@ public sealed class FinancialModelingPrepEconomicCalendarTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Invalid_country_filter_fails_before_http()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -74,6 +78,8 @@ public sealed class FinancialModelingPrepEconomicCalendarTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task Conflicting_duplicate_logical_events_fail()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -98,6 +104,8 @@ public sealed class FinancialModelingPrepEconomicCalendarTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Inverted_range_fails_before_http()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);

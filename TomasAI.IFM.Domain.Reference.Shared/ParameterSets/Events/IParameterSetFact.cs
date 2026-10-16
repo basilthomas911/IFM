@@ -10,4 +10,6 @@ public interface IParameterSetFact : IEvent<ParameterSetEntityId>
     string RequestHash { get; }
     string VersionJson { get; }
     string AuditJson { get; }
+    ParameterSetVersion? Version { get; }
+    ParameterAuditEntry? Audit { get; }
 }

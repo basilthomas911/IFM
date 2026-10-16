@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsMessagePackSerializerTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Round_trip_writes_directly_to_buffer_writer()
     {
         var serializer = NatsMessagePackSerializer<Payload>.Default;
@@ -22,6 +23,7 @@ public sealed class NatsMessagePackSerializerTests
 
     [Fact]
     [Trait("Category", "Verification")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Nats_and_binary_boundaries_share_compression_and_decode_each_others_payloads()
     {
         var expected = new Payload(Guid.NewGuid(), "selection.completed", Enumerable.Repeat((byte)7, 10000).ToArray());
@@ -38,6 +40,7 @@ public sealed class NatsMessagePackSerializerTests
 
     [Fact]
     [Trait("Category", "Verification")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Reused_writer_serialization_has_no_per_message_intermediate_payload_allocation()
     {
         var serializer = NatsMessagePackSerializer<Payload>.Default;
@@ -81,6 +84,9 @@ public sealed class NatsMessagePackSerializerTests
         public Span<byte> GetSpan(int sizeHint = 0) => _buffer.AsSpan(_written);
         public void Reset() => _written = 0;
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public sealed record Payload(Guid Id, string Subject, byte[] Data);
 }

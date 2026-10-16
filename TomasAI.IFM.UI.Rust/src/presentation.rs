@@ -119,7 +119,7 @@ pub fn tab_value<T:PartialEq>(ui:&mut egui::Ui,current:&mut T,value:T,label:&str
 
 
 /// Shared caption foreground for labels ending with a colon in both desktop clients.
-pub const CAPTION_FOREGROUND: egui::Color32 = egui::Color32::from_rgb(211, 211, 211);
+pub const CAPTION_FOREGROUND: egui::Color32 = egui::Color32::from_rgb(174, 198, 239);
 
 pub fn label_text(text: impl Into<egui::WidgetText>) -> egui::WidgetText {
     let text = text.into();
@@ -146,4 +146,18 @@ impl TradingLabelUi for egui::Ui {
     fn trading_colored_label(&mut self, color: impl Into<egui::Color32>, text: impl Into<egui::WidgetText>) -> egui::Response {
         self.add(label_widget(text.into().color(color)))
     }
+}
+
+/// Mirrors the shared WinForms shell command state without issuing backend work during rendering.
+pub fn feed_command_button(ui: &mut egui::Ui, state: &crate::sidebar::FeedControl) -> bool {
+    let label = if state.active { "Stop Market Feeds" } else { "Start Market Feeds" };
+    let enabled = state.ready && state.can_toggle && !state.busy;
+    let (background, foreground) = feed_command_palette(enabled.then_some(state.active));
+    ui.scope(|ui| {
+        ui.visuals_mut().disabled_alpha = 1.0;
+        ui.add_enabled(enabled,
+            egui::Button::new(egui::RichText::new(label).color(foreground)).fill(background).frame(true))
+            .on_disabled_hover_text(if state.busy { "Waiting for the backend feed command to complete." } else { "Feed command unavailable until the shell and market session are ready." })
+            .clicked()
+    }).inner
 }

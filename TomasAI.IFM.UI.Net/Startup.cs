@@ -53,6 +53,7 @@ namespace TomasAI.IFM.UI.Net
     public class Startup : IAppRoot
     {
         public Microsoft.Extensions.Logging.ILogger DiagnosticLogger => _container?.GetInstance<Microsoft.Extensions.Logging.ILogger>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        public DesktopTradeExecutionContext TradeExecution => DesktopTradeExecutionContext.Resolve(_config, AppEnvironment);
         static Container? _container;
         static IConfiguration? _config;
         static int _shutdownStarted;

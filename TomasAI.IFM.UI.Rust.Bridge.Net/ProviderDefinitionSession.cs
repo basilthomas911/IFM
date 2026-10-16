@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -19,7 +18,6 @@ sealed class ProviderDefinitionSession : IDisposable
         FuturesOptionContractReadModel? Option, FuturesOptionContractReadModel? OriginalOption,
         FuturesContractV3ReadModel? Underlying);
     static string Key(InstrumentDefinitionSelection row) => $"{row.SnapshotId:N}:{row.Dataset}:{row.PublisherId}:{row.InstrumentId}";
-    readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
 
     public ProviderDefinitionSession() { model = new(scope.Container.GetInstance<MarketDataQueryService>()); ready = scope.StartAsync(stopping.Token).AsTask(); }
     static string Field(ContractEditorIntent input, string name) => input.Fields.GetValueOrDefault(name)?.Trim() ?? "";
@@ -50,16 +48,17 @@ sealed class ProviderDefinitionSession : IDisposable
     {
         var page = model.Page ?? throw new InvalidOperationException("Search for a stored definition first");
         var rows = page.Items.Select(row => new ContractEditorRow(Key(row),
-            JsonSerializer.SerializeToElement(row,json).EnumerateObject().ToDictionary(field => field.Name,field => field.Value.ValueKind == JsonValueKind.Null ? "" : field.Value.ToString()))).ToArray();
+            BridgeDocument.Fields(row,camelCase:true))).ToArray();
+        var documents=new Dictionary<string,byte[]>();
         var context = new Dictionary<string,string> { ["snapshotId"] = page.SnapshotId.ToString("D"), ["snapshotCompletedUtc"] = DateTime.SpecifyKind(page.SnapshotCompletedUtc,DateTimeKind.Utc).ToString("O",CultureInfo.InvariantCulture) };
         if(draft is { } preview)
         {
             context["previewToken"] = preview.Token;
             context["previewSelectedId"] = preview.SelectedId;
             context["previewMode"] = preview.OriginalFuture is not null || preview.OriginalOption is not null ? "Change" : "Add";
-            context["previewContract"] = preview.Future is { } future ? JsonSerializer.Serialize(future,json) : JsonSerializer.Serialize(preview.Option,json);
+            documents["previewContract"] = BridgeDocument.Encode((object?)preview.Future??preview.Option,camelCase:true);
         }
-        return new(view,rows,new(){["right"] = Enum.GetNames<ReferenceOptionRight>()},page.ContinuationToken is not null,context);
+        return new(view,rows,new(){["right"] = Enum.GetNames<ReferenceOptionRight>()},page.ContinuationToken is not null,context){Documents=documents};
     }
     async Task<ContractEditorResult> MapAsync(ContractEditorIntent input)
     {

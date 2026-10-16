@@ -10,6 +10,8 @@ namespace TomasAI.IFM.Application.Storage.Postgres.Benchmarks;
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, launchCount: 1, warmupCount: 3, iterationCount: 8)]
 [MinIterationTime(500)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class PostgresTuningBenchmarks
 {
     NpgsqlDataSource source = null!;
@@ -18,15 +20,18 @@ public class PostgresTuningBenchmarks
     int nextStream;
     readonly NpgsqlConnection[] concurrentConnections = new NpgsqlConnection[8];
     readonly NpgsqlCommand[] concurrentCommands = new NpgsqlCommand[8];
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
 
     public IEnumerable<string> Profiles => [Environment.GetEnvironmentVariable("IFM_PG_TUNING_PROFILE") ?? "Baseline"];
     [ParamsSource(nameof(Profiles))] public string Profile { get; set; } = "";
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
     public string Version => "18.6";
 
     [GlobalSetup]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2100",Justification="SQL uses fixed benchmark schema and table definitions; parameter values use database parameters.")]
     public async Task Setup()
     {
-        var port = int.Parse(Environment.GetEnvironmentVariable("IFM_POSTGRES_BENCHMARK_PORT") ?? "0");
+        var port = int.Parse(Environment.GetEnvironmentVariable("IFM_POSTGRES_BENCHMARK_PORT") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
         var host = Environment.GetEnvironmentVariable("IFM_PG_TUNING_HOST") ?? "127.0.0.1";
         if ((host == "127.0.0.1" && port != 58118) || (host != "127.0.0.1" && (host != "pg-tuning" || port != 5432))) throw new InvalidOperationException("Only dedicated benchmark ports are allowed.");
         var builder = new NpgsqlConnectionStringBuilder
@@ -38,17 +43,17 @@ public class PostgresTuningBenchmarks
             ApplicationName = "IFM.PostgresTuningBenchmark"
         };
         source = NpgsqlDataSource.Create(builder.ConnectionString);
-        connection = await source.OpenConnectionAsync();
+        connection = await (source.OpenConnectionAsync()).ConfigureAwait(false);
         using (var check = new NpgsqlCommand("SELECT current_setting('server_version'), current_database(), current_setting('fsync'), current_setting('synchronous_commit'), current_setting('full_page_writes')", connection))
-        await using (var reader = await check.ExecuteReaderAsync())
+{var reader = await (check.ExecuteReaderAsync()).ConfigureAwait(false);        await using ((reader).ConfigureAwait(true))
         {
-            await reader.ReadAsync();
+            await (reader.ReadAsync()).ConfigureAwait(false);
             if (!reader.GetString(0).StartsWith(Version + " ", StringComparison.Ordinal) && reader.GetString(0) != Version)
                 throw new InvalidOperationException("Server version does not match requested benchmark version.");
             if (reader.GetString(1) != "ifm_pg_benchmark" || Enumerable.Range(2, 3).Any(i => reader.GetString(i) != "on"))
                 throw new InvalidOperationException("Isolated database and full durability settings are required.");
         }
-        using var seed = new NpgsqlCommand("""
+}        using var seed = new NpgsqlCommand("""
             DROP SCHEMA IF EXISTS benchmark CASCADE;
             CREATE SCHEMA benchmark;
             CREATE SEQUENCE benchmark.event_version;
@@ -74,16 +79,16 @@ public class PostgresTuningBenchmarks
         var vacuumSql = seed.CommandText[vacuumAt..];
         seed.CommandText = seed.CommandText[..vacuumAt];
         using var exists = new NpgsqlCommand("SELECT to_regclass('benchmark.event_log') IS NOT NULL", connection);
-        if (!(bool)(await exists.ExecuteScalarAsync())!)
-            await seed.ExecuteNonQueryAsync();
+        if (!(bool)(await (exists.ExecuteScalarAsync()).ConfigureAwait(false))!)
+            await (seed.ExecuteNonQueryAsync()).ConfigureAwait(false);
         else
         {
             // Reuse the identical immutable seed; remove prior case writes before measurement.
             using var reset = new NpgsqlCommand("DELETE FROM benchmark.event_log WHERE streamversion>1000; UPDATE benchmark.event_stream_id SET currentversion=1000; SELECT setval('benchmark.event_version',500000)", connection) { CommandTimeout=120 };
-            await reset.ExecuteNonQueryAsync();
+            await (reset.ExecuteNonQueryAsync()).ConfigureAwait(false);
         }
-        using (var vacuum = new NpgsqlCommand(vacuumSql, connection)) await vacuum.ExecuteNonQueryAsync();
-        using (var checkpoint = new NpgsqlCommand("CHECKPOINT",connection)) await checkpoint.ExecuteNonQueryAsync();
+        using (var vacuum = new NpgsqlCommand(vacuumSql, connection)) await (vacuum.ExecuteNonQueryAsync()).ConfigureAwait(false);
+        using (var checkpoint = new NpgsqlCommand("CHECKPOINT",connection)) await (checkpoint.ExecuteNonQueryAsync()).ConfigureAwait(false);
         var payload = Encoding.UTF8.GetBytes(new string('x', 1024));
         append = CreateAppend(connection, 1, 1, payload);
         batch = CreateAppend(connection, 1, 32, payload);
@@ -95,25 +100,25 @@ public class PostgresTuningBenchmarks
         workingSet.Parameters.Add(new NpgsqlParameter { NpgsqlDbType=NpgsqlDbType.Bigint, Value=1L });
         workingSet.Parameters.Add(new NpgsqlParameter { NpgsqlDbType=NpgsqlDbType.Bigint, Value=1L });
         sort = new NpgsqlCommand("SELECT sum(streamversion) FROM (SELECT streamversion,eventpayload FROM benchmark.event_log WHERE eventstreamid BETWEEN 1 AND 20 ORDER BY eventpayload,streamversion OFFSET 0) s", connection);
-        await batch8.PrepareAsync(); await batch128.PrepareAsync(); await workingSet.PrepareAsync(); await sort.PrepareAsync();
-        await append.PrepareAsync(); await batch.PrepareAsync(); await snapshot.PrepareAsync(); await history.PrepareAsync();
+        await (batch8.PrepareAsync()).ConfigureAwait(false); await (batch128.PrepareAsync()).ConfigureAwait(false); await (workingSet.PrepareAsync()).ConfigureAwait(false); await (sort.PrepareAsync()).ConfigureAwait(false);
+        await (append.PrepareAsync()).ConfigureAwait(false); await (batch.PrepareAsync()).ConfigureAwait(false); await (snapshot.PrepareAsync()).ConfigureAwait(false); await (history.PrepareAsync()).ConfigureAwait(false);
         for (var i = 0; i < 8; i++)
         {
-            concurrentConnections[i] = await source.OpenConnectionAsync();
+            concurrentConnections[i] = await (source.OpenConnectionAsync()).ConfigureAwait(false);
             concurrentCommands[i] = CreateAppend(concurrentConnections[i], i + 1, 1, payload);
-            await concurrentCommands[i].PrepareAsync();
+            await (concurrentCommands[i].PrepareAsync()).ConfigureAwait(false);
         }
         // Validate each workload before the measured warmup and iterations.
-        await AppendEvent(); await AppendBatch32();
-        if (await LatestSnapshot() != 1024 || await History100() != 100) throw new InvalidOperationException("Seed/read validation failed.");
-        await ConcurrentAppend8();
-        if (await WorkingSetRead() != 100 || await SortWindow() <= 0) throw new InvalidOperationException("Tuning workload validation failed.");
+        await (AppendEvent()).ConfigureAwait(false); await (AppendBatch32()).ConfigureAwait(false);
+        if (await (LatestSnapshot()).ConfigureAwait(false) != 1024 || await (History100()).ConfigureAwait(false) != 100) throw new InvalidOperationException("Seed/read validation failed.");
+        await (ConcurrentAppend8()).ConfigureAwait(false);
+        if (await (WorkingSetRead()).ConfigureAwait(false) != 100 || await (SortWindow()).ConfigureAwait(false) <= 0) throw new InvalidOperationException("Tuning workload validation failed.");
         var evidenceRoot=Environment.GetEnvironmentVariable("IFM_PG_TUNING_EVIDENCE");
         if (evidenceRoot is not null)
         {
             Directory.CreateDirectory(evidenceRoot);
             using var explain=new NpgsqlCommand("EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) " + sort.CommandText, connection);
-            await File.WriteAllTextAsync(Path.Combine(evidenceRoot,Profile+"-sort-plan.json"), (string)(await explain.ExecuteScalarAsync())!);
+            await (File.WriteAllTextAsync(Path.Combine(evidenceRoot,Profile+"-sort-plan.json"), (string)(await (explain.ExecuteScalarAsync()).ConfigureAwait(false))!)).ConfigureAwait(false);
         }
     }
 
@@ -141,7 +146,7 @@ public class PostgresTuningBenchmarks
     static async Task<long> ExecuteAppend(NpgsqlCommand command)
     {
         command.Parameters[3].Value=Guid.NewGuid();
-        return (long)(await command.ExecuteScalarAsync())!;
+        return (long)(await (command.ExecuteScalarAsync()).ConfigureAwait(false))!;
     }
     [Benchmark] public Task<long> AppendBatch32() => ExecuteAppend(batch);
     [Benchmark] public Task<long> AppendBatch8() => ExecuteAppend(batch8);
@@ -151,39 +156,41 @@ public class PostgresTuningBenchmarks
         // Deterministic permutation traverses all 500 streams rather than the same cached stream.
         workingSet.Parameters[0].Value=(long)((nextStream % 500)*137 % 500 + 1);
         workingSet.Parameters[1].Value=(long)((nextStream++ / 500)*97 % 901 + 1);
-        await using var reader=await workingSet.ExecuteReaderAsync();
+var reader=await (workingSet.ExecuteReaderAsync()).ConfigureAwait(false);
+await using var readerDisposal = reader.ConfigureAwait(true);
         var count=0;
-        while(await reader.ReadAsync()) { _=reader.GetFieldValue<byte[]>(0).Length; count++; }
+        while(await (reader.ReadAsync()).ConfigureAwait(false)) { _=(await reader.GetFieldValueAsync<byte[]>(0).ConfigureAwait(false)).Length; count++; }
         return count;
     }
-    [Benchmark] public async Task<long> SortWindow() => Convert.ToInt64(await sort.ExecuteScalarAsync());
-    [Benchmark] public async Task<int> LatestSnapshot() => ((byte[])(await snapshot.ExecuteScalarAsync())!).Length;
+    [Benchmark] public async Task<long> SortWindow() => Convert.ToInt64(await (sort.ExecuteScalarAsync()).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture);
+    [Benchmark] public async Task<int> LatestSnapshot() => ((byte[])(await (snapshot.ExecuteScalarAsync()).ConfigureAwait(false))!).Length;
     [Benchmark] public async Task<int> History100()
     {
-        await using var reader = await history.ExecuteReaderAsync();
+var reader = await (history.ExecuteReaderAsync()).ConfigureAwait(false);
+await using var readerDisposal = reader.ConfigureAwait(true);
         var count = 0;
-        while (await reader.ReadAsync()) { _ = reader.GetFieldValue<byte[]>(1).Length; count++; }
+        while (await (reader.ReadAsync()).ConfigureAwait(false)) { _ = (await reader.GetFieldValueAsync<byte[]>(1).ConfigureAwait(false)).Length; count++; }
         return count;
     }
     /// <summary>Eight independent streams/connections concurrently commit one event each; one benchmark operation is the complete group.</summary>
     [Benchmark] public async Task ConcurrentAppend8()
-        => await Task.WhenAll(concurrentCommands.Select(ExecuteAppend));
+        => await (Task.WhenAll(concurrentCommands.Select(ExecuteAppend))).ConfigureAwait(false);
 
     [GlobalCleanup]
     public async Task Cleanup()
     {
-        foreach (var command in concurrentCommands) if (command is not null) await command.DisposeAsync();
-        foreach (var c in concurrentConnections) if (c is not null) await c.DisposeAsync();
-        if (append is not null) await append.DisposeAsync();
-        if (batch is not null) await batch.DisposeAsync();
-        if (batch8 is not null) await batch8.DisposeAsync();
-        if (batch128 is not null) await batch128.DisposeAsync();
-        if (workingSet is not null) await workingSet.DisposeAsync();
-        if (sort is not null) await sort.DisposeAsync();
-        if (snapshot is not null) await snapshot.DisposeAsync();
-        if (history is not null) await history.DisposeAsync();
-        if (connection is not null) await connection.DisposeAsync();
-        if (source is not null) await source.DisposeAsync();
+        foreach (var command in concurrentCommands) if (command is not null) await (command.DisposeAsync()).ConfigureAwait(false);
+        foreach (var c in concurrentConnections) if (c is not null) await (c.DisposeAsync()).ConfigureAwait(false);
+        if (append is not null) await (append.DisposeAsync()).ConfigureAwait(false);
+        if (batch is not null) await (batch.DisposeAsync()).ConfigureAwait(false);
+        if (batch8 is not null) await (batch8.DisposeAsync()).ConfigureAwait(false);
+        if (batch128 is not null) await (batch128.DisposeAsync()).ConfigureAwait(false);
+        if (workingSet is not null) await (workingSet.DisposeAsync()).ConfigureAwait(false);
+        if (sort is not null) await (sort.DisposeAsync()).ConfigureAwait(false);
+        if (snapshot is not null) await (snapshot.DisposeAsync()).ConfigureAwait(false);
+        if (history is not null) await (history.DisposeAsync()).ConfigureAwait(false);
+        if (connection is not null) await (connection.DisposeAsync()).ConfigureAwait(false);
+        if (source is not null) await (source.DisposeAsync()).ConfigureAwait(false);
     }
 }
 

@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.UI.Rust.Bridge.Net;
+using TomasAI.IFM.UI.Rust.Bridge.Net;
 using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 using Xunit;

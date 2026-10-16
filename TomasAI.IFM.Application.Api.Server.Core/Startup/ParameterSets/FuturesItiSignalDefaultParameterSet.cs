@@ -28,7 +28,7 @@ internal static class FuturesItiSignalDefaultParameterSet
             return;
         }
 
-        var payload = JsonSerializer.Serialize(new FuturesItiSignalParameterSet
+        var payload = ParameterSetValue.From(new FuturesItiSignalParameterSet
         {
             ParameterSetId = SetId,
             DefaultTradingDays = new()
@@ -46,7 +46,7 @@ internal static class FuturesItiSignalDefaultParameterSet
             Name = Name,
             Description = "Default trading-day values for Daily, Weekly, and Monthly Futures ITI signals.",
             SchemaVersion = ParameterSchemaRegistry.CurrentFuturesItiSignalSchemaVersion,
-            PayloadJson = payload
+            Parameters = payload
         }, cancellationToken).ConfigureAwait(false);
         if (!created.Success)
             throw new InvalidOperationException(created.ErrorMessage ?? "The Futures ITI parameter set could not be created.");
@@ -66,8 +66,7 @@ internal static class FuturesItiSignalDefaultParameterSet
             || version.SchemaVersion != ParameterSchemaRegistry.CurrentFuturesItiSignalSchemaVersion)
             throw new InvalidOperationException("The stored Futures ITI parameter-set identity or schema is invalid.");
 
-        var payload = JsonSerializer.Deserialize<FuturesItiSignalParameterSet>(version.PayloadJson)
-            ?? throw new InvalidOperationException("The stored Futures ITI parameter-set payload is invalid.");
+        var payload = version.Values().Get<FuturesItiSignalParameterSet>();
         if (payload.ParameterSetId != SetId
             || payload.DefaultTradingDays.Daily <= 0
             || payload.DefaultTradingDays.Weekly <= 0

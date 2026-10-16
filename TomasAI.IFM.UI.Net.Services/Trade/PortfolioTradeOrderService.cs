@@ -1,4 +1,6 @@
-﻿using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Portfolio;
@@ -14,15 +16,23 @@ namespace TomasAI.IFM.UI.Net.Services.Trade;
 public sealed record PortfolioTradeOrderSubmissionResult(
     Guid PortfolioEventId,
     PortfolioOrderCompositionStatus Status,
-    IReadOnlyList<TradeOrderDefinition> TradeOrders);
+    IReadOnlyList<TradeOrderDefinition> TradeOrders)
+{
+    /// <summary>Gets the exact per-fund admission decisions, including decline reasons.</summary>
+    public IReadOnlyList<PortfolioFundOrderDecision> FundDecisions { get; init; } = [];
+    /// <summary>Gets an unconfirmed lifecycle handoff error without losing accepted order identities.</summary>
+    public string? DispatchError { get; init; }
+}
 
 /// <summary>Submits a broker-neutral candidate to Portfolio and starts every accepted Trade Order lifecycle.</summary>
 /// <param name="portfolio">The Portfolio order-composition authority.</param>
 /// <param name="lifecycle">The Trade Order actor lifecycle boundary.</param>
+/// <param name="logger">The correlated client diagnostic logger.</param>
 public sealed class PortfolioTradeOrderService(
     IPortfolioOrderCompositionApi portfolio,
-    ITradeOrderLifecycleApi lifecycle)
+    ITradeOrderLifecycleApi lifecycle, ILogger? logger = null)
 {
+    readonly ILogger _logger = logger ?? NullLogger.Instance;
     readonly IPortfolioOrderCompositionApi _portfolio =
         portfolio ?? throw new ArgumentNullException(nameof(portfolio));
     readonly ITradeOrderLifecycleApi _lifecycle =
@@ -33,12 +43,14 @@ public sealed class PortfolioTradeOrderService(
     /// <param name="candidate">The complete broker-neutral order candidate.</param>
     /// <param name="executionChannel">The channel bound to each accepted order.</param>
     /// <param name="cancellationToken">Cancels the submission.</param>
+    /// <param name="onAccepted">Publishes accepted identities before waiting for lifecycle dispatch.</param>
     /// <returns>The Portfolio completion and accepted Trade Orders.</returns>
     public async Task<PortfolioTradeOrderSubmissionResult> SubmitOpeningAsync(
         int portfolioId,
         PortfolioOrderCandidate candidate,
         ExecutionChannel executionChannel,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<PortfolioTradeOrderSubmissionResult>? onAccepted = null)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         if (portfolioId <= 0)
@@ -72,6 +84,7 @@ public sealed class PortfolioTradeOrderService(
         };
         request = request with { InputSha256 = FinancialCanonicalHash.Request(request) };
 
+        _logger.LogInformation("OrderSubmission PortfolioEvaluationStarted PortfolioId={PortfolioId} OperationId={OperationId} CompositionId={CompositionId} Channel={Channel}", portfolioId, operationId, candidate.CompositionId, executionChannel);
         var result = await _portfolio.EvaluateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Success || result.Value is null)
             throw new InvalidOperationException(
@@ -94,19 +107,15 @@ public sealed class PortfolioTradeOrderService(
                 order.PositionType != TradeOrderPositionType.Opening))
             throw new InvalidOperationException("Portfolio returned an invalid opening Trade Order identity.");
 
-        foreach (var order in orders)
-        {
-            var dispatch = await _lifecycle.SubmitAcceptedAsync(
-                order, completed.Id, executionChannel, cancellationToken).ConfigureAwait(false);
-            if (!dispatch.Success)
-                throw new InvalidOperationException(
-                    $"Accepted Trade Order {order.Id.Format()} could not start execution ({dispatch.ErrorCode}): {dispatch.ErrorMessage}");
-        }
-        return new(completed.Id, completed.Receipt.Status, orders);
+        _logger.LogInformation("OrderSubmission PortfolioDecision PortfolioId={PortfolioId} OperationId={OperationId} CompositionId={CompositionId} PortfolioEventId={PortfolioEventId} Status={Status} OrderIds={OrderIds} FundDecisions={FundDecisions}", portfolioId, operationId, candidate.CompositionId, completed.Id, completed.Receipt.Status, string.Join(",", orders.Select(x => x.Id.Format())), System.Text.Json.JsonSerializer.Serialize(completed.Receipt.FundDecisions));
+        if (orders.Length > 0) onAccepted?.Invoke(new(completed.Id, completed.Receipt.Status, orders) { FundDecisions = completed.Receipt.FundDecisions });
+        var dispatchError = await DispatchAsync(orders, completed.Id, executionChannel, cancellationToken).ConfigureAwait(false);
+        return new(completed.Id, completed.Receipt.Status, orders) { FundDecisions = completed.Receipt.FundDecisions, DispatchError = dispatchError };
     }
     /// <summary>Evaluates a reduce-only closing candidate and dispatches the accepted backend execution.</summary>
     public async Task<PortfolioTradeOrderSubmissionResult> SubmitClosingAsync(int portfolioId,
-        PortfolioCloseOrderCandidate candidate, ExecutionChannel executionChannel, CancellationToken cancellationToken = default)
+        PortfolioCloseOrderCandidate candidate, ExecutionChannel executionChannel, CancellationToken cancellationToken = default,
+        Action<PortfolioTradeOrderSubmissionResult>? onAccepted = null)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         if (portfolioId <= 0 || candidate.PositionType != PortfolioExecutionPositionType.Closing)
@@ -136,10 +145,29 @@ public sealed class PortfolioTradeOrderService(
         if (!order.Id.IsValid || order.Id.PortfolioId != portfolioId || order.PositionType != TradeOrderPositionType.Closing ||
             order.TargetPositionId != new StrategyPositionId(new(candidate.Position.Id.PortfolioId, candidate.Position.Id.FundId, candidate.Position.Id.OrderId, candidate.Position.Id.TradeId), candidate.Position.Id.PositionId))
             throw new InvalidOperationException("Portfolio returned an invalid closing identity.");
-        var dispatch = await _lifecycle.SubmitAcceptedAsync(order, completed.Id, executionChannel, cancellationToken).ConfigureAwait(false);
-        if (!dispatch.Success)
-            throw new InvalidOperationException($"Accepted closing order {order.Id.Format()} could not start: {dispatch.ErrorCode};{dispatch.ErrorMessage}");
-        return new(completed.Id, PortfolioOrderCompositionStatus.ExecuteTradeOrders, [order]);
+        _logger.LogInformation("OrderSubmission ClosingPortfolioAccepted PortfolioId={PortfolioId} CompositionId={CompositionId} PortfolioEventId={PortfolioEventId} OrderId={OrderId}", portfolioId, candidate.CompositionId, completed.Id, order.Id.Format());
+        onAccepted?.Invoke(new(completed.Id, PortfolioOrderCompositionStatus.ExecuteTradeOrders, [order]));
+        var dispatchError = await DispatchAsync([order], completed.Id, executionChannel, cancellationToken).ConfigureAwait(false);
+        return new(completed.Id, PortfolioOrderCompositionStatus.ExecuteTradeOrders, [order]) { DispatchError = dispatchError };
     }
 
+    async Task<string?> DispatchAsync(IReadOnlyList<TradeOrderDefinition> orders, Guid portfolioEventId, ExecutionChannel channel, CancellationToken token)
+    {
+        foreach (var order in orders)
+        {
+            try
+            {
+                _logger.LogInformation("OrderSubmission LifecycleDispatchStarted PortfolioEventId={PortfolioEventId} OrderId={OrderId} Account={Account} Environment={Environment}", portfolioEventId, order.Id.Format(), order.BrokerAccountAlias, order.BrokerEnvironment);
+                var result = await _lifecycle.SubmitAcceptedAsync(order, portfolioEventId, channel, token).ConfigureAwait(false);
+                if (!result.Success) throw new InvalidOperationException($"Accepted Trade Order {order.Id.Format()} could not start execution ({result.ErrorCode}): {result.ErrorMessage}");
+                _logger.LogInformation("OrderSubmission LifecycleDispatchAccepted PortfolioEventId={PortfolioEventId} OrderId={OrderId}; broker acknowledgement pending", portfolioEventId, order.Id.Format());
+            }
+            catch (Exception error)
+            {
+                _logger.LogError(error, "OrderSubmission LifecycleDispatchUnconfirmed PortfolioEventId={PortfolioEventId} OrderId={OrderId}; reconcile accepted order before retry", portfolioEventId, order.Id.Format());
+                return error.Message;
+            }
+        }
+        return null;
+    }
 }

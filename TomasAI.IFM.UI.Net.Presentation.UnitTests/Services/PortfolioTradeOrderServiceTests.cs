@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
@@ -84,6 +84,7 @@ public sealed class PortfolioTradeOrderServiceTests
         var lifecycle = Substitute.For<ITradeOrderLifecycleApi>();
         var candidate = Candidate();
         var completed = Completed(candidate, [], PortfolioOrderCompositionStatus.NoTradeOrders);
+        completed = completed with { Receipt = completed.Receipt with { FundDecisions = [new(17, false, "FinancialSnapshotUnavailable", null)] } };
         portfolio.EvaluateAsync(Arg.Any<EvaluatePortfolioOrderCompositionCommand>(), Arg.Any<CancellationToken>())
             .Returns(call => Success(completed with
             {
@@ -91,16 +92,19 @@ public sealed class PortfolioTradeOrderServiceTests
             }));
         var service = new PortfolioTradeOrderService(portfolio, lifecycle);
 
-        var result = await service.SubmitOpeningAsync(11, candidate, ExecutionChannel.Manual);
+        var published=false;
+        var result = await service.SubmitOpeningAsync(11, candidate, ExecutionChannel.Manual,onAccepted: _=>published=true);
 
+        published.Should().BeFalse();
         result.Status.Should().Be(PortfolioOrderCompositionStatus.NoTradeOrders);
+        result.FundDecisions.Should().ContainSingle().Which.ReasonCode.Should().Be("FinancialSnapshotUnavailable");
         result.TradeOrders.Should().BeEmpty();
         await lifecycle.DidNotReceiveWithAnyArgs().SubmitAcceptedAsync(
             default!, default, default, default);
     }
 
     [Fact]
-    public async Task SubmitOpeningAsync_reports_the_accepted_order_that_could_not_start()
+    public async Task SubmitOpeningAsync_preserves_accepted_order_when_dispatch_is_unconfirmed()
     {
         var portfolio = Substitute.For<IPortfolioOrderCompositionApi>();
         var lifecycle = Substitute.For<ITradeOrderLifecycleApi>();
@@ -116,10 +120,10 @@ public sealed class PortfolioTradeOrderServiceTests
             .Returns(new ServiceFailed<Guid>(905, "execution unavailable"));
         var service = new PortfolioTradeOrderService(portfolio, lifecycle);
 
-        var action = () => service.SubmitOpeningAsync(11, candidate, ExecutionChannel.Broker);
-
-        await action.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*11.17.101*905*execution unavailable*");
+        var result = await service.SubmitOpeningAsync(11, candidate, ExecutionChannel.Broker);
+        result.PortfolioEventId.Should().Be(completed.Id);
+        result.TradeOrders.Should().ContainSingle().Which.Id.Should().Be(order.Id);
+        result.DispatchError.Should().Contain("11.17.101").And.Contain("905").And.Contain("execution unavailable");
     }
 
     [Fact]
@@ -142,6 +146,24 @@ public sealed class PortfolioTradeOrderServiceTests
             .WithMessage("*inconsistent order-composition status*");
         await lifecycle.DidNotReceiveWithAnyArgs().SubmitAcceptedAsync(
             default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task Accepted_ids_are_published_before_lifecycle_dispatch_finishes()
+    {
+        var portfolio=Substitute.For<IPortfolioOrderCompositionApi>();
+        var lifecycle=Substitute.For<ITradeOrderLifecycleApi>();
+        var candidate=Candidate();var order=Order(101);
+        var completed=Completed(candidate,[order],PortfolioOrderCompositionStatus.ExecuteTradeOrders);
+        portfolio.EvaluateAsync(Arg.Any<EvaluatePortfolioOrderCompositionCommand>(),Arg.Any<CancellationToken>()).Returns(call=>Success(completed with {OperationId=call.Arg<EvaluatePortfolioOrderCompositionCommand>().OperationId}));
+        var release=new TaskCompletionSource<ServiceResult<Guid>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lifecycle.SubmitAcceptedAsync(order,completed.Id,ExecutionChannel.Broker,Arg.Any<CancellationToken>()).Returns(release.Task);
+        PortfolioTradeOrderSubmissionResult? published=null;
+        var pending=new PortfolioTradeOrderService(portfolio,lifecycle).SubmitOpeningAsync(11,candidate,ExecutionChannel.Broker,onAccepted: value=>published=value);
+        published.Should().NotBeNull();published!.TradeOrders.Should().ContainSingle().Which.Id.Should().Be(order.Id);
+        pending.IsCompleted.Should().BeFalse();
+        release.SetResult(new ServiceOk<Guid>(Guid.NewGuid()));
+        (await pending).DispatchError.Should().BeNull();
     }
 
     static PortfolioOrderCandidate Candidate() => new()

@@ -8,7 +8,7 @@ public unsafe class LiveYieldCurveEditorTests
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};
   Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   try{
    var loaded=Run(api,handle,new(1,Guid.NewGuid(),"yield-curve","load",0,null,[]));
    Assert.Contains("2026",loaded.Result.Choices["timePeriod"]);
@@ -20,5 +20,5 @@ public unsafe class LiveYieldCurveEditorTests
    File.WriteAllText(Path.Combine(dir,"live-yield-qualification.json"),JsonSerializer.Serialize(new{currentCount=loaded.Result.Rows.Length,annualCount=annual.Result.Rows.Length,tenors,annual.Result.Context,annual.Outcomes},Json));
   }finally{Assert.Equal(0,api.Base.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",old);}
  }
- static ContractEditorPublication Run(ApiV2 api,ulong handle,ContractEditorIntent intent){var bytes=JsonSerializer.SerializeToUtf8Bytes(intent,Json);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(45);do{int n;api.Base.Copy(handle,5,null,0,&n);var snapshot=new byte[n];fixed(byte* p=snapshot){if(api.Base.Copy(handle,5,p,n,&n)!=0)continue;}var state=JsonSerializer.Deserialize<ContractEditorPublication>(snapshot,Json)!;var outcome=state.Outcomes.SingleOrDefault(x=>x.RequestId==intent.RequestId);if(outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);return state;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("Yield operation not completed");}
+ static ContractEditorPublication Run(ApiV4 api,ulong handle,ContractEditorIntent intent){var bytes=BridgeWire.Serialize(intent);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(45);do{int n;api.Base.Copy(handle,5,null,0,&n);var snapshot=new byte[n];fixed(byte* p=snapshot){if(api.Base.Copy(handle,5,p,n,&n)!=0)continue;}var state=BridgeWire.Deserialize<ContractEditorPublication>(snapshot)!;var outcome=state.Outcomes.SingleOrDefault(x=>x.RequestId==intent.RequestId);if(outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);return state;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);throw new TimeoutException("Yield operation not completed");}
 }

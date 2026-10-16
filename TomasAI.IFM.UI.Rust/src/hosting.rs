@@ -15,7 +15,7 @@ pub struct Api {
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct ApiV2 {
+pub struct ApiV4 {
     pub base: Api,
     pub submit: unsafe extern "C" fn(u64, *const u8, i32) -> i32,
 }
@@ -115,18 +115,18 @@ impl Managed {
             )?;
             let bootstrap: unsafe extern "C" fn(u32, *mut Api, u32) -> i32 =
                 std::mem::transmute(bootstrap);
-            let mut table = std::mem::MaybeUninit::<ApiV2>::uninit();
+            let mut table = std::mem::MaybeUninit::<ApiV4>::uninit();
             checked(
                 bootstrap(
-                    2,
+                    4,
                     table.as_mut_ptr().cast(),
-                    std::mem::size_of::<ApiV2>() as u32,
+                    std::mem::size_of::<ApiV4>() as u32,
                 ),
                 "ABI negotiation",
             )?;
             let table = table.assume_init();
             let api = table.base;
-            if api.version != 2 || api.size != std::mem::size_of::<ApiV2>() as u32 {
+            if api.version != 4 || api.size != std::mem::size_of::<ApiV4>() as u32 {
                 return Err("ABI layout mismatch".into());
             }
             let mut handle = 0;
@@ -169,6 +169,7 @@ impl Managed {
         }
     }
     pub fn submit(&self, payload: &str) -> Result<(), String> {
+        let payload = ifm_ui_rust::wire::encode_intent(payload)?;
         unsafe {
             checked(
                 (self.submit)(self.handle, payload.as_ptr(), payload.len() as i32),

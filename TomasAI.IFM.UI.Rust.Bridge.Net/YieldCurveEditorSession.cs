@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;

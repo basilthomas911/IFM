@@ -13,10 +13,10 @@ fn fixture() -> (Catalog, ContractPublication) {
             generation: 3,
             status: "Ready".into(),
             busy: false,
-            result: ContractResult {
+            result: ContractResult { documents: Default::default(),
                 view: "operations-health".into(),
                 rows: vec![
-                    ContractRow {
+                    ContractRow { data: None,
                         id: "stage:TickAggregation".into(),
                         fields: BTreeMap::from([
                             ("kind".into(), "stage".into()),
@@ -25,7 +25,7 @@ fn fixture() -> (Catalog, ContractPublication) {
                             ("Pending".into(), "4".into()),
                         ]),
                     },
-                    ContractRow {
+                    ContractRow { data: None,
                         id: "dataset:GLBX.MDP3".into(),
                         fields: BTreeMap::from([
                             ("kind".into(), "dataset".into()),

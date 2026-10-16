@@ -12,6 +12,9 @@ public interface IAppRoot
     /// <summary>Gets the configured application environment name.</summary>
     string AppEnvironment { get; }
 
+    /// <summary>Gets the explicit account/environment route used for desktop order submission.</summary>
+    TomasAI.IFM.UI.Net.Services.Trade.DesktopTradeExecutionContext TradeExecution => TomasAI.IFM.UI.Net.Services.Trade.DesktopTradeExecutionContext.Resolve(null, AppEnvironment);
+
     /// <summary>Gets the typed UI domain-service catalog.</summary>
     IUiServiceCatalog Services { get; }
 

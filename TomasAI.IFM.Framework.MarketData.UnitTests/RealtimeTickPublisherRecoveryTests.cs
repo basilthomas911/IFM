@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Framework.MarketData.UnitTests;
 public sealed class RealtimeTickPublisherRecoveryTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2012",Justification="This ValueTask invocation configures or verifies an NSubstitute call, rather than executing asynchronous work.")]
     public async Task Transient_transport_failure_retries_same_publication_until_success()
     {
         var (supervisor, producer) = Setup();
@@ -22,12 +24,13 @@ public sealed class RealtimeTickPublisherRecoveryTests
             .Returns(_ => Interlocked.Increment(ref attempts) < 4
                 ? ValueTask.FromException(new IOException("transient"))
                 : ValueTask.CompletedTask);
-        await using var publisher = new TickAggregationEventPublisher(supervisor, policy: new()
+var publisher = new TickAggregationEventPublisher(supervisor, policy: new()
         {
             SendTimeout = TimeSpan.FromSeconds(1),
             InitialRetryDelay = TimeSpan.FromMilliseconds(10),
             MaximumRetryDelay = TimeSpan.FromMilliseconds(20)
         });
+await using var publisherDisposal = publisher.ConfigureAwait(true);
 
         await publisher.StartAsync();
         await publisher.PublishAsync(Price());
@@ -42,6 +45,8 @@ public sealed class RealtimeTickPublisherRecoveryTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2012",Justification="This ValueTask invocation configures or verifies an NSubstitute call, rather than executing asynchronous work.")]
     public async Task Noncooperative_send_remains_terminal_after_late_transport_completion()
     {
         var (supervisor, producer) = Setup();
@@ -50,12 +55,13 @@ public sealed class RealtimeTickPublisherRecoveryTests
         producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
                 Arg.Any<ActorSubject>(), Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>(), Arg.Any<CancellationToken>())
             .Returns(_ => { entered.TrySetResult(); return new ValueTask(release.Task); });
-        await using var publisher = new TickAggregationEventPublisher(supervisor, policy: new()
+var publisher = new TickAggregationEventPublisher(supervisor, policy: new()
         {
             SendTimeout = TimeSpan.FromMilliseconds(50),
             CancellationGracePeriod = TimeSpan.FromMilliseconds(20),
             NoProgressResetThreshold = TimeSpan.FromMilliseconds(250)
         });
+await using var publisherDisposal = publisher.ConfigureAwait(true);
 
         await publisher.StartAsync();
         await publisher.PublishAsync(Price());
@@ -72,7 +78,7 @@ public sealed class RealtimeTickPublisherRecoveryTests
         Assert.Equal(typeof(IOException).FullName, publisher.GetSnapshot().LastExceptionType);
         Assert.False(publisher.GetSnapshot().CanRecover);
         await Assert.ThrowsAsync<RealtimeTickPublisherUnavailableException>(
-            async () => await publisher.StartAsync());
+            async () => await (publisher.StartAsync()).ConfigureAwait(true));
         Assert.False(publisher.IsRunning);
     }
 
@@ -94,6 +100,6 @@ public sealed class RealtimeTickPublisherRecoveryTests
     static async Task Until(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        while (!condition()) await Task.Delay(10, timeout.Token);
+        while (!condition()) await (Task.Delay(10, timeout.Token)).ConfigureAwait(true);
     }
 }

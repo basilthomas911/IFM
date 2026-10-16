@@ -10,6 +10,8 @@ using Xunit;
 namespace TomasAI.IFM.Application.ServerManager.SchedulerPrototype.IntegrationTests;
 
 [CollectionDefinition(Name, DisableParallelization = true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1711",Justification="Preserve the established public contract or xUnit collection identity.")]
 public sealed class QuartzPostgresPrototypeCollection : ICollectionFixture<QuartzPostgresPersistenceFixture>
 {
     public const string Name = "Server Manager Quartz PostgreSQL prototype";
@@ -20,6 +22,7 @@ public sealed class QuartzPostgresPersistenceIntegrationTests(QuartzPostgresPers
 {
     [Fact]
     [Trait("Category", "SM-S0-NativeIntegration")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Job_and_trigger_survive_a_scheduler_restart()
     {
         var schedulerName = $"IFM-SM-S0-{Guid.NewGuid():N}";
@@ -67,6 +70,7 @@ public sealed class QuartzPostgresPersistenceIntegrationTests(QuartzPostgresPers
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public sealed class QuartzPostgresPersistenceFixture : IAsyncLifetime
 {
@@ -80,43 +84,46 @@ public sealed class QuartzPostgresPersistenceFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _port = FreePort();
-        await DockerAsync([
+        await (DockerAsync([
             "run", "--detach", "--name", _containerName,
             "--publish", $"127.0.0.1:{_port}:5432",
             "--env", $"POSTGRES_PASSWORD={Password}",
-            Image]);
+            Image])).ConfigureAwait(true);
         ConnectionString = $"Host=127.0.0.1;Port={_port};Database=postgres;Username=postgres;Password={Password};SSL Mode=Disable;Pooling=false";
-        await WaitForPostgreSqlAsync();
-        await InstallSchemaAsync();
+        await (WaitForPostgreSqlAsync()).ConfigureAwait(true);
+        await (InstallSchemaAsync()).ConfigureAwait(true);
     }
 
     internal async Task<IScheduler> CreateSchedulerAsync(string schedulerName)
     {
         var factory = new StdSchedulerFactory(
             QuartzPostgresPrototypeConfiguration.Create(ConnectionString, schedulerName));
-        return await factory.GetScheduler();
+        return await (factory.GetScheduler()).ConfigureAwait(true);
     }
 
     public async Task DisposeAsync()
     {
-        await DockerAsync(["rm", "--force", _containerName], allowFailure: true);
+        await (DockerAsync(["rm", "--force", _containerName], allowFailure: true)).ConfigureAwait(true);
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2100",Justification="SQL is loaded from the checked-in embedded Quartz schema resource, with no user input.")]
 
     async Task InstallSchemaAsync()
     {
         var assembly = typeof(QuartzPostgresPersistenceFixture).Assembly;
         var resourceName = assembly.GetManifestResourceNames().Single(name =>
             name.EndsWith("Database.tables_postgres.sql", StringComparison.Ordinal));
-        await using var stream = assembly.GetManifestResourceStream(resourceName)
+var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException("The embedded Quartz PostgreSQL schema could not be opened.");
+await using var streamDisposal = stream.ConfigureAwait(true);
         using var reader = new StreamReader(stream);
-        var sql = await reader.ReadToEndAsync();
-
-        await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
+        var sql = await (reader.ReadToEndAsync()).ConfigureAwait(true);
+var connection = new NpgsqlConnection(ConnectionString);
+await using var connectionDisposal = connection.ConfigureAwait(true);
+        await (connection.OpenAsync()).ConfigureAwait(true);
+var command = connection.CreateCommand();
+await using var commandDisposal = command.ConfigureAwait(true);
         command.CommandText = "CREATE SCHEMA ifm_quartz;" + Environment.NewLine + sql;
-        await command.ExecuteNonQueryAsync();
+        await (command.ExecuteNonQueryAsync()).ConfigureAwait(true);
     }
 
     async Task WaitForPostgreSqlAsync()
@@ -126,13 +133,14 @@ public sealed class QuartzPostgresPersistenceFixture : IAsyncLifetime
         {
             try
             {
-                await using var connection = new NpgsqlConnection(ConnectionString);
-                await connection.OpenAsync();
+var connection = new NpgsqlConnection(ConnectionString);
+await using var connectionDisposal = connection.ConfigureAwait(true);
+                await (connection.OpenAsync()).ConfigureAwait(true);
                 return;
             }
             catch (NpgsqlException)
             {
-                await Task.Delay(250);
+                await (Task.Delay(250)).ConfigureAwait(true);
             }
         }
 
@@ -141,7 +149,7 @@ public sealed class QuartzPostgresPersistenceFixture : IAsyncLifetime
 
     static int FreePort()
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
@@ -163,15 +171,16 @@ public sealed class QuartzPostgresPersistenceFixture : IAsyncLifetime
 
         using var process = Process.Start(start)
             ?? throw new InvalidOperationException("Docker could not be started.");
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        var output = await (process.StandardOutput.ReadToEndAsync()).ConfigureAwait(true);
+        var error = await (process.StandardError.ReadToEndAsync()).ConfigureAwait(true);
+        await (process.WaitForExitAsync()).ConfigureAwait(true);
         if (!allowFailure && process.ExitCode != 0)
             throw new InvalidOperationException(
                 $"The disposable SM-S0 PostgreSQL operation failed with exit code {process.ExitCode}: {error}");
         return output.Trim();
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public sealed class PersistenceProbeJob : IJob
 {

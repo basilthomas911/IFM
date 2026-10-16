@@ -10,6 +10,12 @@ public sealed class OptionVolatilityRetentionParameterModel : IParameterComponen
         "option-volatility", "Option Volatility", ComponentCode, "Retention",
         [ParameterSchemaRegistry.CurrentOptionVolatilityRetentionSchemaVersion], true);
 
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(CreateDefault(setId));
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion)
+    {
+        if(parameters.ComponentCode!=ComponentCode||parameters.SchemaVersion!=schemaVersion)return [new("PARAM.SCHEMA_MISMATCH","Parameters","The typed configuration does not match the component or schema")];
+        var issues=new List<ParameterValidationIssue>();ValidateValue(parameters.Get<OptionVolatilityRetentionParameterSet>(),issues);return issues.ToArray();
+    }
     public string CreateDraftPayload(Guid setId) => JsonSerializer.Serialize(CreateDefault(setId));
 
     public static OptionVolatilityRetentionParameterSet CreateDefault(Guid setId)

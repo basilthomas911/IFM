@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -60,10 +60,8 @@ public class MarketDataFeedCommandService(
     /// <summary>
     /// start market data feed streaming
     /// </summary>
-    /// <param name="futuresContracts"></param>
-    /// <param name="valueDate"></param>
-    public async Task<Guid> StartDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate)
-        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.StartMarketDataFeedAsync(futuresContracts, valueDate));
+    public async Task<Guid> StartDataFeedAsync()
+        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.StartMarketDataFeedAsync());
 
     /// <summary>
     /// stop market data feed streaming

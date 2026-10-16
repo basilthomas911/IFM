@@ -493,27 +493,11 @@ impl eframe::App for App {
                     .unwrap_or(ctx.screen_rect().width() * 0.22);
                     ui.add_space((left_width - ui.cursor().left()).max(0.0));
                     ui.separator();
-                    let feed_label = if self.shell.dashboard.feed_running == Some(true) {
-                        "Stop Market Feeds"
-                    } else {
-                        "Start Market Feeds"
-                    };
-                    let (feed_bg, feed_fg) = ifm_ui_rust::presentation::feed_command_palette(
-                        self.shell.dashboard.feed_running,
-                    );
-                    ui.scope(|ui| {
-                        // Preserve the state color while retaining the disabled command semantics.
-                        ui.visuals_mut().disabled_alpha = 1.0;
-                        ui.add_enabled(
-                            false,
-                            egui::Button::new(egui::RichText::new(feed_label).color(feed_fg))
-                                .fill(feed_bg)
-                                .frame(true),
-                        )
-                        .on_disabled_hover_text(
-                            "Feed commands are not yet connected in the Rust host.",
-                        );
-                    });
+                    if ifm_ui_rust::presentation::feed_command_button(ui, &self.shell.sidebar_snapshot.feed_control) {
+                        if self.tx.try_send(ifm_ui_rust::sidebar::FEED_TOGGLE_ACTION).is_err() {
+                            self.status = "Feed action queue is unavailable; command was not submitted.".into();
+                        }
+                    }
                     let health = ifm_ui_rust::presentation::feed_health_text(
                         &self.shell.dashboard.feed_health,
                     );
@@ -845,7 +829,7 @@ fn main() -> eframe::Result {
                 let result = (|| -> Result<(), String> {
                     let managed = hosting::Managed::load(&root)?;
                     let catalog: Catalog =
-                        serde_json::from_slice(&managed.copy(1)?).map_err(|e| e.to_string())?;
+                        ifm_ui_rust::wire::decode(&managed.copy(1)?).map_err(|e| e.to_string())?;
                     if catalog.version != 1 {
                         return Err("Catalog version mismatch".into());
                     }
@@ -886,7 +870,7 @@ fn main() -> eframe::Result {
                         let data = managed.copy(6)?;
                         if data != dashboard_bytes {
                             let dashboard =
-                                serde_json::from_slice(&data).map_err(|e| e.to_string())?;
+                                ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
                             if updates.try_send(Update::Dashboard(dashboard)).is_ok() {
                                 dashboard_bytes = data;
                                 ctx.request_repaint();
@@ -895,7 +879,7 @@ fn main() -> eframe::Result {
                         let data = managed.copy(7)?;
                         if data != sidebar_bytes {
                             let sidebar =
-                                serde_json::from_slice(&data).map_err(|e| e.to_string())?;
+                                ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
                             if updates.try_send(Update::Sidebar(sidebar)).is_ok() {
                                 sidebar_bytes = data;
                                 ctx.request_repaint();
@@ -903,7 +887,7 @@ fn main() -> eframe::Result {
                         }
                         let data = managed.copy(8)?;
                         let trade: ifm_ui_rust::contract_editor::ContractPublication =
-                            serde_json::from_slice(&data).map_err(|e| e.to_string())?;
+                            ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
                         if data != trade_bytes {
                             if updates.try_send(Update::Trades(trade)).is_ok() {
                                 trade_bytes = data;
@@ -911,7 +895,7 @@ fn main() -> eframe::Result {
                             }
                         }
                         let contract: ifm_ui_rust::contract_editor::ContractPublication =
-                            serde_json::from_slice(&managed.copy(5)?).map_err(|e| e.to_string())?;
+                            ifm_ui_rust::wire::decode(&managed.copy(5)?).map_err(|e| e.to_string())?;
                         if contract.generation != contract_generation {
                             let next = contract.generation;
                             if updates.try_send(Update::Contracts(contract)).is_ok() {
@@ -921,7 +905,7 @@ fn main() -> eframe::Result {
                         }
                         let inspection_data = managed.copy(4)?;
                         let inspection: ifm_ui_rust::strategy_inspection::InspectionPublication =
-                            serde_json::from_slice(&inspection_data).map_err(|e| e.to_string())?;
+                            ifm_ui_rust::wire::decode(&inspection_data).map_err(|e| e.to_string())?;
                         if inspection.generation != inspection_generation {
                             let next = inspection.generation;
                             if updates.try_send(Update::Inspection(inspection)).is_ok() {
@@ -931,7 +915,7 @@ fn main() -> eframe::Result {
                         }
                         let editor_data = managed.copy(3)?;
                         let editor: ifm_ui_rust::lookup_editor::EditorPublication =
-                            serde_json::from_slice(&editor_data).map_err(|e| e.to_string())?;
+                            ifm_ui_rust::wire::decode(&editor_data).map_err(|e| e.to_string())?;
                         if editor.generation != editor_generation {
                             let next = editor.generation;
                             if updates.try_send(Update::Editor(editor)).is_ok() {
@@ -942,7 +926,7 @@ fn main() -> eframe::Result {
                         if want_grid {
                             let bytes = managed.copy(2)?;
                             if !bytes.is_empty() {
-                                let rows = serde_json::from_slice(&bytes)
+                                let rows = ifm_ui_rust::wire::decode(&bytes)
                                     .map_err(|e| format!("Grid snapshot: {e}"))?;
                                 if updates.try_send(Update::Grid(rows)).is_ok() {
                                     want_grid = false;
@@ -955,11 +939,11 @@ fn main() -> eframe::Result {
                             continue;
                         }
                         let payload: serde_json::Value =
-                            serde_json::from_slice(&data).map_err(|e| e.to_string())?;
+                            ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
                         if let Some(error) = payload.get("error").and_then(|v| v.as_str()) {
                             return Err(format!("Managed bridge failed: {error}"));
                         }
-                        let s: Snapshot = serde_json::from_slice(&data)
+                        let s: Snapshot = ifm_ui_rust::wire::decode(&data)
                             .map_err(|e| format!("Invalid managed snapshot: {e}"))?;
                         if s.schema != 1 {
                             return Err("Snapshot schema mismatch".into());

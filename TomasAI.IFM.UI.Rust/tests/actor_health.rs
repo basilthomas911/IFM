@@ -10,7 +10,7 @@ fn fixture() -> (Catalog, ContractPublication) {
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap(),
         ContractPublication {
             generation: 4,
-            result: ContractResult {
+            result: ContractResult { documents: Default::default(),
                 view: "actor-health".into(),
                 context: BTreeMap::from([("controls".into(), "true".into())]),
                 choices: BTreeMap::from([(
@@ -18,7 +18,7 @@ fn fixture() -> (Catalog, ContractPublication) {
                     vec!["Pause".into(), "Restart".into()],
                 )]),
                 rows: vec![
-                    ContractRow {
+                    ContractRow { data: None,
                         id: "actor-fixture".into(),
                         fields: BTreeMap::from([
                             ("name".into(), "FixtureActor".into()),
@@ -26,7 +26,7 @@ fn fixture() -> (Catalog, ContractPublication) {
                             ("status".into(), "Green".into()),
                         ]),
                     },
-                    ContractRow {
+                    ContractRow { data: None,
                         id: "mailbox-fixture".into(),
                         fields: BTreeMap::from([
                             ("name".into(), "fixture-mailbox".into()),

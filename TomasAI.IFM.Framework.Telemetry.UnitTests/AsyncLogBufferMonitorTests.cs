@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.Telemetry.UnitTests;
 public sealed class AsyncLogBufferMonitorTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void ReportsBacklogCapacityAndDroppedRecordsWithoutLogging()
     {
         var readings = new Dictionary<string, long>();

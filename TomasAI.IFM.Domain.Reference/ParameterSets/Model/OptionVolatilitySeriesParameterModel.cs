@@ -7,6 +7,12 @@ public sealed class OptionVolatilitySeriesParameterModel : IParameterComponentDe
     public const string ComponentCode = ParameterSchemaRegistry.OptionVolatilitySeriesComponent;
     public ParameterComponentSummary Summary => new("option-volatility", "Option Volatility", ComponentCode, "Series", [ParameterSchemaRegistry.CurrentOptionVolatilitySeriesSchemaVersion], true);
 
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(CreateDefault(setId));
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion)
+    {
+        if(parameters.ComponentCode!=ComponentCode||parameters.SchemaVersion!=schemaVersion)return [new("PARAM.SCHEMA_MISMATCH","Parameters","The typed configuration does not match the component or schema")];
+        var issues=new List<ParameterValidationIssue>();ValidateValue(parameters.Get<OptionVolatilitySeriesParameterSet>(),issues);return issues.ToArray();
+    }
     public string CreateDraftPayload(Guid setId) => JsonSerializer.Serialize(CreateDefault(setId));
     public static OptionVolatilitySeriesParameterSet CreateDefault(Guid setId)
     {

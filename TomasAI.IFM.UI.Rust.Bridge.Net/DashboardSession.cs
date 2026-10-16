@@ -12,7 +12,6 @@ namespace TomasAI.IFM.UI.Rust.Bridge.Net;
 /// <summary>Publishes read-only dashboard snapshots off the renderer thread. Does not start feeds or import reference data.</summary>
 sealed class DashboardSession : IDisposable
 {
-    static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     readonly CancellationTokenSource stopping = new();
     readonly Task worker;
     readonly MarketChartSession marketCharts = new();
@@ -24,7 +23,7 @@ sealed class DashboardSession : IDisposable
     readonly string title = $"Investment Fund Manager - v{typeof(FuturesEodDataUIViewModel).Assembly.GetName().Version} - DEV";
     public DashboardSession()
     {
-        publication = JsonSerializer.SerializeToUtf8Bytes(new { title, status = "Loading dashboard...", outlook = new Dictionary<string,string>(), calendars = Array.Empty<string>() }, Json);
+        publication = BridgeWire.Serialize(new { title, status = "Loading dashboard...", outlook = new Dictionary<string,string>(), calendars = Array.Empty<string>() });
         worker = Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE") == "live" ? Task.Run(RunAsync) : Task.CompletedTask;
     }
     async Task RunAsync()
@@ -83,17 +82,17 @@ sealed class DashboardSession : IDisposable
                     }
                     string[] calendars = [];
                     var status = outlook.Success ? $"{contract.Value.ContractId} | {date:yyyy-MM-dd} | {session.Value.State}" : $"Market Outlook unavailable: {outlook.ErrorMessage}";
-                    Volatile.Write(ref publication, JsonSerializer.SerializeToUtf8Bytes(new { title, status, feedRunning, feedHealth, feedHealthReason, outlook = values, outlookCells = cells, outlookStatus, marketCharts = marketCharts.Charts, calendars }, Json));
+                    Volatile.Write(ref publication, BridgeWire.Serialize(new { title, status, feedRunning, feedHealth, feedHealthReason, outlook = values, outlookCells = cells, outlookStatus, marketCharts = marketCharts.Charts, calendars }));
                 }
                 catch (Exception e) when (e is not OperationCanceledException)
                 {
-                    Volatile.Write(ref publication, JsonSerializer.SerializeToUtf8Bytes(new { title, status = "Dashboard unavailable: " + e.Message, outlook = new Dictionary<string,string>(), calendars = Array.Empty<string>() }, Json));
+                    Volatile.Write(ref publication, BridgeWire.Serialize(new { title, status = "Dashboard unavailable: " + e.Message, outlook = new Dictionary<string,string>(), calendars = Array.Empty<string>() }));
                 }
                 await Task.Delay(TimeSpan.FromSeconds(5), stopping.Token);
             }
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
-        catch (Exception e) { Volatile.Write(ref publication, JsonSerializer.SerializeToUtf8Bytes(new { title, status = "Dashboard unavailable: " + e.Message }, Json)); }
+        catch (Exception e) { Volatile.Write(ref publication, BridgeWire.Serialize(new { title, status = "Dashboard unavailable: " + e.Message })); }
     }
     public void Dispose() { stopping.Cancel(); worker.GetAwaiter().GetResult(); stopping.Dispose(); marketCharts.Dispose(); sidebar.Dispose(); }
 }

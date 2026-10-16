@@ -41,8 +41,8 @@ public sealed class Stage2DefinitionRuntimeTests
         var logger = NullLogger<DbProvider>.Instance;
         var settings = new DbConnectionSettings()
             .Add("admin", scylla.Replace($"Default Keyspace={keyspace}", "Default Keyspace=system", StringComparison.Ordinal), "System.Data.ScyllaDb")
-            .Add("ReferenceDbConnection", scylla, "System.Data.ScyllaDb")
-            .Add("SecuritiesDbConnection", scylla, "System.Data.ScyllaDb")
+            .Add("ReferenceDbConnection", pg, "System.Data.Postgres")
+            .Add("SecuritiesDbConnection", pg, "System.Data.Postgres")
             .Add("ConfigurationDbConnection", pg, "System.Data.Postgres")
             .Add("EventSourceActorDbConnection", pg, "System.Data.Postgres")
             .Add("SequenceIdDbConnection", pg, "System.Data.Postgres");
@@ -59,7 +59,7 @@ public sealed class Stage2DefinitionRuntimeTests
             await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
             await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();
             var db = new Db(settings["ReferenceDbConnection"], logger);
-            var store = new InstrumentDefinitionStore(db, Substitute.For<ITradeStrategySymbolStore>());
+            var store = new InstrumentDefinitionStore(new ReferenceDbContext(settings, Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>(), Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>(), logger), Substitute.For<ITradeStrategySymbolStore>());
             var snapshot = Guid.NewGuid();
             for (uint id = 1; id <= 3; id++)
                 await store.IndexSelectionAsync(new()
@@ -75,8 +75,8 @@ public sealed class Stage2DefinitionRuntimeTests
                     ExpirationUtc = DateTimeOffset.UtcNow.AddDays(10),
                     DefinitionDigest = new('a', 64)
                 }, token);
-            await db.Use("Stage2.Snapshot", $"INSERT INTO instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',{snapshot},'2026-09-19T00:00:00Z',3,'[\"GLBX.MDP3\"]');").ExecuteCommandAsync(token);
-            await db.Use("Stage2.Complete", $"INSERT INTO instrument_definition_selection_status(snapshot_id,complete) VALUES({snapshot},true);").ExecuteCommandAsync(token);
+            await db.Use("Stage2.Snapshot", $"INSERT INTO reference.instrument_definition_snapshot(catalog,snapshot_id,completed_utc,record_count,datasets_json) VALUES('current',{snapshot},'2026-09-19T00:00:00Z',3,'[\"GLBX.MDP3\"]');").ExecuteCommandAsync(token);
+            await db.Use("Stage2.Complete", $"INSERT INTO reference.instrument_definition_selection_status(snapshot_id,complete) VALUES({snapshot},true);").ExecuteCommandAsync(token);
             await using var source = new TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>();
             await using var host = source.WithWebHostBuilder(builder =>
             {
@@ -87,7 +87,7 @@ public sealed class Stage2DefinitionRuntimeTests
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", pg);
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new[] { "Securities", "Reference", "Trade", "Fund", "OptionPricer", "MarketData" }
-                        .Select(name => new KeyValuePair<string, string?>($"ConnectionStrings:{name}DbConnection", scylla))));
+                        .Select(name => new KeyValuePair<string, string?>($"ConnectionStrings:{name}DbConnection", pg))));
                 // This acceptance host runs only reference actors, never trading background services.
                 builder.ConfigureServices(services =>
                 {

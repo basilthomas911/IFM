@@ -72,11 +72,13 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
             return readyServices = services;
         }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
 
     /// <summary>Starts the assembly-shared host and waits for the actor runtime to become ready.</summary>
     /// <returns>The ready shared host service provider.</returns>
     public static IServiceProvider StartShared()
         => Shared.Value.Services;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
 
     /// <summary>Configures services on the assembly-shared host before it is created.</summary>
     /// <param name="configuration">The service configuration to apply.</param>
@@ -97,12 +99,13 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
     /// <returns>A client bound to the shared host's isolated Kestrel port.</returns>
     public new HttpClient CreateClient(WebApplicationFactoryClientOptions options)
         => useOwnHost ? base.CreateClient(options) : Shared.Value.CreateClient(options);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1000",Justification="The assembly-shared integration host is scoped by its generic entry point type.")]
 
     /// <summary>Stops and disposes the assembly-shared default host when it was created.</summary>
     public static async ValueTask DisposeSharedAsync()
     {
         if (Shared.IsValueCreated)
-            await Shared.Value.DisposeAsync();
+            await (Shared.Value.DisposeAsync()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -127,6 +130,7 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder
             .UseSetting("AppSettings:Fmp:Enabled", "false")
             .UseSetting("AppSettings:HistoricalAnalyticsWarmup:Enabled", "false")

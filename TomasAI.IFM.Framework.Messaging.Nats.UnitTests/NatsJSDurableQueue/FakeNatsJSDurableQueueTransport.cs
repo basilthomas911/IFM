@@ -83,7 +83,7 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
         ChannelReader<INatsJSDurableMessage> reader,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var message in reader.ReadAllAsync(cancellationToken))
+        await foreach (var message in (reader.ReadAllAsync(cancellationToken)).ConfigureAwait(true))
             yield return message;
     }
 
@@ -158,7 +158,7 @@ internal sealed class FakeNatsJSDurableQueueTransport : INatsJSDurableQueueTrans
         {
             NakCount++;
             DeliveryCount++;
-            await redeliveryWriter.WriteAsync(this, cancellationToken);
+            await (redeliveryWriter.WriteAsync(this, cancellationToken)).ConfigureAwait(true);
         }
     }
 }

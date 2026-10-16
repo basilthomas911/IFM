@@ -11,11 +11,14 @@ public sealed record ScheduledTaskProjectUiModel(string TaskKey, string Name, bo
 /// <summary>Contains one persisted occurrence and its business outcome.</summary>
 public sealed record ScheduledTaskRunUiModel(Guid Id, DateTimeOffset IntendedFireTimeUtc, string Status, string Stage, string Detail,
     DateTimeOffset? StartedAtUtc, DateTimeOffset? FinishedAtUtc, int? ExitCode, DateOnly? ValueDate, long Revision = 0, Guid OperationCommandId = default, int? ProcessId = null, string StandardOutputTail = "", string StandardErrorTail = "", string OutputDirectory = "");
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 /// <summary>Contains bounded task list, catalog, host and selected task run state.</summary>
 public sealed record ScheduledTaskDashboardUiModel(ScheduledTaskDefinitionUiModel[] Schedules, ScheduledTaskProjectUiModel[] Projects,
     ScheduledTaskRunUiModel[] Runs, string HostStatus, DateTimeOffset? HostObservedAtUtc);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 /// <summary>Contains validated next UTC occurrences and useful timing errors.</summary>
 public sealed record ScheduledTaskPreviewUiModel(bool Valid, string[] Errors, DateTimeOffset[] NextFireTimesUtc);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 /// <summary>Contains a resumable occurrence-history page.</summary>
 public sealed record ScheduledTaskRunPageUiModel(ScheduledTaskRunUiModel[] Runs, byte[]? PagingState);

@@ -21,7 +21,13 @@ public static class ParameterCommandValidation
         {
             if (string.IsNullOrWhiteSpace(command.ComponentCode)) errors.Add(new("ParameterSet.ComponentCode is required."));
             if (command.SchemaVersion <= 0) errors.Add(new("ParameterSet.SchemaVersion must be positive."));
-            using var payload = ValidateJson(errors, command.PayloadJson, "ParameterSet.PayloadJson");
+            if(command.Parameters is {} typed)
+            {
+                foreach(var issue in TypedParameterDraftModel.ValidateShape(command.ComponentCode,command.SchemaVersion,typed))
+                    errors.Add(new(issue.Message));
+            }
+            else errors.Add(new("PARAM.TYPED_VALUES_REQUIRED"));
+            if(!string.IsNullOrEmpty(command.PayloadJson))errors.Add(new("PARAM.JSON_INPUT_RETIRED"));
         }
         if (command is CreateParameterSetCommand or RenameParameterSetCommand && string.IsNullOrWhiteSpace(command.Name))
             errors.Add(new("ParameterSet.Name is required."));
@@ -82,19 +88,14 @@ public static class ParameterCommandValidation
             VerticalSpreadMarketSelectionParameterModel.ComponentCode => OptionSpreadStrategyParameterScopeModel.VerticalSpread(),
             _ => null
         };
-        if (string.Equals(scope.ComponentCode,RegimeDiscoveryParameterModel.ComponentCode,StringComparison.Ordinal))
+        try
         {
-            using var json = ValidateJson(errors, scope.ScopeJson, "ParameterAssignment.ScopeJson");
-            if (json is not null && json.RootElement.ValueKind == JsonValueKind.Object &&
-                json.RootElement.TryGetProperty("TargetHorizon", out var horizonValue) && horizonValue.ValueKind == JsonValueKind.String &&
-                Enum.TryParse<TimeFrameType>(horizonValue.GetString(), out var horizon) &&
-                horizon is TimeFrameType.Daily or TimeFrameType.Weekly or TimeFrameType.Monthly &&
-                string.Equals(scope.ConsumerId,TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowDefinition.Id,StringComparison.Ordinal))
-                expected = WorkflowParameterScopeModel.Create(scope.ConsumerId, horizon);
+            var expectedId=ParameterAssignmentPolicyModel.AssignmentId(scope);
+            if(expectedId!=id.AssignmentId)errors.Add(new("ParameterAssignment.Scope identity does not match"));
         }
-        if (expected is null || expected != scope) errors.Add(new("ParameterAssignment.Scope is unsupported or not canonical."));
-        else if (id.AssignmentId != ParameterAssignmentPolicyModel.AssignmentId(expected))
-            errors.Add(new("ParameterAssignment.EntityId must match the scope assignment identity."));
+        catch(Exception error) when(error is ArgumentException or InvalidDataException)
+        {errors.Add(new(error.Message));}
+
     }
 
     /// <summary>Parses structured JSON and reports ordinary malformed data without propagating parsing exceptions.</summary>

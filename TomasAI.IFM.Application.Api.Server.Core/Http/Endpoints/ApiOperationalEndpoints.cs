@@ -65,6 +65,7 @@ public static class ApiOperationalEndpoints
         })
         .CacheOutput(ApiOutputCachePolicies.OperationalSnapshot);
         app.MapLivePipelineHealth();
+        app.MapMarketClose();
 
     }
 }

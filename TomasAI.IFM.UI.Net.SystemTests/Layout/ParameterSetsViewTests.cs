@@ -113,7 +113,7 @@ public sealed class ParameterSetsViewTests
         var api = Api(); var id = Guid.NewGuid(); var seed = RegimeDiscoveryParameterModel.CreateExplicitSeed(id, TimeFrameType.Daily);
         var saved = new ParameterSetVersion(new(id, 1, RegimeDiscoveryParameterModel.ComponentCode, new string('a', 64)), "Regime Discovery Daily", "", seed.SchemaVersion, ParameterVersionStatus.Draft, JsonSerializer.Serialize(seed), DateTime.UtcNow, "test", CatalogRevision: 3);
         api.VersionsAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>(), Arg.Any<string>()).Returns(new ServiceOk<ParameterSetVersion[]>([saved]));
-        api.PreviewAsync(id, Arg.Any<CancellationToken>(), (int)TimeFrameType.Daily, Arg.Any<string?>(), Arg.Any<bool>()).Returns(new ServiceOk<string>(JsonSerializer.Serialize(seed)));
+        api.PreviewValuesAsync(id, Arg.Any<string>(), (int)TimeFrameType.Daily, Arg.Any<ParameterSetValue?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new ServiceOk<ParameterSetValue>(ParameterSetValue.From(seed)));
         using var host = new Form { Width = 1600, Height = 900, ShowInTaskbar = false, Opacity = 0 };
         using var view = new ParameterSetsReferenceView(api) { Dock = DockStyle.Fill }; host.Controls.Add(view); host.Show(); System.Windows.Forms.Application.DoEvents();
         var command = (IControlCommand)view; command.Load(null!, _ => { }); PumpUntil(() => !view.IsBusy && view.CanChange);
@@ -161,8 +161,8 @@ public sealed class ParameterSetsViewTests
         var api = Substitute.For<IParameterSetsApi>();
         api.ComponentsAsync(Arg.Any<CancellationToken>()).Returns(new ServiceOk<ParameterComponentSummary[]>([new RegimeDiscoveryParameterModel().Summary]));
         api.VersionsAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>(), Arg.Any<string>()).Returns(new ServiceOk<ParameterSetVersion[]>([]));
-        api.PreviewAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<bool>())
-            .Returns(call => new ServiceOk<string>(JsonSerializer.Serialize(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0), (TimeFrameType)call.ArgAt<int>(2)))));
+        api.PreviewValuesAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<ParameterSetValue?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceOk<ParameterSetValue>(ParameterSetValue.From(RegimeDiscoveryParameterModel.CreateExplicitSeed(call.ArgAt<Guid>(0), (TimeFrameType)call.ArgAt<int>(2)))));
         return api;
     }
     static void PumpUntil(Func<bool> condition)

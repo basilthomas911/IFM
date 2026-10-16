@@ -70,7 +70,7 @@ public static class RetireParameterVersion
         }
         catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            parameterChange = new(null, state.CatalogRevision, hash, "", rejection.Message);
+            parameterChange = new(null, state.CatalogRevision, hash, null, rejection.Message);
             return false;
         }
     }
@@ -87,7 +87,7 @@ public static class RetireParameterVersion
             EntityId = command.EntityId,
             Revision = parameterChange.CatalogRevision,
             RequestHash = parameterChange.RequestHash,
-            VersionJson = JsonSerializer.Serialize(parameterChange.ParameterVersion),
-            AuditJson = parameterChange.ParameterAuditJson,
+            Version = parameterChange.ParameterVersion,
+            Audit = parameterChange.ParameterAudit,
         };
 }

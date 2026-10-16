@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;

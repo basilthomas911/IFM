@@ -27,7 +27,9 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
     protected abstract bool IsResidentCommand(ICommand command);
     protected abstract bool IsResidentMessage(ActorSubject subject);
     protected sealed override bool AuditIsCommittedWithState(ICommand command)
-        => _options.OptionTradeLegDataEnabled && IsResidentCommand(command);
+        => PersistsCommandAuditAtomically(command) || (_options.OptionTradeLegDataEnabled && IsResidentCommand(command));
+    /// <summary>Lets a repository that enlists all commands defer audit reservation to its source transaction.</summary>
+    protected virtual bool PersistsCommandAuditAtomically(ICommand command) => false;
     protected abstract ValueTask<TState> LoadStateFromStoreAsync(
         ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command,
         CancellationToken cancellationToken);

@@ -16,6 +16,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class EventMessageBenchmarks
 {
     readonly NatsByteArrayMessageSerializer _natsBytes = new();
@@ -33,6 +34,7 @@ public class EventMessageBenchmarks
     public int DestinationCount { get; set; }
 
     [GlobalSetup]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void Setup()
     {
         var payload = GC.AllocateUninitializedArray<byte>(PayloadSize);
@@ -106,6 +108,8 @@ public class EventMessageBenchmarks
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
     public sealed record BenchmarkEvent : IEvent
     {
         [Key(0)] public ActorSubject Subject { get; init; }
@@ -115,7 +119,8 @@ public class EventMessageBenchmarks
         [Key(4)] public string AggregateId { get; init; } = string.Empty;
         [Key(5)] public string EventSource { get; init; } = string.Empty;
         [Key(6)] public DateTime ReceivedOn { get; init; }
-        [Key(7)] public byte[] Payload { get; init; } = [];
+        [Key(7)] [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
+public byte[] Payload { get; init; } = [];
         [IgnoreMember] public string UserName => "benchmark";
         [IgnoreMember] public string EventName => nameof(BenchmarkEvent);
         [IgnoreMember] public EventType EventType => EventType.DomainEvent;

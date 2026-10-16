@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TomasAI.IFM.Domain.Reference.ParameterSets.Migration;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -17,12 +18,13 @@ internal static class ParameterAcceptedProjection
         switch (source)
         {
             case IParameterSetFact fact:
+                if (fact.Version is null)
+                    ParameterLegacyUpcaster.Verify(JsonSerializer.Deserialize<ParameterSetVersion>(fact.VersionJson) ?? throw new InvalidDataException("PARAM.LEGACY_VERSION_MISSING"));
                 await databases.ConfigurationDb.ProjectParameterSetAsync(transaction, fact, token).ConfigureAwait(false);
                 if (fact is not (ParameterVersionPublishedEvent or ParameterVersionRetiredEvent)) return;
-                var version = JsonSerializer.Deserialize<ParameterSetVersion>(fact.VersionJson)
-                    ?? throw new InvalidDataException("Parameter version event payload is missing.");
+                var version = fact.ReadVersion();
                 if (!string.Equals(version.Reference.ComponentCode, ParameterSchemaRegistry.StrategyOptionChainCacheComponent, StringComparison.Ordinal)) return;
-                var parameters = StrategyOptionChainParameterSet.Read(version.PayloadJson);
+                var parameters = version.Values().Get<StrategyOptionChainParameterSet>();
                 if (parameters.ParameterSetId != version.Reference.SetId || parameters.Version != version.Reference.Version)
                     throw new InvalidDataException("Option-chain parameter event identity differs from its payload.");
                 if (PostgresDatabaseIdentity.Parse(databases.MarketDataDb.ConnectionString) != PostgresDatabaseIdentity.Parse(databases.ConfigurationDb.ConnectionString))
@@ -34,6 +36,9 @@ internal static class ParameterAcceptedProjection
                 await databases.ConfigurationDb.ProjectParameterAssignmentAsync(transaction, fact, token).ConfigureAwait(false);
                 break;
             case ParameterStartupChangedEvent fact:
+                var historicalRun=fact.Run??(string.IsNullOrEmpty(fact.RunJson)?null:JsonSerializer.Deserialize<ParameterStartupRun>(fact.RunJson));
+                foreach(var item in historicalRun?.Versions??[])
+                    if(item.Parameters is null)ParameterLegacyUpcaster.Verify(item);
                 await databases.ConfigurationDb.ProjectParameterStartupAsync(transaction, fact, token).ConfigureAwait(false);
                 break;
             default: throw new InvalidOperationException("Unexpected parameter source event.");

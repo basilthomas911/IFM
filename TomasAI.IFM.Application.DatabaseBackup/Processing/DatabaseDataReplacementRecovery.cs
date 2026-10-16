@@ -10,13 +10,16 @@ public sealed class DatabaseDataReplacementRecovery(
     IDatabaseReplacementRecoveryPlatform platform,
     IDatabaseReplacementRecoveryJournal journal) : IDatabaseCutoverCapability
 {
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The bounded cleanup CancellationTokenSource is declared with using and remains alive across rollback awaits.")]
     public async ValueTask<DatabaseCutoverResult> RecoverAsync(DatabaseCutoverRequest request,
         IProgress<DatabaseNativeProgress> progress, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(progress);
         ArgumentNullException.ThrowIfNull(request);
         if (request.OperationId.Value == Guid.Empty || request.ValidationRevision <= 0 || request.FencingToken <= 0)
             throw new ArgumentException("Recovery requires an approved, validated and fenced restore.", nameof(request));
-        await using var lease = await journal.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
+var lease = await journal.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
+await using var leaseDisposal = lease.ConfigureAwait(true);
         var existing = await lease.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
@@ -53,16 +56,16 @@ public sealed class DatabaseDataReplacementRecovery(
 
         try
         {
-            await Step(DatabaseReplacementStage.StoppingApplication, ct => platform.StopApplicationAsync(request, ct), 10);
+            await (Step(DatabaseReplacementStage.StoppingApplication, ct => platform.StopApplicationAsync(request, ct), 10)).ConfigureAwait(true);
             // Reconciled admission recovery validates current data and never replaces it again.
             if (existing?.Stage != DatabaseReplacementStage.ValidatingApplication)
-                await Step(DatabaseReplacementStage.ReplacingData, ct => platform.ReplaceDataAsync(request, rollback, ct), 30);
-            await Step(DatabaseReplacementStage.ValidatingDatabase, ct => platform.ValidateDatabaseAsync(request, ct), 50);
-            await Step(DatabaseReplacementStage.StartingApplicationInRecovery, ct => platform.StartApplicationInRecoveryAsync(request, ct), 60);
-            await Step(DatabaseReplacementStage.ValidatingApplication, ct => platform.ValidateApplicationAsync(request, ct), 80);
+                await (Step(DatabaseReplacementStage.ReplacingData, ct => platform.ReplaceDataAsync(request, rollback, ct), 30)).ConfigureAwait(true);
+            await (Step(DatabaseReplacementStage.ValidatingDatabase, ct => platform.ValidateDatabaseAsync(request, ct), 50)).ConfigureAwait(true);
+            await (Step(DatabaseReplacementStage.StartingApplicationInRecovery, ct => platform.StartApplicationInRecoveryAsync(request, ct), 60)).ConfigureAwait(true);
+            await (Step(DatabaseReplacementStage.ValidatingApplication, ct => platform.ValidateApplicationAsync(request, ct), 80)).ConfigureAwait(true);
             // Once this starts, writers may have resumed, even if the acknowledgement is lost.
             // Automatic rollback from this point could discard new application writes.
-            await Step(DatabaseReplacementStage.ResumingAdmission, ct => platform.ResumeAdmissionAsync(request, ct), 90);
+            await (Step(DatabaseReplacementStage.ResumingAdmission, ct => platform.ResumeAdmissionAsync(request, ct), 90)).ConfigureAwait(true);
             var result = new DatabaseCutoverResult(true, true, true, "database-replacement-" + request.OperationId.Format());
             record = record with { Stage = DatabaseReplacementStage.Completed, Result = result };
             await lease.WriteAsync(record, cancellationToken).ConfigureAwait(false);

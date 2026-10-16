@@ -1,4 +1,4 @@
-﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
@@ -328,6 +328,43 @@ public sealed class DatabentoOptionChainSessionManagerTests
         Assert.Single(restored.Subscription!.ResolvedContracts);
         await WaitUntil(() => state.TryGet(new("ES-202609", Maturity), "ES20260918C6500", out var q) && q.Quote is not null);
         Assert.Empty(state.GetSession(new("ES-202609", Maturity.AddDays(7), "", "next")));
+    }
+
+    [Fact]
+    public async Task Detached_contract_can_be_reattached_to_the_retained_physical_union()
+    {
+        var original = new FakeChainFeed(); var expanded = new FakeChainFeed();
+        var factory = new FakeFactory(original, expanded);
+        using var prices = new DatabentoLastPriceStore(ValueDate, 4);
+        var state = new OptionChainStateStore();
+        await using var manager = Manager(factory, prices, state, new CapturingChainPublisher(1));
+        await manager.StartAsync(Request());
+        await manager.StartAsync(NextExpiry());
+        await manager.StopAsync("ES-202609", Maturity);
+        Assert.True(await manager.StartAsync(Request()));
+        Assert.Equal(2, factory.CreateCount); // Reuse the union; no new provider connection.
+        Assert.Single(state.GetSession(new("ES-202609", Maturity)));
+        Assert.Single(state.GetSession(new("ES-202609", Maturity.AddDays(7), "", "next")));
+        Assert.False(await manager.StartAsync(Request()));
+        Assert.Equal(2, manager.ActiveSessionCount);
+    }
+
+    [Fact]
+    public async Task Failed_shared_attachment_leaves_no_orphan_and_can_be_retried()
+    {
+        var feed = new FakeChainFeed();
+        using var prices = new DatabentoLastPriceStore(ValueDate, 4);
+        var state = new OptionChainStateStore();
+        await using var manager = Manager(new FakeFactory(feed), prices, state, new CapturingChainPublisher(1));
+        await manager.StartAsync(Request());
+        var attached = Request() with { ConnectionScopeId = "retry" };
+        await Assert.ThrowsAsync<NullReferenceException>(() => manager.StartAsync(attached with { SavedStatistics = [null!] }));
+        Assert.Empty(state.GetSession(new("ES-202609", Maturity, "", "retry")));
+        Assert.Single(state.GetSession(new("ES-202609", Maturity)));
+        Assert.Equal(1, manager.ActiveSessionCount);
+        Assert.True(await manager.StartAsync(attached));
+        Assert.Equal(2, manager.ActiveSessionCount);
+        Assert.False(feed.Disposed);
     }
 
     private static DatabentoOptionChainSessionManager Manager(FakeFactory factory,

@@ -5,6 +5,7 @@ namespace TomasAI.IFM.Domain.Reference.ParameterSets.Model;
 
 static class OptionSpreadStrategyParameterValidation
 {
+    internal static ParameterValidationIssue[] Validate<T>(T value,int schemaVersion,Func<T,List<ParameterValidationIssue>> validate) => validate(value).ToArray();
     internal static ParameterValidationIssue[] Validate<T>(string component, string json, int schemaVersion,
         Func<T, List<ParameterValidationIssue>> validate)
     {

@@ -345,11 +345,7 @@ impl ProviderBrowser {
                                 .map(String::as_str)
                                 .unwrap_or(""),
                         );
-                        if let Some(value) = s
-                            .result
-                            .context
-                            .get("previewContract")
-                            .and_then(|x| serde_json::from_str::<serde_json::Value>(x).ok())
+                        if let Some(value) = s.result.document::<serde_json::Value>("previewContract")
                         {
                             egui::ScrollArea::vertical()
                                 .max_height(300.)

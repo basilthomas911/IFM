@@ -21,19 +21,17 @@ public sealed class ParameterSetCommandState : BaseEventSourceActorState<Paramet
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not IParameterSetFact fact || fact.Revision != CatalogRevision + 1) return false;
-        var version = JsonSerializer.Deserialize<ParameterSetVersion>(fact.VersionJson)
-            ?? throw new InvalidDataException("Missing committed parameter version.");
+        var version = fact.ReadVersion();
         Versions[version.Reference.Version] = version;
         // Set metadata is shared across versions; immutable payloads are never rewritten.
         foreach (var key in Versions.Keys.ToArray())
             Versions[key] = Versions[key] with { Name = version.Name, Description = version.Description, CatalogRevision = fact.Revision };
         Operations[fact.CommandId] = fact.RequestHash;
         Receipts[fact.CommandId] = new(fact.CommandId, fact.RequestHash, fact.Revision, version.Reference);
-        if (!string.IsNullOrWhiteSpace(fact.AuditJson))
+        if (fact.ReadAudit() is {} entry)
         {
-            var entry = JsonSerializer.Deserialize<ParameterAuditEntry>(fact.AuditJson) ?? throw new InvalidDataException("Invalid audit entry.");
-            if (entry.OperationId != fact.CommandId || entry.Revision != fact.Revision) throw new InvalidDataException("Audit identity mismatch.");
-            Audit[fact.CommandId] = entry;
+            if(entry.OperationId!=fact.CommandId||entry.Revision!=fact.Revision) throw new InvalidDataException("Audit identity mismatch");
+            Audit[fact.CommandId]=entry;
         }
         CatalogRevision = fact.Revision;
         return true;

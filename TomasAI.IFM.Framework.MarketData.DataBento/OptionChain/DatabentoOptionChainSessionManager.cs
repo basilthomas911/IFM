@@ -33,6 +33,7 @@ public sealed class DatabentoOptionChainSessionManager :
     private readonly TimeSpan _pollTimeout;
     private readonly TimeProvider _time;
     private readonly Dictionary<OptionChainSessionKey, Session> _sessions = [];
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2213",Justification="Lifecycle waiters may still observe this managed semaphore after disposal begins; it has no allocated WaitHandle and is reclaimed with the consumer.")]
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private int _disposed;
 
@@ -129,24 +130,35 @@ _capacity = capacity;
             {
                 lock (_sync)
                 {
-                    _state.Create(key, request.Routes);
-                    foreach (var route in request.Routes)
+                    try
                     {
-                        var source = shared.InterestedKeys[route.Definition.Instrument.InstrumentId].First();
-                        _state.CopyStatistics(source, key, route.FuturesOptionContractId);
+                        _state.Create(key, request.Routes);
+                        foreach (var route in request.Routes)
+                        {
+                            // Physical unions retain routes after their final logical owner detaches.
+                            // Such a route has no state to copy; saved statistics/cache seed the new owner.
+                            var source = shared.InterestedKeys[route.Definition.Instrument.InstrumentId].FirstOrDefault();
+                            if (source != default) _state.CopyStatistics(source, key, route.FuturesOptionContractId);
+                        }
+                        _state.Seed(key, request.SavedStatistics, request.ValueDate);
+                        shared.Selections.Add(key, request.Routes);
+                        foreach (var route in request.Routes) shared.InterestedKeys[route.Definition.Instrument.InstrumentId].Add(key);
+                        _sessions.Add(key, shared);
+                        foreach (var route in request.Routes)
+                        {
+                            var reader = _lastPrices as IDatabentoLastPriceStore;
+                            if (reader is null) continue;
+                            var prices = reader.GetFuturesOptionReader(route.FuturesOptionContractId, request.ValueDate);
+                            if (prices.TryGetLastQuoteWithGreeks(out var quote)) _state.UpdateQuote(key, route.FuturesOptionContractId, quote);
+                        }
                     }
-                    _state.Seed(key, request.SavedStatistics, request.ValueDate);
-                    shared.Selections.Add(key, request.Routes);
-                    foreach (var route in request.Routes) shared.InterestedKeys[route.Definition.Instrument.InstrumentId].Add(key);
-                    _sessions.Add(key, shared);
-                    // Populate a newly attached owner from the already accepted current quotes.
-                    foreach (var route in request.Routes)
+                    catch
                     {
-                        var reader = _lastPrices as IDatabentoLastPriceStore;
-                        if (reader is null) continue;
-                        var prices = reader.GetFuturesOptionReader(route.FuturesOptionContractId, request.ValueDate);
-                        if (prices.TryGetLastQuoteWithGreeks(out var quote)) _state.UpdateQuote(key, route.FuturesOptionContractId, quote);
-                        // Copying accumulated statistics preserves volume without re-applying a trade.
+                        _sessions.Remove(key);
+                        shared.Selections.Remove(key);
+                        foreach (var owners in shared.InterestedKeys.Values) owners.Remove(key);
+                        _state.Remove(key);
+                        throw;
                     }
                 }
                 return true;
@@ -176,10 +188,10 @@ _capacity = capacity;
                 try { await StopPhysicalAsync(shared).ConfigureAwait(false); }
                 catch { RemovePhysical(shared); throw; }
             }
-            _state.Create(key, request.Routes);
-            _state.Seed(key, request.SavedStatistics, request.ValueDate);
             try
             {
+                _state.Create(key, request.Routes);
+                _state.Seed(key, request.SavedStatistics, request.ValueDate);
                 StartPhysical(key, request.ValueDate, subscription, routes, selections);
             }
             catch (Exception startupFailure)
@@ -241,6 +253,7 @@ _capacity = capacity;
             throw;
         }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
     private async Task StopPhysicalAsync(Session session)
     {

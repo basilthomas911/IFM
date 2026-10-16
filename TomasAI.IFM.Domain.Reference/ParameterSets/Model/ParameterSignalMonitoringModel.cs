@@ -16,7 +16,7 @@ public static class ParameterSignalMonitoringModel
         foreach (var assignment in run.Scopes.Where(x => x.Enabled))
         {
             var version = run.Versions.Single(x => x.Reference == assignment.Reference);
-            var value = JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(version.PayloadJson)!;
+            var value = version.Values().Get<RegimeDiscoveryParameterSet>();
             var configured = (value.SchemaVersion == 1 ? RegimeDiscoveryParameterModel.Defaults(value) : value.SignalRequirements!)
              .Where(x => x.Enabled && x.Monitor).ToArray();
             if (configured.Length == 0) continue;

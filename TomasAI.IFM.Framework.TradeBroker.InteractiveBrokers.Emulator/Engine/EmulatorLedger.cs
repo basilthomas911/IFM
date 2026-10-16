@@ -100,9 +100,6 @@ public sealed class EmulatorLedger
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, failure.Value.Code, failure.Value.Detail));
             if (_orders.TryGetValue(request.BrokerOrderId, out var existing))
                 return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.ORDER.EXISTS", $"Order already exists at revision {existing.Revision}."));
-            var reserve = ReserveFor(request);
-            if (reserve > _cash - ActiveReserve())
-                return StoreAndPersist(request.OperationId, hash, Receipt(request.OperationId, request.BrokerOrderId, FrameworkDispatchOutcome.RejectedLocally, "EM.CASH.INSUFFICIENT", "Conservative synthetic capital reservation exceeds available cash."));
             _orders.Add(request.BrokerOrderId, new OrderState(request));
             Append("Place", request.BrokerOrderId, request.OperationId);
             var receipt = Faults.PlaceDispatchOutcomeUnknown
@@ -259,7 +256,6 @@ public sealed class EmulatorLedger
             if (order.Request.OrderType == FrameworkOrderType.Limit && netDebitPerUnit > order.Limit) return false;
             var fee = _scenario.PerLegCommission * legs.Length * fillUnits;
             var cashMovement = netDebitPerUnit * fillUnits * legs[0].CashMultiplier;
-            if (cashMovement + fee > _cash - ActiveReserve(except: brokerOrderId)) return false;
             order.FilledStrategyUnits += fillUnits;
             order.Filled = order.FilledStrategyUnits == totalUnits;
             _cash -= cashMovement + fee;
@@ -400,8 +396,6 @@ public sealed class EmulatorLedger
         if (r.OrderType == FrameworkOrderType.Limit && !ValidLimit(r.SignedNetDebitLimit, r)) return ("EM.LIMIT.INVALID", "Signed net debit limit is outside approved tick-aligned bounds.");
         if (r.OrderType == FrameworkOrderType.Market && r.TickIncrement <= 0)
             return ("EM.MARKET.INVALID", "Market orders still require a positive contract tick for execution evidence.");
-        if (r.RequiredCapital < 0 || r.MaximumLoss < 0 || r.RequiredCapital == 0 && r.MaximumLoss == 0)
-            return ("EM.CAPITAL.UNKNOWN", "An approved nonzero synthetic capital or loss bound is required.");
         return null;
     }
 

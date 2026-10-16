@@ -14,6 +14,32 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 [Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatabentoResiliencyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Requested_stop_survives_watchdog_polls_until_explicit_start(bool stage3)
+    {
+        var runtime = new TestRuntime { Snapshot = Up() };
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(),
+            stage3: new() { Enabled = stage3 });
+
+        await service.StopAsync(ValueDate);
+        for (var poll = 0; poll < 5; poll++)
+            await service.ProbeAsync();
+
+        runtime.ActiveValueDate.Should().BeNull();
+        runtime.StartCount.Should().Be(0);
+        runtime.ResetDatasets.Should().BeEmpty();
+        service.Current.State.Should().Be(DatabentoLifecycleState.ScheduledStopped);
+
+        await service.StartAsync(ValueDate);
+        await service.ProbeAsync();
+
+        runtime.StartCount.Should().Be(1);
+        runtime.ActiveValueDate.Should().Be(ValueDate);
+        service.Current.State.Should().Be(DatabentoLifecycleState.Healthy);
+    }
+
     [Fact]
     public async Task Dataset_incident_store_is_idempotent_and_returns_only_open_current_incidents()
     {
@@ -714,6 +740,21 @@ public sealed class DatabentoResiliencyTests
             && observation.FailureDetail.Contains(nameof(DatabentoDatasetFailureReason.NativeDrainStalled)));
     }
 
+    [Fact]
+    public async Task Explicit_start_survives_closed_session_polls_until_stop()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() };
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), state: FuturesMarketState.Closed);
+        await service.StartAsync(ValueDate);
+        for (var poll=0; poll<3; poll++) await service.ProbeAsync();
+        runtime.ActiveValueDate.Should().Be(ValueDate);
+        runtime.StartCount.Should().Be(1);
+        await service.StopAsync(ValueDate.AddDays(1));
+        await service.ProbeAsync();
+        runtime.ActiveValueDate.Should().BeNull();
+        runtime.StartCount.Should().Be(1);
+    }
+
     static readonly DateOnly ValueDate = new(2026, 9, 2);
 
     static DatabentoMarketDataWatchdogService Create(TestRuntime runtime, IMarketDataServiceStore store,
@@ -728,7 +769,7 @@ public sealed class DatabentoResiliencyTests
         authority.Current.Returns(new MarketSessionReadModel
         {
             OperationalValueDate = ValueDate,
-            ActiveValueDate = ValueDate,
+            ActiveValueDate = state == FuturesMarketState.Closed ? null : ValueDate,
             State = state,
             Revision = 1,
             MarketTime = DateTime.UtcNow,

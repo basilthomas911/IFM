@@ -25,10 +25,7 @@ public static class DomainActorIntegrationInfrastructureFixture
     static readonly IReadOnlyDictionary<string, string> CqlConnections =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["SecuritiesDbConnection"] = "securities",
-            ["TradeTickQuoteDbConnection"] = "tradetickquote",
-            ["TradeDbConnection"] = "trade",
-            ["TradePlanDbConnection"] = "tradeplan"
+            ["TradeTickQuoteDbConnection"] = "tradetickquote"
         };
 
     static readonly string[] PostgresConnections =
@@ -41,7 +38,10 @@ public static class DomainActorIntegrationInfrastructureFixture
         "OptionPricerDbConnection",
         "PortfolioDbConnection",
         "SequenceIdDbConnection",
-        "SystemAdminDbConnection"
+        "SystemAdminDbConnection",
+        "SecuritiesDbConnection",
+        "TradeDbConnection",
+        "TradePlanDbConnection"
     ];
 
     static readonly Dictionary<string, string?> previousEnvironment = new(StringComparer.Ordinal);
@@ -117,9 +117,9 @@ public static class DomainActorIntegrationInfrastructureFixture
         SetEnvironment("IFM_TEST_MARKET_DATA_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_TEST_OPTION_PRICER_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_TEST_REFERENCE_CONNECTION", postgresTestConnection);
-        SetEnvironment("IFM_TEST_SECURITIES_CONNECTION", cqlConnections["SecuritiesDbConnection"]);
-        SetEnvironment("IFM_TEST_TRADE_PLAN_CONNECTION", cqlConnections["TradePlanDbConnection"]);
-        SetEnvironment("IFM_TEST_TRADE_CONNECTION", cqlConnections["TradeDbConnection"]);
+        SetEnvironment("IFM_TEST_SECURITIES_CONNECTION", postgresTestConnection);
+        SetEnvironment("IFM_TEST_TRADE_PLAN_CONNECTION", postgresTestConnection);
+        SetEnvironment("IFM_TEST_TRADE_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_BOOTSTRAP_TEST_REFERENCE_CONNECTION", postgresTestConnection);
         SetEnvironment("IFM_BOOTSTRAP_TEST_SEQUENCE_CONNECTION", postgresTestConnection);
         var artifactDirectory = Path.Combine(AppContext.BaseDirectory, "qualification", $"acceptance-{infrastructure.RunId}");

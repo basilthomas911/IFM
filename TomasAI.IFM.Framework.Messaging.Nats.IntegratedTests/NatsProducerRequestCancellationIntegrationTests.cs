@@ -21,14 +21,19 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task InFlightRequest_IsCanceledByCallerOrProducerStop(bool callerSupplied, bool cancelCaller)
     {
         var subject = new ActorSubject(ActorType.Query, $"Cancellation{Guid.NewGuid():N}", "Read", "1");
-        await using var server = new NatsClient(url);
+var server = new NatsClient(url);
+await using var serverDisposal = server.ConfigureAwait(true);
         await server.ConnectAsync();
-        await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString());
+var subscription = await (server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString())).ConfigureAwait(true);
+await using var subscriptionDisposal = subscription.ConfigureAwait(true);
         await server.Connection.PingAsync();
-        await using var manager = new NatsConnectionManager();
+var manager = new NatsConnectionManager();
+await using var managerDisposal = manager.ConfigureAwait(true);
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, NullLogger.Instance, manager);
         using var caller = new CancellationTokenSource();
         using var deadline = new CancellationTokenSource(Timeout);
@@ -40,8 +45,8 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
             // Ensure the request reached the broker/subscriber before exercising cancellation.
             var received = await subscription.Msgs.ReadAsync(deadline.Token);
             received.ReplyTo.Should().NotBeNullOrEmpty();
-            if (cancelCaller) caller.Cancel(); else await producer.StopAsync(deadline.Token);
-            Func<Task> finish = async () => await pending.WaitAsync(Timeout);
+            if (cancelCaller) await caller.CancelAsync().ConfigureAwait(true); else await producer.StopAsync(deadline.Token);
+            Func<Task> finish = async () => await (pending.WaitAsync(Timeout)).ConfigureAwait(true);
             await finish.Should().ThrowAsync<OperationCanceledException>();
 
             // The shared connection remains usable after request cancellation or producer stop.
@@ -54,14 +59,19 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task SuccessfulRequests_ReuseShutdownSource_AndWorkAfterProducerRestart()
     {
         var subject = new ActorSubject(ActorType.Query, $"CancellationSuccess{Guid.NewGuid():N}", "Read", "1");
-        await using var server = new NatsClient(url);
+var server = new NatsClient(url);
+await using var serverDisposal = server.ConfigureAwait(true);
         await server.ConnectAsync();
-        await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString());
+var subscription = await (server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString())).ConfigureAwait(true);
+await using var subscriptionDisposal = subscription.ConfigureAwait(true);
         await server.Connection.PingAsync();
-        await using var manager = new NatsConnectionManager();
+var manager = new NatsConnectionManager();
+await using var managerDisposal = manager.ConfigureAwait(true);
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, NullLogger.Instance, manager);
         using var deadline = new CancellationTokenSource(Timeout);
         try
@@ -89,6 +99,8 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     [Theory]
     [InlineData(ActorType.Command)]
     [InlineData(ActorType.Function)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task CommandAndFunctionRequests_UseTypedCompatibleReplies(ActorType actorType)
     {
         var subject = new ActorSubject(actorType, $"TypedReply{Guid.NewGuid():N}", "Run", "42");
@@ -100,11 +112,14 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
             CommandId = Guid.NewGuid(),
             Value = 91
         };
-        await using var server = new NatsClient(url);
+var server = new NatsClient(url);
+await using var serverDisposal = server.ConfigureAwait(true);
         await server.ConnectAsync();
-        await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString());
+var subscription = await (server.Connection.SubscribeCoreAsync<byte[]>(subject.ToString())).ConfigureAwait(true);
+await using var subscriptionDisposal = subscription.ConfigureAwait(true);
         await server.Connection.PingAsync();
-        await using var manager = new NatsConnectionManager();
+var manager = new NatsConnectionManager();
+await using var managerDisposal = manager.ConfigureAwait(true);
         var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, NullLogger.Instance, manager);
         using var deadline = new CancellationTokenSource(Timeout);
 
@@ -136,6 +151,8 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed class TestQuery : IQuery<TestResult>
     {
         [Key(0)] public ActorSubject Subject { get; init; }
@@ -145,12 +162,16 @@ public sealed class NatsProducerRequestCancellationIntegrationTests
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
     public sealed class TestResult
     {
         [Key(0)] public int Value { get; init; }
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed class TestCommand : ICommand<ActorEntityId>
     {
         [Key(0)] public ActorSubject Subject { get; init; }

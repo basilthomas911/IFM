@@ -50,6 +50,28 @@ public sealed class StrategyPositionDailyLifecycleTests
         Assert.NotEqual(first.HistoryAsOfUtc, machine.Current.HistoryAsOfUtc);
         Assert.Equal(StrategyPositionPhase.EndOfDay, sealedPosition.Phase);
     }
+    [Theory]
+    [InlineData(TradeStrategyKind.IronCondor)]
+    [InlineData(TradeStrategyKind.VerticalSpread)]
+    [InlineData(TradeStrategyKind.FuturesOutright)]
+    public void Explicit_overnight_close_uses_trading_value_date_and_actual_time(TradeStrategyKind strategy)
+    {
+        var machine = new StrategyPositionActorStateMachine();
+        var leg = Guid.NewGuid();
+        var opened = new DateTime(2026,10,7,22,5,0,DateTimeKind.Utc);
+        var boundary = opened.AddMinutes(10);
+        Assert.True(machine.Open(new()
+        {
+            Id = new(101,701,1701,1101), StrategyKind = strategy,
+            Legs = [new() { TradeLegId = leg, ContractId = "TEST", SignedQuantity = 1 }],
+            OriginalFills = [new() { TradeLegId = leg, ContractId = "TEST", SignedQuantity = 1, Price = 10 }]
+        }, Guid.NewGuid(), opened).Accepted);
+        var result = machine.EndOfDay(new DateOnly(2026,10,8), boundary);
+        Assert.True(result.Accepted, result.Detail);
+        Assert.Equal(boundary, machine.Current!.CloseBoundaryUtc);
+        Assert.Equal(new DateOnly(2026,10,8), machine.Current.LatestSealedValueDate);
+    }
+
     [Fact]
     public void No_tick_day_retains_actual_observation_time_and_seals_idempotently()
     {

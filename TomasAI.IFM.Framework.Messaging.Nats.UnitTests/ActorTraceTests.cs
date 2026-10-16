@@ -9,6 +9,8 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public sealed class ActorTraceTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void W3c_context_roundtrips_without_business_payload_or_baggage()
     {
         using var activity = new Activity("test").SetIdFormat(ActivityIdFormat.W3C).Start();
@@ -24,6 +26,8 @@ public sealed class ActorTraceTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Processing_uses_message_context_and_never_inherits_worker_startup_context()
     {
         using var listener = new ActivityListener
@@ -48,6 +52,7 @@ public sealed class ActorTraceTests
     [InlineData("")]
     [InlineData("not-a-trace")]
     [InlineData("00-00000000000000000000000000000000-0000000000000000-01")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Invalid_transport_context_is_ignored(string value)
     {
         ActorTrace.Extract(new NatsHeaders { ["traceparent"] = value }).Should().Be(default(ActivityContext));

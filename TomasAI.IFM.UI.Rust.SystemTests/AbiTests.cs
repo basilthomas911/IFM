@@ -10,23 +10,23 @@ public unsafe class AbiTests
  [Fact] public void Version_layout_buffer_capacity_and_stale_handles_are_enforced()
  {
   delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;
-  ApiV1 api;Assert.Equal(40,sizeof(ApiV1));Assert.Equal(-1,get(9,&api,40));Assert.Equal(-1,get(1,&api,8));Assert.Equal(0,get(1,&api,40));
+  ApiV4 table;Assert.Equal(40,sizeof(ApiV1));Assert.Equal(48,sizeof(ApiV4));Assert.Equal(-1,get(9,(ApiV1*)&table,48));Assert.Equal(-1,get(1,(ApiV1*)&table,48));Assert.Equal(-1,get(2,(ApiV1*)&table,48));Assert.Equal(-1,get(3,(ApiV1*)&table,48));Assert.Equal(-1,get(4,(ApiV1*)&table,40));Assert.Equal(0,get(4,(ApiV1*)&table,48));var api=table.Base;
   ulong handle;Assert.Equal(0,api.Create(&handle));
   try{
    int required;Assert.Equal(-3,api.Copy(999999,1,null,0,&required));Assert.Equal(-1,api.Copy(handle,9,null,0,&required));
    Assert.Equal(1,api.Copy(handle,1,null,0,&required));Assert.True(required>0);
    var buffer=new byte[required];fixed(byte* p=buffer)Assert.Equal(0,api.Copy(handle,1,p,buffer.Length,&required));
-   using var catalog=JsonDocument.Parse(buffer);Assert.Equal(1,catalog.RootElement.GetProperty("version").GetInt32());
+   using var catalog=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(buffer,BridgeWire.Options));Assert.Equal(1,catalog.RootElement.GetProperty("version").GetInt32());
    Assert.Equal(-1,api.Action(handle,99));
   }finally{Assert.Equal(0,api.Destroy(handle));}
   Assert.Equal(-3,api.Destroy(handle));
  }
  [Theory][InlineData("strategy-catalog")][InlineData("parameter-sets")]
- public void Version_two_routes_each_typed_editor_view_through_the_same_gateway(string view)
+ public void Version_four_routes_each_typed_editor_view_through_the_same_gateway(string view)
  {
   delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;
-  ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,(uint)sizeof(ApiV2)));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
-  try{var bytes=JsonSerializer.SerializeToUtf8Bytes(new{schema=1,requestId=Guid.NewGuid(),view,intent="load",expectedGeneration=0,originalId=(string?)null,fields=new Dictionary<string,string>()});fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));}
+  ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,(uint)sizeof(ApiV4)));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  try{var bytes=BridgeWire.Serialize(new{schema=1,requestId=Guid.NewGuid(),view,intent="load",expectedGeneration=0,originalId=(string?)null,fields=new Dictionary<string,string>()});fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));}
   finally{Assert.Equal(0,api.Base.Destroy(handle));}
  }
 }

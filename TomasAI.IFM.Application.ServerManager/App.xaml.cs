@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="The WPF application shutdown lifecycle and disposed service provider own launcher cleanup.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 /// <summary>
 /// Interaction logic for App.xaml.
@@ -74,6 +76,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        ArgumentNullException.ThrowIfNull(e);
         try
         {
             Log.Information("IFM Server Manager stopping with exit code {ExitCode}.", e.ApplicationExitCode);
@@ -119,14 +122,15 @@ public partial class App : System.Windows.Application
         Directory.CreateDirectory(logDirectory);
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
-            .WriteTo.Console()
-            .WriteTo.Debug()
+            .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture)
+            .WriteTo.Debug(formatProvider: System.Globalization.CultureInfo.InvariantCulture)
             .WriteTo.File(
                 Path.Combine(logDirectory, "server-manager-bootstrap_.log"),
                 rollingInterval: RollingInterval.Day,
                 rollOnFileSizeLimit: true,
                 retainedFileCountLimit: 5,
                 shared: true,
+                formatProvider: System.Globalization.CultureInfo.InvariantCulture,
                 flushToDiskInterval: TimeSpan.FromSeconds(1))
             .CreateLogger();
     }

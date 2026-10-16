@@ -1763,7 +1763,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 await WriteStatusConsoleAsync("Starting Trade Data Feeds...");
                 await DelayStartupAsync(cancellationToken);
                 if (_valueDate is not null)
-                    commandId = await model.StartDataFeedAsync([.. _baseContracts], _valueDate.Value);
+                    commandId = await model.StartDataFeedAsync();
             });
             if (commandId != Guid.Empty
                 && await ObserveMarketDataFeedTerminalAsync<MarketDataFeedStartedCompleteEvent>(

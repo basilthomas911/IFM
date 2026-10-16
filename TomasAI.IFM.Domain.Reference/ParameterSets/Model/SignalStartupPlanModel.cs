@@ -23,7 +23,7 @@ public static class SignalStartupPlanModel
         var steps = demands.GroupBy(x => x.Key).OrderBy(x => x.Key.Producer).ThenBy(x => x.Key.Interval).ThenBy(x => x.Key.Period)
          .Select(group => new ParameterSignalStartupStep(group.Key, group.Any(x => x.Prepare), group.Any(x => x.Monitor),
           group.Distinct().OrderBy(x => x.Consumer, StringComparer.Ordinal).ThenBy(x => x.RequirementId).ToArray())).ToArray();
-        var fingerprint = ParameterCanonicalPayloadModel.Hash(issues.Count == 0 ? JsonSerializer.Serialize(new { snapshot.Fingerprint, Steps = steps }) : JsonSerializer.Serialize(new { snapshot.Fingerprint, Steps = steps, Issues = issues.ToArray() }));
+        var fingerprint = ParameterBinaryFingerprint.Hash((snapshot.Fingerprint,steps,issues.ToArray()));
         return new(snapshot.StartupRunId, snapshot.Fingerprint, fingerprint, steps, issues.Count == 0 ? null : issues.ToArray());
     }
     public static IEnumerable<ParameterSignalDemand> ExistingIntradayConsumers()
@@ -45,7 +45,7 @@ public static class SignalStartupPlanModel
 
     static IEnumerable<ParameterSignalDemand> Expand(AppliedParameterAssignment applied, List<string> issues)
     {
-        var value = JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(applied.Version.PayloadJson)!;
+        var value = applied.Version.Values().Get<RegimeDiscoveryParameterSet>();
         var rows = value.SchemaVersion == 1 ? RegimeDiscoveryParameterModel.Defaults(value) : value.SignalRequirements!;
         foreach (var row in rows.Where(x => x.Enabled))
         {

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
@@ -21,7 +20,7 @@ public sealed class OperationsHealthSession : IDisposable
     }
     static ContractEditorRow Row<T>(string id,T value,string kind)
     {
-        var json=JsonSerializer.SerializeToElement(value);var fields=json.EnumerateObject().ToDictionary(x=>x.Name,x=>x.Value.ValueKind==JsonValueKind.String?x.Value.GetString()??"":x.Value.ToString());fields["kind"]=kind;return new(id,fields);
+        var fields=BridgeDocument.Fields(value!);fields["kind"]=kind;return new(id,fields);
     }
     public void Dispose(){model.DisposeAsync().AsTask().GetAwaiter().GetResult();scope?.DisposeAsync().AsTask().GetAwaiter().GetResult();}
 }

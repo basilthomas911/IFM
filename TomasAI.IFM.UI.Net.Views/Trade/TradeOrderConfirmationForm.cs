@@ -7,17 +7,27 @@ public partial class TradeOrderConfirmationForm : DarkTradingForm
 {
     readonly TradeOrderConfirmationViewModel _viewModel;
     DataGridView? _legGrid;
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public Func<bool>? ConfirmRequested { get; set; }
+    bool submitting;
+    public void CompleteSubmission() { submitting=false; Close(); }
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if(submitting && e.CloseReason == CloseReason.UserClosing) e.Cancel=true;
+        base.OnFormClosing(e);
+    }
 
     public TradeOrderConfirmationForm(TradeOrderConfirmationViewModel viewModel)
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
         ConfigureLegLayout();
+        btnContinue.DialogResult = DialogResult.None;
     }
 
     void ConfigureLegLayout()
     {
-        lblCommission.Text = "Total Commission:";
+        ConfigureSummaryLayout();
         if (_viewModel.Legs.Count == 0) return;
         SuspendLayout();
         Controls.Clear();
@@ -42,21 +52,18 @@ public partial class TradeOrderConfirmationForm : DarkTradingForm
         _legGrid.ColumnHeadersDefaultCellStyle.BackColor = BackColor;
         _legGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
         _legGrid.RowTemplate.Height = 27;
-        _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Side", HeaderText = "Side", Width = 65 });
-        _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Role", HeaderText = "Role", Width = 125 });
         _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ContractId", HeaderText = "Contract ID",
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Role", HeaderText = "Role", Width = 125 });
+        _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Side", HeaderText = "Side", Width = 65 });
         _legGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "LegCommission", HeaderText = "Leg Commission", Width = 135 });
         foreach (var leg in _viewModel.Legs)
-            _legGrid.Rows.Add(leg.Side, leg.Role, leg.ContractId, $"USD {leg.LegCommission:F2}");
+            _legGrid.Rows.Add(leg.ContractId, leg.Role, leg.Side, $"USD {leg.LegCommission:F2}");
         foreach (DataGridViewColumn column in _legGrid.Columns) column.SortMode = DataGridViewColumnSortMode.NotSortable;
         txtName.Dock = txtAction.Dock = pnlTradeOrderConfirmation.Dock = DockStyle.Fill;
-        pnlTradeOrderConfirmation.ColumnStyles[0] = new ColumnStyle(SizeType.Absolute, 155);
+        pnlTradeOrderConfirmation.ColumnStyles[0] = new ColumnStyle(SizeType.Absolute, 170);
         pnlTradeOrderConfirmation.ColumnStyles[1] = new ColumnStyle(SizeType.Percent, 100);
         foreach (RowStyle row in pnlTradeOrderConfirmation.RowStyles) { row.SizeType = SizeType.Percent; row.Height = 100f / 6; }
-        lblCommission.Dock = DockStyle.Fill;
-        lblCommission.TextAlign = ContentAlignment.MiddleRight;
-        lblCommission.AutoSize = false;
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         buttons.Controls.Add(btnCancel);
         buttons.Controls.Add(btnContinue);
@@ -67,6 +74,36 @@ public partial class TradeOrderConfirmationForm : DarkTradingForm
         layout.Controls.Add(buttons, 0, 4);
         Controls.Add(layout);
         ResumeLayout(true);
+    }
+
+    void ConfigureSummaryLayout()
+    {
+        lblCommission.Text = "Total Commission:";
+        lblTradeFillType.Text = "Broker Type:";
+        pnlTradeOrderConfirmation.CellBorderStyle = TableLayoutPanelCellBorderStyle.None;
+        pnlTradeOrderConfirmation.ColumnStyles[0] = new ColumnStyle(SizeType.Absolute, 170);
+        pnlTradeOrderConfirmation.ColumnStyles[1] = new ColumnStyle(SizeType.Percent, 100);
+        Label[] labels = [label1, lblOrderPrice, lblOrderAmount, lblCommission, lblTotalAmount, lblTradeFillType];
+        Control[] values = [txtOrderType, txtOrderPrice, txtOrderAmount, txtCommission, txtTotalAmount, ddlTradeFillType];
+        for (var row = 0; row < labels.Length; row++)
+        {
+            var label = labels[row];
+            pnlTradeOrderConfirmation.Controls.Remove(pnlTradeOrderConfirmation.GetControlFromPosition(0, row));
+            pnlTradeOrderConfirmation.Controls.Add(label, 0, row);
+            label.Text = label.Text.TrimEnd(':') + ":";
+            label.AutoSize = false;
+            label.Dock = DockStyle.Fill;
+            label.Margin = new Padding(2);
+            label.Padding = new Padding(5, 0, 0, 0);
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.ForeColor = Color.LightGray;
+            label.BorderStyle = BorderStyle.FixedSingle;
+            var value = values[row];
+            value.Dock = DockStyle.None;
+            value.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            value.Margin = new Padding(2);
+            if (value is TextBox textBox) textBox.BorderStyle = BorderStyle.FixedSingle;
+        }
     }
 
     void TradeOrderConfirmationForm_Load(object sender, EventArgs e)
@@ -95,7 +132,15 @@ public partial class TradeOrderConfirmationForm : DarkTradingForm
         btnCancel.Select();
     }
 
-    void btnContinue_Click(object sender, EventArgs e) => Close();
+    void btnContinue_Click(object sender, EventArgs e)
+    {
+        if(submitting) return;
+        if(ConfirmRequested is null) { DialogResult=DialogResult.OK; Close(); return; }
+        submitting=true;
+        btnContinue.Enabled=btnCancel.Enabled=ddlTradeFillType.Enabled=false;
+        btnContinue.Text="Submitting?";
+        ConfirmRequested();
+    }
     void btnCancel_Click(object sender, EventArgs e) => Close();
 
     void ddlTradeFillType_SelectedIndexChanged(object sender, EventArgs e)

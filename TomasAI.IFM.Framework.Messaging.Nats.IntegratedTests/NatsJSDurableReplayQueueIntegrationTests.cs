@@ -14,6 +14,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests;
 
 [Trait("Category", "Integration")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="xUnit invokes IAsyncLifetime.DisposeAsync to release fixture-owned resources.")]
 public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
 {
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
@@ -28,15 +29,17 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _adminClient = new NatsClient(_url);
-        await _adminClient.ConnectAsync();
+        await (_adminClient.ConnectAsync()).ConfigureAwait(true);
         _jetStream = _adminClient.CreateJetStreamContext();
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task PrepareAsync_configures_process_consumer_without_starting_workers()
     {
         var resources = CreateResources();
-        await using var queue = CreateQueue();
+var queue = CreateQueue();
+await using var queueDisposal = queue.ConfigureAwait(true);
 
         await queue.PrepareAsync(resources.ProjectorName, ReplayInterval);
 
@@ -52,10 +55,12 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Publish_before_start_remains_pending_until_workers_are_explicitly_started()
     {
         var resources = CreateResources();
-        await using var queue = CreateQueue();
+var queue = CreateQueue();
+await using var queueDisposal = queue.ConfigureAwait(true);
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         await queue.PrepareAsync(resources.ProjectorName, ReplayInterval);
@@ -80,10 +85,12 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Enqueue_same_event_twice_is_stored_and_processed_once()
     {
         var resources = CreateResources();
-        await using var queue = CreateQueue();
+var queue = CreateQueue();
+await using var queueDisposal = queue.ConfigureAwait(true);
         var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         await queue.DequeueAsync(resources.ProjectorName, _ =>
@@ -105,10 +112,12 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Typed_deferral_redelivers_process_message_without_publishing_a_failure_replay()
     {
         var resources = CreateResources();
-        await using var queue = CreateQueue();
+var queue = CreateQueue();
+await using var queueDisposal = queue.ConfigureAwait(true);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         await queue.DequeueAsync(resources.ProjectorName, _ =>
@@ -132,12 +141,15 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Replay_publish_failure_redelivers_process_message_and_completes_handoff()
     {
         var resources = CreateResources();
         var innerTransport = new NatsJSDurableQueueTransport(CreateOptions());
         var transport = new FailFirstReplayPublishTransport(innerTransport);
-        await using var queue = new NatsJSDurableReplayQueue(transport, TimeSpan.FromMinutes(1));
+var queue = new NatsJSDurableReplayQueue(transport, TimeSpan.FromMinutes(1));
+await using var queueDisposal = queue.ConfigureAwait(true);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         await queue.DequeueAsync(resources.ProjectorName, _ =>
@@ -162,6 +174,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Process_message_is_consumed_after_transport_restart()
     {
         var resources = CreateResources();
@@ -169,7 +182,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         var domainEvent = CreateEvent("restart");
         var payload = Serialize(domainEvent, resources.ProjectorName);
         var messageId = $"{resources.ProjectorName}:process:event-{domainEvent.EventId}";
-        await using (var publisher = new NatsJSDurableQueueTransport(CreateOptions()))
+{var publisher = new NatsJSDurableQueueTransport(CreateOptions());        await using (publisher.ConfigureAwait(true))
         {
             await publisher.EnsureQueueAsync(resources.ProjectorName, settings, CancellationToken.None);
             await publisher.PublishProcessAsync(
@@ -178,8 +191,8 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
                 messageId,
                 CancellationToken.None);
         }
-
-        await using var queue = CreateQueue();
+}var queue = CreateQueue();
+await using var queueDisposal = queue.ConfigureAwait(true);
         var received = new TaskCompletionSource<IntegrationEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         await queue.DequeueAsync(resources.ProjectorName, domainEventValue =>
         {
@@ -201,9 +214,9 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         using var timeout = new CancellationTokenSource(TestTimeout);
         while (true)
         {
-            var stream = await _jetStream.GetStreamAsync(streamName);
+            var stream = await (_jetStream.GetStreamAsync(streamName)).ConfigureAwait(true);
             if (stream.Info.State.Messages == expected) return;
-            await Task.Delay(25, timeout.Token);
+            await (Task.Delay(25, timeout.Token)).ConfigureAwait(true);
         }
     }
 
@@ -246,6 +259,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
                     replayInterval.Ticks * (1L << Math.Min(attempt, 6)),
                     TimeSpan.FromMinutes(2).Ticks)))
                 .ToArray());
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
 
     static IntegrationEvent CreateEvent(string value) => new()
     {
@@ -282,17 +296,17 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
     {
         foreach (var resources in _resources)
         {
-            await TryDeleteStreamAsync(resources.ProcessStream);
-            await TryDeleteStreamAsync(resources.ReplayStream);
+            await (TryDeleteStreamAsync(resources.ProcessStream)).ConfigureAwait(true);
+            await (TryDeleteStreamAsync(resources.ReplayStream)).ConfigureAwait(true);
         }
-        await _adminClient.DisposeAsync();
+        await (_adminClient.DisposeAsync()).ConfigureAwait(true);
     }
 
     async Task TryDeleteStreamAsync(string streamName)
     {
         try
         {
-            await _jetStream.DeleteStreamAsync(streamName);
+            await (_jetStream.DeleteStreamAsync(streamName)).ConfigureAwait(true);
         }
         catch (NatsJSApiException)
         {
@@ -354,6 +368,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         public ValueTask DisposeAsync() => inner.DisposeAsync();
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public sealed class IntegrationEvent : IEvent
 {

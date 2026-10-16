@@ -71,6 +71,12 @@ public sealed partial class ApiServerLifecycle
         using (var cacheSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)))
         await app.Services.GetRequiredService<MarketDataSchemaDb>().CreateAsync(
         ["strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"], cacheSchemaDeadline.Token);
+        await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(
+            app.Services.GetRequiredService<TomasAI.IFM.Shared.Storage.IDbConnectionSettings>(),
+            app.Services.GetRequiredService<ILogger<TomasAI.IFM.Framework.Storage.DbProvider>>()).CreateAllAsync();
+        var migratedParameters=await app.Services.GetRequiredService<TomasAI.IFM.Domain.Reference.ParameterSets.Migration.ParameterCatalogMigrationService>()
+            .ExecuteAsync(app.Lifetime.ApplicationStopping);
+        logger.LogInformation("Typed parameter catalog migration completed: {SourceFacts} source facts replayed",migratedParameters);
         app.EnableServerManagerStandardInputShutdown(args, logger);
         // Bind the HTTP endpoint and start hosted infrastructure before exposing
         // any NATS actor subscriptions. If Kestrel cannot bind (for example, a

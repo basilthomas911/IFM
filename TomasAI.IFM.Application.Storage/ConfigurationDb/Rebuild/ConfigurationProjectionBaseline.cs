@@ -10,7 +10,10 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Rebuild;
 public sealed class ConfigurationProjectionBaseline(IPostgresEventTransaction transactions)
 {
     const string Stream = "ConfigurationProjectionBaseline";
-    static readonly string[] Tables = ["parameter_area", "parameter_component", "parameter_schema_version", "intrinsic_time_strategy_workflow_parameter_set", "regime_discovery_parameter_set", "market_condition_parameter_set", "trade_selection_parameter_set", "order_composition_parameter_set", "risk_management_parameter_set", "strategy_position_risk_parameter_set", "market_condition_assessment_parameter_set", "volatility_series_definition", "lookup_definition", "strategy_catalog_identity", "strategy_catalog_version", ..ConfigurationSchemaSql.StrategyCatalog.Children.Select(x => x.Name), "parameter_set", "parameter_set_version", "parameter_operation", "parameter_set_audit", "parameter_assignment", "parameter_assignment_revision", "parameter_legacy_reference", "parameter_startup_run", "parameter_startup_report", "market_data.strategy_option_chain_parameter_version", "market_data.strategy_option_chain_parameter_current"];
+    static readonly string[] LegacyTables = ["parameter_area", "parameter_component", "parameter_schema_version", "intrinsic_time_strategy_workflow_parameter_set", "regime_discovery_parameter_set", "market_condition_parameter_set", "trade_selection_parameter_set", "order_composition_parameter_set", "risk_management_parameter_set", "strategy_position_risk_parameter_set", "market_condition_assessment_parameter_set", "volatility_series_definition", "lookup_definition", "strategy_catalog_identity", "strategy_catalog_version", ..ConfigurationSchemaSql.StrategyCatalog.Children.Select(x => x.Name), "parameter_set", "parameter_set_version", "parameter_operation", "parameter_set_audit", "parameter_assignment", "parameter_assignment_revision", "parameter_legacy_reference", "parameter_startup_run", "parameter_startup_report", "market_data.strategy_option_chain_parameter_version", "market_data.strategy_option_chain_parameter_current"];
+    static readonly string[] Tables=[..LegacyTables.Where(x=>!x.StartsWith("market_data.strategy_option_chain_parameter_",StringComparison.Ordinal)),"market_data.strategy_option_chain_policy_version","market_data.strategy_option_chain_policy_current","parameter_value_version",..ParameterValueMapping.Tables.Select(x=>x.Name),
+        "parameter_projection_record","parameter_catalog_operation","parameter_catalog_startup_state","parameter_catalog_migration",..ParameterProjectionMapping.Tables.Select(x=>x.Name)];
+
     /// <summary>Locks and saves every configuration row and its schema layout as one accepted source event.</summary>
     public Task<ConfigurationProjectionBaselineEvent> CaptureAsync(bool sourceWritesQuiesced, CancellationToken cancellationToken = default)
     {
@@ -36,6 +39,7 @@ public sealed class ConfigurationProjectionBaseline(IPostgresEventTransaction tr
             .ConfigureAwait(false)).Single();
             var source = new ConfigurationProjectionBaselineEvent
             {
+                SchemaVersion=2,
                 Id = Guid.NewGuid(),
                 CommandId = Guid.NewGuid(),
                 ReceivedOn = DateTime.UtcNow,
@@ -67,7 +71,7 @@ public sealed class ConfigurationProjectionBaseline(IPostgresEventTransaction tr
     public Task MaterializeAsync(ConfigurationProjectionBaselineEvent source, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (source.SchemaVersion != 1 || source.LookupSequenceLastValue < 1 || source.Id == Guid.Empty || source.EventId <= source.SourceCut || !source.Tables.Select(x => x.Name).SequenceEqual(Tables, StringComparer.Ordinal) || source.Tables.Any(x => !string.Equals(Hash(x.RowsJson), x.Sha256, StringComparison.Ordinal)))
+        if (source.SchemaVersion is not (1 or 2) || source.LookupSequenceLastValue < 1 || source.Id == Guid.Empty || source.EventId <= source.SourceCut || !source.Tables.Select(x => x.Name).SequenceEqual(source.SchemaVersion==1?LegacyTables:Tables, StringComparer.Ordinal) || source.Tables.Any(x => !string.Equals(Hash(x.RowsJson), x.Sha256, StringComparison.Ordinal)))
             throw new InvalidDataException("Committed complete configuration baseline and matching hashes required.");
         return transactions.ExecuteOnceAsync(async (db, token) =>
         {

@@ -23,7 +23,7 @@ public sealed class DevelopmentBrokerQualificationTests
         account.ApprovalId.Should().BeEmpty();
         var command = new CreateBrokerOrderCommand { Order = new() { BrokerEnvironment = TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator,
             PositionType = TradeOrderPositionType.Opening } };
-        var decision = BrokerOrderComputation.CreateBrokerOrder(command, null, account);
-        decision.RejectionReason.Should().Be(exempt ? "BrokerOrder.APPROVAL.INCOMPLETE" : "BrokerOrder.ACCOUNT.SNAPSHOT_INCOMPLETE");
+        var decision = BrokerOrderComputation.CreateBrokerOrder(command, null);
+        decision.RejectionReason.Should().Be("BrokerOrder.APPROVAL.INCOMPLETE");
     }
 }

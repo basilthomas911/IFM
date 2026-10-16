@@ -86,7 +86,7 @@ public sealed class ManualOrderEmulatorTests
     }
 
     [Fact]
-    public async Task Insufficient_synthetic_cash_rejects_without_order_or_account_mutation()
+    public async Task Upstream_approved_order_is_not_readmitted_by_emulator_capital_policy()
     {
         var now = new DateTime(2026, 9, 16, 14, 0, 0, DateTimeKind.Utc);
         var ledger = new EmulatorLedger(new EmulatorScenario("EMU", "USD", 100m, 0.65m, TimeSpan.FromSeconds(2)), new ManualClock(now));
@@ -95,10 +95,10 @@ public sealed class ManualOrderEmulatorTests
             [new BrokerOrderLeg(Guid.NewGuid(), "ES", 1, null, null, null, 1m)], 10m, 10m, 10m, 0.05m,
             now.AddMinutes(5), "approval", "reference", 200m, 200m);
         var receipt = await broker.PlaceAsync(request);
-        Assert.Equal(BrokerDispatchOutcome.RejectedLocally, receipt.Outcome);
-        Assert.Equal("EM.CASH.INSUFFICIENT", receipt.Category);
-        Assert.Equal(100m, (await broker.GetAccountSnapshotAsync()).AvailableFunds);
-        Assert.Empty(await broker.ReconcileOrderAsync("order"));
+        Assert.Equal(BrokerDispatchOutcome.AcceptedForDispatch, receipt.Outcome);
+        Assert.Contains(await broker.ReconcileOrderAsync("order"),x=>x.Kind==BrokerObservationKind.Acknowledged);
+        Assert.True(ledger.TryMatch("order",[new EmulatorQuote("ES",9m,10m,1,1,now,1,1)]));
+        Assert.Contains(await broker.ReconcileOrderAsync("order"),x=>x.Kind==BrokerObservationKind.Execution);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class ManualOrderEmulatorTests
         var request = new BrokerOrderRequest("EMU", BrokerEnvironment.Emulator, "rejected-order",
             operationId, Guid.NewGuid(), BrokerOrderShape.FuturesOutright, false,
             [new BrokerOrderLeg(Guid.NewGuid(), "ES", 1, null, null, null, 1m)],
-            10m, 10m, 10m, 0.05m, now.AddMinutes(5), "approval", "reference", 200m, 200m);
+            10m, 10m, 10m, 0.05m, now.AddMinutes(-1), "approval", "reference", 200m, 200m);
         var firstLedger = new EmulatorLedger(scenario, new ManualClock(now), store);
         var first = new InteractiveBrokersEmulatorTradeBroker(
             new EmulatedOrderExecutionBroker(firstLedger), new EmulatedBrokerAccount(firstLedger));

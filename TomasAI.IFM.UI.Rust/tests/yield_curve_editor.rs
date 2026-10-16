@@ -20,9 +20,9 @@ fn setup() -> Harness<'static, State> {
         schema: 1,
         generation: 4,
         status: "Completed".into(),
-        result: ContractResult {
+        result: ContractResult { documents: Default::default(),
             view: "yield-curve".into(),
-            rows: vec![ContractRow {
+            rows: vec![ContractRow { data: None,
                 id: "2026-10-13".into(),
                 fields,
             }],

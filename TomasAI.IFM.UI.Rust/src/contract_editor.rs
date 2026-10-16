@@ -12,6 +12,8 @@ use std::collections::BTreeMap;
 pub struct ContractRow {
     pub id: String,
     pub fields: BTreeMap<String, String>,
+    #[serde(default)]
+    pub data: Option<serde_bytes::ByteBuf>,
 }
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +24,8 @@ pub struct ContractResult {
     pub has_more: bool,
     #[serde(default)]
     pub context: BTreeMap<String, String>,
+    #[serde(default)]
+    pub documents: BTreeMap<String, serde_bytes::ByteBuf>,
 }
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +36,11 @@ pub struct ContractPublication {
     pub busy: bool,
     pub result: ContractResult,
     pub outcomes: Vec<EditorOutcome>,
+}
+impl ContractResult {
+    pub fn document<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
+        self.documents.get(key).and_then(|bytes| crate::wire::decode(bytes).ok())
+    }
 }
 #[derive(Default)]
 pub struct ContractEditor {

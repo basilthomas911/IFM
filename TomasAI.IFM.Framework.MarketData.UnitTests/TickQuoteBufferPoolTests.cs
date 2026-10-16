@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Framework.MarketData.UnitTests;
 public sealed class TickQuoteBufferPoolTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Fixed_slot_is_exact_size_and_waits_until_its_previous_owner_returns_it()
     {
         using var pool = new TickQuoteBufferPool([(512, 1)]);
@@ -29,6 +30,7 @@ public sealed class TickQuoteBufferPoolTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Retired_generation_does_not_rent_its_slots_again()
     {
         var pool = new TickQuoteBufferPool([(512, 1)]);
@@ -36,18 +38,19 @@ public sealed class TickQuoteBufferPoolTests
         pool.Dispose();
 
         await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
-            await pool.RentAsync(512));
+            await (pool.RentAsync(512)).ConfigureAwait(true));
         active.Dispose();
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Cancelled_waiter_does_not_consume_the_slot_when_it_returns()
     {
         using var pool = new TickQuoteBufferPool([(512, 1)]);
         var active = await pool.RentAsync(512);
         using var cancellation = new CancellationTokenSource();
         var waiting = pool.RentAsync(512, cancellation.Token).AsTask();
-        cancellation.Cancel();
+        await cancellation.CancelAsync().ConfigureAwait(true);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
         active.Dispose();
@@ -56,6 +59,7 @@ public sealed class TickQuoteBufferPoolTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Excessive_reservation_is_rejected_before_allocating_quote_arrays()
     {
         var error = Assert.Throws<ArgumentOutOfRangeException>(() =>

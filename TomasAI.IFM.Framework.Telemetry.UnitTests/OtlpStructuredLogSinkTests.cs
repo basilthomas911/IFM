@@ -13,17 +13,20 @@ namespace TomasAI.IFM.Framework.Telemetry.UnitTests;
 public sealed class OtlpStructuredLogSinkTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task Http_export_preserves_typed_arguments_service_and_trace_context()
     {
         var received = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
-        await using var receiver = builder.Build();
+var receiver = builder.Build();
+await using var receiverDisposal = receiver.ConfigureAwait(true);
         receiver.MapPost("/v1/logs", async context =>
         {
             using var buffer = new MemoryStream();
-            await context.Request.Body.CopyToAsync(buffer);
+            await (context.Request.Body.CopyToAsync(buffer)).ConfigureAwait(true);
             context.Response.StatusCode = 200;
             received.TrySetResult(buffer.ToArray());
         });
@@ -42,7 +45,7 @@ public sealed class OtlpStructuredLogSinkTests
         var payload = await received.Task.WaitAsync(TimeSpan.FromSeconds(15));
         var resourceLogs = Fields(payload).Single(field => field.Number == 1);
         var resource = Fields(resourceLogs.Bytes).Single(field => field.Number == 1);
-        Assert.Contains("IFM.Logging.IntegrationTest", Encoding.UTF8.GetString(resource.Bytes));
+        Assert.Contains("IFM.Logging.IntegrationTest", Encoding.UTF8.GetString(resource.Bytes), StringComparison.Ordinal);
         var scopeLogs = Fields(resourceLogs.Bytes).Single(field => field.Number == 2);
         var record = Fields(scopeLogs.Bytes).Single(field => field.Number == 2);
         var fields = Fields(record.Bytes).ToArray();
@@ -61,6 +64,7 @@ public sealed class OtlpStructuredLogSinkTests
     [Theory]
     [InlineData("relative", "http/protobuf")]
     [InlineData("http://127.0.0.1:4318/v1/logs", "invalid")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Invalid_export_configuration_is_rejected_before_startup(string endpoint, string protocol)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -70,7 +74,7 @@ public sealed class OtlpStructuredLogSinkTests
 
     // A tiny wire decoder keeps the test independent of the exporter's internal generated protobuf types.
     readonly record struct Field(int Number, ulong Value, byte[] Bytes);
-    static IEnumerable<Field> Fields(byte[] bytes)
+    static List<Field> Fields(byte[] bytes)
     {
         var fields = new List<Field>();
         var offset = 0;

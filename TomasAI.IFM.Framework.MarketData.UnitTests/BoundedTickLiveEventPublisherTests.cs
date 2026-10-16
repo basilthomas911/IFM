@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.MarketData.UnitTests;
 public sealed class BoundedTickLiveEventPublisherTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Dispose_drains_accepted_transient_events_in_order()
     {
         var sink = new CapturingSink();

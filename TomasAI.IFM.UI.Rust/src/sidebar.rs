@@ -1,9 +1,20 @@
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
+pub const FEED_TOGGLE_ACTION: u32 = 0xB0000000;
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct FeedControl {
+    pub ready: bool,
+    pub can_toggle: bool,
+    pub busy: bool,
+    pub active: bool,
+}
+// This declaration follows the shared publication's serde defaults.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SidebarPublication {
+    pub feed_control: FeedControl,
     pub period: String,
     pub country: String,
     pub countries: Vec<String>,

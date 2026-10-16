@@ -461,6 +461,7 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
             lease.OperationId, lease.HostId, lease.FencingToken, phase, terminal, diagnostic, DateTimeOffset.UtcNow),
             cancellationToken);
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2025", Justification = "The finally block cancels and awaits both operation and heartbeat before disposing their shared lifetime.")]
     async ValueTask<T> WithLeaseHeartbeatAsync<T>(
         JournalLease lease,
         Func<CancellationToken, ValueTask<T>> operation,
@@ -468,16 +469,22 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var heartbeat = RenewLeaseUntilCancelledAsync(lease, lifetime);
+        Task<T>? operationTask = null;
         try
         {
-            var operationTask = operation(lifetime.Token).AsTask();
+            operationTask = operation(lifetime.Token).AsTask();
             var first = await Task.WhenAny(operationTask, heartbeat).ConfigureAwait(false);
             if (first == heartbeat) await heartbeat.ConfigureAwait(false);
             return await operationTask.ConfigureAwait(false);
         }
         finally
         {
-            lifetime.Cancel();
+            await lifetime.CancelAsync().ConfigureAwait(true);
+            if (operationTask is not null && !operationTask.IsCompleted)
+            {
+                try { await operationTask.ConfigureAwait(false); }
+                catch (Exception) when (heartbeat.IsFaulted) { /* Preserve the heartbeat failure. */ }
+            }
             if (!heartbeat.IsFaulted)
             {
                 try { await heartbeat.ConfigureAwait(false); }
@@ -500,7 +507,7 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch
         {
-            lifetime.Cancel();
+            await lifetime.CancelAsync().ConfigureAwait(true);
             throw;
         }
     }

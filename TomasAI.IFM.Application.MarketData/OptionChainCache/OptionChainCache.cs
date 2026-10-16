@@ -85,7 +85,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
             || snapshot.EvaluatedAtUtc.Offset != TimeSpan.Zero || snapshot.ValidUntilUtc <= snapshot.EvaluatedAtUtc
             || !string.Equals(snapshot.Digest,PricingSemanticHash.Compute(snapshot with { Digest = "" }),StringComparison.Ordinal))
             throw new ArgumentException("Invalid prepared snapshot.", nameof(snapshot));
-        var policy = snapshot.StrategyOptionChainParametersJson is null ? null : StrategyOptionChainParameterSet.Read(snapshot.StrategyOptionChainParametersJson);
+        var policy = snapshot.StrategyOptionChainParameters ?? (snapshot.StrategyOptionChainParametersJson is null ? null : StrategyOptionChainParameterSet.Read(snapshot.StrategyOptionChainParametersJson));
         if (policy is not null && (snapshot.StrategyOptionChainValueDate != valueDate || !string.Equals(policy.Hash(),configurationDigest,StringComparison.Ordinal) || !policy.Enabled
             || !policy.BiasRows.Any(x => x.Enabled && string.Equals(x.MarketBias.ToString(),snapshot.StrategyOptionChainBias,StringComparison.Ordinal))))
             throw new ArgumentException("Prepared global policy provenance does not match its publication.", nameof(snapshot));

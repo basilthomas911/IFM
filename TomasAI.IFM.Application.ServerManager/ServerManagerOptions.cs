@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class ServerManagerOptions
 {
@@ -15,6 +16,8 @@ public sealed class ServerManagerOptions
     public bool DevelopmentProcessOwnershipEnabled { get; set; }
 
     public SchedulerClientOptions Scheduler { get; set; } = new();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2227",Justification="Preserve the existing mutable configuration or test fixture contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1002",Justification="Preserve the existing mutable configuration or test fixture contract.")]
 
     public List<ManagedProcessDefinition> Processes { get; set; } = [];
 
@@ -23,6 +26,7 @@ public sealed class ServerManagerOptions
     /// <summary>Selects the Development desktop while preserving managed API and scheduler lifecycle.</summary>
     public void SelectDevelopmentUi(string environment, string? selection, string? repositoryRoot)
     {
+        ArgumentNullException.ThrowIfNull(environment);
         if (string.IsNullOrWhiteSpace(selection) || selection.Equals("WinForms", StringComparison.OrdinalIgnoreCase))
             return;
         if (!selection.Equals("Rust", StringComparison.OrdinalIgnoreCase))
@@ -75,6 +79,7 @@ public sealed class ServerManagerOptions
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class SchedulerClientOptions
 {
@@ -100,6 +105,7 @@ public sealed class SchedulerClientOptions
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class ManagedProcessDefinition
 {
@@ -110,8 +116,11 @@ public sealed class ManagedProcessDefinition
     public string WorkingDirectory { get; set; } = string.Empty;
 
     public string ExecutablePath { get; set; } = string.Empty;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1002",Justification="Preserve the existing mutable configuration or test fixture contract.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2227",Justification="Preserve the existing mutable configuration or test fixture contract.")]
 
     public List<string> Arguments { get; set; } = [];
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2227",Justification="Preserve the existing mutable configuration or test fixture contract.")]
 
     public Dictionary<string, string> EnvironmentVariables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -121,6 +130,7 @@ public sealed class ManagedProcessDefinition
     public int StartOrder { get; set; }
 
     public bool Enabled { get; set; } = true;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1056",Justification="NATS clients and configuration consumers require the existing string endpoint contract.")]
 
     public string? ReadinessUri { get; set; }
 
@@ -175,7 +185,7 @@ public sealed class ManagedProcessDefinition
 
         foreach (var variable in EnvironmentVariables)
         {
-            if (string.IsNullOrWhiteSpace(variable.Key) || variable.Key.Contains('='))
+            if (string.IsNullOrWhiteSpace(variable.Key) || variable.Key.Contains('=', StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"ServerManager process '{Key}' contains an invalid environment-variable name.");
@@ -208,6 +218,7 @@ public sealed class ManagedProcessDefinition
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public enum ProcessShutdownMode
 {

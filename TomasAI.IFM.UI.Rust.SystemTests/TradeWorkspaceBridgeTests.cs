@@ -43,30 +43,30 @@ public sealed class TradeWorkspaceBridgeTests
     {
         using var http=new HttpClient();Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
         var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-        delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;get(2,(ApiV1*)&api,(uint)sizeof(ApiV2));ulong handle;api.Base.Create(&handle);
+        delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;get(4,(ApiV1*)&api,(uint)sizeof(ApiV4));ulong handle;api.Base.Create(&handle);
         try{
-            var id=Guid.NewGuid();var bytes=System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new{schema=1,requestId=id,view="trade-orders",intent="load",expectedGeneration=0,originalId=(string?)null,fields=new Dictionary<string,string>()});fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));
+            var id=Guid.NewGuid();var bytes=BridgeWire.Serialize(new{schema=1,requestId=id,view="trade-orders",intent="load",expectedGeneration=0,originalId=(string?)null,fields=new Dictionary<string,string>()});fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));
             var deadline=DateTime.UtcNow.AddSeconds(60);bool completed=false;
-            do{int n;api.Base.Copy(handle,8,null,0,&n);var publication=new byte[n];fixed(byte* p=publication){if(api.Base.Copy(handle,8,p,n,&n)!=0)continue;}var result=System.Text.Json.JsonSerializer.Deserialize<ContractEditorPublication>(publication,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+            do{int n;api.Base.Copy(handle,8,null,0,&n);var publication=new byte[n];fixed(byte* p=publication){if(api.Base.Copy(handle,8,p,n,&n)!=0)continue;}var result=BridgeWire.Deserialize<ContractEditorPublication>(publication)!;
                 var outcome=result.Outcomes.FirstOrDefault(x=>x.RequestId==id);if(outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);Assert.Equal("trade-orders",result.Result.View);Assert.NotEmpty(result.Result.Choices["portfolio"]);File.WriteAllBytes(Path.Combine(Environment.GetEnvironmentVariable("IFM_RUST_TEST_ARTIFACTS")!,"trade-orders-live-publication.json"),publication);completed=true;break;}Thread.Sleep(100);
             }while(DateTime.UtcNow<deadline);Assert.True(completed,"Backend trade editor did not complete loading");
         }finally{api.Base.Destroy(handle);Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",old);}
     }
     [Fact] public unsafe void Live_blotter_returns_selected_trade_and_preview_without_mutations()
     {
-        var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;get(2,(ApiV1*)&api,(uint)sizeof(ApiV2));ulong handle;api.Base.Create(&handle);
-        try{ContractEditorPublication? current=null;foreach(var action in new[]{"load","compose","refresh-execution"}){var id=Guid.NewGuid();var request=new ContractEditorIntent(1,id,"trade-orders",action,current?.Generation??0,current?.Result.Context?.GetValueOrDefault("orderId"),new(){["tradeId"]=current?.Result.Context?.GetValueOrDefault("tradeId")??""});if(action=="load")request=request with{Fields=[]};var bytes=System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(request,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(90);bool completed=false;do{int n;api.Base.Copy(handle,8,null,0,&n);var publication=new byte[n];fixed(byte* p=publication){if(api.Base.Copy(handle,8,p,n,&n)!=0)continue;}current=System.Text.Json.JsonSerializer.Deserialize<ContractEditorPublication>(publication,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;var outcome=current.Outcomes.FirstOrDefault(x=>x.RequestId==id);if(outcome is not null&&outcome.State!="Pending"){File.WriteAllBytes(Path.Combine(Environment.GetEnvironmentVariable("IFM_RUST_TEST_ARTIFACTS")!,"blotter-live-"+action+".json"),publication);Assert.True(outcome.State=="Completed",outcome.Message);completed=true;break;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);Assert.True(completed,"No backend acknowledgement for "+action);}Assert.True(current!.Result.Context!.ContainsKey("compositionType"));Assert.Contains(current.Result.Rows,r=>r.Fields.GetValueOrDefault("kind")=="broker-preview");Assert.Contains(current.Result.Rows,r=>r.Fields.GetValueOrDefault("kind")=="account");Assert.DoesNotContain("PostgresObjectDataRepository",current.Result.Context.GetValueOrDefault("composerStatus")??"");
+        var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;get(4,(ApiV1*)&api,(uint)sizeof(ApiV4));ulong handle;api.Base.Create(&handle);
+        try{ContractEditorPublication? current=null;foreach(var action in new[]{"load","compose","refresh-execution"}){var id=Guid.NewGuid();var request=new ContractEditorIntent(1,id,"trade-orders",action,current?.Generation??0,current?.Result.Context?.GetValueOrDefault("orderId"),new(){["tradeId"]=current?.Result.Context?.GetValueOrDefault("tradeId")??""});if(action=="load")request=request with{Fields=[]};var bytes=BridgeWire.Serialize(request);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));var deadline=DateTime.UtcNow.AddSeconds(90);bool completed=false;do{int n;api.Base.Copy(handle,8,null,0,&n);var publication=new byte[n];fixed(byte* p=publication){if(api.Base.Copy(handle,8,p,n,&n)!=0)continue;}current=BridgeWire.Deserialize<ContractEditorPublication>(publication)!;var outcome=current.Outcomes.FirstOrDefault(x=>x.RequestId==id);if(outcome is not null&&outcome.State!="Pending"){File.WriteAllBytes(Path.Combine(Environment.GetEnvironmentVariable("IFM_RUST_TEST_ARTIFACTS")!,"blotter-live-"+action+".msgpack"),publication);Assert.True(outcome.State=="Completed",outcome.Message);completed=true;break;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);Assert.True(completed,"No backend acknowledgement for "+action);}Assert.True(current!.Result.Context!.ContainsKey("compositionType"));Assert.Contains(current.Result.Rows,r=>r.Fields.GetValueOrDefault("kind")=="broker-preview");Assert.Contains(current.Result.Rows,r=>r.Fields.GetValueOrDefault("kind")=="account");Assert.DoesNotContain("PostgresObjectDataRepository",current.Result.Context.GetValueOrDefault("composerStatus")??"");
             Assert.Equal("False",current.Result.Context["live"]);
             var market=current.Result.Rows.Single(r=>r.Fields.GetValueOrDefault("kind")=="market");
-            using var chain=System.Text.Json.JsonDocument.Parse(market.Fields["data"]);
+            using var chain=System.Text.Json.JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(market.Data!));
             Assert.StartsWith("Frozen emulator preview",chain.RootElement.GetProperty("windowMethod").GetString());
-            var last=chain.RootElement.GetProperty("lastUnderlyingPrice").GetDecimal();Assert.True(last>0);
+            var price=chain.RootElement.GetProperty("lastUnderlyingPrice");var last=price.ValueKind==System.Text.Json.JsonValueKind.String?decimal.Parse(price.GetString()!,System.Globalization.CultureInfo.InvariantCulture):price.GetDecimal();Assert.True(last>0);
             Assert.NotEqual(System.Text.Json.JsonValueKind.Null,chain.RootElement.GetProperty("lastUnderlyingTradeAtUtc").ValueKind);
             var metrics=current.Result.Rows.Single(r=>r.Fields.GetValueOrDefault("kind")=="market-metrics");
-            using var prices=System.Text.Json.JsonDocument.Parse(metrics.Fields["data"]);
+            using var prices=System.Text.Json.JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(metrics.Data!));
             Assert.Equal(last.ToString("0.00",System.Globalization.CultureInfo.InvariantCulture),prices.RootElement.GetProperty("Last").GetString());
             var legs=current.Result.Rows.Where(r=>r.Fields.GetValueOrDefault("kind")=="leg")
-                .Select(r=>System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.UI.Net.ViewModels.Trade.BrokerTradeLegData>(r.Fields["data"],new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!).ToArray();
+                .Select(r=>System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.UI.Net.ViewModels.Trade.BrokerTradeLegData>(MessagePack.MessagePackSerializer.ConvertToJson(r.Data!),new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web){NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString})!).ToArray();
             Assert.Equal(4,legs.Length);Assert.All(legs,x=>Assert.True(x.Frozen));
             foreach(var call in new[]{true,false}){
                 var shortLeg=legs.Single(x=>x.Role==(call?"-SC":"-SP"));var wing=legs.Single(x=>x.Role==(call?"+LC":"+LP"));
@@ -80,8 +80,8 @@ public sealed class TradeWorkspaceBridgeTests
     }
     [Fact] public unsafe void Trade_publication_is_available_without_initializing_live_trading_services()
     {
-        delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;
-        Assert.Equal(0,get(2,(ApiV1*)&api,(uint)sizeof(ApiV2)));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+        delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;
+        Assert.Equal(0,get(4,(ApiV1*)&api,(uint)sizeof(ApiV4)));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
         try{int required;Assert.Equal(1,api.Base.Copy(handle,8,null,0,&required));Assert.True(required>0);}
         finally{Assert.Equal(0,api.Base.Destroy(handle));}
     }

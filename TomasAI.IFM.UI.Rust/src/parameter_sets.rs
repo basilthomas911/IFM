@@ -1,4 +1,4 @@
-use crate::presentation::TradingLabelUi as _;
+﻿use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
 };
@@ -77,16 +77,14 @@ impl ParameterSets {
                 self.selected = context.get("selectedId").filter(|x| !x.is_empty()).cloned();
             }
             self.component = context.get("component").cloned().unwrap_or_default();
-            self.components = parse(context, "components");
+            self.components = parse(&s.result, "components");
             if !keep_draft {
                 self.numeric_text.clear();
-                self.fields = context
-                    .get("fields")
-                    .and_then(|x| serde_json::from_str(x).ok())
+                self.fields = s.result.document("fields")
                     .unwrap_or_default();
-                self.signals = parse(context, "signals");
-                self.observations = parse(context, "observations");
-                self.intervals = parse(context, "intervals");
+                self.signals = parse(&s.result, "signals");
+                self.observations = parse(&s.result, "observations");
+                self.intervals = parse(&s.result, "intervals");
             }
         }
         if self.horizon.is_empty() {
@@ -497,8 +495,8 @@ impl ParameterSets {
                 }
                 "assignment" => {
                     ui.trading_label(c.text(strings::PARAM_ASSIGNMENT_NOTICE));
-                    if let Some(v) = s.result.context.get("assignment") {
-                        read_json(ui, v, "assignment");
+                    if let Some(v) = s.result.document::<Value>("assignment") {
+                        read_value(ui, &v, "assignment");
                         ui.horizontal(|ui| {
                             if ui
                                 .add_enabled(
@@ -550,8 +548,8 @@ impl ParameterSets {
                                 }
                             });
                     }
-                    if let Some(value) = s.result.context.get("differences") {
-                        read_json(ui, value, "differences");
+                    if let Some(value) = s.result.document::<Value>("differences") {
+                        read_value(ui, &value, "differences");
                     }
                 }
                 "startupRuns" => {
@@ -654,7 +652,7 @@ impl ParameterSets {
                                 .add_enabled(
                                     enabled
                                         && !self.editing
-                                        && s.result.context.contains_key("legacyPreview")
+                                        && s.result.documents.contains_key("legacyPreview")
                                         && s.result.context.get("legacyPreviewId")
                                             == Some(&self.legacy_id),
                                     egui::Button::new(c.text(strings::PARAM_LEGACY_CREATE)),
@@ -665,21 +663,21 @@ impl ParameterSets {
                                 self.confirm_generation = s.generation;
                             }
                         });
-                        if let Some(preview) = s.result.context.get("legacyPreview") {
-                            read_json(ui, preview, "legacy-preview");
+                        if let Some(preview) = s.result.document::<Value>("legacyPreview") {
+                            read_value(ui, &preview, "legacy-preview");
                         }
                     }
                 }
                 key => {
-                    if let Some(value) = s.result.context.get(key) {
+                    if let Some(value) = s.result.document::<Value>(key).or_else(|| s.result.context.get(key).map(|text| Value::String(text.clone()))) {
                         if key == "payload" || key == "schema" {
                             egui::ScrollArea::both()
                                 .id_salt(("parameter-exact", key))
                                 .show(ui, |ui| {
-                                    ui.trading_label(value);
+                                    ui.trading_label(value.as_str().unwrap_or(""));
                                 });
                         } else {
-                            read_json(ui, value, key);
+                            read_value(ui, &value, key);
                         }
                     }
                 }
@@ -721,14 +719,14 @@ impl ParameterSets {
                     });
                 });
         }
-        action.map(|intent|{self.section=match intent{"validate-parameter"=>"validation","schema-parameter"=>"schema","payload-parameter"=>"payload","compare-parameter"=>"compare","audit-parameter"=>"audit","assignment"|"assign-parameter"|"disable-assignment"=>"assignment","startup-preview"=>"startupPreview","startup-runs"=>"startupRuns","startup-report"=>"startupReport","signal-monitoring"=>"signalMonitoring","legacy-parameters"|"legacy-prev"|"legacy-next"|"legacy-preview"=>"legacy",_=>&self.section}.into();let id=new_request_id();self.pending=Some(id.clone());if ["validate-parameter","save-draft","intervals"].contains(&intent)&&self.editing{extra.insert("changes".into(),serde_json::to_string(&self.fields).unwrap());extra.insert("signals".into(),self.signals.to_string());extra.insert("observations".into(),self.observations.to_string());}extra.insert("name".into(),self.name.clone());extra.insert("description".into(),self.description.clone());extra.insert("horizon".into(),self.horizon.clone());extra.insert("intervals".into(),self.intervals.to_string());extra.insert("runId".into(),self.run_id.clone());extra.insert("legacyId".into(),self.legacy_id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"parameter-sets","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":extra}).to_string()})
+        action.map(|intent|{self.section=match intent{"validate-parameter"=>"validation","schema-parameter"=>"schema","payload-parameter"=>"payload","compare-parameter"=>"compare","audit-parameter"=>"audit","assignment"|"assign-parameter"|"disable-assignment"=>"assignment","startup-preview"=>"startupPreview","startup-runs"=>"startupRuns","startup-report"=>"startupReport","signal-monitoring"=>"signalMonitoring","legacy-parameters"|"legacy-prev"|"legacy-next"|"legacy-preview"=>"legacy",_=>&self.section}.into();let id=new_request_id();self.pending=Some(id.clone());let mut documents = serde_json::Map::new();if ["validate-parameter","save-draft","intervals"].contains(&intent)&&self.editing{documents.insert("changes".into(),serde_json::to_value(&self.fields).unwrap());documents.insert("signals".into(),self.signals.clone());documents.insert("observations".into(),self.observations.clone());}extra.insert("name".into(),self.name.clone());extra.insert("description".into(),self.description.clone());extra.insert("horizon".into(),self.horizon.clone());documents.insert("intervals".into(),self.intervals.clone());extra.insert("runId".into(),self.run_id.clone());extra.insert("legacyId".into(),self.legacy_id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"parameter-sets","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":extra,"documents":documents}).to_string()})
     }
 }
-fn parse(context: &BTreeMap<String, String>, key: &str) -> Value {
-    context
-        .get(key)
-        .and_then(|x| serde_json::from_str(x).ok())
-        .unwrap_or(json!([]))
+fn parse(result: &crate::contract_editor::ContractResult, key: &str) -> Value {
+    result.document(key).unwrap_or(json!([]))
+}
+fn read_value(ui: &mut egui::Ui, value: &Value, id: &str) {
+    read_json(ui, &value.to_string(), id);
 }
 fn button(
     ui: &mut egui::Ui,

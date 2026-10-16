@@ -101,7 +101,7 @@ public sealed class CommandExtensionConventionTests
         return new CreateParameterSetCommand
         {
             CommandId = Guid.NewGuid(), EntityId = new(setId), Name = "Daily",
-            PayloadJson = new RegimeDiscoveryParameterModel().CreateDraftPayload(setId)
+            Parameters = ParameterHistoryReader.ReadValues(ParameterSchemaRegistry.RegimeComponent,new RegimeDiscoveryParameterModel().CreateDraftPayload(setId))
         };
     }
 }

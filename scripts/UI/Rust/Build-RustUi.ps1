@@ -15,7 +15,7 @@ try {
  $ErrorActionPreference='Stop'
  # Share only the UI connection and Supervisor options, never the full application settings.
  $desktopConfig=Get-Content -LiteralPath "$repoRoot/TomasAI.IFM.UI.Net/appsettings.Development.json" -Raw | ConvertFrom-Json
- @{SupervisorControl=$desktopConfig.SupervisorControl;MarketDataOperationsHealth=$desktopConfig.MarketDataOperationsHealth;AppSettings=@{NatsServerUri=$desktopConfig.AppSettings.NatsServerUri}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$output/managed/ui-client.Development.json" -Encoding UTF8
+ @{TradeBroker=@{AccountAlias=$desktopConfig.TradeBroker.AccountAlias;Environment=$desktopConfig.TradeBroker.Environment;Emulator=@{AccountAlias=$desktopConfig.TradeBroker.Emulator.AccountAlias}};SupervisorControl=$desktopConfig.SupervisorControl;MarketDataOperationsHealth=$desktopConfig.MarketDataOperationsHealth;AppSettings=@{NatsServerUri=$desktopConfig.AppSettings.NatsServerUri}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$output/managed/ui-client.Development.json" -Encoding UTF8
  $profile=if($Release){'release'}else{'debug'}
  Copy-Item -LiteralPath "TomasAI.IFM.UI.Rust/target/$profile/ifm-ui-rust.exe" -Destination "$output/ifm-ui-rust.exe"
  $symbols="TomasAI.IFM.UI.Rust/target/$profile/ifm_ui_rust.pdb";if(Test-Path $symbols){Copy-Item -LiteralPath $symbols -Destination "$output/ifm_ui_rust.pdb"}

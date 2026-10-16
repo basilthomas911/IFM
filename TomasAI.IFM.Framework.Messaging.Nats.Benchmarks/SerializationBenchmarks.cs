@@ -8,6 +8,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class SerializationBenchmarks
 {
     readonly NatsByteArrayMessageSerializer _natsBytes = new();
@@ -27,6 +28,7 @@ public class SerializationBenchmarks
     public int PayloadSize { get; set; }
 
     [GlobalSetup]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void Setup()
     {
         _payload = GC.AllocateUninitializedArray<byte>(PayloadSize);
@@ -87,12 +89,15 @@ public class SerializationBenchmarks
     [Benchmark(Description = "Inbound direct MessagePack from owned pooled sequence")]
     public BenchmarkEnvelope? DeserializeInboundDirect()
         => _directMessagePack.Deserialize(_serializedEnvelopeSequence);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
 
     public sealed class BenchmarkEnvelope
     {
         public Guid Id { get; init; }
         public long Sequence { get; init; }
         public string Subject { get; init; } = string.Empty;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
         public byte[] Payload { get; init; } = [];
     }
 

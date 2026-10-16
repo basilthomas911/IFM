@@ -11,7 +11,7 @@ public sealed record ParameterField(string Path, string Value, JsonValueKind Kin
 }
 
 /// <summary>Edits and groups scalar configuration fields without exposing executable schema expressions.</summary>
-public static class ParameterFieldEditorModel
+public static partial class ParameterFieldEditorModel
 {
     static readonly HashSet<string> HiddenRoots = ["ParameterSetId", "Version", "SchemaVersion", "StrategyParameterSetId", "StrategyParameterSetVersion", "SignalRequirements", "SignalMetrics", "ObservationMetrics", "Horizon", "TargetHorizon"];
     public static ParameterField[] Read(string json)

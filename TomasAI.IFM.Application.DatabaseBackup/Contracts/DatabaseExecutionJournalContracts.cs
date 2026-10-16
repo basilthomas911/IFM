@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 
 namespace TomasAI.IFM.Application.DatabaseBackup.Contracts;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1008",Justification="Zero is intentionally invalid in this persisted protocol; existing numeric values must remain unchanged.")]
 
 public enum JournalAdmissionOutcome
 {

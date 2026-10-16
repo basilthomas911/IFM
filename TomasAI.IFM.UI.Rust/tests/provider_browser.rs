@@ -12,10 +12,10 @@ fn fixture(count: usize) -> (Catalog, ContractPublication) {
         generation: 9,
         status: "Ready".into(),
         busy: false,
-        result: ContractResult {
+        result: ContractResult { documents: Default::default(),
             view: "provider-definitions".into(),
             rows: (0..count)
-                .map(|i| ContractRow {
+                .map(|i| ContractRow { data: None,
                     id: format!("snapshot:GLBX.MDP3:1:{i}"),
                     fields: BTreeMap::from([
                         ("rawSymbol".into(), format!("ESZ6 {i}")),

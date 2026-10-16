@@ -26,7 +26,7 @@ public sealed record SaveParameterDraftCommand : IParameterSetMutation
     /// <param name="schemaVersion">The SchemaVersion field.</param>
     /// <param name="payloadJson">The PayloadJson field.</param>
     [SerializationConstructor]
-    public SaveParameterDraftCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson)
+    public SaveParameterDraftCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson, ParameterSetValue? parameters)
     {
         CommandId = commandId;
         Subject = subject;
@@ -41,6 +41,7 @@ public sealed record SaveParameterDraftCommand : IParameterSetMutation
         Description = description;
         SchemaVersion = schemaVersion;
         PayloadJson = payloadJson;
+        Parameters = parameters;
     }
     public const string Actor = "ParameterSetCommand";
     public const string Verb = "SaveParameterDraft";
@@ -56,7 +57,8 @@ public sealed record SaveParameterDraftCommand : IParameterSetMutation
     [Key(9)] public string Name { get; init; } = string.Empty;
     [Key(10)] public string Description { get; init; } = string.Empty;
     [Key(11)] public int SchemaVersion { get; init; } = 2;
-    [Key(12)] public string PayloadJson { get; init; } = "{}";
+    [Key(12)] public string PayloadJson { get; init; } = string.Empty;
+    [Key(13)] public ParameterSetValue? Parameters { get; init; }
     [IgnoreMember] public string CommandName => nameof(SaveParameterDraftCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJetStreamStartupPurgeTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Purges_only_selected_streams_through_their_captured_sequence()
     {
         var transport = new FakeTransport();

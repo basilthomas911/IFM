@@ -46,13 +46,14 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
             EventHandlerAsync
         );
 
-        var futuresContracts = new[] { SampleData.FuturesContract };
-        var valueDate = SampleData.ValueDate;
+        var session = await new MarketDataQueryApi(_actorProducer).GetMarketSessionAsync();
+        session.Success.Should().BeTrue(session.ErrorMessage);
+        var valueDate = session.Value!.OperationalValueDate;
 
         // act...
         await ResetApplicationMarketDataApiAsync();
         var marketDataFeedApi = new MarketDataFeedCommandApi(_actorProducer);
-        var response = await marketDataFeedApi.StartMarketDataFeedAsync(futuresContracts, valueDate);
+        var response = await marketDataFeedApi.StartMarketDataFeedAsync();
 
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
@@ -67,7 +68,8 @@ public class MarketDataFeedCommandApiTests(TomasAI.IFM.IntegrationTesting.Kestre
 
         marketDataFeedStartedEvent.ValueDate.Should().Be(valueDate);
         marketDataFeedStartedEvent.FuturesContracts.Should().NotBeNullOrEmpty();
-        marketDataFeedStartedEvent.FuturesContracts!.Length.Should().Be(futuresContracts.Length);
+        marketDataFeedStartedEvent.FuturesContracts!.Should().Contain(contract => contract.Symbol == "ES");
+        marketDataFeedStartedEvent.FuturesContracts!.Should().Contain(contract => contract.Symbol == "VX");
 
         await eventListener.StopAsync();
 

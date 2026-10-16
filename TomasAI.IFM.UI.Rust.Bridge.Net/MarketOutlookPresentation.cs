@@ -5,9 +5,11 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
 
-public sealed record MarketOutlookCell(string Value, string Foreground, string Background);
+[MessagePack.MessagePackObject]
+public sealed record MarketOutlookCell([property: MessagePack.Key("value")] string Value, [property: MessagePack.Key("foreground")] string Foreground, [property: MessagePack.Key("background")] string Background);
 /// <summary>Shares the WinForms composite snapshot presentation without accessing controls or changing calculations.</summary>
-public sealed record MarketOutlookPresentation(Dictionary<string, MarketOutlookCell> Cells, string Status)
+[MessagePack.MessagePackObject]
+public sealed record MarketOutlookPresentation([property: MessagePack.Key("cells")] Dictionary<string, MarketOutlookCell> Cells, [property: MessagePack.Key("status")] string Status)
 {
     public static MarketOutlookPresentation Create(MarketOutlookReadModel snapshot, bool live, DateTimeOffset now)
     {

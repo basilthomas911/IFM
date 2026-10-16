@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class DevelopmentControlPipe : IAsyncDisposable
 {
@@ -21,7 +22,7 @@ public sealed class DevelopmentControlPipe : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync().ConfigureAwait(false);
         try
         {
             await _monitor.ConfigureAwait(false);
@@ -40,12 +41,13 @@ public sealed class DevelopmentControlPipe : IAsyncDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            await using var pipe = new NamedPipeServerStream(
+var pipe = new NamedPipeServerStream(
                 DevelopmentProcessSession.ControlPipeName,
                 PipeDirection.In,
                 1,
                 PipeTransmissionMode.Byte,
                 PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+await using var pipeDisposal = pipe.ConfigureAwait(true);
             await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
             using var reader = new StreamReader(pipe, new UTF8Encoding(false), leaveOpen: true);
             var command = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);

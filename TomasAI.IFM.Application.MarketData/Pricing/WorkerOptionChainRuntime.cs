@@ -106,7 +106,6 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                 if ((!string.IsNullOrEmpty(existing.Key.OptionContractId)) != request.SeparateContractConnection
                     || (!string.IsNullOrEmpty(existing.Key.ConnectionScopeId)) != request.IndependentChainConnection) return Failure("ConflictingConnectionMode");
                 if (existing.Leases.Count >= 128 && !existing.Leases.ContainsKey(request.LeaseId)) return Failure("LeaseCapacity");
-                if (state.GetSession(existing.Key).Count != ordered.Length) return Failure("ChainUnavailable");
                 if (!string.Equals(existing.Digest,digest,StringComparison.Ordinal))
                 {
                     // Compare-and-swap the entire pricing batch. A refresh cannot redefine physical routes,
@@ -123,6 +122,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     existing.Options = ordered;
                     existing.Digest = digest;
                 }
+                await EnsureSessionAsync(existing, cancellationToken).ConfigureAwait(false);
                 if (!existing.BusinessOwners.Any(x => x.LeaseId == request.LeaseId))
                     existing.Leases[request.LeaseId] = request.LeaseExpiresAtUtc;
                 return new(true, null, digest);
@@ -168,7 +168,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     }
                 }, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                scopes.Add(request.ScopeId, new(key, digest, ordered, request.LeaseId, request.LeaseExpiresAtUtc));
+                scopes.Add(request.ScopeId, new(key, digest, ordered, request.LeaseId, request.LeaseExpiresAtUtc) { Statistics = request.Statistics });
                 return new(true, null, digest);
             }
             catch
@@ -239,6 +239,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             await RemoveExpiredAsync().ConfigureAwait(false);
             if (request.GenerationId != generation || continuation is not null || !request.IncludeOptions
                 || !scopes.TryGetValue(request.ScopeId, out var scope)) throw new CompositionMarketSourceException("ChainUnavailable");
+            await EnsureSessionAsync(scope, cancellationToken).ConfigureAwait(false);
             var current = state.GetSession(scope.Key).ToDictionary(x => x.Route.FuturesOptionContractId, StringComparer.Ordinal);
             if (current.Count != scope.Options.Length) throw new CompositionMarketSourceException("IncompleteChain");
             var underlying = ReadUnderlying(scope.Key.FuturesContractId);
@@ -328,6 +329,37 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         }
     }
 
+    // Logical ownership survives a failed provider connection. Recreate only the exact
+    // registered scope; do not release business owners or substitute a different contract set.
+    async Task EnsureSessionAsync(Scope scope, CancellationToken token)
+    {
+        if (state.GetSession(scope.Key).Count == scope.Options.Length) return;
+        await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate,
+            scope.Key.OptionContractId, scope.Key.ConnectionScopeId).ConfigureAwait(false);
+        var routes = scope.Options.Select(option => new DatabentoOptionChainRoute
+        {
+            FuturesOptionContractId = option.Pricing.Contract.ContractId,
+            Definition = Definition(option, scope.Key.MaturityDate)
+        }).ToArray();
+        await sessions.StartAsync(new()
+        {
+            FuturesContractId = scope.Key.FuturesContractId,
+            OptionContractId = scope.Key.OptionContractId,
+            ConnectionScopeId = scope.Key.ConnectionScopeId,
+            ValueDate = valueDate,
+            Routes = routes,
+            SavedStatistics = scope.Statistics.IsDefault ? [] : scope.Statistics,
+            Subscription = new()
+            {
+                Underlying = scope.Key.FuturesContractId,
+                MaturityDate = scope.Key.MaturityDate,
+                Strikes = scope.Options.Select(x => x.Strike).Distinct().Order().ToArray(),
+                ResolvedContracts = routes.Select(x => x.Definition).ToArray(),
+                DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume
+            }
+        }, token).ConfigureAwait(false);
+    }
+
     async Task RemoveExpiredAsync()
     {
         var at = clock.GetUtcNow();
@@ -399,6 +431,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     {
         public OptionChainSessionKey Key { get; } = key;
         public string Digest { get; set; } = digest;
+        public ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics { get; init; }
         public ImmutableArray<WorkerOptionDefinition> Options { get; set; } = options;
         public Dictionary<Guid, DateTimeOffset> Leases { get; } = new() { [leaseId] = expires };
         public string? AuthorityScope { get; set; }

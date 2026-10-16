@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <BridgeBenchmarkAssemblyRoot Condition="'$(BridgeBenchmarkAssemblyRoot)' == '' and '$(IFM_BRIDGE_BENCHMARK_ROOT)' != ''">$(IFM_BRIDGE_BENCHMARK_ROOT)</BridgeBenchmarkAssemblyRoot>
+    <BridgeBenchmarkAssemblyRoot Condition="'$(BridgeBenchmarkAssemblyRoot)' == ''">$(MSBuildThisFileDirectory)../TomasAI.IFM.UI.Rust.Bridge.Net/bin/Release/net10.0</BridgeBenchmarkAssemblyRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Prebuilt references keep BenchmarkDotNet's isolated builds from rebuilding the application graph. -->
+    <Reference Include="TomasAI.IFM.UI.Rust.Bridge.Net"><HintPath>$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.UI.Rust.Bridge.Net.dll</HintPath></Reference>
+    <None Include="$(BridgeBenchmarkAssemblyRoot)/*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10"/>
+    <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.10"/>
+  </ItemGroup>
+  <Target Name="ValidateBridgeBenchmarkInput" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.UI.Rust.Bridge.Net.dll')" Text="Build the Release bridge first, or run scripts/UI/Rust/Measure-BridgePerformance.ps1."/>
+  </Target>
+</Project>

@@ -1,4 +1,5 @@
 //! Native trading workspace. All persistence and trade eligibility stays in shared managed models.
+use crate::wire::WireNumber as _;
 use crate::presentation::TradingLabelUi as _;
 mod blotter;
 mod order_layout;
@@ -20,6 +21,7 @@ pub struct TradeWorkspace {
     pending_dialog: String,
     pending_action: String,
     deferred_action: Option<&'static str>,
+    dismissed_submission_error: String,
     loaded_open: bool,
     qualification_bounds: Option<egui::Rect>,
     pub drawn_rows: usize,
@@ -29,7 +31,7 @@ pub struct TradeWorkspace {
     last_blotter_refresh: f64,
 }
 fn data(row: &ContractRow) -> serde_json::Value {
-    serde_json::from_str(row.fields.get("data").map(String::as_str).unwrap_or("null"))
+    row.data.as_ref().ok_or_else(|| "Missing binary row data".to_owned()).and_then(|bytes| crate::wire::decode(bytes))
         .unwrap_or_default()
 }
 fn text(v: &serde_json::Value, key: &str) -> String {
@@ -299,11 +301,13 @@ impl TradeWorkspace {
                 self.dialog.clear();
             }
         }
-        if let Some(raw) = s.result.context.get("confirmation") {
-            if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw) {
+        if let Some(raw) = s.result.documents.get("confirmation") {
+            if let Ok(value) = crate::wire::decode::<serde_json::Value>(raw) {
                 let mut keep = true;
                 let mut decision = None;
+                let submitting = value["submitting"].as_bool().unwrap_or(false);
                 egui::Window::new("Submit Order")
+                    .enabled(!submitting)
                     .id(egui::Id::new("trade-confirmation"))
                     .open(&mut keep)
                     .fixed_size([620., 405.])
@@ -314,17 +318,17 @@ impl TradeWorkspace {
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        Self::json_grid(ui, &value["legs"]);
+                        if submitting { ui.label("Submitting ? awaiting broker acceptance?"); }
+                        Self::confirmation_legs_grid(ui, &value["legs"], s);
                         ui.separator();
                         for (key, label) in [
-                            ("orderQuantity", "Order Quantity"),
-                            ("orderPrice", "Order Price"),
-                            ("orderAmount", "Order Amount"),
-                            ("commission", "Total Commission"),
-                            ("totalAmount", "Total Amount"),
+                            ("orderQuantity", "Order Quantity:"),
+                            ("orderPrice", "Order Price:"),
+                            ("orderAmount", "Order Amount:"),
+                            ("commission", "Total Commission:"),
+                            ("totalAmount", "Total Amount:"),
                         ] {
-                            ui.horizontal(|ui| {
-                                ui.add_sized([170., 28.], crate::presentation::label_widget(label));
+                            Self::confirmation_field(ui, label, |ui| {
                                 ui.trading_label(text(&value["order"], key));
                             });
                         }
@@ -332,13 +336,18 @@ impl TradeWorkspace {
                             .draft
                             .entry("fillType".into())
                             .or_insert("Broker".into());
-                        egui::ComboBox::from_id_salt("confirm-fill")
-                            .selected_text(&*fill)
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(fill, "Manual".into(), "Manual");
-                                ui.selectable_value(fill, "Broker".into(), "Broker");
-                            });
+                        Self::confirmation_field(ui, "Broker Type:", |ui| {
+                            egui::ComboBox::from_id_salt("confirm-fill")
+                                .width(ui.available_width())
+                                .selected_text(&*fill)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(fill, "Manual".into(), "Manual");
+                                    ui.selectable_value(fill, "Broker".into(), "Broker");
+                                });
+                        });
                         ui.horizontal(|ui| {
+                            let buttons_width = 280. + ui.spacing().item_spacing.x;
+                            ui.add_space(((ui.available_width() - buttons_width) / 2.).max(0.));
                             if ui
                                 .add_sized([140., 32.], egui::Button::new("Confirm"))
                                 .clicked()
@@ -353,12 +362,26 @@ impl TradeWorkspace {
                             }
                         });
                     });
-                if !keep {
+                if !keep && !submitting {
                     decision = Some("cancel-order-confirmation");
                 }
                 if let Some(intent) = decision {
                     return Some(serde_json::json!({"schema":1,"requestId":new_request_id(),"view":"trade-orders","intent":intent,"expectedGeneration":s.generation,"originalId":value["id"],"fields":self.draft}).to_string());
                 }
+            }
+        }
+        if let Some(error) = s.result.context.get("submissionError")
+            .filter(|_| !s.result.documents.contains_key("confirmation")) {
+            if !error.is_empty() && *error != self.dismissed_submission_error {
+                egui::Window::new("Order Submission Error")
+                    .id(egui::Id::new("submission-error"))
+                    .collapsible(false).resizable(false)
+                    .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_max_width(560.);
+                        ui.label(error);
+                        if ui.button("OK").clicked() { self.dismissed_submission_error = error.clone(); }
+                    });
             }
         }
         if !open && !self.loaded_open && self.pending.is_none() {
@@ -776,6 +799,67 @@ impl TradeWorkspace {
                 });
         });
     }
+    fn confirmation_field(ui: &mut egui::Ui, label: &str, value: impl FnOnce(&mut egui::Ui)) {
+        let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.), egui::Sense::hover());
+        let label_rect = egui::Rect::from_min_size(row.min, egui::vec2(170., row.height()));
+        let value_rect = egui::Rect::from_min_max(
+            egui::pos2(label_rect.right() + 6., row.top()), row.max);
+        for rect in [label_rect, value_rect] {
+            ui.painter().rect_stroke(rect, 0.,
+                egui::Stroke::new(1.0_f32, Color32::from_rgb(80, 80, 84)), egui::StrokeKind::Inside);
+        }
+        let layout = egui::Layout::left_to_right(egui::Align::Center);
+        ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect.shrink2(egui::vec2(5., 0.)))
+            .layout(layout), |ui| { ui.add(crate::presentation::label_widget(label)); });
+        ui.scope_builder(egui::UiBuilder::new().max_rect(value_rect.shrink2(egui::vec2(5., 0.)))
+            .layout(layout), value);
+    }
+
+    fn confirmation_legs_grid(ui: &mut egui::Ui, value: &serde_json::Value, s: &ContractPublication) {
+        let selected: Vec<_> = s.result.rows.iter()
+            .filter(|row| row.fields.get("kind").is_some_and(|kind| kind == "leg"))
+            .map(data).collect();
+        let mut rows: Vec<_> = value.as_array().into_iter().flatten().collect();
+        // Use the displayed Broker Trade order; only the dialog's presentation is reordered.
+        rows.sort_by_key(|leg| selected.iter().position(|selected|
+            selected["contractId"] == leg["contractId"]).unwrap_or(usize::MAX));
+        egui::Frame::new()
+            .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(80, 80, 84)))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                egui_extras::TableBuilder::new(ui)
+                    .id_salt("confirmation-order-legs")
+                    .striped(true)
+                    .vscroll(true)
+                    .max_scroll_height(135.)
+                    .column(egui_extras::Column::remainder().clip(true))
+                    .column(egui_extras::Column::exact(125.).clip(true))
+                    .column(egui_extras::Column::exact(65.).clip(true))
+                    .column(egui_extras::Column::exact(135.).clip(true))
+                    .header(26., |mut row| {
+                        for label in ["Contract ID", "Role", "Side", "Leg Commission"] {
+                            row.col(|ui| {
+                                ui.painter().rect_filled(ui.max_rect(), 0., Color32::from_rgb(45, 45, 48));
+                                ui.add(egui::Label::new(label).truncate());
+                            });
+                        }
+                    })
+                    .body(|body| {
+                        body.rows(27., rows.len(), |mut row| {
+                            let leg = &rows[row.index()];
+                            let commission = leg["legCommission"].wire_number().or_else(||leg["legCommission"].as_str().and_then(|text|text.parse::<f64>().ok()))
+                                .map(|v| format!("USD {v:.2}"))
+                                .unwrap_or_else(|| text(leg, "legCommission"));
+                            for value in [text(leg, "contractId"), text(leg, "role"), text(leg, "side"), commission] {
+                                row.col(|ui| {
+                                    ui.add(egui::Label::new(&value).truncate()).on_hover_text(&value);
+                                });
+                            }
+                        });
+                    });
+            });
+    }
+
     fn json_grid(ui: &mut egui::Ui, value: &serde_json::Value) {
         let rows = value.as_array().cloned().unwrap_or_default();
         let columns: Vec<_> = rows

@@ -6,7 +6,6 @@ using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -28,7 +27,6 @@ internal static class Program
             new NatsProducerOptions { Url = builder.Configuration["Nats:Url"] ?? "nats://localhost:4222" },
             NullLogger.Instance,
             services.GetRequiredService<NatsConnectionManager>()));
-        builder.Services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
         builder.Services.AddSingleton<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
         builder.Services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
         builder.Services.AddSingleton<TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.ServiceApi.IScheduledTaskQueryApi, ScheduledTaskQueryApi>();

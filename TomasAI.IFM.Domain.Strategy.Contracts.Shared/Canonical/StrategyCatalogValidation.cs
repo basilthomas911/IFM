@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical", Justification = "Preserve the published domain namespace.")]
 namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.Canonical;
 
 public static class StrategyCatalogValidation

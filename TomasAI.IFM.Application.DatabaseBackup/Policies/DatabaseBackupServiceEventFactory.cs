@@ -13,23 +13,31 @@ public static class DatabaseBackupServiceEventFactory
     public static DatabaseBackupServiceEventContract Accepted(
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId)
-        => intent.ExecutionEvent.Source.OperationKind switch
+        
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        return intent.ExecutionEvent.Source.OperationKind switch
         {
             DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill or DatabaseRecoveryOperationKind.Cutover
                 => Create<DatabaseRestoreServiceAcceptedEvent>(intent, hostId, 1, DatabaseRecoveryPhase.Admitted),
             _ => Create<DatabaseBackupServiceAcceptedEvent>(intent, hostId, 1, DatabaseRecoveryPhase.Admitted)
         };
+    }
 
     public static DatabaseBackupServiceEventContract Started(
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
         long sequence)
-        => intent.ExecutionEvent.Source.OperationKind switch
+        
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        return intent.ExecutionEvent.Source.OperationKind switch
         {
             DatabaseRecoveryOperationKind.Restore or DatabaseRecoveryOperationKind.RestoreDrill or DatabaseRecoveryOperationKind.Cutover
                 => Create<DatabaseRestoreServiceStartedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Started),
             _ => Create<DatabaseBackupServiceStartedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Started)
         };
+    }
 
     public static DatabaseBackupBoundaryEstablishedEvent Boundary(
         DatabaseExecutionIntent intent,
@@ -106,7 +114,10 @@ public static class DatabaseBackupServiceEventFactory
         DatabaseBackupHostId hostId,
         long sequence,
         DatabaseBackupLineage? backupLineage = null)
-        => intent.ExecutionEvent.Source.OperationKind switch
+        
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        return intent.ExecutionEvent.Source.OperationKind switch
         {
             DatabaseRecoveryOperationKind.RestoreDrill
                 => Create<DatabaseRestoreDrillCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
@@ -114,6 +125,7 @@ public static class DatabaseBackupServiceEventFactory
                 => Create<DatabaseRestoreServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
             _ => Create<DatabaseBackupServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage)
         };
+    }
 
     public static TEvent Create<TEvent>(
         DatabaseExecutionIntent intent,
@@ -131,6 +143,7 @@ public static class DatabaseBackupServiceEventFactory
         DatabaseBackupLineage? backupLineage = null)
         where TEvent : DatabaseBackupServiceEventContract, new()
     {
+        ArgumentNullException.ThrowIfNull(intent);
         var execution = intent.ExecutionEvent;
         var id = DeterministicEventId(execution.Source.OperationId, sequence);
         var source = execution.Source with

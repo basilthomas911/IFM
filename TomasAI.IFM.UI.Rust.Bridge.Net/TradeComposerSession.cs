@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using System.Text.Json;
@@ -11,7 +13,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
 /// <summary>Native host adapter for the same market selection, broker draft and account commands used in WinForms.</summary>
-sealed class TradeComposerSession : ITradeOrderLegConfirmationService
+sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
 {
     readonly RustClientServiceScope scope;
     readonly PortfolioFundOrderTradeEditorModel trade;
@@ -27,6 +29,7 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
     decimal? editedPrice;
     bool manualSelection;
     bool submitted;
+    string lastExecutionEvidence = "";
     string reportPreview="",reportPath="",reportHash="";
     readonly Dictionary<BrokerOrderId,Guid> pendingMutations=[];
     public bool OpeningFilled=>submitted&&model.SubmittedTradeOrders.Count>0&&model.SubmittedTradeOrders.All(o=>executions.Any(e=>e.TradeOrderId==o.Id&&e.Status==OrderExecutionStatus.Filled&&e.OrderQuantity>0&&e.CumulativeFilledQuantity==e.OrderQuantity));
@@ -36,16 +39,109 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
     readonly string subscriptionOwner = Guid.NewGuid().ToString("N");
     readonly object confirmationGate=new();
     TaskCompletionSource<TradeOrderConfirmationResult>? decision;
-    string? confirmation;
+    Dictionary<string,object?>? confirmation;
     Guid confirmationId;
-    public string? Confirmation {get{lock(confirmationGate)return confirmation;}}
-    public bool Decide(ContractEditorIntent intent){lock(confirmationGate){
-        if(decision is null || intent.OriginalId!=confirmationId.ToString())return false;
-        var confirmed=intent.Intent=="confirm-order";
-        if(!Enum.TryParse<TradeFillType>(intent.Fields.GetValueOrDefault("fillType"),out var fill)|| fill is not (TradeFillType.Manual or TradeFillType.Broker))return false;
-        decision.TrySetResult(new(confirmed,fill));confirmation=null;decision=null;return true;
-    }}
+    bool confirmationSubmitting;
+    byte[]? confirmationBytes;
+    string submissionError = "";
+    public byte[]? Confirmation { get { lock(confirmationGate) {
+        if(confirmation is null) return null;
+        confirmation["submitting"]=confirmationSubmitting;
+        return confirmationBytes??=BridgeDocument.Encode(confirmation);
+    }}}
+    readonly record struct SubmissionState(bool Accepted,string Error,Guid Id,Guid EventId,string Status,bool Unconfirmed,int Count,bool CanPlace);
+    SubmissionState? lastSubmission;
+    Dictionary<string,string>? submissionContext;
+    public Dictionary<string,string> SubmissionContext {
+        get {
+            var count=model.SubmittedTradeOrders.Count;
+            var state=new SubmissionState(model.BrokerAccepted,submissionError,model.SubmissionId,model.SubmissionEventId,
+                model.SubmissionStatus,model.RequiresSubmissionReconciliation,count,
+                editable&&!model.RequiresSubmissionReconciliation&&count==0&&defaultsLoaded&&legs.Length==(model.StrategyKind==TradeStrategyKind.FuturesOutright?1:model.StrategyKind==TradeStrategyKind.VerticalSpread?2:4)&&legs.All(x=>x.IsFuture||(x.Sign!=0&&x.Bid.HasValue&&x.Ask.HasValue)));
+            if(lastSubmission==state)return submissionContext!;
+            submissionContext=new(){["submitted"]=state.Accepted.ToString(),["submissionError"]=state.Error,
+                ["submissionId"]=state.Id.ToString(),["submissionEventId"]=state.EventId.ToString(),
+                ["submissionOrderIds"]=string.Join(",",model.SubmittedTradeOrders.Select(x=>x.Id.Format())),
+                ["submissionStatus"]=state.Status,["submissionUnconfirmed"]=state.Unconfirmed.ToString(),["canPlaceOrder"]=state.CanPlace.ToString()};
+            lastSubmission=state;return submissionContext;
+        }
+    }
+
+
+	public bool Decide(ContractEditorIntent intent)
+
+	{
+
+		lock (confirmationGate)
+
+		{
+
+			if (intent.Schema != 1 || intent.RequestId == Guid.Empty || intent.Fields == null || decision == null || confirmationSubmitting || intent.OriginalId != confirmationId.ToString())
+
+			{
+
+				scope.DiagnosticLogger.LogWarning("OrderSubmission ConfirmationRejected SubmissionId={SubmissionId} RequestId={RequestId} Reason=InvalidOrExpiredConfirmation", model.SubmissionId, intent.RequestId);
+
+				return false;
+
+			}
+
+			bool flag = intent.Intent == "confirm-order";
+
+			bool flag2 = !Enum.TryParse<TradeFillType>(intent.Fields.GetValueOrDefault("fillType"), out var result);
+
+			bool flag3 = flag2;
+
+			if (!flag3)
+
+			{
+
+				bool flag4 = (uint)result <= 1u;
+
+				flag3 = !flag4;
+
+			}
+
+			if (flag3)
+
+			{
+
+				return false;
+
+			}
+
+			scope.DiagnosticLogger.LogInformation("OrderSubmission ConfirmationReceived SubmissionId={SubmissionId} ConfirmationId={ConfirmationId} Confirmed={Confirmed} FillType={FillType}", model.SubmissionId, confirmationId, flag, result);
+
+			confirmationSubmitting = flag;
+            confirmationBytes=null;
+
+			decision.TrySetResult(new TradeOrderConfirmationResult(flag, result));
+
+			if (!flag)
+
+			{
+
+				confirmation = null;
+
+			}
+
+			return true;
+
+		}
+
+	}
+
+
+
     OptionContractExpiryReadModel[] expirations=[];
+    OptionContractExpiryReadModel[]? choiceExpirations;
+    string[] expiryChoices=[];
+    string[] ExpiryChoices(){
+        if(!ReferenceEquals(choiceExpirations,expirations)){
+            expiryChoices=expirations.Select(x=>x.ExpiryDate.ToString("yyyy-MM-dd")).Distinct().Order().ToArray();choiceExpirations=expirations;
+        }
+        return expiryChoices;
+    }
     EvaluatedOptionChainReadModel? chain;
     EvaluatedOptionChainReadModel? displayChain;
     BrokerTradeLegData[] legs=[];
@@ -71,7 +167,7 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
                 if(model.StrategyKind==TradeStrategyKind.FuturesOutright){legs=[new(underlying.ContractId,trade.TradeAction==TradeAction.Sell?"-Future":"+Future",null,null,null,null,false,Multiplier:decimal.Parse(underlying.Multiplier,CultureInfo.InvariantCulture),IsFuture:true)];}
                 else {var result=await scope.Services.MarketDataQueries.QueryDatabentoOptionChainRangeAsync(underlying.Symbol,scope.ValueDates.ValueDate,trade.RequestedMaturityDate??trade.RequestedTradeDate,token);Require(result);expirations=(result.Value??[]).Where(x=>x.ExpiryDate>=trade.RequestedTradeDate).OrderBy(x=>x.ExpiryDate).ToArray();if(expirations.Length>0){expiry=expirations.Min(x=>x.ExpiryDate);await LoadChain();}}
                 initialization=await initializing;await LoadExecutions();if(trade.TradeState!=TradeState.NewTrade){manualSelection=true;legs=[];var stored=brokerOrders.OrderByDescending(x=>x.ChangedAtUtc).SelectMany(x=>x.Order.Components).FirstOrDefault(x=>x.ReservedTradeId==(trade.ExecutionTradeId>0?trade.ExecutionTradeId:trade.TradeId));if(stored is not null){legs=BrokerTradePreviewPresentation.StoredLegs(stored);quantity=Math.Max(1,stored.Legs.Select(x=>Math.Abs(x.SignedQuantity)).DefaultIfEmpty(1).Min());editedPrice=stored.SignedNetDebitLimit;if(stored.Legs.Any(x=>x.Expiry.HasValue)){var storedExpiry=stored.Legs.Where(x=>x.Expiry.HasValue).Max(x=>x.Expiry!.Value);if(storedExpiry!=expiry){await ReleaseChain();expiry=storedExpiry;}await LoadChain(false);}}}break;
-            case "refresh-chain":if(live&&chain is not null)await LoadChain(select:!manualSelection&&legs.Length<(model.StrategyKind==TradeStrategyKind.IronCondor?4:2));break;
+            case "refresh-chain":if(live&&chain is not null)await LoadChain();break;
             case "clear-staged":if(!editable||submitted)throw new InvalidOperationException("Market selection is read-only");legs=[];manualSelection=true;editedPrice=null;break;
             case "preview-draft":
                 if(F(input,"action") is "Open" or "Close")executionAction=F(input,"action");
@@ -92,7 +188,13 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
                 if(legs.Any(x=>x.ContractId==id)||legs.Any(x=>x.Role==role)||legs.Count(x=>x.IsCall==selected.IsCall)>=2||legs.Length>=(model.StrategyKind==TradeStrategyKind.VerticalSpread?2:4))throw new InvalidOperationException("Remove a selected leg before selecting another contract");
                 legs=BrokerTradeLegSelection.Normalize(trade.TradeType,legs.Append(ToLeg(selected,role)).ToArray());break;
             case "account":reportPreview=reportPath=reportHash="";initialization=await BrokerTradeInitializationQuery.ExecuteAsync(scope,portfolioId,trade.FundId,trade.OrderId,trade.TradeId,underlying.ContractId,scope.ValueDates.ValueDate,legs,Capabilities,token);break;
-            case "refresh-execution":await LoadExecutions();break;
+            case "refresh-execution":
+                try { await LoadExecutions(); }
+                catch(Exception error) {
+                    status="Execution evidence unavailable; submission status preserved. " + error.Message;
+                    scope.DiagnosticLogger.LogWarning(error,"OrderSubmission EvidenceRefreshFailed SubmissionId={SubmissionId}", model.SubmissionId);
+                }
+                break;
             case "update-limit":case "cancel-unfilled":
                 await LoadExecutions();
                 var broker=brokerOrders.SingleOrDefault(x=>x.Id.Format()==F(input,"brokerOrderId"))??throw new InvalidOperationException("Select a current broker order");
@@ -120,15 +222,22 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
                 if(model.StrategyKind!=TradeStrategyKind.FuturesOutright){await LoadChain(false);if(legs.Any(l=>!chain!.Contracts.Any(x=>x.ContractId==l.ContractId&&x.Bid is >0&&x.Ask>=x.Bid)))throw new InvalidOperationException("Complete quotes are unavailable for the selected legs");}
                 model.SetScreenLegSelection(expiry,legs,legs.ToDictionary(x=>x.ContractId,_=>quantity));
                 model.SetExecutionSelection(Enum.Parse<BrokerOrderType>(F(input,"orderType")),Enum.Parse<BrokerAlgorithm>(F(input,"algorithm")),F(input,"timeInForce"),F(input,"pace"));
-                var command=await model.SubmitAsync(quantity,price,this,token);submitted=command!=Guid.Empty;status=command==Guid.Empty?"Submission cancelled":$"Order submission completed: {command}";await LoadExecutions();break;
+                try {
+                    await model.SubmitAsync(quantity,price,this,token);
+                    submitted=model.SubmittedTradeOrders.Count>0;
+                    status=model.SubmissionStatus;
+                    scope.DiagnosticLogger.LogInformation("OrderSubmission Published SubmissionId={SubmissionId} Accepted={Accepted} Status={Status}", model.SubmissionId, submitted, status);
+                } catch { status=model.SubmissionStatus; throw; }
+                // Evidence refresh is separate: it must not change the submission outcome.
+                break;
         }
     }
     async Task LoadDefaults(){
         if(model.StrategyKind==TradeStrategyKind.FuturesOutright){defaultsLoaded=true;return;}
         var component=model.StrategyKind==TradeStrategyKind.IronCondor?TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSchemaRegistry.IronCondorMarketSelectionComponent:TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSchemaRegistry.VerticalSpreadMarketSelectionComponent;
         var result=await scope.Services.ParameterSets.StartupRunsAsync();Require(result);var run=result.Value?.OrderByDescending(x=>x.CreatedAtUtc).FirstOrDefault(x=>x.Scopes.Any(y=>y.Enabled&&y.Scope.ComponentCode==component));var assignment=run?.Scopes.SingleOrDefault(x=>x.Enabled&&x.Scope.ComponentCode==component);var version=assignment is null?null:run!.Versions.SingleOrDefault(x=>x.Reference==assignment.Reference);if(version is null){status="No applied startup defaults are available for "+component;return;}defaultsLoaded=true;
-        if(model.StrategyKind==TradeStrategyKind.IronCondor){var defaults=JsonSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IronCondorMarketSelectionParameterSet>(version.PayloadJson)!;var value=defaults.Symbols.Single(x=>x.Symbol.Equals(underlying.Symbol,StringComparison.OrdinalIgnoreCase));callDelta=value.ShortCallDelta;putDelta=value.ShortPutDelta;callWidth=value.CallSpreadWidth;putWidth=value.PutSpreadWidth;}
-        else{var defaults=JsonSerializer.Deserialize<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.VerticalSpreadMarketSelectionParameterSet>(version.PayloadJson)!;var value=defaults.Symbols.Single(x=>x.Symbol.Equals(underlying.Symbol,StringComparison.OrdinalIgnoreCase));callDelta=putDelta=value.ShortLegDelta;callWidth=putWidth=value.SpreadWidth;}
+        if(model.StrategyKind==TradeStrategyKind.IronCondor){var defaults=version.Values().Get<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.IronCondorMarketSelectionParameterSet>();var value=defaults.Symbols.Single(x=>x.Symbol.Equals(underlying.Symbol,StringComparison.OrdinalIgnoreCase));callDelta=value.ShortCallDelta;putDelta=value.ShortPutDelta;callWidth=value.CallSpreadWidth;putWidth=value.PutSpreadWidth;}
+        else{var defaults=version.Values().Get<TomasAI.IFM.Domain.Reference.Shared.ParameterSets.VerticalSpreadMarketSelectionParameterSet>();var value=defaults.Symbols.Single(x=>x.Symbol.Equals(underlying.Symbol,StringComparison.OrdinalIgnoreCase));callDelta=putDelta=value.ShortLegDelta;callWidth=putWidth=value.SpreadWidth;}
     }
     async Task LoadExecutions(){
         var orders=new List<BrokerOrderDefinition>();var evidence=new Dictionary<OrderExecutionId,OrderExecutionDefinition>();
@@ -140,7 +249,7 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
         var result=await scope.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(new(){UnderlyingContractId=underlying.ContractId,UnderlyingSymbol=underlying.Symbol,ProviderRoots=expirations.Where(x=>x.ExpiryDate==expiry).Select(x=>x.ProviderRoot).Distinct().ToArray(),ExpiryDate=expiry,SpreadWingWidth=Math.Max(putWidth,callWidth),RequiredContractIds=legs.Select(x=>x.ContractId).ToArray(),SubscriptionOwnerId=subscriptionOwner,AllowFrozenEmulatorPreview=!live&&scope.AppEnvironment=="Development",FrozenEmulatorPreviewOnly=!live&&scope.AppEnvironment=="Development"},token);
         Require(result);chain=result.Value??throw new InvalidOperationException("Option-chain snapshot is unavailable");
         displayChain=OptionChainDisplaySnapshot.Merge(displayChain,chain);
-        if(select&&!manualSelection&&defaultsLoaded&&trade.TradeState==TradeState.NewTrade){editedPrice=null;var pairs=new List<BrokerTradeLegData>();foreach(var isCall in new[]{true,false}){
+        if(select&&!manualSelection&&editable&&!submitted&&!model.RequiresSubmissionReconciliation&&defaultsLoaded&&trade.TradeState==TradeState.NewTrade){var pairs=new List<BrokerTradeLegData>();foreach(var isCall in new[]{true,false}){
             if(model.StrategyKind==TradeStrategyKind.VerticalSpread && isCall!=trade.TradeType.ToString().StartsWith("Call"))continue;
             var credit=trade.TradeType is TradeType.ShortIronCondor or TradeType.PutCreditSpread or TradeType.CallCreditSpread;
             var up=isCall?credit:!credit;var width=isCall?callWidth:putWidth;
@@ -148,18 +257,36 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
                 var wing=OptionSpreadLegSelection.Wing(chain.Contracts.Where(x=>x.IsCall==isCall).Select(x=>(x.ContractId,x.Strike)),shortLeg.Strike,width,up);
                 if(wing is null)continue;pairs.Add(ToLeg(shortLeg,isCall?"-SC":"-SP"));pairs.Add(ToLeg(chain.Contracts.Single(x=>x.ContractId==wing),isCall?"+LC":"+LP"));break;
             }
-        }legs=pairs.ToArray();}else{legs=legs.Select(l=>chain.Contracts.FirstOrDefault(x=>x.ContractId==l.ContractId) is {} c?ToLeg(c,l.Role):l).ToArray();}
+        }
+        var nextLegs=pairs.ToArray();
+        // Quote/Greek updates must not reset a user-entered price for unchanged contracts.
+        if(!legs.Select(x=>(x.ContractId,x.Role)).SequenceEqual(nextLegs.Select(x=>(x.ContractId,x.Role))))editedPrice=null;
+        legs=nextLegs;}else{legs=legs.Select(l=>chain.Contracts.FirstOrDefault(x=>x.ContractId==l.ContractId) is {} c?ToLeg(c,l.Role):l).ToArray();}
     }
     BrokerTradeLegData ToLeg(EvaluatedOptionContractReadModel c,string role)=>new(c.ContractId,role,c.Strike,c.Bid,c.Ask,c.Delta,c.IsCall,c.Vega,decimal.Parse(underlying.Multiplier,CultureInfo.InvariantCulture),c.QuoteAtUtc,Frozen:!live);
     public async Task<(ContractEditorRow[] Rows,Dictionary<string,string[]> Choices,Dictionary<string,string> Context)> SnapshotAsync(){
-        var rows=new List<ContractEditorRow>();if(displayChain is not null)rows.Add(Row("market","0",displayChain));rows.AddRange(legs.OrderByDescending(x=>x.Strike).ThenByDescending(x=>x.IsCall).Select((x,n)=>Row("leg",n.ToString(),x)));rows.AddRange(model.SubmittedTradeOrders.Select((x,n)=>Row("submitted-order",n.ToString(),x)));rows.AddRange(brokerOrders.Select(x=>Row("broker-order",x.Id.Format(),x)));rows.AddRange(executions.Select(x=>Row("execution",x.Id.Format(),x)));rows.AddRange(executions.SelectMany(x=>x.Fills).Select((x,n)=>Row("fill",n.ToString(),x)));
-        foreach(var order in brokerOrders){rows.Add(Row("broker-caption",order.Id.Format(),new{Text=OrderCaption(order)}));var execution=executions.FirstOrDefault(x=>x.Id==order.Id.Execution);var summary=new{OrderId=order.Id.Format(),Status=execution?.Status is OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected?execution.Status.ToString():order.Status.ToString(),BrokerStatus=order.Status,ExecutionStatus=execution?.Status,Price=order.CurrentSignedNetDebitLimit,order.BrokerRevision,order.Order.TimeInForce,order.Order.BrokerAlgorithm,order.Order.AlgorithmPace,Requested=execution?.OrderQuantity,Filled=execution?.CumulativeFilledQuantity,Remaining=execution is null?(int?)null:Math.Max(0,execution.OrderQuantity-execution.CumulativeFilledQuantity),order.DispatchCategory,order.DispatchDetail,order.ChangedAtUtc};rows.Add(Row("broker-summary",order.Id.Format(),summary));rows.Add(Row("broker-properties",order.Id.Format(),Properties(summary)));var component=order.Order.Components.Single(x=>x.ComponentId==order.Id.ComponentId);var terminal=executions.Any(x=>x.Id==order.Id.Execution&&x.Status is OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected);rows.Add(Row("broker-mutation",order.Id.Format(),new{canMutate=BrokerOrderMutationRules.CanMutate(order.Status,execution?.Status,component,pendingMutations.ContainsKey(order.Id)),minimum=component.MinimumSignedNetDebitLimit,maximum=component.MaximumSignedNetDebitLimit,tick=component.TickIncrement,pending=pendingMutations.ContainsKey(order.Id)}));}
-        rows.AddRange(executions.SelectMany(x=>x.Fills).DistinctBy(x=>x.ExecutionFillId).Select(x=>Row("fill-properties",x.ExecutionFillId.ToString(),Properties(x))));
+        var rows=new List<ContractEditorRow>();if(displayChain is not null)rows.Add(Row("market","0",displayChain));rows.AddRange(legs.OrderByDescending(x=>x.Strike).ThenByDescending(x=>x.IsCall).Select((x,n)=>Row("leg",n.ToString(),x)));rows.AddRange(EvidenceRows());
         if(chain is not null)rows.Add(Row("market-metrics","0",MarketMetrics()));
         var preview=BrokerTradePreviewPresentation.Calculate(legs,legs.ToDictionary(x=>x.ContractId,_=>quantity),quantity,editedPrice,initialization);rows.Add(Row("broker-preview","0",preview));
         rows.Add(Row("qualification-report","0",new{path=reportPath,hash=reportHash,preview=reportPreview}));
-        var account=await model.GetAccountAsync(token);if(!account.Success)status=$"Account: {account.ErrorCode}: {account.ErrorMessage}";if(account.Value is {} a){rows.Add(Row("account","0",a));var displayFields=new Dictionary<string,string>(preview.Fields){["Route check"]=a.DevelopmentQualificationsExempt?"Development emulator - qualification exempt":$"{a.QualificationStatus} / {a.Gate}"};rows.RemoveAll(x=>x.Id=="broker-preview:0");rows.Add(Row("broker-preview","0",new{Fields=displayFields,preview.OrderPrice}));}
-        return(rows.ToArray(),new(){["expiry"]=expirations.Select(x=>x.ExpiryDate.ToString("yyyy-MM-dd")).Distinct().Order().ToArray()},new(){["composerSessionId"]=sessionId,["expiry"]=expiry.ToString("yyyy-MM-dd"),["compositionType"]=trade.TradeType.ToString(),["brokerMode"]=scope.AppEnvironment=="Development"?"Emulator":"Live",["composerStatus"]=status,["effectiveDate"]=trade.EffectiveDate.ToString("yyyy-MM-dd"),["editable"]=(editable&&!submitted&&defaultsLoaded).ToString(),["submitted"]=submitted.ToString(),["live"]=live.ToString(),["quantity"]=quantity.ToString(CultureInfo.InvariantCulture),["price"]=preview.OrderPrice?.ToString(CultureInfo.InvariantCulture)??"",["previewKey"]=string.Join("|",legs.Select(x=>x.ContractId+x.Role)),["callDelta"]=callDelta.ToString(CultureInfo.InvariantCulture),["putDelta"]=putDelta.ToString(CultureInfo.InvariantCulture),["callWidth"]=callWidth.ToString(CultureInfo.InvariantCulture),["putWidth"]=putWidth.ToString(CultureInfo.InvariantCulture),["underlyingReferencePrice"]=initialization?.UnderlyingPrice?.ClosePrice.ToString(CultureInfo.InvariantCulture)??"",["underlying"]=underlying.ContractId,["symbol"]=underlying.Symbol,["multiplier"]=underlying.Multiplier,["venue"]=underlying.Exchange,["valueDate"]=scope.ValueDates.ValueDate.ToString("yyyy-MM-dd"),["executionAction"]=executionAction,["canPlaceOrder"]=(editable&&!submitted&&legs.Length==(model.StrategyKind==TradeStrategyKind.FuturesOutright?1:model.StrategyKind==TradeStrategyKind.VerticalSpread?2:4)&&legs.All(x=>x.IsFuture||(x.Sign!=0&&x.Bid.HasValue&&x.Ask.HasValue))).ToString()});
+        var account=await model.GetAccountAsync(token);if(!account.Success)scope.DiagnosticLogger.LogWarning("OrderSubmission AccountRefreshFailed SubmissionId={SubmissionId} ErrorCode={ErrorCode} ErrorMessage={ErrorMessage}",model.SubmissionId,account.ErrorCode,account.ErrorMessage);if(account.Value is {} a){rows.Add(Row("account","0",a));var displayFields=new Dictionary<string,string>(preview.Fields){["Route check"]=a.DevelopmentQualificationsExempt?"Development emulator - qualification exempt":$"{a.QualificationStatus} / {a.Gate}"};rows.RemoveAll(x=>x.Id=="broker-preview:0");rows.Add(Row("broker-preview","0",new{Fields=displayFields,preview.OrderPrice}));}
+        return(rows.ToArray(),new(){["expiry"]=ExpiryChoices()},new(){["composerSessionId"]=sessionId,["expiry"]=expiry.ToString("yyyy-MM-dd"),["compositionType"]=trade.TradeType.ToString(),["brokerMode"]=scope.TradeExecution.Environment.ToString(),["composerStatus"]=status,["effectiveDate"]=trade.EffectiveDate.ToString("yyyy-MM-dd"),["editable"]=(editable&&!submitted&&!model.RequiresSubmissionReconciliation&&defaultsLoaded).ToString(),["submitted"]=submitted.ToString(),["live"]=live.ToString(),["quantity"]=quantity.ToString(CultureInfo.InvariantCulture),["price"]=preview.OrderPrice?.ToString(CultureInfo.InvariantCulture)??"",["previewKey"]=string.Join("|",legs.Select(x=>x.ContractId+x.Role)),["callDelta"]=callDelta.ToString(CultureInfo.InvariantCulture),["putDelta"]=putDelta.ToString(CultureInfo.InvariantCulture),["callWidth"]=callWidth.ToString(CultureInfo.InvariantCulture),["putWidth"]=putWidth.ToString(CultureInfo.InvariantCulture),["underlyingReferencePrice"]=initialization?.UnderlyingPrice?.ClosePrice.ToString(CultureInfo.InvariantCulture)??"",["underlying"]=underlying.ContractId,["symbol"]=underlying.Symbol,["multiplier"]=underlying.Multiplier,["venue"]=underlying.Exchange,["valueDate"]=scope.ValueDates.ValueDate.ToString("yyyy-MM-dd"),["executionAction"]=executionAction,["canPlaceOrder"]=(editable&&!submitted&&!model.RequiresSubmissionReconciliation&&legs.Length==(model.StrategyKind==TradeStrategyKind.FuturesOutright?1:model.StrategyKind==TradeStrategyKind.VerticalSpread?2:4)&&legs.All(x=>x.IsFuture||(x.Sign!=0&&x.Bid.HasValue&&x.Ask.HasValue))).ToString()});
+    }
+    BrokerOrderDefinition[]? evidenceOrders;
+    OrderExecutionDefinition[]? evidenceExecutions;
+    int evidenceSubmittedCount=-1;
+    ContractEditorRow[] evidenceRows=[];
+    ContractEditorRow[] EvidenceRows(){
+        if(ReferenceEquals(evidenceOrders,brokerOrders)&&ReferenceEquals(evidenceExecutions,executions)&&evidenceSubmittedCount==model.SubmittedTradeOrders.Count)return evidenceRows;
+        var evidenceKey=string.Join("|",brokerOrders.Select(x=>$"{x.Id.Format()}:{x.Status}:{x.BrokerRevision}:{x.DispatchCategory}:{x.DispatchDetail}").Concat(executions.Select(x=>$"{x.Id.Format()}:{x.Status}:{x.CumulativeFilledQuantity}:{x.Fills.Length}")));
+        if(evidenceKey!=lastExecutionEvidence){lastExecutionEvidence=evidenceKey;scope.DiagnosticLogger.LogInformation("OrderSubmission ExecutionEvidenceChanged SubmissionId={SubmissionId} Evidence={Evidence}",model.SubmissionId,evidenceKey);}
+        var rows=new List<ContractEditorRow>();
+        rows.AddRange(model.SubmittedTradeOrders.Select((x,n)=>Row("submitted-order",n.ToString(),x)));rows.AddRange(brokerOrders.Select(x=>Row("broker-order",x.Id.Format(),x)));rows.AddRange(executions.Select(x=>Row("execution",x.Id.Format(),x)));rows.AddRange(executions.SelectMany(x=>x.Fills).Select((x,n)=>Row("fill",n.ToString(),x)));
+        foreach(var order in brokerOrders){rows.Add(Row("broker-caption",order.Id.Format(),new{Text=OrderCaption(order)}));var execution=executions.FirstOrDefault(x=>x.Id==order.Id.Execution);var summary=new{OrderId=order.Id.Format(),Status=execution?.Status is OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected?execution.Status.ToString():order.Status.ToString(),BrokerStatus=order.Status,ExecutionStatus=execution?.Status,Price=order.CurrentSignedNetDebitLimit,order.BrokerRevision,order.Order.TimeInForce,order.Order.BrokerAlgorithm,order.Order.AlgorithmPace,Requested=execution?.OrderQuantity,Filled=execution?.CumulativeFilledQuantity,Remaining=execution is null?(int?)null:Math.Max(0,execution.OrderQuantity-execution.CumulativeFilledQuantity),order.DispatchCategory,order.DispatchDetail,order.ChangedAtUtc};rows.Add(Row("broker-summary",order.Id.Format(),summary));rows.Add(Row("broker-properties",order.Id.Format(),Properties(summary)));var component=order.Order.Components.Single(x=>x.ComponentId==order.Id.ComponentId);var terminal=executions.Any(x=>x.Id==order.Id.Execution&&x.Status is OrderExecutionStatus.Filled or OrderExecutionStatus.Cancelled or OrderExecutionStatus.Rejected);rows.Add(Row("broker-mutation",order.Id.Format(),new{canMutate=BrokerOrderMutationRules.CanMutate(order.Status,execution?.Status,component,pendingMutations.ContainsKey(order.Id)),minimum=component.MinimumSignedNetDebitLimit,maximum=component.MaximumSignedNetDebitLimit,tick=component.TickIncrement,pending=pendingMutations.ContainsKey(order.Id)}));}
+        rows.AddRange(executions.SelectMany(x=>x.Fills).DistinctBy(x=>x.ExecutionFillId).Select(x=>Row("fill-properties",x.ExecutionFillId.ToString(),Properties(x))));
+
+        evidenceOrders=brokerOrders;evidenceExecutions=executions;evidenceSubmittedCount=model.SubmittedTradeOrders.Count;
+        return evidenceRows=rows.ToArray();
     }
     static object Properties(object value)=>new{Properties=System.ComponentModel.TypeDescriptor.GetProperties(value).Cast<System.ComponentModel.PropertyDescriptor>().Select(p=>new{Name=p.Name,Display=p.Converter.ConvertToString(null,CultureInfo.CurrentCulture,p.GetValue(value))??""}).ToArray()};
     static string OrderCaption(BrokerOrderDefinition order){
@@ -174,11 +301,18 @@ sealed class TradeComposerSession : ITradeOrderLegConfirmationService
         var latest=c.Contracts.Where(x=>x.QuoteAtUtc.HasValue).Select(x=>x.QuoteAtUtc).Max();
         return new(){["DTE"]=(expiry.DayNumber-scope.ValueDates.ValueDate.DayNumber).ToString(CultureInfo.InvariantCulture),["Underlying"]=underlying.ContractId,["Multiplier"]=underlying.Multiplier,["Tick"]=model.StrategyKind==TradeStrategyKind.FuturesOutright?"0.25":"0.05",["Settlement"]="Unavailable",["Daily Std Dev"]=c.BollingerStandardDeviation20?.ToString("0.00")??"N/A",["Last"]=c.LastUnderlyingPrice?.ToString("0.00")??"N/A",["Daily Price Change"]=c.LastUnderlyingPrice.HasValue&&c.PreviousSessionClose is >0?$"{c.LastUnderlyingPrice.Value-c.PreviousSessionClose.Value:+0.00;-0.00;0.00} ({(c.LastUnderlyingPrice.Value/c.PreviousSessionClose.Value-1):+0.00%;-0.00%;0.00%})":"N/A",["IV"]=iv?.ToString("P1",CultureInfo.InvariantCulture)??"N/A",["IV Rank"]=c.IvRank?.ToString("0.0")??(c.IvRankStatus.StartsWith("InsufficientHistory",StringComparison.Ordinal)?"History needed":"N/A"),["Quote Age"]=latest.HasValue?$"{Math.Max(0,(c.AsOfUtc-latest.Value).TotalMilliseconds):0} ms":!live?"Frozen preview":"N/A"};
     }
-    static ContractEditorRow Row(string kind,string id,object v)=>new(kind+":"+id,new(){["kind"]=kind,["data"]=JsonSerializer.Serialize(v,new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase,Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}})});
+    static ContractEditorRow Row(string kind,string id,object v)=>new(kind+":"+id,new(){["kind"]=kind}){Data=v switch {
+        EvaluatedOptionChainReadModel market=>BridgeWire.Serialize(OptionChainDisplay.From(market)),
+        BrokerTradeLegData leg=>BridgeWire.Serialize(SelectedLegDisplay.From(leg)),
+        _=>BridgeDocument.Encode(v,camelCase:true,enumNames:true)}};
     public ValueTask<TradeOrderConfirmationResult> ConfirmAsync(TradeOrderReadModel order,CancellationToken cancellationToken=default)=>ConfirmAsync(order,[],cancellationToken);
     public async ValueTask<TradeOrderConfirmationResult> ConfirmAsync(TradeOrderReadModel order,IReadOnlyList<TradeOrderConfirmationLeg> legs,CancellationToken cancellationToken=default){
-        Task<TradeOrderConfirmationResult> pending;lock(confirmationGate){if(decision is not null)throw new InvalidOperationException("A confirmation is already pending");confirmationId=Guid.NewGuid();decision=new(TaskCreationOptions.RunContinuationsAsynchronously);pending=decision.Task;confirmation=JsonSerializer.Serialize(new{id=confirmationId,order,legs},new JsonSerializerOptions{PropertyNamingPolicy=JsonNamingPolicy.CamelCase});}
-        try{return await pending.WaitAsync(cancellationToken);}finally{lock(confirmationGate){confirmation=null;decision=null;}}
+        Task<TradeOrderConfirmationResult> pending;lock(confirmationGate){if(decision is not null)throw new InvalidOperationException("A confirmation is already pending");submissionError="";confirmationSubmitting=false;confirmationBytes=null;confirmationId=Guid.NewGuid();decision=new(TaskCreationOptions.RunContinuationsAsynchronously);pending=decision.Task;confirmation=BridgeDocument.Map(new{id=confirmationId,order,legs},camelCase:true);}
+        try{scope.DiagnosticLogger.LogInformation("OrderSubmission AwaitingConfirmation SubmissionId={SubmissionId} ConfirmationId={ConfirmationId}",model.SubmissionId,confirmationId);return await pending.WaitAsync(cancellationToken);}finally{lock(confirmationGate){decision=null;}}
+    }
+    public ValueTask CompleteSubmissionAsync(string? error) {
+        lock(confirmationGate) { confirmation=null; confirmationBytes=null; confirmationSubmitting=false; submissionError=error??""; }
+        return ValueTask.CompletedTask;
     }
     async Task ReleaseChain(){displayChain=null;if(chain is not null){Require(await scope.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(new(){UnderlyingContractId=underlying.ContractId,UnderlyingSymbol=underlying.Symbol,ExpiryDate=expiry,ReleaseOnly=true,SubscriptionOwnerId=subscriptionOwner},token));chain=null;}}
     public async Task CloseAsync(){lock(confirmationGate){decision?.TrySetResult(new(false,TradeFillType.Broker));confirmation=null;}if(chain is not null)await scope.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(new(){UnderlyingContractId=underlying.ContractId,UnderlyingSymbol=underlying.Symbol,ExpiryDate=expiry,ReleaseOnly=true,SubscriptionOwnerId=subscriptionOwner},token);}

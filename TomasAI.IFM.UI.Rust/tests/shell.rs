@@ -45,11 +45,11 @@ fn main_shell_has_three_regions_with_winforms_side_widths() {
             "ES-BB",
             "VX",
             "Economic Calendar",
-            "Status Console",
         ] {
             assert!(harness.query_by_label(label).is_some(), "Missing {label}");
         }
         assert!(harness.query_by_label("Operations").is_none());
+        assert!(harness.query_by_label("Status Console").is_none());
         let left = egui::containers::panel::PanelState::load(
             &harness.ctx,
             egui::Id::new("operations-pane"),

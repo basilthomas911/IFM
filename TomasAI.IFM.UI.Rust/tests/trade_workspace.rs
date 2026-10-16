@@ -4,6 +4,10 @@ struct State{view:TradeWorkspace,requests:Vec<String>}
 fn fixture(count:usize)->ContractPublication{
  let mut rows:Vec<_>=(0..count).map(|i|serde_json::json!({"id":format!("trade:{i}"),"fields":{"kind":"trade","data":serde_json::json!({"index":i,"tradeId":i,"tradeType":"ShortIronCondor","tradeState":"NewTrade","effectiveDate":"2026-10-13"}).to_string()}})).collect();
  if count>0{rows.push(serde_json::json!({"id":"order:27","fields":{"kind":"order","data":serde_json::json!({"orderId":27,"source":"Manual"}).to_string()}}));}
+ for row in &mut rows { if let Some(document)=row["fields"].as_object_mut().unwrap().remove("data") {
+    let value:serde_json::Value=serde_json::from_str(document.as_str().unwrap()).unwrap();
+    row["data"]=serde_json::to_value(ifm_ui_rust::wire::encode_value(&value).unwrap()).unwrap();
+ } }
  serde_json::from_value(serde_json::json!({"schema":1,"generation":3,"busy":false,"status":"Completed","outcomes":[],"result":{"view":"trade-orders","rows":rows,"choices":{"portfolio":["1 - Development"],"fund":["2 - Test fund"]},"hasMore":false,"context":{"portfolioIndex":"0","fundIndex":"0","orderId":"27","valueDate":"2026-10-13","canAddTrade":"True","canCreateOrder":"True","canLoadTrade":"False"}}})).unwrap()
 }
 #[test]fn editor_matches_order_workspace_and_new_trade_cannot_load(){

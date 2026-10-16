@@ -11,6 +11,13 @@ public sealed class StrategyOptionChainParameterModel : IParameterComponentDescr
     /// <inheritdoc />
     public ParameterComponentSummary Summary => new("market-data", "Market Data", ComponentCode, "Strategy Option Chain Cache", [1], true);
     /// <summary>Creates an unbound disabled draft; an exact strategy catalog version is required before publication.</summary>
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(StrategyOptionChainParameterDefaults.IronCondor(setId,Guid.Empty,0));
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion)
+    {
+        if(parameters.ComponentCode!=ComponentCode||parameters.SchemaVersion!=schemaVersion)return [new("PARAM.SCHEMA_MISMATCH","Parameters","The typed configuration does not match the component or schema")];
+        try { parameters.Get<StrategyOptionChainParameterSet>().Validate();return []; }
+        catch(ArgumentException error){return [new("PARAM.OPTION_CHAIN_INVALID","Parameters",error.Message)];}
+    }
     public string CreateDraftPayload(Guid setId) => JsonSerializer.Serialize(StrategyOptionChainParameterDefaults.IronCondor(setId, Guid.Empty, 0));
     /// <inheritdoc />
     public ParameterValidationIssue[] Validate(string payloadJson, int schemaVersion)

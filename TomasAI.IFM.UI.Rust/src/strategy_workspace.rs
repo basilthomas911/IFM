@@ -127,6 +127,31 @@ impl StrategyWorkspace {
                     let mut plot = egui_plot::Plot::new("iti_price")
                         .x_axis_label("Market Time (ET)")
                         .y_axis_label("ITI Signal Price")
+                        .y_axis_formatter(|mark, _| format!("{:.2}", mark.value))
+                        .y_grid_spacer(|input| {
+                            let (min, max) = input.bounds;
+                            let range = max - min;
+                            if !range.is_finite() || range <= 0.0 {
+                                return Vec::new();
+                            }
+                            // Aim for six intervals, keeping labels at least 32 points apart.
+                            let target = (range / 6.0).max(input.base_step_size * 4.0);
+                            let magnitude = 10.0_f64.powf(target.log10().floor());
+                            let factor = [1.0, 2.0, 2.5, 5.0, 10.0]
+                                .into_iter()
+                                .find(|factor| factor * magnitude >= target)
+                                .unwrap_or(10.0);
+                            let step = factor * magnitude;
+                            let first = (min / step).ceil() * step;
+                            (0..=8)
+                                .map(|index| first + index as f64 * step)
+                                .take_while(|value| *value <= max)
+                                .map(|value| egui_plot::GridMark {
+                                    value,
+                                    step_size: step,
+                                })
+                                .collect()
+                        })
                         .label_formatter(|name, point| {
                             snapshot
                                 .signals
@@ -349,11 +374,23 @@ impl StrategyWorkspace {
                     } else {
                         let height = ui.text_style_height(&egui::TextStyle::Body) + 8.0;
                         let mut near_history_end = false;
+                        // Keep the horizontal scrollbar below the body instead of over its last row.
+                        ui.spacing_mut().scroll.floating = false;
+                        let row_stride = height + ui.spacing().item_spacing.y;
+                        let body_space = (ui.available_height()
+                            - ui.spacing().scroll.allocated_width()
+                            - 24.0
+                            - ui.spacing().item_spacing.y)
+                            .max(0.0);
+                        let body_height = (body_space / row_stride).floor() * row_stride;
                         egui::ScrollArea::horizontal()
+                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 egui_extras::TableBuilder::new(ui)
                                     .id_salt("strategy-workflows-table")
+                                    .min_scrolled_height(0.0)
+                                    .max_scroll_height(body_height)
                                     .striped(true)
                                     .resizable(true)
                                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))

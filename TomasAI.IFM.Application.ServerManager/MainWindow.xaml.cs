@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml

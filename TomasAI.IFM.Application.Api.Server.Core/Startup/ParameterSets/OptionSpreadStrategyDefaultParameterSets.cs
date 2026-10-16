@@ -38,7 +38,7 @@ internal static class OptionSpreadStrategyDefaultParameterSets
                 EntityId = new(definition.SetId), ComponentCode = definition.Descriptor.Summary.ComponentCode,
                 Name = definition.Name, Description = definition.Description,
                 SchemaVersion = definition.Descriptor.Summary.SchemaVersions.Single(),
-                PayloadJson = definition.Descriptor.CreateDraftPayload(definition.SetId)
+                Parameters = definition.Descriptor.CreateTypedDraft(definition.SetId)
             }, token).ConfigureAwait(false);
             Require(create, $"create {definition.Name}");
             state = await StateAsync(api, definition.SetId, token);
@@ -53,7 +53,7 @@ internal static class OptionSpreadStrategyDefaultParameterSets
                 CommandId = StableId($"parameter-command:publish:{definition.Descriptor.Summary.ComponentCode}:v1"),
                 EntityId = new(definition.SetId), ExpectedRevision = state.Revision, Version = 1,
                 ComponentCode = version.Reference.ComponentCode, Name = version.Name,
-                Description = version.Description, SchemaVersion = version.SchemaVersion, PayloadJson = version.PayloadJson
+                Description = version.Description, SchemaVersion = version.SchemaVersion
             }, token).ConfigureAwait(false);
             Require(publish, $"publish {definition.Name}");
             state = await StateAsync(api, definition.SetId, token);
@@ -63,9 +63,15 @@ internal static class OptionSpreadStrategyDefaultParameterSets
             throw new InvalidOperationException($"The initial {definition.Name} version is not published.");
 
         var assignmentId = ParameterAssignmentPolicyModel.AssignmentId(definition.Scope);
+        var current = await api.AssignmentAsync(definition.Scope, token).ConfigureAwait(false);
+        if (!current.Success || current.Value is null)
+            throw new InvalidOperationException(current.ErrorMessage ?? "Option-spread assignment state is unavailable.");
+        // Existing assignments (including migrated historical hashes) remain the operator's choice.
+        if (current.Value.Assignment is not null) return;
         var assigned = await api.AssignAsync(new()
         {
-            CommandId = StableId($"parameter-command:assign:{definition.Descriptor.Summary.ComponentCode}:v1"),
+            CommandId = StableId($"parameter-command:assign:{definition.Descriptor.Summary.ComponentCode}:v1:messagepack:{current.Value.Revision}"),
+            ExpectedRevision = current.Value.Revision,
             EntityId = new(assignmentId), Scope = definition.Scope, Reference = version.Reference
         }, token).ConfigureAwait(false);
         Require(assigned, $"assign {definition.Name}");
@@ -83,7 +89,7 @@ internal static class OptionSpreadStrategyDefaultParameterSets
     {
         if (version.Reference.SetId != definition.SetId
             || version.Reference.ComponentCode != definition.Descriptor.Summary.ComponentCode
-            || definition.Descriptor.Validate(version.PayloadJson, version.SchemaVersion)
+            || definition.Descriptor.ValidateTyped(version.Values(), version.SchemaVersion)
                 .Any(issue => issue.Severity == ParameterIssueSeverity.Error))
             throw new InvalidOperationException($"The stored {definition.Name} version is invalid.");
     }

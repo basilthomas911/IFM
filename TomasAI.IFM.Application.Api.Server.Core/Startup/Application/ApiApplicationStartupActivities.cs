@@ -199,10 +199,7 @@ public sealed class ApiApplicationStartupActivities(
                 cancellationToken).ConfigureAwait(false);
         }
 
-        if (!contractsByValueDate.TryGetValue(context.ValueDate, out var contracts))
-            throw new InvalidOperationException("Qualified current contracts are unavailable.");
-
-        var accepted = await marketDataFeedCommandApi.StartMarketDataFeedAsync(contracts, context.ValueDate)
+        var accepted = await marketDataFeedCommandApi.StartMarketDataFeedAsync()
             .ConfigureAwait(false);
         if (!accepted.Success)
             throw new InvalidOperationException(

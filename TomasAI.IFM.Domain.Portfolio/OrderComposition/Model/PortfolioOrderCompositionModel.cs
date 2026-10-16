@@ -28,6 +28,14 @@ public static class PortfolioOrderCompositionModel
         foreach (var fund in book.Funds.OrderBy(value => value.FundId))
         {
             if (candidate.SetupTrade is { } setupScope && setupScope.FundId != fund.FundId) continue;
+            if (IsDevelopmentManual(book, candidate))
+            {
+                var manualOrderId = await identities.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
+                var manualComponents = await AllocateComponentsAsync(candidate, identities, cancellationToken).ConfigureAwait(false);
+                decisions.Add(new(fund.FundId, true, "DevelopmentManual", manualOrderId));
+                orders.Add(CreateOrder(request, fund.FundId, manualOrderId, manualComponents));
+                continue;
+            }
             if (!TrySelectDeployment(fund, candidate, request.RequestedAtUtc, out var deployment, out var reason))
             {
                 decisions.Add(new(fund.FundId, false, reason, null));
@@ -71,6 +79,12 @@ public static class PortfolioOrderCompositionModel
         };
     }
 
+    /// <summary>Trusted host-only exemption for explicitly selected Development emulator blotter orders.</summary>
+    public static bool IsDevelopmentManual(FinancialBookConfiguration book, PortfolioOrderCandidate candidate)
+        => book.DevelopmentQualificationsExempt && book.Environment == "Emulator"
+            && candidate.BrokerEnvironment == PortfolioBrokerEnvironment.Emulator
+            && candidate.Origin == "DesktopTradeOrder" && candidate.SetupTrade is not null;
+
     /// <summary>Allocates trade identifiers only after admission, preserving the component order and copied leg facts.</summary>
     static async ValueTask<PortfolioExecutionComponent[]> AllocateComponentsAsync(PortfolioOrderCandidate candidate,
         IPortfolioBusinessIdAllocator identities, CancellationToken cancellationToken)
@@ -101,8 +115,8 @@ public static class PortfolioOrderCompositionModel
             || candidate.PositionType != PortfolioExecutionPositionType.Opening
             || candidate.Components.Any(component => component.Legs.Length == 0 ||
                 component.Legs.Any(leg => string.IsNullOrWhiteSpace(leg.ContractId)))
-            || candidate.DeploymentKey.Kind != TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment
-            || candidate.DeploymentKey.Id == Guid.Empty || candidate.DeploymentKey.Version <= 0
+            || (!IsDevelopmentManual(book, candidate) && (candidate.DeploymentKey is null || candidate.DeploymentKey.Kind != TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.StrategyCatalogKind.Deployment
+            || candidate.DeploymentKey.Id == Guid.Empty || candidate.DeploymentKey.Version <= 0))
             || candidate.RequiredCapital < 0 || candidate.MaximumLoss < 0 || candidate.StressLoss < 0 || candidate.Notional < 0
             || string.IsNullOrWhiteSpace(candidate.ProductSymbol) || string.IsNullOrWhiteSpace(candidate.ProductExchange)
             || !string.Equals(candidate.ProductCurrency, book.Currency, StringComparison.OrdinalIgnoreCase)

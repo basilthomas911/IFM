@@ -7,13 +7,14 @@ namespace TomasAI.IFM.Application.DatabaseBackup.Policies;
 
 public static class DatabaseBackupContractSerializer
 {
-    static readonly IReadOnlyDictionary<string, Type> EventTypes = typeof(DatabaseBackupEventContract).Assembly
+    static readonly Dictionary<string, Type> EventTypes = typeof(DatabaseBackupEventContract).Assembly
         .GetTypes()
         .Where(static type => !type.IsAbstract && typeof(DatabaseBackupEventContract).IsAssignableFrom(type))
         .ToDictionary(static type => type.FullName!, StringComparer.Ordinal);
 
     public static (string TypeName, string Payload, string Hash) Serialize(DatabaseBackupEventContract @event)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         var typeName = @event.GetType().FullName
             ?? throw new InvalidOperationException("DatabaseBackup event type has no stable name.");
         if (!EventTypes.ContainsKey(typeName))
@@ -33,6 +34,7 @@ public static class DatabaseBackupContractSerializer
 
     public static string DefinitionHash(DatabaseBackupEventContract @event)
     {
+        ArgumentNullException.ThrowIfNull(@event);
         var definition = string.Join('|',
             @event.Source.OperationId.Value,
             (short)@event.Source.Source,

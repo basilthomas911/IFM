@@ -32,6 +32,7 @@ public sealed partial class ApiServerLifecycle : IApiServerLifecycle
 {
     public async Task RunAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger)
     {
+        var actorContainer = app.Services.GetRequiredService<SimpleInjector.Container>();
         IApiFatalRecoveryShutdown? fatalRecoveryShutdown = app.Services.GetService<IApiFatalRecoveryShutdown>();
 
         try
@@ -52,8 +53,7 @@ public sealed partial class ApiServerLifecycle : IApiServerLifecycle
         {
             // Actor projectors own async resources. Dispose them before their cross-wired
             // Microsoft DI dependencies; the synchronous integration wrapper cannot do this.
-            await app.Services.GetRequiredService<SimpleInjector.Container>()
-                .DisposeContainerAsync();
+            await actorContainer.DisposeContainerAsync();
         }
     }
 }

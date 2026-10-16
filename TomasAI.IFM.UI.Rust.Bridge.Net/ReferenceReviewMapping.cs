@@ -1,19 +1,16 @@
 using System.Globalization;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
 /// <summary>Edits only user-reviewed conventions; provider identity, economics, strike and definition evidence remain immutable.</summary>
 public static class ReferenceReviewMapping
 {
-    static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     public static ContractEditorRow Row(ContractEditorRow row, FuturesContractV3ReadModel contract) => Merge(row,ReferenceConventionEditor.From(contract));
     public static ContractEditorRow Row(ContractEditorRow row, FuturesOptionContractReadModel contract) => Merge(row,ReferenceConventionEditor.From(contract));
     static ContractEditorRow Merge(ContractEditorRow row,ReferenceConventionEditor review)
     {
         var fields=new Dictionary<string,string>(row.Fields);
-        foreach(var property in JsonSerializer.SerializeToElement(review,Json).EnumerateObject())fields[property.Name]=property.Value.ValueKind==JsonValueKind.Null?"":property.Value.ToString();
+        foreach(var property in BridgeDocument.Fields(review,camelCase:true,enumNames:true))fields[property.Key]=property.Value;
         return row with{Fields=fields};
     }
     public static FuturesContractV3ReadModel Futures(ContractEditorIntent input,FuturesContractV3ReadModel original)

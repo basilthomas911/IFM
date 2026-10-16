@@ -9,7 +9,7 @@ public unsafe class LiveLookupEditorTests
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   var name="RustUiQualification-"+Guid.NewGuid().ToString("N");var row=new LookupTypeUiModel(name,"TEST",0,"Initial disposable definition",DateTime.UtcNow,"UI qualification");bool created=false;
   try
   {
@@ -25,13 +25,13 @@ public unsafe class LiveLookupEditorTests
    finally{Assert.Equal(0,api.Base.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",old);}
   }
  }
- static EditorPublication Run(ApiV2 api,ulong handle,string action,long generation,LookupTypeUiModel? row)
+ static EditorPublication Run(ApiV4 api,ulong handle,string action,long generation,LookupTypeUiModel? row)
  {
-  var request=new EditorIntent(1,Guid.NewGuid(),"lookup",action,generation,row);var bytes=JsonSerializer.SerializeToUtf8Bytes(request,Json);
+  var request=new EditorIntent(1,Guid.NewGuid(),"lookup",action,generation,row);var bytes=BridgeWire.Serialize(request);
   fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));
   var deadline=DateTime.UtcNow.AddSeconds(45);
   do{var state=Read(api,handle);var outcome=state.Outcomes.FirstOrDefault(x=>x.RequestId==request.RequestId);if(outcome is not null&&outcome.State!="Pending"){Assert.Equal("Completed",outcome.State);return state;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);
   throw new TimeoutException("Lookup "+action+" did not receive backend completion");
  }
- static EditorPublication Read(ApiV2 api,ulong handle){int n;api.Base.Copy(handle,3,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes)Assert.Equal(0,api.Base.Copy(handle,3,p,n,&n));return JsonSerializer.Deserialize<EditorPublication>(bytes,Json)!;}
+ static EditorPublication Read(ApiV4 api,ulong handle){int n;api.Base.Copy(handle,3,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes)Assert.Equal(0,api.Base.Copy(handle,3,p,n,&n));return BridgeWire.Deserialize<EditorPublication>(bytes)!;}
 }

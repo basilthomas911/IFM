@@ -7,6 +7,7 @@ using Serilog.Events;
 using WinForms = System.Windows.Forms;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class ServerLauncherContext : IAsyncDisposable
 {
@@ -29,6 +30,8 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         MainWindow console,
         bool enableDevelopmentProcessOwnership)
     {
+        ArgumentNullException.ThrowIfNull(console);
+        ArgumentNullException.ThrowIfNull(options);
         _application = application;
         _viewModel = viewModel;
         _console = console;
@@ -76,7 +79,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
             await _developmentControlPipe.DisposeAsync().ConfigureAwait(false);
         }
 
-        _schedulerMonitorCancellation.Cancel();
+        await _schedulerMonitorCancellation.CancelAsync().ConfigureAwait(true);
         try
         {
             await _schedulerMonitor.ConfigureAwait(false);
@@ -101,6 +104,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
     }
 
     public void PrepareForShutdown() => _console.PrepareForShutdown();
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1303",Justification="The existing Development UI uses fixed English captions.")]
 
     private WinForms.NotifyIcon CreateNotifyIcon()
     {
@@ -114,8 +118,8 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
         notifyIcon.ContextMenuStrip.Items.Add("View Console", null, (_, _) => ViewConsole()).Name = "ViewConsole";
         notifyIcon.ContextMenuStrip.Items.Add("Minimize Console", null, (_, _) => MinimizeConsole()).Name = "MinimizeConsole";
-        notifyIcon.ContextMenuStrip.Items.Add("Reset API and UI", null, async (_, _) => await ResetProcessesAsync()).Name = "Reset";
-        notifyIcon.ContextMenuStrip.Items.Add("Exit Server Manager", null, async (_, _) => await ExitAsync()).Name = "Exit";
+        notifyIcon.ContextMenuStrip.Items.Add("Reset API and UI", null, async (_, _) => await (ResetProcessesAsync()).ConfigureAwait(true)).Name = "Reset";
+        notifyIcon.ContextMenuStrip.Items.Add("Exit Server Manager", null, async (_, _) => await (ExitAsync()).ConfigureAwait(true)).Name = "Exit";
         notifyIcon.DoubleClick += (_, _) => ViewConsole();
         return notifyIcon;
     }
@@ -135,6 +139,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         _viewModel.ConsoleWindowState = WindowState.Minimized;
         _console.Hide();
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
     private async Task StartProcessesAsync()
     {
@@ -154,6 +159,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
             WriteManagerLog("Process startup failed.", exception);
         }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
     private async Task ResetProcessesAsync()
     {
@@ -172,23 +178,23 @@ public sealed class ServerLauncherContext : IAsyncDisposable
     {
         if (!_schedulerOptions.Enabled)
         {
-            await _viewModel.RefreshSchedulerAsync(cancellationToken);
+            await (_viewModel.RefreshSchedulerAsync(cancellationToken)).ConfigureAwait(true);
             return;
         }
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_schedulerOptions.RefreshIntervalSeconds));
         do
         {
-            await _viewModel.RefreshSchedulerAsync(cancellationToken);
+            await (_viewModel.RefreshSchedulerAsync(cancellationToken)).ConfigureAwait(true);
         }
-        while (await timer.WaitForNextTickAsync(cancellationToken));
+        while (await (timer.WaitForNextTickAsync(cancellationToken)).ConfigureAwait(true));
     }
 
     private async Task ExitAsync()
     {
         WriteManagerLog("Server Manager exit requested.");
         PrepareForShutdown();
-        await DisposeAsync();
+        await (DisposeAsync()).ConfigureAwait(true);
         _application.Shutdown();
     }
 

@@ -13,7 +13,7 @@ fn setup(count: usize) -> Harness<'static, State> {
         schema: 1,
         generation: 4,
         status: "Completed".into(),
-        result: ContractResult {
+        result: ContractResult { documents: Default::default(),
             view: "futures-contract".into(),
             choices: [
                 "symbol",
@@ -26,7 +26,7 @@ fn setup(count: usize) -> Harness<'static, State> {
             .map(|key| (key.into(), vec!["ES".into()]))
             .collect(),
             rows: (0..count)
-                .map(|i| ContractRow {
+                .map(|i| ContractRow { data: None,
                     id: format!("identity-{i}"),
                     fields: BTreeMap::from([
                         ("contractId".into(), format!("ES-{i}")),

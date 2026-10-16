@@ -37,6 +37,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
     TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>? _source;
     TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>? _host;
 
+    IActorSupervisor? _supervisor;
+
     public string PostgresConnectionString { get; private set; } = string.Empty;
     public string RedisConnectionString { get; private set; } = string.Empty;
     public string NatsUrl { get; private set; } = string.Empty;
@@ -65,8 +67,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
                 .Add("ConfigurationDbConnection", PostgresConnectionString, "System.Data.Postgres")
                 .Add("EventSourceActorDbConnection", PostgresConnectionString, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", PostgresConnectionString, "System.Data.Postgres")
-                .Add("MarketDataDbConnection", CqlConnectionString, "System.Data.ScyllaDb")
-                .Add("ReferenceDbConnection", CqlConnectionString, "System.Data.ScyllaDb");
+                .Add("MarketDataDbConnection", PostgresConnectionString, "System.Data.Postgres")
+                .Add("ReferenceDbConnection", PostgresConnectionString, "System.Data.Postgres");
             await new ConfigurationSchemaDb(settings, logger).CreateAllAsync();
             await new EventSourceSchemaDb(settings, logger).CreateAllAsync();
             await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
@@ -82,7 +84,8 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
                     .UseSetting("IFM_TEST_REDIS_URL", RedisConnectionString)
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", PostgresConnectionString);
                 foreach (var name in new[] { "MarketData", "OptionPricer", "Reference", "Securities", "Trade" })
-                    builder.UseSetting($"ConnectionStrings:{name}DbConnection", CqlConnectionString);
+                    builder.UseSetting($"ConnectionStrings:{name}DbConnection", PostgresConnectionString);
+                builder.UseSetting("ConnectionStrings:TradeTickQuoteDbConnection", CqlConnectionString);
                 builder.ConfigureServices(services => services.RemoveAll<IHostedService>());
             });
 
@@ -92,6 +95,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
             using var startupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             await WaitForActorReadinessAsync(HttpClient, startupDeadline.Token);
 
+            _supervisor = _host.Services.GetRequiredService<IActorSupervisor>();
             ActorProducer = _host.Services.GetRequiredService<IActorProducer>();
             RecoveryCanaryProbe = _host.Services.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Verification.SupervisorRecoveryCanaryProbe>();
             SupervisorOperations = _host.Services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.Service.Health.SupervisorOperationStore>();
@@ -111,19 +115,26 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (ActorProducer is not null)
+        var failures = new List<Exception>();
+        async Task Attempt(Func<Task> dispose)
         {
-            try { await ActorProducer.StopAsync(); }
-            catch { }
+            try { await dispose(); }
+            catch (Exception error) { failures.Add(error); }
         }
+        // This fixture removes hosted services and therefore owns the shutdown ordering too.
+        // Quiesce the supervisor while its consumers and connection managers still exist.
+        if (_supervisor is not null)
+            await Attempt(() => _supervisor.ShutdownAsync().AsTask());
+        if (ActorProducer is not null)
+            await Attempt(() => ActorProducer.StopAsync().AsTask());
         HttpClient?.Dispose();
         if (_host is not null)
-            await _host.DisposeAsync();
+            await Attempt(() => _host.DisposeAsync().AsTask());
         if (_source is not null)
-            await _source.DisposeAsync();
-        await _infrastructure.DisposeAsync();
+            await Attempt(() => _source.DisposeAsync().AsTask());
+        await Attempt(() => _infrastructure.DisposeAsync().AsTask());
+        if (failures.Count != 0) throw new AggregateException("Reference integration fixture cleanup failed", failures);
     }
-
 
     static async Task WaitForActorReadinessAsync(HttpClient client, CancellationToken token)
     {

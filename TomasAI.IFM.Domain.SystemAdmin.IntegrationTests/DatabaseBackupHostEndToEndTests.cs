@@ -11,6 +11,7 @@ using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Repository;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
@@ -125,7 +126,7 @@ public sealed class DatabaseBackupHostEndToEndTests
             var revision = 0L;
             foreach (var domainEvent in publicEvents)
                 await projection.ApplyDatabaseBackupSnapshotAsync(
-                    projectorName, domainEvent with { EventId = ++revision });
+                    projectorName, DatabaseBackupProjectionFactory.Create(domainEvent with { EventId = ++revision }));
 
             var firstJournal = Journal(journalOptions, hostOptions);
             await firstJournal.InitializeAsync(CancellationToken.None);
@@ -172,7 +173,7 @@ public sealed class DatabaseBackupHostEndToEndTests
                     var domainEvent = Assert.IsAssignableFrom<DatabaseBackupEventContract>(state.Events.Single());
                     state.Events.Clear();
                     await projection.ApplyDatabaseBackupSnapshotAsync(
-                        projectorName, domainEvent with { EventId = Interlocked.Increment(ref revision) });
+                        projectorName, DatabaseBackupProjectionFactory.Create(domainEvent with { EventId = Interlocked.Increment(ref revision) }));
                     if (domainEvent is DatabaseOperationCompletedEvent) completed.TrySetResult();
                 });
 

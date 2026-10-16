@@ -9,4 +9,9 @@ public sealed record ParameterAssignmentScope(
     [property: Key(2)] string Role,
     [property: Key(3)] string ComponentCode,
     [property: Key(4)] string ScopeJson,
-    [property: Key(5)] string ScopeSha256);
+    [property: Key(5)] string ScopeSha256)
+{
+    [Key(6)] public TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType? TargetHorizon {get;init;}
+    [Key(7)] public string? Strategy {get;init;}
+    [Key(8)] public string Codec {get;init;}=ParameterValueCodec.Codec;
+}

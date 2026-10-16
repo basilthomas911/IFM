@@ -6,14 +6,22 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
-public sealed record PropertyRow(string Name, string Value);
-public sealed record ObjectNode(string Id, string Label, PropertyRow[] Properties, ObjectNode[] Children);
-public sealed record WorkflowChoice(string Id,string Label,uint Action);
-public sealed record WorkflowActor(string Name,string Value,string State);
-public sealed record WorkflowDisplayRow(string Id,uint Action,string TriggerIdentity,string OccurredOn,string Signal,string Trend,string FuturesPrice,string Outcome,string EndState,WorkflowActor[] Actors);
-public sealed record StrategyGraphPoint(string Identity,double UtcSeconds,double Price,string Direction,string Tooltip) { public double MarketSeconds {get;init;} } ;
-public sealed record StrategySummarySection(string Title,string State,string Summary,string Content);
-public sealed record DetailSnapshot(int Schema, string Epoch, long Generation, string Mode, string WorkflowId, long Revision, ObjectNode[] Roots) { public WorkflowChoice[] Workflows {get;init;}=[]; public string Status {get;init;}="Ready"; public WorkflowDisplayRow[] Rows {get;init;}=[]; public StrategyGraphPoint[] Signals {get;init;}=[]; public StrategySummarySection[] Summary {get;init;}=[]; public string Header {get;init;}=""; public int PageNumber {get;init;}=1; public int PageCount {get;init;}=1; public int TotalRows {get;init;} public bool HasMore {get;init;} public double GraphStartUtc {get;init;} public double GraphEndUtc {get;init;} public double GraphStartMarket {get;init;} public double GraphEndMarket {get;init;} public string ContractId {get;init;}=""; public string TimeFrame {get;init;}="Daily"; }
+[MessagePack.MessagePackObject]
+public sealed record PropertyRow([property: MessagePack.Key("name")] string Name, [property: MessagePack.Key("value")] string Value);
+[MessagePack.MessagePackObject]
+public sealed record ObjectNode([property: MessagePack.Key("id")] string Id, [property: MessagePack.Key("label")] string Label, [property: MessagePack.Key("properties")] PropertyRow[] Properties, [property: MessagePack.Key("children")] ObjectNode[] Children);
+[MessagePack.MessagePackObject]
+public sealed record WorkflowChoice([property: MessagePack.Key("id")] string Id, [property: MessagePack.Key("label")] string Label, [property: MessagePack.Key("action")] uint Action);
+[MessagePack.MessagePackObject]
+public sealed record WorkflowActor([property: MessagePack.Key("name")] string Name, [property: MessagePack.Key("value")] string Value, [property: MessagePack.Key("state")] string State);
+[MessagePack.MessagePackObject]
+public sealed record WorkflowDisplayRow([property: MessagePack.Key("id")] string Id, [property: MessagePack.Key("action")] uint Action, [property: MessagePack.Key("triggerIdentity")] string TriggerIdentity, [property: MessagePack.Key("occurredOn")] string OccurredOn, [property: MessagePack.Key("signal")] string Signal, [property: MessagePack.Key("trend")] string Trend, [property: MessagePack.Key("futuresPrice")] string FuturesPrice, [property: MessagePack.Key("outcome")] string Outcome, [property: MessagePack.Key("endState")] string EndState, [property: MessagePack.Key("actors")] WorkflowActor[] Actors);
+[MessagePack.MessagePackObject]
+public sealed record StrategyGraphPoint([property: MessagePack.Key("identity")] string Identity, [property: MessagePack.Key("utcSeconds")] double UtcSeconds, [property: MessagePack.Key("price")] double Price, [property: MessagePack.Key("direction")] string Direction, [property: MessagePack.Key("tooltip")] string Tooltip) { [MessagePack.Key("marketSeconds")] public double MarketSeconds {get;init;} } ;
+[MessagePack.MessagePackObject]
+public sealed record StrategySummarySection([property: MessagePack.Key("title")] string Title, [property: MessagePack.Key("state")] string State, [property: MessagePack.Key("summary")] string Summary, [property: MessagePack.Key("content")] string Content);
+[MessagePack.MessagePackObject]
+public sealed record DetailSnapshot([property: MessagePack.Key("schema")] int Schema, [property: MessagePack.Key("epoch")] string Epoch, [property: MessagePack.Key("generation")] long Generation, [property: MessagePack.Key("mode")] string Mode, [property: MessagePack.Key("workflowId")] string WorkflowId, [property: MessagePack.Key("revision")] long Revision, [property: MessagePack.Key("roots")] ObjectNode[] Roots) { [MessagePack.Key("workflows")] public WorkflowChoice[] Workflows {get;init;}=[]; [MessagePack.Key("status")] public string Status {get;init;}="Ready"; [MessagePack.Key("rows")] public WorkflowDisplayRow[] Rows {get;init;}=[]; [MessagePack.Key("signals")] public StrategyGraphPoint[] Signals {get;init;}=[]; [MessagePack.Key("summary")] public StrategySummarySection[] Summary {get;init;}=[]; [MessagePack.Key("header")] public string Header {get;init;}=""; [MessagePack.Key("pageNumber")] public int PageNumber {get;init;}=1; [MessagePack.Key("pageCount")] public int PageCount {get;init;}=1; [MessagePack.Key("totalRows")] public int TotalRows {get;init;} [MessagePack.Key("hasMore")] public bool HasMore {get;init;} [MessagePack.Key("graphStartUtc")] public double GraphStartUtc {get;init;} [MessagePack.Key("graphEndUtc")] public double GraphEndUtc {get;init;} [MessagePack.Key("graphStartMarket")] public double GraphStartMarket {get;init;} [MessagePack.Key("graphEndMarket")] public double GraphEndMarket {get;init;} [MessagePack.Key("contractId")] public string ContractId {get;init;}=""; [MessagePack.Key("timeFrame")] public string TimeFrame {get;init;}="Daily"; }
 /// <summary>Projects existing immutable C# workflow details outside the Rust rendering thread.</summary>
 public sealed class StrategyDetailsAdapter : IDisposable
 {

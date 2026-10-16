@@ -34,6 +34,7 @@ public sealed record PostgreSqlVerificationResult(DatabaseVerificationLevel Leve
     public string SafeEvidenceReference { get; init; } = string.Empty;
     public DatabaseRecoveryRunStatistics? Statistics { get; init; }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record PostgreSqlRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
@@ -41,6 +42,7 @@ public sealed record PostgreSqlRestoreRequest(
     DatabaseFreshTargetDescriptor FreshTarget,
     DatabaseRestorePointId[]? DependencyChain = null,
     PostgreSqlPreparedRecovery? Recovery = null);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record PostgreSqlPreparedRecovery(
     DateTimeOffset TargetUtc,

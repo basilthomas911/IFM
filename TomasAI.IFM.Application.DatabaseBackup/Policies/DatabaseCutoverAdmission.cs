@@ -15,6 +15,8 @@ public static class DatabaseCutoverAdmission
         bool terminal,
         long validatedRevision)
     {
+        ArgumentNullException.ThrowIfNull(cutover);
+        ArgumentNullException.ThrowIfNull(originalRestore);
         if (originalRestore is not DatabaseRestoreExecutionRequestedEvent
             || cutover is not DatabaseCutoverExecutionRequestedEvent
             || originalRestore.Source.OperationKind != DatabaseRecoveryOperationKind.Restore
@@ -36,6 +38,8 @@ public static class DatabaseCutoverAdmission
     public static void ValidateRetry(DatabaseBackupEventContract prior, DatabaseBackupEventContract next,
         DatabaseRecoveryPhase phase, bool terminal)
     {
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(prior);
         if (prior is not DatabaseCutoverExecutionRequestedEvent || next is not DatabaseCutoverExecutionRequestedEvent
             || phase != DatabaseRecoveryPhase.Failed || !terminal || prior.ValidationRevision <= 0
             || prior.ValidationRevision != next.ValidationRevision

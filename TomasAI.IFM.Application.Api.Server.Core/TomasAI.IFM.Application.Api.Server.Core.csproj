@@ -5,7 +5,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.TradeBroker\TomasAI.IFM.Application.TradeBroker.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator\TomasAI.IFM.Framework.TradeBroker.InteractiveBrokers.Emulator.csproj" />
 		<PackageReference Include="Hazelcast.Net.Caching" Version="5.7.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.10" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.13" />
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
 		<PackageReference Include="NSwag.AspNetCore" Version="14.7.1" />
 		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
@@ -60,4 +60,5 @@
 	</ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.ScheduledTask.Shared/TomasAI.IFM.Application.ScheduledTask.Shared.csproj" /></ItemGroup>
 </Project>

@@ -21,8 +21,8 @@ public sealed class ParameterSetQueryActor(IQueryActorContext<ParameterSetQueryA
         [GetParameterSetStateQuery.Verb] = m => m.AsQuery<GetParameterSetStateQuery, ParameterSetSnapshot>()!,
         [ListParameterComponentsQuery.Verb] = m => m.AsQuery<ListParameterComponentsQuery, ParameterComponentSummary[]>()!,
         [ListParameterVersionsQuery.Verb] = m => m.AsQuery<ListParameterVersionsQuery, ParameterSetVersion[]>()!,
-        [ValidateParameterCandidateQuery.Verb] = m => m.AsQuery<ValidateParameterCandidateQuery, ParameterValidationReport>()!,
-        [CreateParameterDraftPreviewQuery.Verb] = m => m.AsQuery<CreateParameterDraftPreviewQuery, string>()!,
+        [PreviewTypedParameterDraftQuery.Verb] = m => m.AsQuery<PreviewTypedParameterDraftQuery, ParameterSetValue>()!,
+        [ValidateTypedParameterCandidateQuery.Verb] = m => m.AsQuery<ValidateTypedParameterCandidateQuery, ParameterValidationReport>()!,
     };
     static readonly IReadOnlyDictionary<Type, Func<IQuery, IParameterSetQueryContext, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IQuery, IParameterSetQueryContext, CancellationToken, ValueTask>>
     {
@@ -38,8 +38,8 @@ public sealed class ParameterSetQueryActor(IQueryActorContext<ParameterSetQueryA
         [typeof(GetParameterSetStateQuery)] = (q, ctx, ct) => ((GetParameterSetStateQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
         [typeof(ListParameterComponentsQuery)] = (q, ctx, ct) => ((ListParameterComponentsQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
         [typeof(ListParameterVersionsQuery)] = (q, ctx, ct) => ((ListParameterVersionsQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(ValidateParameterCandidateQuery)] = (q, ctx, ct) => ((ValidateParameterCandidateQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
-        [typeof(CreateParameterDraftPreviewQuery)] = (q, ctx, ct) => ((CreateParameterDraftPreviewQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
+        [typeof(PreviewTypedParameterDraftQuery)] = (q, ctx, ct) => ((PreviewTypedParameterDraftQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
+        [typeof(ValidateTypedParameterCandidateQuery)] = (q, ctx, ct) => ((ValidateTypedParameterCandidateQuery)q).ExecuteAsync(ctx, ctx.Logger, ct),
     };
     protected override IQuery ParseMessage(IQueryActorContext<ParameterSetQueryActor> context, IActorMessage message) => ParseMappedQuery(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IQueryActorContext<ParameterSetQueryActor> context, IQuery query) => ReceiveAsync(context, query, CancellationToken.None);

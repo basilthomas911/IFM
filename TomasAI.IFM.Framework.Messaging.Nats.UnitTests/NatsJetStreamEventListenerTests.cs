@@ -12,17 +12,20 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJetStreamEventListenerTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void JetStream_contract_inherits_established_listener_contract()
     {
         typeof(IActorEventListener).IsAssignableFrom(typeof(IJSActorEventListener)).Should().BeTrue();
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Registrations_resolve_Core_and_JetStream_listeners_independently()
     {
         var services = new ServiceCollection();
         services.AddNatsActorEventListeners();
-        await using var provider = services.BuildServiceProvider();
+var provider = services.BuildServiceProvider();
+await using var providerDisposal = provider.ConfigureAwait(true);
 
         var core = provider.GetRequiredService<IActorEventListener>();
         var jetStream = provider.GetRequiredService<IJSActorEventListener>();
@@ -33,6 +36,7 @@ public sealed class NatsJetStreamEventListenerTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Options_derive_ack_window_from_bounded_admission_capacity()
     {
         var options = new NatsJetStreamEventListenerOptions
@@ -49,6 +53,7 @@ public sealed class NatsJetStreamEventListenerTests
     [Theory]
     [InlineData(0, 1)]
     [InlineData(1, 0)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Options_reject_non_positive_dispatcher_bounds(int dispatcherCount, int dispatcherCapacity)
     {
         var options = new NatsJetStreamEventListenerOptions
@@ -63,6 +68,7 @@ public sealed class NatsJetStreamEventListenerTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Durable_name_is_stable_valid_and_mailbox_specific()
     {
         var mailbox = new ActorMailboxId(ActorType.Event, "DatabaseBackup");
@@ -87,16 +93,18 @@ public sealed class NatsJetStreamEventListenerTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task Start_rejects_empty_event_map_before_connecting()
     {
         var listener = new NatsJetStreamEventListener(
             new NatsJetStreamEventListenerOptions(),
             Substitute.For<ILogger>());
 
-        var act = async () => await listener.StartAsync(
+        var act = async () => await (listener.StartAsync(
             "listener",
             [],
-            static (_, _) => ValueTask.CompletedTask);
+            static (_, _) => ValueTask.CompletedTask)).ConfigureAwait(true);
 
         await act.Should().ThrowAsync<ArgumentException>()
             .WithMessage("*Event map cannot be empty*");

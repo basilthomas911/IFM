@@ -1,6 +1,7 @@
 using System.Globalization;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
-public sealed record GridRow(long Id,long Sequence,string Timestamp,string DailyPnl,string ForwardLossRatio);
+[MessagePack.MessagePackObject]
+public sealed record GridRow([property: MessagePack.Key("id")] long Id, [property: MessagePack.Key("sequence")] long Sequence, [property: MessagePack.Key("timestamp")] string Timestamp, [property: MessagePack.Key("dailyPnl")] string DailyPnl, [property: MessagePack.Key("forwardLossRatio")] string ForwardLossRatio);
 /// <summary>Deterministic display dataset; never writes application storage.</summary>
 public static class VirtualGridDataset
 {

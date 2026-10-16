@@ -736,7 +736,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(token)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
-        await this.ProjectParameterAssignmentCoreAsync(fact, (sql, ct, values) => this.Scalar(connection, transaction, sql, ct, values), (sql, ct, values) => this.Execute(connection, transaction, sql, ct, values), token)
+        await this.ProjectCatalogAssignmentAsync(new ConfigurationDbSession(connection,transaction),fact,token)
             .ConfigureAwait(false);
         await transaction.CommitAsync(token)
             .ConfigureAwait(false);
@@ -749,7 +749,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <returns>A task representing the persistence operation.</returns>
     public Task ProjectParameterAssignmentAsync(IEnlistedPostgresTransaction transaction, ParameterAssignmentChangedEvent fact, CancellationToken cancellationToken = default)
     {
-        return this.ProjectParameterAssignmentCoreAsync(fact, (sql, ct, values) => transaction.ScalarAsync(sql, this.BindProjection(values), ct), (sql, ct, values) => transaction.ExecuteAsync(sql, this.BindProjection(values), ct), cancellationToken);
+        return this.ProjectCatalogAssignmentAsync(transaction,fact,cancellationToken);
     }
 
     /// <summary>Gets legacy parameter versions.</summary>
@@ -820,7 +820,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(token)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
-        await this.ProjectParameterSetCoreAsync(fact, (sql, ct, values) => this.Scalar(connection, transaction, sql, ct, values), (sql, ct, values) => this.Execute(connection, transaction, sql, ct, values), token)
+        await this.ProjectCatalogSetAsync(new ConfigurationDbSession(connection,transaction),fact,token)
             .ConfigureAwait(false);
         await transaction.CommitAsync(token)
             .ConfigureAwait(false);
@@ -833,7 +833,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <returns>A task representing the persistence operation.</returns>
     public Task ProjectParameterSetAsync(IEnlistedPostgresTransaction transaction, IParameterSetFact fact, CancellationToken cancellationToken = default)
     {
-        return this.ProjectParameterSetCoreAsync(fact, (sql, ct, values) => transaction.ScalarAsync(sql, this.BindProjection(values), ct), (sql, ct, values) => transaction.ExecuteAsync(sql, this.BindProjection(values), ct), cancellationToken);
+        return this.ProjectCatalogSetAsync(transaction,fact,cancellationToken);
     }
 
     /// <summary>Gets parameter-set versions using stable cursor pagination.</summary>
@@ -849,22 +849,22 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
     public async Task<ParameterSetVersion[]> GetParameterSetsAsync(string componentCode, Guid? setId = null, CancellationToken token = default, int limit = 100, string afterName = "", Guid? afterSetId = null, int afterVersion = 0)
     {
-        var rows = await dbFactory.ConfigurationDb.Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetParameterSets)}", ConfigurationDbSql.GetParameterSets)
-            .SetParameters(new GetParameterSets(componentCode, setId, afterName, afterSetId, afterVersion, limit))
-            .ExecuteQueryAsync(MapToParameterSetVersion, token)
-            .ConfigureAwait(false);
-        return rows.ToArray();
-    }
-
-    static ParameterSetVersion MapToParameterSetVersion(IObjectDataRecord row)
-    {
-        var value = JsonSerializer.Deserialize<ParameterSetVersion>(row.GetString(0)) ?? throw new InvalidDataException("Invalid parameter projection.");
-        return value with
+        await using var connection=await this.OpenCatalogAsync(token).ConfigureAwait(false);
+        await using var transaction=await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+        var session=new ConfigurationDbSession(connection,transaction);
+        var page=await session.QueryAsync(ConfigurationDbSql.TypedCatalog.VersionPage,[componentCode,setId,afterName,afterSetId,afterVersion,limit],
+            reader=>(Id:reader.GetGuid(0),Version:reader.GetInt64(1),Name:reader.GetString(2),Description:reader.GetString(3),Revision:reader.GetInt64(4)),token).ConfigureAwait(false);
+        var result=new List<ParameterSetVersion>();
+        foreach(var row in page)
         {
-            Name = row.GetString(1),
-            Description = row.GetString(2),
-            CatalogRevision = row.GetLong(3)
-        };
+            var metadata=await this.ReadCatalogAsync<ParameterVersionMetadata>(session,row.Id,row.Version,token).ConfigureAwait(false)
+                ??throw new InvalidDataException("Missing parameter metadata");
+            var values=await GetTypedParameterValueAsync(session,row.Id,checked((int)row.Version),token).ConfigureAwait(false)
+                ??throw new InvalidDataException("Missing typed parameter values");
+            result.Add(metadata.Restore(values) with{Name=row.Name,Description=row.Description,CatalogRevision=row.Revision});
+        }
+        await transaction.CommitAsync(token).ConfigureAwait(false);
+        return result.ToArray();
     }
 
     /// <summary>Projects a parameter-startup fact.</summary>
@@ -881,7 +881,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
         var transaction = await connection.BeginTransactionAsync(token)
             .ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
-        await this.ProjectParameterStartupCoreAsync(fact, (sql, ct, values) => this.Scalar(connection, transaction, sql, ct, values), (sql, ct, values) => this.Execute(connection, transaction, sql, ct, values), token)
+        await this.ProjectCatalogStartupAsync(new ConfigurationDbSession(connection,transaction),fact,token)
             .ConfigureAwait(false);
         await transaction.CommitAsync(token)
             .ConfigureAwait(false);
@@ -894,7 +894,7 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
     /// <returns>A task representing the persistence operation.</returns>
     public Task ProjectParameterStartupAsync(IEnlistedPostgresTransaction transaction, ParameterStartupChangedEvent fact, CancellationToken cancellationToken = default)
     {
-        return this.ProjectParameterStartupCoreAsync(fact, (sql, ct, values) => transaction.ScalarAsync(sql, this.BindProjection(values), ct), (sql, ct, values) => transaction.ExecuteAsync(sql, this.BindProjection(values), ct), cancellationToken);
+        return this.ProjectCatalogStartupAsync(transaction,fact,cancellationToken);
     }
 
     /// <summary>Acquires the cross-host parameter write lease.</summary>
@@ -939,4 +939,113 @@ public sealed class ConfigurationDbContext(IDbConnectionSettings connectionSetti
 
     internal static StoredStrategyCatalogDefinition MapToStrategyCatalog(IObjectDataRecord row) => new(Freeze(JsonSerializer.Deserialize<StrategyCatalogDefinition>(row.GetString(0), JsonOptions)!), row.GetString(1), (CatalogLifecycleStatus)row.GetInt(2), row.GetDateTime(3), row.GetString(4), row.IsNull(5) ? null : row.GetDateTime(5), row.IsNull(6) ? null : row.GetString(6), row.IsNull(7) ? null : row.GetDateTime(7), row.IsNull(8) ? null : row.GetString(8));
     internal static StrategyCatalogSummary MapToStrategyCatalogSummary(IObjectDataRecord row, StrategyCatalogKind kind) => new(new(kind, row.GetGuid(0), row.GetInt(1)), row.GetString(2), row.GetString(3), (CatalogLifecycleStatus)row.GetInt(4), row.GetString(5));
+
+    /// <summary>Persists an immutable typed value. An identical replay is a no-op; conflicting content fails.</summary>
+    /// <remarks>The caller owns the transaction that also appends the source event. No transaction is committed here.</remarks>
+    /// <param name="transaction">The source event's PostgreSQL transaction.</param>
+    /// <param name="value">The concrete immutable version to persist.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that completes after all typed rows are inserted or the identical replay is verified.</returns>
+    public Task InsertTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, ParameterSetValue value, CancellationToken cancellationToken = default)=>WriteTypedValueAsync(transaction,value,cancellationToken);
+
+    internal static async Task WriteTypedValueAsync(IEnlistedPostgresTransaction transaction, ParameterSetValue value, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.SetId == Guid.Empty || value.Version < 1) throw new ArgumentException("Parameter identity and version are required", nameof(value));
+        // Freeze mutable child arrays before hashing or binding them.
+        value = ParameterValueCodec.Snapshot(value);
+        var rows = ParameterValueMapping.Write(value);
+        var hash = ParameterValueCodec.Hash(value);
+        await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Lock, [value.SetId.ToString("D")], cancellationToken).ConfigureAwait(false);
+        var existing = await transaction.ScalarAsync(ConfigurationDbSql.TypedParameters.Hash,
+            [value.SetId, value.Version], cancellationToken).ConfigureAwait(false);
+        if (existing is not null)
+        {
+            if (!string.Equals((string)existing, hash, StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.IMMUTABLE_CONTENT_CONFLICT");
+            // Verify rows as well: a header alone is not proof that the projection is complete.
+            await ReadTypedValueAsync(transaction, value.SetId, value.Version, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.InsertHeader,
+            [value.SetId, value.Version, value.ComponentCode, value.SchemaVersion, hash, ParameterValueCodec.Codec], cancellationToken).ConfigureAwait(false);
+        foreach (var row in rows)
+            await transaction.ExecuteAsync(ConfigurationDbSql.TypedParameters.Insert(row.Table),
+                [value.SetId, value.Version, row.Path, row.ParentPath, row.Ordinal, ..row.Values], cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Loads concrete parameter values from typed columns and verifies the stored content fingerprint.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="setId">The exact parameter-set identifier.</param>
+    /// <param name="version">The immutable version number.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The concrete value, or null if the version does not exist.</returns>
+    public Task<ParameterSetValue?> GetTypedParameterValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default)=>ReadTypedValueAsync(transaction,setId,version,cancellationToken);
+
+    internal static async Task<ParameterSetValue?> ReadTypedValueAsync(IEnlistedPostgresTransaction transaction, Guid setId, int version, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        var headers = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.ReadHeader, [setId, version],
+            reader => (Component: reader.GetString(0), Schema: reader.GetInt32(1), Hash: reader.GetString(2), Codec: reader.GetString(3)), cancellationToken).ConfigureAwait(false);
+        if (headers.Count == 0) return null;
+        var header = headers.Single();
+        if (header.Codec != ParameterValueCodec.Codec) throw new InvalidOperationException("PARAM.CODEC_UNSUPPORTED");
+        var rows = new List<ParameterValueMapping.Row>();
+        foreach (var table in ParameterValueMapping.TablesFor(header.Component))
+        {
+            var batch = await transaction.QueryAsync(ConfigurationDbSql.TypedParameters.Read(table), [setId, version],
+                reader => new ParameterValueMapping.Row(table, reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.GetInt32(2),
+                    Enumerable.Range(0, table.Columns.Count).Select(index => reader.IsDBNull(index + 3) ? null : reader.GetValue(index + 3)).ToArray()), cancellationToken).ConfigureAwait(false);
+            rows.AddRange(batch);
+        }
+        var value = ParameterValueMapping.Read(header.Component, rows);
+        if (value.SetId != setId || value.Version != version || value.SchemaVersion != header.Schema ||
+            !string.Equals(ParameterValueCodec.Hash(value), header.Hash, StringComparison.Ordinal))
+            throw new InvalidOperationException("PARAM.PROJECTION_CONTENT_MISMATCH");
+        return value;
+    }
+
+    /// <summary>Reads one immutable assignment revision and verifies all scalar and child rows.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="assignmentId">The assignment identity.</param>
+    /// <param name="revision">The exact accepted revision.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The typed revision, or null when it does not exist.</returns>
+    public Task<ParameterAssignmentRevision?> GetParameterAssignmentProjectionAsync(IEnlistedPostgresTransaction transaction, Guid assignmentId, long revision, CancellationToken cancellationToken=default)
+        => this.ReadCatalogAsync<ParameterAssignmentRevision>(transaction,assignmentId,revision,cancellationToken);
+
+    /// <summary>Reads and verifies the typed before/after audit values for an operation.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="operationId">The accepted operation identity.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The immutable audit entry, or null when absent.</returns>
+    public Task<ParameterAuditEntry?> GetParameterAuditProjectionAsync(IEnlistedPostgresTransaction transaction, Guid operationId, CancellationToken cancellationToken=default)
+        => this.ReadCatalogAsync<ParameterAuditEntry>(transaction,operationId,1,cancellationToken);
+
+    /// <summary>Loads a frozen startup projection, resolving each exact version from typed value tables.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="runId">The frozen startup generation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The verified startup generation, or null when absent.</returns>
+    public async Task<ParameterStartupRun?> GetParameterStartupProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken=default)
+    {
+        var stored=await this.ReadCatalogAsync<ParameterStartupProjection>(transaction,runId,1,cancellationToken).ConfigureAwait(false);
+        if(stored is null)return null;
+        var versions=new List<ParameterSetVersion>();
+        foreach(var metadata in stored.Versions)
+        {
+            var values=await GetTypedParameterValueAsync(transaction,metadata.Reference.SetId,metadata.Reference.Version,cancellationToken).ConfigureAwait(false)
+                ??throw new InvalidDataException("PARAM.STARTUP_VALUES_MISSING");
+            versions.Add(metadata.Restore(values));
+        }
+        return new(stored.RunId,stored.Scopes,versions.ToArray(),stored.Plan,stored.CreatedAtUtc,stored.CreatedBy);
+    }
+
+    /// <summary>Reads and verifies a startup preparation report and its ordered outcomes.</summary>
+    /// <param name="transaction">The caller-owned PostgreSQL transaction.</param>
+    /// <param name="runId">The startup generation identity.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The typed report, or null when absent.</returns>
+    public Task<ParameterSignalStartupReport?> GetParameterStartupReportProjectionAsync(IEnlistedPostgresTransaction transaction, Guid runId, CancellationToken cancellationToken=default)
+        => this.ReadCatalogAsync<ParameterSignalStartupReport>(transaction,runId,1,cancellationToken);
 }

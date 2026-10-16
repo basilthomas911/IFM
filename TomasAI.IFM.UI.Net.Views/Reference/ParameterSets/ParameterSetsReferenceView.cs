@@ -232,7 +232,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         if (components.SelectedItem is ParameterComponentSummary component && !component.CanEdit) throw new InvalidOperationException("No editor is registered for this component.");
         if (editor.IsEditing && MessageBox.Show(this, "Discard the working copy?", "Parameter Sets", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         if (components.SelectedItem is not ParameterComponentSummary selected) throw new InvalidOperationException("Select a parameter component first.");
-        var result = await api.PreviewAsync(Guid.NewGuid(), lifetime.Token, (int)(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)horizon.SelectedItem!, componentCode: selected.ComponentCode); if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage);
+        var result = await api.PreviewValuesAsync(Guid.NewGuid(),selected.ComponentCode,(int)(TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType)horizon.SelectedItem!,token:lifetime.Token); if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage);
         versions.ClearSelected(); editor.New(result.Value, selected.ComponentCode, selected.Name); Bind();
     }
     async Task LegacyAsync()
@@ -351,21 +351,19 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
     }
     async Task PayloadAsync()
     {
-        var payload = Capture();
-        using var dialog = new DarkTradingForm { Text = "Exact parameter payload", Width = 850, Height = 700, StartPosition = FormStartPosition.CenterParent };
-        dialog.Controls.Add(new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Text = payload, AccessibleName = "Exact parameter payload" });
+        var display = editor.HistoricalDocument ?? ParameterFieldEditorModel.Display(Capture());
+        using var dialog = new DarkTradingForm { Text = "Parameter values", Width = 850, Height = 700, StartPosition = FormStartPosition.CenterParent };
+        dialog.Controls.Add(new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Text = display, AccessibleName = "Parameter values" });
         dialog.ShowDialog(this); await Task.CompletedTask;
     }
     async Task SchemaAsync()
     {
-        var schemaVersion = editor.SchemaVersion;
-        if (schemaVersion <= 0 || string.IsNullOrWhiteSpace(editor.ComponentCode)) throw new InvalidOperationException("Select a parameter set first.");
-        var result = await api.SchemaAsync(schemaVersion, lifetime.Token, editor.ComponentCode);
-        if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage);
-        using var dialog = new DarkTradingForm { Text = $"Parameter schema {result.Value.Version} ({result.Value.Codec})", Width = 850, Height = 700, StartPosition = FormStartPosition.CenterParent };
-        using var document = JsonDocument.Parse(result.Value.JsonSchema);
-        dialog.Controls.Add(new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false, Text = JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true }), AccessibleName = "Registered parameter schema" });
-        dialog.ShowDialog(this);
+        var value=editor.HistoricalDocument is null?editor.Payload():null;
+        using var dialog=new DarkTradingForm{Text="Parameter contract",Width=850,Height=700,StartPosition=FormStartPosition.CenterParent};
+        dialog.Controls.Add(new TextBox{Dock=DockStyle.Fill,Multiline=true,ReadOnly=true,ScrollBars=ScrollBars.Both,WordWrap=false,
+            Text=value is null?$"{editor.ComponentCode} / schema {editor.SchemaVersion} / historical read-only document":$"{value.ComponentCode} / schema {value.SchemaVersion} / {ParameterValueCodec.Codec}"+Environment.NewLine+
+                string.Join(Environment.NewLine,ParameterFieldEditorModel.Read(value,true).Select(x=>x.Path+": "+x.Kind)),AccessibleName="Parameter contract"});
+        dialog.ShowDialog(this);await Task.CompletedTask;
     }
     async Task IntervalsAsync()
     {
@@ -385,7 +383,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         table.DataError += (_, e) => { e.ThrowException = false; dialog.DialogResult = DialogResult.None; };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         var source = editor.Parameters with { Horizon = editor.Parameters.Horizon with { TimeFrames = intervals.Select(x => new RegimeDiscoveryTimeFrameConfiguration { TimeFrame = x.TimeFrame, Weight = x.Weight, MaximumAgeSeconds = x.MaximumAgeSeconds, IsRequired = true }).ToArray() } };
-        var preview = await api.PreviewAsync(editor.SetId, lifetime.Token, (int)source.TargetHorizon, JsonSerializer.Serialize(source), true, editor.ComponentCode);
+        var preview = await api.PreviewValuesAsync(editor.SetId,editor.ComponentCode,(int)source.TargetHorizon,ParameterSetValue.From(source),true,lifetime.Token);
         if (!preview.Success || preview.Value is null) throw new InvalidOperationException(preview.ErrorMessage);
         editor.BeginEdit(preview.Value); Bind();
         status.Text = "Intervals applied to the working copy. Review included signals and validate before publication.";
@@ -395,7 +393,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         if (!editor.HasPayload) throw new InvalidOperationException("Select a version first.");
         if (editor.IsEditing) throw new InvalidOperationException("The working copy is already open.");
         var targetHorizon = (int)(editor.Parameters?.TargetHorizon ?? TimeFrameType.Daily);
-        var preview = await api.PreviewAsync(editor.SetId, lifetime.Token, targetHorizon, editor.Payload(), componentCode: editor.ComponentCode);
+        var preview = await api.PreviewValuesAsync(editor.SetId,editor.ComponentCode,targetHorizon,editor.Payload(),token:lifetime.Token);
         if (!preview.Success || preview.Value is null) throw new InvalidOperationException(preview.ErrorMessage);
         editor.BeginEdit(preview.Value); Bind();
         status.Text = "Working copy uses explicit membership. Review intervals and newly included calculation dependencies before publication.";
@@ -415,7 +413,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         observationGrid.DataSource = observationRows; observationGrid.ReadOnly = !editor.IsEditing;
         grid.AllowUserToAddRows = grid.AllowUserToDeleteRows = editor.IsEditing;
         observationGrid.AllowUserToAddRows = observationGrid.AllowUserToDeleteRows = editor.IsEditing;
-        fields = new BindingList<FieldRow>(!editor.HasPayload ? [] : ParameterFieldEditorModel.Read(editor.Payload()).Select(x => new FieldRow(x)).ToList());
+        fields = new BindingList<FieldRow>(!editor.HasPayload||editor.HistoricalDocument is not null ? [] : ParameterFieldEditorModel.Read(editor.Payload()).Select(x => new FieldRow(x)).ToList());
         BindParameterGroups(); parametersGrid.ReadOnly = !editor.IsEditing;
         detailTitle.Text = components.SelectedItem is ParameterComponentSummary component ? component.Name : string.Empty;
         if (!editor.CanEdit) { status.Text = "Unsupported schema or fields. Exact payload is available for inspection; editing is disabled to preserve its contents."; return; }
@@ -447,7 +445,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         parameterGroupTitle.Text = selected ?? string.Empty;
         parametersGrid.DataSource = new BindingList<FieldRow>(selected is null ? [] : fields.Where(row => row.Group == selected).ToList());
     }
-    string Capture()
+    ParameterSetValue Capture()
     {
         grid.EndEdit(); BindingContext[rows]?.EndCurrentEdit(); observationGrid.EndEdit(); BindingContext[observationRows]?.EndCurrentEdit(); parametersGrid.EndEdit(); if (parametersGrid.DataSource is not null) BindingContext[parametersGrid.DataSource]?.EndCurrentEdit();
         if (editor.IsEditing) { editor.SetFields(fields.Select(x => x.Field())); editor.Name = name.Text; if (editor.Parameters is not null) editor.SetMetrics(rows.Select(x => x.Value()).ToArray(), observationRows.Select(x => x.Value()).ToArray()); }
@@ -455,7 +453,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
     }
     async Task ValidateAsync()
     {
-        var result = await api.ValidateAsync(Capture(), editor.SchemaVersion, lifetime.Token, editor.ComponentCode);
+        var result = await api.ValidateValuesAsync(Capture(),editor.ComponentCode,editor.SchemaVersion,lifetime.Token);
         if (!result.Success || result.Value is null) throw new InvalidOperationException(result.ErrorMessage);
         validationGrid.DataSource = result.Value.Issues; detailTabs.SelectedTab = validationTab;
         status.Text = result.Value.IsValid ? "Configuration is valid. Live availability is checked separately." : $"{result.Value.Issues.Length} validation issues. See the Validation tab.";
@@ -465,8 +463,8 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         if (!editor.IsEditing) throw new InvalidOperationException("Choose Edit as new draft first.");
         var json = Capture(); var id = Guid.NewGuid();
         var result = editor.Selected is null
-         ? await api.CreateAsync(new() { CommandId = id, EntityId = new(editor.SetId), ComponentCode = editor.ComponentCode, Name = editor.Name, Description = editor.Description, PayloadJson = json, SchemaVersion = editor.SchemaVersion }, lifetime.Token)
-         : await api.SaveAsync(new() { CommandId = id, EntityId = new(editor.SetId), ExpectedRevision = editor.ExpectedRevision, ComponentCode = editor.ComponentCode, Name = editor.Name, Description = editor.Description, PayloadJson = json, SchemaVersion = editor.SchemaVersion }, lifetime.Token);
+         ? await api.CreateAsync(new() { CommandId = id, EntityId = new(editor.SetId), ComponentCode = editor.ComponentCode, Name = editor.Name, Description = editor.Description, Parameters = json, SchemaVersion = editor.SchemaVersion }, lifetime.Token)
+         : await api.SaveAsync(new() { CommandId = id, EntityId = new(editor.SetId), ExpectedRevision = editor.ExpectedRevision, ComponentCode = editor.ComponentCode, Name = editor.Name, Description = editor.Description, Parameters = json, SchemaVersion = editor.SchemaVersion }, lifetime.Token);
         if (!result.Success) throw new InvalidOperationException(result.ErrorMessage);
         editor.AcknowledgeSave(); Bind();
         await LoadCommittedAsync(editor.SetId, id);
@@ -501,7 +499,7 @@ public sealed class ParameterSetsReferenceView : DarkTradingView, IControlComman
         var candidates = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList, AccessibleName = "Compare against version" };
         var differences = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, AccessibleName = "Parameter differences" };
         candidates.Items.AddRange(result.Value.Versions.Select(x => new VersionChoice(x)).Cast<object>().ToArray());
-        candidates.SelectedIndexChanged += (_, _) => { if (candidates.SelectedItem is VersionChoice choice) differences.DataSource = ParameterComparisonModel.Compare(choice.Value.PayloadJson, selected.PayloadJson); };
+        candidates.SelectedIndexChanged += (_, _) => { if (candidates.SelectedItem is VersionChoice choice) differences.DataSource = ParameterComparisonModel.Compare(choice.Value.Values(), selected.Values()); };
         var help = new Label { Dock = DockStyle.Bottom, Height = 35, Text = $"Before: selected comparison version. After: {selected.Name}, version {selected.Reference.Version}." };
         dialog.Controls.Add(differences); dialog.Controls.Add(candidates); dialog.Controls.Add(help); if (candidates.Items.Count > 0) candidates.SelectedIndex = 0; dialog.ShowDialog(this);
     }

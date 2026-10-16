@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.MarketData.Shared", Justification = "Preserve the published domain namespace.")]
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.MarketData.Shared.Calendar", Justification = "Preserve the published domain namespace.")]
 namespace TomasAI.IFM.Domain.MarketData.Shared.Calendar;
 
 /// <summary>Defines the inclusive trading-date estimate used by market-data queries.</summary>

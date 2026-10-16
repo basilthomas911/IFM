@@ -7,6 +7,8 @@ namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.UnitTests;
 public sealed class FinancialModelingPrepResilienceAndRegistrationTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Transient_status_is_retried_for_safe_get()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -35,6 +37,8 @@ public sealed class FinancialModelingPrepResilienceAndRegistrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task Rate_limit_has_a_distinct_failure_type()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -54,6 +58,8 @@ public sealed class FinancialModelingPrepResilienceAndRegistrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Malformed_json_has_a_distinct_contract_failure()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);
@@ -72,6 +78,7 @@ public sealed class FinancialModelingPrepResilienceAndRegistrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Registration_exposes_both_provider_neutral_contracts_as_singletons()
     {
         var options = FmpTestOptions.Create(out var environmentVariable);

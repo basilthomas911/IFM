@@ -11,10 +11,8 @@ public readonly record struct FuturesItiGraphWindow(DateTime StartUtc, DateTime 
         DateOnly valueDate,
         TimeFrameType timeFrame)
     {
-        if (currentUtc == default)
-            throw new ArgumentOutOfRangeException(nameof(currentUtc));
-        if (valueDate == default)
-            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        ArgumentOutOfRangeException.ThrowIfEqual(currentUtc, default);
+        ArgumentOutOfRangeException.ThrowIfEqual(valueDate, default);
 
         var endUtc = currentUtc.UtcDateTime;
         if (timeFrame == TimeFrameType.Daily)

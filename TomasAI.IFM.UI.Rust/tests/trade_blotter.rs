@@ -1,3 +1,4 @@
+use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_rust::{contract_editor::ContractPublication, trade_workspace::TradeWorkspace};
 struct State {
@@ -18,6 +19,13 @@ fn harness() -> Harness<'static, State> {
     view.open = true;
     let mut h = Harness::new_state(
         |ctx, state: &mut State| {
+            // Encode authored row documents exactly as the managed binary bridge does.
+            for row in &mut state.snapshot.result.rows {
+                if let Some(document)=row.fields.remove("data") {
+                    let value:serde_json::Value=serde_json::from_str(&document).unwrap();
+                    row.data=Some(ifm_ui_rust::wire::encode_value(&value).unwrap().into());
+                }
+            }
             if let Some(request) = state.view.draw(ctx, &state.snapshot) {
                 let v: serde_json::Value = serde_json::from_str(&request).unwrap();
                 state.snapshot.outcomes=serde_json::from_value(serde_json::json!([{"requestId":v["requestId"],"state":"Completed","message":"","generation":3}])).unwrap();
@@ -378,4 +386,97 @@ fn physical_pointer_click_switches_the_blotter_tab() {
     h.input_mut().events.push(Event::PointerButton {pos, button:PointerButton::Primary,pressed:false,modifiers:Modifiers::NONE});
     h.run();
     assert!(h.query_by_label("Cancel Unfilled").is_some());
+}
+
+#[test]
+fn accepted_submission_selects_fills_before_evidence_refresh_completes() {
+    let mut h = harness();
+    h.get_by_label("Broker Trade").click();
+    h.run();
+    let state = h.state_mut();
+    state.snapshot.busy = true;
+    state.snapshot.result.context.insert("submitted".into(), "True".into());
+    state.snapshot.result.context.insert("submissionStatus".into(), "Broker accepted".into());
+    h.run();
+    assert!(h.query_by_label("ORDERS / FILLS").is_some());
+    assert!(h.query_by_label("Broker accepted").is_some());
+    assert!(h.query_by_label("Place Order").is_none());
+    h.state_mut().snapshot.status = "Execution evidence unavailable".into();
+    h.run();
+    assert!(h.query_by_label("ORDERS / FILLS").is_some());
+    assert!(h.query_by_label("Broker accepted").is_some());
+}
+
+#[test]
+fn confirmation_waits_for_broker_result_and_rejection_closes_before_error() {
+    let mut h=harness();
+    let confirmation=serde_json::json!({"id":"test-confirmation","submitting":true,
+        "order":{"orderQuantity":1},"legs":[{"side":"Sell","role":"Short Put",
+        "contractId":"ES-VERY-LONG-CONTRACT-IDENTIFIER-20261120-P-6000","legCommission":0.65}]}).to_string();
+    h.state_mut().snapshot.result.documents.insert("confirmation".into(),ifm_ui_rust::wire::encode_value(&serde_json::from_str::<serde_json::Value>(&confirmation).unwrap()).unwrap().into());
+    h.run();
+    assert!(h.query_by_label("Submitting ? awaiting broker acceptance?").is_some());
+    assert!(h.query_by_label("Contract ID").is_some());
+    let header_x = ["Contract ID", "Role", "Side", "Leg Commission"].map(|caption|
+        h.get_by_label(caption).accesskit_node().bounding_box().unwrap().x0);
+    assert!(header_x.windows(2).all(|pair| pair[0] < pair[1]));
+    let quantity = h.get_by_label("Order Quantity:").accesskit_node().bounding_box().unwrap();
+    let broker = h.get_by_label("Broker Type:").accesskit_node().bounding_box().unwrap();
+    assert!((quantity.x0 - broker.x0).abs() < 1., "Summary captions must share one column");
+    assert!(broker.y0 > quantity.y0);
+    assert!(h.query_by_label("Total Commission:").is_some());
+    h.state_mut().snapshot.result.context.insert("submissionError".into(),"BROKER.123: Order rejected".into());
+    h.run();
+    assert!(h.query_by_label("BROKER.123: Order rejected").is_none());
+    h.state_mut().snapshot.result.documents.remove("confirmation");
+    h.run();
+    assert!(h.query_by_label("Submitting ? awaiting broker acceptance?").is_none());
+    assert!(h.query_by_label("BROKER.123: Order rejected").is_some());
+    h.get_by_label("OK").click(); h.run();
+    assert!(h.query_by_label("BROKER.123: Order rejected").is_none());
+}
+
+#[test]
+fn confirmation_leg_rows_follow_broker_trade_display_order() {
+    let mut h = harness();
+    for (index, contract) in ["HIGH-CALL", "LOW-PUT"].iter().enumerate() {
+        h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
+            "id":format!("leg:{index}"),"fields":{"kind":"leg","data":serde_json::json!({
+                "contractId":contract,"role":"Selected","strike":if index==0 {110} else {90},"isCall":index==0
+            }).to_string()}
+        })).unwrap());
+    }
+    let confirmation = serde_json::json!({"id":"ordered-legs","order":{"orderQuantity":1},"legs":[
+        {"contractId":"LOW-PUT","role":"Short Put","side":"Sell","legCommission":0.65},
+        {"contractId":"HIGH-CALL","role":"Short Call","side":"Sell","legCommission":0.65}
+    ]});
+    h.state_mut().snapshot.result.documents.insert("confirmation".into(), ifm_ui_rust::wire::encode_value(&confirmation).unwrap().into());
+    h.run();
+    let high = h.get_by_label("HIGH-CALL").accesskit_node().bounding_box().unwrap();
+    let low = h.get_by_label("LOW-PUT").accesskit_node().bounding_box().unwrap();
+    assert!(high.y0 < low.y0, "Confirmation must use the selected-leg display order");
+}
+
+#[test]
+fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
+    let mut h = harness();
+    h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
+        "id":"leg:precision", "fields":{"kind":"leg"},
+        "data":null
+    })).unwrap());
+    let publish = |h: &mut Harness<'_, State>, delta: f64, contract: &str| {
+        let leg = h.state_mut().snapshot.result.rows.last_mut().unwrap();
+        leg.data = Some(ifm_ui_rust::wire::encode_value(&serde_json::json!({
+            "contractId":contract,"role":"Short Call","delta":delta,"bid":2.0,"ask":2.4
+        })).unwrap().into());
+    };
+    publish(&mut h, 0.16, "ES-CALL");
+    h.get_by_label("Broker Trade").click();
+    h.run();
+    assert!(h.query_by_label("0.160000").is_some());
+    let before = h.state().view.controls["brokerPreviewLegGrid"];
+    publish(&mut h, -0.123456789, "ES-CHANGED-LONG-CONTRACT-IDENTIFIER");
+    h.run();
+    assert!(h.query_by_label("-0.123457").is_some());
+    assert_eq!(before, h.state().view.controls["brokerPreviewLegGrid"]);
 }

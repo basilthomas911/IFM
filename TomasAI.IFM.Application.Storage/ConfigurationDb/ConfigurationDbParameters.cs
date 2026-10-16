@@ -75,12 +75,6 @@ internal readonly record struct GuidVersion(Guid Id, int Version) : IBindValue
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertAssignmentRevision(Guid AssignmentId, long Revision, Guid OperationId, string RequestHash, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(AssignmentId), Bigint(Revision), Uuid(OperationId), Text(RequestHash), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct InsertCatalogIdentity(short Kind, Guid Id, string Code, DateTime CreatedUtc, string CreatedBy) : IBindValue
 {
     public object Bind() => Values(Smallint(Kind), Uuid(Id), Text(Code), TimestampTz(CreatedUtc), Text(CreatedBy));
@@ -102,18 +96,6 @@ internal readonly record struct InsertConfigurationDraft(Guid ParameterSetId, in
 internal readonly record struct InsertMarketConditionAssessmentDraft(Guid Id, int Version, short SchemaVersion, string MarketProfileId, string InstrumentRoot, short TargetHorizon, string PayloadJson, string PayloadSha256, string Description, DateTime CreatedUtc, string CreatedBy) : IBindValue
 {
     public object Bind() => Values(Uuid(Id), Integer(Version), Smallint(SchemaVersion), Text(MarketProfileId), Text(InstrumentRoot), Smallint(TargetHorizon), Text(PayloadJson), Text(PayloadSha256), Text(Description), TimestampTz(CreatedUtc), Text(CreatedBy));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertParameterAudit(Guid OperationId, Guid EntityId, long Revision, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(OperationId), Uuid(EntityId), Bigint(Revision), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct InsertParameterOperation(Guid OperationId, Guid SetId, long Revision, string RequestHash, int Version, DateTime CommittedAtUtc) : IBindValue
-{
-    public object Bind() => Values(Uuid(OperationId), Uuid(SetId), Bigint(Revision), Text(RequestHash), Integer(Version), TimestampTz(CommittedAtUtc));
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
@@ -177,43 +159,7 @@ internal readonly record struct RetireConfiguration(short RetiredStatus, DateTim
 }
 
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct StartupReport(Guid RunId, long Revision, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(RunId), Bigint(Revision), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct StartupRun(Guid RunId, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(RunId), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
 internal readonly record struct TextValue(string Value) : IBindValue
 {
     public object Bind() => Values(Text(Value));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct UpsertAssignment(Guid AssignmentId, long Revision, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(AssignmentId), Bigint(Revision), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct UpsertParameterSet(Guid SetId, string ComponentCode, string Name, string Description, long Revision) : IBindValue
-{
-    public object Bind() => Values(Uuid(SetId), Text(ComponentCode), Text(Name), Text(Description), Bigint(Revision));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct UpsertParameterSetVersion(Guid SetId, int Version, string Hash, short Status, string Body) : IBindValue
-{
-    public object Bind() => Values(Uuid(SetId), Integer(Version), Text(Hash), Smallint(Status), Text(Body));
-}
-
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
-internal readonly record struct VerifyLegacyParameterReference(string Kind, Guid LegacySetId, int LegacyVersion, Guid GenericSetId, string Hash, string Codec) : IBindValue
-{
-    public object Bind() => Values(Text(Kind), Uuid(LegacySetId), Integer(LegacyVersion), Uuid(GenericSetId), Text(Hash), Text(Codec));
 }

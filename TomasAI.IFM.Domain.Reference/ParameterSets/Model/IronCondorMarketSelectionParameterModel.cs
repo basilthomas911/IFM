@@ -17,6 +17,24 @@ public sealed class IronCondorMarketSelectionParameterModel : IParameterComponen
         Symbols = [new() { Symbol = "ES", ShortCallDelta = 16, CallSpreadWidth = 50,
             ShortPutDelta = 16, PutSpreadWidth = 50 }]
     };
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(CreateDefault(setId));
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion) =>
+        parameters.ComponentCode != ComponentCode || parameters.SchemaVersion != schemaVersion
+            ? [new("PARAM.SCHEMA_MISMATCH", "Parameters", "The typed configuration does not match the component or schema")]
+            : OptionSpreadStrategyParameterValidation.Validate<IronCondorMarketSelectionParameterSet>(
+            parameters.Get<IronCondorMarketSelectionParameterSet>(), schemaVersion, value =>
+            {
+                var issues = OptionSpreadStrategyParameterValidation.Common(value.SchemaVersion,
+                    value.ParameterSetId, value.Version, value.DefaultSymbol, value.Symbols.Select(x => x.Symbol));
+                foreach (var (symbol, index) in value.Symbols.Select((symbol, index) => (symbol, index)))
+                {
+                    OptionSpreadStrategyParameterValidation.Delta(symbol.ShortCallDelta, $"Symbols/{index}/ShortCallDelta", issues);
+                    OptionSpreadStrategyParameterValidation.Width(symbol.CallSpreadWidth, $"Symbols/{index}/CallSpreadWidth", issues);
+                    OptionSpreadStrategyParameterValidation.Delta(symbol.ShortPutDelta, $"Symbols/{index}/ShortPutDelta", issues);
+                    OptionSpreadStrategyParameterValidation.Width(symbol.PutSpreadWidth, $"Symbols/{index}/PutSpreadWidth", issues);
+                }
+                return issues;
+            });
     public ParameterValidationIssue[] Validate(string payloadJson, int schemaVersion) =>
         OptionSpreadStrategyParameterValidation.Validate<IronCondorMarketSelectionParameterSet>(
             ComponentCode, payloadJson, schemaVersion, value =>

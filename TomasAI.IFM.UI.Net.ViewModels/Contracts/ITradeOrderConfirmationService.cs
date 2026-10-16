@@ -27,3 +27,10 @@ public interface ITradeOrderLegConfirmationService : ITradeOrderConfirmationServ
 
 /// <summary>One selected broker leg and its estimated commission for the submitted quantity.</summary>
 public sealed record TradeOrderConfirmationLeg(string Side, string Role, string ContractId, decimal LegCommission);
+
+/// <summary>Keeps the operator dialog visible until the submitted order has a broker result.</summary>
+public interface ITradeOrderSubmissionConfirmationService : ITradeOrderLegConfirmationService
+{
+    /// <summary>Closes the dialog and, for a failed or unconfirmed submission, shows the returned error.</summary>
+    ValueTask CompleteSubmissionAsync(string? error);
+}

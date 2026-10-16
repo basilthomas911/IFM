@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text.Json;
+
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -10,9 +10,12 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.R
 using TomasAI.IFM.UI.Net.ViewModels.Strategy;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
-public sealed record InspectionIntent(int Schema,Guid RequestId,string View,string Intent,Dictionary<string,string> Fields);
-public sealed record InspectionRow(string Id,string Label,Dictionary<string,string> Fields);
-public sealed record InspectionResult(string View,InspectionRow[] Rows,DetailSnapshot? Detail=null,string Decision="",string Evidence="",string? PagingState=null,Dictionary<string,string>? Context=null);
+[MessagePack.MessagePackObject]
+public sealed record InspectionIntent([property: MessagePack.Key("schema")] int Schema, [property: MessagePack.Key("requestId")] Guid RequestId, [property: MessagePack.Key("view")] string View, [property: MessagePack.Key("intent")] string Intent, [property: MessagePack.Key("fields")] Dictionary<string,string> Fields);
+[MessagePack.MessagePackObject]
+public sealed record InspectionRow([property: MessagePack.Key("id")] string Id, [property: MessagePack.Key("label")] string Label, [property: MessagePack.Key("fields")] Dictionary<string,string> Fields);
+[MessagePack.MessagePackObject]
+public sealed record InspectionResult([property: MessagePack.Key("view")] string View, [property: MessagePack.Key("rows")] InspectionRow[] Rows, [property: MessagePack.Key("detail")] DetailSnapshot? Detail=null, [property: MessagePack.Key("decision")] string Decision="", [property: MessagePack.Key("evidence")] string Evidence="", [property: MessagePack.Key("pagingState")] string? PagingState=null, [property: MessagePack.Key("context")] Dictionary<string,string>? Context=null);
 /// <summary>Read-only native Strategy Observation and Risk History operations using the same domain query contracts.</summary>
 public sealed class StrategyInspectionBackend : IDisposable
 {
@@ -62,7 +65,7 @@ public sealed class StrategyInspectionBackend : IDisposable
   }
   var observed=await risk.GetInvocationAsync(new(Identity(input,"workflow")),Identity(input,"invocation"),stopping.Token);
   if(!observed.Success||observed.Value is null)throw new InvalidOperationException(observed.ErrorMessage);
-  return new("risk",[],Decision:RiskObservationPresentation.Render(observed.Value),Evidence:JsonSerializer.Serialize(observed.Value,new JsonSerializerOptions{WriteIndented=true}));
+  return new("risk",[],Decision:RiskObservationPresentation.Render(observed.Value),Evidence:BridgeDocument.Display(BridgeDocument.Project(observed.Value,enumNames:true)));
  }
  public void Dispose(){stopping.Cancel();scope?.DisposeAsync().AsTask().GetAwaiter().GetResult();adapter.Dispose();stopping.Dispose();}
 }

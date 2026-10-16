@@ -758,13 +758,13 @@ public static class MarketDataDbSql
     public const string InsertMarketDataImportOwnership = "INSERT INTO market_data.market_data_import_ownership(dataset,logicalKey,commandId,mayWrite,createdOn) VALUES($1,$2,$3,$4,$5);";
 
     /// <summary>InsertOptionChainParameterVersion database statement.</summary>
-    public const string InsertOptionChainParameterVersion = "INSERT INTO market_data.strategy_option_chain_parameter_version(set_id,version,payload) VALUES($1,$2,$3) ON CONFLICT(set_id,version) DO NOTHING;";
+    public const string InsertOptionChainParameterVersion = "INSERT INTO market_data.strategy_option_chain_policy_version(set_id,version,parameter_hash) VALUES($1,$2,$3) ON CONFLICT(set_id,version) DO NOTHING;";
 
     /// <summary>GetOptionChainParameterVersion database statement.</summary>
-    public const string GetOptionChainParameterVersion = "SELECT payload FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=$2;";
+    public const string GetOptionChainParameterVersion = "SELECT parameter_hash FROM market_data.strategy_option_chain_policy_version WHERE set_id=$1 AND version=$2;";
 
     /// <summary>UpsertOptionChainParameterCurrent database statement.</summary>
-    public const string UpsertOptionChainParameterCurrent = "INSERT INTO market_data.strategy_option_chain_parameter_current(environment,set_id,version,revision,published,payload) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(environment,set_id,version) DO UPDATE SET revision=EXCLUDED.revision,published=EXCLUDED.published,payload=EXCLUDED.payload WHERE strategy_option_chain_parameter_current.revision < EXCLUDED.revision;";
+    public const string UpsertOptionChainParameterCurrent = "INSERT INTO market_data.strategy_option_chain_policy_current(environment,set_id,version,revision,published,parameter_hash) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(environment,set_id,version) DO UPDATE SET revision=EXCLUDED.revision,published=EXCLUDED.published,parameter_hash=EXCLUDED.parameter_hash WHERE strategy_option_chain_policy_current.revision < EXCLUDED.revision;";
 
     /// <summary>LockTradeSignalIndexes database statement.</summary>
     public const string LockTradeSignalIndexes = "LOCK TABLE market_data.futures_trade_signal,market_data.futures_trade_signal_lookup_by_scope,market_data.futures_trade_signal_quarantine IN SHARE ROW EXCLUSIVE MODE;";

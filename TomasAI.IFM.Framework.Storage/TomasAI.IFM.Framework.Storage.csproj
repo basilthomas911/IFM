@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <PackageReference Include="ScyllaDBCSharpDriver" Version="3.22.0.4" />
+    <!-- Pin the patched transitive CMS dependency used by SqlClient. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.21" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>

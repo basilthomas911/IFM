@@ -27,7 +27,7 @@ public sealed record CreateParameterSetCommand : IParameterSetMutation
     /// <param name="payloadJson">The PayloadJson field.</param>
     /// <param name="legacySource">The LegacySource field.</param>
     [SerializationConstructor]
-    public CreateParameterSetCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson, ParameterLegacyReference? legacySource)
+    public CreateParameterSetCommand(Guid commandId, ActorSubject subject, bool postEvents, ParameterSetEntityId entityId, int errorCode, BoundedContextName routeTo, long expectedRevision, int version, string componentCode, string name, string description, int schemaVersion, string payloadJson, ParameterLegacyReference? legacySource, ParameterSetValue? parameters)
     {
         CommandId = commandId;
         Subject = subject;
@@ -42,6 +42,7 @@ public sealed record CreateParameterSetCommand : IParameterSetMutation
         Description = description;
         SchemaVersion = schemaVersion;
         PayloadJson = payloadJson;
+        Parameters = parameters;
         LegacySource = legacySource;
     }
     public const string Actor = "ParameterSetCommand";
@@ -58,8 +59,9 @@ public sealed record CreateParameterSetCommand : IParameterSetMutation
     [Key(9)] public string Name { get; init; } = string.Empty;
     [Key(10)] public string Description { get; init; } = string.Empty;
     [Key(11)] public int SchemaVersion { get; init; } = 2;
-    [Key(12)] public string PayloadJson { get; init; } = "{}";
+    [Key(12)] public string PayloadJson { get; init; } = string.Empty;
     [Key(13)] public ParameterLegacyReference? LegacySource { get; init; }
+    [Key(14)] public ParameterSetValue? Parameters { get; init; }
     [IgnoreMember] public string CommandName => nameof(CreateParameterSetCommand);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Actor;

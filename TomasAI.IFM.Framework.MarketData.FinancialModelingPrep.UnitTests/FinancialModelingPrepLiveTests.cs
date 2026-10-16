@@ -4,6 +4,8 @@ public sealed class FinancialModelingPrepLiveTests
 {
     [FmpLiveFact]
     [Trait("Category", "Live")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Treasury_endpoint_matches_the_normalized_contract()
     {
         var provider = new FinancialModelingPrepTreasuryCurve(
@@ -11,7 +13,7 @@ public sealed class FinancialModelingPrepLiveTests
             new FinancialModelingPrepOptions());
         var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var result = await provider.GetLatestAsync(todayUtc);
+        var result = await (provider.GetLatestAsync(todayUtc)).ConfigureAwait(true);
 
         Assert.NotNull(result);
         Assert.True(result.ValueDate <= todayUtc);
@@ -20,6 +22,8 @@ public sealed class FinancialModelingPrepLiveTests
 
     [FmpLiveFact]
     [Trait("Category", "Live")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Economic_calendar_endpoint_matches_the_normalized_contract()
     {
         var provider = new FinancialModelingPrepEconomicCalendar(
@@ -28,7 +32,7 @@ public sealed class FinancialModelingPrepLiveTests
         var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
         var fromInclusive = todayUtc.AddDays(-7);
 
-        var results = await provider.GetAsync(fromInclusive, todayUtc);
+        var results = await (provider.GetAsync(fromInclusive, todayUtc)).ConfigureAwait(true);
 
         Assert.NotEmpty(results);
         Assert.All(results, entry =>
@@ -41,6 +45,7 @@ public sealed class FinancialModelingPrepLiveTests
         });
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
 public sealed class FmpLiveFactAttribute : FactAttribute
 {

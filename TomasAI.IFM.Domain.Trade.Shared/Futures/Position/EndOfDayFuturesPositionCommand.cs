@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Position;
 
 /// <summary>Seals the explicit ended value date; retries must validate committed position state.</summary>
 [MessagePackObject]
-public sealed record EndOfDayFuturesPositionCommand : FuturesPositionCommand, ICommandRetryIdentity
+public sealed record EndOfDayFuturesPositionCommand : FuturesPositionCommand, IRecoverableCommandAudit
 {
     public const string Verb = "EndOfDayFuturesPosition";
     /// <summary>Gets the UTC boundary of the ended session.</summary>

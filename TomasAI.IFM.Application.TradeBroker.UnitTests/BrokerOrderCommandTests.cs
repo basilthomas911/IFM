@@ -327,14 +327,17 @@ public sealed class BrokerOrderCommandTests
         Assert.Equal(BrokerOrderStatus.PartiallyFilled, state.BrokerOrderDefinition!.Status);
     }
 
-    [Fact]
-    public void Opening_order_requires_the_exact_accepted_account_approval_but_closing_can_reduce_risk_while_gate_is_closed()
+    [Theory]
+    [InlineData(TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator)]
+    [InlineData(TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Paper)]
+    [InlineData(TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Live)]
+    public void Broker_execution_does_not_reapply_upstream_account_qualification(TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment environment)
     {
         var create = CreateCommand();
         var approval = Guid.NewGuid();
         create = create with
         {
-            Order = create.Order with { AccountPromotionApprovalReference = approval.ToString("N") }
+            Order = create.Order with { AccountPromotionApprovalReference = approval.ToString("N"), BrokerEnvironment = environment }
         };
         var store = new TestBrokerAccountReadStore();
         store.Set(new BrokerAccountDefinition
@@ -355,13 +358,13 @@ public sealed class BrokerOrderCommandTests
             ApprovalId = approval
         });
         var state = new BrokerOrderCommandState();
-        Assert.False(create.Execute(state, store).Success);
+        Assert.True(create.Execute(state).Success);
         store.Set(store.Get(new("EMU"))! with
         {
             QualificationStatus = BrokerAccountQualificationStatus.Accepted,
             Gate = BrokerAccountOperationalGate.Open
         });
-        Assert.True(create.Execute(state, store).Success);
+        Assert.True(create.Execute(state).Success);
 
         var closing = CreateCommand();
         closing = closing with
@@ -373,7 +376,7 @@ public sealed class BrokerOrderCommandTests
                 TargetPositionId = new(new(1, 2, 3, 4), Guid.NewGuid())
             }
         };
-        Assert.True(closing.Execute(new BrokerOrderCommandState(), store).Success);
+        Assert.True(closing.Execute(new BrokerOrderCommandState()).Success);
     }
 
     [Fact]
@@ -495,6 +498,6 @@ public sealed class BrokerOrderCommandTests
             Gate = BrokerAccountOperationalGate.Open,
             ApprovalId = approvalId
         });
-        return command.Execute(state, accounts);
+        return command.Execute(state);
     }
 }

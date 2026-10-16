@@ -38,6 +38,36 @@ public sealed class FuturesItiSignalParameterModel : IParameterComponentDescript
     }
 
     /// <inheritdoc />
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(new FuturesItiSignalParameterSet{ParameterSetId=setId});
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion)
+    {
+        try
+        {
+            if(parameters.ComponentCode!=ComponentCode||parameters.SchemaVersion!=schemaVersion)return [new("PARAM.SCHEMA_MISMATCH","Parameters","The typed configuration does not match the component or schema")];
+            var value = parameters.Get<FuturesItiSignalParameterSet>();
+            if (value is null)
+                return [new("PARAM.OBJECT_REQUIRED", "Payload", "A parameter object is required.")];
+
+            var issues = new List<ParameterValidationIssue>();
+            if (value.SchemaVersion != schemaVersion)
+                issues.Add(new("PARAM.SCHEMA_MISMATCH", "SchemaVersion", "Payload schema differs from selected schema."));
+            if (value.ParameterSetId == Guid.Empty)
+                issues.Add(new("PARAM.IDENTITY_INVALID", "ParameterSetId", "Parameter-set identity is required."));
+            if (value.Version < 0)
+                issues.Add(new("PARAM.VERSION_INVALID", "Version", "Parameter-set version cannot be negative."));
+            if (value.DefaultTradingDays.Daily <= 0)
+                issues.Add(new("PARAM.VALUE_INVALID", "DefaultTradingDays/Daily", "Daily trading days must be positive."));
+            if (value.DefaultTradingDays.Weekly <= 0)
+                issues.Add(new("PARAM.VALUE_INVALID", "DefaultTradingDays/Weekly", "Weekly trading days must be positive."));
+            if (value.DefaultTradingDays.Monthly <= 0)
+                issues.Add(new("PARAM.VALUE_INVALID", "DefaultTradingDays/Monthly", "Monthly trading days must be positive."));
+            return issues.ToArray();
+        }
+        catch (Exception error) when (error is ArgumentException or JsonException)
+        {
+            return [new("PARAM.STRUCTURE_INVALID", "Payload", error.Message)];
+        }
+    }
     public ParameterValidationIssue[] Validate(string payloadJson, int schemaVersion)
     {
         try

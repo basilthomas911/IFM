@@ -12,8 +12,6 @@ public sealed class MicroExecutionConstraintEvaluator : IMicroExecutionConstrain
             return MicroExecutionActionMask.Reconcile | MicroExecutionActionMask.Wait;
         if (input.MutationInFlight)
             return MicroExecutionActionMask.Wait | MicroExecutionActionMask.Reconcile;
-        if (input.Opening && !input.GateAllowsNewRisk)
-            return input.BrokerAcknowledged ? MicroExecutionActionMask.Cancel | MicroExecutionActionMask.Wait : MicroExecutionActionMask.Wait;
         if (input.NowUtc >= input.DeadlineUtc)
             return input.BrokerAcknowledged ? MicroExecutionActionMask.Cancel | MicroExecutionActionMask.Escalate : MicroExecutionActionMask.Escalate;
         var mask = MicroExecutionActionMask.Wait;

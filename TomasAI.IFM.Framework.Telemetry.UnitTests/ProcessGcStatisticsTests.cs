@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Framework.Telemetry.UnitTests;
 public sealed class ProcessGcStatisticsTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task History_preserves_process_totals_samples_and_final_shutdown_observation()
     {
         var root = Path.Combine(Path.GetTempPath(), "ifm-gc-test", Guid.NewGuid().ToString("N"));
@@ -19,7 +20,7 @@ public sealed class ProcessGcStatisticsTests
         {
             await Task.Delay(1250);
             await recorder.DisposeAsync();
-            var samples = File.ReadAllLines(recorder.HistoryPath).Select(line => JsonSerializer.Deserialize<ProcessGcSnapshot>(line)!).ToArray();
+            var samples = (await File.ReadAllLinesAsync(recorder.HistoryPath).ConfigureAwait(true)).Select(line => JsonSerializer.Deserialize<ProcessGcSnapshot>(line)!).ToArray();
             Assert.Equal("Started", samples[0].Phase);
             Assert.Equal("Stopped", samples[^1].Phase);
             Assert.Contains(samples, item => item.Phase == "Sample");
@@ -39,6 +40,7 @@ public sealed class ProcessGcStatisticsTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Otel_observations_include_each_generations_lifetime_total()
     {
         var root = Path.Combine(Path.GetTempPath(), "ifm-gc-test", Guid.NewGuid().ToString("N"));
@@ -54,7 +56,8 @@ public sealed class ProcessGcStatisticsTests
             foreach (var tag in tags) if (tag.Key == "gc.heap.generation") counts[(string)tag.Value!] = value;
         });
         listener.Start();
-        await using var recorder = ProcessGcStatisticsRecorder.Start(Configuration(root), "Fixture")!;
+var recorder = ProcessGcStatisticsRecorder.Start(Configuration(root), "Fixture")!;
+await using var recorderDisposal = recorder.ConfigureAwait(true);
         try
         {
             listener.RecordObservableInstruments();

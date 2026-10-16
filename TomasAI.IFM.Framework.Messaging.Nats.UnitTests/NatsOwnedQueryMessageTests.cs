@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public class NatsOwnedQueryMessageTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void AsQuery_DeserializesFromOwnedMemory_AndReleaseIsIdempotent()
     {
         var query = CreateQuery();
@@ -43,6 +45,8 @@ public class NatsOwnedQueryMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task QueryContext_ReplyAtomicallyRemovesMessageInfo()
     {
         var supervisor = Substitute.For<IActorSupervisor>();
@@ -69,6 +73,8 @@ public class NatsOwnedQueryMessageTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void QueryContext_RemoveCleansUpTerminalNoReplyPath()
     {
         var context = new QueryActorContext(
@@ -120,6 +126,8 @@ public class NatsOwnedQueryMessageTests
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed record TestQuery : IQuery<TestQueryResult>
     {
         [Key(0)] public ActorSubject Subject { get; init; }
@@ -130,6 +138,8 @@ public class NatsOwnedQueryMessageTests
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed record TestQueryResult
     {
         [Key(0)] public int Value { get; init; }

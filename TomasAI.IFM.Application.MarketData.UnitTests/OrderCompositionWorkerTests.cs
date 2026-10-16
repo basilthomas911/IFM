@@ -403,6 +403,33 @@ public sealed partial class OrderCompositionWorkerTests
         Assert.NotNull(fault); Assert.True(feed.Disposed);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Lost_provider_session_is_recreated_without_losing_ownership_or_saved_statistics(bool readFirst)
+    {
+        using var prices = Prices(); using var original = new ChainFeed(); using var restored = new ChainFeed();
+        var factory = Substitute.For<IDatabentoFeedFactory>();
+        factory.CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>()).Returns(original, restored);
+        await using var runtime = Runtime(factory, prices);
+        var request = Request() with { Statistics = [new("ES-option-call",100,Date,400,Date.AddDays(-1))] };
+        Assert.True((await runtime.AcquireAsync(request, default)).Active);
+        var state = (TomasAI.IFM.Framework.MarketData.DataBento.OptionChain.OptionChainStateStore)
+            typeof(WorkerOptionChainRuntime).GetField("state", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(runtime)!;
+        var key = new TomasAI.IFM.Framework.MarketData.DataBento.OptionChain.OptionChainSessionKey("ES-future", request.MaturityDate);
+        original.Dispose();
+        await Until(() => state.GetSession(key).Count == 0);
+        if (!readFirst) Assert.True((await runtime.AcquireAsync(request, default)).Active);
+        var page = await runtime.ReadAsync(new(Guid.NewGuid(), request.ScopeId, "Daily", Generation, At, At.AddSeconds(2), true)
+            { AllowMissingOptionQuotes = true }, null, default);
+        var option = Assert.Single(page.Instruments);
+        Assert.Equal(100, option.SessionVolume);
+        Assert.Equal(400, option.OpenInterest);
+        factory.Received(2).CreateOptionChainFeed(Arg.Any<DatabentoFeedOptions>());
+        Assert.False((await runtime.ReleaseAsync(new(request.ScopeId, request.LeaseId, Generation), default)).Active);
+        Assert.True(restored.Disposed);
+    }
+
     static WorkerOptionChainRuntime Runtime(IDatabentoFeedFactory factory, DatabentoLastPriceStore prices, TimeProvider? time = null,
         Action<string>? terminalFault = null, IOptionTradeEvidenceWriter? tradeEvidence = null)
     {

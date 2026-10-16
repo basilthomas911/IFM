@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 public interface IMarketDataFeedCommandApi
 {
     Task<ServiceResult<Guid>> DeleteStreamingRequestIdAsync(FeedId streamId);
-    Task<ServiceResult<Guid>> StartMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
+    Task<ServiceResult<Guid>> StartMarketDataFeedAsync();
     Task<ServiceResult<Guid>> StopMarketDataFeedAsync(DateOnly valueDate);
     Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate);
 

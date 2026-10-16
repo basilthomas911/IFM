@@ -10,6 +10,8 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorThreadQueueBenchmarks
 {
     ActorThreadQueueV2 _queue = null!;

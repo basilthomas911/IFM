@@ -54,7 +54,7 @@ public sealed class BrokerOrderCommandActor(ICommandActorContext<BrokerOrderComm
     }.ToFrozenDictionary();
     private static readonly IReadOnlyDictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, IBrokerOrderCommandContext, BrokerOrderCommandState, ServiceResult<GuidResult>>>
     {
-        [typeof(CreateBrokerOrderCommand)] = static (command, owner, state) => ((CreateBrokerOrderCommand)command).Execute(state, owner.BrokerAccountStore),
+        [typeof(CreateBrokerOrderCommand)] = static (command, owner, state) => ((CreateBrokerOrderCommand)command).Execute(state),
         [typeof(RecordBrokerDispatchCommand)] = static (command, _, state) => ((RecordBrokerDispatchCommand)command).Execute(state),
         [typeof(RecordBrokerOrderObservationCommand)] = static (command, _, state) => ((RecordBrokerOrderObservationCommand)command).Execute(state),
         [typeof(RequestBrokerOrderLimitUpdateCommand)] = static (command, _, state) => ((RequestBrokerOrderLimitUpdateCommand)command).Execute(state),

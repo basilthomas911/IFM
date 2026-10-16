@@ -57,7 +57,7 @@ internal static class OptionVolatilityDefaultParameterSets
             return;
         }
 
-        var payload = definition.Descriptor.CreateDraftPayload(definition.SetId);
+        var payload = definition.Descriptor.CreateTypedDraft(definition.SetId);
         var created = await parameterSets.CreateAsync(new CreateParameterSetCommand
         {
             CommandId = definition.CommandId,
@@ -66,7 +66,7 @@ internal static class OptionVolatilityDefaultParameterSets
             Name = definition.Name,
             Description = definition.Description,
             SchemaVersion = definition.Descriptor.Summary.SchemaVersions.Single(),
-            PayloadJson = payload
+            Parameters = payload
         }, cancellationToken).ConfigureAwait(false);
         if (!created.Success)
             throw new InvalidOperationException(created.ErrorMessage ?? $"The {definition.Name} parameter set could not be created.");
@@ -87,21 +87,16 @@ internal static class OptionVolatilityDefaultParameterSets
             || version.Reference.ComponentCode != summary.ComponentCode
             || !summary.SchemaVersions.Contains(version.SchemaVersion))
             throw new InvalidOperationException($"The stored {definition.Name} identity or schema is invalid.");
-        if (definition.Descriptor.Validate(version.PayloadJson, version.SchemaVersion).Length != 0)
+        if (definition.Descriptor.ValidateTyped(version.Values(), version.SchemaVersion).Length != 0)
             throw new InvalidOperationException($"The stored {definition.Name} payload is invalid.");
-        if (!ParameterSchemaRegistry.Default.CanEditLosslessly(
-                summary.ComponentCode, version.SchemaVersion, version.PayloadJson))
-            throw new InvalidOperationException($"The stored {definition.Name} payload contains an unsupported field or shape.");
-
-        using var payload = System.Text.Json.JsonDocument.Parse(version.PayloadJson);
-        if (payload.RootElement.GetProperty("ParameterSetId").GetGuid() != definition.SetId
-            || payload.RootElement.GetProperty("Version").GetInt32() != version.Reference.Version)
-            throw new InvalidOperationException($"The stored {definition.Name} payload identity or version is invalid.");
+        var values=version.Values();
+        if(values.SetId!=definition.SetId||values.Version!=version.Reference.Version)
+            throw new InvalidOperationException($"The stored {definition.Name} identity or version is invalid.");
         if (!requireInitialDraft) return;
         if (version.Reference.Version != 1 || version.Status != ParameterVersionStatus.Draft)
             throw new InvalidOperationException($"The initial {definition.Name} version must be a version-one Draft.");
-        if (ParameterCanonicalPayloadModel.Hash(version.PayloadJson)
-            != ParameterCanonicalPayloadModel.Hash(definition.Descriptor.CreateDraftPayload(definition.SetId)))
+        if (ParameterValueCodec.Hash(version.Values())
+            != ParameterValueCodec.Hash(definition.Descriptor.CreateTypedDraft(definition.SetId).WithIdentity(definition.SetId,version.Reference.Version)))
             throw new InvalidOperationException($"The initial {definition.Name} defaults do not match the required baseline.");
     }
 

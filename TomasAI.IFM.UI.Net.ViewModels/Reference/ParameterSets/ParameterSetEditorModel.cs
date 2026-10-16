@@ -1,92 +1,70 @@
-using System.Text.Json;
-using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+﻿using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 namespace TomasAI.IFM.UI.Net.ViewModels.Reference.ParameterSets;
 
-/// <summary>Working copy only; persisted versions are never edited in place.</summary>
+/// <summary>Detached concrete working copies. Saved versions are never edited in place.</summary>
 public sealed class ParameterSetEditorModel
 {
-    public RegimeDiscoveryParameterSet? Parameters { get; private set; }
-    public ParameterSetVersion? Selected { get; private set; }
-    public long ExpectedRevision { get; private set; }
-    public bool IsEditing { get; private set; }
-    public bool AwaitingRefresh { get; private set; }
-    public string Name { get; set; } = "Regime Discovery Daily";
-    public string Description { get; set; } = string.Empty;
-    public bool CanEdit { get; private set; } = true;
-    string? originalPayload;
-    string? workingPayload;
-    string componentCode = string.Empty;
-    public bool HasPayload => workingPayload is not null;
-    public string ComponentCode => componentCode;
-    public int SchemaVersion => Selected?.SchemaVersion ?? ReadInt32("SchemaVersion");
-    public Guid SetId => Selected?.Reference.SetId ?? ReadGuid("ParameterSetId");
-    public void Clear() { Parameters = null; Selected = null; ExpectedRevision = 0; IsEditing = false; AwaitingRefresh = false; CanEdit = true; originalPayload = null; workingPayload = null; componentCode = string.Empty; Name = string.Empty; Description = string.Empty; }
-    public void Load(ParameterSetVersion version, long revision)
+    ParameterSetValue? original,working;
+    string componentCode=string.Empty;
+    public RegimeDiscoveryParameterSet? Parameters=>working is RegimeDiscoveryParameterValue regime?regime.Value:null;
+    public ParameterSetVersion? Selected{get;private set;}
+    public long ExpectedRevision{get;private set;}
+    public bool IsEditing{get;private set;}
+    public bool AwaitingRefresh{get;private set;}
+    public string Name{get;set;}=string.Empty;
+    public string Description{get;set;}=string.Empty;
+    public bool CanEdit{get;private set;}=true;
+    public string? HistoricalDocument{get;private set;}
+    public bool HasPayload=>working is not null||HistoricalDocument is not null;
+    public string ComponentCode=>componentCode;
+    public int SchemaVersion=>Selected?.SchemaVersion??working?.SchemaVersion??0;
+    public Guid SetId=>Selected?.Reference.SetId??working?.SetId??Guid.Empty;
+    public void Clear(){original=working=null;Selected=null;ExpectedRevision=0;IsEditing=AwaitingRefresh=false;CanEdit=true;HistoricalDocument=null;componentCode=Name=Description=string.Empty;}
+    public void Load(ParameterSetVersion version,long revision)
     {
-        Selected = version; ExpectedRevision = revision; Name = version.Name; Description = version.Description;
-        originalPayload = version.PayloadJson; workingPayload = version.PayloadJson; componentCode = version.Reference.ComponentCode;
-        CanEdit = ParameterSchemaRegistry.Default.CanEditLosslessly(version.Reference.ComponentCode, version.SchemaVersion, version.PayloadJson);
-        Parameters = CanEdit && version.Reference.ComponentCode == ParameterSchemaRegistry.RegimeComponent
-         ? JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(version.PayloadJson) : null;
-        IsEditing = false; AwaitingRefresh = false;
+        Clear();Selected=version;ExpectedRevision=revision;Name=version.Name;Description=version.Description;componentCode=version.Reference.ComponentCode;
+        if(version.Parameters is null&&!ParameterSchemaRegistry.Default.CanEditLosslessly(componentCode,version.SchemaVersion,version.PayloadJson))
+        {CanEdit=false;HistoricalDocument=version.PayloadJson;return;}
+        original=ParameterValueCodec.Snapshot(version.Values());working=ParameterValueCodec.Snapshot(original);
     }
-    public void New(string payload, string componentCode, string componentName)
+    public void New(ParameterSetValue value,string componentCode,string componentName)
     {
-        CanEdit = ParameterSchemaRegistry.Default.CanEditLosslessly(componentCode, ReadInt32(payload, "SchemaVersion"), payload);
-        if (!CanEdit) throw new InvalidDataException("The generated draft is not supported by its registered editor.");
-        originalPayload = payload; workingPayload = payload; this.componentCode = componentCode;
-        Parameters = componentCode == ParameterSchemaRegistry.RegimeComponent
-         ? JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(payload) ?? throw new InvalidDataException("Invalid draft.")
-         : null;
-        Selected = null; ExpectedRevision = 0; AwaitingRefresh = false;
-        Name = Parameters is null ? componentName : $"Regime Discovery {Parameters.TargetHorizon}";
-        Description = string.Empty; IsEditing = true;
+        Clear();if(value.ComponentCode!=componentCode)throw new InvalidDataException("Draft component does not match selection");
+        this.componentCode=componentCode;original=ParameterValueCodec.Snapshot(value);working=ParameterValueCodec.Snapshot(value);
+        Name=Parameters is null?componentName:$"Regime Discovery {Parameters.TargetHorizon}";IsEditing=true;
     }
-    public void AcknowledgeSave() { IsEditing = false; AwaitingRefresh = true; }
-    public void BeginEdit(string? upgradedPayload = null)
+    /// <summary>Imports a supported historical draft for migration only.</summary>
+    public void New(string historical,string component,string name)
     {
-        if (!CanEdit) throw new InvalidOperationException("This payload contains unsupported schema or fields and is read-only.");
-        if (AwaitingRefresh) throw new InvalidOperationException("Refresh to load the committed version before editing again.");
-        if (workingPayload is null) throw new InvalidOperationException("Select a version first.");
-        if (upgradedPayload is not null)
+        var value=ParameterHistoryReader.ReadValues(component,historical);
+        if(!ParameterSchemaRegistry.Default.CanEditLosslessly(component,value.SchemaVersion,historical))throw new InvalidDataException("Unsupported historical fields");
+        New(value,component,name);
+    }
+    public void AcknowledgeSave(){IsEditing=false;AwaitingRefresh=true;}
+    public void BeginEdit(ParameterSetValue? upgraded=null)
+    {
+        if(!CanEdit)throw new InvalidOperationException("Unsupported historical fields are read-only");
+        if(AwaitingRefresh)throw new InvalidOperationException("Refresh the committed version before editing again");
+        if(working is null)throw new InvalidOperationException("Select a version first");
+        if(upgraded is not null)
         {
-            if (ReadGuid(upgradedPayload, "ParameterSetId") != SetId)
-                throw new InvalidDataException("Upgrade preview does not match the selected parameter set.");
-            workingPayload = upgradedPayload;
-            if (componentCode == ParameterSchemaRegistry.RegimeComponent)
-            {
-                var upgraded = JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(upgradedPayload) ?? throw new InvalidDataException("Invalid upgrade preview.");
-                if (Parameters is null || upgraded.TargetHorizon != Parameters.TargetHorizon || upgraded.SchemaVersion != ParameterSchemaRegistry.CurrentRegimeSchemaVersion)
-                    throw new InvalidDataException("Upgrade preview does not match the selected parameter set.");
-                Parameters = upgraded;
-            }
+            if(upgraded.SetId!=SetId||upgraded.ComponentCode!=componentCode)throw new InvalidDataException("Upgrade does not match selected parameter set");
+            if(Parameters is {} before&&upgraded is RegimeDiscoveryParameterValue after&&before.TargetHorizon!=after.Value.TargetHorizon)throw new InvalidDataException("Upgrade horizon mismatch");
+            working=ParameterValueCodec.Snapshot(upgraded);
         }
-        IsEditing = true;
+        IsEditing=true;
     }
-
+    public void BeginEdit(string historical)=>BeginEdit(ParameterHistoryReader.ReadValues(componentCode,historical));
+    void DemandEdit(){if(!IsEditing)throw new InvalidOperationException("The version is read-only");}
     public void SetSignals(RegimeDiscoverySignalConfiguration[] rows)
-    { if (!IsEditing || Parameters is null) throw new InvalidOperationException("The version is read-only."); Parameters = Parameters with { SignalRequirements = rows }; workingPayload = JsonSerializer.Serialize(Parameters); }
-    public void SetMetrics(RegimeDiscoverySignalMetricConfiguration[] signals,
-     RegimeDiscoveryObservationMetricConfiguration[] observations)
+    {DemandEdit();working=ParameterSetValue.From((Parameters??throw new InvalidOperationException("Select Regime Discovery")) with{SignalRequirements=rows});}
+    public void SetMetrics(RegimeDiscoverySignalMetricConfiguration[] signals,RegimeDiscoveryObservationMetricConfiguration[] observations)
     {
-        if (!IsEditing || Parameters is null) throw new InvalidOperationException("The version is read-only.");
-        var legacy = RegimeDiscoveryMetricConfigurationProjection.ToLegacyRequirements(
-         Parameters.ParameterSetId, signals, observations, Parameters.Horizon);
-        Parameters = Parameters with { SignalMetrics = signals, ObservationMetrics = observations, SignalRequirements = legacy };
-        workingPayload = JsonSerializer.Serialize(Parameters);
+        DemandEdit();var parameters=Parameters??throw new InvalidOperationException("Select Regime Discovery");
+        var legacy=RegimeDiscoveryMetricConfigurationProjection.ToLegacyRequirements(parameters.ParameterSetId,signals,observations,parameters.Horizon);
+        working=ParameterSetValue.From(parameters with{SignalMetrics=signals,ObservationMetrics=observations,SignalRequirements=legacy});
     }
-    public void SetFields(IEnumerable<ParameterField> fields)
-    {
-        if (!IsEditing) throw new InvalidOperationException("The version is read-only.");
-        workingPayload = ParameterFieldEditorModel.Apply(Payload(), fields);
-        if (componentCode == ParameterSchemaRegistry.RegimeComponent)
-            Parameters = JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(workingPayload) ?? throw new InvalidDataException("Invalid parameters.");
-    }
-    public string Payload() => !IsEditing && originalPayload is not null ? originalPayload : workingPayload ?? throw new InvalidOperationException("No draft.");
-    int ReadInt32(string property) => workingPayload is null ? 0 : ReadInt32(workingPayload, property);
-    Guid ReadGuid(string property) => workingPayload is null ? Guid.Empty : ReadGuid(workingPayload, property);
-    static int ReadInt32(string payload, string property) { using var json = JsonDocument.Parse(payload); return json.RootElement.TryGetProperty(property, out var value) && value.TryGetInt32(out var result) ? result : 0; }
-    static Guid ReadGuid(string payload, string property) { using var json = JsonDocument.Parse(payload); return json.RootElement.TryGetProperty(property, out var value) && value.TryGetGuid(out var result) ? result : Guid.Empty; }
+    public void SetFields(IEnumerable<ParameterField> fields){DemandEdit();working=ParameterFieldEditorModel.Apply(Payload(),fields);}
+    public ParameterSetValue Payload()=>ParameterValueCodec.Snapshot((!IsEditing?original:working)??throw new InvalidOperationException("No supported parameter values"));
 }
-

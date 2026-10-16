@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
@@ -17,6 +17,42 @@ public sealed class FeedCommandConventionTests
 {
     private static readonly DateOnly ValueDate = new(2026, 10, 5);
     private static readonly TradeEntityId TradeId = new(1, 2, 3, 4);
+
+    [Fact]
+    public void Parameterless_start_uses_server_session_and_preserves_prepared_contracts_in_event()
+    {
+        var request = new StartMarketDataFeedCommand { CommandId = Guid.NewGuid() };
+        var wire = MessagePackSerializer.Deserialize<StartMarketDataFeedCommand>(MessagePackSerializer.Serialize(request));
+        wire.ValueDate.Should().Be(default);
+        var session = new MarketSessionReadModel
+        {
+            OperationalValueDate = ValueDate, Revision = 1,
+            SessionStartUtc = new DateTime(2026, 10, 4, 22, 0, 0, DateTimeKind.Utc),
+            SessionEndUtc = new DateTime(2026, 10, 5, 21, 0, 0, DateTimeKind.Utc),
+            NextTransitionUtc = new DateTime(2026, 10, 5, 21, 0, 0, DateTimeKind.Utc),
+            AsOfUtc = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc)
+        };
+        var resolved = wire.ResolveSession(session, new DateTimeOffset(session.AsOfUtc));
+        var state = new MarketDataFeedCommandState();
+        var result = resolved.Execute(state, SampleData.FuturesContracts);
+        result.Success.Should().BeTrue(result.ErrorMessage);
+        var source = state.Events.OfType<MarketDataFeedStartedEvent>().Single();
+        source.ValueDate.Should().Be(ValueDate);
+        source.EntityId.ValueDate.Should().Be(ValueDate);
+        source.FuturesContracts.Should().BeEquivalentTo(SampleData.FuturesContracts);
+        request.ValueDate.Should().Be(default, "resolving the backend snapshot must not mutate the request");
+        wire.ResolveSession(session with { OperationalValueDate = ValueDate.AddDays(1) }, new DateTimeOffset(session.AsOfUtc))
+            .ValueDate.Should().Be(ValueDate);
+    }
+
+    [Fact]
+    public void Start_without_prepared_assignments_does_not_commit_an_empty_subscription_event()
+    {
+        var request = new StartMarketDataFeedCommand { CommandId = Guid.NewGuid(), EntityId = new(ValueDate) };
+        var state = new MarketDataFeedCommandState();
+        request.Execute(state, []).Success.Should().BeFalse();
+        state.Events.Should().BeEmpty();
+    }
 
     [Theory]
     [InlineData("AddTradeLiveFeed", true)]
@@ -59,18 +95,18 @@ public sealed class FeedCommandConventionTests
     [Fact]
     public void Start_factory_carries_command_identity_before_Update_and_serialization()
     {
-        var command = new StartMarketDataFeedCommand([], ValueDate, false)
+        var command = new StartMarketDataFeedCommand()
         {
             CommandId = Guid.NewGuid(),
             EntityId = new MarketDataFeedId(ValueDate),
             Subject = new(ActorType.Command, StartMarketDataFeedCommand.Actor, StartMarketDataFeedCommand.Verb, new MarketDataFeedId(ValueDate).Format())
         };
-        object?[] computeArguments = [command, null];
+        object?[] computeArguments = [command, SampleData.FuturesContracts, null];
         typeof(StartMarketDataFeed).GetMethod("Compute", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, computeArguments).Should().Be(true);
         var started = (MarketDataFeedStartedEvent)typeof(StartMarketDataFeed)
             .GetMethod("CreateMarketDataFeedStartedEvent", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, [command, computeArguments[1]])!;
+            .Invoke(null, [command, computeArguments[2]])!;
 
         started.CommandId.Should().Be(command.CommandId);
         started.ValueDate.Should().Be(ValueDate);

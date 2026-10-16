@@ -23,8 +23,10 @@ sealed class TradeWorkspaceSession : IDisposable
     int? preparedTradeId;
     DateOnly fromDate,toDate;
     TradeComposerSession? composer;
+    ContractEditorResult? cachedWorkspace;
     int? reconciledFilledTrade;
-    public string? Confirmation => composer?.Confirmation;
+    public byte[]? Confirmation => composer?.Confirmation;
+    public Dictionary<string,string>? SubmissionContext => composer?.SubmissionContext;
     public int Decide(ContractEditorIntent intent)=>composer?.Decide(intent)==true?0:-5;
     public static readonly string[] Actions = ["load","portfolio","fund","order","trade","range","create-order","remove-order","prepare-order","cancel-draft","prepare-trade","create-trade","remove-trade","load-trade","position","live-on","live-off","compose","preview-draft","refresh-chain","clear-staged","chain","select-leg","remove-leg","account","qualification-submit","qualification-accept","qualification-revoke","qualification-hold","qualification-release","qualification-resync","submit-order","refresh-execution","update-limit","cancel-unfilled","close","eod-open","eod-load","eod-run"];
     public static bool Validate(ContractEditorIntent input) => input.Schema==1 && input.RequestId!=Guid.Empty && input.View=="trade-orders" && Actions.Contains(input.Intent)
@@ -45,7 +47,7 @@ sealed class TradeWorkspaceSession : IDisposable
         }
         var m=model;
         if(input.Intent is "portfolio" or "fund" or "order" or "trade" or "load"){
-            if(composer is not null)await composer.CloseAsync();composer=null;
+            if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;
             if(monitor is not null)await monitor.DisposeAsync();monitor=null;established=null;preparedTradeId=null;reconciledFilledTrade=null;
             if(newOrder is not null)await newOrder.DisposeAsync();newOrder=null;
         }
@@ -56,8 +58,12 @@ sealed class TradeWorkspaceSession : IDisposable
             if(composer is null)throw new InvalidOperationException("Open Trade Blotter first");
             if(input.Intent=="submit-order"&&!m.CanSubmitOrder)throw new InvalidOperationException("Submit Order is unavailable for this trade");
             await composer.ExecuteAsync(input);
-            if(composer.OpeningFilled&&reconciledFilledTrade!=m.SelectedFundOrderTrade!.TradeId){var orderId=m.SelectedFundOrder!.OrderId;var tradeId=m.SelectedFundOrderTrade!.TradeId;await m.LoadCanonicalOrdersAsync(stopping.Token);await m.SelectCanonicalOrderAsync(orderId,stopping.Token);m.SelectFundOrderTrade(m.FundOrderTrades.ToList().FindIndex(x=>x.TradeId==tradeId));reconciledFilledTrade=tradeId;}
-            var basic=Snapshot();var composed=await composer.SnapshotAsync();
+            if(composer.OpeningFilled&&reconciledFilledTrade!=m.SelectedFundOrderTrade!.TradeId){var orderId=m.SelectedFundOrder!.OrderId;var tradeId=m.SelectedFundOrderTrade!.TradeId;await m.LoadCanonicalOrdersAsync(stopping.Token);await m.SelectCanonicalOrderAsync(orderId,stopping.Token);m.SelectFundOrderTrade(m.FundOrderTrades.ToList().FindIndex(x=>x.TradeId==tradeId));reconciledFilledTrade=tradeId;cachedWorkspace=null;}
+            // Quote updates do not rebuild the fund/order/reference portion of this screen.
+            var stable=input.Intent=="refresh-chain"&&cachedWorkspace is not null?cachedWorkspace:Snapshot();
+            cachedWorkspace=stable;
+            var basic=stable with{Choices=new(stable.Choices),Context=new(stable.Context??[])};
+            var composed=await composer.SnapshotAsync();
             foreach(var pair in composed.Choices)basic.Choices[pair.Key]=pair.Value;
             foreach(var pair in composed.Context)basic.Context![pair.Key]=pair.Value;
             return basic with{Rows=[..basic.Rows,..composed.Rows]};
@@ -71,7 +77,7 @@ sealed class TradeWorkspaceSession : IDisposable
                 await endOfDay.InitializeAsync(stopping.Token);await endOfDay.LoadData();break;
             case "eod-load":if(endOfDay is null)throw new InvalidOperationException("Open End of Day first");endOfDay.SetValueDate(DateOnly.ParseExact(Field(input,"eodDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture));endOfDay.SetReference(Field(input,"reference"));await endOfDay.LoadData();break;
             case "eod-run":if(endOfDay is null||!endOfDay.CanRun)throw new InvalidOperationException("End of Day is unavailable");await endOfDay.RunEndOfDayProcess();break;
-            case "close":if(composer is not null)await composer.CloseAsync();composer=null;if(monitor is not null)await monitor.DisposeAsync();monitor=null;established=null;break;
+            case "close":if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;if(monitor is not null)await monitor.DisposeAsync();monitor=null;established=null;break;
             case "load": await m.LoadFunds();if(m.SelectedFundOrder is {} initial)await m.SelectCanonicalOrderAsync(initial.OrderId,stopping.Token);break;
             case "portfolio":await m.SelectPortfolioAsync(Index(input),stopping.Token);break;
             case "fund":if(!m.SelectFund(Index(input)))throw new ArgumentException("Fund is no longer available");await m.LoadCanonicalOrdersAsync(stopping.Token);break;
@@ -123,8 +129,7 @@ sealed class TradeWorkspaceSession : IDisposable
         if(model!.SelectedFundOrder is not {} selected || i.OriginalId!=selected.OrderId.ToString(CultureInfo.InvariantCulture))throw new InvalidOperationException("The selected order changed; reload before continuing");
         return model.CanonicalOrders.Single(x=>x.OrderId==selected.OrderId);
     }
-    static readonly JsonSerializerOptions JsonOptions=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase,Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}};
-    static ContractEditorRow Row(string kind,string id,object value)=>new(kind+":"+id,new(){["kind"]=kind,["data"]=JsonSerializer.Serialize(value,JsonOptions)});
+    static ContractEditorRow Row(string kind,string id,object value)=>new(kind+":"+id,new(){["kind"]=kind}){Data=BridgeDocument.Encode(value,camelCase:true,enumNames:true)};
     ContractEditorResult Snapshot(){
         var m=model!;var rows=new List<ContractEditorRow>();
         rows.AddRange(m.FundOrders.Select(x=>Row("order",x.OrderId.ToString(),new{x.OrderId,x.Status,CreatedOnUtc=EasternTime.FromUtc(x.CreatedOnUtc).ToString("yyyy-MMM-dd",CultureInfo.InvariantCulture),x.OperatorReference,source=x.Origin.ToString()=="ManualUi"?"Manual":"Strategy Workflow"})));

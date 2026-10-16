@@ -11,4 +11,18 @@ public sealed record ParameterAuditEntry(
     [property: Key(4)] string ActorIdentity,
     [property: Key(5)] DateTime RecordedAtUtc,
     [property: Key(6)] string BeforeJson,
-    [property: Key(7)] string AfterJson);
+    [property: Key(7)] string AfterJson)
+{
+    [Key(8)] public ParameterAuditValue? Before { get; init; }
+    [Key(9)] public ParameterAuditValue? After { get; init; }
+}
+
+/// <summary>Typed audit evidence for version lifecycle metadata or assignment changes.</summary>
+[MessagePackObject]
+public sealed record ParameterAuditValue(
+    [property:Key(0)] ParameterVersionRef? Reference = null,
+    [property:Key(1)] string? Name = null,
+    [property:Key(2)] string? Description = null,
+    [property:Key(3)] int? SchemaVersion = null,
+    [property:Key(4)] ParameterVersionStatus? Status = null,
+    [property:Key(5)] ParameterAssignmentRevision? Assignment = null);

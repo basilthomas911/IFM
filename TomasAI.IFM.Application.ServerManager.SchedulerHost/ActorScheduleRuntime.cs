@@ -104,7 +104,8 @@ public sealed class ActorScheduleRuntime(SchedulerHostOptions options, Scheduler
             HostId = run.HostId, Environment = run.Environment, IntendedFireTimeUtc = run.IntendedFireTimeUtc }, cancellationToken);
         Require(latest);
         if (latest.Value!.Status != ScheduledTaskRunStatus.Requested) return;
-        if (current.Value!.DesiredRevision != run.DefinitionRevision || !current.Value.Enabled || current.Value.Removed)
+        if (ScheduledTaskExecutionPolicy.RequiresAdmission(current.Value!.Schedule.TaskKey, options.Environment)
+            && (current.Value.DesiredRevision != run.DefinitionRevision || !current.Value.Enabled || current.Value.Removed))
         {
             Require(await commands.RecordScheduledTaskRunAdmissionAsync(new() { CommandId = Guid.NewGuid(), EntityId = run.Id,
                 OperationCommandId = run.OperationCommandId, Accepted = false, Detail = "Manual occurrence is obsolete or its schedule is disabled.", Operator = "QuartzHost" }, cancellationToken));

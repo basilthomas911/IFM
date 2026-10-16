@@ -238,6 +238,62 @@ public sealed class RegimeDiscoveryParameterModel : IParameterComponentDescripto
         RegimeDiscoverySignalMetric.Tdi => (SignalMetricsType.Tdi, 13),
         _ => null
     };
+    public ParameterSetValue CreateTypedDraft(Guid setId)=>ParameterSetValue.From(CreateExplicitSeed(setId));
+    public ParameterValidationIssue[] ValidateTyped(ParameterSetValue parameters,int schemaVersion)
+    {
+        try
+        {
+            if(parameters.ComponentCode!=ComponentCode||parameters.SchemaVersion!=schemaVersion)return [new("PARAM.SCHEMA_MISMATCH","Parameters","The typed configuration does not match the component or schema")];
+            var value = parameters.Get<RegimeDiscoveryParameterSet>();
+            if (value is null)
+                return[new("PARAM.OBJECT_REQUIRED", "Payload", "A parameter object is required.")];
+            var issues = new RegimeDiscoveryParameterSetValidationRules().Execute(value).Select(x => new ParameterValidationIssue("PARAM.VALIDATION_FAILED", "Parameters", x.ErrorMessage)).ToList();
+            if (value.SchemaVersion != schemaVersion)
+                issues.Add(new("PARAM.SCHEMA_MISMATCH", "SchemaVersion", "Payload schema differs from selected schema."));
+            if (issues.Count != 0 || value.SchemaVersion == 1)
+                return issues.ToArray();
+            if (value.SchemaVersion >= 5 && ValidateNormalizedMetrics(value, issues) is { } invalidMetrics)
+                return invalidMetrics;
+
+
+            var rows = value.SignalRequirements!;
+            if (rows.Any(x => x is null))
+                return[new("PARAM.VALIDATION_FAILED", "SignalRequirements", "Null rows are invalid.")];
+            if (rows.Select(x => x.RequirementId).Distinct().Count() != rows.Length || rows.Any(x => x.RequirementId == Guid.Empty))
+                issues.Add(new("PARAM.ROW_ID_INVALID", "SignalRequirements", "Row identities must be nonempty and unique."));
+            if (rows.Select(x => (x.Metric, x.TimeFrame)).Distinct().Count() != rows.Length)
+                issues.Add(new("PARAM.DUPLICATE_SIGNAL", "SignalRequirements", "Metric/timeframe pairs must be unique."));
+            var defaults = Defaults(value);
+            foreach (var row in rows)
+            {
+                var path = $"SignalRequirements[{row.RequirementId}]";
+                if (value.SchemaVersion >= 3 && row.Enabled)
+                {
+                    try
+                    {
+                        SignalStartupPlanModel.Producer(row.Metric, row.TimeFrame);
+                    }
+                    catch (ArgumentException error)
+                    {
+                        issues.Add(new("SIGNAL.PRODUCER_UNSUPPORTED", path, error.Message));
+                    }
+                }
+
+                if (row.MaximumAgeSeconds <= 0)
+                    issues.Add(new("PARAM.AGE_INVALID", path, "Maximum age must be positive."));
+                if ((value.SchemaVersion < 5 && !defaults.Any(x => x.Metric == row.Metric && x.TimeFrame == row.TimeFrame)) || !string.Equals(row.CalculationConfigurationId, $"{row.Metric}.v1", StringComparison.Ordinal))
+                    issues.Add(new("SIGNAL.CONFIGURATION_UNSUPPORTED", path, $"{row.Metric}/{row.TimeFrame}/{row.CalculationConfigurationId} is not supported by the current evaluator."));
+            }
+
+            foreach (var mandatory in (defaults.Where(x => x.IsRequired)).Where(mandatory => !rows.Any(x => x.Metric == mandatory.Metric && x.TimeFrame == mandatory.TimeFrame && x.Enabled && x.IsRequired)))
+                issues.Add(new("SIGNAL.DEPENDENCY_MISSING", "SignalRequirements", $"{mandatory.Metric}/{mandatory.TimeFrame} must remain enabled and required by the current calculation."));
+            return issues.ToArray();
+        }
+        catch (Exception ex)when (ex is JsonException or ArgumentException or InvalidOperationException or OverflowException)
+        {
+            return[new("PARAM.VALIDATION_FAILED", "Payload", ex.Message)];
+        }
+    }
     public ParameterValidationIssue[] Validate(string payloadJson, int schemaVersion)
     {
         try

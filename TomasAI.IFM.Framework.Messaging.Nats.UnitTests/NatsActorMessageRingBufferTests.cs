@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsActorMessageRingBufferTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enqueue_dequeue_preserves_count_across_many_physical_wraps()
     {
         using var buffer = new NatsActorMessageRingBuffer(8);
@@ -22,6 +23,7 @@ public sealed class NatsActorMessageRingBufferTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enqueue_blocks_at_exact_capacity_and_honors_cancellation()
     {
         using var buffer = new NatsActorMessageRingBuffer(8);

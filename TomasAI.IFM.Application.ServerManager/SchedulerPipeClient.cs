@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public interface ISchedulerDashboardClient
 {
@@ -40,6 +41,7 @@ public interface ISchedulerDashboardClient
     Task<TaskRunOutputPageDto> GetRunOutputAsync(RunOutputRequestDto request, CancellationToken cancellationToken)
         => throw new NotSupportedException();
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISchedulerDashboardClient
 {
@@ -55,11 +57,11 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
         SchedulerPipeResponse response;
         try
         {
-            response = await SendAsync(new SchedulerPipeRequest(
+            response = await (SendAsync(new SchedulerPipeRequest(
                 SchedulerProtocol.Version,
                 Guid.NewGuid(),
                 SchedulerProtocol.GetDashboardOperation,
-                DateTimeOffset.UtcNow), cancellationToken);
+                DateTimeOffset.UtcNow), cancellationToken)).ConfigureAwait(true);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -73,19 +75,19 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
     public async Task<ScheduleValidationResultDto> ValidateScheduleAsync(
         ScheduleDefinitionInputDto input,
         CancellationToken cancellationToken)
-        => (await SendAsync(CreateRequest(SchedulerProtocol.ValidateScheduleOperation, input), cancellationToken)).Validation
+        => (await (SendAsync(CreateRequest(SchedulerProtocol.ValidateScheduleOperation, input), cancellationToken)).ConfigureAwait(true)).Validation
             ?? throw new InvalidOperationException("Scheduler validation response contained no result.");
 
     public async Task<SchedulerOperationResultDto> CreateScheduleAsync(
         ScheduleDefinitionInputDto input,
         CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(CreateRequest(SchedulerProtocol.CreateScheduleOperation, input), cancellationToken));
+        => RequireOperation(await (SendAsync(CreateRequest(SchedulerProtocol.CreateScheduleOperation, input), cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> UpdateScheduleAsync(
         ScheduleDefinitionInputDto input,
         long expectedVersion,
         CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(CreateRequest(SchedulerProtocol.UpdateScheduleOperation, input, expectedVersion), cancellationToken));
+        => RequireOperation(await (SendAsync(CreateRequest(SchedulerProtocol.UpdateScheduleOperation, input, expectedVersion), cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> SetScheduleEnabledAsync(
         Guid scheduleId,
@@ -93,55 +95,56 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
         long expectedVersion,
         string reason,
         CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(
+        => RequireOperation(await (SendAsync(
             CreateRequest(
                 SchedulerProtocol.SetScheduleEnabledOperation,
                 new SetScheduleEnabledDto(scheduleId, enabled),
                 expectedVersion,
                 reason),
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> DeleteScheduleAsync(
         Guid scheduleId,
         long expectedVersion,
         string reason,
         CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(
+        => RequireOperation(await (SendAsync(
             CreateRequest(SchedulerProtocol.DeleteScheduleOperation, new ScheduleIdentityDto(scheduleId), expectedVersion, reason),
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> RunNowAsync(Guid scheduleId, string reason, CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(
+        => RequireOperation(await (SendAsync(
             CreateRequest(SchedulerProtocol.RunNowOperation, new RunNowRequestDto(scheduleId), reason: reason),
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> CancelRunAsync(Guid runId, string reason, CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(
+        => RequireOperation(await (SendAsync(
             CreateRequest(SchedulerProtocol.CancelRunOperation, new RunIdentityDto(runId), reason: reason),
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(true));
 
     public async Task<SchedulerOperationResultDto> RetryRunAsync(Guid runId, string reason, CancellationToken cancellationToken)
-        => RequireOperation(await SendAsync(
+        => RequireOperation(await (SendAsync(
             CreateRequest(SchedulerProtocol.RetryRunOperation, new RunIdentityDto(runId), reason: reason),
-            cancellationToken));
+            cancellationToken)).ConfigureAwait(true));
 
     public async Task<TaskRunOutputPageDto> GetRunOutputAsync(RunOutputRequestDto request, CancellationToken cancellationToken)
-        => (await SendAsync(CreateRequest(SchedulerProtocol.GetRunOutputOperation, request), cancellationToken)).OutputPage
+        => (await (SendAsync(CreateRequest(SchedulerProtocol.GetRunOutputOperation, request), cancellationToken)).ConfigureAwait(true)).OutputPage
             ?? throw new InvalidOperationException("Scheduler output response contained no page.");
 
     private async Task<SchedulerPipeResponse> SendAsync(SchedulerPipeRequest request, CancellationToken cancellationToken)
     {
-        await using var pipe = new NamedPipeClientStream(
+var pipe = new NamedPipeClientStream(
             ".",
             options.PipeName,
             PipeDirection.InOut,
             PipeOptions.Asynchronous);
+await using var pipeDisposal = pipe.ConfigureAwait(true);
         using var timeout = new CancellationTokenSource(options.ConnectTimeoutMilliseconds);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-        await pipe.ConnectAsync(linked.Token);
+        await (pipe.ConnectAsync(linked.Token)).ConfigureAwait(true);
 
-        await WriteFrameAsync(pipe, request, linked.Token);
-        var response = await ReadFrameAsync<SchedulerPipeResponse>(pipe, linked.Token);
+        await (WriteFrameAsync(pipe, request, linked.Token)).ConfigureAwait(true);
+        var response = await (ReadFrameAsync<SchedulerPipeResponse>(pipe, linked.Token)).ConfigureAwait(true);
         if (response.RequestId != request.RequestId)
         {
             throw new InvalidDataException("Scheduler response request ID does not match the request.");
@@ -192,7 +195,7 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
     private static async Task<T> ReadFrameAsync<T>(Stream stream, CancellationToken cancellationToken)
     {
         var header = new byte[sizeof(int)];
-        await stream.ReadExactlyAsync(header, cancellationToken);
+        await (stream.ReadExactlyAsync(header, cancellationToken)).ConfigureAwait(true);
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
         if (length <= 0 || length > SchedulerProtocol.MaximumFrameBytes)
         {
@@ -200,7 +203,7 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
         }
 
         var payload = new byte[length];
-        await stream.ReadExactlyAsync(payload, cancellationToken);
+        await (stream.ReadExactlyAsync(payload, cancellationToken)).ConfigureAwait(true);
         return JsonSerializer.Deserialize<T>(payload, JsonOptions)
             ?? throw new InvalidDataException("Scheduler pipe response contained no object.");
     }
@@ -215,8 +218,8 @@ public sealed class SchedulerPipeClient(SchedulerClientOptions options) : ISched
 
         var header = new byte[sizeof(int)];
         BinaryPrimitives.WriteInt32LittleEndian(header, payload.Length);
-        await stream.WriteAsync(header, cancellationToken);
-        await stream.WriteAsync(payload, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
+        await (stream.WriteAsync(header, cancellationToken)).ConfigureAwait(true);
+        await (stream.WriteAsync(payload, cancellationToken)).ConfigureAwait(true);
+        await (stream.FlushAsync(cancellationToken)).ConfigureAwait(true);
     }
 }

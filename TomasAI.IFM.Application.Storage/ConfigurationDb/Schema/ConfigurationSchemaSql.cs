@@ -5,6 +5,62 @@ namespace TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 /// <summary>Defines the PostgreSQL strategy-configuration schema.</summary>
 public static class ConfigurationSchemaSql
 {
+    /// <summary>Typed scalar and ordered child tables for the closed parameter contract.</summary>
+    internal static class TypedParameters
+    {
+        internal const string CreateHeader = """
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_value_version (
+                set_id uuid NOT NULL, version integer NOT NULL CHECK(version>0),
+                component_code text NOT NULL, schema_version integer NOT NULL CHECK(schema_version>0),
+                content_sha256 text NOT NULL CHECK(length(content_sha256)=64), codec text NOT NULL,
+                PRIMARY KEY(set_id,version));
+            """;
+        internal static string Create(ParameterValueMapping.Table table) => $"""
+            CREATE TABLE IF NOT EXISTS reference_configuration.{table.Name} (
+                owner_set_id uuid NOT NULL, owner_version integer NOT NULL,
+                row_path text NOT NULL, parent_path text NULL, ordinal integer NOT NULL CHECK(ordinal>=0),
+                {string.Join(",",table.Columns.Select(x=>$"{x.Name} {ParameterValueMapping.SqlType(x.Type)}"))},
+                PRIMARY KEY(owner_set_id,owner_version,row_path),
+                FOREIGN KEY(owner_set_id,owner_version) REFERENCES reference_configuration.parameter_value_version(set_id,version),
+                {(table.Parent is null ? "CHECK(row_path='$' AND parent_path IS NULL AND ordinal=0)" : $"FOREIGN KEY(owner_set_id,owner_version,parent_path) REFERENCES reference_configuration.{table.Parent.Name}(owner_set_id,owner_version,row_path), UNIQUE(owner_set_id,owner_version,parent_path,ordinal)")});
+            """;
+        internal static IEnumerable<SchemaObjectDefinition> Definitions =>
+            new[] { new SchemaObjectDefinition("parameter_value_version",CreateHeader,"DROP TABLE IF EXISTS reference_configuration.parameter_value_version;") }
+                .Concat(ParameterValueMapping.Tables.Select(table=>new SchemaObjectDefinition(table.Name,Create(table),$"DROP TABLE IF EXISTS reference_configuration.{table.Name};")));
+    }
+
+
+    internal static class TypedCatalog
+    {
+        internal const string Header = """
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_projection_record(
+                kind text NOT NULL,owner_id uuid NOT NULL,owner_version bigint NOT NULL,content_sha256 text NOT NULL,
+                PRIMARY KEY(kind,owner_id,owner_version),CHECK(length(content_sha256)=64));
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_catalog_operation(
+                operation_id uuid PRIMARY KEY,entity_id uuid NOT NULL,revision bigint NOT NULL,request_sha256 text NOT NULL,
+                kind text NOT NULL,version integer NOT NULL,committed_at_ticks bigint NOT NULL,fact_sha256 text NOT NULL,UNIQUE(kind,entity_id,revision));
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_catalog_migration(
+                migration_id smallint PRIMARY KEY,source_cut bigint NOT NULL);
+            CREATE TABLE IF NOT EXISTS reference_configuration.parameter_catalog_startup_state(
+                run_id uuid PRIMARY KEY,revision bigint NOT NULL,active boolean NOT NULL);
+            """;
+        internal static string Create(ParameterValueMapping.Table table)
+        {
+            var root=table;while(root.Parent is not null)root=root.Parent;
+            return $"""
+                CREATE TABLE IF NOT EXISTS reference_configuration.{table.Name}(
+                    owner_set_id uuid NOT NULL,owner_version bigint NOT NULL,row_path text NOT NULL,parent_path text NULL,
+                    ordinal integer NOT NULL CHECK(ordinal>=0),owner_kind text NOT NULL DEFAULT '{root.Name}' CHECK(owner_kind='{root.Name}'),
+                    {string.Join(",",table.Columns.Select(x=>$"{x.Name} {ParameterValueMapping.SqlType(x.Type)}"))},
+                    PRIMARY KEY(owner_set_id,owner_version,row_path),
+                    FOREIGN KEY(owner_kind,owner_set_id,owner_version) REFERENCES reference_configuration.parameter_projection_record(kind,owner_id,owner_version),
+                    {(table.Parent is null ? "CHECK(row_path='$' AND parent_path IS NULL AND ordinal=0)" : $"FOREIGN KEY(owner_set_id,owner_version,parent_path) REFERENCES reference_configuration.{table.Parent.Name}(owner_set_id,owner_version,row_path),UNIQUE(owner_set_id,owner_version,parent_path,ordinal)")});
+                """;
+        }
+        internal static IEnumerable<SchemaObjectDefinition> Definitions=>
+            new[]{new SchemaObjectDefinition("parameter_projection_record",Header,"DROP TABLE IF EXISTS reference_configuration.parameter_catalog_startup_state; DROP TABLE IF EXISTS reference_configuration.parameter_catalog_operation; DROP TABLE IF EXISTS reference_configuration.parameter_projection_record;")}
+                .Concat(ParameterProjectionMapping.Tables.Select(table=>new SchemaObjectDefinition(table.Name,Create(table),$"DROP TABLE IF EXISTS reference_configuration.{table.Name};")));
+    }
     /// <summary>Creates the owning PostgreSQL schema.</summary>
     public const string CreateSchema = "CREATE SCHEMA IF NOT EXISTS reference_configuration;";
     /// <summary>Creates an immutable parameter-set table with guarded lifecycle metadata.</summary>
@@ -522,6 +578,8 @@ DROP TABLE IF EXISTS reference_configuration.volatility_series_definition;
         .Append(new SchemaObjectDefinition("strategy_catalog", ConfigurationSchemaSql.StrategyCatalog.Create, ConfigurationSchemaSql.StrategyCatalog.Drop))
         .Append(new SchemaObjectDefinition("parameter_registry", ConfigurationSchemaSql.ParameterRegistry.Create, "DROP TABLE IF EXISTS reference_configuration.parameter_schema_version; DROP TABLE IF EXISTS reference_configuration.parameter_component; DROP TABLE IF EXISTS reference_configuration.parameter_area;"))
         .Append(new SchemaObjectDefinition("parameter_sets", ConfigurationSchemaSql.ParameterSets.Create, "DROP TABLE IF EXISTS reference_configuration.parameter_assignment_revision; DROP TABLE IF EXISTS reference_configuration.parameter_assignment; DROP TABLE IF EXISTS reference_configuration.parameter_operation; DROP TABLE IF EXISTS reference_configuration.parameter_set_version; DROP TABLE IF EXISTS reference_configuration.parameter_set;"))
+        .Concat(TypedParameters.Definitions)
+        .Concat(TypedCatalog.Definitions)
         .Append(new SchemaObjectDefinition("configuration_baseline_application", ConfigurationSchemaSql.CreateBaselineCompletion, "DROP TABLE IF EXISTS reference_configuration.configuration_baseline_application;"))
         .ToArray();
     /// <summary>Gets all ConfigurationDb schema objects in dependency order.</summary>

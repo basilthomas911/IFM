@@ -12,9 +12,9 @@ fn fixture() -> (Catalog, ContractPublication) {
         generation: 7,
         status: "Ready".into(),
         busy: false,
-        result: ContractResult {
+        result: ContractResult { documents: Default::default(),
             view: "economic-calendar".into(),
-            rows: vec![ContractRow {
+            rows: vec![ContractRow { data: None,
                 id: "exact-original-id".into(),
                 fields: BTreeMap::from([
                     ("eventDate".into(), "2026-10-13T12:30:00.0000000Z".into()),
@@ -83,7 +83,7 @@ fn cancel_removal_submits_no_action() {
 fn calendar_history_draws_only_viewport_rows() {
     let (c, mut s) = fixture();
     s.result.rows = (0..100000)
-        .map(|i| ContractRow {
+        .map(|i| ContractRow { data: None,
             id: i.to_string(),
             fields: BTreeMap::from([
                 ("eventDate".into(), i.to_string()),

@@ -73,6 +73,8 @@ public sealed class FuturesTradePositionCommandActor(ICommandActorContext<Future
         [typeof(CorrectFuturesPositionBasisCommand)] = static (command, state) => ((CorrectFuturesPositionBasisCommand)command).Execute(state),
         [typeof(SnapshotFuturesPositionCommand)] = static (command, state) => ((SnapshotFuturesPositionCommand)command).Execute(state)
     }.ToFrozenDictionary();
+    protected override bool PersistsCommandAuditAtomically(ICommand command)
+        => string.Equals(services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
     protected override bool IsResidentCommand(ICommand command) => command is UpdateFuturesPositionMarketPriceCommand or ChangeTradeLegDataCommand;
     protected override bool IsResidentMessage(ActorSubject subject) => subject.Verb is UpdateFuturesPositionMarketPriceCommand.Verb or ChangeTradeLegDataCommand.Verb;
     protected override ValueTask OnInMemoryStartupAsync(ICommandActorContext<FuturesTradePositionCommandActor> context) => services.EventProjector.StartAsync(context);

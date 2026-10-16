@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -28,13 +29,13 @@ public static class StartRegimeDiscoveryPipeline
             if (selected is { IsDisabled: true })
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.ASSIGNMENT_DISABLED", "ConfigurationUnavailable", "The workflow/horizon parameter assignment was disabled for this startup generation.");
             var generic = selected?.Applied;
-            resolved = generic is null ? await context.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc, command.TargetHorizon).ConfigureAwait(false) : new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet(System.Text.Json.JsonSerializer.Deserialize<RegimeDiscoveryParameterSet>(generic.Version.PayloadJson)!, generic.Version.PayloadJson, generic.Version.Reference.PayloadSha256, generic.Version.PublishedAtUtc ?? generic.Version.CreatedAtUtc);
+            resolved = generic is null ? await context.ConfigurationDb.GetEffectiveRegimeDiscoveryAsync(command.RequestedAtUtc, command.TargetHorizon).ConfigureAwait(false) : new TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.ResolvedRegimeDiscoveryParameterSet(generic.Version.Values().Get<RegimeDiscoveryParameterSet>(), generic.Version.PayloadJson, generic.Version.Reference.PayloadSha256, generic.Version.PublishedAtUtc ?? generic.Version.CreatedAtUtc);
             if (resolved is null)
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.CONFIGURATION_MISSING", "ConfigurationUnavailable", "No published Regime Discovery parameter set is effective for the workflow trigger.", new Dictionary<string, string> (StringComparer.Ordinal){ ["TargetHorizon"] = command.TargetHorizon.ToString(), ["RequestedAtUtc"] = command.RequestedAtUtc.ToString("O") });
             var validation = new RegimeDiscoveryParameterSetValidationRules().Execute(resolved.ParameterSet);
             if (validation.Length != 0)
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.CONFIGURATION_INVALID", "ConfigurationInvalid", "The effective Regime Discovery parameter set is invalid.", validation.Select(_ => "RD.CONFIG.INVALID").ToArray(), validation.Select((value, index) => new KeyValuePair<string, string>($"Validation.{index + 1:D3}", value.ErrorMessage)).ToDictionary(StringComparer.Ordinal)).WithParameterSet(resolved.ParameterSet.ParameterSetId, resolved.ParameterSet.Version, resolved.PayloadSha256);
-            var expectedHash = generic is null ? RegimeDiscoveryParameterPayload.ComputeSha256(resolved.ParameterSet) : RegimeDiscoveryParameterPayload.ComputeSha256(resolved.PayloadJson);
+            var expectedHash = generic is null ? RegimeDiscoveryParameterPayload.ComputeSha256(resolved.ParameterSet) : generic.Version.Parameters is null ? RegimeDiscoveryParameterPayload.ComputeSha256(resolved.PayloadJson) : generic.Version.ReferenceCodec==ParameterValueCodec.Codec ? ParameterValueCodec.Hash(generic.Version.Parameters) : generic.Version.Reference.PayloadSha256;
             if (!string.Equals(expectedHash, resolved.PayloadSha256, StringComparison.OrdinalIgnoreCase))
                 return PipelineStartResult<ExecuteRegimeDiscoveryPipelineCommand>.Failed("RD.INIT.CONFIGURATION_HASH", "ConfigurationInvalid", "The effective Regime Discovery parameter hash does not match its payload.").WithParameterSet(resolved.ParameterSet.ParameterSetId, resolved.ParameterSet.Version, resolved.PayloadSha256);
             var request = RegimeDiscoverySnapshotRequestFactory.Create(MarketSeriesIdentity.ForContract(command.TriggerEvent.EntityId.ContractId), resolved.ParameterSet);

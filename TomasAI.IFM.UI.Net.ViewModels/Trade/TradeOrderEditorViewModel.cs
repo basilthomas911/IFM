@@ -791,7 +791,15 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         var selectedFundId = SelectedFund?.FundId;
         var fundResult = await _appRoot.Services.PortfolioQueries.GetFundsAsync(portfolioId, null, 200, cancellationToken: cancellationToken);
         if (generation != Volatile.Read(ref _scopeGeneration) || SelectedPortfolio?.PortfolioId != portfolioId) return;
-        PortfolioFunds = fundResult.Success && fundResult.Value is not null ? fundResult.Value.Items : [];
+        // Historical mandate versions share a FundId. Resolve the current mandate before
+        // checking Active, so an older Active version cannot revive a paused/retired fund.
+        PortfolioFunds = fundResult.Success && fundResult.Value is not null
+            ? fundResult.Value.Items
+                .GroupBy(x => x.FundId)
+                .Select(versions => versions.OrderByDescending(x => x.FundMandateVersion).First())
+                .OrderBy(x => x.FundId)
+                .ToArray()
+            : [];
         Funds = PortfolioFunds
             .Where(x => x.OperatingState == FundOperatingState.Active)
             .Select(x => new PortfolioFundEditorModel(x.FundId, x.Name, x.Objective, 0m, true, x.CreatedOnUtc, x.CreatedBy))

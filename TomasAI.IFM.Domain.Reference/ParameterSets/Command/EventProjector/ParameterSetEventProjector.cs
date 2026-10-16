@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -37,11 +38,10 @@ return new(EventProjectionApplyOutcome.Applied); },
         await (context.ConfigurationDb.ProjectParameterSetAsync(parameterFact, token)).ConfigureAwait(false);
         if (parameterFact is not (ParameterVersionPublishedEvent or ParameterVersionRetiredEvent)) {
 return;}
-        var version = System.Text.Json.JsonSerializer.Deserialize<ParameterSetVersion>(parameterFact.VersionJson)
-            ?? throw new InvalidDataException("Parameter version event payload is missing.");
+        var version = parameterFact.ReadVersion();
         if (!string.Equals(version.Reference.ComponentCode,ParameterSchemaRegistry.StrategyOptionChainCacheComponent,StringComparison.Ordinal)) {
 return;}
-        var parameters = TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache.StrategyOptionChainParameterSet.Read(version.PayloadJson);
+        var parameters = version.Values().Get<StrategyOptionChainParameterSet>();
         if (parameters.ParameterSetId != version.Reference.SetId || parameters.Version != version.Reference.Version)
 {
 throw new InvalidDataException("Option-chain parameter event identity differs from its payload.");}

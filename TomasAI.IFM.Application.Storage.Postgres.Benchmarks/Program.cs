@@ -1,4 +1,4 @@
 using BenchmarkDotNet.Running;
 using TomasAI.IFM.Application.Storage.Postgres.Benchmarks;
-if (args.Contains("--sustain")) await PostgresSustainedWrites.RunAsync();
+if (args.Contains("--sustain")) await (PostgresSustainedWrites.RunAsync()).ConfigureAwait(false);
 else BenchmarkSwitcher.FromAssembly(typeof(PostgresTuningBenchmarks).Assembly).Run(args);

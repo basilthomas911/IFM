@@ -26,7 +26,7 @@ public static class PreviewLegacyParameterMigration
         var row = (await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(query.SetId, query.Version, cancellationToken: token)).ConfigureAwait(false)).SingleOrDefault()
             ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
         var json = ParameterLegacyMigrationModel.Expand(row);
-        using var doc = JsonDocument.Parse(json);
+        var values=ParameterHistoryReader.ReadValues(ParameterSchemaRegistry.RegimeComponent,json);
         var id = ParameterLegacyMigrationModel.TargetId(row.Reference);
         var command = new CreateParameterSetCommand
         {
@@ -34,8 +34,8 @@ public static class PreviewLegacyParameterMigration
             EntityId = new(id),
             Name = $"Legacy Regime {row.Reference.SetId:N} v{row.Reference.Version}",
             Description = row.Description.Length <= 4000 ? row.Description : row.Description[..4000],
-            SchemaVersion = doc.RootElement.GetProperty("SchemaVersion").GetInt32(),
-            PayloadJson = json,
+            SchemaVersion = values.SchemaVersion,
+            Parameters = values,
             LegacySource = row.Reference
         };
         await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceOk<CreateParameterSetCommand>(command))).ConfigureAwait(false);

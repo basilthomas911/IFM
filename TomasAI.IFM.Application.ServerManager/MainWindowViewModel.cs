@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowViewModel
 {
@@ -28,6 +29,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
         IUiDispatcher dispatcher,
         ISchedulerDashboardClient schedulerClient)
     {
+        ArgumentNullException.ThrowIfNull(options);
         _maximumLogEntries = options.MaximumLogEntries;
         _dispatcher = dispatcher;
         _schedulerClient = schedulerClient;
@@ -189,12 +191,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
             _dispatcher.Post(DrainPendingEntries);
         }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
     public async Task RefreshSchedulerAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            var dashboard = await _schedulerClient.GetDashboardAsync(cancellationToken);
+            var dashboard = await (_schedulerClient.GetDashboardAsync(cancellationToken)).ConfigureAwait(true);
             _dispatcher.Post(() => ApplyDashboard(dashboard));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -275,102 +278,103 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
             EditorFailedRetentionDays);
 
     private async Task ValidateEditorAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
-            var validation = await _schedulerClient.ValidateScheduleAsync(BuildEditorInput(), CancellationToken.None);
+            var validation = await (_schedulerClient.ValidateScheduleAsync(BuildEditorInput(), CancellationToken.None)).ConfigureAwait(true);
             Replace(SchedulePreview, validation.NextFireTimes);
             SchedulerOperationMessage = validation.IsValid
                 ? validation.Explanation
                 : string.Join(" ", validation.Errors);
-        });
+        })).ConfigureAwait(true);
 
     private async Task SaveScheduleAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var input = BuildEditorInput();
             var result = EditorScheduleId is null
-                ? await _schedulerClient.CreateScheduleAsync(input, CancellationToken.None)
-                : await _schedulerClient.UpdateScheduleAsync(
+                ? await (_schedulerClient.CreateScheduleAsync(input, CancellationToken.None)).ConfigureAwait(true)
+                : await (_schedulerClient.UpdateScheduleAsync(
                     input,
                     EditorVersion ?? throw new InvalidOperationException("The selected schedule has no concurrency version."),
-                    CancellationToken.None);
+                    CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = result.Message;
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task ToggleScheduleAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedSchedule ?? throw new InvalidOperationException("Select a schedule first.");
-            var result = await _schedulerClient.SetScheduleEnabledAsync(
+            var result = await (_schedulerClient.SetScheduleEnabledAsync(
                 selected.ScheduleDefinitionId,
                 !selected.Enabled,
                 selected.Version,
                 OperatorReason,
-                CancellationToken.None);
+                CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = result.Message;
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task DeleteScheduleAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedSchedule ?? throw new InvalidOperationException("Select a schedule first.");
-            var result = await _schedulerClient.DeleteScheduleAsync(
+            var result = await (_schedulerClient.DeleteScheduleAsync(
                 selected.ScheduleDefinitionId,
                 selected.Version,
                 OperatorReason,
-                CancellationToken.None);
+                CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = result.Message;
             BeginNewSchedule();
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task RunNowAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedSchedule ?? throw new InvalidOperationException("Select a schedule first.");
-            var result = await _schedulerClient.RunNowAsync(selected.ScheduleDefinitionId, OperatorReason, CancellationToken.None);
+            var result = await (_schedulerClient.RunNowAsync(selected.ScheduleDefinitionId, OperatorReason, CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = $"{result.Message} Run: {result.RunId}";
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task CancelRunAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedTaskRun ?? throw new InvalidOperationException("Select a run first.");
-            var result = await _schedulerClient.CancelRunAsync(selected.RunId, OperatorReason, CancellationToken.None);
+            var result = await (_schedulerClient.CancelRunAsync(selected.RunId, OperatorReason, CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = result.Message;
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task RetryRunAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedTaskRun ?? throw new InvalidOperationException("Select a run first.");
-            var result = await _schedulerClient.RetryRunAsync(selected.RunId, OperatorReason, CancellationToken.None);
+            var result = await (_schedulerClient.RetryRunAsync(selected.RunId, OperatorReason, CancellationToken.None)).ConfigureAwait(true);
             SchedulerOperationMessage = $"{result.Message} Run: {result.RunId}";
-            await RefreshSchedulerAsync();
-        });
+            await (RefreshSchedulerAsync()).ConfigureAwait(true);
+        })).ConfigureAwait(true);
 
     private async Task LoadOutputAsync()
-        => await ExecuteOperationAsync(async () =>
+        => await (ExecuteOperationAsync(async () =>
         {
             var selected = SelectedTaskRun ?? throw new InvalidOperationException("Select a run first.");
-            var page = await _schedulerClient.GetRunOutputAsync(
+            var page = await (_schedulerClient.GetRunOutputAsync(
                 new RunOutputRequestDto(selected.RunId, SelectedOutputStream, 0, 500),
-                CancellationToken.None);
+                CancellationToken.None)).ConfigureAwait(true);
             Replace(TaskOutput, page.Lines);
             SchedulerOperationMessage = page.Retained
                 ? $"Loaded {page.Lines.Count} output line(s){(page.Truncated ? "; output was truncated" : string.Empty)}."
                 : "Output has been removed by retention.";
-        });
+        })).ConfigureAwait(true);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
     private async Task ExecuteOperationAsync(Func<Task> operation)
     {
         try
         {
-            await operation();
+            await (operation()).ConfigureAwait(true);
         }
         catch (Exception exception)
         {
@@ -447,6 +451,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowV
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed record ManagedApplicationSummary(
     string Key,

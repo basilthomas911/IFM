@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class CompressionBenchmarks
 {
     static readonly MessagePackSerializerOptions UncompressedOptions =
@@ -28,6 +29,7 @@ public class CompressionBenchmarks
     public bool Compressible { get; set; }
 
     [GlobalSetup]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA5394",Justification="The fixed seed produces reproducible benchmark payload bytes, not security material.")]
     public void Setup()
     {
         var payload = GC.AllocateUninitializedArray<byte>(PayloadSize);

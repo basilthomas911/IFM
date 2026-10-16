@@ -85,7 +85,9 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("POSITION.NOT_OPEN", "An open position is required.");
         if (asOfUtc.Kind != DateTimeKind.Utc || valueDate == default)
             return Reject("POSITION.INVALID_TIME", "EOD requires a value date and UTC boundary.");
-        if (valueDate != DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone)))
+        var boundaryDate = FuturesTradingValueDate.TryGet(new DateTimeOffset(asOfUtc), out var activeDate)
+            ? activeDate : DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(asOfUtc, FuturesTradingValueDate.MarketTimeZone));
+        if (valueDate != boundaryDate)
             return Reject("StrategyPosition.SESSION.INVALID_CLOSE", "EOD value date must match the exchange date of its close boundary.");
         if (valueDate <= Current.LatestSealedValueDate)
             return valueDate == Current.LatestSealedValueDate && Current.Phase == StrategyPositionPhase.EndOfDay ? TradeDecision<StrategyPositionSnapshot>.Accept(Current) : Reject("StrategyPosition.SESSION.SEALED", "This value date is already finalized.");

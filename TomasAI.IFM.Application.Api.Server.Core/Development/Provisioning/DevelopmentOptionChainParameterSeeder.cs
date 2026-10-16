@@ -53,7 +53,7 @@ public sealed class DevelopmentOptionChainParameterSeeder(IHostEnvironment envir
             {
                 var created = await api.CreateAsync(new() { CommandId = StrategyCatalogExamples.StableId("StrategyOptionChainCache/Create/" + id),
                     EntityId = new(id), ComponentCode = "market-data.strategy-option-chain-cache", Name = policy.Name,
-                    SchemaVersion = 1, PayloadJson = policy.Serialize() }, token).ConfigureAwait(false);
+                    SchemaVersion = 1, Parameters = ParameterSetValue.From(policy) }, token).ConfigureAwait(false);
                 if (!created.Success) throw new InvalidOperationException(created.ErrorMessage);
                 state = await api.StateAsync(id, token).ConfigureAwait(false);
             }
@@ -62,7 +62,7 @@ public sealed class DevelopmentOptionChainParameterSeeder(IHostEnvironment envir
             // Explicit publication freezes the payload already authored in this set; no latest-version overwrite.
             var published = await api.PublishAsync(new() { CommandId = StrategyCatalogExamples.StableId("StrategyOptionChainCache/Publish/" + id),
                 EntityId = new(id), Version = 1, ExpectedRevision = state.Value.Revision, ComponentCode = draft.Reference.ComponentCode,
-                Name = draft.Name, Description = draft.Description, SchemaVersion = draft.SchemaVersion, PayloadJson = draft.PayloadJson }, token).ConfigureAwait(false);
+                Name = draft.Name, Description = draft.Description, SchemaVersion = draft.SchemaVersion }, token).ConfigureAwait(false);
             if (!published.Success) throw new InvalidOperationException(published.ErrorMessage);
             logger.LogInformation("Published Development strategy option cache parameters: ParameterSetId={ParameterSetId}, Version=1, StrategyDefinitionId={StrategyDefinitionId}, StrategyDefinitionVersion={StrategyDefinitionVersion}",
                 id, catalog.Key.Id, catalog.Key.Version);

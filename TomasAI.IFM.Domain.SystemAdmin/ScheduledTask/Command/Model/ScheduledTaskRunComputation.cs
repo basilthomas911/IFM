@@ -35,10 +35,8 @@ public static class ScheduledTaskRunComputation
             RecordScheduledTaskRunStartedCommand c when run.Status != ScheduledTaskRunStatus.Admitted || c.ProcessId <= 0 || c.StartedAtUtc < run.IntendedFireTimeUtc || c.StartedAtUtc > now => Reject("START.INVALID", "process start must follow admission with a valid process and timestamp"),
             RecordScheduledTaskRunStartedCommand c => new(next with { Status = ScheduledTaskRunStatus.Running, ProcessId = c.ProcessId, StartedAtUtc = c.StartedAtUtc }),
             RecordScheduledTaskRunStageCommand c when string.Equals(c.Stage,"PositionsFinalized",StringComparison.Ordinal) &&
-                (!string.Equals(run.TaskKey,ScheduledTaskKeys.FuturesMarketClose,StringComparison.Ordinal) || !string.Equals(run.Stage,"FeedsStopped",StringComparison.Ordinal) || c.ValueDate == default ||
-                 c.ValueDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ||
-                 TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetSessionEndUtc(c.ValueDate) > now)
-                => Reject("EOD.OUT_OF_ORDER", "EOD finalization requires the market-close task, confirmed feed stop and an ended weekday session"),
+                (!string.Equals(run.TaskKey,ScheduledTaskKeys.FuturesMarketClose,StringComparison.Ordinal) || !string.Equals(run.Stage,"FeedsStopped",StringComparison.Ordinal) || c.ValueDate == default)
+                => Reject("EOD.OUT_OF_ORDER", "EOD finalization requires the market-close task and confirmed feed stop"),
             RecordScheduledTaskRunStageCommand c when run.Status != ScheduledTaskRunStatus.Running || c.ValueDate == default || string.IsNullOrWhiteSpace(c.Stage) || run.ValueDate is { } establishedDate && establishedDate != c.ValueDate => Reject("STAGE.INVALID", "business stages require a running task and one consistent value date"),
             RecordScheduledTaskRunStageCommand c => new(next with { Stage = c.Stage, ValueDate = c.ValueDate, Detail = c.Detail, CompletedEndOfDayValueDate = string.Equals(run.TaskKey,ScheduledTaskKeys.FuturesMarketClose,StringComparison.Ordinal) && string.Equals(c.Stage,"PositionsFinalized",StringComparison.Ordinal) ? c.ValueDate : run.CompletedEndOfDayValueDate }),
             CompleteScheduledTaskRunCommand c when run.Status != ScheduledTaskRunStatus.Running || c.ExitCode != 0 || !ValidFinish(run, c.FinishedAtUtc, now) || string.IsNullOrWhiteSpace(c.Stage) => Reject("COMPLETION.INVALID", "business completion requires a running process, successful exit and completion stage"),

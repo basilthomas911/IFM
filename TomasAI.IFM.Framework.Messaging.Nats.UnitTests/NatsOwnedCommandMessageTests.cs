@@ -11,6 +11,8 @@ namespace TomasAI.IFM.Framework.Messaging.NatsJetStream.UnitTests;
 public class NatsOwnedCommandMessageTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void AsCommand_DeserializesFromOwnedMemory_AndReleaseIsIdempotent()
     {
         var command = new TestCommand
@@ -48,6 +50,8 @@ public class NatsOwnedCommandMessageTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void ActorQueue_Stop_DisposesPendingOwnedMessages(bool useSpscQueue)
     {
         IActorThreadQueue queue = useSpscQueue
@@ -60,10 +64,12 @@ public class NatsOwnedCommandMessageTests
         queue.Stop();
 
         message.DisposeCount.Should().Be(1);
-        (queue as IDisposable)?.Dispose();
+        ((IDisposable)queue).Dispose();
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void SpscRingBuffer_Stop_DisposesPendingOwnedMessages()
     {
         var buffer = new NatsActorSpscRingBuffer(8, 1, 1);
@@ -89,6 +95,8 @@ public class NatsOwnedCommandMessageTests
         public NatsMsg<byte[]> GetMessage() => default;
         public void Dispose() => DisposeCount++;
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public sealed record TestCommand : ICommand
     {

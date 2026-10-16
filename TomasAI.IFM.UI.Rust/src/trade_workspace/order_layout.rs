@@ -1,3 +1,4 @@
+use crate::wire::WireNumber as _;
 use crate::presentation::TradingLabelUi as _;
 use super::*;
 use chrono::{Datelike, NaiveDate};
@@ -378,7 +379,7 @@ impl TradeWorkspace {
         let contracts = value["contracts"].as_array().cloned().unwrap_or_default();
         let mut strikes: Vec<_> = contracts
             .iter()
-            .filter_map(|c| c["strike"].as_f64())
+            .filter_map(|c| c["strike"].wire_number())
             .collect();
         strikes.sort_by(|a, b| b.total_cmp(a));
         strikes.dedup();
@@ -397,7 +398,7 @@ impl TradeWorkspace {
             ui.add_sized([group_width * 6., 28. / p], crate::presentation::label_widget("PUTS"));
         });
         let columns = super::blotter::OPTION_COLUMNS;
-        let height = (ui.available_height() - 25. / p).max(40.);
+        let height = (ui.available_height() - 24. / p - ui.spacing().item_spacing.y).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
             .id_salt("option-chain")
             .resizable(true)
@@ -405,12 +406,12 @@ impl TradeWorkspace {
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
             .max_scroll_height(height);
         for _ in columns {
-            table = table.column(egui_extras::Column::remainder());
+            table = table.column(egui_extras::Column::remainder().clip(true));
         }
         // Reveal a new selection once, then retain the operator's scroll position during quote updates.
         let selection_key = selected.iter().map(|leg| text(leg, "contractId")).collect::<Vec<_>>().join("|");
         if !selection_key.is_empty() && self.draft.get("chainSelectionAnchor") != Some(&selection_key) {
-            let selected_strikes: Vec<_> = selected.iter().filter_map(|leg| leg["strike"].as_f64()).collect();
+            let selected_strikes: Vec<_> = selected.iter().filter_map(|leg| leg["strike"].wire_number()).collect();
             if !selected_strikes.is_empty() {
                 let middle = selected_strikes.iter().sum::<f64>() / selected_strikes.len() as f64;
                 if let Some((index, _)) = strikes.iter().enumerate().min_by(|(_, a), (_, b)| (**a-middle).abs().total_cmp(&(**b-middle).abs())) {
@@ -432,11 +433,11 @@ impl TradeWorkspace {
                     let strike = strikes[row.index()];
                     let call = contracts
                         .iter()
-                        .find(|c| c["strike"].as_f64() == Some(strike) && c["isCall"] == true);
+                        .find(|c| c["strike"].wire_number() == Some(strike) && c["isCall"] == true);
                     let put = contracts
                         .iter()
-                        .find(|c| c["strike"].as_f64() == Some(strike) && c["isCall"] == false);
-                    let nearest = value["lastUnderlyingPrice"].as_f64().and_then(|price| {
+                        .find(|c| c["strike"].wire_number() == Some(strike) && c["isCall"] == false);
+                    let nearest = value["lastUnderlyingPrice"].wire_number().and_then(|price| {
                         strikes.iter().min_by(|a, b| (*a-price).abs().total_cmp(&(*b-price).abs()))
                     }).is_some_and(|nearest| *nearest == strike);
                     for column in 0..13 {
@@ -475,11 +476,11 @@ impl TradeWorkspace {
                                     4 | 7 => "bid",
                                     _ => "ask",
                                 };
-                                ui.trading_label(if key.is_empty() {
+                                ui.add(crate::presentation::label_widget(if key.is_empty() {
                                     role.clone().unwrap_or_default()
                                 } else {
                                     super::blotter::option_cell(c, key)
-                                });
+                                }).truncate());
                             }
                         });
                         if column != 6 && response.clicked() {
@@ -521,6 +522,9 @@ impl TradeWorkspace {
         s: &ContractPublication,
     ) -> Option<&'static str> {
         let mut action = None;
+        if let Some(status) = s.result.context.get("submissionStatus").filter(|s| !s.is_empty()) {
+            ui.trading_label(status);
+        }
         let p = ui.ctx().pixels_per_point();
         let area = ui.available_rect_before_wrap();
         let orders: Vec<_> = s
@@ -746,13 +750,13 @@ impl TradeWorkspace {
                     ui,
                     "limitPrice",
                     "0",
-                    mutation["minimum"].as_f64().unwrap_or(-1000000.),
-                    mutation["maximum"].as_f64().unwrap_or(1000000.),
-                    mutation["tick"].as_f64().unwrap_or(0.05),
+                    mutation["minimum"].wire_number().unwrap_or(-1000000.),
+                    mutation["maximum"].wire_number().unwrap_or(1000000.),
+                    mutation["tick"].wire_number().unwrap_or(0.05),
                     (0..=8)
                         .find(|n| {
                             let scaled =
-                                mutation["tick"].as_f64().unwrap_or(0.05) * 10_f64.powi(*n as i32);
+                                mutation["tick"].wire_number().unwrap_or(0.05) * 10_f64.powi(*n as i32);
                             (scaled - scaled.round()).abs() < 1e-8
                         })
                         .unwrap_or(8),

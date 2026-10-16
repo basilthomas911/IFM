@@ -5,6 +5,7 @@ namespace TomasAI.IFM.Framework.MarketData.UnitTests;
 public sealed class ReferenceDataContractTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void TreasuryRatePoint_ConvertsPercentagePointsToDecimalRate()
     {
         var point = new TreasuryRatePoint(TreasuryTenor.OneMonth, 4.25m);
@@ -13,6 +14,7 @@ public sealed class ReferenceDataContractTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void TreasuryCurveSnapshot_ReturnsRequestedTenor()
     {
         var expected = new TreasuryRatePoint(TreasuryTenor.ThreeMonth, 4.10m);
@@ -32,6 +34,7 @@ public sealed class ReferenceDataContractTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void TreasuryCurveSnapshot_DoesNotTreatMissingTenorAsZero()
     {
         var snapshot = new TreasuryCurveSnapshot(

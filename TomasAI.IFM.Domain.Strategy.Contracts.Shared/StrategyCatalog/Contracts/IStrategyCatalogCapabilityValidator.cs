@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1716", Scope = "namespace", Target = "~N:TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts", Justification = "Preserve the published domain namespace.")]
 namespace TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts;
 /// <summary>Implemented server capability, registered by application composition, never deserialized from a catalog row.</summary>
 public interface IStrategyCatalogCapabilityValidator

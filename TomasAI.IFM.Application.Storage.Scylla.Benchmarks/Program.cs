@@ -1,4 +1,4 @@
 using BenchmarkDotNet.Running;
 using TomasAI.IFM.Application.Storage.Scylla.Benchmarks;
-if(args.Contains("--sustain")) await ScyllaSustainedWrites.RunAsync();
+if(args.Contains("--sustain")) await (ScyllaSustainedWrites.RunAsync()).ConfigureAwait(false);
 else BenchmarkSwitcher.FromAssembly(typeof(ScyllaVersionBenchmarks).Assembly).Run(args);

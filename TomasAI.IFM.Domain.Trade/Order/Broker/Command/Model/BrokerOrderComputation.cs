@@ -1,27 +1,14 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using TomasAI.IFM.Domain.Trade.Order.Broker.Model;
-using TomasAI.IFM.Domain.BrokerAccount.Contracts;
-using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Broker.Command.Model;
 /// <summary>Pure broker-order decisions; authoritative changes occur only in State.Apply.</summary>
 internal static class BrokerOrderComputation
 {
     /// <summary>Computes the CreateBrokerOrder decision without mutating state or performing broker effects.</summary>
-    internal static BrokerOrderCompute CreateBrokerOrder(CreateBrokerOrderCommand command, BrokerOrderDefinition? brokerOrderDefinition, BrokerAccountDefinition? account)
+    internal static BrokerOrderCompute CreateBrokerOrder(CreateBrokerOrderCommand command, BrokerOrderDefinition? brokerOrderDefinition)
     {
-        var qualificationExempt = account?.DevelopmentQualificationsExempt == true && account.Environment == TomasAI.IFM.Application.TradeBroker.Contracts.BrokerEnvironment.Emulator && command.Order.BrokerEnvironment == TomasAI.IFM.Domain.Trade.Shared.BrokerEnvironment.Emulator;
-        if (account is null || (!qualificationExempt && account.Snapshot is not { Complete: true }))
-            return BrokerOrderCompute.Reject("BrokerOrder.ACCOUNT.SNAPSHOT_INCOMPLETE");
-        if (!qualificationExempt && command.Order.PositionType == Domain.Trade.Shared.TradeOrderPositionType.Opening)
-        {
-            if (account.Gate != BrokerAccountOperationalGate.Open)
-                return BrokerOrderCompute.Reject("BrokerOrder.ACCOUNT.NEW_RISK_GATE_CLOSED");
-            if (account.ApprovalId == Guid.Empty || !string.Equals(command.Order.AccountPromotionApprovalReference, account.ApprovalId.ToString("N"), StringComparison.OrdinalIgnoreCase))
-                return BrokerOrderCompute.Reject("BrokerOrder.ACCOUNT.APPROVAL_MISMATCH");
-        }
-
         if (brokerOrderDefinition is not null)
             return brokerOrderDefinition.OperationId == command.OperationId ? BrokerOrderCompute.Replay(brokerOrderDefinition!) : BrokerOrderCompute.Reject("BrokerOrder.CREATE.CONFLICT; broker order already exists for another operation.");
         if (!BrokerOrderRequestMapper.TryCreate(command.Order, command.EntityId.Execution.ExecutionAttemptId, command.EntityId.ComponentId, command.OperationId, out _, out var reason))

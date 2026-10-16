@@ -124,7 +124,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
                     if (until <= clock.GetUtcNow()) { Report(lookup, "QuoteStale"); continue; }
                     // ScopeId remains the durable provider pricing plan used by subscription handoff.
                     var snapshot = raw with { Horizon = horizon, Instruments = rows, ValidUntilUtc = until, Digest = "",
-                        StrategyOptionChainParametersJson = universe.Parameters?.Serialize(), StrategyOptionChainBias = bias?.MarketBias.ToString(), StrategyOptionChainValueDate = bias is null ? null : plan.ValueDate };
+                        StrategyOptionChainParameters = universe.Parameters, StrategyOptionChainBias = bias?.MarketBias.ToString(), StrategyOptionChainValueDate = bias is null ? null : plan.ValueDate };
                     snapshot = snapshot with { Digest = PricingSemanticHash.Compute(snapshot) };
                     if (!admissions.TryGet("GLBX.MDP3", out current) || current != admission) return;
                     if (publisher.Publish(snapshot, plan.ValueDate, universe.ConfigurationDigest, Interlocked.Increment(ref version), lookup))

@@ -12,9 +12,8 @@ public static class StrategyOptionChainCompositionPolicy
     public static OptionStrategyBiasParameters? Row(ExecuteOrderCompositionPipelineCommand request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.MarketSnapshot.StrategyOptionChainParametersJson is not { } json)
-            return null;
-        var policy = StrategyOptionChainParameterSet.Read(json);
+        var policy=request.MarketSnapshot.StrategyOptionChainParameters ?? (request.MarketSnapshot.StrategyOptionChainParametersJson is {} historical?StrategyOptionChainParameterSet.Read(historical):null);
+        if(policy is null)return null;
         var bias = string.Equals(request.CompositionBinding.Selected.Bias, "Balanced", StringComparison.Ordinal) ? "Neutral" : request.CompositionBinding.Selected.Bias;
         return policy.BiasRows.Single(x => string.Equals(x.MarketBias.ToString(), bias, StringComparison.Ordinal));
     }
@@ -29,7 +28,7 @@ public static class StrategyOptionChainCompositionPolicy
         var outer = SelectionConstructionPolicy.Read(TradeSelectionContracts.Policy(request.SelectionBinding, selected.CompositionPolicyReference).PayloadJson);
         if (outer.CachePolicy(selected.StructureKey)is not { } pinned)
             return resolved;
-        var policy = StrategyOptionChainParameterSet.Read(request.MarketSnapshot.StrategyOptionChainParametersJson ?? throw new CompositionException("OC.CONFIG.CACHE_POLICY_MISSING"));
+        var policy=request.MarketSnapshot.StrategyOptionChainParameters ?? StrategyOptionChainParameterSet.Read(request.MarketSnapshot.StrategyOptionChainParametersJson ?? throw new CompositionException("OC.CONFIG.CACHE_POLICY_MISSING"));
         var bias = string.Equals(selected.Bias, "Balanced", StringComparison.Ordinal) ? "Neutral" : selected.Bias;
         Require(policy.Enabled && policy.ParameterSetId == pinned.ParameterSetId && policy.Version == pinned.Version && string.Equals(policy.Hash(), pinned.ConfigurationDigest, StringComparison.Ordinal) && policy.StrategyDefinitionId == selected.StructureKey.Id && policy.StrategyDefinitionVersion == selected.StructureKey.Version && string.Equals(policy.InstrumentRoot, selected.Product.Symbol, StringComparison.Ordinal) && string.Equals(request.MarketSnapshot.StrategyOptionChainBias, bias, StringComparison.Ordinal), "OC.CONFIG.CACHE_POLICY_MISMATCH");
         var row = policy.BiasRows.Single(x => string.Equals(x.MarketBias.ToString(), bias, StringComparison.Ordinal));

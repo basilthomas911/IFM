@@ -33,6 +33,7 @@ public class NatsActorSpscRingBufferTests
     [Theory]
     [InlineData(0)]
     [InlineData(3)] // not a power of two
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Ctor_InvalidCapacity_Throws(int invalidCapacity)
     {
         Action act = () => CreateBuffer(invalidCapacity);
@@ -43,6 +44,8 @@ public class NatsActorSpscRingBufferTests
     /// Ensures a valid constructor sets expected initial state (capacity, empty count) before Start().
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void Ctor_ValidCapacity_InitialState()
     {
         var buf = CreateBuffer(8);
@@ -62,6 +65,8 @@ public class NatsActorSpscRingBufferTests
     /// Validates basic single-thread enqueue and dequeue transitions and count tracking.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Enqueue_Dequeue_SingleThread_BasicFlow()
     {
         var buf = CreateAndStart(8);
@@ -82,6 +87,8 @@ public class NatsActorSpscRingBufferTests
     /// Asserts enqueue blocks and can be canceled when the buffer is full.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void Enqueue_WhenFull_Cancels()
     {
         const int cap = 8; // logical capacity
@@ -110,6 +117,8 @@ public class NatsActorSpscRingBufferTests
     /// Ensures a producer blocked on full buffer unblocks after a consumer dequeues an item.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Enqueue_WhenFull_UnblocksAfterDequeue()
     {
         const int cap = 8;
@@ -141,6 +150,8 @@ public class NatsActorSpscRingBufferTests
     /// Asserts dequeue blocks and can be canceled when the buffer is empty.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Dequeue_WhenEmpty_Cancels()
     {
         var buf = CreateAndStart(8, spinEnq: 1, spinDeq: 1);
@@ -158,6 +169,8 @@ public class NatsActorSpscRingBufferTests
     /// Ensures a consumer blocked on empty buffer unblocks after a producer enqueues an item.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task Dequeue_WhenEmpty_UnblocksAfterEnqueue()
     {
         var buf = CreateAndStart(8, spinEnq: 1, spinDeq: 1);
@@ -184,6 +197,8 @@ public class NatsActorSpscRingBufferTests
     /// Validates concurrent producer/consumer process the full item count without loss or duplication.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task ProducerConsumer_Concurrent_ProcessesAll()
     {
         const int cap = 1024;
@@ -240,6 +255,8 @@ public class NatsActorSpscRingBufferTests
     /// producer or consumer cannot miss a transition observed from a stale peer index.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task ProducerConsumer_SmallCapacity_DoesNotLoseWakeups()
     {
         const int cap = 2;
@@ -291,6 +308,8 @@ public class NatsActorSpscRingBufferTests
     /// Also ensures Stop can be called twice without throwing.
     /// </summary>
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Stop_ThenUse_ThrowsObjectDisposed_AndStopTwice_NoThrow()
     {
         var buf = CreateAndStart(8);
@@ -309,6 +328,8 @@ public class NatsActorSpscRingBufferTests
 }
 
 [CollectionDefinition(Name, DisableParallelization = true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1711",Justification="Preserve the established public contract or xUnit collection identity.")]
 public sealed class SpscRingBufferCollection
 {
     public const string Name = "SPSC ring-buffer integration tests";

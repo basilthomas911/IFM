@@ -28,7 +28,7 @@ public static class DisableParameterAssignment
 #pragma warning disable MA0015 // The published rejection protocol requires an exact reason code in Exception.Message.
 throw new ArgumentException("PARAM.IDENTITY_INVALID");}
 #pragma warning restore MA0015
-        var hash = ParameterCanonicalPayloadModel.Hash(JsonSerializer.Serialize(new { command.CommandName, command.EntityId, command.ExpectedRevision, command.Scope, command.Reference }));
+        var hash = ParameterBinaryFingerprint.Hash((command.CommandName,command.EntityId.AssignmentId,command.ExpectedRevision,command.Scope,command.Reference));
         if (state.Operations.TryGetValue(command.CommandId, out var prior))
         { if (!string.Equals(prior,hash,StringComparison.Ordinal)) {
 throw new InvalidOperationException("PARAM.OPERATION_IDENTITY_MISMATCH");}
@@ -64,7 +64,7 @@ throw new InvalidOperationException("PARAM.ASSIGNMENT_CONFLICT");}
         }
         catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            parameterChange = new(null, hash, "", rejection.Message);
+            parameterChange = new(null, hash, null, rejection.Message);
             return false;
         }
     }
@@ -81,7 +81,7 @@ throw new InvalidOperationException("PARAM.ASSIGNMENT_CONFLICT");}
             EntityId = command.EntityId,
             Revision = parameterChange.ParameterAssignment!.Revision,
             RequestHash = parameterChange.RequestHash,
-            AssignmentJson = JsonSerializer.Serialize(parameterChange.ParameterAssignment),
-            AuditJson = parameterChange.ParameterAuditJson,
+            Assignment = parameterChange.ParameterAssignment,
+            Audit = parameterChange.ParameterAudit,
         };
 }

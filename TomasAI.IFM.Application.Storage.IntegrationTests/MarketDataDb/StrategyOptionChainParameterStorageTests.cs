@@ -10,13 +10,16 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
-public sealed class StrategyOptionChainParameterStorageTests
+[Collection("PostgreSQL plan atomicity")]
+public sealed class StrategyOptionChainParameterStorageTests(TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb.PostgresTradePlanFixture fixture)
 {
     [Fact]
-    public async Task Immutable_versions_and_monotonic_publication_roundtrip_in_isolated_Scylla_keyspace()
+    public async Task Immutable_versions_and_monotonic_publication_roundtrip_in_isolated_PostgreSQL_database()
     {
         var settings = new DbConnectionSettings().Add(MarketDataDbContext.MarketDataDbConnection,
-            "Contact Points=localhost;Port=9042;Default Keyspace=option_chain_cache_verification", "System.Data.ScyllaDb");
+            fixture.Connection, "System.Data.Postgres");
+        settings.Add(TomasAI.IFM.Application.Storage.ConfigurationDb.ConfigurationDbContext.ConfigurationDbConnection,fixture.Connection,"System.Data.Postgres");
+        await new TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
         await new MarketDataSchemaDb(settings, NullLogger<DbProvider>.Instance).CreateAsync([
             "strategy_option_chain_parameter_version", "strategy_option_chain_parameter_current"]);
         var db = MarketDataDbContextTestFactory.Create(settings[MarketDataDbContext.MarketDataDbConnection]);
@@ -30,6 +33,6 @@ public sealed class StrategyOptionChainParameterStorageTests
         await db.ProjectAsync(second, 5, false, default);
         await db.ProjectAsync(second, 3, true, default); // Late replay cannot reopen a retired version.
         Assert.DoesNotContain(await db.ReadPublishedAsync("Development", default), x => x.ParameterSetId == p.ParameterSetId);
-        await Assert.ThrowsAsync<InvalidDataException>(() => db.ProjectAsync(second with { Name = "conflicting" }, 6, true, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.ProjectAsync(second with { Name = "conflicting" }, 6, true, default));
     }
 }

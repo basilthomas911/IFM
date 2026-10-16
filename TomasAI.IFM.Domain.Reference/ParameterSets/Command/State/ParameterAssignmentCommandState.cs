@@ -18,11 +18,10 @@ public sealed class ParameterAssignmentCommandState : BaseEventSourceActorState<
     protected override bool Apply(IEvent domainEvent)
     {
         if (domainEvent is not ParameterAssignmentChangedEvent fact || fact.Revision != Revision + 1) return false;
-        var value = JsonSerializer.Deserialize<ParameterAssignmentRevision>(fact.AssignmentJson) ?? throw new InvalidDataException("Invalid assignment event.");
+        var value = fact.ReadAssignment();
         if (value.Revision != fact.Revision || value.AssignmentId != fact.EntityId.AssignmentId) throw new InvalidDataException("Assignment identity mismatch.");
-        if (!string.IsNullOrWhiteSpace(fact.AuditJson))
+        if (fact.ReadAudit() is {} entry)
         {
-            var entry = JsonSerializer.Deserialize<ParameterAuditEntry>(fact.AuditJson) ?? throw new InvalidDataException("Invalid audit entry.");
             if (entry.OperationId != fact.CommandId || entry.Revision != fact.Revision) throw new InvalidDataException("Audit identity mismatch.");
             Audit[fact.CommandId] = entry;
         }

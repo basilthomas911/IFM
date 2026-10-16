@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -11,9 +13,10 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 /// <summary>Dispatches the standard Trade Order actor sequence for Portfolio-accepted orders.</summary>
 /// <param name="producer">The actor-message producer used to issue lifecycle commands.</param>
-public sealed class TradeOrderLifecycleApi(IActorProducer producer)
+public sealed class TradeOrderLifecycleApi(IActorProducer producer, ILogger? logger = null)
     : NatsClientApi(producer), ITradeOrderLifecycleApi
 {
+    readonly ILogger _logger = logger ?? NullLogger.Instance;
     /// <inheritdoc />
     public async Task<ServiceResult<Guid>> SubmitAcceptedAsync(
         TradeOrderDefinition order,
@@ -27,6 +30,7 @@ public sealed class TradeOrderLifecycleApi(IActorProducer producer)
         if (portfolioEventId == Guid.Empty)
             throw new ArgumentException("The authorizing Portfolio event is required.", nameof(portfolioEventId));
 
+        _logger.LogInformation("OrderSubmission LifecycleStarted PortfolioEventId={PortfolioEventId} OrderId={OrderId} Channel={Channel} Account={Account} Environment={Environment}", portfolioEventId, order.Id.Format(), channel, order.BrokerAccountAlias, order.BrokerEnvironment);
         var seed = StableId(portfolioEventId.ToString("N"), order.Id.Format());
         var create = await SendAsync(new CreateTradeOrderCommand
         {
@@ -68,8 +72,21 @@ public sealed class TradeOrderLifecycleApi(IActorProducer producer)
     async Task<ServiceResult<Guid>> SendAsync<TCommand>(
         TCommand command,
         CancellationToken cancellationToken)
-        where TCommand : class, ICommand<TradeOrderId> =>
-        await RequestCommandAsync(command, command.EntityId, cancellationToken).ConfigureAwait(false);
+        where TCommand : class, ICommand<TradeOrderId>
+    {
+        _logger.LogInformation("OrderSubmission LifecycleCommandStarted Stage={Stage} OrderId={OrderId} CommandId={CommandId}", typeof(TCommand).Name, command.EntityId.Format(), command.CommandId);
+        try
+        {
+            var result = await RequestCommandAsync(command, command.EntityId, cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("OrderSubmission LifecycleCommandResult Stage={Stage} OrderId={OrderId} CommandId={CommandId} Success={Success} ErrorCode={ErrorCode} ErrorMessage={ErrorMessage}", typeof(TCommand).Name, command.EntityId.Format(), command.CommandId, result.Success, result.ErrorCode, result.ErrorMessage);
+            return result;
+        }
+        catch (Exception error)
+        {
+            _logger.LogError(error, "OrderSubmission LifecycleCommandUnconfirmed Stage={Stage} OrderId={OrderId} CommandId={CommandId}", typeof(TCommand).Name, command.EntityId.Format(), command.CommandId);
+            throw;
+        }
+    }
 
     static ActorSubject Subject(string verb, TradeOrderId id) =>
         new(ActorType.Command, TradeOrderActorNames.Command, verb, id.Format());

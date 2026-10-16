@@ -7,7 +7,7 @@ public unsafe class LiveContractEditorTests
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   try
   {
    var futures=Run(api,handle,new(1,Guid.NewGuid(),"futures-contract","load",0,null,[]));
@@ -28,7 +28,7 @@ public unsafe class LiveContractEditorTests
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   try {
    var first=Run(api,handle,new(1,Guid.NewGuid(),"provider-definitions","load",0,null,new(){["dataset"]="GLBX.MDP3",["root"]="ES",["options"]="true"}));
    Assert.NotEmpty(first.Result.Rows);Assert.True(first.Result.Rows.Length<=100);Assert.True(first.Result.HasMore);
@@ -42,7 +42,7 @@ public unsafe class LiveContractEditorTests
  [Fact] public void Cached_provider_mapping_previews_legacy_future_upgrade_without_writing()
  {
   var old=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV2 api;Assert.Equal(0,get(2,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 api;Assert.Equal(0,get(4,(ApiV1*)&api,48));ulong handle;Assert.Equal(0,api.Base.Create(&handle));
   try {
    var page=Run(api,handle,new(1,Guid.NewGuid(),"provider-definitions","load",0,null,new(){["dataset"]="GLBX.MDP3",["root"]="ES",["options"]="false"}));
    var selected=page.Result.Rows.Single(row=>row.Fields["rawSymbol"]=="ESZ6");
@@ -53,16 +53,16 @@ public unsafe class LiveContractEditorTests
    // Destroy cancels the preview; no publish intent is issued.
   }finally{Assert.Equal(0,api.Base.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",old);}
  }
- static ContractEditorPublication Run(ApiV2 api,ulong handle,ContractEditorIntent request)
+ static ContractEditorPublication Run(ApiV4 api,ulong handle,ContractEditorIntent request)
  {
-  var bytes=JsonSerializer.SerializeToUtf8Bytes(request,Json);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));
+  var bytes=BridgeWire.Serialize(request);fixed(byte* p=bytes)Assert.Equal(0,api.Submit(handle,p,bytes.Length));
   var deadline=DateTime.UtcNow.AddSeconds(45);
   do{var state=Read(api,handle);var outcome=state.Outcomes.SingleOrDefault(x=>x.RequestId==request.RequestId);if(!state.Busy&&outcome is not null&&outcome.State!="Pending"){Assert.True(outcome.State=="Completed",outcome.Message);return state;}Thread.Sleep(100);}while(DateTime.UtcNow<deadline);
   throw new TimeoutException("Contract load did not receive backend completion");
  }
- static ContractEditorPublication Read(ApiV2 api,ulong handle)
+ static ContractEditorPublication Read(ApiV4 api,ulong handle)
  {
-  for(int attempt=0;attempt<3;attempt++){int n;api.Base.Copy(handle,5,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes){if(api.Base.Copy(handle,5,p,n,&n)!=0)continue;}return JsonSerializer.Deserialize<ContractEditorPublication>(bytes,Json)!;}throw new InvalidOperationException("Contract publication changed repeatedly");
+  for(int attempt=0;attempt<3;attempt++){int n;api.Base.Copy(handle,5,null,0,&n);var bytes=new byte[n];fixed(byte* p=bytes){if(api.Base.Copy(handle,5,p,n,&n)!=0)continue;}return BridgeWire.Deserialize<ContractEditorPublication>(bytes)!;}throw new InvalidOperationException("Contract publication changed repeatedly");
  }
 }
 

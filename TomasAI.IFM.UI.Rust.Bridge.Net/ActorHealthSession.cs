@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using TomasAI.IFM.UI.Net.Models.Operations;
 using TomasAI.IFM.UI.Net.Services.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.App;
@@ -15,7 +14,6 @@ public sealed class ActorHealthSession : IAsyncDisposable
     ActorHealthSnapshot? snapshot;
     Dictionary<string,(ActorHealthThreadId Target,long Generation)> targets=[];
     bool started;
-    static readonly JsonSerializerOptions JsonOptions = new(){Converters={new System.Text.Json.Serialization.JsonStringEnumConverter()}};
     DateTime from=DateTime.UtcNow.AddHours(-1),nextRefresh;
     public bool RefreshDue => DateTime.UtcNow>=nextRefresh;
     public ActorHealthSession(){scope=new(Environment.GetEnvironmentVariable("IFM_UI_NATS_URL")??"nats://localhost:4222");service=scope.Container.GetInstance<IActorHealthQueryService>();controls=new(scope.Container.GetInstance<ISupervisorCommandApi>(),scope.Container.GetInstance<SupervisorControlOptions>());}
@@ -47,8 +45,7 @@ public sealed class ActorHealthSession : IAsyncDisposable
         foreach(var x in snapshot.Workers)Add("worker:"+x.WorkerId,"Worker "+x.WorkerId,"Shared workers",x,"worker",x.IsFaulted?"Red":"Green");
         Add("collection","Collection","Health collection",snapshot.Collection,"collection",snapshot.OverallStatus.ToString());Add("polling","Polling","Health collection",snapshot.Polling,"polling",snapshot.Polling.IsAlive?"Green":"Red");
         return new("actor-health",rows.ToArray(),new(){["operations"]=ActorHealthControlModel.Operations.Select(x=>x.ToString()).ToArray()},Context:new(){["summary"]=$"{snapshot.OverallStatus} | Actors {snapshot.RunningActorCount}/{snapshot.ActorCount} running | Messages waiting {snapshot.QueuedMessageCount} | Observed {snapshot.ObservedUtc:u}",["status"]=snapshot.OverallStatus.ToString(),["controls"]=controls.AuthorityAvailable(snapshot)?"true":"false",["fromUtc"]=from.ToString("O"),["observation"]=controls.AuthorityAvailable(snapshot)?"Controlled; refreshes every 15 seconds.":"Observation only; refreshes every 15 seconds."});
-        void Add(string id,string name,string parent,object value,string kind,string status){var fields=new Dictionary<string,string>();Flatten(JsonSerializer.SerializeToElement(value,JsonOptions),"",fields);fields["name"]=name;fields["parent"]=parent;fields["kind"]=kind;fields["status"]=status;fields["canExecute"]=kind is "mailbox" or "incident" ? "true":"false";rows.Add(new(id,fields));}
+        void Add(string id,string name,string parent,object value,string kind,string status){var fields=new Dictionary<string,string>();BridgeDocument.Flatten(value,fields,enumNames:true);fields["name"]=name;fields["parent"]=parent;fields["kind"]=kind;fields["status"]=status;fields["canExecute"]=kind is "mailbox" or "incident" ? "true":"false";rows.Add(new(id,fields));}
     }
-    static void Flatten(JsonElement element,string prefix,Dictionary<string,string> fields){if(element.ValueKind==JsonValueKind.Object){foreach(var p in element.EnumerateObject())Flatten(p.Value,prefix.Length==0?p.Name:prefix+"."+p.Name,fields);}else if(element.ValueKind!=JsonValueKind.Array)fields[prefix]=element.ValueKind==JsonValueKind.String?element.GetString()??"":element.ToString();}
     public async ValueTask DisposeAsync(){if(service is IDisposable disposable)disposable.Dispose();if(scope is not null)await scope.DisposeAsync();}
 }

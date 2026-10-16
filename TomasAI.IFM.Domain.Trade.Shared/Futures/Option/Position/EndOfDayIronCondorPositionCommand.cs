@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 
 /// <summary>Seals the explicit ended value date; retries must validate committed position state.</summary>
 [MessagePackObject]
-public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, ICommandRetryIdentity
+public sealed record EndOfDayIronCondorPositionCommand : TimedPositionCommand, IRecoverableCommandAudit
 {
     public const string Verb = "EndOfDayIronCondorPosition";
     /// <inheritdoc />

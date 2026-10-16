@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -27,35 +27,31 @@ public sealed class MarketDataFeedServiceTests
     readonly IFuturesBarDataUIEventConsumer _barConsumer = Substitute.For<IFuturesBarDataUIEventConsumer>();
 
     [Fact]
-    public async Task StartDataFeed_ForwardsContractsAndValueDateExactlyOnce()
+    public async Task StartDataFeed_SubmitsParameterlessStartExactlyOnce()
     {
         var model = CreateModel();
-        ICollection<FuturesContractV3ReadModel> contracts = [];
-        var valueDate = new DateOnly(2026, 8, 11);
         var commandId = Guid.NewGuid();
-        _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
+        _commandApi.StartMarketDataFeedAsync()
             .Returns(Task.FromResult<ServiceResult<Guid>>(
                 new ServiceOk<Guid>(commandId)));
 
-        var result = await model.StartDataFeedAsync(contracts, valueDate);
+        var result = await model.StartDataFeedAsync();
 
         result.Should().Be(commandId);
-        await _commandApi.Received(1).StartMarketDataFeedAsync(contracts, valueDate);
+        await _commandApi.Received(1).StartMarketDataFeedAsync();
     }
 
     [Fact]
     public async Task StartDataFeed_PreservesServiceFailureForTheViewModelBoundary()
     {
         var model = CreateModel();
-        ICollection<FuturesContractV3ReadModel> contracts = [];
-        var valueDate = new DateOnly(2026, 8, 11);
         (int Code, string Message)? error = null;
         model.OnError((code, message) => error = (code, message));
-        _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
+        _commandApi.StartMarketDataFeedAsync()
             .Returns(Task.FromResult<ServiceResult<Guid>>(
                 new ServiceFailed<Guid>(7301, "Feed start failed.")));
 
-        var commandId = await model.StartDataFeedAsync(contracts, valueDate);
+        var commandId = await model.StartDataFeedAsync();
 
         commandId.Should().Be(Guid.Empty);
         error.Should().Be((7301, "Feed start failed."));

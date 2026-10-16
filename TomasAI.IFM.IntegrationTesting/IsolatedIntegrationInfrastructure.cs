@@ -42,6 +42,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     public string RunId => runId;
 
     string CqlContainer => $"ifm-{scope}-cql-{runId}";
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1822",Justification="Preserve the instance contract consumed by existing callers or BenchmarkDotNet reflection.")]
 
     /// <summary>Gets the PostgreSQL user created for the isolated instance.</summary>
     public string PostgresUser => "postgres";
@@ -64,12 +65,15 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
 
     /// <summary>Gets the isolated Redis endpoint.</summary>
     public string RedisConnectionString { get; private set; } = string.Empty;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1056",Justification="NATS clients and configuration consumers require the existing string endpoint contract.")]
 
     /// <summary>Gets the isolated NATS endpoint.</summary>
     public string NatsUrl { get; private set; } = string.Empty;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1056",Justification="NATS clients and configuration consumers require the existing string endpoint contract.")]
 
     /// <summary>Gets the isolated NATS endpoint reserved for separately configured actor hosts.</summary>
     public string AuxiliaryNatsUrl { get; private set; } = string.Empty;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1721",Justification="Preserve the existing fixture property and parameterized connection-string method contracts.")]
 
     /// <summary>Gets the isolated CQL connection string.</summary>
     public string CqlConnectionString { get; private set; } = string.Empty;
@@ -88,31 +92,31 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
 
         try
         {
-            await DockerAsync(["run", "--detach", "--rm", "--name", PostgresContainer, "--label", $"ifm.integration.run={runId}",
+            await (DockerAsync(["run", "--detach", "--rm", "--name", PostgresContainer, "--label", $"ifm.integration.run={runId}",
                 "--publish", "127.0.0.1::5432", "--env", $"POSTGRES_USER={PostgresUser}",
-                "--env", $"POSTGRES_PASSWORD={PostgresPassword}", "--env", $"POSTGRES_DB={PostgresDatabase}", PostgresImage]);
-            await DockerAsync(["run", "--detach", "--rm", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
-                "--publish", "127.0.0.1::6379", RedisImage]);
-            await DockerAsync(["run", "--detach", "--rm", "--name", NatsContainer, "--label", $"ifm.integration.run={runId}",
-                "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"]);
+                "--env", $"POSTGRES_PASSWORD={PostgresPassword}", "--env", $"POSTGRES_DB={PostgresDatabase}", PostgresImage])).ConfigureAwait(false);
+            await (DockerAsync(["run", "--detach", "--rm", "--name", RedisContainer, "--label", $"ifm.integration.run={runId}",
+                "--publish", "127.0.0.1::6379", RedisImage])).ConfigureAwait(false);
+            await (DockerAsync(["run", "--detach", "--rm", "--name", NatsContainer, "--label", $"ifm.integration.run={runId}",
+                "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"])).ConfigureAwait(false);
             if (scope == "domainactors")
-                await DockerAsync(["run", "--detach", "--rm", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
-                    "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"]);
+                await (DockerAsync(["run", "--detach", "--rm", "--name", AuxiliaryNatsContainer, "--label", $"ifm.integration.run={runId}",
+                    "--publish", "127.0.0.1::4222", NatsImage, "--jetstream"])).ConfigureAwait(false);
             if (useScylla)
-                await DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "3g", ScyllaImage,
-                    "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"]);
+                    "--smp", "1", "--memory", "1G", "--overprovisioned", "1", "--developer-mode", "1"])).ConfigureAwait(false);
             else
-                await DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
+                await (DockerAsync(["run", "--detach", "--rm", "--name", CqlContainer, "--label", $"ifm.integration.run={runId}",
                     "--publish", "127.0.0.1::9042", "--memory", "2g", "--env", "MAX_HEAP_SIZE=512M",
-                    "--env", "HEAP_NEWSIZE=100M", CqlImage]);
+                    "--env", "HEAP_NEWSIZE=100M", CqlImage])).ConfigureAwait(false);
 
-            PostgresPort = await MappedPortAsync(PostgresContainer, "5432/tcp");
-            var redisPort = await MappedPortAsync(RedisContainer, "6379/tcp");
-            var natsPort = await MappedPortAsync(NatsContainer, "4222/tcp");
-            CqlPort = await MappedPortAsync(CqlContainer, "9042/tcp");
+            PostgresPort = await (MappedPortAsync(PostgresContainer, "5432/tcp")).ConfigureAwait(false);
+            var redisPort = await (MappedPortAsync(RedisContainer, "6379/tcp")).ConfigureAwait(false);
+            var natsPort = await (MappedPortAsync(NatsContainer, "4222/tcp")).ConfigureAwait(false);
+            CqlPort = await (MappedPortAsync(CqlContainer, "9042/tcp")).ConfigureAwait(false);
             var auxiliaryNatsPort = scope == "domainactors"
-                ? await MappedPortAsync(AuxiliaryNatsContainer, "4222/tcp") : natsPort;
+                ? await (MappedPortAsync(AuxiliaryNatsContainer, "4222/tcp")).ConfigureAwait(false) : natsPort;
 
             PostgresConnectionString = $"Host=127.0.0.1;Port={PostgresPort};Database={PostgresDatabase};SSL Mode=Disable;Pooling=true";
             RedisConnectionString = $"127.0.0.1:{redisPort},abortConnect=false";
@@ -123,17 +127,17 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             SetCredentialEnvironment("POSTGRES_DEV_KEY");
             SetCredentialEnvironment("POSTGRES_TEST_KEY");
 
-            await WaitForPostgresAsync();
-            await WaitForTcpAsync(redisPort, "Redis");
-            await WaitForTcpAsync(natsPort, "NATS");
-            await WaitForCqlAsync();
-            await CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {CqlKeyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};");
-            await WaitForTcpAsync(auxiliaryNatsPort, "auxiliary NATS");
+            await (WaitForPostgresAsync()).ConfigureAwait(false);
+            await (WaitForTcpAsync(redisPort, "Redis")).ConfigureAwait(false);
+            await (WaitForTcpAsync(natsPort, "NATS")).ConfigureAwait(false);
+            await (WaitForCqlAsync()).ConfigureAwait(false);
+            await (CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {CqlKeyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};")).ConfigureAwait(false);
+            await (WaitForTcpAsync(auxiliaryNatsPort, "auxiliary NATS")).ConfigureAwait(false);
             started = true;
         }
         catch
         {
-            await DisposeAsync();
+            await (DisposeAsync()).ConfigureAwait(false);
             throw;
         }
     }
@@ -151,7 +155,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     public async Task EnsureCqlKeyspaceAsync(string keyspace)
     {
         ValidateCqlIdentifier(keyspace);
-        await CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};");
+        await (CqlAsync($"CREATE KEYSPACE IF NOT EXISTS {keyspace} WITH replication = {{'class':'SimpleStrategy','replication_factor':1}};")).ConfigureAwait(false);
     }
 
     static void ValidateCqlIdentifier(string value)
@@ -164,11 +168,11 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     // --rm also covers a container exiting before the fixture reaches DisposeAsync.
     public async ValueTask DisposeAsync()
     {
-        await DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", "--volumes", NatsContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", "--volumes", PostgresContainer], allowFailure: true);
-        await DockerAsync(["rm", "--force", "--volumes", AuxiliaryNatsContainer], allowFailure: true);
+        await (DockerAsync(["rm", "--force", "--volumes", CqlContainer], allowFailure: true)).ConfigureAwait(false);
+        await (DockerAsync(["rm", "--force", "--volumes", NatsContainer], allowFailure: true)).ConfigureAwait(false);
+        await (DockerAsync(["rm", "--force", "--volumes", RedisContainer], allowFailure: true)).ConfigureAwait(false);
+        await (DockerAsync(["rm", "--force", "--volumes", PostgresContainer], allowFailure: true)).ConfigureAwait(false);
+        await (DockerAsync(["rm", "--force", "--volumes", AuxiliaryNatsContainer], allowFailure: true)).ConfigureAwait(false);
         foreach (var (name, value) in previousEnvironment)
             Environment.SetEnvironmentVariable(name, value);
         previousEnvironment.Clear();
@@ -192,12 +196,12 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
         {
             try
             {
-                await DockerAsync(["exec", PostgresContainer, "pg_isready", "--username", PostgresUser, "--dbname", PostgresDatabase]);
+                await (DockerAsync(["exec", PostgresContainer, "pg_isready", "--username", PostgresUser, "--dbname", PostgresDatabase])).ConfigureAwait(false);
                 return;
             }
             catch (InvalidOperationException)
             {
-                await Task.Delay(250);
+                await (Task.Delay(250)).ConfigureAwait(false);
             }
         }
 
@@ -212,13 +216,13 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
         {
             try
             {
-                await CqlAsync("SELECT now() FROM system.local;");
+                await (CqlAsync("SELECT now() FROM system.local;")).ConfigureAwait(false);
                 return;
             }
             catch (InvalidOperationException error)
             {
                 lastFailure = error;
-                await Task.Delay(500);
+                await (Task.Delay(500)).ConfigureAwait(false);
             }
         }
 
@@ -226,7 +230,7 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
     }
 
     async Task CqlAsync(string cql)
-        => _ = await DockerAsync(["exec", CqlContainer, "cqlsh", "-e", cql]);
+        => _ = await (DockerAsync(["exec", CqlContainer, "cqlsh", "-e", cql])).ConfigureAwait(false);
 
     static async Task WaitForTcpAsync(int port, string service)
     {
@@ -236,12 +240,12 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             try
             {
                 using var client = new TcpClient();
-                await client.ConnectAsync(IPAddress.Loopback, port);
+                await (client.ConnectAsync(IPAddress.Loopback, port)).ConfigureAwait(false);
                 return;
             }
             catch (SocketException)
             {
-                await Task.Delay(250);
+                await (Task.Delay(250)).ConfigureAwait(false);
             }
         }
 
@@ -250,9 +254,9 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
 
     static async Task<int> MappedPortAsync(string container, string containerPort)
     {
-        var output = await DockerAsync(["port", container, containerPort]);
+        var output = await (DockerAsync(["port", container, containerPort])).ConfigureAwait(false);
         var endpoint = output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Single();
-        return int.Parse(endpoint[(endpoint.LastIndexOf(':') + 1)..]);
+        return int.Parse(endpoint[(endpoint.LastIndexOf(':') + 1)..], System.Globalization.CultureInfo.InvariantCulture);
     }
 
     static async Task<string> DockerAsync(IReadOnlyList<string> arguments, bool allowFailure = false)
@@ -272,9 +276,9 @@ public sealed class IsolatedIntegrationInfrastructure : IAsyncDisposable
             ?? throw new InvalidOperationException("Docker could not be started.");
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        var output = await outputTask;
-        var error = await errorTask;
+        await (process.WaitForExitAsync()).ConfigureAwait(false);
+        var output = await (outputTask).ConfigureAwait(false);
+        var error = await (errorTask).ConfigureAwait(false);
         if (!allowFailure && process.ExitCode != 0)
             throw new InvalidOperationException($"Docker failed with exit code {process.ExitCode}: {error}");
         return output.Trim();

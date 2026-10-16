@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using TomasAI.IFM.UI.Net.Models.Reference;
 using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
@@ -15,7 +14,7 @@ sealed class EconomicCalendarEditorSession:IDisposable
  public EconomicCalendarEditorSession(){model=new(scope,scope.Container.GetInstance<IEconomicCalendarService>());ready=scope.StartAsync(stopping.Token).AsTask();}
  static string Field(ContractEditorIntent input,string name)=>input.Fields.GetValueOrDefault(name)?.Trim()??"";
  static string? Optional(ContractEditorIntent input,string name)=>Field(input,name) is {Length:>0} value?value:null;
- static string Key(EconomicCalendarUiModel row)=>Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new{row.EventDate,row.CountryCode,row.EventName}));
+ static string Key(EconomicCalendarUiModel row)=>Convert.ToBase64String(BridgeDocument.Encode(new{row.EventDate,row.CountryCode,row.EventName}));
  public async Task<ContractEditorResult> ExecuteAsync(ContractEditorIntent input)
  {
   await ready;if(Field(input,"filterDate") is {Length:>0} filter && !DateOnly.TryParseExact(filter,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _))throw new ArgumentException("Enter the filter date as yyyy-MM-dd");filterDate=DateOnly.TryParseExact(Field(input,"filterDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date:scope.ValueDates.ValueDate;

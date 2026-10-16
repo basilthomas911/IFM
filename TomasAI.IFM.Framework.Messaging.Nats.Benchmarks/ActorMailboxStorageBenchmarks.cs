@@ -12,6 +12,8 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.Benchmarks;
 [ThreadingDiagnoser]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorMailboxStorageBenchmarks
 {
     const int Capacity = 8192;
@@ -104,6 +106,7 @@ public class ActorMailboxStorageBenchmarks
             if (_failure is not null)
                 throw new InvalidOperationException("A benchmark producer failed.", _failure);
         }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1031",Justification="This process/UI boundary reports failures through its existing logging or error result while completing cleanup.")]
 
         void RunProducer(int producer)
         {
@@ -176,6 +179,8 @@ public class ActorMailboxStorageBenchmarks
 [ThreadingDiagnoser]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorMailboxRoundTripBenchmarks
 {
     IActorThreadQueue _queue = null!;
@@ -234,6 +239,8 @@ public class ActorMailboxRoundTripBenchmarks
 [ThreadingDiagnoser]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
 public class ActorMailboxSpscCapacityBenchmarks
 {
     const int OperationCount = 4096;
@@ -301,6 +308,8 @@ public class ActorMailboxSpscCapacityBenchmarks
 [ThreadingDiagnoser]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1001",Justification="BenchmarkDotNet invokes GlobalCleanup to dispose all owned database resources and clients.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class ActorMailboxScheduledBurstBenchmarks
 {
     const int OperationCount = 4096;
@@ -372,6 +381,7 @@ public class ActorMailboxScheduledBurstBenchmarks
 [InProcess]
 [WarmupCount(3)]
 [IterationCount(8)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="BenchmarkDotNet generates a separate assembly that invokes this public benchmark entry point.")]
 public class ActorMailboxCreationBenchmarks
 {
     [Params(

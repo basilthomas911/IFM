@@ -6,7 +6,7 @@ public unsafe class LiveWorkflowDeliveryTests
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(5)};Assert.True(http.GetAsync("http://localhost:22543/health/launch-ready").GetAwaiter().GetResult().IsSuccessStatusCode);
   var previous=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE");Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE","live");
-  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV1 api;get(1,&api,40);ulong handle;Assert.Equal(0,api.Create(&handle));
+  delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;ApiV4 table;Assert.Equal(0,get(4,(ApiV1*)&table,(uint)sizeof(ApiV4)));var api=table.Base;ulong handle;Assert.Equal(0,api.Create(&handle));
   try
   {
    Assert.Equal(0,api.Action(handle,10));var ready=DateTime.UtcNow.AddSeconds(30);JsonElement baseline=default;
@@ -29,7 +29,7 @@ public unsafe class LiveWorkflowDeliveryTests
   }
   finally{Assert.Equal(0,api.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",previous);}
  }
- static JsonElement Read(ApiV1 api,ulong handle){for(int attempt=0;attempt<300;attempt++){int n;api.Copy(handle,0,null,0,&n);if(n==0){Thread.Sleep(100);continue;}var bytes=new byte[n];fixed(byte* p=bytes){if(api.Copy(handle,0,p,n,&n)!=0)continue;}using var doc=JsonDocument.Parse(bytes);return doc.RootElement.Clone();}throw new InvalidOperationException("Live snapshot unavailable");}
+ static JsonElement Read(ApiV1 api,ulong handle){for(int attempt=0;attempt<300;attempt++){int n;api.Copy(handle,0,null,0,&n);if(n==0){Thread.Sleep(100);continue;}var bytes=new byte[n];fixed(byte* p=bytes){if(api.Copy(handle,0,p,n,&n)!=0)continue;}using var doc=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(bytes,BridgeWire.Options));return doc.RootElement.Clone();}throw new InvalidOperationException("Live snapshot unavailable");}
 }
 static class WorkflowDeliveryEvidence
 {

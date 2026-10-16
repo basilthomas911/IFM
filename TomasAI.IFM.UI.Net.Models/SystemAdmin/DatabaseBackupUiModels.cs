@@ -83,6 +83,7 @@ public sealed record DatabaseBackupHistoryUiModel(IReadOnlyList<DatabaseBackupOp
 public sealed record DatabaseBackupLogUiModel(IReadOnlyList<DatabaseBackupPhaseUiModel> Phases, string Output, long NextOffset, bool EndOfOutput, bool Available);
 /// <summary>A timestamped phase observation with explicit milestone progress.</summary>
 public sealed record DatabaseBackupPhaseUiModel(long Revision, DateTimeOffset ObservedUtc, DatabaseRecoveryPhase Phase, DatabaseRecoveryOutcome Outcome, int ProgressPercent);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 /// <summary>A revision-matched editable backup policy; source and protected-set arrays are preserved on save.</summary>
 public sealed record DatabaseBackupPolicyUiModel(string Id, long Revision, bool Enforced, BackupSource[] EnabledSources, string[] ProtectionSets, TimeSpan Rpo, TimeSpan Rto, int Daily, int Weekly, int Monthly, DatabaseVerificationLevel[] VerificationLevels, TimeSpan MaximumVerificationAge);
 /// <summary>A host's safe readiness observation.</summary>

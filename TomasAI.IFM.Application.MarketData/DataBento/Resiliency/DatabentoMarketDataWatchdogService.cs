@@ -33,6 +33,9 @@ public sealed class DatabentoMarketDataWatchdogService(
     readonly TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? _operationsHealth = operationsHealth;
     readonly IDatabentoRecoveryRequester? _recoveryRequester = recoveryRequester;
     readonly Dictionary<string, DatasetIncidentStateMachine> _incidents = new(StringComparer.Ordinal);
+    // Accessed only while holding _operations. An operator stop applies to this value date.
+    DateOnly? _requestedStopValueDate;
+    DateOnly? _requestedStartValueDate;
     int _incidentsHydrated;
     long _replacementRetryTimestamp = long.MaxValue;
     DatabentoLifecycleSnapshot _current = NewSnapshot();
@@ -61,6 +64,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     public Task StartAsync(DateOnly valueDate, Func<Guid, int, string, Task>? errorMessageHandler = null,
         CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
+        _requestedStopValueDate = null;
+        _requestedStartValueDate = valueDate;
         Measure(MarketDataOperationStage.DatabentoLifecycle, MarketDataOperationOutcome.Requested, Guid.Empty);
         if (runtime.ActiveValueDate == valueDate && Current.State == DatabentoLifecycleState.Healthy)
             return;
@@ -91,8 +96,8 @@ public sealed class DatabentoMarketDataWatchdogService(
 
     public Task StopAsync(DateOnly valueDate, CancellationToken cancellationToken = default) => SerializedAsync(async token =>
     {
-        if (runtime.ActiveValueDate is { } active && active != valueDate)
-            throw new InvalidOperationException($"Active value date {active:yyyy-MM-dd} does not match stop request {valueDate:yyyy-MM-dd}.");
+        _requestedStartValueDate = null;
+        _requestedStopValueDate = runtime.ActiveValueDate ?? valueDate;
         await runtime.StopAsync(token).ConfigureAwait(false);
         await CloseIncidentsAsync(token).ConfigureAwait(false);
         Transition(DatabentoLifecycleState.ScheduledStopped, null, Guid.Empty, 0, "Requested stop completed.");
@@ -116,6 +121,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     public Task ResetAsync(DateOnly valueDate, Guid correlationId, CancellationToken cancellationToken = default)
         => SerializedAsync(async token =>
         {
+            _requestedStopValueDate = null;
+            _requestedStartValueDate = valueDate;
             await RecoverConfiguredAsync(valueDate,
             correlationId == Guid.Empty ? Guid.CreateVersion7(timeProvider.GetUtcNow()) : correlationId,
             DatabentoOperationReason.ManualReset, token).ConfigureAwait(false);
@@ -130,7 +137,8 @@ public sealed class DatabentoMarketDataWatchdogService(
         if (_stage3.Enabled)
             await EnsureIncidentsHydratedAsync(token).ConfigureAwait(false);
         var session = sessionAuthority.Current;
-        if (session.ActiveValueDate is null)
+        var requestedDate = session.ActiveValueDate ?? _requestedStartValueDate;
+        if (requestedDate is null)
         {
             if (runtime.ActiveValueDate is not null)
                 await runtime.StopAsync(token).ConfigureAwait(false);
@@ -141,7 +149,12 @@ public sealed class DatabentoMarketDataWatchdogService(
             return;
         }
 
-        var valueDate = session.ActiveValueDate.Value;
+        var valueDate = requestedDate.Value;
+        // A stopped feed during an open session is not a failure to recover.
+        // Explicit Start/Reset or a new value date permits processing again.
+        if (_requestedStopValueDate == valueDate)
+            return;
+        _requestedStopValueDate = null;
         if (runtime.ActiveValueDate is { } activeValueDate && activeValueDate != valueDate)
         {
             if (_stage3.Enabled)

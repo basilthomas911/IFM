@@ -12,6 +12,24 @@ namespace TomasAI.IFM.Domain.Portfolio.UnitTests.OrderComposition;
 public sealed class PortfolioOrderCompositionModelTests
 {
     [Fact]
+    public async Task Trusted_development_manual_order_does_not_require_deployment_or_capacity_admission()
+    {
+        var original=Request();
+        var request=original with { Body=original.Body with { Origin="DesktopTradeOrder",
+            SetupTrade=new() { FundId=10,OrderId=100,TradeId=200 },
+            BrokerEnvironment=PortfolioBrokerEnvironment.Emulator, DeploymentKey=default } };
+        var book=Book(false) with { Environment="Emulator",DevelopmentQualificationsExempt=true };
+        book=book with { Funds=book.Funds.Select(f=>f with { Deployments=[],Limits=[] }).ToArray() };
+        var result=await PortfolioOrderCompositionModel.EvaluateAsync(request,book,7,[],new TestIdentityAllocator());
+        result.TradeOrders.Should().ContainSingle();
+        result.TradeOrders[0].Components[0].Legs.Should().BeEquivalentTo(request.Body.Components[0].Legs);
+        result.CapacityEffects.Should().BeEmpty();
+        var production=book with { DevelopmentQualificationsExempt=false };
+        var act=async()=>await PortfolioOrderCompositionModel.EvaluateAsync(request,production,7,[],new TestIdentityAllocator());
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
     public async Task Manual_setup_is_only_executed_by_its_owning_fund()
     {
         var original = Request();

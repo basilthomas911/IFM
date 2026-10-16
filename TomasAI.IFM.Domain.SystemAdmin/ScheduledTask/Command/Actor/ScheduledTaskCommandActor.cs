@@ -95,7 +95,7 @@ public sealed class ScheduledTaskCommandActor(ICommandActorContext<ScheduledTask
             {
                 var typed = (AdmitScheduledTaskRunCommand)command;
                 var schedule = state.ScheduledTaskDefinition?.Schedule;
-                var catalog = schedule is null ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
+                var catalog = schedule is null || !ScheduledTaskExecutionPolicy.RequiresAdmission(schedule.TaskKey, schedule.Environment) ? null : await owner.ReadStore.GetCatalogAsync(schedule.Environment, schedule.HostId).ConfigureAwait(false);
                 return typed.Execute(state, owner.Clock.GetUtcNow(), catalog);
             },
             [typeof(RecordScheduledTaskRunCompletionCommand)] = async (command, owner, state) =>

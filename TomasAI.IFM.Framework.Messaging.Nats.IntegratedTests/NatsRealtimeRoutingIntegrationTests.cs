@@ -20,6 +20,8 @@ public sealed class NatsRealtimeRoutingIntegrationTests
         Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task RealtimePublication_DeliversToPrimaryAndRegisteredRouteOnce()
     {
         var suffix = Guid.NewGuid().ToString("N");
@@ -112,6 +114,7 @@ public sealed class NatsRealtimeRoutingIntegrationTests
             await consumer.StopAsync();
         }
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2012",Justification="This ValueTask invocation configures or verifies an NSubstitute call, rather than executing asynchronous work.")]
 
     static IActorThreadQueues CreateAcceptingQueues(
         TaskCompletionSource<ReceivedRealtime> received)
@@ -138,6 +141,8 @@ public sealed class NatsRealtimeRoutingIntegrationTests
     }
 
     [MessagePackObject]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
     public sealed record TaggedRealtimeEvent : IEvent<ActorEntityId>, IRealtimeSourceGeneration
     {
         [Key(0)] public ActorSubject Subject { get; init; }

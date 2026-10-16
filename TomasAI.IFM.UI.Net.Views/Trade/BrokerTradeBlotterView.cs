@@ -68,6 +68,8 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     private OrderFillsPreviewControl? _orderFillsView;
     private TabPage? _orderFillsTab;
     private bool _brokerOrderSubmitted;
+    private bool _submissionRequiresReconciliation;
+    private bool _submissionInProgress;
     private bool _isNewTrade;
     private OrderActionType _brokerOrderAction = OrderActionType.Open;
     private readonly PortfolioFundOrderTradeEditorModel _brokerTradeIdentity;
@@ -809,8 +811,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         {
             if (_strategy == TradeBlotterStrategy.IronCondor)
             {
-                var defaults = JsonSerializer.Deserialize<IronCondorMarketSelectionParameterSet>(version.PayloadJson)
-                    ?? throw new InvalidDataException("Iron Condor defaults are invalid.");
+                var defaults = version.Values().Get<IronCondorMarketSelectionParameterSet>();
                 var symbol = Resolve(defaults.DefaultSymbol, defaults.Symbols, value => value.Symbol);
                 _shortCallDelta.Value = symbol.ShortCallDelta;
                 _callSpreadWidth.Value = symbol.CallSpreadWidth;
@@ -819,8 +820,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
             }
             else
             {
-                var defaults = JsonSerializer.Deserialize<VerticalSpreadMarketSelectionParameterSet>(version.PayloadJson)
-                    ?? throw new InvalidDataException("Vertical Spread defaults are invalid.");
+                var defaults = version.Values().Get<VerticalSpreadMarketSelectionParameterSet>();
                 var symbol = Resolve(defaults.DefaultSymbol, defaults.Symbols, value => value.Symbol);
                 _shortLegDelta.Value = symbol.ShortLegDelta;
                 _spreadWidth.Value = symbol.SpreadWidth;
@@ -1661,7 +1661,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
         }
         if (_brokerInitialization is not null) _brokerInitialization = _brokerInitialization with { SelectedLegs = legs.ToArray() };
         _brokerTradePreview.BindSelectedLegs(legs);
-        _brokerTradePreview.SetPlaceOrderEnabled(!_readOnly && _isNewTrade && !_brokerOrderSubmitted
+        _brokerTradePreview.SetPlaceOrderEnabled(!_readOnly && _isNewTrade && !_brokerOrderSubmitted && !_submissionRequiresReconciliation && !_submissionInProgress
             && legs.Count == MaximumSelectedLegs
             && (_strategy == TradeBlotterStrategy.FuturesOutright || legs.All(x => x.Sign != 0 && x.Bid.HasValue && x.Ask.HasValue))
             && _brokerTradePreview.LegQuantities.Values.Distinct().Count() <= 1);
@@ -1878,56 +1878,67 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
     public async Task<Guid> SubmitOrderAsync(DateOnly tradeDate, OrderActionType orderAction,
         ITradeOrderConfirmationService tradeOrderConfirmation)
     {
-        if (_readOnly || _brokerOrderSubmitted)
-            throw new InvalidOperationException("This trade has already been submitted or is read-only.");
-        // Return from the accessibility/button callback before opening a modal confirmation.
-        await Task.Yield();
-        if (_strategy != TradeBlotterStrategy.FuturesOutright && _displayedFrozenPreview
-            && _capabilities.Environment == AppBrokerEnvironment.Emulator
-            && _expirationSelector.SelectedItem is ExpiryChoice selectedExpiry)
+        if (_readOnly || _brokerOrderSubmitted || _submissionInProgress || _submissionRequiresReconciliation)
+            throw new InvalidOperationException("This trade is read-only, already submitted, or has an unconfirmed submission. Reconcile its execution before retrying.");
+        _submissionInProgress = true;
+        try
         {
-            var requiredLegs = _strategy == TradeBlotterStrategy.IronCondor ? 4 : 2;
-            if (_selectedMarketContracts.Count != requiredLegs
-                || _brokerTradePreview is null)
-                throw new InvalidOperationException(
-                    $"Select all {requiredLegs} option legs before submitting the frozen emulator spread.");
-            var snapshot = await _appRoot.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(
-                CreateChainQuery(selectedExpiry.Value) with { FrozenEmulatorPreviewOnly = true });
-            if (!snapshot.Success || snapshot.Value is null
-                || _selectedMarketContracts.Any(id => !snapshot.Value.Contracts.Any(contract =>
-                    contract.ContractId == id && contract.Bid is > 0 && contract.Ask >= contract.Bid)))
-                throw new InvalidOperationException("A complete frozen emulator quote is unavailable for the selected legs.");
-            BindEvaluatedChain(snapshot.Value);
+            // Return from the accessibility/button callback before opening a modal confirmation.
+            await Task.Yield();
+            if (_strategy != TradeBlotterStrategy.FuturesOutright && _displayedFrozenPreview
+                && _capabilities.Environment == AppBrokerEnvironment.Emulator
+                && _expirationSelector.SelectedItem is ExpiryChoice selectedExpiry)
+            {
+                var requiredLegs = _strategy == TradeBlotterStrategy.IronCondor ? 4 : 2;
+                if (_selectedMarketContracts.Count != requiredLegs
+                    || _brokerTradePreview is null)
+                    throw new InvalidOperationException(
+                        $"Select all {requiredLegs} option legs before submitting the frozen emulator spread.");
+                var snapshot = await _appRoot.Services.MarketDataQueries.QueryEvaluatedOptionChainAsync(
+                    CreateChainQuery(selectedExpiry.Value) with { FrozenEmulatorPreviewOnly = true });
+                if (!snapshot.Success || snapshot.Value is null
+                    || _selectedMarketContracts.Any(id => !snapshot.Value.Contracts.Any(contract =>
+                        contract.ContractId == id && contract.Bid is > 0 && contract.Ask >= contract.Bid)))
+                    throw new InvalidOperationException("A complete frozen emulator quote is unavailable for the selected legs.");
+                BindEvaluatedChain(snapshot.Value);
+            }
+            if (orderAction != OrderActionType.Open)
+                throw new InvalidOperationException("This New Trade screen submits opening orders only.");
+            var preview = _brokerTradePreview ?? throw new InvalidOperationException("Broker Trade is unavailable.");
+            if (_brokerInitialization?.Underlying is null) await LoadBrokerTradeAsync();
+            preview.CommitDraftEdits();
+            var underlying = _brokerInitialization?.Underlying
+                ?? throw new InvalidOperationException("The underlying contract definition is unavailable.");
+            var price = preview.SelectedOrderPrice ?? throw new InvalidOperationException("Enter a valid Order Price.");
+            var tick = _strategy == TradeBlotterStrategy.FuturesOutright ? 0.25m : 0.05m;
+            if (price % tick != 0) throw new InvalidOperationException($"Order Price must be a multiple of {tick}.");
+            var submission = new BrokerManualTradeOrderViewModel(_appRoot, _brokerPortfolioId,
+                _brokerFundOrder, _brokerTradeIdentity with { RequestedTradeDate = tradeDate }, underlying);
+            submission.SetScreenLegSelection((_expirationSelector.SelectedItem as ExpiryChoice)?.Value
+                ?? _brokerTradeIdentity.RequestedMaturityDate ?? tradeDate, preview.SelectedLegs, preview.LegQuantities);
+            submission.SetExecutionSelection(
+                Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType>(preview.SelectedOrderType),
+                Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm>(preview.SelectedAlgorithm),
+                preview.SelectedTimeInForce, preview.SelectedPace);
+            Guid result;
+            try { result = await submission.SubmitAsync(preview.Quantity, price, tradeOrderConfirmation); }
+            catch {
+                _submissionRequiresReconciliation = submission.RequiresSubmissionReconciliation;
+                if (_submissionRequiresReconciliation) _brokerTradePreview?.SetPlaceOrderEnabled(false);
+                throw;
+            }
+            _submittedTradeOrders = submission.SubmittedTradeOrders;
+            if (result != Guid.Empty)
+            {
+                _brokerOrderSubmitted = true;
+                _orderFillsView?.BindSubmittedOrders(_submittedTradeOrders);
+                if (_orderFillsTab?.Parent is TabControl orderTabs) orderTabs.SelectedTab = _orderFillsTab;
+                _brokerTradePreview?.SetOrderTypeEditable(false);
+                _brokerTradePreview?.SetPlaceOrderEnabled(false);
+            }
+            return result;
         }
-        if (orderAction != OrderActionType.Open)
-            throw new InvalidOperationException("This New Trade screen submits opening orders only.");
-        var preview = _brokerTradePreview ?? throw new InvalidOperationException("Broker Trade is unavailable.");
-        if (_brokerInitialization?.Underlying is null) await LoadBrokerTradeAsync();
-        preview.CommitDraftEdits();
-        var underlying = _brokerInitialization?.Underlying
-            ?? throw new InvalidOperationException("The underlying contract definition is unavailable.");
-        var price = preview.SelectedOrderPrice ?? throw new InvalidOperationException("Enter a valid Order Price.");
-        var tick = _strategy == TradeBlotterStrategy.FuturesOutright ? 0.25m : 0.05m;
-        if (price % tick != 0) throw new InvalidOperationException($"Order Price must be a multiple of {tick}.");
-        var submission = new BrokerManualTradeOrderViewModel(_appRoot, _brokerPortfolioId,
-            _brokerFundOrder, _brokerTradeIdentity with { RequestedTradeDate = tradeDate }, underlying);
-        submission.SetScreenLegSelection((_expirationSelector.SelectedItem as ExpiryChoice)?.Value
-            ?? _brokerTradeIdentity.RequestedMaturityDate ?? tradeDate, preview.SelectedLegs, preview.LegQuantities);
-        submission.SetExecutionSelection(
-            Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerOrderType>(preview.SelectedOrderType),
-            Enum.Parse<TomasAI.IFM.Domain.Trade.Shared.BrokerAlgorithm>(preview.SelectedAlgorithm),
-            preview.SelectedTimeInForce, preview.SelectedPace);
-        var result = await submission.SubmitAsync(preview.Quantity, price, tradeOrderConfirmation);
-        _submittedTradeOrders = submission.SubmittedTradeOrders;
-        if (result != Guid.Empty)
-        {
-            _brokerOrderSubmitted = true;
-            _orderFillsView?.BindSubmittedOrders(_submittedTradeOrders);
-            if (_orderFillsTab?.Parent is TabControl orderTabs) orderTabs.SelectedTab = _orderFillsTab;
-            _brokerTradePreview?.SetOrderTypeEditable(false);
-            _brokerTradePreview?.SetPlaceOrderEnabled(false);
-        }
-        return result;
+        finally { _submissionInProgress = false; RefreshBrokerTradeSelection(); }
     }
     public async Task SetLiveFeedAsync(bool enabled)
     {

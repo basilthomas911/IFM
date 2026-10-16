@@ -21,6 +21,7 @@ public sealed class NatsTransportOverloadTests
 
     [Theory]
     [MemberData(nameof(CompatibleResultTypes))]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void OverloadReply_IsStructurallyCompatibleWithTypedServiceResult(Type resultType)
     {
         var method = typeof(NatsTransportOverloadTests)
@@ -32,6 +33,7 @@ public sealed class NatsTransportOverloadTests
 
     [Theory]
     [MemberData(nameof(CompatibleResultTypes))]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void LegacyOverloadReply_IsStructurallyCompatibleWithTypedServiceResult(Type resultType)
     {
         var method = typeof(NatsTransportOverloadTests)
@@ -42,6 +44,8 @@ public sealed class NatsTransportOverloadTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public async Task RejectedRequest_RepliesAndDisposesExactlyOnce()
     {
         var message = new TrackingMessage(canReply: true);
@@ -64,6 +68,8 @@ public sealed class NatsTransportOverloadTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task ReplyFailure_StillDisposesExactlyOnce()
     {
         var message = new TrackingMessage(canReply: true, failReply: true);
@@ -81,6 +87,8 @@ public sealed class NatsTransportOverloadTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task ExplicitOptionalTraffic_DropsAndDisposesExactlyOnce()
     {
         var message = new TrackingMessage(canReply: false);
@@ -127,6 +135,8 @@ public sealed class NatsTransportOverloadTests
         result.ErrorMessage.Should().Be(NatsTransportOverload.RetryableMessage);
         result.Value.Should().BeNull();
     }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1034",Justification="These public nested types are concrete serializer test fixtures.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="xUnit discovers public test classes and fixtures.")]
 
     public sealed record ReadModel(int Value);
 

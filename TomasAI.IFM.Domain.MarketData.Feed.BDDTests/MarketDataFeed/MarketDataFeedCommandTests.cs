@@ -1,4 +1,7 @@
-﻿using FluentAssertions;
+using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -21,6 +24,35 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
 
     public MarketDataFeedCommandTests(MarketDataFeedBddFixture fixture) => _fixture = fixture;
 
+    static ICommandActorContext<MarketDataFeedCommandActor> CreateCommandContext()
+    {
+        var context = Substitute.For<IMarketDataFeedCommandContext>();
+        context.Logger.Returns(Microsoft.Extensions.Logging.Abstractions.NullLogger<MarketDataFeedCommandActor>.Instance);
+        var container = Substitute.For<IContainerInstance>();
+        var authority = Substitute.For<IFuturesMarketSessionAuthority>();
+        authority.Current.Returns(new MarketSessionReadModel
+        {
+            OperationalValueDate = SampleData.ValueDate, Revision = 1,
+            SessionStartUtc = DateTime.UtcNow.AddHours(-1), SessionEndUtc = DateTime.UtcNow.AddHours(1),
+            NextTransitionUtc = DateTime.UtcNow.AddHours(1), AsOfUtc = DateTime.UtcNow
+        });
+        container.Resolve<IFuturesMarketSessionAuthority>().Returns(authority);
+        var contracts = Substitute.For<IDatabentoContractAuthority>();
+        contracts.ReconcileAsync(SampleData.ValueDate, Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult<IReadOnlyList<FuturesRolloverContractAssignment>>(SampleData.FuturesContracts.Select(contract => new FuturesRolloverContractAssignment
+            {
+                ContractRole = DatabentoContractRole.EsQuarterly,
+                ContractId = contract.ContractId, Description = contract.Description, RootSymbol = contract.Symbol,
+                LocalSymbol = contract.LocalSymbol, SecurityType = contract.SecurityType, Currency = contract.Currency,
+                Exchange = contract.Exchange, Multiplier = contract.Multiplier, LastTradeDate = contract.LastTradeDate,
+                NextRolloverDate = contract.LastTradeDate, SourceContractHash = new string('a', 64),
+                RowVersion = 1, CreatedBy = "test", UpdatedBy = "test", UpdatedOnUtc = DateTime.UtcNow, CreatedOnUtc = DateTime.UtcNow
+            }).ToArray()));
+        container.Resolve<IDatabentoContractAuthority>().Returns(contracts);
+        context.Container.Returns(container);
+        return context;
+    }
+
     public static TheoryData<string> CommandKinds => new()
     {
         "Start", "Stop", "Reset", "Add", "Remove", "TurnOn", "TurnOff", "Delete", "Halt"
@@ -42,7 +74,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_ARepository_When_TheActorStarts_Then_ItResolvesTheMarketDataFeedRepository()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
-        var context = Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>();
+        var context = CreateCommandContext();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<MarketDataFeedCommandState>>();
         context.Container.Returns(container);
@@ -62,7 +94,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateMarketDataFeedCommandActor(database);
         var command = CreateCommand(kind);
 
-        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), CreateMessage(command));
+        var parsed = actor.InvokeParseMessage(CreateCommandContext(), CreateMessage(command));
 
         parsed.GetType().Should().Be(command.GetType());
         parsed.CommandId.Should().Be(command.CommandId);
@@ -84,7 +116,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = CreateCommand(kind);
 
         var parsed = _fixture.CreateMarketDataFeedCommandActor().InvokeParseMessage(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), CreateMessage(command));
+            CreateCommandContext(), CreateMessage(command));
 
         var entityId = parsed switch
         {
@@ -113,7 +145,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
             Data = Serialize(command)
         };
 
-        var act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), message);
+        var act = () => actor.InvokeParseMessage(CreateCommandContext(), message);
 
         act.Should().Throw<InvalidOperationException>();
     }
@@ -125,7 +157,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var message = new NatsMsg<byte[]> { Subject = command.Subject.ToString(), Data = [0, 1, 255] };
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor()
-            .InvokeParseMessage(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), message);
+            .InvokeParseMessage(CreateCommandContext(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -139,9 +171,9 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
 
         var actor = _fixture.CreateMarketDataFeedCommandActor(database);
         var command = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), CreateMessage(CreateCommand("Start")));
+            CreateCommandContext(), CreateMessage(CreateCommand("Start")));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), command.Subject.ThreadId, command).AsTask();
+            CreateCommandContext(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -154,9 +186,9 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = CreateCommand(kind);
         var state = new MarketDataFeedCommandState { Id = command.Subject.ThreadId };
         if (kind is "Remove" or "TurnOff" or "Halt")
-            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("TurnOn"));
+            await actor.InvokeReceiveAsync(CreateCommandContext(), state, CreateCommand("TurnOn"));
 
-        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, command);
+        var result = await actor.InvokeReceiveAsync(CreateCommandContext(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -171,7 +203,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var state = new MarketDataFeedCommandState { Id = commands[0].Subject.ThreadId };
 
         foreach (var command in commands)
-            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, command);
+            await actor.InvokeReceiveAsync(CreateCommandContext(), state, command);
 
         state.Events.Select(value => value.GetType()).Should().ContainInOrder(
             typeof(MarketDataFeedStartedEvent), typeof(MarketDataFeedResetEvent), typeof(MarketDataFeedStoppedEvent),
@@ -186,9 +218,9 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var state = new MarketDataFeedCommandState { Id = CreateCommand("TurnOff").Subject.ThreadId };
 
         var turnedOff = await actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("TurnOff"));
+            CreateCommandContext(), state, CreateCommand("TurnOff"));
         var halted = await actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), state, CreateCommand("Halt"));
+            CreateCommandContext(), state, CreateCommand("Halt"));
         turnedOff.Success.Should().BeFalse();
         turnedOff.ErrorMessage.Should().Contain("already off");
         halted.Success.Should().BeFalse();
@@ -203,7 +235,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = CreateCommand(kind);
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), command.Subject.ThreadId, command).AsTask();
+            CreateCommandContext(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -215,7 +247,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = CreateCommand(kind, Guid.Empty);
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), command.Subject.ThreadId, command).AsTask();
+            CreateCommandContext(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -226,7 +258,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var invalid = Route(new AddTradeLiveFeedCommand(default, DateOnly.MinValue), Guid.NewGuid());
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), invalid.Subject.ThreadId, invalid).AsTask();
+            CreateCommandContext(), invalid.Subject.ThreadId, invalid).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -238,7 +270,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         var invalid = Route(new AddTradeLiveFeedCommand(entityId, SampleData.ValueDate), Guid.NewGuid());
 
         var act = () => _fixture.CreateMarketDataFeedCommandActor().InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>(), invalid.Subject.ThreadId, invalid).AsTask();
+            CreateCommandContext(), invalid.Subject.ThreadId, invalid).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -247,7 +279,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_UnsupportedOrMissingInputs_When_ReceivedOrValidated_Then_TheyAreRejected()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
-        var context = Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>();
+        var context = CreateCommandContext();
         var command = CreateCommand("Start");
         var state = new MarketDataFeedCommandState { Id = command.Subject.ThreadId };
         var unsupported = Substitute.For<ICommand>();
@@ -295,7 +327,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_ACommandFailure_When_Handled_Then_AFailureResultAndErrorEventAreProduced()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
-        var context = Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>();
+        var context = CreateCommandContext();
         var command = CreateCommand("Start");
 
         var result = await actor.InvokeOnExceptionAsync(context, command.Subject.ThreadId, command, new Exception("feed failed"));
@@ -309,7 +341,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
         IEventSourceActorStateRepository<MarketDataFeedCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateMarketDataFeedCommandActor();
-        var context = Substitute.For<ICommandActorContext<MarketDataFeedCommandActor>>();
+        var context = CreateCommandContext();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<MarketDataFeedCommandState>>();
         context.Container.Returns(container);
@@ -322,7 +354,7 @@ public class MarketDataFeedCommandTests : IClassFixture<MarketDataFeedBddFixture
     {
         ICommand command = kind switch
         {
-            "Start" => new StartMarketDataFeedCommand(SampleData.FuturesContracts, SampleData.ValueDate, true),
+            "Start" => new StartMarketDataFeedCommand { EntityId = new(SampleData.ValueDate) },
             "Stop" => new StopMarketDataFeedCommand(SampleData.ValueDate),
             "Reset" => new ResetMarketDataFeedCommand(SampleData.FuturesContracts, SampleData.ValueDate),
             "Add" => new AddTradeLiveFeedCommand(TradeId(), SampleData.ValueDate),

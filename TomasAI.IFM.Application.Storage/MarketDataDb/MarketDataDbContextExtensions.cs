@@ -2181,12 +2181,13 @@ public static class MarketDataDbContextExtensions
             ArgumentNullException.ThrowIfNull(parameters);
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(revision);
             parameters.Validate();
-            var payload = parameters.Serialize();
+            await ConfigurationDb.ConfigurationDbContext.WriteTypedValueAsync(transaction,TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetValue.From(parameters),cancellationToken).ConfigureAwait(false);
+            var payload=parameters.Hash();
             await transaction.ExecuteAsync(MarketDataDbSql.InsertOptionChainParameterVersion, Values(Uuid(parameters.ParameterSetId), Integer(parameters.Version), Text(payload)), cancellationToken)
                 .ConfigureAwait(false);
             var stored = await transaction.ScalarAsync(MarketDataDbSql.GetOptionChainParameterVersion, Values(Uuid(parameters.ParameterSetId), Integer(parameters.Version)), cancellationToken)
                 .ConfigureAwait(false);
-            if (stored is not string content || !string.Equals(StrategyOptionChainParameterSet.Read(content).Hash(), parameters.Hash(), StringComparison.Ordinal))
+            if (stored is not string content || !string.Equals(content, parameters.Hash(), StringComparison.Ordinal))
                 throw new InvalidDataException("An immutable option-chain parameter version has conflicting content.");
             await transaction.ExecuteAsync(MarketDataDbSql.UpsertOptionChainParameterCurrent, Values(Text(parameters.Environment), Uuid(parameters.ParameterSetId), Integer(parameters.Version), Bigint(revision), Boolean(published), Text(payload)), cancellationToken)
                 .ConfigureAwait(false);

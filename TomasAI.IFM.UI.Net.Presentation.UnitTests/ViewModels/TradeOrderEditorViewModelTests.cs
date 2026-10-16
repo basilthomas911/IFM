@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
@@ -16,6 +16,38 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public sealed class TradeOrderEditorViewModelTests
 {
+    [Fact]
+    public async Task Fund_dropdown_uses_latest_mandates_before_filtering_active_and_preserves_selection()
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        queries.GetPortfoliosAsync(Arg.Any<PortfolioOperatingState?>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<PortfolioReadModel>>(new() { Items = [new() { PortfolioId = 101, PortfolioVersion = 3, OperatingState = PortfolioOperatingState.Active }] }));
+        FundMandateReadModel Fund(int id, long version, string name, FundOperatingState state = FundOperatingState.Active)
+            => new() { PortfolioId = 101, FundId = id, FundMandateVersion = version, Name = name, OperatingState = state };
+        // Interleave versions and keep equal names for distinct logical funds.
+        queries.GetFundsAsync(101, Arg.Any<FundOperatingState?>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() {
+                Items = [Fund(702, 1, "Shared name"), Fund(701, 2, "Current daily"),
+                    Fund(703, 1, "Old active"), Fund(701, 1, "Old daily"),
+                    Fund(702, 2, "Shared name"), Fund(703, 2, "Now paused", FundOperatingState.Paused),
+                    Fund(704, 1, "Shared name")]
+            }));
+        queries.GetOrdersAsync(101, Arg.Any<int>(), Arg.Any<DateOnly>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()));
+        var services = Substitute.For<IUiServiceCatalog>(); services.PortfolioQueries.Returns(queries);
+        var root = Substitute.For<IAppRoot>(); root.Services.Returns(services);
+        await using var model = new TradeOrderEditorViewModel(root, new DateOnly(2026, 10, 14), [], Substitute.For<IReferenceDataService>());
+        await model.LoadOperation.ExecuteAsync();
+        model.Funds.Select(x => x.FundId).Should().Equal(701, 702, 704);
+        model.Funds.Select(x => x.Name).Should().Equal("Current daily", "Shared name", "Shared name");
+        model.PortfolioFunds.Single(x => x.FundId == 701).FundMandateVersion.Should().Be(2);
+        model.PortfolioFunds.Single(x => x.FundId == 703).OperatingState.Should().Be(FundOperatingState.Paused);
+        model.SelectFund(1).Should().BeTrue();
+        await model.LoadOperation.ExecuteAsync();
+        model.SelectedFund!.FundId.Should().Be(702);
+        model.Funds.Should().HaveCount(3);
+    }
+
     [Fact]
     public void Emulator_can_open_outside_the_position_entry_window()
     {

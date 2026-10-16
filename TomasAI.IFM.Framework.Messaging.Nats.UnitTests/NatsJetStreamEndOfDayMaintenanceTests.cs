@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJetStreamEndOfDayMaintenanceTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Purge_uses_captured_watermarks_and_ignores_abandoned_event_consumers()
     {
         var transport = new FakeMaintenanceTransport(
@@ -42,6 +43,7 @@ public sealed class NatsJetStreamEndOfDayMaintenanceTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Purge_waits_until_a_projector_consumer_has_no_pending_or_inflight_messages()
     {
         var transport = new FakeMaintenanceTransport(
@@ -63,6 +65,7 @@ public sealed class NatsJetStreamEndOfDayMaintenanceTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Purge_fails_without_mutation_when_the_required_event_stream_is_missing()
     {
         var transport = new FakeMaintenanceTransport([], new Dictionary<string, Queue<JetStreamMaintenanceSnapshot>>());
@@ -75,6 +78,7 @@ public sealed class NatsJetStreamEndOfDayMaintenanceTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Options_reject_invalid_drain_configuration()
     {
         var options = new NatsJetStreamEndOfDayMaintenanceOptions { DrainTimeoutSeconds = 0 };

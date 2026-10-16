@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -43,7 +43,7 @@ public sealed class MarketOutlookLiveHostAcceptanceTests
         contracts.Should().Contain(contract => contract.ContractId == contractId);
 
         var feedStart = await session.MarketDataFeedCommands
-            .StartMarketDataFeedAsync(contracts, valueDate);
+            .StartMarketDataFeedAsync();
         feedStart.Success.Should().BeTrue(feedStart.ErrorMessage);
 
         var warmup = await session.MarketDataAnalyticsCommands

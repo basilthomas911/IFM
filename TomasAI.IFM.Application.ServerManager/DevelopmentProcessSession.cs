@@ -8,9 +8,12 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace TomasAI.IFM.Application.ServerManager;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed class DevelopmentProcessSession : IDisposable
 {
+    static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
     public const string SessionEnvironmentVariable = "IFM_DEVELOPMENT_SESSION_ID";
     public const string RoleEnvironmentVariable = "IFM_DEVELOPMENT_PROCESS_ROLE";
     public const string ControlPipeName = "IFM.ServerManager.Development.v1";
@@ -50,6 +53,7 @@ public sealed class DevelopmentProcessSession : IDisposable
 
     public void MarkDefinitions(IEnumerable<ManagedProcessDefinition> definitions)
     {
+        ArgumentNullException.ThrowIfNull(definitions);
         foreach (var definition in definitions)
         {
             definition.EnvironmentVariables[SessionEnvironmentVariable] = SessionId;
@@ -70,10 +74,11 @@ public sealed class DevelopmentProcessSession : IDisposable
         DevelopmentSessionRecord? record;
         try
         {
-            await using var stream = File.OpenRead(_sessionFilePath);
-            record = await JsonSerializer.DeserializeAsync<DevelopmentSessionRecord>(
+var stream = File.OpenRead(_sessionFilePath);
+await using var streamDisposal = stream.ConfigureAwait(true);
+            record = await (JsonSerializer.DeserializeAsync<DevelopmentSessionRecord>(
                 stream,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken)).ConfigureAwait(true);
         }
         catch (Exception exception) when (exception is IOException or JsonException)
         {
@@ -104,8 +109,8 @@ public sealed class DevelopmentProcessSession : IDisposable
                 $"Reconciling previously owned Development process '{child.ProcessKey}' "
                 + $"(PID {child.ProcessId}).");
             process.Kill(entireProcessTree: true);
-            await process.WaitForExitAsync(cancellationToken)
-                .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
+            await (process.WaitForExitAsync(cancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken)).ConfigureAwait(true);
         }
 
         Clear();
@@ -136,7 +141,7 @@ public sealed class DevelopmentProcessSession : IDisposable
             {
                 File.WriteAllText(
                     temporaryPath,
-                    JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = true }));
+                    JsonSerializer.Serialize(record, IndentedJson));
                 File.Move(temporaryPath, _sessionFilePath, overwrite: true);
             }
             finally
@@ -213,6 +218,7 @@ public sealed class DevelopmentProcessSession : IDisposable
         }
     }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed record DevelopmentSessionRecord(
     int SchemaVersion,
@@ -224,6 +230,7 @@ public sealed record DevelopmentSessionRecord(
 {
     public const int CurrentSchemaVersion = 1;
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1515",Justification="Preserve the existing public host, configuration and reflection contracts used by external test assemblies.")]
 
 public sealed record DevelopmentChildProcessRecord(
     string ProcessKey,

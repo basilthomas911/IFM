@@ -4,7 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UserSecretsId>dotnet-TomasAI.IFM.Application.ScheduledTask.DatabaseBackup-208F325E-0443-4FE5-B466-CA80CB3DDE66</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,8 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.ScheduledTask.Shared\TomasAI.IFM.Application.ScheduledTask.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
   </ItemGroup>
 

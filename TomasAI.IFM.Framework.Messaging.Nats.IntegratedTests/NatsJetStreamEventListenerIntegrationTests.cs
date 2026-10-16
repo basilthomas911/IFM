@@ -19,10 +19,12 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     readonly string _url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Success_acknowledges_once_and_filters_unconfigured_verbs()
     {
         var resources = CreateResources();
-        await using var admin = await CreateAdminAsync();
+var admin = await (CreateAdminAsync()).ConfigureAwait(true);
+await using var adminDisposal = admin.ConfigureAwait(true);
         var jetStream = admin.CreateJetStreamContext();
         var calls = new ConcurrentQueue<string>();
         var handled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -42,7 +44,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             await handled.Task.WaitAsync(TestTimeout);
             await WaitUntilAsync(async () =>
             {
-                var consumer = await GetConsumerAsync(jetStream, listener, resources);
+                var consumer = await (GetConsumerAsync(jetStream, listener, resources)).ConfigureAwait(true);
                 return consumer.Info.NumAckPending == 0 && consumer.Info.AckFloor.ConsumerSeq >= 2;
             });
             var stream = await jetStream.GetStreamAsync(listener.StreamName);
@@ -59,10 +61,12 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Handler_failure_is_negatively_acknowledged_and_redelivered()
     {
         var resources = CreateResources();
-        await using var admin = await CreateAdminAsync();
+var admin = await (CreateAdminAsync()).ConfigureAwait(true);
+await using var adminDisposal = admin.ConfigureAwait(true);
         var jetStream = admin.CreateJetStreamContext();
         var redelivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var attempts = 0;
@@ -84,7 +88,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             attempts.Should().Be(2);
             await WaitUntilAsync(async () =>
             {
-                var acknowledged = await GetConsumerAsync(jetStream, listener, resources);
+                var acknowledged = await (GetConsumerAsync(jetStream, listener, resources)).ConfigureAwait(true);
                 return acknowledged.Info.AckFloor.ConsumerSeq >= 2;
             });
             var consumer = await GetConsumerAsync(jetStream, listener, resources);
@@ -100,10 +104,12 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Durable_listener_resumes_unacknowledged_delivery_after_restart()
     {
         var resources = CreateResources();
-        await using var admin = await CreateAdminAsync();
+var admin = await (CreateAdminAsync()).ConfigureAwait(true);
+await using var adminDisposal = admin.ConfigureAwait(true);
         var jetStream = admin.CreateJetStreamContext();
         var firstAttempt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var first = CreateListener(resources, negativeAcknowledgeDelay: TimeSpan.FromSeconds(2));
@@ -146,10 +152,12 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Stop_drains_admitted_handler_before_returning()
     {
         var resources = CreateResources();
-        await using var admin = await CreateAdminAsync();
+var admin = await (CreateAdminAsync()).ConfigureAwait(true);
+await using var adminDisposal = admin.ConfigureAwait(true);
         var jetStream = admin.CreateJetStreamContext();
         var admitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -160,7 +168,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             await listener.StartAsync(resources.ListenerId, CreateEventMap(resources.Mailbox, "Execute"), async (_, _) =>
             {
                 admitted.TrySetResult();
-                await release.Task;
+                await (release.Task).ConfigureAwait(true);
             });
             await PublishAsync(jetStream, $"{resources.Mailbox}.Execute.operation-1");
             await admitted.Task.WaitAsync(TestTimeout);
@@ -183,10 +191,12 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task Bounded_ack_window_leaves_unadmitted_message_for_durable_restart()
     {
         var resources = CreateResources();
-        await using var admin = await CreateAdminAsync();
+var admin = await (CreateAdminAsync()).ConfigureAwait(true);
+await using var adminDisposal = admin.ConfigureAwait(true);
         var jetStream = admin.CreateJetStreamContext();
         var firstAdmitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -197,7 +207,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             await first.StartAsync(resources.ListenerId, CreateEventMap(resources.Mailbox, "Execute"), async (_, _) =>
             {
                 firstAdmitted.TrySetResult();
-                await release.Task;
+                await (release.Task).ConfigureAwait(true);
             });
             await PublishAsync(jetStream, $"{resources.Mailbox}.Execute.operation-1");
             await PublishAsync(jetStream, $"{resources.Mailbox}.Execute.operation-2");
@@ -259,7 +269,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
     async ValueTask<NatsClient> CreateAdminAsync()
     {
         var client = new NatsClient(_url);
-        await client.ConnectAsync();
+        await (client.ConnectAsync()).ConfigureAwait(true);
         return client;
     }
 
@@ -269,10 +279,10 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
 
     static async ValueTask PublishAsync(INatsJSContext jetStream, string subject)
     {
-        var acknowledgement = await jetStream.PublishAsync(
+        var acknowledgement = await (jetStream.PublishAsync(
             subject,
             new byte[] { 1, 2, 3 },
-            serializer: new NatsByteArrayMessageSerializer());
+            serializer: new NatsByteArrayMessageSerializer())).ConfigureAwait(true);
         acknowledgement.EnsureSuccess();
     }
 
@@ -285,21 +295,21 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
             resources.DurablePrefix,
             resources.ListenerId,
             resources.Mailbox);
-        return await jetStream.GetConsumerAsync(listener.StreamName, name);
+        return await (jetStream.GetConsumerAsync(listener.StreamName, name)).ConfigureAwait(true);
     }
 
     static async Task WaitUntilAsync(Func<Task<bool>> predicate)
     {
         using var timeout = new CancellationTokenSource(TestTimeout);
-        while (!await predicate())
-            await Task.Delay(25, timeout.Token);
+        while (!await (predicate()).ConfigureAwait(true))
+            await (Task.Delay(25, timeout.Token)).ConfigureAwait(true);
     }
 
     static async ValueTask TryDeleteStreamAsync(INatsJSContext jetStream, string streamName)
     {
         try
         {
-            await jetStream.DeleteStreamAsync(streamName);
+            await (jetStream.DeleteStreamAsync(streamName)).ConfigureAwait(true);
         }
         catch (NatsJSApiException)
         {
@@ -319,7 +329,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
         {
             try
             {
-                await jetStream.DeleteConsumerAsync(listener.StreamName, consumerName);
+                await (jetStream.DeleteConsumerAsync(listener.StreamName, consumerName)).ConfigureAwait(true);
             }
             catch (NatsJSApiException)
             {
@@ -327,7 +337,7 @@ public sealed class NatsJetStreamEventListenerIntegrationTests
         }
 
         if (string.Equals(listener.StreamName, resources.StreamName, StringComparison.Ordinal))
-            await TryDeleteStreamAsync(jetStream, resources.StreamName);
+            await (TryDeleteStreamAsync(jetStream, resources.StreamName)).ConfigureAwait(true);
     }
 
     static TestResources CreateResources()

@@ -11,6 +11,8 @@ public sealed class NatsProducerCancellationTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void RequestScope_PropagatesCallerOrShutdownCancellation(bool supplyCaller, bool cancelCaller)
     {
         using var stopping = new CancellationTokenSource();
@@ -28,6 +30,8 @@ public sealed class NatsProducerCancellationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void DisposingRequestScope_PreservesProducerAndCallerTokenSources(bool supplyCaller)
     {
         using var stopping = new CancellationTokenSource();
@@ -43,6 +47,8 @@ public sealed class NatsProducerCancellationTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2000",Justification="The test deliberately exercises transferred resource ownership and explicit disposal assertions.")]
     public void AlreadyCanceledCaller_RemainsCanceled()
     {
         using var stopping = new CancellationTokenSource();

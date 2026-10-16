@@ -22,7 +22,7 @@ public abstract record PositionChangedEvent : IEvent<StrategyPositionId>
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8), Newtonsoft.Json.JsonProperty("State"), System.Text.Json.Serialization.JsonPropertyName("State")]
+    [Key(8), Newtonsoft.Json.JsonProperty(nameof(State)), System.Text.Json.Serialization.JsonPropertyName("State")]
     public StrategyPositionSnapshot PositionSnapshot { get; init; } = new();
     /// <summary>Retains source compatibility with existing snapshot consumers.</summary>
     [IgnoreMember, Newtonsoft.Json.JsonIgnore, System.Text.Json.Serialization.JsonIgnore]

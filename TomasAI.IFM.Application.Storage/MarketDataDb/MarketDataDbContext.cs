@@ -3994,35 +3994,38 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     public async Task<ImmutableArray<StrategyOptionChainParameterSet>> ReadPublishedAsync(string environment, CancellationToken token)
     {
         if (environment is not ("Development" or "Paper" or "Production")) throw new ArgumentException("Invalid parameter environment.",nameof(environment));
-        var postgres = true;
-        var sql = postgres
-            ? "SELECT published,payload FROM market_data.strategy_option_chain_parameter_current WHERE environment=$1 LIMIT 129;"
-            : "SELECT published,payload FROM strategy_option_chain_parameter_current WHERE environment=:environment LIMIT 129;";
-        var rows = await Database.Use("OptionChainParameter.Current.Read", sql)
-            .SetParameters(postgres ? new NativeOptionChainPublicationReadParameters(environment).Bind() : new CompositionPreparationParameters([environment]).Bind())
-            .ExecuteQueryAsync(row => (Published: row.GetBool(0), Parameters: StrategyOptionChainParameterSet.Read(row.GetString(1))), token)
-                .ConfigureAwait(false);
-        if (rows.Count > 128) throw new InvalidDataException("Global strategy parameter capacity exceeded.");
-        return rows.GroupBy(x => x.Parameters.ParameterSetId).Select(g => g.OrderByDescending(x => x.Parameters.Version).First())
-            .Where(x => x.Published && x.Parameters.Enabled).Select(x => x.Parameters).OrderBy(x => x.ParameterSetId).ToImmutableArray();
+        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token).ConfigureAwait(false);
+        await using var transaction=await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+        var session=new ConfigurationDb.ConfigurationDbSession(connection,transaction);
+        var rows=await session.QueryAsync("SELECT DISTINCT ON(set_id) set_id,version,published,parameter_hash FROM market_data.strategy_option_chain_policy_current WHERE environment=$1 ORDER BY set_id,version DESC LIMIT 129;",
+            [environment],reader=>(Id:reader.GetGuid(0),Version:reader.GetInt32(1),Published:reader.GetBoolean(2),Hash:reader.GetString(3)),token).ConfigureAwait(false);
+        if(rows.Count>128)throw new InvalidDataException("Global strategy parameter capacity exceeded");
+        var result=ImmutableArray.CreateBuilder<StrategyOptionChainParameterSet>();
+        foreach(var row in rows.Where(x=>x.Published))
+        {
+            var value=await ConfigurationDb.ConfigurationDbContext.ReadTypedValueAsync(session,row.Id,row.Version,token).ConfigureAwait(false)
+                ??throw new InvalidDataException("Missing option-chain parameter values");
+            var policy=value.Get<StrategyOptionChainParameterSet>();
+            if(policy.Hash()!=row.Hash)throw new InvalidDataException("Option-chain parameter hash mismatch");
+            if(policy.Enabled)result.Add(policy);
+        }
+        await transaction.CommitAsync(token).ConfigureAwait(false);return result.ToImmutable();
     }
 
-    /// <summary>Reads one persisted immutable parameter version.</summary>
-    /// <param name="setId">The set id used by this operation.</param>
-    /// <param name="version">The version used by this operation.</param>
-    /// <param name="token">The token used by this operation.</param>
-    /// <returns>The typed result of the market-data query or mutation.</returns>
-    public async Task<StrategyOptionChainParameterSet?> ReadVersionAsync(Guid setId, int version, CancellationToken token)
+    /// <summary>Reads an exact immutable policy reference and its concrete values.</summary>
+    public async Task<StrategyOptionChainParameterSet?> ReadVersionAsync(Guid setId,int version,CancellationToken token)
     {
-        if (setId == Guid.Empty || version < 1) throw new ArgumentException("Exact parameter identity is required.",nameof(setId));
-        var postgres = true;
-        var sql = postgres
-            ? "SELECT payload FROM market_data.strategy_option_chain_parameter_version WHERE set_id=$1 AND version=$2;"
-            : "SELECT payload FROM strategy_option_chain_parameter_version WHERE set_id=:id AND version=:version;";
-        return await Database.Use("OptionChainParameter.Version.Read", sql)
-            .SetParameters(postgres ? new NativeOptionChainVersionReadParameters(setId, version).Bind() : new CompositionPreparationParameters([setId, version]).Bind())
-            .ExecuteSingleAsync(row => StrategyOptionChainParameterSet.Read(row.GetString(0)), token)
-                .ConfigureAwait(false);
+        if(setId==Guid.Empty||version<1)throw new ArgumentException("Exact parameter identity is required",nameof(setId));
+        await using var connection=CreateConnection().As<Npgsql.NpgsqlConnection>(ConnectionString);await connection.OpenAsync(token).ConfigureAwait(false);
+        await using var transaction=await connection.BeginTransactionAsync(token).ConfigureAwait(false);
+        var session=new ConfigurationDb.ConfigurationDbSession(connection,transaction);
+        var hash=await session.ScalarAsync(MarketDataDbSql.GetOptionChainParameterVersion,[setId,version],token).ConfigureAwait(false);
+        if(hash is null)return null;
+        var value=await ConfigurationDb.ConfigurationDbContext.ReadTypedValueAsync(session,setId,version,token).ConfigureAwait(false)
+            ??throw new InvalidDataException("Missing option-chain parameter values");
+        var policy=value.Get<StrategyOptionChainParameterSet>();
+        if(policy.Hash()!=(string)hash)throw new InvalidDataException("Option-chain parameter hash mismatch");
+        await transaction.CommitAsync(token).ConfigureAwait(false);return policy;
     }
     /// <summary>Reads one persisted historical-load checkpoint and terminal manifest.</summary>
     /// <param name="attemptId">The stable load attempt identity.</param>

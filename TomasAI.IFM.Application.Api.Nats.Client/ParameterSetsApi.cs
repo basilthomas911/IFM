@@ -6,6 +6,23 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(producer), IParameterSetsApi
 {
+    public Task<ServiceResult<ParameterSetValue>> PreviewValuesAsync(Guid setId, string componentCode,
+        int targetHorizon = (int)TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily,
+        ParameterSetValue? source = null, bool rebuildIntervals = false, CancellationToken token = default)
+    {
+        var query = new PreviewTypedParameterDraftQuery { SetId=setId,ComponentCode=componentCode,TargetHorizon=targetHorizon,
+            Source=source is null ? null : ParameterValueCodec.Snapshot(source),RebuildIntervals=rebuildIntervals,
+            Subject=QuerySubject(PreviewTypedParameterDraftQuery.Verb) };
+        return RequestAsync<PreviewTypedParameterDraftQuery,ParameterSetValue>(query.Subject,query,token).AsTask();
+    }
+    public Task<ServiceResult<ParameterValidationReport>> ValidateValuesAsync(ParameterSetValue parameters,
+        string componentCode, int schemaVersion, CancellationToken token = default)
+    {
+        var query = new ValidateTypedParameterCandidateQuery { Parameters=ParameterValueCodec.Snapshot(parameters),ComponentCode=componentCode,
+            SchemaVersion=schemaVersion,Subject=QuerySubject(ValidateTypedParameterCandidateQuery.Verb) };
+        return RequestAsync<ValidateTypedParameterCandidateQuery,ParameterValidationReport>(query.Subject,query,token).AsTask();
+    }
+
     public Task<ServiceResult<ParameterSignalStartupPlan>> PreviewStartupAsync(Guid runId, CancellationToken token = default) { var q = new PreviewSignalStartupPlanQuery { StartupRunId = runId, Subject = QuerySubject(PreviewSignalStartupPlanQuery.Verb) }; return RequestAsync<PreviewSignalStartupPlanQuery, ParameterSignalStartupPlan>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<ParameterStartupRun>> StartupRunAsync(Guid runId, CancellationToken token = default)
     {
@@ -58,8 +75,6 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
     }
 
     public Task<ServiceResult<ParameterSchemaDefinition>> SchemaAsync(int schemaVersion, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent) { var q = new GetParameterSchemaQuery { ComponentCode = componentCode, SchemaVersion = schemaVersion, Subject = QuerySubject(GetParameterSchemaQuery.Verb) }; return RequestAsync<GetParameterSchemaQuery, ParameterSchemaDefinition>(q.Subject, q, token).AsTask(); }
-    public Task<ServiceResult<string>> PreviewAsync(Guid setId, CancellationToken token = default, int targetHorizon = (int)TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily, string? sourcePayloadJson = null, bool rebuildIntervals = false, string componentCode = ParameterSchemaRegistry.RegimeComponent) { var q = new CreateParameterDraftPreviewQuery { SetId = setId, ComponentCode = componentCode, TargetHorizon = targetHorizon, PayloadJson = sourcePayloadJson ?? "{}", RebuildIntervals = rebuildIntervals, Subject = QuerySubject(CreateParameterDraftPreviewQuery.Verb) }; return RequestAsync<CreateParameterDraftPreviewQuery, string>(q.Subject, q, token).AsTask(); }
-    public Task<ServiceResult<ParameterValidationReport>> ValidateAsync(string json, int schemaVersion, CancellationToken token = default, string componentCode = ParameterSchemaRegistry.RegimeComponent) { var q = new ValidateParameterCandidateQuery { ComponentCode = componentCode, PayloadJson = json, SchemaVersion = schemaVersion, Subject = QuerySubject(ValidateParameterCandidateQuery.Verb) }; return RequestAsync<ValidateParameterCandidateQuery, ParameterValidationReport>(q.Subject, q, token).AsTask(); }
     public Task<ServiceResult<GuidResult>> CreateAsync(CreateParameterSetCommand command, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -88,6 +103,12 @@ public sealed class ParameterSetsApi(IActorProducer producer) : NatsClientApi(pr
     }
     public Task<ServiceResult<ParameterAssignmentSnapshot>> AssignmentAsync(string workflowDefinitionId, int targetHorizon, CancellationToken token = default)
     { var q = new GetParameterAssignmentQuery { WorkflowDefinitionId = workflowDefinitionId, TargetHorizon = targetHorizon, Subject = QuerySubject(GetParameterAssignmentQuery.Verb) }; return RequestAsync<GetParameterAssignmentQuery, ParameterAssignmentSnapshot>(q.Subject, q, token).AsTask(); }
+    public Task<ServiceResult<ParameterAssignmentSnapshot>> AssignmentAsync(ParameterAssignmentScope scope, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        var q = new GetParameterAssignmentQuery { Scope = scope, Subject = QuerySubject(GetParameterAssignmentQuery.Verb) };
+        return RequestAsync<GetParameterAssignmentQuery, ParameterAssignmentSnapshot>(q.Subject, q, token).AsTask();
+    }
     public Task<ServiceResult<GuidResult>> AssignAsync(AssignParameterVersionCommand command, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(command); var c = command with { Subject = new ActorSubject(ActorType.Command, AssignParameterVersionCommand.Actor, AssignParameterVersionCommand.Verb, command.EntityId.Format()) }; return RequestCommandResultAsync<AssignParameterVersionCommand, ParameterAssignmentEntityId, GuidResult>(c, c.EntityId, token).AsTask(); }

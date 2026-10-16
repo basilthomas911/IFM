@@ -19,8 +19,11 @@ public sealed record DatabaseBackupManifest
     public required string SafeBoundaryReference { get; init; }
     public required DateTimeOffset CreatedUtc { get; init; }
     public long Revision { get; init; } = 1;
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
     public DatabaseRestorePointId[] Dependencies { get; init; } = [];
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
     public DatabaseArtifactDigest[] Artifacts { get; init; } = [];
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
     public DatabaseArtifactReplicaId[] Replicas { get; init; } = [];
     public DatabaseRecoveryRunStatistics? Statistics { get; init; }
     public DatabaseBackupLineage BackupLineage { get; init; } = new();
@@ -42,6 +45,7 @@ public sealed class DatabaseApprovedStorageRoot
     public string LogicalName { get; }
     internal string FullPath { get; }
 }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseBackupPublicationRequest(
     DatabaseRecoveryOperationId OperationId,
@@ -55,11 +59,13 @@ public sealed record DatabaseBackupPublicationRequest(
     PostgreSqlWalContinuityEvidence? PostgreSqlWalContinuity = null,
     ScyllaTopologyEvidence? ScyllaTopology = null,
     ScyllaSnapshotEvidence? ScyllaSnapshot = null);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseBackupPublicationPreflightRequest(
     DatabaseProtectionSetId ProtectionSetId,
     DatabaseEngine Engine,
     DatabaseLogicalDestination[] RequiredDestinations);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseBackupPublicationResult(
     DatabaseRestorePointId RestorePointId,
@@ -73,6 +79,7 @@ public sealed record DatabaseRestoreSourceRequest(
     DatabaseEngine Engine,
     DatabaseArtifactReplicaId? PreferredReplicaId = null,
     DateTimeOffset? PostgreSqlRecoveryTargetUtc = null);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabasePreparedRestoreSource(
     DatabaseRestorePointId NativeRestorePointId,
@@ -84,6 +91,7 @@ public sealed record DatabasePreparedRestoreSource(
     DatabaseRestorePointId[] DependencyChain,
     PostgreSqlPreparedRecovery? PostgreSqlRecovery = null,
     ScyllaRecoveryExpectation? ScyllaRecovery = null);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseBackupPlanningRequest(
     DatabaseRecoveryOperationId OperationId,
@@ -143,6 +151,7 @@ public sealed record DatabaseCatalogRestorePoint(
     DatabaseBackupManifest Manifest,
     long VerifiedBytes,
     int VerifiedArtifactCount);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseRetentionEvaluationRequest(
     DatabaseRetentionPlanId PlanId,
@@ -154,10 +163,12 @@ public sealed record DatabaseRetentionEvaluationRequest(
     DatabaseRestorePointId[] ActiveRestorePoints,
     long PolicyRevision = 1,
     DatabaseProtectionSetId? ProtectionSetId = null);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseRetentionPlanEntry(
     DatabaseRestorePointId RestorePointId,
     string[] ExactRelativePaths);
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
 
 public sealed record DatabaseRetentionPlan(
     int SchemaVersion,
@@ -206,6 +217,7 @@ public sealed record DatabaseBreakGlassRecoveryRecord
     public required string OperatorIdentity { get; init; }
     public required string RecoveryHostId { get; init; }
     public required string ManifestId { get; init; }
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1819",Justification="Preserve the published serialized array contract.")]
     public required string[] ArtifactVersions { get; init; }
     public required DateTimeOffset StartedUtc { get; init; }
     public required DateTimeOffset CompletedUtc { get; init; }

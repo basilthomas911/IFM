@@ -5,6 +5,35 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 internal static class ConfigurationDbSql
 {
+    internal static class TypedCatalog
+    {
+        internal const string Header="SELECT content_sha256 FROM reference_configuration.parameter_projection_record WHERE kind=$1 AND owner_id=$2 AND owner_version=$3;";
+        internal const string PutHeader="INSERT INTO reference_configuration.parameter_projection_record(kind,owner_id,owner_version,content_sha256) VALUES($1,$2,$3,$4) ON CONFLICT(kind,owner_id,owner_version) DO UPDATE SET content_sha256=EXCLUDED.content_sha256;";
+        internal const string Receipt="SELECT request_sha256,fact_sha256 FROM reference_configuration.parameter_catalog_operation WHERE operation_id=$1;";
+        internal const string Revision="SELECT COALESCE(max(revision),0) FROM reference_configuration.parameter_catalog_operation WHERE kind=$1 AND entity_id=$2;";
+        internal const string InsertReceipt="INSERT INTO reference_configuration.parameter_catalog_operation(operation_id,entity_id,revision,request_sha256,kind,version,committed_at_ticks,fact_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8);";
+        internal const string VersionPage="""
+            SELECT m.owner_set_id,m.owner_version,s.name,s.description,s.revision
+            FROM reference_configuration.parameter_catalog_version m JOIN reference_configuration.parameter_set s ON s.set_id=m.owner_set_id
+            WHERE s.component_code=$1 AND ($2::uuid IS NULL OR s.set_id=$2)
+            AND ($4::uuid IS NULL OR (s.name,s.set_id,-m.owner_version)>($3,$4,-$5::bigint))
+            ORDER BY s.name,s.set_id,m.owner_version DESC LIMIT $6;
+            """;
+        internal const string StartupState="INSERT INTO reference_configuration.parameter_catalog_startup_state(run_id,revision,active) VALUES($1,$2,$3) ON CONFLICT(run_id) DO UPDATE SET revision=EXCLUDED.revision,active=EXCLUDED.active;";
+        internal static string Delete(ParameterValueMapping.Table table)=>$"DELETE FROM reference_configuration.{table.Name} WHERE owner_set_id=$1 AND owner_version=$2;";
+    }
+    internal static class TypedParameters
+    {
+        internal const string Lock = "SELECT pg_advisory_xact_lock(hashtextextended($1,87281));";
+        internal const string Hash = "SELECT content_sha256 FROM reference_configuration.parameter_value_version WHERE set_id=$1 AND version=$2;";
+        internal const string InsertHeader = "INSERT INTO reference_configuration.parameter_value_version(set_id,version,component_code,schema_version,content_sha256,codec) VALUES($1,$2,$3,$4,$5,$6);";
+        internal const string ReadHeader = "SELECT component_code,schema_version,content_sha256,codec FROM reference_configuration.parameter_value_version WHERE set_id=$1 AND version=$2;";
+        internal static string Insert(ParameterValueMapping.Table table) =>
+            $"INSERT INTO reference_configuration.{table.Name}(owner_set_id,owner_version,row_path,parent_path,ordinal,{string.Join(',',table.Columns.Select(x=>x.Name))}) VALUES($1,$2,$3,$4,$5,{string.Join(',',Enumerable.Range(6,table.Columns.Count).Select(x=>"$"+x))});";
+        internal static string Read(ParameterValueMapping.Table table) =>
+            $"SELECT row_path,parent_path,ordinal,{string.Join(',',table.Columns.Select(x=>x.Name))} FROM reference_configuration.{table.Name} WHERE owner_set_id=$1 AND owner_version=$2 ORDER BY row_path;";
+    }
+
     const string CatalogPrefix = "reference_configuration.";
     public const string CatalogWriteLock = "SELECT pg_advisory_xact_lock($1);";
     public const string GetLatestStrategyCatalogVersion = "SELECT COALESCE(MAX(version),0) FROM reference_configuration.strategy_catalog_version WHERE kind=$1 AND id=$2;";
@@ -30,24 +59,9 @@ WHERE i.kind=$1 AND i.code COLLATE "C">$2 COLLATE "C" ORDER BY i.code COLLATE "C
     public const string PublishStrategyCatalog = "UPDATE reference_configuration.strategy_catalog_version SET status=1,effective_from_utc=$4,published_by=$5 WHERE kind=$1 AND id=$2 AND version=$3 AND status=0 AND content_sha256=$6;";
     public const string RetireStrategyCatalog = "UPDATE reference_configuration.strategy_catalog_version SET status=2,retired_at_utc=$4,retired_by=$5 WHERE kind=$1 AND id=$2 AND version=$3;";
     public const string AcquireNamedAdvisoryLock = "SELECT pg_advisory_xact_lock(hashtextextended($1,0));";
-    public const string GetAssignmentOperationReceipt = "SELECT request_sha256 FROM reference_configuration.parameter_assignment_revision WHERE operation_id=$1;";
-    public const string GetAssignmentRevision = "SELECT revision FROM reference_configuration.parameter_assignment WHERE assignment_id=$1;";
-    public const string UpsertParameterAssignment = "INSERT INTO reference_configuration.parameter_assignment(assignment_id,revision,body) VALUES($1,$2,$3::jsonb) ON CONFLICT(assignment_id) DO UPDATE SET revision=EXCLUDED.revision,body=EXCLUDED.body;";
-    public const string InsertParameterAssignmentRevision = "INSERT INTO reference_configuration.parameter_assignment_revision(assignment_id,revision,operation_id,request_sha256,body) VALUES($1,$2,$3,$4,$5::jsonb);";
-    public const string InsertParameterSetAudit = "INSERT INTO reference_configuration.parameter_set_audit(operation_id,entity_id,revision,body) VALUES($1,$2,$3,$4::jsonb);";
-    public const string GetParameterOperationReceipt = "SELECT request_sha256 FROM reference_configuration.parameter_operation WHERE operation_id=$1;";
-    public const string GetParameterSetRevision = "SELECT revision FROM reference_configuration.parameter_set WHERE set_id=$1;";
     public const string UpsertParameterSet = "INSERT INTO reference_configuration.parameter_set(set_id,component_code,name,description,revision) VALUES($1,$2,$3,$4,$5) ON CONFLICT(set_id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,revision=EXCLUDED.revision;";
-    public const string GetParameterSetVersionHash = "SELECT payload_sha256 FROM reference_configuration.parameter_set_version WHERE set_id=$1 AND version=$2;";
-    public const string UpsertParameterSetVersion = "INSERT INTO reference_configuration.parameter_set_version(set_id,version,payload_sha256,status,body) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(set_id,version) DO UPDATE SET status=EXCLUDED.status,body=EXCLUDED.body;";
-    public const string InsertParameterOperation = "INSERT INTO reference_configuration.parameter_operation(operation_id,set_id,revision,request_sha256,version,committed_at_utc) VALUES($1,$2,$3,$4,$5,$6);";
     public const string InsertLegacyParameterReference = "INSERT INTO reference_configuration.parameter_legacy_reference VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING;";
     public const string IsLegacyParameterReferenceEquivalent = "SELECT generic_set_id=$4 AND legacy_sha256=$5 AND legacy_codec=$6 FROM reference_configuration.parameter_legacy_reference WHERE legacy_kind=$1 AND legacy_set_id=$2 AND legacy_version=$3;";
-    public const string InsertParameterStartupReport = "INSERT INTO reference_configuration.parameter_startup_report(run_id,revision,body) VALUES($1,$2,$3::jsonb) ON CONFLICT(run_id,revision) DO NOTHING;";
-    public const string IsParameterStartupReportEquivalent = "SELECT body=$3::jsonb FROM reference_configuration.parameter_startup_report WHERE run_id=$1 AND revision=$2;";
-    public const string InsertParameterStartupRun = "INSERT INTO reference_configuration.parameter_startup_run(run_id,body) VALUES($1,$2::jsonb) ON CONFLICT(run_id) DO NOTHING;";
-    public const string IsParameterStartupRunEquivalent = "SELECT body=$2::jsonb FROM reference_configuration.parameter_startup_run WHERE run_id=$1;";
-    public const string ReleaseParameterStartupRun = "UPDATE reference_configuration.parameter_startup_run SET active=false WHERE run_id=$1;";
     public const string SetParameterWriterLockTimeout = "SET LOCAL lock_timeout = '5s';";
     public const string AcquireParameterWriterLock = "SELECT pg_advisory_xact_lock(hashtextextended('reference.parameter-sets.writer',0));";
     public static string InsertStrategyCatalogChildren(CatalogChildTable child) => $"""

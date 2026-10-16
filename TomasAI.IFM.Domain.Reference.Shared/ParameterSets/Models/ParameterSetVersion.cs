@@ -8,4 +8,9 @@ public sealed record ParameterSetVersion(
     [property: Key(5)] string PayloadJson, [property: Key(6)] DateTime CreatedAtUtc,
     [property: Key(7)] string CreatedBy, [property: Key(8)] DateTime? PublishedAtUtc = null,
     [property: Key(9)] DateTime? RetiredAtUtc = null, [property: Key(10)] long CatalogRevision = 0,
-    [property: Key(11)] ParameterLegacyReference? LegacySource = null);
+    [property: Key(11)] ParameterLegacyReference? LegacySource = null)
+{
+    /// <summary>Concrete values in current messages. PayloadJson is read only for historical compatibility.</summary>
+    [Key(12)] public ParameterSetValue? Parameters { get; init; }
+    [Key(13)] public string ReferenceCodec {get;init;} = ParameterValueCodec.Codec;
+}

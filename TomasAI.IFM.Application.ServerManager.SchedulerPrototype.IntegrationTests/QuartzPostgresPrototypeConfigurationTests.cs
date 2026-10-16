@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Application.ServerManager.SchedulerPrototype.IntegrationTe
 public sealed class QuartzPostgresPrototypeConfigurationTests
 {
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Configuration_uses_the_approved_non_clustered_postgresql_store()
     {
         var properties = QuartzPostgresPrototypeConfiguration.Create(
@@ -31,6 +32,7 @@ public sealed class QuartzPostgresPrototypeConfigurationTests
     [InlineData("", "scheduler")]
     [InlineData("connection", null)]
     [InlineData("connection", "")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Configuration_rejects_missing_required_values(string? connectionString, string? schedulerName)
     {
         var action = () => QuartzPostgresPrototypeConfiguration.Create(connectionString!, schedulerName!);

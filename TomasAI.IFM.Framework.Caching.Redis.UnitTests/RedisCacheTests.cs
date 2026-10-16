@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Xunit;
 using System.Net;
 using System.Threading.Tasks;
@@ -22,6 +22,7 @@ public class RedisCacheTests
         new(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Set_WithAbsoluteExpiryAndShorterTtl_UsesTtl()
     {
         var (redisCache, database) = CreateMockedCache(TestUtcNow);
@@ -37,6 +38,7 @@ public class RedisCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Set_WithAbsoluteExpirySoonerThanTtl_UsesExactAbsoluteExpiry()
     {
         var (redisCache, database) = CreateMockedCache(TestUtcNow);
@@ -53,6 +55,7 @@ public class RedisCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Set_WithExpiredAbsoluteExpiry_Throws()
     {
         var (redisCache, database) = CreateMockedCache(TestUtcNow);
@@ -73,6 +76,7 @@ public class RedisCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public async Task SetAsync_WithAbsoluteExpiryAndTtl_UsesEarlierDeadline()
     {
         var (redisCache, database) = CreateMockedCache(TestUtcNow);
@@ -94,6 +98,7 @@ public class RedisCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void RemoveByPrefix_ScansAndDeletesOnlyReturnedKeys()
     {
         var multiplexer = Substitute.For<IConnectionMultiplexer>();
@@ -170,6 +175,7 @@ public class RedisCacheTests
     }
 
     [Fact]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void DeleteAllKeys_RemovesAllKeysFromDatabase()
     {
         var options = ConfigurationOptions.Parse("localhost:6379");

@@ -6,8 +6,10 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Rust.Bridge.Net;
-public sealed record MarketChartSeries(string Name, string Color, double[][] Points);
-public sealed record MarketChartSnapshot(string Status, double Start, double End, double? Minimum, double? Maximum, MarketChartSeries[] Series);
+[MessagePack.MessagePackObject]
+public sealed record MarketChartSeries([property: MessagePack.Key("name")] string Name, [property: MessagePack.Key("color")] string Color, [property: MessagePack.Key("points")] double[][] Points);
+[MessagePack.MessagePackObject]
+public sealed record MarketChartSnapshot([property: MessagePack.Key("status")] string Status, [property: MessagePack.Key("start")] double Start, [property: MessagePack.Key("end")] double End, [property: MessagePack.Key("minimum")] double? Minimum, [property: MessagePack.Key("maximum")] double? Maximum, [property: MessagePack.Key("series")] MarketChartSeries[] Series);
 /// <summary>Loads the same optional chart histories as WinForms independently of dashboard publication and rendering.</summary>
 sealed class MarketChartSession : IDisposable
 {

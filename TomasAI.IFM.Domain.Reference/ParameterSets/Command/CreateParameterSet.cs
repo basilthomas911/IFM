@@ -36,7 +36,7 @@ public static class CreateParameterSet
             if (!string.Equals(source.Kind,ParameterLegacyMigrationModel.RegimeKind,StringComparison.Ordinal) || command.EntityId.SetId != ParameterLegacyMigrationModel.TargetId(source)) throw new ArgumentException("PARAM.LEGACY_IDENTITY_MISMATCH");
 #pragma warning restore MA0015
             var stored = (await (context.ConfigurationDb.GetLegacyParameterVersionsAsync(source.SetId, source.Version)).ConfigureAwait(false)).SingleOrDefault() ?? throw new InvalidOperationException("PARAM.LEGACY_NOT_FOUND");
-            if (stored.Reference != source || !string.Equals(ParameterLegacyMigrationModel.Expand(stored),ParameterCanonicalPayloadModel.Canonicalize(command.PayloadJson),StringComparison.Ordinal)) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
+            if (stored.Reference != source || ParameterValueCodec.Hash(ParameterHistoryReader.ReadValues(command.ComponentCode,ParameterLegacyMigrationModel.Expand(stored)))!=ParameterValueCodec.Hash(command.Parameters??throw new ArgumentException("PARAM.TYPED_VALUES_REQUIRED",nameof(command)))) throw new InvalidOperationException("PARAM.LEGACY_SOURCE_CHANGED");
         }
         var errorMsg = "ParameterSet.STATE.APPLY_FAILED: unable to apply CreateParameterSet event";
         var updated = command.Compute(state, hash, out var parameterChange) switch
@@ -66,7 +66,7 @@ public static class CreateParameterSet
         }
         catch (Exception rejection) when (rejection is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
-            parameterChange = new(null, state.CatalogRevision, hash, "", rejection.Message);
+            parameterChange = new(null, state.CatalogRevision, hash, null, rejection.Message);
             return false;
         }
     }
@@ -83,7 +83,7 @@ public static class CreateParameterSet
             EntityId = command.EntityId,
             Revision = parameterChange.CatalogRevision,
             RequestHash = parameterChange.RequestHash,
-            VersionJson = JsonSerializer.Serialize(parameterChange.ParameterVersion),
-            AuditJson = parameterChange.ParameterAuditJson,
+            Version = parameterChange.ParameterVersion,
+            Audit = parameterChange.ParameterAudit,
         };
 }

@@ -202,7 +202,7 @@ public sealed class Black76BehaviorContractTests
         var method = typeof(OptionModel).GetMethod(nameof(OptionModel.ImpliedVolatility));
 
         method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(double));
+        method!.ReturnType.Should().Be<double>();
         var parameters = method.GetParameters();
         parameters.Should().HaveCount(9);
         parameters[6].IsOptional.Should().BeTrue();

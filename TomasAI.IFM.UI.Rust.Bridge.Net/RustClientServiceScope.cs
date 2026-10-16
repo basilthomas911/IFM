@@ -21,16 +21,19 @@ public sealed class RustClientServiceScope : IAppRoot,IAsyncDisposable
  public IUiServiceCatalog Services=>Container.GetInstance<IUiServiceCatalog>();
  public IValueDateProvider ValueDates=>Container.GetInstance<IValueDateProvider>();
  public ILogger DiagnosticLogger {get;}
- public RustClientServiceScope(string natsUrl,string environment="Development",ILogger? logger=null)
+ public TomasAI.IFM.UI.Net.Services.Trade.DesktopTradeExecutionContext TradeExecution {get;}
+ public RustClientServiceScope(string natsUrl,string? environment=null,ILogger? logger=null)
  {
-  AppEnvironment=environment;DiagnosticLogger=logger??NullLogger.Instance;
+  environment ??= Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Development";
+  AppEnvironment=environment;DiagnosticLogger=logger??new RustDiagnosticLogger();
   Container.RegisterInstance<ILogger>(DiagnosticLogger);
   Container.RegisterInstance<ILogger<TomasAI.IFM.Shared.EventChannel.EventChannel>>(NullLogger<TomasAI.IFM.Shared.EventChannel.EventChannel>.Instance);
   Container.RegisterInstance<IAppRoot>(this);
   var configBuilder=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["AppSettings:NatsServerUri"]=natsUrl,["MarketDataOperationsHealth:Endpoint"]="http://localhost:22543/api/market-data/operations-health"});
-  var settings=Path.Combine(Path.GetDirectoryName(typeof(RustClientServiceScope).Assembly.Location)!,"ui-client.Development.json");
-  if(environment=="Development" && File.Exists(settings))configBuilder.AddJsonFile(settings,optional:false,reloadOnChange:false);
+  var settings=Path.Combine(Path.GetDirectoryName(typeof(RustClientServiceScope).Assembly.Location)!,$"ui-client.{environment}.json");
+  if(File.Exists(settings))configBuilder.AddJsonFile(settings,optional:false,reloadOnChange:false);
   var config=configBuilder.Build();
+  TradeExecution=TomasAI.IFM.UI.Net.Services.Trade.DesktopTradeExecutionContext.Resolve(config, environment);
   LivePipelineHealthEndpoint=Uri.TryCreate(config["MarketDataOperationsHealth:Endpoint"],UriKind.Absolute,out var healthEndpoint)?new Uri(healthEndpoint,"live-health"):null;
   new UiClientServiceRegistration(Container,config).Register();
   Container.Verify();

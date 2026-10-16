@@ -20,19 +20,19 @@ public sealed class ParameterSetModelTests
             ComponentCode = FuturesItiSignalParameterModel.ComponentCode,
             Name = "Future ITI Signal",
             SchemaVersion = 1,
-            PayloadJson = descriptor.CreateDraftPayload(id)
+            Parameters = descriptor.CreateTypedDraft(id)
         };
 
         var version = ParameterMutationModel.Decide(
             command, 0, new Dictionary<int, ParameterSetVersion>(), DateTime.UtcNow);
-        var payload = JsonSerializer.Deserialize<FuturesItiSignalParameterSet>(version.PayloadJson)!;
+        var payload = version.Values().Get<FuturesItiSignalParameterSet>();
 
         version.Reference.ComponentCode.Should().Be(ParameterSchemaRegistry.FuturesItiSignalComponent);
         version.Reference.Version.Should().Be(1);
         payload.ParameterSetId.Should().Be(id);
         payload.Version.Should().Be(1);
         payload.DefaultTradingDays.Should().BeEquivalentTo(new { Daily = 1, Weekly = 10, Monthly = 30 });
-        descriptor.Validate(version.PayloadJson, version.SchemaVersion).Should().BeEmpty();
+        descriptor.ValidateTyped(version.Values(), version.SchemaVersion).Should().BeEmpty();
     }
     [Fact]
     public void Seed_contains_69_unique_rows_and_preserves_dependency_defaults()
@@ -105,22 +105,21 @@ public sealed class ParameterSetModelTests
             EntityId = new(id),
             Name = "Daily",
             SchemaVersion = 2,
-            PayloadJson = descriptor.CreateDraftPayload(Guid.NewGuid())
+            Parameters = ParameterHistoryReader.ReadValues(ParameterSchemaRegistry.RegimeComponent,descriptor.CreateDraftPayload(Guid.NewGuid()))
         };
         var first = ParameterMutationModel.Decide(create, 0, new Dictionary<int, ParameterSetVersion>(), DateTime.UtcNow);
-        var save = new SaveParameterDraftCommand { EntityId = new(id), ExpectedRevision = 1, Name = "Daily", SchemaVersion = 2, PayloadJson = first.PayloadJson };
+        var save = new SaveParameterDraftCommand { EntityId = new(id), ExpectedRevision = 1, Name = "Daily", SchemaVersion = 2, Parameters = first.Values() };
         var second = ParameterMutationModel.Decide(save, 1, new Dictionary<int, ParameterSetVersion> { { 1, first } }, DateTime.UtcNow);
-        using var payload = JsonDocument.Parse(second.PayloadJson);
-        payload.RootElement.GetProperty("ParameterSetId").GetGuid().Should().Be(id);
-        payload.RootElement.GetProperty("Version").GetInt32().Should().Be(2);
-        second.Reference.PayloadSha256.Should().Be(ParameterCanonicalPayloadModel.Hash(second.PayloadJson));
+        second.Values().SetId.Should().Be(id);
+        second.Values().Version.Should().Be(2);
+        second.Reference.PayloadSha256.Should().Be(ParameterValueCodec.Hash(second.Values()));
         first.Reference.Version.Should().Be(1);
-        JsonDocument.Parse(first.PayloadJson).RootElement.GetProperty("Version").GetInt32().Should().Be(1);
+        first.Values().Version.Should().Be(1);
     }
     [Fact]
     public void Rename_changes_metadata_without_rewriting_payload_or_version()
     {
-        var id = Guid.NewGuid(); var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Original", SchemaVersion = 2, PayloadJson = new RegimeDiscoveryParameterModel().CreateDraftPayload(id) };
+        var id = Guid.NewGuid(); var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Original", SchemaVersion = 2, Parameters = ParameterHistoryReader.ReadValues(ParameterSchemaRegistry.RegimeComponent,new RegimeDiscoveryParameterModel().CreateDraftPayload(id)) };
         var first = ParameterMutationModel.Decide(create, 0, new Dictionary<int, ParameterSetVersion>(), DateTime.UtcNow);
         var rename = new RenameParameterSetCommand { EntityId = new(id), ExpectedRevision = 1, Version = 1, Name = "Renamed", Description = "Updated description" };
         var renamed = ParameterMutationModel.Decide(rename, 1, new Dictionary<int, ParameterSetVersion> { { 1, first } }, DateTime.UtcNow);
@@ -131,7 +130,7 @@ public sealed class ParameterSetModelTests
     [Fact]
     public void Retirement_requires_an_authoritative_usage_decision_and_rejects_assigned_versions()
     {
-        var id = Guid.NewGuid(); var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Daily", SchemaVersion = 2, PayloadJson = new RegimeDiscoveryParameterModel().CreateDraftPayload(id) };
+        var id = Guid.NewGuid(); var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Daily", SchemaVersion = 2, Parameters = ParameterHistoryReader.ReadValues(ParameterSchemaRegistry.RegimeComponent,new RegimeDiscoveryParameterModel().CreateDraftPayload(id)) };
         var version = ParameterMutationModel.Decide(create, 0, new Dictionary<int, ParameterSetVersion>(), DateTime.UtcNow) with { Status = ParameterVersionStatus.Published, PublishedAtUtc = DateTime.UtcNow };
         var versions = new Dictionary<int, ParameterSetVersion> { { 1, version } };
         var command = new RetireParameterVersionCommand { EntityId = new(id), ExpectedRevision = 2, Version = 1 };
@@ -148,17 +147,17 @@ public sealed class ParameterSetModelTests
     {
         var id = Guid.NewGuid();
         var schemaThree = RegimeDiscoveryParameterModel.CreateExplicitSeed(id) with { SchemaVersion = 3 };
-        var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Schema 3", SchemaVersion = 3, PayloadJson = JsonSerializer.Serialize(schemaThree) };
+        var create = new CreateParameterSetCommand { EntityId = new(id), Name = "Schema 3", SchemaVersion = 3, Parameters = ParameterSetValue.From(schemaThree) };
         var first = ParameterMutationModel.Decide(create, 0, new Dictionary<int, ParameterSetVersion>(), DateTime.UtcNow);
-        var firstJson = first.PayloadJson;
-        var migrated = RegimeDiscoveryParameterModel.UpgradeToExplicitSet(JsonSerializer.Deserialize<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet>(first.PayloadJson)!);
-        var save = new SaveParameterDraftCommand { EntityId = new(id), ExpectedRevision = 1, Name = "Schema 4", SchemaVersion = ParameterSchemaRegistry.CurrentRegimeSchemaVersion, PayloadJson = JsonSerializer.Serialize(migrated) };
+        var firstBytes = ParameterValueCodec.Encode(first.Values());
+        var migrated = RegimeDiscoveryParameterModel.UpgradeToExplicitSet(first.Values().Get<TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet>());
+        var save = new SaveParameterDraftCommand { EntityId = new(id), ExpectedRevision = 1, Name = "Schema 4", SchemaVersion = ParameterSchemaRegistry.CurrentRegimeSchemaVersion, Parameters = ParameterSetValue.From(migrated) };
         var versions = new Dictionary<int, ParameterSetVersion> { { 1, first } };
         var second = ParameterMutationModel.Decide(save, 1, versions, DateTime.UtcNow);
         second.Reference.Version.Should().Be(2);
         second.SchemaVersion.Should().Be(ParameterSchemaRegistry.CurrentRegimeSchemaVersion);
-        JsonDocument.Parse(second.PayloadJson).RootElement.GetProperty("Version").GetInt32().Should().Be(2);
+        second.Values().Version.Should().Be(2);
         versions[1].SchemaVersion.Should().Be(3);
-        versions[1].PayloadJson.Should().Be(firstJson);
+        ParameterValueCodec.Encode(versions[1].Values()).Should().Equal(firstBytes);
     }
 }

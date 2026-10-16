@@ -117,3 +117,33 @@ fn feed_toolbar_uses_exact_winforms_rgb_and_foreground_colors() {
         "Feed Health: Unknown"
     );
 }
+
+#[test]
+fn feed_toolbar_clicks_are_enabled_only_when_the_shared_model_allows_them() {
+    use egui_kittest::{Harness, kittest::{Queryable, NodeT}};
+    use ifm_ui_rust::sidebar::FeedControl;
+    for active in [true, false] {
+        let state = FeedControl { ready: true, can_toggle: true, busy: false, active };
+        let mut h = Harness::new_state(move |ctx, clicks: &mut usize| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if presentation::feed_command_button(ui, &state) { *clicks += 1; }
+            });
+        }, 0usize);
+        h.run();
+        h.get_by_label(if active { "Stop Market Feeds" } else { "Start Market Feeds" }).click();
+        h.run(); assert_eq!(*h.state(), 1);
+    }
+    for state in [
+        FeedControl { ready: false, can_toggle: true, busy: false, active: true },
+        FeedControl { ready: true, can_toggle: false, busy: false, active: true },
+        FeedControl { ready: true, can_toggle: true, busy: true, active: true },
+    ] {
+        let mut h = Harness::new_state(move |ctx, clicks: &mut usize| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if presentation::feed_command_button(ui, &state) { *clicks += 1; }
+            });
+        }, 0usize);
+        h.run(); assert!(h.get_by_label("Stop Market Feeds").accesskit_node().is_disabled());
+        assert_eq!(*h.state(), 0);
+    }
+}
