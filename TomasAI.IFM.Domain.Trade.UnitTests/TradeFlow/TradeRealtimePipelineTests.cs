@@ -16,6 +16,35 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class TradeRealtimePipelineTests
 {
     [Fact]
+    public async Task Concurrent_route_changes_and_reads_do_not_publish_retired_cache_updates()
+    {
+        var registry = new TradeRealtimeCacheRegistry();
+        var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        var trade = new EstablishedTradeDefinition { Id = new(101, 701, 1901, 1501), StrategyKind = TradeStrategyKind.IronCondor,
+            Legs = [new() { TradeLegId = Guid.NewGuid(), ContractId = "shared" }] };
+        registry.Register(trade, date);
+        long sequence = 0;
+        var quote = new FuturesOptionTickDataV2ReadModel("shared", date, 1, new(15, 0), 10, 9, 11, 1, 1, .2, 5000, -.4, .01, 12, -3, .1);
+        var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            for (var i = 0; i < 500; i++)
+            {
+                registry.Apply(quote with { TickId = Interlocked.Increment(ref sequence) });
+                registry.Find(trade.Id)?.Read();
+                registry.Expire();
+            }
+        })).ToArray();
+        for (var i = 0; i < 100; i++) { registry.Remove(trade.Id); registry.Register(trade, date); }
+        await Task.WhenAll(readers);
+        var final = registry.Find(trade.Id)!;
+        Assert.Single(registry.Apply(quote with { TickId = Interlocked.Increment(ref sequence) }));
+        Assert.Equal(sequence, final.Read().Legs[0].Observation!.TickId);
+        registry.Remove(trade.Id);
+        Assert.Empty(registry.Apply(quote with { TickId = Interlocked.Increment(ref sequence) }));
+        Assert.False(final.Apply(quote with { TickId = Interlocked.Increment(ref sequence) }));
+    }
+
+    [Fact]
     public async Task Pricing_completion_routes_whole_trade_snapshot_across_wire_without_position_command()
     {
         var now = DateTimeOffset.UtcNow;

@@ -15,6 +15,7 @@ public sealed class TradeRealtimeHotCache
     TradeRealtimeSnapshot current;
     TradeRealtimeSnapshot? remote;
     bool retired;
+    DateTimeOffset nextQualityCheck = DateTimeOffset.MaxValue;
 
     public TradeRealtimeHotCache(EstablishedTradeDefinition trade, DateOnly valueDate, TimeProvider? time = null)
     {
@@ -57,7 +58,9 @@ public sealed class TradeRealtimeHotCache
                 RememberRetired(retiredMonitorGenerations, retiredMonitorOrder, prior.MonitoringGeneration);
             }
             remote = snapshot;
-            Volatile.Write(ref current, Qualify(snapshot));
+            var qualified = Qualify(snapshot);
+            ScheduleQualityCheck(qualified);
+            Volatile.Write(ref current, qualified);
             return true;
         }
     }
@@ -68,7 +71,7 @@ public sealed class TradeRealtimeHotCache
         lock (gate)
         {
             if (retired || observation.ValueDate != current.ValueDate) return false;
-            var index = Enumerable.Range(0, current.Legs.Length).FirstOrDefault(i => current.Legs[i].Definition.ContractId == observation.ContractId, -1);
+            var index = TradeRealtimeSnapshotCalculations.FindLegIndex(current.Legs, observation.ContractId);
             if (index < 0) return false;
             var leg = current.Legs[index];
             var previous = leg.Observation;
@@ -144,8 +147,9 @@ public sealed class TradeRealtimeHotCache
     {
         lock (gate)
         {
-            if (retired) return false;
+            if (retired || clock.GetUtcNow() < nextQualityCheck) return false;
             var next = Qualify(current);
+            ScheduleQualityCheck(next);
             if (next.Legs.SequenceEqual(current.Legs) && next.PlanStatus == current.PlanStatus) return false;
             Publish(next);
             return true;
@@ -163,70 +167,28 @@ public sealed class TradeRealtimeHotCache
         Legs = snapshot.Legs.Select(leg => leg with { Position = position.Legs.Single(mark => mark.TradeLegId == leg.Definition.TradeLegId) }).ToImmutableArray()
     };
 
-    TradeRealtimeSnapshot Qualify(TradeRealtimeSnapshot snapshot)
+    TradeRealtimeSnapshot Qualify(TradeRealtimeSnapshot snapshot) => TradeRealtimeSnapshotCalculations.Qualify(snapshot, clock.GetUtcNow());
+
+    void ScheduleQualityCheck(TradeRealtimeSnapshot snapshot)
     {
-        var now = clock.GetUtcNow();
-        var plan = snapshot.Plan;
-        var detail = plan?.IronCondorTradePlanSnapshot;
-        var planCurrent = plan is not null && snapshot.Position is { } position
-            && plan.Position.RouteGeneration == position.RouteGeneration && plan.Position.PositionSequence == position.PositionSequence
-            && detail?.IsComplete == true && detail.RiskValidUntilUtc is { } deadline && deadline > now.UtcDateTime
-            && snapshot.Legs.All(leg => leg.Observation is { } quote && quote.GreeksAvailable == true
-                && quote.ValidUntilUtc > now && detail.Legs.Any(input => input.TradeLegId == leg.Definition.TradeLegId
-                    && input.QuoteAtUtc >= quote.ObservedAtUtc.UtcDateTime));
-        var legs = snapshot.Legs.Select(leg =>
-        {
-            if (leg.Observation is not { } quote) return leg;
-            var stale = quote.ValidUntilUtc != default && quote.ValidUntilUtc <= now;
-            return leg with
-            {
-                QuoteStatus = stale ? "Stale" : "Available",
-                PricingStatus = stale ? "Stale" : quote.GreeksAvailable == true ? "Available"
-                    : quote.PricingFailure == "CalculationPending" ? "Pending" : "Unavailable",
-                Scenario = planCurrent ? detail!.Legs.FirstOrDefault(input => input.TradeLegId == leg.Definition.TradeLegId) : null
-            };
-        }).ToImmutableArray();
-        var complete = legs.Length > 0 && legs.All(leg => leg.PricingStatus == "Available")
-            && legs.Select(leg => leg.Observation!.SourceGeneration).Distinct().Count() == 1
-            && legs.Max(leg => leg.Observation!.ObservedAtUtc) - legs.Min(leg => leg.Observation!.ObservedAtUtc) <= TimeSpan.FromSeconds(1);
-        double? Risk(Func<FuturesOptionTickDataV2ReadModel, double> read) => complete
-            ? legs.Sum(leg => read(leg.Observation!) * (leg.Position?.SignedQuantity ?? leg.Definition.SignedQuantity)) : null;
-        var underlying = legs.Where(leg => leg.QuoteStatus == "Available" && leg.Observation?.UnderlyingPrice > 0)
-            .OrderByDescending(leg => leg.Observation!.CalculatedAtUtc).FirstOrDefault()?.Observation?.UnderlyingPrice;
-        return snapshot with { Legs = legs, PlanStatus = planCurrent ? "Available" : plan is null ? "Unavailable" : "Stale",
-            Summary = snapshot.Summary with { UnderlyingPrice = underlying, NetDelta = Risk(quote => quote.Delta),
-                NetGamma = Risk(quote => quote.Gamma), NetVega = Risk(quote => quote.Vega), NetTheta = Risk(quote => quote.Theta),
-                NetRho = Risk(quote => quote.Rho), PositionValue = snapshot.Position?.MarketValue, DailyPnlPoints = snapshot.Position?.DailyPnl },
-            Spreads = planCurrent ? snapshot.Spreads : snapshot.Spreads.Select(spread => spread with { OtmProbability = null, ForwardPrice = null }).ToImmutableArray(),
-            Status = complete ? "Available"
-            : legs.Any(leg => leg.QuoteStatus == "Stale") ? "Stale" : "Pending" };
+        var next = DateTimeOffset.MaxValue;
+        foreach (var leg in snapshot.Legs)
+            if (leg.QuoteStatus != "Stale" && leg.Observation is {} quote && quote.ValidUntilUtc != default && quote.ValidUntilUtc < next)
+                next = quote.ValidUntilUtc;
+        if (snapshot.PlanStatus == "Available" && snapshot.Plan?.IronCondorTradePlanSnapshot?.RiskValidUntilUtc is {} riskUntil
+            && riskUntil < next.UtcDateTime) next = new DateTimeOffset(DateTime.SpecifyKind(riskUntil, DateTimeKind.Utc));
+        nextQualityCheck = next;
     }
 
     void Publish(TradeRealtimeSnapshot next)
     {
         next = Qualify(next);
-        var plan = next.PlanStatus == "Available" ? next.Plan?.IronCondorTradePlanSnapshot : null;
-        var spreads = new List<TradeSpreadRealtimeSnapshot>();
-        foreach (var right in new byte[] { 2, 1 })
-        {
-            var legs = next.Legs.Where(leg => leg.Definition.PutCall == right).ToArray();
-            var complete = legs.Length == 2 && legs.All(leg => leg.Position is not null && leg.Definition.CashMultiplier > 0);
-            var quantity = complete && legs.Select(leg => Math.Abs(leg.Position!.SignedQuantity)).Distinct().Count() == 1
-                && legs.Sum(leg => leg.Position!.SignedQuantity) == 0 ? Math.Abs(legs[0].Position!.SignedQuantity) : 0;
-            spreads.Add(new()
-            {
-                PutCall = right,
-                NetSpread = complete && quantity > 0 ? legs.Sum(leg => leg.Position!.CurrentPrice * leg.Position.SignedQuantity) / quantity : null,
-                TradeValue = complete ? legs.Sum(leg => leg.Position!.CurrentPrice * leg.Position.SignedQuantity * leg.Definition.CashMultiplier) : null,
-                TradePnl = complete ? legs.Sum(leg => (leg.Position!.CurrentPrice - leg.Position.OpeningPrice) * leg.Position.SignedQuantity * leg.Definition.CashMultiplier) : null,
-                OtmProbability = plan?.IsComplete == true ? right == 2 ? plan.PutOTMProbability : plan.CallOTMProbability : null,
-                ForwardPrice = plan?.IsComplete == true ? right == 2 ? plan.PutForwardPrice : plan.CallForwardPrice : null
-            });
-        }
-        Volatile.Write(ref current, next with { SnapshotRevision = remote is null ? current.SnapshotRevision + 1 : current.SnapshotRevision,
+        var spreads = TradeRealtimeSnapshotCalculations.CalculateSpreads(next);
+        var published = next with { SnapshotRevision = remote is null ? current.SnapshotRevision + 1 : current.SnapshotRevision,
             QualityRevision = remote is null ? 0 : current.QualityRevision + 1,
-            Summary = next.Summary with { NetSpread = spreads.Count == 2 && spreads.All(spread => spread.NetSpread.HasValue)
-                ? spreads.Sum(spread => spread.NetSpread!.Value) : null },
-            PublishedAtUtc = clock.GetUtcNow(), Spreads = spreads.ToImmutableArray() });
+            Summary = next.Summary with { NetSpread = spreads[0].NetSpread is {} put && spreads[1].NetSpread is {} call ? put + call : null },
+            PublishedAtUtc = clock.GetUtcNow(), Spreads = spreads };
+        ScheduleQualityCheck(published);
+        Volatile.Write(ref current, published);
     }
 }

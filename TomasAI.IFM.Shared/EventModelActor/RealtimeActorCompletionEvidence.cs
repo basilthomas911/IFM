@@ -21,9 +21,9 @@ public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
             throw new ArgumentException("A complete realtime actor target is required.", nameof(value));
         lock (gate)
         {
-            target = value;
             completed = 0;
             lastCompletedUtc = null;
+            Volatile.Write(ref target, value);
         }
     }
 
@@ -32,7 +32,7 @@ public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
     {
         lock (gate)
         {
-            target = null;
+            Volatile.Write(ref target, null);
             completed = 0;
             lastCompletedUtc = null;
         }
@@ -46,12 +46,15 @@ public sealed class RealtimeActorCompletionEvidence(TimeProvider? time = null)
 
     internal void Record(string? dataset, Guid generationId, ActorSubject subject)
     {
+        var expected = Volatile.Read(ref target);
+        if (expected is null || !string.Equals(expected.Dataset, dataset, StringComparison.Ordinal)
+            || expected.GenerationId != generationId || expected.ActorType != subject.ActorType
+            || !string.Equals(expected.ActorName, subject.Name, StringComparison.Ordinal)
+            || !string.Equals(expected.Verb, subject.Verb, StringComparison.Ordinal)) return;
         lock (gate)
         {
-            if (target is not { } expected || !string.Equals(expected.Dataset, dataset
-, StringComparison.Ordinal) || expected.GenerationId != generationId || expected.ActorType != subject.ActorType
-                || !string.Equals(expected.ActorName, subject.Name, StringComparison.Ordinal) || !string.Equals(expected.Verb, subject.Verb, StringComparison.Ordinal))
-                return;
+            // Arm/disarm can race the fast path. Never credit a completion to a replacement observation.
+            if (!ReferenceEquals(target, expected)) return;
             completed++;
             lastCompletedUtc = clock.GetUtcNow();
         }

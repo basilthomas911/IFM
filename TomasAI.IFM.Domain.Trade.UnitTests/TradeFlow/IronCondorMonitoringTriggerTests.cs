@@ -42,7 +42,8 @@ public sealed class IronCondorMonitoringTriggerTests
         command.IronCondorTradePlanInputs.Should().BeSameAs(changed.IronCondorTradePlanInputs);
         command.Position.Should().BeSameAs(changed.PositionSnapshot); command.SourceEventId.Should().Be(changed.Id);
         command.RequestedAtUtc.Should().Be(changed.ReceivedOn);
-        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "get_Parameters", "RequestFunctionAsync" }.Contains(call.GetMethodInfo().Name));
+        await context.Received(1).PublishRealtimeAsync(changed.PositionSnapshot, complete.Completed!.Plan);
+        context.ReceivedCalls().Should().OnlyContain(call => new[] { "IsCurrentMonitoringPosition", "get_Parameters", "RequestFunctionAsync", "PublishRealtimeAsync" }.Contains(call.GetMethodInfo().Name));
         MessagePackSerializer.Deserialize<IronCondorMonitoringInputsChangedEvent>(MessagePackSerializer.Serialize(changed)).Should().BeEquivalentTo(changed);
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
@@ -8,7 +9,9 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Realtime;
 public sealed class TradeRealtimeCacheRegistry
 {
     readonly object gate = new();
-    readonly Dictionary<TradeEntityId, TradeRealtimeHotCache> trades = [];
+    readonly ConcurrentDictionary<TradeEntityId, TradeRealtimeHotCache> trades = new();
+    readonly ConcurrentDictionary<string, TradeRealtimeHotCache[]> publishedRoutes = new(StringComparer.Ordinal);
+    TradeRealtimeHotCache[]? residentSnapshot;
     readonly Dictionary<string, HashSet<TradeEntityId>> routes = new(StringComparer.Ordinal);
     public TradeRealtimeHotCache Register(EstablishedTradeDefinition trade, DateOnly date)
     {
@@ -24,43 +27,67 @@ public sealed class TradeRealtimeCacheRegistry
             Remove(trade.Id);
             if (trades.Count >= 4096) throw new InvalidOperationException("Trade realtime cache capacity exceeded.");
             var cache = new TradeRealtimeHotCache(trade, date);
-            trades.Add(trade.Id, cache);
+            trades[trade.Id] = cache;
+            Volatile.Write(ref residentSnapshot, null);
             foreach (var leg in trade.Legs)
             {
                 if (!routes.TryGetValue(leg.ContractId, out var ids)) routes[leg.ContractId] = ids = [];
                 ids.Add(trade.Id);
+                publishedRoutes[leg.ContractId] = ids.Select(id => trades[id]).ToArray();
             }
             return cache;
         }
     }
     public TradeRealtimeHotCache? Find(TradeEntityId id)
     {
-        lock (gate) return trades.GetValueOrDefault(id);
+        return trades.GetValueOrDefault(id);
     }
     public TradeRealtimeSnapshot[] Expire()
     {
-        TradeRealtimeHotCache[] all;
-        lock (gate) all = trades.Values.ToArray();
-        return all.Where(cache => cache.Expire()).Select(cache => cache.Read()).ToArray();
+        var all = Volatile.Read(ref residentSnapshot);
+        if (all is null)
+            lock (gate)
+            {
+                all = residentSnapshot ?? trades.Values.ToArray();
+                Volatile.Write(ref residentSnapshot, all);
+            }
+        List<TradeRealtimeSnapshot>? expired = null;
+        foreach (var cache in all)
+            if (cache.Expire()) (expired ??= []).Add(cache.Read());
+        return expired?.ToArray() ?? [];
     }
     public TradeRealtimeSnapshot[] Apply(FuturesOptionTickDataV2ReadModel observation)
     {
-        TradeRealtimeHotCache[] interested;
-        lock (gate) interested = routes.TryGetValue(observation.ContractId, out var ids)
-            ? ids.Select(id => trades[id]).ToArray() : [];
-        return interested.Where(cache => cache.Apply(observation)).Select(cache => cache.Read()).ToArray();
+        if (!publishedRoutes.TryGetValue(observation.ContractId, out var interested)) return [];
+        TradeRealtimeSnapshot[]? changed = null;
+        var count = 0;
+        foreach (var cache in interested)
+            if (cache.Apply(observation))
+            {
+                changed ??= new TradeRealtimeSnapshot[interested.Length];
+                changed[count++] = cache.Read();
+            }
+        if (changed is null) return [];
+        if (count != changed.Length) Array.Resize(ref changed, count);
+        return changed;
     }
     public void Remove(TradeEntityId id)
     {
         lock (gate)
         {
-            if (!trades.Remove(id, out var cache)) return;
+            if (!trades.TryRemove(id, out var cache)) return;
             cache.Retire();
+            Volatile.Write(ref residentSnapshot, null);
             foreach (var leg in cache.Read().Legs)
                 if (routes.TryGetValue(leg.Definition.ContractId, out var ids))
                 {
                     ids.Remove(id);
-                    if (ids.Count == 0) routes.Remove(leg.Definition.ContractId);
+                    if (ids.Count == 0)
+                    {
+                        routes.Remove(leg.Definition.ContractId);
+                        publishedRoutes.TryRemove(leg.Definition.ContractId, out _);
+                    }
+                    else publishedRoutes[leg.Definition.ContractId] = ids.Select(key => trades[key]).ToArray();
                 }
         }
     }

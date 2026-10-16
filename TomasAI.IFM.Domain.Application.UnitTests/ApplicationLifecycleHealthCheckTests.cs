@@ -9,6 +9,31 @@ namespace TomasAI.IFM.Domain.Application.Actor.UnitTests;
 public sealed class ApplicationLifecycleHealthCheckTests
 {
     [Fact]
+    public async Task Cached_health_invalidates_on_either_lifecycle_or_handoff_transition()
+    {
+        var lifecycle = new ApplicationStartupStatusStore();
+        lifecycle.Set(new() { State = ApplicationLifecycleState.Running, Summary = "Running" });
+        var handoff = new ApplicationStartupHandoffStatusStore();
+        handoff.Set(new() { State = ApplicationStartupHandoffState.LifecycleObserved });
+        var check = new ApplicationLifecycleHealthCheck(lifecycle, handoff);
+        var context = new HealthCheckContext();
+        var original = check.CheckHealthAsync(context);
+        Assert.Same(original, check.CheckHealthAsync(context));
+        Assert.Equal(HealthStatus.Healthy, (await original).Status);
+        handoff.Set(handoff.Current with { State = ApplicationStartupHandoffState.TimedOut, LastError = "handoff lost" });
+        var failed = await check.CheckHealthAsync(context);
+        Assert.Equal(HealthStatus.Unhealthy, failed.Status);
+        Assert.Equal("handoff lost", failed.Data["handoffLastError"]);
+        handoff.Set(handoff.Current with { State = ApplicationStartupHandoffState.LifecycleObserved });
+        lifecycle.Set(lifecycle.Current with { State = ApplicationLifecycleState.Failed, Summary = "Stopped unexpectedly" });
+        var stopped = await check.CheckHealthAsync(context);
+        Assert.Equal(HealthStatus.Unhealthy, stopped.Status);
+        Assert.Equal("Stopped unexpectedly", stopped.Description);
+        var data = Assert.IsAssignableFrom<IDictionary<string, object>>(stopped.Data);
+        Assert.Throws<NotSupportedException>(() => data["summary"] = "corrupted");
+    }
+
+    [Fact]
     public async Task Accepted_but_unobserved_handoff_replaces_not_requested_description()
     {
         var commandId = Guid.NewGuid();

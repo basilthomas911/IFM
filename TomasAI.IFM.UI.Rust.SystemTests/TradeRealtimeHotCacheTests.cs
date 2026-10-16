@@ -6,6 +6,58 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 public sealed class TradeRealtimeHotCacheTests
 {
+    [Fact]
+    public void Idle_expiry_does_not_allocate_or_advance_snapshot_revision()
+    {
+        var clock = new Clock(); var trade = Trade();
+        var cache = new TradeRealtimeHotCache(trade, new(2026, 10, 16), clock);
+        foreach (var leg in trade.Legs) cache.Apply(Quote(completed: true) with { ContractId = leg.ContractId });
+        for (var i = 0; i < 1000; i++) cache.Expire();
+        var snapshot = cache.Read();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var changed = false;
+        for (var i = 0; i < 1000; i++) changed |= cache.Expire();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(0, allocated);
+        Assert.False(changed);
+        Assert.Same(snapshot, cache.Read());
+    }
+
+    [Theory]
+    [InlineData(int.MaxValue, int.MaxValue, true)]
+    [InlineData(int.MaxValue, int.MaxValue - 1, false)]
+    public void Spread_quantity_overflow_preserves_checked_sum_semantics(int shortQuantity, int longQuantity, bool overflow)
+    {
+        var trade = Trade(); var cache = new TradeRealtimeHotCache(trade, new(2026, 10, 16), new Clock());
+        var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(trade.Id, TradeStrategyKind.IronCondor),
+            ValueDate = new(2026, 10, 16), PositionSequence = 1, RouteGeneration = 1,
+            Legs = trade.Legs.Select((leg, i) => new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId,
+                SignedQuantity = i == 0 ? shortQuantity : i == 1 ? longQuantity : leg.SignedQuantity,
+                CurrentPrice = 1, OpeningPrice = 1 }).ToArray() };
+        if (overflow) Assert.Throws<OverflowException>(() => cache.Apply(position));
+        else { Assert.True(cache.Apply(position)); Assert.Null(cache.Read().Spreads[0].NetSpread); }
+    }
+
+    [Fact]
+    public void Expiry_fastpath_preserves_exact_deadline_and_replacement_quote_deadline()
+    {
+        var clock = new Clock();
+        var cache = new TradeRealtimeHotCache(Trade(), new(2026, 10, 16), clock);
+        cache.Apply(Quote(completed: true));
+        clock.Now = At.AddMilliseconds(999);
+        Assert.False(cache.Expire());
+        clock.Now = At.AddSeconds(1);
+        Assert.True(cache.Expire());
+        Assert.Equal("Stale", cache.Read().Legs[0].PricingStatus);
+        Assert.False(cache.Expire());
+        cache.Apply(Quote(tick: 2, revision: 2, completed: true) with { ObservedAtUtc = clock.Now, ValidUntilUtc = At.AddSeconds(3) });
+        clock.Now = At.AddSeconds(2);
+        Assert.False(cache.Expire());
+        Assert.Equal("Available", cache.Read().Legs[0].PricingStatus);
+        clock.Now = At.AddSeconds(3);
+        Assert.True(cache.Expire());
+    }
+
     static readonly DateTimeOffset At = new(2026, 10, 16, 15, 0, 0, TimeSpan.Zero);
     static readonly Guid Generation = Guid.NewGuid();
     static EstablishedTradeDefinition Trade(int id = 1501) => new()
@@ -154,7 +206,7 @@ public sealed class TradeRealtimeHotCacheTests
         var plan = new StrategyTradePlanSnapshot
         {
             Position = position, ValueDate = position.ValueDate, PlanRevision = 1,
-            IronCondorTradePlanSnapshot = new() { CalculationStatus = "Complete", RiskValidUntilUtc = At.AddSeconds(1).UtcDateTime,
+            IronCondorTradePlanSnapshot = new() { CalculationStatus = "Complete", RiskValidUntilUtc = At.AddMilliseconds(500).UtcDateTime,
                 PutForwardPrice = -3, CallForwardPrice = -4, PutOTMProbability = .7, CallOTMProbability = .8,
                 Legs = trade.Legs.Select(leg => new IronCondorTradePlanLegObservation { TradeLegId = leg.TradeLegId,
                     ContractId = leg.ContractId, QuoteAtUtc = At.UtcDateTime, ForwardPrice = 3 }).ToArray() }
@@ -163,6 +215,17 @@ public sealed class TradeRealtimeHotCacheTests
         Assert.Equal("Available", cache.Read().PlanStatus);
         Assert.Equal(-3, cache.Read().Spreads[0].ForwardPrice);
         Assert.NotNull(cache.Read().Legs[0].Scenario);
+        clock.Now = At.AddMilliseconds(499);
+        Assert.False(cache.Expire());
+        clock.Now = At.AddMilliseconds(500);
+        Assert.True(cache.Expire());
+        Assert.Equal("Stale", cache.Read().PlanStatus);
+        Assert.Equal("Available", cache.Read().Legs[0].PricingStatus);
+        Assert.Null(cache.Read().Spreads[0].ForwardPrice);
+        Assert.Null(cache.Read().Legs[0].Scenario);
+        plan = plan with { PlanRevision = 2, IronCondorTradePlanSnapshot = plan.IronCondorTradePlanSnapshot! with {
+            RiskValidUntilUtc = At.AddSeconds(1).UtcDateTime } };
+        Assert.True(cache.Apply(plan));
         Assert.True(cache.Apply(Quote(tick: 2, revision: 2, completed: true) with { ObservedAtUtc = At.AddMilliseconds(1) }));
         Assert.Equal("Stale", cache.Read().PlanStatus);
         Assert.Null(cache.Read().Spreads[0].ForwardPrice);
