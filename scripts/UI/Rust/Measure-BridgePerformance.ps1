@@ -2,6 +2,7 @@
 param(
  [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Label,
  [string]$BridgeAssemblyRoot,
+ [string]$Filter = '*',
  [switch]$SkipBridgeBuild
 )
 $ErrorActionPreference='Stop'
@@ -18,7 +19,7 @@ try {
  if(-not $SkipBridgeBuild){Invoke-Dotnet @('build','TomasAI.IFM.UI.Rust.Bridge.Net','-c','Release','-v:minimal') (Join-Path $destination 'bridge-build.log')}
  if($BridgeAssemblyRoot){$env:IFM_BRIDGE_BENCHMARK_ROOT=(Resolve-Path -LiteralPath $BridgeAssemblyRoot).Path}
  $ErrorActionPreference='Continue'
- Invoke-Dotnet @('run','-c','Release','--project','TomasAI.IFM.UI.Rust.Benchmarks','--','--filter','*','--artifacts',(Join-Path $destination 'benchmarkdotnet')) (Join-Path $destination 'benchmarks.log')
+ Invoke-Dotnet @('run','-c','Release','--project','TomasAI.IFM.UI.Rust.Benchmarks','--','--filter',$Filter,'--artifacts',(Join-Path $destination 'benchmarkdotnet')) (Join-Path $destination 'benchmarks.log')
  Invoke-Dotnet @('build','TomasAI.IFM.UI.Rust.Benchmarks','-c','Release','-o',(Join-Path $destination 'probe'),'-v:minimal') (Join-Path $destination 'probe-build.log')
  foreach($gc in @('0','1')) {
   $env:DOTNET_gcServer=$gc

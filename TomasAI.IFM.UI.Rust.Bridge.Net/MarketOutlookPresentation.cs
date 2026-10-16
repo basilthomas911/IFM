@@ -25,12 +25,12 @@ public sealed record MarketOutlookPresentation([property: MessagePack.Key("cells
 
         void Add(object model)
         {
-            var properties = model.GetType().GetProperties();
+            var properties = DisplayDescriptors.For(model.GetType());
             foreach (var property in properties.Where(p => p.PropertyType == typeof(string)))
             {
-                var foreground = properties.FirstOrDefault(p => p.Name == property.Name + "ForeColor")?.GetValue(model) as PresentationColorRole?;
-                var background = properties.FirstOrDefault(p => p.Name == property.Name + "BackColor")?.GetValue(model) as PresentationColorRole?;
-                cells[JsonNamingPolicy.CamelCase.ConvertName(property.Name)] = new((string?)property.GetValue(model) ?? "N/A", foreground?.ToString() ?? "LightText", background?.ToString() ?? "DarkSurface");
+                var foreground = properties.FirstOrDefault(p => p.Name == property.Name + "ForeColor")?.Read(model) as PresentationColorRole?;
+                var background = properties.FirstOrDefault(p => p.Name == property.Name + "BackColor")?.Read(model) as PresentationColorRole?;
+                cells[JsonNamingPolicy.CamelCase.ConvertName(property.Name)] = new((string?)property.Read(model) ?? "N/A", foreground?.ToString() ?? "LightText", background?.ToString() ?? "DarkSurface");
             }
         }
     }

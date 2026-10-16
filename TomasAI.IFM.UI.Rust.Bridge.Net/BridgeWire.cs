@@ -11,11 +11,12 @@ public static class BridgeWire
 {
     public const uint AbiVersion = 4;
     public static MessagePackSerializerOptions Options { get; } = MessagePackSerializerOptions.Standard
-        .WithResolver(CompositeResolver.Create([new LookupWireFormatter(), new ContractPublicationFormatter()], [BridgeGeneratedResolver.Instance, ContractlessStandardResolverAllowPrivate.Instance]))
+        .WithResolver(CompositeResolver.Create([new LookupWireFormatter(), new ContractPublicationFormatter(), new ArrayFormatter<GridRow>(), PrimitiveObjectFormatter.Instance], [BridgeGeneratedResolver.Instance, BuiltinResolver.Instance]))
         .WithCompression(MessagePackCompression.None)
         .WithSecurity(MessagePackSecurity.UntrustedData);
 
-    public static byte[] Serialize<T>(T value) => MessagePackSerializer.Serialize(value, Options);
+    public static byte[] Serialize<T>(T value) => KnownFormatter<T>.Available ? MessagePackSerializer.Serialize(value, Options) : BridgeDocument.Encode(value,contractKeys:true);
+    static class KnownFormatter<T>{public static readonly bool Available=Options.Resolver.GetFormatter<T>() is not null;}
     public static T Deserialize<T>(ReadOnlyMemory<byte> bytes) => MessagePackSerializer.Deserialize<T>(bytes, Options);
 }
 

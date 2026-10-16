@@ -19,6 +19,10 @@ sealed class LiveStrategySession : IDisposable
  readonly Dictionary<uint,TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId> selections=[];
  readonly Dictionary<TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId,uint> tokens=[];
  uint nextSelection=1000;
+ object? renderedRows,renderedEvents;
+ WorkflowDisplayRow[] displayRows=[];
+ WorkflowChoice[] displayChoices=[];
+ StrategyGraphPoint[] displaySignals=[];
  public long ChangeVersion;
  public LiveStrategySession()
  {
@@ -69,7 +73,17 @@ sealed class LiveStrategySession : IDisposable
   var details=viewModel.SelectedWorkflowDetails;
   var snapshot=details is null?new DetailSnapshot(1,epoch,generation,"Live","",0,[]):adapter.Project(details,generation);
   var window=viewModel.SelectedGraphWindow;
-  return snapshot with {Mode="Live",Status=Status,ContractId=viewModel.ContractId,TimeFrame=viewModel.SelectedTimeFrame.ToString(),GraphStartMarket=StrategyDetailsAdapter.MarketSeconds(window.StartUtc),GraphEndMarket=StrategyDetailsAdapter.MarketSeconds(window.EndUtc),Rows=rows.Select(r=>StrategyDetailsAdapter.Display(r,Token(r.WorkflowId))).ToArray(),Signals=viewModel.Events.OrderBy(r=>r.OccurredOn).ThenBy(r=>r.SequenceId).Select(StrategyDetailsAdapter.Graph).ToArray(),GraphStartUtc=new DateTimeOffset(window.StartUtc).ToUnixTimeSeconds(),GraphEndUtc=new DateTimeOffset(window.EndUtc).ToUnixTimeSeconds(),PageNumber=viewModel.WorkflowPageNumber,PageCount=viewModel.WorkflowPageCount,TotalRows=viewModel.WorkflowTotalCount,HasMore=viewModel.HasMoreWorkflows,Workflows=rows.Select(r=>new WorkflowChoice(r.WorkflowId.ToString(),$"{r.OccurredOn:HH:mm:ss} {r.Outcome} {r.WorkflowId}",Token(r.WorkflowId))).ToArray()};
+  if(!ReferenceEquals(rows,renderedRows)){
+   displayRows=rows.Select(r=>StrategyDetailsAdapter.Display(r,Token(r.WorkflowId))).ToArray();
+   displayChoices=rows.Select(r=>new WorkflowChoice(r.WorkflowId.ToString(),$"{r.OccurredOn:HH:mm:ss} {r.Outcome} {r.WorkflowId}",Token(r.WorkflowId))).ToArray();
+   renderedRows=rows;
+  }
+  var events=viewModel.Events;
+  if(!ReferenceEquals(events,renderedEvents)){
+   displaySignals=events.OrderBy(r=>r.OccurredOn).ThenBy(r=>r.SequenceId).Select(StrategyDetailsAdapter.Graph).ToArray();
+   renderedEvents=events;
+  }
+  return snapshot with {Mode="Live",Status=Status,ContractId=viewModel.ContractId,TimeFrame=viewModel.SelectedTimeFrame.ToString(),GraphStartMarket=StrategyDetailsAdapter.MarketSeconds(window.StartUtc),GraphEndMarket=StrategyDetailsAdapter.MarketSeconds(window.EndUtc),Rows=displayRows,Signals=displaySignals,GraphStartUtc=new DateTimeOffset(window.StartUtc).ToUnixTimeSeconds(),GraphEndUtc=new DateTimeOffset(window.EndUtc).ToUnixTimeSeconds(),PageNumber=viewModel.WorkflowPageNumber,PageCount=viewModel.WorkflowPageCount,TotalRows=viewModel.WorkflowTotalCount,HasMore=viewModel.HasMoreWorkflows,Workflows=displayChoices};
  }
  uint Token(TomasAI.IFM.Domain.Trade.Shared.StrategyWorkflowId identity){if(tokens.TryGetValue(identity,out var token))return token;if(tokens.Count>=10000){tokens.Clear();selections.Clear();}token=nextSelection++;tokens[identity]=token;selections[token]=identity;return token;}
  public void Dispose(){stopping.Cancel();try{startup.GetAwaiter().GetResult();}catch(Exception)when(startup.IsCanceled||startup.IsFaulted){}viewModel.DisposeAsync().AsTask().GetAwaiter().GetResult();services.DisposeAsync().AsTask().GetAwaiter().GetResult();stopping.Dispose();}

@@ -1,10 +1,12 @@
 #![windows_subsystem = "windows"]
 use ifm_ui_rust::presentation::TradingLabelUi as _;
-mod hosting;
+mod app;
+use app::hosting;
 use eframe::egui;
 use ifm_ui_rust::{Catalog, DetailsView, Snapshot, strings};
 use std::{sync::mpsc, time::Duration};
 enum Update {
+    Stamped(Box<Update>, ifm_ui_rust::publication_transfer::Stamp),
     Ready(Catalog, Snapshot),
     Snapshot(Snapshot),
     Error(String),
@@ -17,6 +19,7 @@ enum Update {
     Dashboard(ifm_ui_rust::shell::Dashboard),
     Sidebar(ifm_ui_rust::sidebar::SidebarPublication),
 }
+struct ReadProfile {started:std::time::Instant,seconds:u64,stage:u8}
 struct App {
     rx: mpsc::Receiver<Update>,
     tx: mpsc::SyncSender<u32>,
@@ -58,14 +61,19 @@ struct App {
     grid_tab: bool,
     grid_requested: bool,
     frame_times: Vec<f64>,
+    latency: Option<ifm_ui_rust::latency::LatencyTrace>,
+    read_profile: Option<ReadProfile>,
     fallback: Catalog,
     worker: Option<std::thread::JoinHandle<()>>,
 }
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let frame_started = std::time::Instant::now();
+        let mut stamps=[None;9];
         while let Ok(update) = self.rx.try_recv() {
+            let update=if let Update::Stamped(value,stamp)=update {stamps[stamp.kind as usize]=Some(stamp);*value}else{update};
             match update {
+                Update::Stamped(..)=>unreachable!("A transfer wraps one UI update"),
                 Update::Ready(c, s) => {
                     self.catalog = Some(c);
                     self.snapshot = Some(s);
@@ -747,6 +755,15 @@ impl eframe::App for App {
                 ui.trading_label(&self.shell.workspace);
             });
         }
+        if let Some(profile)=&mut self.read_profile {
+            if profile.started.elapsed().as_secs()>=profile.seconds {ctx.send_viewport_cmd(egui::ViewportCommand::Close);}
+            else if let Some(request)=self.trade_workspace.profile_read(profile.stage,&self.trade_snapshot){
+                if self.editor_tx.try_send(request).is_ok(){profile.stage+=1;}
+            }
+            ctx.request_repaint_after(Duration::from_millis(20));
+        }
+        if !self.trade_workspace.is_visible(){stamps[8]=None;}
+        if let Some(trace)=&self.latency {trace.paint(ctx,stamps);}
         if self.frame_times.len() < 10000 {
             self.frame_times
                 .push(frame_started.elapsed().as_secs_f64() * 1000.0);
@@ -769,6 +786,7 @@ impl Drop for App {
             }
         }
 
+        if let Some(trace)=&self.latency {trace.finish();}
         let _ = self.tx.send(u32::MAX);
         if let Some(worker) = self.worker.take() {
             let _ = worker.join();
@@ -835,15 +853,12 @@ fn main() -> eframe::Result {
                     }
                     let mut catalog = Some(catalog);
                     let mut generation = 0;
+                    let mut publications=ifm_ui_rust::publication_transfer::TransferCache::default();
+                    let profiling=std::env::var_os("IFM_UI_LATENCY_OUTPUT").is_some();
+                    let stamped=|update,kind,cache:&ifm_ui_rust::publication_transfer::TransferCache|if profiling{Update::Stamped(Box::new(update),cache.stamp(kind))}else{update};
                     let mut want_grid = false;
-                    let mut editor_generation = 0;
-                    let mut inspection_generation = 0;
-                    let mut trade_bytes = Vec::new();
-                    let mut contract_generation = 0;
-                    let mut dashboard_bytes = Vec::new();
-                    let mut sidebar_bytes = Vec::new();
                     loop {
-                        match actions.recv_timeout(Duration::from_millis(40)) {
+                        match actions.recv_timeout(Duration::from_millis(20)) {
                             Ok(u32::MAX) => break,
                             Ok(action) => {
                                 managed.action(action)?;
@@ -867,61 +882,29 @@ fn main() -> eframe::Result {
                                 ctx.request_repaint();
                             }
                         }
-                        let data = managed.copy(6)?;
-                        if data != dashboard_bytes {
-                            let dashboard =
-                                ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
-                            if updates.try_send(Update::Dashboard(dashboard)).is_ok() {
-                                dashboard_bytes = data;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(6,&mut publications)? {
+                            let dashboard=ifm_ui_rust::wire::decode(publications.bytes(6)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Dashboard(dashboard),6,&publications)).is_ok(){publications.acknowledge(6);ctx.request_repaint();}
                         }
-                        let data = managed.copy(7)?;
-                        if data != sidebar_bytes {
-                            let sidebar =
-                                ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
-                            if updates.try_send(Update::Sidebar(sidebar)).is_ok() {
-                                sidebar_bytes = data;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(7,&mut publications)? {
+                            let sidebar=ifm_ui_rust::wire::decode(publications.bytes(7)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Sidebar(sidebar),7,&publications)).is_ok(){publications.acknowledge(7);ctx.request_repaint();}
                         }
-                        let data = managed.copy(8)?;
-                        let trade: ifm_ui_rust::contract_editor::ContractPublication =
-                            ifm_ui_rust::wire::decode(&data).map_err(|e| e.to_string())?;
-                        if data != trade_bytes {
-                            if updates.try_send(Update::Trades(trade)).is_ok() {
-                                trade_bytes = data;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(8,&mut publications)? {
+                            let trade=ifm_ui_rust::wire::decode(publications.bytes(8)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Trades(trade),8,&publications)).is_ok(){publications.acknowledge(8);ctx.request_repaint();}
                         }
-                        let contract: ifm_ui_rust::contract_editor::ContractPublication =
-                            ifm_ui_rust::wire::decode(&managed.copy(5)?).map_err(|e| e.to_string())?;
-                        if contract.generation != contract_generation {
-                            let next = contract.generation;
-                            if updates.try_send(Update::Contracts(contract)).is_ok() {
-                                contract_generation = next;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(5,&mut publications)? {
+                            let contract=ifm_ui_rust::wire::decode(publications.bytes(5)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Contracts(contract),5,&publications)).is_ok(){publications.acknowledge(5);ctx.request_repaint();}
                         }
-                        let inspection_data = managed.copy(4)?;
-                        let inspection: ifm_ui_rust::strategy_inspection::InspectionPublication =
-                            ifm_ui_rust::wire::decode(&inspection_data).map_err(|e| e.to_string())?;
-                        if inspection.generation != inspection_generation {
-                            let next = inspection.generation;
-                            if updates.try_send(Update::Inspection(inspection)).is_ok() {
-                                inspection_generation = next;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(4,&mut publications)? {
+                            let inspection=ifm_ui_rust::wire::decode(publications.bytes(4)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Inspection(inspection),4,&publications)).is_ok(){publications.acknowledge(4);ctx.request_repaint();}
                         }
-                        let editor_data = managed.copy(3)?;
-                        let editor: ifm_ui_rust::lookup_editor::EditorPublication =
-                            ifm_ui_rust::wire::decode(&editor_data).map_err(|e| e.to_string())?;
-                        if editor.generation != editor_generation {
-                            let next = editor.generation;
-                            if updates.try_send(Update::Editor(editor)).is_ok() {
-                                editor_generation = next;
-                                ctx.request_repaint();
-                            }
+                        if managed.poll(3,&mut publications)? {
+                            let editor=ifm_ui_rust::wire::decode(publications.bytes(3)).map_err(|e|e.to_string())?;
+                            if updates.try_send(stamped(Update::Editor(editor),3,&publications)).is_ok(){publications.acknowledge(3);ctx.request_repaint();}
                         }
                         if want_grid {
                             let bytes = managed.copy(2)?;
@@ -934,7 +917,8 @@ fn main() -> eframe::Result {
                                 }
                             }
                         }
-                        let data = managed.copy(0)?;
+                        if !managed.poll(0,&mut publications)? {continue;}
+                        let data = publications.bytes(0);
                         if data.is_empty() {
                             continue;
                         }
@@ -948,15 +932,18 @@ fn main() -> eframe::Result {
                         if s.schema != 1 {
                             return Err("Snapshot schema mismatch".into());
                         }
+                        if generation == s.generation {publications.acknowledge(0);}
                         if generation != s.generation {
                             let next_generation = s.generation;
-                            let update = if let Some(c) = catalog.take() {
-                                Update::Ready(c, s)
+                            let update = if let Some(c) = catalog.as_ref() {
+                                Update::Ready(c.clone(), s)
                             } else {
                                 Update::Snapshot(s)
                             };
-                            if updates.try_send(update).is_ok() {
+                            if updates.try_send(stamped(update,0,&publications)).is_ok() {
                                 generation = next_generation;
+                                catalog = None;
+                                publications.acknowledge(0);
                             }
                             ctx.request_repaint();
                         }
@@ -1009,6 +996,10 @@ fn main() -> eframe::Result {
                 grid_tab: false,
                 grid_requested: false,
                 frame_times: Vec::new(),
+                latency: ifm_ui_rust::latency::LatencyTrace::from_env(),
+                read_profile: if std::env::var("DOTNET_ENVIRONMENT").is_ok_and(|v|v=="Development") && std::env::var("IFM_RUST_UI_MODE").is_ok_and(|v|v=="live") {
+                    std::env::var("IFM_UI_PROFILE_TRADE_SECONDS").ok().and_then(|v|v.parse::<u64>().ok()).map(|seconds|ReadProfile{started:std::time::Instant::now(),seconds:seconds.clamp(10,300),stage:0})
+                }else{None},
                 status: serde_json::from_str::<Catalog>(include_str!("../catalog/strings.en.json"))
                     .unwrap()
                     .text(strings::STARTING)

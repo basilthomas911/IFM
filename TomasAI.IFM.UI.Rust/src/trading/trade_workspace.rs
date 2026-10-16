@@ -45,6 +45,17 @@ fn flag(s: &ContractPublication, key: &str) -> bool {
     s.result.context.get(key).is_some_and(|v| v == "True")
 }
 impl TradeWorkspace {
+    /// Explicit opt-in Development profiler. These are display/read actions only.
+    pub fn profile_read(&mut self,stage:u8,s:&ContractPublication)->Option<String>{
+        if self.pending.is_some()||s.busy{return None;}
+        match stage{
+            0=>{self.open=true;Some(self.request("load",s))},
+            1 if s.result.context.get("tradeId").is_some_and(|id|!id.is_empty())=>{self.tab=1;Some(self.request("compose",s))},
+            2 if s.result.context.get("composerSessionId").is_some_and(|id|!id.is_empty())=>{
+                self.draft.insert("live".into(),"true".into());Some(self.request("chain",s))
+            },_=>None
+        }
+    }
     pub fn is_visible(&self) -> bool {
         self.open || self.loaded_open
     }

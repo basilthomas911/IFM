@@ -1,4 +1,4 @@
-#[path = "../src/hosting.rs"]
+#[path = "../src/app/hosting.rs"]
 mod hosting;
 use ifm_ui_rust::{wire, Catalog, Snapshot};
 use std::time::{Duration, Instant};
@@ -29,6 +29,20 @@ fn embedded_dotnet_messagepack_publications_and_acknowledgements() {
     }
     let _: ifm_ui_rust::shell::Dashboard = wire::decode(&managed.copy(6).unwrap()).unwrap();
     let _: ifm_ui_rust::sidebar::SidebarPublication = wire::decode(&managed.copy(7).unwrap()).unwrap();
+    let mut cache=ifm_ui_rust::publication_transfer::TransferCache::default();
+    assert!(managed.poll(0,&mut cache).unwrap());
+    let original=cache.sequence(0);cache.acknowledge(0);
+    assert!(!managed.poll(0,&mut cache).unwrap());
+    managed.action(1).unwrap();
+    let deadline=Instant::now()+Duration::from_secs(15);
+    while !managed.poll(0,&mut cache).unwrap(){assert!(Instant::now()<deadline);std::thread::sleep(Duration::from_millis(20));}
+    assert!(cache.sequence(0)>original);
+    if let Some(path)=std::env::var_os("IFM_TRANSFER_FIXTURES"){
+      let root=std::path::PathBuf::from(path);std::fs::create_dir_all(&root).unwrap();
+      std::fs::write(root.join("host-actual.msgpack"),cache.bytes(0)).unwrap();
+      std::fs::write(root.join("host-expected.msgpack"),managed.copy(0).unwrap()).unwrap();
+    }
+    let changed:Snapshot=wire::decode(cache.bytes(0)).unwrap();assert_ne!(changed.workflow_id,snapshot.workflow_id);
     managed.action(3).unwrap();
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {

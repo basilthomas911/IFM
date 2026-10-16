@@ -19,11 +19,16 @@ pub struct ApiV4 {
     pub base: Api,
     pub submit: unsafe extern "C" fn(u64, *const u8, i32) -> i32,
 }
+type CopyChanged = unsafe extern "C" fn(u64,u32,*mut u64,*mut u8,i32,*mut i32,*mut i64,*mut i64)->i32;
+#[repr(C)]
+#[derive(Clone,Copy)]
+pub struct ApiV5 {pub base:ApiV4,pub copy_changed:CopyChanged}
 pub struct Managed {
     _library: Library,
     api: Api,
     submit: unsafe extern "C" fn(u64, *const u8, i32) -> i32,
     handle: u64,
+    copy_changed: Option<CopyChanged>,
 }
 fn wide(s: impl AsRef<std::ffi::OsStr>) -> Vec<u16> {
     use std::os::windows::ffi::OsStrExt;
@@ -115,26 +120,26 @@ impl Managed {
             )?;
             let bootstrap: unsafe extern "C" fn(u32, *mut Api, u32) -> i32 =
                 std::mem::transmute(bootstrap);
-            let mut table = std::mem::MaybeUninit::<ApiV4>::uninit();
-            checked(
-                bootstrap(
-                    4,
-                    table.as_mut_ptr().cast(),
-                    std::mem::size_of::<ApiV4>() as u32,
-                ),
-                "ABI negotiation",
-            )?;
-            let table = table.assume_init();
-            let api = table.base;
-            if api.version != 4 || api.size != std::mem::size_of::<ApiV4>() as u32 {
-                return Err("ABI layout mismatch".into());
-            }
+            let mut extended=std::mem::MaybeUninit::<ApiV5>::uninit();
+            let supported=bootstrap(5,extended.as_mut_ptr().cast(),std::mem::size_of::<ApiV5>() as u32);
+            let (api,submit,copy_changed)=if supported>=0 {
+                let table=extended.assume_init();
+                if table.base.base.version!=5||table.base.base.size!=std::mem::size_of::<ApiV5>() as u32{return Err("ABI v5 layout mismatch".into());}
+                (table.base.base,table.base.submit,Some(table.copy_changed))
+            } else {
+                let mut table=std::mem::MaybeUninit::<ApiV4>::uninit();
+                checked(bootstrap(4,table.as_mut_ptr().cast(),std::mem::size_of::<ApiV4>() as u32),"ABI negotiation")?;
+                let table=table.assume_init();
+                if table.base.version!=4||table.base.size!=std::mem::size_of::<ApiV4>() as u32{return Err("ABI v4 layout mismatch".into());}
+                (table.base,table.submit,None)
+            };
             let mut handle = 0;
             checked((api.create)(&mut handle), "create managed session")?;
             Ok(Self {
                 _library: lib,
                 api,
-                submit: table.submit,
+                submit,
+                copy_changed,
                 handle,
             })
         }
@@ -167,6 +172,24 @@ impl Managed {
             }
             Err("Publication grew beyond bounded retries".into())
         }
+    }
+    pub fn poll(&self,kind:u32,cache:&mut ifm_ui_rust::publication_transfer::TransferCache)->Result<bool,String>{
+        let Some(copy)=self.copy_changed else{return Ok(cache.legacy(kind,self.copy(kind)?));};
+        if kind>8{return Err("Invalid publication kind".into());}
+        for attempt in 0..4 {
+            let mut cursor=cache.sequence(kind);let mut required=0;let mut produced=0;let mut source=0;
+            let capacity=cache.scratch.len();
+            let result=unsafe{copy(self.handle,kind,&mut cursor,cache.scratch.as_mut_ptr(),capacity as i32,&mut required,&mut produced,&mut source)};
+            if result==2{return Ok(cache.pending(kind));}
+            checked(result,"conditional publication copy")?;
+            if !(0..=16*1024*1024).contains(&required){return Err("Invalid conditional publication size".into());}
+            if result==1{cache.scratch.resize(required as usize,0);continue;}
+            cache.scratch.truncate(required as usize);
+            match cache.complete(kind,result,cursor,produced,source){Ok(())=>return Ok(true),Err(error)=>{
+                cache.reset(kind);if attempt==3{return Err(error);}
+            }}
+        }
+        Err("Publication changed beyond bounded transfer retries".into())
     }
     pub fn submit(&self, payload: &str) -> Result<(), String> {
         let payload = ifm_ui_rust::wire::encode_intent(payload)?;

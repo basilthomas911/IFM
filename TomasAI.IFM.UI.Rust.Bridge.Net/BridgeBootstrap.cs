@@ -18,7 +18,13 @@ public unsafe struct ApiV4
     public ApiV1 Base;
     public delegate* unmanaged[Cdecl]<ulong,byte*,int,int> Submit;
 }
-/// <summary>Versioned C ABI. Managed publications are copied into caller-owned uncompressed MessagePack buffers (ABI v4).</summary>
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct ApiV5
+{
+    public ApiV4 Base;
+    public delegate* unmanaged[Cdecl]<ulong,uint,ulong*,byte*,int,int*,long*,long*,int> CopyChanged;
+}
+/// <summary>Versioned C ABI. Managed publications are copied into caller-owned uncompressed MessagePack buffers (ABI v4/v5).</summary>
 public static unsafe class BridgeBootstrap
 {
     static readonly ConcurrentDictionary<ulong,Session> Sessions=new();
@@ -26,9 +32,10 @@ public static unsafe class BridgeBootstrap
     [UnmanagedCallersOnly(CallConvs=[typeof(CallConvCdecl)])]
     public static int GetApi(uint version,ApiV1* api,uint size)
     {
-        if(api==null)return -1;
-        if(version!=BridgeWire.AbiVersion||size<(uint)sizeof(ApiV4))return -1;
-        *((ApiV4*)api)=new(){Base=new(){Version=BridgeWire.AbiVersion,Size=(uint)sizeof(ApiV4),Create=&Create,Copy=&Copy,Action=&Action,Destroy=&Destroy},Submit=&Submit};return 0;
+        if(api==null || version is not (4 or 5) || size<(version==5?(uint)sizeof(ApiV5):(uint)sizeof(ApiV4)))return -1;
+        var table=new ApiV4 {Base=new(){Version=version,Size=version==5?(uint)sizeof(ApiV5):(uint)sizeof(ApiV4),Create=&Create,Copy=&Copy,Action=&Action,Destroy=&Destroy},Submit=&Submit};
+        if(version==5)*((ApiV5*)api)=new(){Base=table,CopyChanged=&CopyChanged};else *((ApiV4*)api)=table;
+        return 0;
     }
     [UnmanagedCallersOnly(CallConvs=[typeof(CallConvCdecl)])]
     static int Create(ulong* handle)
@@ -41,9 +48,23 @@ public static unsafe class BridgeBootstrap
     {
         if(required==null||capacity<0||capacity>16*1024*1024)return -1;
         if(!Sessions.TryGetValue(handle,out var session))return -3;
-        var bytes=kind switch{0=>session.Publication,1=>session.Catalog,2=>session.Grid,3=>session.EditorPublication,4=>session.InspectionPublication,5=>session.ContractPublication,6=>session.DashboardPublication,7=>session.SidebarPublication,8=>session.TradePublication,_=>null};if(bytes is null)return -1;
+        var bytes=session.Bytes(kind);if(bytes is null)return -1;
         *required=bytes.Length;if(bytes.Length==0)return 0;if(capacity<bytes.Length)return 1;if(buffer==null)return -1;
         bytes.CopyTo(new Span<byte>(buffer,bytes.Length));return 0;
+    }
+    /// <summary>0 full, 3 patch, 2 unchanged, 1 retry with required capacity. Cursor advances only after a successful copy.</summary>
+    [UnmanagedCallersOnly(CallConvs=[typeof(CallConvCdecl)])]
+    static int CopyChanged(ulong handle,uint kind,ulong* cursor,byte* buffer,int capacity,int* required,long* producedTicks,long* sourceTicks)
+    {
+        if(cursor==null||required==null||producedTicks==null||sourceTicks==null||capacity<0||capacity>16*1024*1024||kind>8)return -1;
+        if(!Sessions.TryGetValue(handle,out var session))return -3;
+        try{
+            var bytes=session.Bytes(kind)!;var update=session.Transfer(kind).Read(bytes,*cursor);
+            if(update is null){*required=0;return 2;}
+            var value=update.Value;*required=value.Bytes.Length;*producedTicks=value.ProducedTicks;*sourceTicks=value.SourceTicks;
+            if(capacity<value.Bytes.Length)return 1;if(buffer==null&&value.Bytes.Length>0)return -1;
+            value.Bytes.CopyTo(new Span<byte>(buffer,value.Bytes.Length));*cursor=value.Sequence;return value.Patch?3:0;
+        }catch(Exception error){Console.Error.WriteLine(error);return -2;}
     }
     [UnmanagedCallersOnly(CallConvs=[typeof(CallConvCdecl)])]
     static int Action(ulong handle,uint action)
@@ -78,6 +99,9 @@ public static unsafe class BridgeBootstrap
 }
 sealed class Session : IDisposable
 {
+    readonly PublicationTransfer[] transfers=Enumerable.Range(0,9).Select(_=>new PublicationTransfer(incremental:Environment.GetEnvironmentVariable("IFM_UI_INCREMENTAL_PATCHES")=="1",trace:Environment.GetEnvironmentVariable("IFM_UI_LATENCY_OUTPUT") is not null)).ToArray();
+    public PublicationTransfer Transfer(uint kind)=>transfers[kind];
+    public byte[]? Bytes(uint kind)=>kind switch{0=>Publication,1=>Catalog,2=>Grid,3=>EditorPublication,4=>InspectionPublication,5=>ContractPublication,6=>DashboardPublication,7=>SidebarPublication,8=>TradePublication,_=>null};
     readonly BlockingCollection<uint> actions=new(32);
     readonly Thread owner;
     readonly DashboardSession dashboard = new();
@@ -155,7 +179,7 @@ sealed class Session : IDisposable
             using var live=Environment.GetEnvironmentVariable("IFM_RUST_UI_MODE")=="live"?new LiveStrategySession():null;
             var epoch=Guid.NewGuid().ToString("D"); long observed=-1; string? lastStatus=null;
             Publish();
-            while(!actions.IsCompleted){if(actions.TryTake(out var action,100)){if(dashboard.SelectSidebar(action))continue;if(action==3){Volatile.Write(ref grid,BridgeWire.Serialize(VirtualGridDataset.Create()));continue;}if(live is not null)live.Select(action);else if(action<2)selected=(int)action;revision++;Publish();}else if(live is not null&&(observed!=Volatile.Read(ref live.ChangeVersion)||lastStatus!=live.Status)){revision++;Publish();}}
+            while(!actions.IsCompleted){if(actions.TryTake(out var action,40)){if(dashboard.SelectSidebar(action))continue;if(action==3){Volatile.Write(ref grid,BridgeWire.Serialize(VirtualGridDataset.Create()));continue;}if(live is not null)live.Select(action);else if(action<2)selected=(int)action;revision++;Publish();}else if(live is not null&&(observed!=Volatile.Read(ref live.ChangeVersion)||lastStatus!=live.Status)){revision++;Publish();}}
             void Publish(){var snapshot=live is null?adapter.CreateFixture(selected,revision):live.Snapshot(adapter,revision,epoch);if(live is not null){observed=Volatile.Read(ref live.ChangeVersion);lastStatus=live.Status;}Volatile.Write(ref publication,BridgeWire.Serialize(snapshot));}
 
         }
@@ -178,6 +202,7 @@ sealed class Session : IDisposable
             catalogEditor?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             foreach(var backend in contractSessions.Values)backend.Dispose();
         }
+        foreach(var transfer in transfers)transfer.Dispose();
         actions.Dispose();container.Dispose();
     }
 }

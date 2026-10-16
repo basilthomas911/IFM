@@ -53,4 +53,33 @@ public class BridgeWireTests
         }
         finally{Assert.Equal(0,api.Base.Destroy(handle));}
     }
+    [Fact] public unsafe void Abi5_capacity_retry_does_not_advance_cursor_and_unchanged_is_empty() {
+        delegate* unmanaged[Cdecl]<uint,ApiV1*,uint,int> get=&BridgeBootstrap.GetApi;
+        ApiV5 api;Assert.Equal(-1,get(5,(ApiV1*)&api,(uint)sizeof(ApiV4)));
+        Assert.Equal(0,get(5,(ApiV1*)&api,(uint)sizeof(ApiV5)));
+        ulong handle,cursor=0;Assert.Equal(0,api.Base.Base.Create(&handle));
+        try {
+            int required;long produced,source;
+            Assert.Equal(1,api.CopyChanged(handle,8,&cursor,null,0,&required,&produced,&source));
+            Assert.Equal(0ul,cursor);Assert.True(required>0);
+            var bytes=new byte[required];
+            fixed(byte* data=bytes)Assert.Equal(0,api.CopyChanged(handle,8,&cursor,data,bytes.Length,&required,&produced,&source));
+            Assert.True(cursor>0);Assert.Equal(1,BridgeWire.Deserialize<ContractEditorPublication>(bytes).Schema);
+            Assert.Equal(2,api.CopyChanged(handle,8,&cursor,null,0,&required,&produced,&source));
+            Assert.Equal(0,required);
+        }finally{Assert.Equal(0,api.Base.Base.Destroy(handle));}
+    }
+    [Fact] public void Virtual_grid_array_uses_the_same_keys_as_the_generated_row_formatter() {
+        var row=VirtualGridDataset.Create(1)[0];
+        var array=BridgeWire.Serialize(new[]{row});
+        Assert.Equal("[{"+MessagePackSerializer.ConvertToJson(BridgeWire.Serialize(row))[1..]+"]",MessagePackSerializer.ConvertToJson(array));
+    }
+    [Fact] public void Nested_wire_alias_does_not_change_plain_display_document_names() {
+        var nested=new { item=new AliasedDisplay("value") };
+        Assert.Equal("{\"item\":{\"wire_name\":\"value\"}}",MessagePackSerializer.ConvertToJson(BridgeWire.Serialize(nested)));
+        Assert.Equal("{\"PascalName\":\"value\"}",MessagePackSerializer.ConvertToJson(BridgeDocument.Encode(nested.item)));
+    }
 }
+
+[MessagePackObject]
+public sealed record AliasedDisplay([property:Key("wire_name")] string PascalName);

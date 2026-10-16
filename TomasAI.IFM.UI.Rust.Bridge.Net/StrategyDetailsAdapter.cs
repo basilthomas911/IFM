@@ -1,6 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using System.Collections;
-using System.ComponentModel;
 using System.Globalization;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -43,8 +42,13 @@ public sealed class StrategyDetailsAdapter : IDisposable
         var row=StrategyWorkflowPresentation.CreateRow(view);
         return Project(details, generation) with {Rows=[Display(row, (uint)selected)],TotalRows=1};
     }
+    StrategyWorkflowDetails? cachedDetails;
+    DetailSnapshot? cachedProjection;
     public DetailSnapshot Project(StrategyWorkflowDetails details, long generation)
     {
+        DisplayDescriptors.Include<StrategyWorkflowDetails>();
+        DisplayDescriptors.Include<IntrinsicTimeStrategyWorkflowView>();
+        if(ReferenceEquals(cachedDetails,details)&&cachedProjection is not null)return cachedProjection with{Generation=generation};
         int budget=10000;
         var view=details.Workflow;
         var prefix=details.WorkflowId.ToString();
@@ -53,7 +57,8 @@ public sealed class StrategyDetailsAdapter : IDisposable
         object?[] stages=[view?.RegimeDiscovery,view?.MarketCondition,view?.TradeSelection,view?.OrderComposition,view?.RiskManagement];
         var sections=details.Sections.Where(s=>s.Key!="iti").ToArray();
         roots.Add(new(prefix+"/pipeline","Workflow Pipeline",[],sections.Select((s,i)=>(s,i)).Select(pair=>BuildStage(pair.s,pair.i)).ToArray()));
-        return new(1,epoch,generation,"Fixture",prefix,details.WorkflowRevision,roots.ToArray()){Header=details.Header};
+        cachedDetails=details;
+        return cachedProjection=new(1,epoch,generation,"Fixture",prefix,details.WorkflowRevision,roots.ToArray()){Header=details.Header};
         ObjectNode BuildStage(StrategyWorkflowDetailSection section,int index) => Build(prefix+"/pipeline/"+section.Key,section.Title,index<stages.Length?stages[index]??section:section,0,[],ref budget);
     }
     public static string FormatWorkflowTime(DateTime occurredOn, TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType timeFrame)
@@ -68,6 +73,7 @@ public sealed class StrategyDetailsAdapter : IDisposable
     {
         if (--budget<0 || depth>12) return new(id,label+" (display limit)",[],[]);
         if(value is null) return new(id,label,[new("Value","Unavailable")],[]);
+        if(value is ReadOnlyMemory<byte> payload)return new(id,label,[new("Length",payload.Length.ToString(CultureInfo.InvariantCulture)),new("IsEmpty",payload.IsEmpty.ToString())],[]);
         if(Scalar(value.GetType())) return new(id,label,[new("Value",Format(value))],[]);
         if(ancestors.Any(x=>ReferenceEquals(x,value))) return new(id,label,[new("Value","Cycle omitted")],[]);
         ancestors.Add(value);
@@ -76,10 +82,10 @@ public sealed class StrategyDetailsAdapter : IDisposable
         {
             int i=0;foreach(var item in seq) { if(i>=200||budget<=0){rows.Add(new("Display limit","Additional items omitted"));break;} children.Add(Build(id+"/"+i,$"[{i++}]",item,depth+1,ancestors,ref budget)); }
         }
-        else foreach(PropertyDescriptor p in TypeDescriptor.GetProperties(value))
+        else foreach(var p in DisplayDescriptors.For(value.GetType()))
         {
             if(!p.IsBrowsable || p.Name=="StageSummary" || (root && p.Name is "RegimeDiscovery" or "MarketCondition" or "TradeSelection" or "OrderComposition" or "RiskManagement" or "TriggerEvent" or "Sections")) continue;
-            object? child;try{child=p.GetValue(value);}catch(Exception e){rows.Add(new(p.DisplayName,"Unavailable: "+e.GetBaseException().Message));continue;}
+            object? child;try{child=p.Read(value);}catch(Exception e){rows.Add(new(p.DisplayName,"Unavailable: "+e.GetBaseException().Message));continue;}
             rows.Add(new(p.DisplayName,child is null?"null":Scalar(child.GetType())?Format(child):child.GetType().Name));
             if(child is not null&&!Scalar(child.GetType())&&budget>0) children.Add(Build(id+"/"+p.Name,p.DisplayName,child,depth+1,ancestors,ref budget));
         }

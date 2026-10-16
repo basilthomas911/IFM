@@ -4,4 +4,4 @@
     <ProjectReference Include="../TomasAI.IFM.Application.Api.Nats.Client/TomasAI.IFM.Application.Api.Nats.Client.csproj"/><ProjectReference Include="../TomasAI.IFM.UI.Net.ViewModels/TomasAI.IFM.UI.Net.ViewModels.csproj"/><PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10"/><PackageReference Include="MessagePack" Version="3.1.8"/><PackageReference Include="SimpleInjector" Version="5.6.0"/></ItemGroup>
 <ItemGroup><EmbeddedResource Include="../TomasAI.IFM.UI.Rust/catalog/strings.en.json" LogicalName="Strings.json" WithCulture="false"/></ItemGroup>
 <ItemGroup><InternalsVisibleTo Include="TomasAI.IFM.UI.Rust.SystemTests" /></ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.UI.Rust.Generators/TomasAI.IFM.UI.Rust.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/></ItemGroup></Project>

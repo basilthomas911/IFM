@@ -14,7 +14,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10"/>
     <PackageReference Include="Microsoft.Extensions.Primitives" Version="10.0.10"/>
   </ItemGroup>
+  <ItemGroup Condition="'$(IFM_DISPLAY_SCHEMA_GENERATOR_ENABLED)' == 'false'"><Compile Remove="TransferBenchmarks.cs"/></ItemGroup>
   <Target Name="ValidateBridgeBenchmarkInput" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.UI.Rust.Bridge.Net.dll')" Text="Build the Release bridge first, or run scripts/UI/Rust/Measure-BridgePerformance.ps1."/>
   </Target>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.UI.Rust.Generators/TomasAI.IFM.UI.Rust.Generators.csproj" Condition="'$(IFM_DISPLAY_SCHEMA_GENERATOR_ENABLED)' != 'false'" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/></ItemGroup></Project>

@@ -527,21 +527,21 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
 
     void PublishSelectedWorkflows()
     {
-        StrategyWorkflowRow[] selected;
+        IntrinsicTimeStrategyWorkflowView[] retained;
         IntrinsicTimeStrategyWorkflowView? selectedView = null;
+        var period = SelectedTimeFrame;
         lock (_stateGate)
         {
-            selected = _workflowViews.Values
-                .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == SelectedTimeFrame)
-                .OrderByDescending(WorkflowTime)
-                .ThenByDescending(view => view.WorkflowId.Value)
-                .Select(StrategyWorkflowPresentation.CreateRow)
+            retained = _workflowViews.Values
+                .Where(view => view.EntityId.ItiSignalEntityId.TimePeriod == period)
                 .ToArray();
             if (SelectedWorkflowId is { } selectedId)
                 _workflowViews.TryGetValue(selectedId, out selectedView);
         }
-
-        Workflows = selected;
+        // Retained workflow views are immutable. Sorting and presentation do not hold the ingestion lock.
+        Workflows = retained.OrderByDescending(WorkflowTime)
+            .ThenByDescending(view => view.WorkflowId.Value)
+            .Select(StrategyWorkflowPresentation.CreateRow).ToArray();
         if (selectedView is not null
             && selectedView.EntityId.ItiSignalEntityId.TimePeriod == SelectedTimeFrame)
             PublishSelectedWorkflowDetails(selectedView);

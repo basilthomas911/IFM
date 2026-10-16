@@ -1,15 +1,26 @@
-pub mod wire;
+// Source modules are grouped by responsibility; re-exports preserve the public API.
+pub mod bridge;
+pub use bridge::{publication_transfer, wire};
+pub mod editors;
+pub use editors::{calendar_editor, contract_editor, lookup_editor, yield_curve_editor};
+pub mod strategy;
+pub use strategy::{parameter_sets, strategy_catalog, strategy_inspection, strategy_workspace};
+pub mod trading;
+pub use trading::trade_workspace;
+pub mod market;
+pub use market::{market_charts, market_outlook, provider_browser};
+pub mod operations;
+pub use operations::{actor_health, operations_health, scheduled_tasks};
+pub mod ui;
+pub use ui::{control_parity, presentation, virtual_grid};
+pub mod localization;
+pub use localization::strings;
+pub mod diagnostics;
+pub use diagnostics::latency;
+pub mod navigation;
+pub use navigation::{shell, sidebar};
+
 use crate::presentation::TradingLabelUi as _;
-pub mod contract_editor;
-pub mod lookup_editor;
-pub mod presentation;
-pub mod shell;
-pub mod strategy_inspection;
-pub mod strategy_workspace;
-pub mod strings;
-pub mod trade_workspace;
-pub mod virtual_grid;
-pub mod yield_curve_editor;
 use eframe::egui;
 use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
@@ -215,25 +226,3 @@ pub fn apply_winforms_typography(ctx: &egui::Context) -> std::io::Result<()> {
     presentation::apply(ctx);
     Ok(())
 }
-
-pub mod calendar_editor;
-
-pub mod provider_browser;
-
-pub mod scheduled_tasks;
-
-pub mod operations_health;
-
-pub mod actor_health;
-
-pub mod parameter_sets;
-
-pub mod strategy_catalog;
-
-pub mod market_outlook;
-
-pub mod market_charts;
-
-pub mod sidebar;
-
-pub mod control_parity;

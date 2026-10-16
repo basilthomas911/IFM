@@ -2,6 +2,24 @@
 
 Windows x64 egui/eframe host with .NET 10 hosted in-process. The managed project is `TomasAI.IFM.UI.Rust.Bridge.Net`.
 
+## Source layout
+
+`src/main.rs` and `src/lib.rs` are the executable and library entry points. Source modules are grouped by responsibility:
+
+- `app/`: native application hosting and the managed runtime loader.
+- `bridge/`: wire decoding and publication transfer.
+- `editors/`: calendar, contract, lookup, and yield curve editors.
+- `strategy/`: strategy workspace, inspection, catalog, and parameter sets.
+- `trading/`: trading workspace, blotter, and order layout.
+- `market/`: market charts, outlook, and provider browsing.
+- `operations/`: actor health, operations health, and scheduled tasks.
+- `ui/`: shared presentation, controls, and virtual grid.
+- `navigation/`: application shell and sidebar.
+- `localization/`: generated string identifiers.
+- `diagnostics/`: latency tracing.
+
+The library re-exports the existing module names at its root so callers retain their current import paths. Generate string identifiers with `scripts/UI/Rust/Generate-UiCatalog.ps1`.
+
 ## Run
 
 From the repository root:
@@ -46,7 +64,7 @@ Use **IFM Rust UI: Native Strategy Details** for native debugging (Microsoft C/C
 
 ## Boundaries
 
-The bridge exposes fixture selection/refresh and live Lookup, Futures/Option Contract, Yield Curve and Economic Calendar editors, plus provider catalog browsing, Draft mapping preview/confirmation and contract convention review. Trading submission actions have not yet been ported. It publishes immutable uncompressed MessagePack snapshots through ABI v3, with exact display values formatted as strings. Rust and the managed bridge must be rebuilt together; JSON ABI v1/v2 clients are rejected. See [the bridge contract](contracts/abi-v1.md) for encoding, ownership and test details. Rendering and tree expansion read Rust-owned cached nodes; managed reflection happens during preparation on the managed owner thread.
+The bridge exposes fixture selection/refresh and live Lookup, Futures/Option Contract, Yield Curve and Economic Calendar editors, plus provider catalog browsing, Draft mapping preview/confirmation and contract convention review. It publishes immutable uncompressed MessagePack snapshots through ABI v4/v5, with exact display values formatted as strings. Rust and the managed bridge must be rebuilt together; JSON ABI v1/v2 clients are rejected. See [the bridge contract](contracts/abi-v1.md) for encoding, ownership and test details. Rendering and tree expansion read Rust-owned cached nodes; managed display serialization and property display use generated accessors. Fixture-only DispatchProxy support remains separate from the live path.
 
 Live composition, the virtual grid, release packaging and the source-linked migration inventory are implemented. Backend-first live history, client reconnect/reload and an owned backend restart have been verified against the Development API. Delivery of a newly persisted business workflow without a history reload has passed. A successful complete trading pipeline remains unqualified: current Regime Discovery reports missing required observations and an unsupported ATR14 schema. Editor action contracts are implemented for the listed ports; trading actions and the remaining full-migration screens remain outstanding. See the implementation record and migration roadmap for measured evidence and limitations.
 
@@ -77,3 +95,36 @@ Select **IFM: API + Rust UI (Development)** in Run and Debug and press F5. It us
 **Terminal ? Run Task ? IFM Rust UI: Run Live (Development)** also starts this managed API/Rust/Scheduler session. Stop it with **IFM: Stop API + UI (Development)**. The separate **IFM Rust UI: Live (Development; wait for API)** debugger entry attaches a newly launched Rust desktop to an already-running backend; it does not start the backend.
 
 The selector `IFM_DEVELOPMENT_UI=Rust` applies only to Development and replaces the `ui` process target with `.artifacts/rust-ui/app/ifm-ui-rust.exe`; preserving the `ui` key lets Server Manager track ownership and close the correct desktop. API and scheduler definitions retain their configured readiness and shutdown behavior.
+
+
+## Viewmodel performance pass (2026-10-16)
+
+See [the measured results](../TomasAI.IFM.UI.Rust.Benchmarks/Results/2026-10-16.json) for the before/after matrix, GC/memory probes, live timing, limitations and ten-area implementation inventory.
+
+The default ABI v5 path polls revisions and copies/decodes only changed publications. ABI v4 clients remain supported. Changed snapshots retain exact MessagePack value representations and caller-owned buffers. Missing revisions always recover with a full snapshot. UI delivery is bounded; a full native queue retains the latest pending publication for retry. Source business events, broker acknowledgements and mutation deduplication are preserved.
+
+`IFM_UI_INCREMENTAL_PATCHES=1` enables field patches, including embedded binary row documents and newest-first log splices. This is opt-in because the measured generic diff/reconstruction cost exceeds a full in-process copy for changing publications. Unchanged detection is enabled by default and does not require patch generation.
+
+Display property accessors and primitive writers are generated at compile time by `TomasAI.IFM.UI.Rust.Generators`. Descriptor instances are created lazily for the types actually displayed. New document shapes must be visible at a `BridgeDocument`/`BridgeWire` call, a row helper, an anonymous construction in the bridge, or an explicit `DisplayDescriptors.Include<T>()` root. Unknown shapes fail explicitly; runtime reflection serialization is not a fallback. Editor input has explicit typed bindings in `BridgeInput`. This work does not certify the full dependency graph for NativeAOT.
+
+### Repeat the measurements
+
+```powershell
+./scripts/UI/Rust/Measure-BridgePerformance.ps1 -Label my-after
+```
+
+For a preserved older bridge build, set `IFM_DISPLAY_SCHEMA_GENERATOR_ENABLED=false`, pass `-BridgeAssemblyRoot` and `-SkipBridgeBuild`, then clear that environment variable before building current code. `-Filter '*BridgeBenchmarks*'` limits the matrix to the comparable encoding/publication cases. Transfer benchmarks compare the additional changed/full/patch paths separately.
+
+For optional live timing against an already running Development API:
+
+```powershell
+$env:DOTNET_ENVIRONMENT='Development'
+$env:IFM_RUST_UI_MODE='live'
+$env:IFM_UI_LATENCY_OUTPUT="$PWD/.artifacts/rust-ui/performance/my-live-latency.json"
+$env:IFM_UI_PROFILE_TRADE_SECONDS='60'
+& ./.artifacts/rust-ui/app/ifm-ui-rust.exe
+```
+
+The profiler opens Trade Orders, composes the currently selected trade and enables live chain display. It never submits, cancels, reprices or creates an order. It requires a selected editable option trade and suitable backend data. The window closes automatically after the requested interval (10?300 seconds). Clear the profiling environment variables afterward for normal use.
+
+Timing follows accepted publications into the UI and records an egui WGPU render-pass callback. Samples are bounded at 10,000; file output occurs at shutdown. It measures CPU paint-command recording, excluding GPU completion and physical display presentation. Quote receipt age includes backend/cache age and refresh cadence; it is reported separately from native receipt-to-paint time. The instrumentation is off by default. Profile runs add timestamp scanning and callback overhead.

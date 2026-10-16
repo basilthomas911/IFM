@@ -288,7 +288,7 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
         evidenceOrders=brokerOrders;evidenceExecutions=executions;evidenceSubmittedCount=model.SubmittedTradeOrders.Count;
         return evidenceRows=rows.ToArray();
     }
-    static object Properties(object value)=>new{Properties=System.ComponentModel.TypeDescriptor.GetProperties(value).Cast<System.ComponentModel.PropertyDescriptor>().Select(p=>new{Name=p.Name,Display=p.Converter.ConvertToString(null,CultureInfo.CurrentCulture,p.GetValue(value))??""}).ToArray()};
+    static object Properties(object value)=>new{Properties=DisplayDescriptors.For(value.GetType()).Select(p=>new{Name=p.Name,Display=p.Read(value) is {} item?(item is IFormattable formatted?formatted.ToString(null,CultureInfo.CurrentCulture):item.ToString())??"":""}).ToArray()};
     static string OrderCaption(BrokerOrderDefinition order){
         var component=order.Order.Components.Single(x=>x.ComponentId==order.Id.ComponentId);
         string Leg(TradeLegDefinition leg)=>leg.AssetFamily==TradeAssetFamily.FuturesOption?leg.Strike?.ToString("0.########",CultureInfo.InvariantCulture)??"":$"{(leg.SignedQuantity>0?"buy":"sell")} {leg.ContractId}";
