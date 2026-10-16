@@ -32,14 +32,25 @@ public class NatsActorProducer(
     int _disposeStarted;
 
     /// <summary>Stops owned transport activity before releasing the host lifetime gate.</summary>
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
-        try { await StopAsync().ConfigureAwait(false); }
-        finally { _lifecycleGate.Dispose(); }
-        GC.SuppressFinalize(this);
+        lock (_disposeGate)
+        {
+            if (_disposeTask is null)
+            {
+                Volatile.Write(ref _disposeStarted, 1);
+                _disposeTask = StopAsync().AsTask();
+            }
+            GC.SuppressFinalize(this);
+            return new ValueTask(_disposeTask);
+        }
     }
 
+    readonly object _disposeGate = new();
+    Task? _disposeTask;
+    // Supervisors may stop a producer after container disposal. As with consumers,
+    // retain this managed gate until collection; no WaitHandle is allocated.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2213", Justification = "Late supervisor stops must retain the managed lifecycle gate, which has no allocated WaitHandle.")]
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     NatsClient? _nc;
     CancellationTokenSource? _operationStopping;
@@ -66,6 +77,7 @@ public class NatsActorProducer(
             await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposeStarted) != 0, this);
                 if (_isRunning)
                     return;
                 _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);

@@ -352,6 +352,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<DatabentoWatchdogMetrics>();
         services.AddSingleton<DatasetWorkerAdmissionRegistry>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IndividualOptionRiskReader>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry>();
+        services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeRealtimeCacheExpiryService>();
         services.AddSingleton<IRealtimeSourceAdmission>(provider =>
         provider.GetRequiredService<DatasetWorkerAdmissionRegistry>());
         services.AddSingleton<DatasetPublicationIngress>();

@@ -20,7 +20,7 @@ public sealed class FuturesTradeEventProjector : ConventionalEventProjector<Futu
     public FuturesTradeEventProjector(ICommandActorContext<FuturesTradeCommandActor> actorContext, EventProjectorReliabilityOptions? options = null) : base(Typed(actorContext).DurableReplayQueue, Typed(actorContext).DbEventSource, Typed(actorContext).BlackboardService, Typed(actorContext).Logger, options)
     {
         context = Typed(actorContext);
-        descriptors = [DescribeNotification<FuturesTradeChangedEvent, TradeEntityId>(ProjectAsync).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(((FuturesTradeChangedEvent)source).State, token).ConfigureAwait(false))];
+        descriptors = [DescribeNotification<FuturesTradeChangedEvent, TradeEntityId>(ProjectAsync, publishProcessingAfterApply: true).WithReadModelRebuild(async (source, token) => await context.DbFactory.TradeDb.UpsertEstablishedTradeAsync(((FuturesTradeChangedEvent)source).State, token).ConfigureAwait(false))];
     }
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;

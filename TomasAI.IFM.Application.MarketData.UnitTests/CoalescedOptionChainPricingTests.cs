@@ -4,11 +4,82 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
+using NSubstitute;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class CoalescedOptionChainPricingTests
 {
+    [Fact]
+    public async Task Quote_and_completion_use_distinct_publication_revisions_and_book_sizes_are_not_suppressed()
+    {
+        var clock = new ManualClock();
+        var context = ReviewedFuturesPricingRoutingTests.Reviewed(OptionExerciseStyle.European);
+        var inputs = new OptionChainPricingInputStore();
+        var underlying = Quote("ES-future", 5000);
+        inputs.Set(new(context, underlying));
+        var messages = new List<FuturesTickTradeDataChangedEvent>();
+        var transport = Substitute.For<ITickAggregationEventPublisher>();
+        transport.PublishAsync(Arg.Any<FuturesTickTradeDataChangedEvent>()).Returns(call =>
+        {
+            messages.Add(call.Arg<FuturesTickTradeDataChangedEvent>());
+            return ValueTask.CompletedTask;
+        });
+        var publisher = new IndividualOptionObservationPublisher(Generation, inputs, transport, _ => true, clock);
+        await using var pricing = new CoalescedOptionChainPricing(inputs, Generation, new(), _ => underlying, clock,
+            publishPricing: publisher.PublishPricingAsync, displayRiskRequired: _ => true);
+        var tick = Tick(context.Contract.ContractId, 7, At);
+        var quote = new FuturesOptionChainQuoteChangedServiceEvent(Guid.NewGuid(), "ES-future", tick.ContractId,
+            tick.ValueDate, new(2026, 10, 2), tick, pricing.EnrichQuote(Route(context), tick));
+        await publisher.PublishAsync(quote);
+        await pricing.ProcessSweepAsync(true);
+        Assert.Equal(2, messages.Count);
+        var initial = messages[0].OptionMarketPriceObservation!.OptionTickData;
+        var complete = messages[1].OptionMarketPriceObservation!.OptionTickData;
+        Assert.False(initial.GreeksAvailable);
+        Assert.True(complete.GreeksAvailable);
+        Assert.Equal(initial.TickId, complete.TickId);
+        Assert.True(complete.IsPricingUpdate);
+        Assert.True(complete.ObservationRevision > initial.ObservationRevision);
+        Assert.NotNull(complete.TheoreticalPrice);
+        Assert.NotNull(complete.PricingContextDigest);
+        await publisher.PublishAsync(quote with { Tick = tick with { SourceSequence = 8, BidSize = 100 } });
+        Assert.Equal(3, messages.Count);
+        Assert.Equal(100, messages[2].OptionMarketPriceObservation!.OptionTickData.BidSize);
+    }
+
+    [Fact]
+    public async Task Final_quote_publishes_completed_risk_without_another_tick_and_expires_without_a_tick()
+    {
+        var clock = new ManualClock();
+        var c = ReviewedFuturesPricingRoutingTests.Reviewed(OptionExerciseStyle.European);
+        var store = new OptionChainPricingInputStore();
+        var underlying = Quote("ES-future", 5000);
+        store.Set(new(c, underlying));
+        var completed = new List<FuturesOptionChainQuoteChangedServiceEvent>();
+        await using var scheduler = new CoalescedOptionChainPricing(store, Generation, new(), _ => underlying, clock,
+            publishPricing: value => { completed.Add(value); return ValueTask.CompletedTask; }, displayRiskRequired: _ => true);
+        Assert.False(scheduler.EnrichQuote(Route(c), Tick(c.Contract.ContractId, 7, At)).IsValid);
+        await scheduler.ProcessSweepAsync(true);
+        Assert.True(Assert.Single(completed).Greeks.IsValid);
+        Assert.Equal(7, completed[0].Tick.SourceSequence);
+        Assert.NotNull(completed[0].Greeks.Vega);
+        completed.Clear();
+        clock.Now = At.AddMilliseconds(100);
+        underlying = underlying with { Sequence = 2, EventAtUtc = clock.Now, ReceivedAtUtc = clock.Now, Bid = 5000, Ask = 5002 };
+        await scheduler.ProcessSweepAsync(true);
+        Assert.True(Assert.Single(completed).Greeks.IsValid);
+        Assert.Equal(2, completed[0].Greeks.FuturesPriceSourceSequence);
+        Assert.Equal(7, completed[0].Greeks.OptionPriceSourceSequence);
+        completed.Clear();
+        clock.Now = At.AddSeconds(2);
+        await scheduler.ProcessSweepAsync(true);
+        Assert.False(Assert.Single(completed).Greeks.IsValid);
+        Assert.Equal("StaleData", completed[0].Greeks.PricingFailure!.Code);
+    }
+
     static DatabentoOptionChainRoute Route(OptionPricingContext c) => new()
     {
         FuturesOptionContractId = c.Contract.ContractId,

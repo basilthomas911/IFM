@@ -17,6 +17,7 @@ public static class IronCondorPositionChanged
     {
         ArgumentNullException.ThrowIfNull(changed);
         ArgumentNullException.ThrowIfNull(context);
+        await context.PublishRealtimeAsync(changed.PositionSnapshot).ConfigureAwait(false);
         if (changed.PositionSnapshot.AsOfUtc.Kind != DateTimeKind.Utc || !FuturesTradingValueDate.TryGet(new DateTimeOffset(changed.PositionSnapshot.AsOfUtc), out var valueDate))
             throw new InvalidOperationException("IronCondorTradePlan.VALUE_DATE.UNAVAILABLE: position observation is outside an active futures session.");
         var id = new IronCondorTradePlanId(changed.PositionSnapshot.Id, valueDate);
@@ -36,6 +37,7 @@ public static class IronCondorPositionChanged
         var terminal = reply.Value ?? throw new InvalidOperationException($"Iron Condor Trade Plan Function returned no result: {reply.ErrorMessage}");
         if (!terminal.IsCompleted)
             throw new InvalidOperationException($"Iron Condor Trade Plan failed: {terminal.Failed!.ErrorData};{terminal.Failed.ErrorMessage}");
+        await context.PublishRealtimeAsync(changed.PositionSnapshot, terminal.Completed!.Plan).ConfigureAwait(false);
     // Monitoring records recommendations. Exit execution belongs to its separate workflow design.
     }
 }

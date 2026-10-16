@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 // Source modules are grouped by responsibility; re-exports preserve the public API.
 pub mod bridge;
 pub use bridge::{publication_transfer, wire};
@@ -149,10 +150,10 @@ impl DetailsView {
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(egui_extras::Column::initial(name_width))
                     .column(egui_extras::Column::remainder())
-                    .body(|body| {
+                    .bordered_body(0., |body| {
                         body.rows(23.0, node.properties.len(), |mut row| {
                             let property = &node.properties[row.index()];
-                            for value in [&property.name, &property.value] {
+                            for (column,value) in [&property.name, &property.value].into_iter().enumerate() {
                                 row.col(|ui| {
                                     ui.painter().rect_stroke(
                                         ui.max_rect(),
@@ -160,13 +161,13 @@ impl DetailsView {
                                         egui::Stroke::new(1.0_f32, presentation::COMMAND),
                                         egui::StrokeKind::Inside,
                                     );
-                                    ui.trading_label(value);
+                                    if column==0 {ui.trading_caption(value);}else{ui.trading_label(value);}
                                 });
                             }
                         });
                     });
             } else {
-                ui.trading_label(catalog.text(strings::SELECT));
+                ui.trading_caption(catalog.text(strings::SELECT));
             }
         });
     }

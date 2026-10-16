@@ -1,8 +1,11 @@
 //! Native trading workspace. All persistence and trade eligibility stays in shared managed models.
+use crate::control_parity::BorderedTable as _;
 use crate::wire::WireNumber as _;
 use crate::presentation::TradingLabelUi as _;
 mod blotter;
 mod order_layout;
+mod iron_condor;
+mod workspace_tabs;
 use crate::{
     contract_editor::{ContractPublication, ContractRow},
     lookup_editor::new_request_id,
@@ -13,7 +16,6 @@ use std::collections::BTreeMap;
 pub struct TradeWorkspace {
     pub open: bool,
     tab: usize,
-    detail_tab: usize,
     compose_tab: usize,
     dialog: String,
     draft: BTreeMap<String, String>,
@@ -23,9 +25,14 @@ pub struct TradeWorkspace {
     deferred_action: Option<&'static str>,
     dismissed_submission_error: String,
     loaded_open: bool,
+    loaded_spread_id: String,
+    loaded_spread_points: Vec<[f64; 2]>,
+    loaded_view_states: BTreeMap<String,(Vec<[f64;2]>,Option<String>)>,
+    load_error: String,
     qualification_bounds: Option<egui::Rect>,
     pub drawn_rows: usize,
     pub bounds: Option<egui::Rect>,
+    pub loaded_bounds: Option<egui::Rect>,
     pub controls: BTreeMap<String, egui::Rect>,
     source_filter: String,
     last_blotter_refresh: f64,
@@ -57,7 +64,7 @@ impl TradeWorkspace {
         }
     }
     pub fn is_visible(&self) -> bool {
-        self.open || self.loaded_open
+        self.open || self.loaded_open || self.pending.is_some() || !self.load_error.is_empty()
     }
 
     fn background_refresh(&self) -> bool {
@@ -69,6 +76,9 @@ impl TradeWorkspace {
     /// Release only a request that the bridge explicitly rejected before execution.
     pub fn submission_rejected(&mut self, request_id: &str) {
         if self.pending.as_deref() == Some(request_id) {
+            if self.pending_action == "load-trade" {
+                self.load_error = "Load Trade request could not be queued.".into();
+            }
             self.pending = None;
             self.pending_action.clear();
             self.pending_dialog.clear();
@@ -101,15 +111,25 @@ impl TradeWorkspace {
                 if outcome.state == "Completed" && !self.pending_dialog.is_empty() {
                     self.dialog.clear();
                 }
-                if outcome.state == "Completed" && self.pending_action == "load-trade" {
-                    self.loaded_open = true;
+                if self.pending_action == "load-trade" {
                     self.open = false;
+                    let loaded = outcome.state == "Completed";
+                    self.loaded_open |= loaded;
+                    if !loaded {
+                        self.load_error = if outcome.message.is_empty() {
+                            "The selected trade could not be loaded.".into()
+                        } else { outcome.message.clone() };
+                    }
                 }
+            }
+            if self.pending_action=="close-trade" {
+                self.loaded_open=s.result.rows.iter().any(|r|r.fields.get("kind").is_some_and(|k|k=="established"));
             }
             self.pending_dialog.clear();
             self.pending_action.clear();
             self.pending = None;
         }
+        self.loaded_bounds = None;
         let mut action = None;
         let mut open = self.open;
         self.controls.clear();
@@ -232,6 +252,8 @@ impl TradeWorkspace {
                 }
             });
         self.bounds = response.map(|shown| shown.response.rect);
+        if action == Some("load-trade") { open = false; }
+        if self.open && !open && action.is_none() {action=Some("close");}
         self.open = open;
         action = self.draw_loaded_trade(ctx, s).or(action);
         if self.dialog == "eod" {
@@ -272,8 +294,8 @@ impl TradeWorkspace {
                             action = Some(draft_action);
                         }
                     } else {
-                        ui.trading_label("Remove the selected record?");
-                        ui.trading_label("Reason:");
+                        ui.trading_caption("Remove the selected record?");
+                        ui.trading_caption("Reason:");
                         ui.text_edit_singleline(self.draft.entry("reason".into()).or_default());
                     }
                     if !kind.starts_with("create") {
@@ -395,7 +417,19 @@ impl TradeWorkspace {
                     });
             }
         }
-        if !open && !self.loaded_open && self.pending.is_none() {
+        if !self.load_error.is_empty() {
+            egui::Window::new("Load Trade Error")
+                .id(egui::Id::new("load-trade-error"))
+                .collapsible(false).resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+                .show(ctx, |ui| {
+                    ui.set_max_width(560.);
+                    ui.label(&self.load_error);
+                    if ui.button("OK").clicked() { self.load_error.clear(); }
+                });
+        }
+        if !open && !self.loaded_open && self.pending.is_none()
+            && self.load_error.is_empty() && action != Some("load-trade") {
             self.deferred_action = None;
             action = Some("close");
         }
@@ -433,119 +467,6 @@ impl TradeWorkspace {
             payload.to_string()
         })
     }
-    // WinForms Load Trade closes the editor and opens the established-trade view.
-    // Keep that view separate from the manual Trade Blotter tabs.
-    fn draw_loaded_trade(
-        &mut self,
-        ctx: &egui::Context,
-        s: &ContractPublication,
-    ) -> Option<&'static str> {
-        if !self.loaded_open
-            || !s
-                .result
-                .rows
-                .iter()
-                .any(|r| r.fields.get("kind").is_some_and(|k| k == "established"))
-        {
-            return None;
-        }
-        let mut action = None;
-        let mut open = self.loaded_open;
-        egui::Window::new("Iron Condor Trade")
-            .open(&mut open)
-            .default_size([1100., 800.])
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.trading_label(format!(
-                        "Order: {}   Trade: {}",
-                        s.result.context.get("orderId").cloned().unwrap_or_default(),
-                        s.result.context.get("tradeId").cloned().unwrap_or_default()
-                    ));
-                    let mut live = flag(s, "live");
-                    if ui
-                        .add_enabled(
-                            flag(s, "canLive") || live,
-                            egui::Checkbox::new(&mut live, "Live Feed"),
-                        )
-                        .changed()
-                    {
-                        action = Some(if live { "live-on" } else { "live-off" });
-                    }
-                });
-                ui.horizontal(|ui| {
-                    for (n, title) in [
-                        "Position History",
-                        "Trade Details",
-                        "Trade Legs",
-                        "Opening Fills",
-                        "Closing Fills",
-                        "TradePlans",
-                        "Limits",
-                    ]
-                    .iter()
-                    .enumerate()
-                    {
-                        crate::presentation::tab_value(ui, &mut self.detail_tab, n, *title);
-                    }
-                });
-                ui.separator();
-                if ui
-                    .add_enabled(flag(s, "canEndOfDay"), egui::Button::new("End Of Day..."))
-                    .clicked()
-                {
-                    self.dialog = "eod".into();
-                    action = Some("eod-open");
-                }
-                match self.detail_tab {
-                    0 => {
-                        let selected = ui
-                            .add_enabled_ui(flag(s, "canSelectPosition"), |ui| {
-                                self.table(
-                                    ui,
-                                    s,
-                                    "position",
-                                    &[
-                                        ("valueDate", "Value Date"),
-                                        ("actionDateTime", "Action Time"),
-                                        ("tradeState", "State"),
-                                        ("dailyPnl", "Daily Pnl"),
-                                    ],
-                                    ui.available_height() - 30.,
-                                )
-                            })
-                            .inner;
-                        if let Some(index) = selected {
-                            self.draft.insert("index".into(), index);
-                            action = Some("position");
-                        }
-                    }
-                    5 => {
-                        self.object_table(ui, s, "plan");
-                    }
-                    6 => {
-                        self.object_table(ui, s, "limits");
-                    }
-                    n => {
-                        if let Some(row) = s
-                            .result
-                            .rows
-                            .iter()
-                            .find(|r| r.fields.get("kind").is_some_and(|k| k == "established"))
-                        {
-                            let value = data(row);
-                            match n {
-                                2 => Self::json_grid(ui, &value["legs"]),
-                                3 => Self::json_grid(ui, &value["originalFills"]),
-                                4 => Self::json_grid(ui, &value["closingFills"]),
-                                _ => Self::properties(ui, &value),
-                            };
-                        }
-                    }
-                }
-            });
-        self.loaded_open = open;
-        action
-    }
     fn draw_composer(
         &mut self,
         ui: &mut egui::Ui,
@@ -577,12 +498,12 @@ impl TradeWorkspace {
                     ("tradeId", "Trade Id"),
                 ] {
                     ui.horizontal(|ui| {
-                        ui.add_sized([170., 28.], crate::presentation::label_widget(label));
+                        ui.add_sized([170., 28.], crate::presentation::caption_widget(label));
                         ui.trading_label(text(&value, key));
                     });
                 }
                 ui.horizontal(|ui| {
-                    ui.add_sized([170., 28.], crate::presentation::label_widget("Value Date:"));
+                    ui.add_sized([170., 28.], crate::presentation::caption_widget("Value Date:"));
                     let date = s
                         .result
                         .context
@@ -601,12 +522,12 @@ impl TradeWorkspace {
                     ("fundBalance", "Fund Balance"),
                 ] {
                     ui.horizontal(|ui| {
-                        ui.add_sized([170., 28.], crate::presentation::label_widget(label));
+                        ui.add_sized([170., 28.], crate::presentation::caption_widget(label));
                         ui.trading_label(text(&value, key));
                     });
                 }
                 ui.horizontal(|ui| {
-                    ui.add_sized([170., 28.], crate::presentation::label_widget("Reference:"));
+                    ui.add_sized([170., 28.], crate::presentation::caption_widget("Reference:"));
                     ui.text_edit_singleline(self.draft.entry("reference".into()).or_default());
                 });
                 ui.horizontal(|ui| {
@@ -698,13 +619,13 @@ impl TradeWorkspace {
             let origin=self.qualification_bounds.map(|r|r.min).unwrap_or(ui.cursor().min-egui::vec2(frame.total_margin().sum().x/2.,title_height));
             let r=|x,y,w,h|rect(origin,reference_scale,x,y,w,h);
             let approval=text(&account,"approvalId");let approval=if approval.replace("-","").chars().all(|c|c=='0'){"None".into()}else{approval.replace("-","")};let state=if available{format!("{} / {} | Qualification={} | Gate={} | Hold={} | Approval={} | Revision={} | {}",text(&account["id"],"accountAlias"),text(&account,"environment"),text(&account,"qualificationStatus"),text(&account,"gate"),text(&account,"manualHold"),approval,text(&account,"revision"),text(&account,"reason"))}else{"Account unavailable".into()};
-            for(caption,y)in[("Current state",65.),("Qualification report:",119.),("Report contents:",163.),("Manifest SHA-256",320.),("Evidence reference",356.),("Authorized reviewer",393.),("Hold / revoke reason",429.),("Durable actions",468.)]{at(ui,r(34.,y,260.,29.),caption,|ui|{ui.trading_label(egui::RichText::new(caption).color(Color32::from_gray(192)));});}
+            for(caption,y)in[("Current state",65.),("Qualification report:",119.),("Report contents:",163.),("Manifest SHA-256",320.),("Evidence reference",356.),("Authorized reviewer",393.),("Hold / revoke reason",429.),("Durable actions",468.)]{at(ui,r(34.,y,260.,29.),caption,|ui|{ui.trading_label(egui::RichText::new(caption).color(crate::presentation::CAPTION_FOREGROUND));});}
             at(ui,r(313.,65.,700.,49.),"qualification-state",|ui|{ui.trading_label(state);});
             at(ui,r(311.,119.,155.,38.),"loadQualificationReport",|ui|{if ui.add_sized(ui.available_size(),egui::Button::new("Load test report...")).clicked(){if let Some(path)=blotter::pick_report(){self.draft.insert("reportPath".into(),path);action=Some("qualification-report");}}});
             at(ui,r(313.,163.,700.,150.),"qualificationReportPreview",|ui|{let mut content=text(&report,"preview");ui.add_sized(ui.available_size(),egui::TextEdit::multiline(&mut content).interactive(false));});
             for(key,id,y)in[("manifestHash","qualificationManifestHash",320.),("evidenceReference","qualificationEvidenceReference",356.),("reviewer","qualificationReviewer",393.),("reason","qualificationReason",429.)]{let bounds=r(313.,y,700.,29.);at(ui,bounds,id,|ui|{ui.visuals_mut().extreme_bg_color=Color32::from_gray(30);ui.add_sized(ui.available_size(),egui::TextEdit::singleline(self.draft.entry(key.into()).or_default()));});self.controls.insert(id.into(),bounds);}
             for(label,intent,id,x,y,width)in[("Submit evidence","qualification-submit","submitQualificationEvidence",315.,468.,148.),("Accept reviewed manifest","qualification-accept","acceptQualification",468.,468.,216.),("Revoke","qualification-revoke","revokeQualification",689.,468.,94.),("Set hold","qualification-hold","setTradingHold",788.,468.,94.),("Release hold","qualification-release","releaseTradingHold",886.,468.,121.),("Resynchronize","qualification-resync","resynchronizeBrokerAccount",315.,510.,135.)]{let enabled=!s.busy&&self.pending.is_none()&&available&&match intent{"qualification-accept"=>text(&account,"qualificationStatus")=="ReviewPending","qualification-revoke"=>text(&account,"qualificationStatus")=="Accepted","qualification-hold"=>account["manualHold"]==false,"qualification-release"=>account["manualHold"]==true,_=>true};let bounds=r(x,y,width,38.);at(ui,bounds,id,|ui|{if ui.add_enabled(enabled,egui::Button::new(label).min_size(ui.available_size())).clicked(){if intent=="qualification-accept"{self.draft.insert("qualificationConfirm".into(),"true".into());}else{action=Some(intent);}}});self.controls.insert(id.into(),bounds);}
-            if self.draft.get("qualificationConfirm").is_some_and(|v|v=="true"){at(ui,r(34.,560.,975.,70.),"qualification-confirm",|ui|{ui.trading_label("Accept emulator qualification for the reviewed manifest?");ui.horizontal(|ui|{if ui.button("Yes, accept manifest").clicked(){self.draft.remove("qualificationConfirm");action=Some("qualification-accept");}if ui.button("No").clicked(){self.draft.remove("qualificationConfirm");}});});}
+            if self.draft.get("qualificationConfirm").is_some_and(|v|v=="true"){at(ui,r(34.,560.,975.,70.),"qualification-confirm",|ui|{ui.trading_caption("Accept emulator qualification for the reviewed manifest?");ui.horizontal(|ui|{if ui.button("Yes, accept manifest").clicked(){self.draft.remove("qualificationConfirm");action=Some("qualification-accept");}if ui.button("No").clicked(){self.draft.remove("qualificationConfirm");}});});}
             if !s.status.is_empty()&&s.status!="Completed"{at(ui,r(34.,650.,975.,55.),"qualification-status",|ui|{ui.trading_label(&s.status);});}
         });
         if let Some(previous) = self.qualification_bounds {
@@ -782,16 +703,6 @@ impl TradeWorkspace {
         clicked.map(|index| rows[index].id.split_once(':').unwrap().1.to_string())
     }
 
-    fn object_table(&mut self, ui: &mut egui::Ui, s: &ContractPublication, kind: &str) {
-        let values: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == kind))
-            .map(data)
-            .collect();
-        Self::json_grid(ui, &values.into());
-    }
     fn properties(ui: &mut egui::Ui, value: &serde_json::Value) {
         egui::ScrollArea::both().show(ui, |ui| {
             egui::Grid::new("trade-properties")
@@ -799,7 +710,7 @@ impl TradeWorkspace {
                 .show(ui, |ui| {
                     if let Some(fields) = value.as_object() {
                         for (key, value) in fields {
-                            ui.trading_label(key);
+                            ui.trading_caption(key);
                             ui.trading_label(match value {
                                 serde_json::Value::String(s) => s.clone(),
                                 _ => value.to_string(),
@@ -821,7 +732,7 @@ impl TradeWorkspace {
         }
         let layout = egui::Layout::left_to_right(egui::Align::Center);
         ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect.shrink2(egui::vec2(5., 0.)))
-            .layout(layout), |ui| { ui.add(crate::presentation::label_widget(label)); });
+            .layout(layout), |ui| { ui.add(crate::presentation::caption_widget(label)); });
         ui.scope_builder(egui::UiBuilder::new().max_rect(value_rect.shrink2(egui::vec2(5., 0.)))
             .layout(layout), value);
     }
@@ -851,11 +762,11 @@ impl TradeWorkspace {
                         for label in ["Contract ID", "Role", "Side", "Leg Commission"] {
                             row.col(|ui| {
                                 ui.painter().rect_filled(ui.max_rect(), 0., Color32::from_rgb(45, 45, 48));
-                                ui.add(egui::Label::new(label).truncate());
+                                ui.add(egui::Label::new(egui::RichText::new(label).color(crate::presentation::CAPTION_FOREGROUND)).truncate());
                             });
                         }
                     })
-                    .body(|body| {
+                    .bordered_body(26., |body| {
                         body.rows(27., rows.len(), |mut row| {
                             let leg = &rows[row.index()];
                             let commission = leg["legCommission"].wire_number().or_else(||leg["legCommission"].as_str().and_then(|text|text.parse::<f64>().ok()))
@@ -871,44 +782,4 @@ impl TradeWorkspace {
             });
     }
 
-    fn json_grid(ui: &mut egui::Ui, value: &serde_json::Value) {
-        let rows = value.as_array().cloned().unwrap_or_default();
-        let columns: Vec<_> = rows
-            .first()
-            .and_then(|r| r.as_object())
-            .map(|m| m.keys().cloned().collect())
-            .unwrap_or_default();
-        if columns.is_empty() {
-            ui.trading_label("No saved data.");
-            return;
-        }
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            let mut t = egui_extras::TableBuilder::new(ui)
-                .id_salt("trade-evidence")
-                .vscroll(true)
-                .max_scroll_height(200.);
-            for _ in &columns {
-                t = t.column(egui_extras::Column::auto().at_least(90.));
-            }
-            t.header(26., |mut row| {
-                for key in &columns {
-                    row.col(|ui| {
-                        ui.painter()
-                            .rect_filled(ui.max_rect(), 0., Color32::from_rgb(45, 45, 48));
-                        ui.trading_label(key);
-                    });
-                }
-            })
-            .body(|body| {
-                body.rows(26., rows.len(), |mut row| {
-                    let value = &rows[row.index()];
-                    for key in &columns {
-                        row.col(|ui| {
-                            ui.trading_label(text(value, key));
-                        });
-                    }
-                })
-            });
-        });
-    }
 }

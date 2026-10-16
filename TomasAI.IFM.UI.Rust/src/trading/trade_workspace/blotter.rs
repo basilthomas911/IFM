@@ -1,5 +1,4 @@
 use crate::wire::WireNumber as _;
-use crate::presentation::TradingLabelUi as _;
 use super::order_layout::{at, rect};
 use super::*;
 fn context<'a>(s: &'a ContractPublication, key: &str) -> &'a str {
@@ -19,9 +18,9 @@ pub(super) const OPTION_COLUMNS: [&str; 13] = [
 pub(super) fn option_header(ui: &mut egui::Ui, label: &str, center_selected: bool) {
     ui.painter().rect_filled(ui.max_rect(), 0., crate::presentation::COMMAND);
     if label == "Strike" || (center_selected && label == "Selected") {
-        ui.add_sized(ui.available_size(), crate::presentation::label_widget(label).halign(egui::Align::Center).truncate());
+        ui.add_sized(ui.available_size(), crate::presentation::label_widget(egui::RichText::new(label).color(crate::presentation::CAPTION_FOREGROUND)).halign(egui::Align::Center).truncate());
     } else {
-        ui.add(crate::presentation::label_widget(label).truncate());
+        ui.add(crate::presentation::label_widget(egui::RichText::new(label).color(crate::presentation::CAPTION_FOREGROUND)).truncate());
     }
 }
 pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
@@ -493,7 +492,7 @@ impl TradeWorkspace {
                 ),
             ] {
                 at(ui, rect(o, p, x, h - 45., 80., 27.), caption, |ui| {
-                    ui.trading_label(caption);
+                    ui.trading_caption(caption);
                 });
                 if self.choice(
                     ui,
@@ -519,7 +518,7 @@ impl TradeWorkspace {
                 rect(o, p, 20., h - 52., w - 40., 35.),
                 "orders-evidence-actions",
                 |ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.add_enabled(flag(s,"canEndOfDay"),egui::Button::new("End Of Day...")).clicked(){self.dialog="eod".into();action=Some("eod-open");}ui.trading_label("Cancel/replace is enabled only by revision-bound application workflow capability.");});
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{if ui.add_enabled(flag(s,"canEndOfDay"),egui::Button::new("End Of Day...")).clicked(){self.dialog="eod".into();action=Some("eod-open");}ui.trading_caption("Cancel/replace is enabled only by revision-bound application workflow capability.");});
                 },
             );
         } else {
@@ -800,7 +799,8 @@ impl TradeWorkspace {
         let mut action = None;
         let preview = value(s, "broker-preview");
         let fields = &preview["fields"];
-        let leg_grid_bounds = rect(o, p, 26., 123., w - 52., 136.);
+        // Leave room for all four option legs, the header, and row spacing.
+        let leg_grid_bounds = rect(o, p, 26., 123., w - 52., 160.);
         at(
             ui,
             leg_grid_bounds,
@@ -810,7 +810,7 @@ impl TradeWorkspace {
                 let bounds = leg_grid_bounds;
                 ui.scope_builder(egui::UiBuilder::new().max_rect(bounds.shrink(1. / p)), |ui| {
                     ui.set_clip_rect(ui.clip_rect().intersect(bounds.shrink(1. / p)));
-                    if self.leg_grid(ui, s, editable, 134. / p) {
+                    if self.leg_grid(ui, s, editable, leg_grid_bounds.height() - 2. / p) {
                         action = Some("preview-draft");
                     }
                 });
@@ -820,7 +820,7 @@ impl TradeWorkspace {
         );
         self.controls.insert(
             "brokerPreviewLegGrid".into(),
-            rect(o, p, 26., 123., w - 52., 136.),
+            leg_grid_bounds,
         );
         let rows: Vec<Vec<(&str, &str, f32)>> = vec![
             vec![
@@ -1003,7 +1003,7 @@ impl TradeWorkspace {
             "broker-economics-header",
             |ui| {
                 ui.painter().rect_filled(ui.max_rect(), 0., Color32::BLACK);
-                ui.trading_label("Fund Economics and Limits:");
+                ui.trading_caption("Fund Economics and Limits:");
             },
         );
         at(
@@ -1096,7 +1096,7 @@ impl TradeWorkspace {
             .max_scroll_height(height)
             .column(egui_extras::Column::initial(width / 3.).at_least(60. / p))
             .column(egui_extras::Column::remainder())
-            .body(|body| {
+            .bordered_body(0., |body| {
                 body.rows(22. / p, properties.len(), |mut row| {
                     let item = &properties[row.index()];
                     let name = text(item, "name");
@@ -1158,11 +1158,11 @@ impl TradeWorkspace {
                     row.col(|ui| {
                         ui.painter()
                             .rect_filled(ui.max_rect(), 0., Color32::from_rgb(45, 48, 54));
-                        ui.trading_label(header);
+                        ui.trading_colored_label(crate::presentation::CAPTION_FOREGROUND, header);
                     });
                 }
             })
-            .body(|body| {
+            .bordered_body(25. / p, |body| {
                 body.rows(27. / p, legs.len(), |mut row| {
                     let v = &legs[row.index()];
                     for column in 0..10 {
@@ -1207,7 +1207,7 @@ impl TradeWorkspace {
     fn evidence_panel(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         egui::ScrollArea::both().id_salt("durable-evidence-text").show(ui,|ui|{
    let account=value(s,"account");ui.trading_label(format!("Account: {}; Gate={}; Qualification={}; Cash={}; Available={}",text(&account["id"],"accountAlias"),text(&account,"gate"),text(&account,"qualificationStatus"),text(&account["snapshot"],"cashBalance"),text(&account["snapshot"],"availableFunds")));ui.add_space(16.);
-   let orders:Vec<_>=s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="broker-order")).map(data).collect();if orders.is_empty(){ui.trading_label("Broker orders: none submitted");}for order in orders{ui.trading_label(format!("Broker order {}: {}; Limit={}; Revision={}; Generation={}; Operation={}; Dispatch={} {}",text(&order["id"],"componentId"),text(&order,"status"),text(&order,"currentSignedNetDebitLimit"),text(&order,"brokerRevision"),text(&order["lastObservation"],"sourceEpoch"),text(&order,"operationId"),text(&order,"dispatchCategory"),text(&order,"dispatchDetail")));if !order["lastObservation"].is_null(){ui.trading_label(format!("Latest broker fact: {}",order["lastObservation"]));}ui.add_space(16.);}
+   let orders:Vec<_>=s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="broker-order")).map(data).collect();if orders.is_empty(){ui.trading_caption("Broker orders: none submitted");}for order in orders{ui.trading_label(format!("Broker order {}: {}; Limit={}; Revision={}; Generation={}; Operation={}; Dispatch={} {}",text(&order["id"],"componentId"),text(&order,"status"),text(&order,"currentSignedNetDebitLimit"),text(&order,"brokerRevision"),text(&order["lastObservation"],"sourceEpoch"),text(&order,"operationId"),text(&order,"dispatchCategory"),text(&order,"dispatchDetail")));if !order["lastObservation"].is_null(){ui.trading_label(format!("Latest broker fact: {}",order["lastObservation"]));}ui.add_space(16.);}
    for execution in s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="execution")).map(data){ui.trading_label(format!("Execution {}: {}; Requested={}; Cumulative={}; Revision={}",text(&execution["id"],"executionAttemptId"),text(&execution,"status"),text(&execution,"orderQuantity"),text(&execution,"cumulativeFilledQuantity"),text(&execution,"orderRevision")));if let Some(fills)=execution["fills"].as_array(){for fill in fills{ui.trading_label(format!("  {}: Quantity={}; Price={}; Commission={}; External={}; At={}",text(fill,"contractId"),text(fill,"signedQuantity"),text(fill,"price"),text(fill,"commission"),text(fill,"externalExecutionId"),text(fill,"filledAtUtc")));}}ui.add_space(16.);}
   });
     }
@@ -1251,11 +1251,11 @@ impl TradeWorkspace {
                     row.col(|ui| {
                         ui.painter()
                             .rect_filled(ui.max_rect(), 0., Color32::from_rgb(45, 48, 54));
-                        ui.add(crate::presentation::label_widget(title).truncate());
+                        ui.add(crate::presentation::label_widget(egui::RichText::new(title).color(crate::presentation::CAPTION_FOREGROUND)).truncate());
                     });
                 }
             })
-            .body(|body| {
+            .bordered_body(25. / p, |body| {
                 body.rows(24. / p, legs.len(), |mut row| {
                     let index = row.index();
                     let leg = &legs[index];
@@ -1350,7 +1350,7 @@ impl TradeWorkspace {
             for label in OPTION_COLUMNS {
                 row.col(|ui| option_header(ui, label, true));
             }
-        }).body(|body| {
+        }).bordered_body(24. / p, |body| {
             body.rows(27. / p, legs.len(), |mut row| {
                 let v = &legs[row.index()];
                 let call = v["isCall"] == true;

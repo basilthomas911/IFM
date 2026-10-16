@@ -129,7 +129,7 @@ impl StrategyInspection {
                         ]
                     };
                     for (key, label) in fields {
-                        let response = ui.trading_label(c.text(label));
+                        let response = ui.trading_caption(c.text(label));
                         let value = self.fields.entry(key.into()).or_default();
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(value).desired_width(
@@ -156,7 +156,7 @@ impl StrategyInspection {
                         ui.end_row();
                     }
                     if !self.risk {
-                        ui.trading_label(c.text(strings::TIMEFRAME));
+                        ui.trading_caption(c.text(strings::TIMEFRAME));
                         egui::ComboBox::from_id_salt("inspection-horizon")
                             .selected_text(&self.fields["horizon"])
                             .show_ui(ui, |ui| {
@@ -274,7 +274,7 @@ impl StrategyInspection {
                         });
                     }
                 } else {
-                    ui.trading_label(c.text(strings::SELECT_WORKFLOW));
+                    ui.trading_caption(c.text(strings::SELECT_WORKFLOW));
                 }
             });
         }

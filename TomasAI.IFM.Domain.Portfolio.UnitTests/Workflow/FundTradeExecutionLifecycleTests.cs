@@ -79,7 +79,7 @@ public sealed class FundTradeExecutionLifecycleTests
         var completed = aggregate.RecordFundTradeClosing(close);
         completed.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
         completed.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
-        completed.Trades.Single(x => !x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.OrderCompleted));
+        completed.Trades.Single(x => !x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
         aggregate.RecordFundTradeClosing(close).AggregateVersion.Should().Be(completed.AggregateVersion);
         ((Action)(() => aggregate.RecordFundTradeSubmission(evidence))).Should().Throw<InvalidOperationException>();
     }

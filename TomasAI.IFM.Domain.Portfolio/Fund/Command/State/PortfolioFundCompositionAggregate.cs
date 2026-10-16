@@ -316,7 +316,7 @@ public sealed class PortfolioFundCompositionAggregate
             {
                 TradeState = (closing) switch
 {
-    true => evidence.FullyClosed ? nameof(TradeState.OrderCompleted) : nameof(TradeState.OrderPartiallyFilled),
+    true => evidence.FullyClosed ? nameof(TradeState.Closed) : nameof(TradeState.OrderPartiallyFilled),
     false => (opening) switch
     {
         true => nameof(TradeState.Open),

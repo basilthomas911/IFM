@@ -98,13 +98,15 @@ public static class IronCondorTradeLimitInitialization
     /// <param name="fundBalance">Captured positive fund balance.</param><param name="riskMargin">Captured nonnegative margin.</param>
     /// <param name="tradeCommission">Total opening commission.</param><param name="daysToExpiry">Expiry calendar days.</param>
     /// <param name="initializedAtUtc">Captured UTC initialization time.</param><param name="initializedBy">Initiating business actor/operator.</param>
+    /// <param name="approvedMaximumLoss">Portfolio-approved loss amount; when supplied, no legacy fund-balance percentage is used.</param>
     /// <returns>The proposed overall trade limit and two per-spread limits ready for an owning command event.</returns>
     public static (TradeLimitReadModel TradeLimit, TradeTypeLimitReadModel[] SpreadLimits) Initialize(
         int tradeId, TradeType tradeType, decimal putSpreadPrice, decimal callSpreadPrice, int quantity,
         decimal cashMultiplier, decimal fundBalance, decimal riskMargin, decimal tradeCommission,
-        int daysToExpiry, DateTime initializedAtUtc, string initializedBy)
+        int daysToExpiry, DateTime initializedAtUtc, string initializedBy, decimal? approvedMaximumLoss = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tradeId);
+        if (approvedMaximumLoss is { } maximumLoss) ArgumentOutOfRangeException.ThrowIfNegative(maximumLoss);
         if (initializedAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("UTC initialization time required.", nameof(initializedAtUtc));
         ArgumentException.ThrowIfNullOrWhiteSpace(initializedBy);
@@ -117,7 +119,7 @@ public static class IronCondorTradeLimitInitialization
         return (new TradeLimitReadModel
         {
             TradeId = tradeId, TradeType = tradeType, RiskMargin = riskMargin,
-            MaxProfit = profit, MaxLoss = CalculateMaximumLoss(fundBalance),
+            MaxProfit = profit, MaxLoss = approvedMaximumLoss is { } approved ? -approved : CalculateMaximumLoss(fundBalance),
             MaxReturn = CalculateMaximumReturn(profit, riskMargin),
             MaxLossLimit = put.MaxLossLimit + call.MaxLossLimit,
             MinProfitLimit = put.MinProfitLimit + call.MinProfitLimit,

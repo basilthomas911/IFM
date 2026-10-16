@@ -16,19 +16,43 @@ sealed class TradeWorkspaceSession : IDisposable
     readonly RustClientServiceScope scope = new(Environment.GetEnvironmentVariable("IFM_UI_NATS_URL")??"nats://localhost:4222");
     readonly CancellationTokenSource stopping = new();
     TradeOrderEditorViewModel? model;
-    IronCondorViewModel? monitor;
+    sealed record OpenTrade(EstablishedTradeDefinition Trade, IronCondorViewModel? Monitor, string FundName, string TradeType, string TradeAction, TradeMonitorUpdates? Updates);
+    readonly Dictionary<string, OpenTrade> openTrades = new(StringComparer.Ordinal);
+    string? activeTradeKey;
+    OpenTrade? ActiveTrade => activeTradeKey is not null ? openTrades.GetValueOrDefault(activeTradeKey) : null;
+    IronCondorViewModel? monitor => ActiveTrade?.Monitor;
     EndOfDayProcessViewModel? endOfDay;
-    EstablishedTradeDefinition? established;
+    EstablishedTradeDefinition? established => ActiveTrade?.Trade;
     FundOrderEditorViewModel? newOrder;
     int? preparedTradeId;
     DateOnly fromDate,toDate;
     TradeComposerSession? composer;
     ContractEditorResult? cachedWorkspace;
-    int? reconciledFilledTrade;
+    ContractEditorResult? composerPublication;
+    long monitorRevision, publishedMonitorRevision, lastMonitorRefresh;
+    public bool RefreshPending => Volatile.Read(ref monitorRevision)!=Volatile.Read(ref publishedMonitorRevision)
+        && Environment.TickCount64-Volatile.Read(ref lastMonitorRefresh)>=100;
+    public Task<ContractEditorResult> RefreshPublicationAsync()
+    {
+        var observed=Volatile.Read(ref monitorRevision);
+        var snapshot=Snapshot();
+        // Preserve the independent editor when a live trade refreshes behind its dialog.
+        if(composer is not null && composerPublication is {} composed) {
+            cachedWorkspace=snapshot;
+            var choices=new Dictionary<string,string[]>(snapshot.Choices);
+            var context=new Dictionary<string,string>(snapshot.Context??[]);
+            foreach(var pair in composed.Choices)choices[pair.Key]=pair.Value;
+            foreach(var pair in composed.Context??[])context[pair.Key]=pair.Value;
+            snapshot=snapshot with{Choices=choices,Context=context,Rows=[..snapshot.Rows,..composed.Rows]};
+        }
+        Volatile.Write(ref publishedMonitorRevision,observed);
+        Volatile.Write(ref lastMonitorRefresh,Environment.TickCount64);
+        return Task.FromResult(snapshot);
+    }
     public byte[]? Confirmation => composer?.Confirmation;
     public Dictionary<string,string>? SubmissionContext => composer?.SubmissionContext;
     public int Decide(ContractEditorIntent intent)=>composer?.Decide(intent)==true?0:-5;
-    public static readonly string[] Actions = ["load","portfolio","fund","order","trade","range","create-order","remove-order","prepare-order","cancel-draft","prepare-trade","create-trade","remove-trade","load-trade","position","live-on","live-off","compose","preview-draft","refresh-chain","clear-staged","chain","select-leg","remove-leg","account","qualification-submit","qualification-accept","qualification-revoke","qualification-hold","qualification-release","qualification-resync","submit-order","refresh-execution","update-limit","cancel-unfilled","close","eod-open","eod-load","eod-run"];
+    public static readonly string[] Actions = ["load","portfolio","fund","order","trade","range","create-order","remove-order","prepare-order","cancel-draft","prepare-trade","create-trade","remove-trade","load-trade","activate-trade","close-trade","position","live-on","live-off","compose","preview-draft","refresh-chain","clear-staged","chain","select-leg","remove-leg","account","qualification-submit","qualification-accept","qualification-revoke","qualification-hold","qualification-release","qualification-resync","submit-order","refresh-execution","update-limit","cancel-unfilled","close","eod-open","eod-load","eod-run"];
     public static bool Validate(ContractEditorIntent input) => input.Schema==1 && input.RequestId!=Guid.Empty && input.View=="trade-orders" && Actions.Contains(input.Intent)
         && input.Fields is not null && input.Fields.Count<=64 && input.Fields.All(x=>x.Key.Length<=64 && x.Value is not null && x.Value.Length<=2048) && (input.OriginalId?.Length??0)<=512;
     static string Field(ContractEditorIntent i,string key)=>i.Fields.GetValueOrDefault(key)??"";
@@ -47,8 +71,8 @@ sealed class TradeWorkspaceSession : IDisposable
         }
         var m=model;
         if(input.Intent is "portfolio" or "fund" or "order" or "trade" or "load"){
-            if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;
-            if(monitor is not null)await monitor.DisposeAsync();monitor=null;established=null;preparedTradeId=null;reconciledFilledTrade=null;
+            if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;composerPublication=null;
+            preparedTradeId=null;
             if(newOrder is not null)await newOrder.DisposeAsync();newOrder=null;
         }
         if(input.Intent is "compose" or "preview-draft" or "refresh-chain" or "clear-staged" or "chain" or "select-leg" or "remove-leg" or "account" or "qualification-report" or "qualification-submit" or "qualification-accept" or "qualification-revoke" or "qualification-hold" or "qualification-release" or "qualification-resync" or "submit-order" or "refresh-execution" or "update-limit" or "cancel-unfilled"){
@@ -58,12 +82,22 @@ sealed class TradeWorkspaceSession : IDisposable
             if(composer is null)throw new InvalidOperationException("Open Trade Blotter first");
             if(input.Intent=="submit-order"&&!m.CanSubmitOrder)throw new InvalidOperationException("Submit Order is unavailable for this trade");
             await composer.ExecuteAsync(input);
-            if(composer.OpeningFilled&&reconciledFilledTrade!=m.SelectedFundOrderTrade!.TradeId){var orderId=m.SelectedFundOrder!.OrderId;var tradeId=m.SelectedFundOrderTrade!.TradeId;await m.LoadCanonicalOrdersAsync(stopping.Token);await m.SelectCanonicalOrderAsync(orderId,stopping.Token);m.SelectFundOrderTrade(m.FundOrderTrades.ToList().FindIndex(x=>x.TradeId==tradeId));reconciledFilledTrade=tradeId;cachedWorkspace=null;}
+            if (composer.CompletedTradeState is { } completedState && m.SelectedFundOrderTrade is { } selectedTrade
+                && selectedTrade.TradeState != completedState)
+            {
+                var orderId = m.SelectedFundOrder!.OrderId;
+                var tradeId = selectedTrade.TradeId;
+                await m.LoadCanonicalOrdersAsync(stopping.Token);
+                await m.SelectCanonicalOrderAsync(orderId, stopping.Token);
+                m.SelectFundOrderTrade(m.FundOrderTrades.ToList().FindIndex(x => x.TradeId == tradeId));
+                cachedWorkspace = null;
+            }
             // Quote updates do not rebuild the fund/order/reference portion of this screen.
             var stable=input.Intent=="refresh-chain"&&cachedWorkspace is not null?cachedWorkspace:Snapshot();
             cachedWorkspace=stable;
             var basic=stable with{Choices=new(stable.Choices),Context=new(stable.Context??[])};
             var composed=await composer.SnapshotAsync();
+            composerPublication=new("trade-orders",composed.Rows,composed.Choices,Context:composed.Context);
             foreach(var pair in composed.Choices)basic.Choices[pair.Key]=pair.Value;
             foreach(var pair in composed.Context)basic.Context![pair.Key]=pair.Value;
             return basic with{Rows=[..basic.Rows,..composed.Rows]};
@@ -77,7 +111,7 @@ sealed class TradeWorkspaceSession : IDisposable
                 await endOfDay.InitializeAsync(stopping.Token);await endOfDay.LoadData();break;
             case "eod-load":if(endOfDay is null)throw new InvalidOperationException("Open End of Day first");endOfDay.SetValueDate(DateOnly.ParseExact(Field(input,"eodDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture));endOfDay.SetReference(Field(input,"reference"));await endOfDay.LoadData();break;
             case "eod-run":if(endOfDay is null||!endOfDay.CanRun)throw new InvalidOperationException("End of Day is unavailable");await endOfDay.RunEndOfDayProcess();break;
-            case "close":if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;if(monitor is not null)await monitor.DisposeAsync();monitor=null;established=null;break;
+            case "close":if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;composerPublication=null;break;
             case "load": await m.LoadFunds();if(m.SelectedFundOrder is {} initial)await m.SelectCanonicalOrderAsync(initial.OrderId,stopping.Token);break;
             case "portfolio":await m.SelectPortfolioAsync(Index(input),stopping.Token);break;
             case "fund":if(!m.SelectFund(Index(input)))throw new ArgumentException("Fund is no longer available");await m.LoadCanonicalOrdersAsync(stopping.Token);break;
@@ -113,12 +147,37 @@ sealed class TradeWorkspaceSession : IDisposable
                 if(!m.CanRemoveTrade)throw new InvalidOperationException("Remove Trade is unavailable");
                 await m.RemoveManualTradeAsync(CurrentOrder(input),m.SelectedFundOrderTrade!.TradeId,stopping.Token);break;
             case "load-trade":
-                established=await m.LoadTradeAsync(stopping.Token);
-                if(monitor is not null)await monitor.DisposeAsync();monitor=null;
-                if(m.SelectedFundOrderTrade!.TradeType is TradeType.ShortIronCondor or TradeType.LongIronCondor){
-                    monitor=new(scope,m.SelectedFund!,m.SelectedFundOrder!,m.SelectedFundOrderTrade,m.ValueDate,m.BaseContracts.ToArray(),portfolioId:m.SelectedPortfolio!.PortfolioId,establishedTrade:established,brokerEnvironment:scope.AppEnvironment=="Development"?BrokerEnvironment.Emulator:BrokerEnvironment.Live);
-                    await monitor.LoadEstablishedTradeAsync(stopping.Token);if(monitor.TradeHistory.Length>0)await Task.WhenAll(monitor.LoadSavedPositionDataAsync(monitor.TradeHistory.Length-1),monitor.LoadTradePlans(monitor.TradeHistory.Length-1));
-                }break;
+                var loaded=await m.LoadTradeAsync(stopping.Token);
+                if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;composerPublication=null;
+                var key=loaded.Id.Format();
+                if(!openTrades.ContainsKey(key)) {
+                    IronCondorViewModel? candidate=null;
+                    try {
+                        if(m.SelectedFundOrderTrade!.TradeType is TradeType.ShortIronCondor or TradeType.LongIronCondor) {
+                            candidate=new(scope,m.SelectedFund!,m.SelectedFundOrder!,m.SelectedFundOrderTrade,m.ValueDate,m.BaseContracts.ToArray(),portfolioId:m.SelectedPortfolio!.PortfolioId,establishedTrade:loaded,brokerEnvironment:scope.AppEnvironment=="Development"?BrokerEnvironment.Emulator:BrokerEnvironment.Live);
+                            await candidate.LoadEstablishedTradeAsync(stopping.Token);
+                            if(candidate.TradeHistory.Length>0)await Task.WhenAll(candidate.LoadSavedPositionDataAsync(candidate.TradeHistory.Length-1),candidate.LoadTradePlans(candidate.TradeHistory.Length-1));
+                        }
+                        var observedMonitor=candidate;
+                        var updates=observedMonitor is null?null:new TradeMonitorUpdates(observedMonitor,()=>observedMonitor.StrategyTradePlan,()=>observedMonitor.IsLiveFeedEnabled,()=>Interlocked.Increment(ref monitorRevision));
+                        openTrades.Add(key,new(loaded,candidate,m.SelectedFund!.Name,m.SelectedFundOrderTrade!.TradeType.ToString(),m.SelectedFundOrderTrade.TradeAction.ToString(),updates));
+                    } catch {if(candidate is not null)await candidate.DisposeAsync();throw;}
+                }
+                activeTradeKey=key;
+                break;
+            case "activate-trade":
+                var activateKey=Field(input,"tradeTabId");
+                if(!openTrades.ContainsKey(activateKey))throw new InvalidOperationException("The trade tab is no longer open.");
+                activeTradeKey=activateKey;break;
+            case "close-trade":
+                var closeKey=Field(input,"tradeTabId");
+                if(openTrades.TryGetValue(closeKey,out var closingTrade)) {
+                    closingTrade.Updates?.Dispose();
+                    if(closingTrade.Monitor is not null)await closingTrade.Monitor.DisposeAsync();
+                    openTrades.Remove(closeKey);
+                    if(activeTradeKey==closeKey)activeTradeKey=openTrades.Keys.LastOrDefault();
+                }
+                break;
             case "position":if(monitor is null||!monitor.CanSelectPositionHistory)throw new InvalidOperationException("Position selection is unavailable while live");await Task.WhenAll(monitor.LoadSavedPositionDataAsync(Index(input)),monitor.LoadTradePlans(Index(input)));break;
             case "live-on":if(monitor is null||!monitor.CanEnableLiveFeed)throw new InvalidOperationException("Live feed is unavailable for this trade or session");await monitor.EnableLiveFeedAsync(stopping.Token);break;
             case "live-off":if(monitor is not null)await monitor.DisableLiveFeedAsync(stopping.Token);break;
@@ -129,20 +188,35 @@ sealed class TradeWorkspaceSession : IDisposable
         if(model!.SelectedFundOrder is not {} selected || i.OriginalId!=selected.OrderId.ToString(CultureInfo.InvariantCulture))throw new InvalidOperationException("The selected order changed; reload before continuing");
         return model.CanonicalOrders.Single(x=>x.OrderId==selected.OrderId);
     }
-    static ContractEditorRow Row(string kind,string id,object value)=>new(kind+":"+id,new(){["kind"]=kind}){Data=BridgeDocument.Encode(value,camelCase:true,enumNames:true)};
+    static ContractEditorRow Row(string kind,string id,object value) {
+        var fields=new Dictionary<string,string>{{"kind",kind}};
+        if(value is TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot plan)
+            fields["actionDateTimeEastern"]=TradePlanDisplay.ActionTime(plan)??"";
+        return new(kind+":"+id,fields){Data=BridgeDocument.Encode(value,camelCase:true,enumNames:true)};
+    }
     ContractEditorResult Snapshot(){
         var m=model!;var rows=new List<ContractEditorRow>();
         rows.AddRange(m.FundOrders.Select(x=>Row("order",x.OrderId.ToString(),new{x.OrderId,x.Status,CreatedOnUtc=EasternTime.FromUtc(x.CreatedOnUtc).ToString("yyyy-MMM-dd",CultureInfo.InvariantCulture),x.OperatorReference,source=x.Origin.ToString()=="ManualUi"?"Manual":"Strategy Workflow"})));
         rows.AddRange(m.FundOrderTrades.Select((x,n)=>Row("trade",x.TradeId.ToString(),new{index=n,x.TradeId,x.TradeType,x.EffectiveDate,x.TradeDate,x.MaturityDate,x.TradeState,x.TradeAction,x.BaseContractId})));
+        rows.AddRange(openTrades.Select(pair=>Row("workspace-tab",pair.Key,new {key=pair.Key,title=$"{pair.Value.Trade.Id.OrderId}:{pair.Value.Trade.Id.TradeId}",kind="trade",active=pair.Key==activeTradeKey})));
         if(established is not null){rows.Add(Row("established",established.Id.Format(),established));}
-        if(monitor is not null){rows.AddRange(monitor.TradeHistory.Select((x,n)=>Row("position",n.ToString(),x)));rows.AddRange(monitor.IronCondorPlanHistory.Select((x,n)=>Row("plan",n.ToString(),x)));rows.Add(Row("limits","0",monitor.TradeLimitSnapshot));rows.Add(Row("position-details","0",monitor.SelectedSavedPosition));rows.AddRange(monitor.SavedLegObservations.Select((x,n)=>Row("observation",n.ToString(),x)));}
+        if(monitor is {} activeMonitor){
+            // Capture once: every live row in this publication comes from this revision.
+            var live=activeMonitor.IsLiveFeedEnabled ? activeMonitor.RealtimeSnapshot : null;
+            if(live is not null) rows.Add(Row("realtime","0",live));
+            rows.AddRange(activeMonitor.TradeHistory.Select((x,n)=>Row("position",n.ToString(),x)));
+            rows.AddRange((ActiveTrade!.Updates?.Plans(activeMonitor.IronCondorPlanHistory)??activeMonitor.IronCondorPlanHistory).Select((x,n)=>Row("plan",n.ToString(),x)));
+            rows.Add(Row("limits","0",activeMonitor.TradeLimitSnapshot));
+            rows.Add(Row("position-details","0",live?.Position ?? activeMonitor.SelectedSavedPosition));
+            if(live is null) rows.AddRange(activeMonitor.SavedLegObservations.Select((x,n)=>Row("observation",n.ToString(),x)));
+        }
         if(newOrder is not null)rows.Add(Row("order-draft","0",new{newOrder.OrderId,newOrder.OrderDate,newOrder.OrderStatus}));
         if(endOfDay is not null)rows.Add(Row("eod","0",new{endOfDay.PortfolioId,endOfDay.FundId,endOfDay.OrderId,endOfDay.TradeId,endOfDay.ValueDate,endOfDay.OpenPrice,endOfDay.HighPrice,endOfDay.LowPrice,endOfDay.ClosePrice,endOfDay.Volume,endOfDay.TradePnl,endOfDay.FundBalance,endOfDay.CanRun,endOfDay.CommandId,endOfDay.IsCompleted,endOfDay.LastStatusMessage}));
         return new("trade-orders",rows.ToArray(),new(){["portfolio"]=m.Portfolios.Select(x=>x.PortfolioId+" - "+x.Name).ToArray(),["fund"]=m.Funds.Select(x=>x.FundId+" - "+x.Name).ToArray(),["baseContract"]=m.BaseContracts.Select(x=>x.ContractId).ToArray(),["tradeType"]=["ShortIronCondor","LongIronCondor","PutCreditSpread","PutDebitSpread","CallCreditSpread","CallDebitSpread","FuturesOutright"]},Context:new(){
             ["portfolioIndex"]=m.PortfolioSelectedIndex.ToString(),["fundIndex"]=m.FundSelectedIndex.ToString(),["orderId"]=m.SelectedFundOrder?.OrderId.ToString()??"",["tradeId"]=m.SelectedFundOrderTrade?.TradeId.ToString()??"",["tradeState"]=m.SelectedFundOrderTrade?.TradeState.ToString()??"",["valueDate"]=scope.ValueDates.ValueDate.ToString("yyyy-MM-dd"),["from"]=fromDate.ToString("yyyy-MM-dd"),["to"]=toDate.ToString("yyyy-MM-dd"),["preparedTradeId"]=preparedTradeId?.ToString()??"",["fundId"]=m.SelectedFund?.FundId.ToString()??"",["portfolioId"]=m.SelectedPortfolio?.PortfolioId.ToString()??"",
             ["closingType"]=m.FundOrderTrades.FirstOrDefault(x=>x.PrimaryTrade) is {} opening?PortfolioFundOrderEditorPolicy.ClosingType(opening.TradeType).ToString():"",["closingContract"]=m.FundOrderTrades.FirstOrDefault(x=>x.PrimaryTrade)?.BaseContractId??"",
-            ["canCreateOrder"]=m.CanCreateOrder.ToString(),["canRemoveOrder"]=m.CanDeleteOrder.ToString(),["canAddTrade"]=m.CanAddTrade.ToString(),["canRemoveTrade"]=m.CanRemoveTrade.ToString(),["canLoadTrade"]=m.CanLoadOrder.ToString(),["canSubmit"]=m.CanSubmitOrder.ToString(),["canEndOfDay"]=m.CanEndOfDay.ToString(),["canLive"]=monitor?.CanEnableLiveFeed.ToString()??"False",["live"]=monitor?.IsLiveFeedEnabled.ToString()??"False",["canSelectPosition"]=monitor?.CanSelectPositionHistory.ToString()??"False",["status"]=m.LastStatusMessage});
+            ["monitorLive"]=monitor?.IsLiveFeedEnabled.ToString()??"False",["monitorCanLive"]=monitor?.CanEnableLiveFeed.ToString()??"False",["monitorCanSelectPosition"]=monitor?.CanSelectPositionHistory.ToString()??"False",["activeTradeTab"]=activeTradeKey??"",["fundName"]=ActiveTrade?.FundName??m.SelectedFund?.Name??"",["compositionType"]=ActiveTrade?.TradeType??m.SelectedFundOrderTrade?.TradeType.ToString()??"",["tradeAction"]=ActiveTrade?.TradeAction??m.SelectedFundOrderTrade?.TradeAction.ToString()??"",["canCreateOrder"]=m.CanCreateOrder.ToString(),["canRemoveOrder"]=m.CanDeleteOrder.ToString(),["canAddTrade"]=m.CanAddTrade.ToString(),["canRemoveTrade"]=m.CanRemoveTrade.ToString(),["canLoadTrade"]=m.CanLoadOrder.ToString(),["canSubmit"]=m.CanSubmitOrder.ToString(),["canEndOfDay"]=m.CanEndOfDay.ToString(),["canLive"]=monitor?.CanEnableLiveFeed.ToString()??"False",["live"]=monitor?.IsLiveFeedEnabled.ToString()??"False",["canSelectPosition"]=monitor?.CanSelectPositionHistory.ToString()??"False",["status"]=m.LastStatusMessage});
     }
     public void CancelPending()=>stopping.Cancel();
-    public void Dispose(){stopping.Cancel();monitor?.DisposeAsync().AsTask().GetAwaiter().GetResult();endOfDay?.DisposeAsync().AsTask().GetAwaiter().GetResult();newOrder?.DisposeAsync().AsTask().GetAwaiter().GetResult();model?.DisposeAsync().AsTask().GetAwaiter().GetResult();scope.DisposeAsync().AsTask().GetAwaiter().GetResult();stopping.Dispose();}
+    public void Dispose(){stopping.Cancel();foreach(var trade in openTrades.Values){trade.Updates?.Dispose();trade.Monitor?.DisposeAsync().AsTask().GetAwaiter().GetResult();}openTrades.Clear();endOfDay?.DisposeAsync().AsTask().GetAwaiter().GetResult();newOrder?.DisposeAsync().AsTask().GetAwaiter().GetResult();model?.DisposeAsync().AsTask().GetAwaiter().GetResult();scope.DisposeAsync().AsTask().GetAwaiter().GetResult();stopping.Dispose();}
 }

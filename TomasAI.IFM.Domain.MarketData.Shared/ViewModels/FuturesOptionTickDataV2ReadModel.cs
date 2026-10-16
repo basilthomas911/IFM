@@ -89,6 +89,21 @@ public record FuturesOptionTickDataV2ReadModel
     /// <summary>Gets whether these sensitivities were calculated successfully; null preserves legacy wire behavior.</summary>
     [Key(20)] public bool? GreeksAvailable { get; init; }
 
+    /// <summary>Source generation and publication revision fence asynchronous pricing completions.</summary>
+    [Key(21)] public Guid SourceGeneration { get; init; }
+    [Key(22)] public long ObservationRevision { get; init; }
+    [Key(23)] public DateTimeOffset ObservedAtUtc { get; init; }
+    [Key(24)] public DateTimeOffset CalculatedAtUtc { get; init; }
+    [Key(25)] public DateTimeOffset ValidUntilUtc { get; init; }
+    [Key(26)] public string? PricingFailure { get; init; }
+    [Key(27)] public string? PricingContextDigest { get; init; }
+    /// <summary>Pricing-only changes notify displays without creating another position mark.</summary>
+    [Key(28)] public bool IsPricingUpdate { get; init; }
+    /// <summary>Trade observations do not replace the quote book or its quote-based risk.</summary>
+    [Key(29)] public bool IsTradeObservation { get; init; }
+    [Key(30)] public double? TheoreticalPrice { get; init; }
+    [Key(31)] public long UnderlyingSourceSequence { get; init; }
+
     /// <summary>
     /// Composite entity identifier (not serialized).
     /// </summary>

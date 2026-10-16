@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
@@ -103,7 +104,7 @@ impl SidebarView {
                             }
                         }
                     });
-                ui.trading_label("Country Code:");
+                ui.trading_caption("Country Code:");
             },
         );
         ui.horizontal(|ui| {
@@ -180,7 +181,7 @@ impl SidebarView {
                 if let Some(index) = navigation {
                     table = table.scroll_to_row(index, Some(egui::Align::Center));
                 }
-                table.body(|body| {
+                table.bordered_body(0., |body| {
                     body.rows(18.0, snapshot.calendar_rows.len(), |mut row| {
                         let index = row.index();
                         let item = &snapshot.calendar_rows[index];
@@ -299,14 +300,14 @@ impl SidebarView {
                                 ui.add(
                                     crate::presentation::label_widget(
                                         egui::RichText::new(label)
-                                            .color(crate::presentation::FOREGROUND),
+                                            .color(crate::presentation::CAPTION_FOREGROUND),
                                     )
                                     .truncate(),
                                 );
                             });
                         }
                     })
-                    .body(|body| {
+                    .bordered_body(24.0, |body| {
                         body.rows(18.0, snapshot.status_rows.len(), |mut row| {
                             self.drawn_status_rows += 1;
                             let item = &snapshot.status_rows[row.index()];

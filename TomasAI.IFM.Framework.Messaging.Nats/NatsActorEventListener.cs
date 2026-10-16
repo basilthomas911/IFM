@@ -40,6 +40,8 @@ public class NatsActorEventListener(
     Func<string, NatsMsg<byte[]>, ValueTask> _eventHandler = (verb, msg) => { return ValueTask.CompletedTask; };
     INatsSub<byte[]>?[] _subscriptions = [];
     Task[] _subscriptionTasks = [];
+    /// <summary>Optional catch-up after transport reconnection. The initial read remains the subscriber's responsibility.</summary>
+    public Func<ValueTask>? Reconnected { get; set; }
     int _messageCount;
 
     public async ValueTask StartAsync(
@@ -112,6 +114,13 @@ public class NatsActorEventListener(
 
             _connectionManager ??= new NatsConnectionManager();
             _nc = await _connectionManager.GetClientAsync(_options.Url).ConfigureAwait(false);
+            if (Reconnected is not null)
+                _nc.Connection.ConnectionOpened += async (_, _) =>
+                {
+                    if (_state != EventListenerState.Started) return;
+                    try { if (Reconnected is { } catchUp) await catchUp().ConfigureAwait(false); }
+                    catch (Exception error) { _logger.LogError(error, "Event listener reconnect catch-up failed for {Listener}", _eventListenerId); }
+                };
             var requestOptions = new NatsSubOpts()
             {
                 ChannelOpts = new NatsSubChannelOpts

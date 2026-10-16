@@ -12,9 +12,11 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.A
 public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, IIronCondorTradePositionRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, StrategyRiskParameterSetResolver? riskParameterSets = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
+    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
     {
         Logger = logger;
+        this.realtimeCache = realtimeCache;
+        this.databases = databases;
         inputReader = databases is null ? null : new(databases, logger, financialQueries, optionRisk, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
         {
             await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent, StrategyPositionId>(new() { Subject = new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent.Verb, position.Id.Format()), Id = Guid.NewGuid(), EntityId = position.Id, PositionSnapshot = position, ValueDate = date, IronCondorTradePlanInputs = inputs, ReceivedOn = now, MonitoringGenerationId = RealtimeGeneration.Id }).ConfigureAwait(false);
@@ -22,6 +24,29 @@ public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, 
     }
 
     readonly IronCondorMonitoringInputReader? inputReader;
+    readonly TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache;
+    readonly IDbContextFactory? databases;
+    public async ValueTask PublishRealtimeAsync(StrategyPositionSnapshot position, StrategyTradePlanSnapshot? plan = null)
+    {
+        RealtimeGeneration.Token.ThrowIfCancellationRequested();
+        if (realtimeCache is null) return;
+        var cache = realtimeCache.Find(position.Id.Trade);
+        if (!position.IsOpen && cache is null) return;
+        if (cache is null || cache.Read().ValueDate != position.ValueDate
+            || !cache.Read().Legs.Select(leg => (leg.Definition.TradeLegId, leg.Definition.ContractId)).OrderBy(leg => leg.TradeLegId)
+                .SequenceEqual(position.Legs.Select(leg => (leg.TradeLegId, leg.ContractId)).OrderBy(leg => leg.TradeLegId)))
+        {
+            var trade = databases is null ? null : await databases.TradeDb.GetEstablishedTradeAsync(position.Id.Trade).ConfigureAwait(false);
+            if (trade is null) return;
+            cache = realtimeCache.Register(trade, position.ValueDate);
+        }
+        var changed = cache.Apply(position);
+        if (plan is not null) changed |= cache.Apply(plan);
+        if (changed)
+            await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
+                TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(cache.Read())).ConfigureAwait(false);
+        if (!position.IsOpen) realtimeCache.Remove(position.Id.Trade);
+    }
     readonly System.Collections.Concurrent.ConcurrentDictionary<StrategyPositionId, StrategyPositionSnapshot> positions = new();
     /// <summary>Captures current monitoring inputs without waiting for a storage refresh.</summary>
     public IronCondorTradePlanInputs? CaptureMonitoringInputs(StrategyPositionSnapshot position, DateOnly valueDate, DateTime nowUtc)

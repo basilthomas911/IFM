@@ -83,7 +83,7 @@ impl GridView {
             ));
             let mut editing = false;
             ui.horizontal(|ui| {
-                let label = ui.trading_label(catalog.text(crate::strings::FILTER));
+                let label = ui.trading_caption(catalog.text(crate::strings::FILTER));
                 editing = ui
                     .text_edit_singleline(&mut self.filter)
                     .labelled_by(label.id)
@@ -109,7 +109,7 @@ impl GridView {
                 }
             });
             if self.pending.is_some() {
-                ui.trading_label(catalog.text(crate::strings::PROCESSING));
+                ui.trading_caption(catalog.text(crate::strings::PROCESSING));
             }
             if let Some(id) = self.selected {
                 ui.trading_label(format!(
@@ -126,7 +126,7 @@ impl GridView {
                     (crate::strings::DAILY_PNL, 120.0),
                     (crate::strings::FORWARD_LOSS_RATIO, 150.0),
                 ] {
-                    ui.add_sized([width, 20.0], crate::presentation::label_widget(catalog.text(label)));
+                    ui.add_sized([width, 20.0], crate::presentation::caption_widget(catalog.text(label)));
                 }
             });
             let height = ui

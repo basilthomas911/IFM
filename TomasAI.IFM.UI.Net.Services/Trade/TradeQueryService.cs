@@ -233,6 +233,15 @@ public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQue
     public async Task GetTradeLimitsAsync(int tradeId, Action<TradeLimitReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetTradeLimitAsync(tradeId), onCompleted);
 
+    /// <summary>Reads persisted limits and preserves transport/storage failures for the loading view.</summary>
+    public async Task<TradeLimitReadModel?> GetPersistedTradeLimitsAsync(int tradeId, CancellationToken cancellationToken = default)
+    {
+        var result = await _queryApi.GetTradeLimitAsync(tradeId).WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!result.Success)
+            throw new InvalidOperationException($"Trade limits query failed ({result.ErrorCode}): {result.ErrorMessage}");
+        return result.Value;
+    }
+
     /// <summary>
     /// load trade limits for selected trade
     /// </summary>

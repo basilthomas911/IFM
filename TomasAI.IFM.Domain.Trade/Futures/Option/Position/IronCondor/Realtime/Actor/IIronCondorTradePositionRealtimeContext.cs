@@ -11,6 +11,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 public interface IIronCondorTradePositionRealtimeContext : IRealtimeActorContext<IronCondorTradePositionRealtimeActor>
 {
+    ValueTask PublishRealtimeAsync(StrategyPositionSnapshot position, StrategyTradePlanSnapshot? plan = null) => ValueTask.CompletedTask;
     /// <summary>Checks whether an input observation still describes this actor lifetime and latest position.</summary>
     bool IsCurrentMonitoringPosition(StrategyPositionSnapshot position, Guid generationId) => true;
     TimeProvider TimeProvider { get; }

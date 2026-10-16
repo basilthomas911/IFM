@@ -115,6 +115,10 @@ sealed class Session : IDisposable
     byte[]? lastConfirmation;
     byte[] tradeBytes=[];
     public byte[] TradePublication {get{
+        lock(editorGate) {
+            if(tradeWorkspace is {RefreshPending:true} backend)
+                trades.TryRefresh("trade-orders",backend.RefreshPublicationAsync);
+        }
         var snapshot=trades.Snapshot();var confirmation=tradeWorkspace?.Confirmation;
         var submission=tradeWorkspace?.SubmissionContext;
         lock(tradePublicationGate) {

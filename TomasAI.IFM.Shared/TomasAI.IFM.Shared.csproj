@@ -27,9 +27,9 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="MessagePack" Version="3.1.8" />
-    <PackageReference Include="MessagePack.Annotations" Version="3.1.8" />
-    <PackageReference Include="MessagePackAnalyzer" Version="3.1.8">
+    <PackageReference Include="MessagePack" Version="3.1.9" />
+    <PackageReference Include="MessagePack.Annotations" Version="3.1.9" />
+    <PackageReference Include="MessagePackAnalyzer" Version="3.1.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
@@ -100,7 +101,7 @@ impl ProviderBrowser {
         let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(c.text(strings::PROVIDER_DEFINITIONS));
-            ui.trading_label(c.text(strings::PROVIDER_READONLY));
+            ui.trading_caption(c.text(strings::PROVIDER_READONLY));
             ui.trading_label(&s.status);
             if let Some(outcome) = s.outcomes.last() {
                 ui.trading_label(format!("{}: {}", outcome.state, outcome.message));
@@ -121,7 +122,7 @@ impl ProviderBrowser {
                         .iter()
                         .enumerate()
                         {
-                            let r = ui.trading_label(c.text(label));
+                            let r = ui.trading_caption(c.text(label));
                             ui.add(
                                 egui::TextEdit::singleline(
                                     self.filters.entry((*field).into()).or_default(),
@@ -229,7 +230,7 @@ impl ProviderBrowser {
                                         ui,
                                         |ui| {
                                             for (field, value) in &row.fields {
-                                                ui.trading_label(field);
+                                                ui.trading_caption(field);
                                                 ui.trading_label(value);
                                                 ui.end_row();
                                             }
@@ -241,7 +242,7 @@ impl ProviderBrowser {
                 });
             if matches {
                 if s.result.rows.is_empty() {
-                    ui.trading_label(c.text(strings::PROVIDER_EMPTY));
+                    ui.trading_caption(c.text(strings::PROVIDER_EMPTY));
                 }
                 egui_extras::TableBuilder::new(ui)
                     .id_salt("provider-table")
@@ -259,11 +260,11 @@ impl ProviderBrowser {
                             strings::PROVIDER_CLASS,
                         ] {
                             h.col(|ui| {
-                                ui.strong(c.text(text));
+                                ui.colored_label(crate::presentation::CAPTION_FOREGROUND, egui::RichText::new(c.text(text)).strong());
                             });
                         }
                     })
-                    .body(|body| {
+                    .bordered_body(24., |body| {
                         body.rows(26., s.result.rows.len(), |mut r| {
                             self.drawn_rows += 1;
                             let item = &s.result.rows[r.index()];
@@ -307,7 +308,7 @@ impl ProviderBrowser {
                 .resizable(true)
                 .default_width(600.)
                 .show(ctx, |ui| {
-                    ui.trading_label(c.text(strings::PROVIDER_DRAFT_NOTICE));
+                    ui.trading_caption(c.text(strings::PROVIDER_DRAFT_NOTICE));
                     ui.add_enabled_ui(enabled, |ui| {
                         egui::Grid::new("provider-mapping-input").show(ui, |ui| {
                             for (key, label) in [
@@ -318,7 +319,7 @@ impl ProviderBrowser {
                                     strings::PROVIDER_UNDERLYING_CONTRACT,
                                 ),
                             ] {
-                                let r = ui.trading_label(c.text(label));
+                                let r = ui.trading_caption(c.text(label));
                                 ui.add(
                                     egui::TextEdit::singleline(
                                         self.mapping.entry(key.into()).or_default(),
@@ -356,7 +357,7 @@ impl ProviderBrowser {
                                         .show(ui, |ui| {
                                             if let Some(object) = value.as_object() {
                                                 for (key, value) in object {
-                                                    ui.trading_label(key);
+                                                    ui.trading_caption(key);
                                                     ui.trading_label(
                                                         value
                                                             .as_str()

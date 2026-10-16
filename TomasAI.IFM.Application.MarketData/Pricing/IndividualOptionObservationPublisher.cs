@@ -14,14 +14,20 @@ public sealed class IndividualOptionObservationPublisher(
     Func<string, bool> isIndividual, TimeProvider? time = null) : IOptionChainTransientEventPublisher
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
-    readonly Dictionary<string, (decimal Bid, decimal Ask, long Timestamp)> publishedQuotes = new(StringComparer.Ordinal);
+    readonly Dictionary<string, (decimal Bid, decimal Ask, uint BidSize, uint AskSize, long Timestamp)> publishedQuotes = new(StringComparer.Ordinal);
+    long revision;
 
     /// <summary>Maps midpoint = bid + (ask - bid) / 2; invalid or chain-wide quotes do not enter position monitoring.</summary>
     /// <param name="quote">The actual provider quote with its canonical option identity.</param>
     /// <returns>The publication enqueue operation, with no pricing or storage wait. Book-size-only changes are suppressed for at most one second.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
-    public ValueTask PublishAsync(FuturesOptionChainQuoteChangedServiceEvent quote)
+    public ValueTask PublishAsync(FuturesOptionChainQuoteChangedServiceEvent quote) => PublishQuoteAsync(quote, false);
+
+    /// <summary>Publishes asynchronous calculation completion even when no subsequent quote arrives.</summary>
+    public ValueTask PublishPricingAsync(FuturesOptionChainQuoteChangedServiceEvent quote) => PublishQuoteAsync(quote, true);
+
+    ValueTask PublishQuoteAsync(FuturesOptionChainQuoteChangedServiceEvent quote, bool pricingUpdate)
     {
         var tick = quote.Tick;
         if (!isIndividual(tick.ContractId) || tick.SourceSequence <= 0 || !tick.TryGetMidpoint(out var mark)
@@ -30,23 +36,36 @@ public sealed class IndividualOptionObservationPublisher(
         var timestamp = clock.GetTimestamp();
         lock (publishedQuotes)
         {
-            if (publishedQuotes.TryGetValue(tick.ContractId, out var previous)
+            if (!pricingUpdate && publishedQuotes.TryGetValue(tick.ContractId, out var previous)
                 && previous.Bid == tick.BidPrice && previous.Ask == tick.AskPrice
+                && previous.BidSize == tick.BidSize && previous.AskSize == tick.AskSize
                 && clock.GetElapsedTime(previous.Timestamp, timestamp) < TimeSpan.FromSeconds(1))
                 return ValueTask.CompletedTask;
             // Every changed bid/ask is emitted. A continuing unchanged provider quote emits once per second
             // to keep position freshness current without persisting every depth/size update as a new mark.
-            publishedQuotes[tick.ContractId] = (tick.BidPrice!.Value, tick.AskPrice!.Value, timestamp);
+            if (!pricingUpdate) publishedQuotes[tick.ContractId] = (tick.BidPrice!.Value, tick.AskPrice!.Value, tick.BidSize, tick.AskSize, timestamp);
         }
         var contract = input.Context.Contract;
         var entity = new TickDataEntityId(tick.ContractId, tick.ValueDate, AssetTypeId.FuturesOption);
         var greeks = quote.Greeks;
+        var deadline = tick.EventTimestamp.AddMilliseconds(input.Context.MaximumQuoteAgeMilliseconds);
+        if (input.Context.ValidUntilUtc < deadline) deadline = input.Context.ValidUntilUtc;
+        if (greeks.FuturesPriceTimestamp != default)
+        {
+            var underlyingDeadline = greeks.FuturesPriceTimestamp.AddMilliseconds(input.Context.MaximumQuoteAgeMilliseconds);
+            if (underlyingDeadline < deadline) deadline = underlyingDeadline;
+        }
         var observation = new FuturesOptionTickDataV2ReadModel(tick.ContractId, tick.ValueDate, tick.SourceSequence,
             TimeOnly.FromDateTime(tick.EventTimestamp.UtcDateTime), (double)mark,
             (double)tick.BidPrice!.Value, (double)tick.AskPrice!.Value, checked((int)tick.BidSize), checked((int)tick.AskSize),
             greeks.ImpliedVolatility ?? 0, (double)(greeks.FuturesPrice ?? 0), greeks.Delta ?? 0,
             greeks.Gamma ?? 0, greeks.Vega ?? 0, greeks.Theta ?? 0, greeks.Rho ?? 0)
-            { GreeksAvailable = greeks.IsValid && !greeks.IsStale };
+            { GreeksAvailable = greeks.IsValid && !greeks.IsStale,
+                SourceGeneration = generation, ObservationRevision = Interlocked.Increment(ref revision),
+                ObservedAtUtc = tick.EventTimestamp, CalculatedAtUtc = greeks.CalculatedAtUtc,
+                ValidUntilUtc = deadline, UnderlyingSourceSequence = greeks.FuturesPriceSourceSequence,
+                PricingFailure = greeks.PricingFailure?.Code, PricingContextDigest = greeks.PricingContextDigest,
+                IsPricingUpdate = pricingUpdate, TheoreticalPrice = greeks.TheoreticalPrice };
         return publisher.PublishAsync(new FuturesTickTradeDataChangedEvent
         {
             Subject = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb, entity.Format()),

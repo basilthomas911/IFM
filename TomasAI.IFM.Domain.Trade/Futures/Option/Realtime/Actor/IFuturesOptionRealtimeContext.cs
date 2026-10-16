@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
 public interface IFuturesOptionRealtimeContext : IRealtimeActorContext<FuturesOptionRealtimeActor>
 {
+    TradeRealtimeCacheRegistry? RealtimeCache => null;
     IDbContextFactory DbFactory { get; }
 
     IActorService ActorService { get; }

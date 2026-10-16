@@ -29,6 +29,16 @@ public sealed class FuturesOptionRealtimeActor(IRealtimeActorContext<FuturesOpti
         ArgumentNullException.ThrowIfNull(context);
         var routes = await (_runtime.DbFactory.TradeDb.GetOpenPositionRouteSnapshotAsync()).ConfigureAwait(false);
         _runtime.RouteIndex.ReplaceFromSnapshot(routes.Where(route => route.Route.TradeType is TradeStrategyKind.IronCondor or TradeStrategyKind.VerticalSpread));
+        if (_runtime.RealtimeCache is { } cache)
+        {
+            foreach (var route in routes.Where(route => route.Route.TradeType == TradeStrategyKind.IronCondor).Select(route => route.Route).DistinctBy(route => route.StrategyPositionId))
+            {
+                var id = new TradeEntityId(route.PortfolioId, route.FundId, route.OrderId, route.TradeId);
+                var trade = await _runtime.DbFactory.TradeDb.GetEstablishedTradeAsync(id).ConfigureAwait(false);
+                var position = await _runtime.DbFactory.TradeDb.GetStrategyPositionAsync(new(id, route.StrategyPositionId)).ConfigureAwait(false);
+                if (trade is not null && position is not null) cache.Register(trade, position.ValueDate).Apply(position);
+            }
+        }
         context.AddRealtimeRouter(TickRoute, Id);
     }
 

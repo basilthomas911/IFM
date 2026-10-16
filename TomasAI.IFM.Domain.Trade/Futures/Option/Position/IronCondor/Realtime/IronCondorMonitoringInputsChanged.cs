@@ -36,5 +36,6 @@ public static class IronCondorMonitoringInputsChanged
         var reply = await context.RequestFunctionAsync<UpdateIronCondorTradePlanCommand, IronCondorTradePlanId, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(command).ConfigureAwait(false);
         if (reply.Value is not { IsCompleted: true })
             throw new InvalidOperationException($"IronCondorMonitoring.EVALUATION.FAILED: {reply.ErrorMessage};{reply.Value?.Failed?.ErrorMessage}");
+        await context.PublishRealtimeAsync(changed.PositionSnapshot, reply.Value.Completed!.Plan).ConfigureAwait(false);
     }
 }

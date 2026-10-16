@@ -1451,6 +1451,30 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction db)
     {
+        /// <summary>Projects lifecycle state after its source append, retaining immutable revision terms.</summary>
+        public async Task<int> TradeFlowProjectOrderLifecycleAsync(TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default)
+        {
+            ArgumentNullException.ThrowIfNull(order);
+            var identity = new object?[] { order.Id.PortfolioId, order.Id.FundId, order.Id.OrderId, order.Revision };
+            var existing = await db.ScalarAsync(
+                "SELECT payload FROM trade.trade_order WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4 FOR UPDATE;",
+                identity, token).ConfigureAwait(false);
+            if (existing is not byte[] payload)
+                return await db.TradeFlowProjectOrderAsync(order, acceptedAtUtc, token).ConfigureAwait(false);
+            var stored = MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>(payload);
+            // Status and execution binding belong to lifecycle state, not the accepted terms.
+            static byte[] Terms(TradeOrderDefinition value) => MessagePackBinarySerializer.Shared.Serialize(value with
+            {
+                Status = TradeOrderStatus.Draft, BoundExecutionAttemptId = null,
+                BoundExecutionChannel = null, ExecutionBoundAtUtc = null
+            });
+            if (!Terms(stored).AsSpan().SequenceEqual(Terms(order)))
+                throw new InvalidDataException("Accepted order revision conflicts with different source facts.");
+            return await db.ExecuteAsync(
+                "UPDATE trade.trade_order SET status=$5,payload=$6,updatedatutc=$7 WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=$4;",
+                [.. identity, order.Status.ToString(), MessagePackBinarySerializer.Shared.Serialize(order), acceptedAtUtc], token).ConfigureAwait(false);
+        }
+
         /// <summary>Stores the accepted immutable order revision, retaining its operational value date.</summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "Retain the established context/extension instance API used by storage callers; changing it to static would change the public access contract.")]
@@ -1493,6 +1517,13 @@ public static class TradeDbContextExtensions
         {
             ArgumentNullException.ThrowIfNull(db);
             ArgumentNullException.ThrowIfNull(trade);
+            if (trade.MonitoringLimits is { } limits)
+            {
+                if (limits.PortfolioApprovalId == Guid.Empty || limits.OrderRevision < 1 || limits.TradeLimit.TradeId != trade.Id.TradeId
+                    || limits.SpreadLimits.Any(limit => limit.TradeId != trade.Id.TradeId))
+                    throw new InvalidDataException("Trade monitoring limits do not match their approved trade.");
+                await db.TradeFlowProjectMonitoringLimitsAsync(limits.TradeLimit, limits.SpreadLimits, token, initializeOnly: true).ConfigureAwait(false);
+            }
             var id = trade.Id;
             var payload = MessagePackBinarySerializer.Shared.Serialize(trade);
             var historyApplied = await db.ScalarAsync(TradeDbSql.HelperStatement14, [id.PortfolioId, id.FundId, trade.StrategyKind.ToString(), trade.EstablishedAtUtc, id.OrderId, id.TradeId, trade.EvidenceRevision, payload], token)
@@ -1554,14 +1585,20 @@ public static class TradeDbContextExtensions
 
     extension(IEnlistedPostgresTransaction db)
     {
-        public async Task TradeFlowProjectMonitoringLimitsAsync(TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel limit, IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel> spreads, CancellationToken token = default)
+        public async Task TradeFlowProjectMonitoringLimitsAsync(TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel limit, IReadOnlyList<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeTypeLimitReadModel> spreads, CancellationToken token = default, bool initializeOnly = false)
         {
             ArgumentNullException.ThrowIfNull(db);
             ArgumentNullException.ThrowIfNull(limit);
-            await (db.ExecuteAsync(TradeDbSql.HelperStatement24, [limit.TradeId, limit.TradeType.ToString(), limit.RiskMargin, limit.MaxProfit, limit.MaxLoss, limit.MaxReturn, limit.MaxLossLimit, limit.MinProfitLimit, limit.MaxProfitLimit, limit.MinProfitTarget, limit.DailyProfitTarget, limit.CreatedOn, limit.CreatedBy, limit.UpdatedOn, limit.UpdatedBy], token))
+            await (db.ExecuteAsync(initializeOnly ? TradeDbSql.InsertInitialMonitoringLimit : TradeDbSql.HelperStatement24, [limit.TradeId, limit.TradeType.ToString(), limit.RiskMargin, limit.MaxProfit, limit.MaxLoss, limit.MaxReturn, limit.MaxLossLimit, limit.MinProfitLimit, limit.MaxProfitLimit, limit.MinProfitTarget, limit.DailyProfitTarget, limit.CreatedOn, limit.CreatedBy, limit.UpdatedOn, limit.UpdatedBy], token))
             .ConfigureAwait(false);
-            await (TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, spreads, token))
-            .ConfigureAwait(false);
+            if (initializeOnly)
+            {
+                foreach (var spread in spreads)
+                    await db.ExecuteAsync(TradeDbSql.InsertInitialSpreadLimit,
+                        [spread.TradeId, spread.TradeType.ToString(), spread.MaxLossLimit, spread.MinProfitLimit, spread.MaxProfitLimit], token).ConfigureAwait(false);
+            }
+            else
+                await TradeDbContextExtensions.TradeFlowProjectSpreadLimitsAsync(db, spreads, token).ConfigureAwait(false);
         }
     }
 

@@ -32,7 +32,17 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
     string lastExecutionEvidence = "";
     string reportPreview="",reportPath="",reportHash="";
     readonly Dictionary<BrokerOrderId,Guid> pendingMutations=[];
-    public bool OpeningFilled=>submitted&&model.SubmittedTradeOrders.Count>0&&model.SubmittedTradeOrders.All(o=>executions.Any(e=>e.TradeOrderId==o.Id&&e.Status==OrderExecutionStatus.Filled&&e.OrderQuantity>0&&e.CumulativeFilledQuantity==e.OrderQuantity));
+    // Execution evidence can arrive before the Fund completion projection. Keep polling
+    // canonical state until that projection catches up, including reopened blotters.
+    public TradeState? CompletedTradeState => CompletedState(executions
+        .Where(e => e.Order.SetupTrade is { } setup && setup.OrderId == trade.OrderId && setup.TradeId == trade.TradeId)
+        .OrderByDescending(e => e.StartedAtUtc).FirstOrDefault());
+
+    internal static TradeState? CompletedState(OrderExecutionDefinition? execution) =>
+        execution is { Status: OrderExecutionStatus.Filled, OrderQuantity: > 0 }
+            && execution.CumulativeFilledQuantity == execution.OrderQuantity
+            ? execution.Order.PositionType == TradeOrderPositionType.Closing ? TradeState.Closed : TradeState.Open
+            : null;
     string orderType="Limit",algorithm="None",timeInForce="Day",pace="Normal",executionAction="Open";
     static TomasAI.IFM.Application.TradeBroker.Contracts.BrokerCapabilities Capabilities=>TomasAI.IFM.Application.TradeBroker.Contracts.BrokerCapabilities.Emulator("IFM-EMULATOR-PAPER");
     readonly string sessionId=Guid.NewGuid().ToString("N");

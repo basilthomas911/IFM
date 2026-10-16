@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Schema;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
@@ -47,6 +48,7 @@ public static class DomainActorIntegrationInfrastructureFixture
     static readonly Dictionary<string, string?> previousEnvironment = new(StringComparer.Ordinal);
     static readonly IsolatedIntegrationInfrastructure infrastructure = new("domainactors");
     static int disposed;
+    static IServiceProvider? sharedHostServices;
 
     /// <summary>Gets the NATS endpoint owned by this assembly fixture.</summary>
     public static string NatsUrl
@@ -181,7 +183,17 @@ public static class DomainActorIntegrationInfrastructureFixture
                                 lifecycleServiceType, lifecycleImplementationType));
                     });
             }
+            if (testAssemblyName.Contains("Trade.IntegratedTests", StringComparison.Ordinal))
+                KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
+                    .ConfigureSharedServices(services =>
+                    {
+                        // Trade qualification does not start or stop an external feed worker.
+                        var watchdog = services.Single(descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+                            && descriptor.ImplementationFactory?.Method.ReturnType == typeof(TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatabentoMarketDataWatchdogService));
+                        services.Remove(watchdog);
+                    });
             var services = KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.StartShared();
+            sharedHostServices = services;
             var initializer = (TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer?)services.GetService(
                 typeof(TomasAI.IFM.Application.Api.Server.Core.Startup.Schema.ApplicationSchemaInitializer))
                 ?? throw new InvalidOperationException("The API host did not register its schema initializer.");
@@ -215,11 +227,26 @@ public static class DomainActorIntegrationInfrastructureFixture
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)
             return;
-        await KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>
-            .DisposeSharedAsync();
-        await infrastructure.DisposeAsync();
-        foreach (var (name, value) in previousEnvironment)
-            Environment.SetEnvironmentVariable(name, value);
+        try
+        {
+            // Stop actor-owned queues and transports before DI disposes their dependencies.
+            if (sharedHostServices is { } services)
+            {
+                var actors = await services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorManagedActorLifecycle>()
+                    .ShutdownActorsAsync(CancellationToken.None);
+                if (!actors.Succeeded) throw new InvalidOperationException(actors.FailureReason);
+                var supervisor = await services.GetRequiredService<TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi.ISupervisorBootstrap>()
+                    .StopSupervisorAsync(CancellationToken.None);
+                if (!supervisor.Succeeded) throw new InvalidOperationException(supervisor.FailureReason);
+            }
+            await KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>.DisposeSharedAsync();
+        }
+        finally
+        {
+            await infrastructure.DisposeAsync();
+            foreach (var (name, value) in previousEnvironment)
+                Environment.SetEnvironmentVariable(name, value);
+        }
     }
 
     static void SetEnvironment(string name, string value)

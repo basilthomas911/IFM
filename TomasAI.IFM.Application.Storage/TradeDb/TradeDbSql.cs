@@ -1790,6 +1790,14 @@ LIMIT $3;
                 INSERT INTO trade.open_position_route_recovery(shard,positionId,tradeLegId,contractId,portfolioId,fundId,orderId,tradeId,tradeType,generation)
                 VALUES(0,$1,$2,$3,$4,$5,$6,$7,$8,$9);
                 """;
+    internal const string InsertInitialMonitoringLimit = """
+        INSERT INTO trade.trade_limit (tradeId,tradeType,riskMargin,maxProfit,maxLoss,maxReturn,maxLossLimit,minProfitLimit,maxProfitLimit,minProfitTarget,dailyProfitTarget,createdOn,createdBy,updatedOn,updatedBy)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(tradeId,tradeType) DO NOTHING;
+        """;
+    internal const string InsertInitialSpreadLimit = """
+        INSERT INTO trade.trade_type_limit(tradeId,tradeType,maxLossLimit,minProfitLimit,maxProfitLimit)
+        VALUES($1,$2,$3,$4,$5) ON CONFLICT(tradeId,tradeType) DO NOTHING;
+        """;
     internal const string HelperStatement24 = """
             INSERT INTO trade.trade_limit (tradeId,tradeType,riskMargin,maxProfit,maxLoss,maxReturn,maxLossLimit,minProfitLimit,maxProfitLimit,minProfitTarget,dailyProfitTarget,createdOn,createdBy,updatedOn,updatedBy)
             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)

@@ -18,4 +18,6 @@ public sealed record IronCondorMonitoringInitialization
     [Key(5)] public int TradeOrderRevision { get; init; }
     [Key(6)] public DateOnly ValueDate { get; init; }
     [Key(7)] public DateTime InitializedAtUtc { get; init; }
+    /// <summary>Original accepted opening order used for audited recovery; current cash is never substituted.</summary>
+    [Key(8)] public TradeOrderDefinition? ApprovedOrder { get; init; }
 }

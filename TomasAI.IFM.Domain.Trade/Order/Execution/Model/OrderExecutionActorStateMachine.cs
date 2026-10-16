@@ -128,7 +128,10 @@ public sealed class OrderExecutionActorStateMachine
                 continue;
             var assetFamily = component.StrategyKind == TradeStrategyKind.FuturesOutright ? TradeAssetFamily.Futures : TradeAssetFamily.FuturesOption;
             var id = new TradeEntityId(Current.TradeOrderId.PortfolioId, Current.TradeOrderId.FundId, Current.TradeOrderId.OrderId, component.ReservedTradeId);
-            trades.Add(new EstablishedTradeDefinition { Id = id, AssetFamily = assetFamily, StrategyKind = component.StrategyKind, SourceComponentId = component.ComponentId, ExecutionAttemptId = Current.ExecutionAttemptId, Status = EstablishedTradeStatus.Open, Legs = component.Legs, OriginalFills = componentFills, OpeningValue = componentFills.Sum(static value => value.Price * value.SignedQuantity), OpeningCommission = componentFills.Sum(static value => value.Commission), EstablishedAtUtc = completedAtUtc, EvidenceRevision = 1 });
+            var established = new EstablishedTradeDefinition { Id = id, AssetFamily = assetFamily, StrategyKind = component.StrategyKind, SourceComponentId = component.ComponentId, ExecutionAttemptId = Current.ExecutionAttemptId, Status = EstablishedTradeStatus.Open, Legs = component.Legs, OriginalFills = componentFills, OpeningValue = componentFills.Sum(static value => value.Price * value.SignedQuantity), OpeningCommission = componentFills.Sum(static value => value.Commission), EstablishedAtUtc = completedAtUtc, EvidenceRevision = 1 };
+            if (Current.Order.PortfolioApprovalId != Guid.Empty && established.StrategyKind == TradeStrategyKind.IronCondor)
+                established = established with { MonitoringLimits = TomasAI.IFM.Domain.Trade.Model.ApprovedTradeMonitoringLimits.Create(Current.Order, established) };
+            trades.Add(established);
         }
 
         PositionCloseExecution[] closedPositions = [];

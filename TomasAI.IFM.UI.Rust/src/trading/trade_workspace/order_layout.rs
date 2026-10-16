@@ -1,5 +1,4 @@
 use crate::wire::WireNumber as _;
-use crate::presentation::TradingLabelUi as _;
 use super::*;
 use chrono::{Datelike, NaiveDate};
 pub(super) fn rect(o: egui::Pos2, p: f32, x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
@@ -67,7 +66,7 @@ impl TradeWorkspace {
         let mut action = None;
         for (key, label, y) in [("portfolio", "Portfolio:", 51.), ("fund", "Fund:", 101.)] {
             at(ui, rect(o, p, 45., y + 6., 76., 24.), label, |ui| {
-                ui.trading_label(label);
+                ui.trading_caption(label);
             });
             let width = if key == "portfolio" {
                 720_f32.min((w - 562.).max(200.))
@@ -111,7 +110,7 @@ impl TradeWorkspace {
             if key == "portfolio" {
                 let x = 127. + width + 21.;
                 at(ui, rect(o, p, x, 57., 56., 24.), "source-label", |ui| {
-                    ui.trading_label("Source:");
+                    ui.trading_caption("Source:");
                 });
                 let r = rect(o, p, x + 62., 51., 220., 27.);
                 let current = if self.source_filter.is_empty() {
@@ -171,7 +170,7 @@ impl TradeWorkspace {
         .unwrap_or(last);
         for (label, x) in [("From:", 45.), ("To:", 568.)] {
             at(ui, rect(o, p, x, 188., 70., 24.), label, |ui| {
-                ui.trading_label(label);
+                ui.trading_caption(label);
             });
         }
         let r = rect(o, p, 133., 188., 424., 22.);
@@ -249,7 +248,7 @@ impl TradeWorkspace {
             ),
         ] {
             at(ui, rect(o, p, 45., y + top, 76., 24.), label, |ui| {
-                ui.trading_label(label);
+                ui.trading_caption(label);
             });
             let r = rect(o, p, 131., y + top, width - 8., height);
             let selected = at(ui, r, kind, |ui| {
@@ -331,7 +330,7 @@ impl TradeWorkspace {
                         action = Some(intent);
                     }
                     "load-trade" => {
-                        self.tab = 1;
+                        self.open = false;
                         action = Some(intent);
                     }
                     _ => {
@@ -393,9 +392,9 @@ impl TradeWorkspace {
             .collect();
         let group_width = (ui.available_width() - 2. * ui.spacing().item_spacing.x) / 13.;
         ui.horizontal(|ui| {
-            ui.add_sized([group_width * 6., 28. / p], crate::presentation::label_widget("CALLS"));
-            ui.add_sized([group_width, 28. / p], crate::presentation::label_widget("STRIKE"));
-            ui.add_sized([group_width * 6., 28. / p], crate::presentation::label_widget("PUTS"));
+            ui.add_sized([group_width * 6., 28. / p], crate::presentation::caption_widget("CALLS"));
+            ui.add_sized([group_width, 28. / p], crate::presentation::caption_widget("STRIKE"));
+            ui.add_sized([group_width * 6., 28. / p], crate::presentation::caption_widget("PUTS"));
         });
         let columns = super::blotter::OPTION_COLUMNS;
         let height = (ui.available_height() - 24. / p - ui.spacing().item_spacing.y).max(0.);
@@ -427,7 +426,7 @@ impl TradeWorkspace {
                     row.col(|ui| super::blotter::option_header(ui, label, true));
                 }
             })
-            .body(|body| {
+            .bordered_body(24. / p, |body| {
                 widths = body.widths().to_vec();
                 body.rows(24. / p, strikes.len(), |mut row| {
                     let strike = strikes[row.index()];
@@ -522,11 +521,7 @@ impl TradeWorkspace {
         s: &ContractPublication,
     ) -> Option<&'static str> {
         let mut action = None;
-        if let Some(status) = s.result.context.get("submissionStatus").filter(|s| !s.is_empty()) {
-            ui.trading_label(status);
-        }
         let p = ui.ctx().pixels_per_point();
-        let area = ui.available_rect_before_wrap();
         let orders: Vec<_> = s
             .result
             .rows
@@ -556,13 +551,30 @@ impl TradeWorkspace {
                 );
             }
         }
+        let status = orders.iter().find(|r| {
+            self.draft.get("brokerOrderId")
+                .is_some_and(|id| r.id == format!("broker-order:{id}"))
+        }).map(|row| {
+            let v = data(row);
+            let detail = text(&v, "dispatchDetail");
+            let status = s.result.rows.iter()
+                .find(|r| r.id == row.id.replace("broker-order:", "broker-summary:"))
+                .map(|r| text(&data(r), "status"))
+                .filter(|status| !status.is_empty())
+                .unwrap_or_else(|| text(&v, "status"));
+            if detail.is_empty() { status } else { format!("{status} | {detail}") }
+        }).unwrap_or_else(|| s.result.context.get("submissionStatus")
+            .filter(|status| !status.is_empty()).cloned()
+            .unwrap_or_else(|| "No broker orders submitted".into()));
+        ui.trading_label(status);
+        let area = ui.available_rect_before_wrap();
         let split = self
             .draft
             .entry("executionSplit".into())
             .or_insert("0.5".into())
             .parse::<f32>()
             .unwrap_or(0.5);
-        let top_height = (area.height() - 70. / p).max(100.);
+        let top_height = (area.height() - 44. / p).max(100.);
         let divider = egui::Rect::from_min_size(
             egui::pos2(area.left() + area.width() * split, area.top()),
             egui::vec2(5. / p, top_height),
@@ -584,11 +596,16 @@ impl TradeWorkspace {
             egui::pos2(divider.right(), area.top()),
             egui::pos2(area.right(), area.top() + top_height),
         );
-        at(ui, left, "brokerPreviewOrderTree", |ui| {
+        for panel in [left, right] {
+            let header = egui::Rect::from_min_size(panel.min, egui::vec2(panel.width(), 30. / p));
+            ui.painter().rect_filled(header, 0., crate::presentation::COMMAND);
+            ui.painter().rect_stroke(panel, 0., egui::Stroke::new(1. / p, crate::presentation::BORDER), egui::StrokeKind::Inside);
+        }
+        at(ui, left.shrink(1. / p), "brokerPreviewOrderTree", |ui| {
             ui.spacing_mut().item_spacing.y = 0.;
             ui.add_sized(
                 [ui.available_width(), 30. / p],
-                crate::presentation::label_widget("ORDERS / FILLS"),
+                crate::presentation::caption_widget("ORDERS / FILLS"),
             );
             egui::ScrollArea::both()
                 .id_salt("broker-tree-scroll")
@@ -661,7 +678,7 @@ impl TradeWorkspace {
                         }
                     }
                     if orders.is_empty() {
-                        ui.trading_label("No broker orders submitted");
+                        ui.trading_caption("No broker orders submitted");
                     }
                 });
         });
@@ -684,11 +701,11 @@ impl TradeWorkspace {
             })
             .map(data)
             .unwrap_or_default();
-        at(ui, right, "brokerPreviewSelectedDetail", |ui| {
+        at(ui, right.shrink(1. / p), "brokerPreviewSelectedDetail", |ui| {
             ui.spacing_mut().item_spacing.y = 0.;
             ui.add_sized(
                 [ui.available_width(), 30. / p],
-                crate::presentation::label_widget("SELECTED ORDER / FILL DETAILS"),
+                crate::presentation::caption_widget("SELECTED ORDER / FILL DETAILS"),
             );
             let selected = self
                 .draft
@@ -710,24 +727,9 @@ impl TradeWorkspace {
             if let Some(v) = selected {
                 self.inspection_properties(ui, s, &v);
             } else {
-                ui.trading_label("No broker orders submitted");
+                ui.trading_caption("No broker orders submitted");
             }
         });
-        at(
-            ui,
-            egui::Rect::from_min_size(
-                egui::pos2(area.left(), area.bottom() - 65. / p),
-                egui::vec2(area.width(), 26. / p),
-            ),
-            "execution-status",
-            |ui| {
-                ui.trading_label(if let Some(v) = &current {
-                    format!("{} | {}", text(v, "status"), text(v, "dispatchDetail"))
-                } else {
-                    "No broker orders submitted".into()
-                });
-            },
-        );
         let enabled = !self.draft.contains_key("fillId")
             && mutation["canMutate"] == true
             && self.interaction_ready(s);
@@ -737,12 +739,12 @@ impl TradeWorkspace {
             egui::vec2(130., 29.) / p,
         );
         let price = egui::Rect::from_min_size(
-            egui::pos2(area.right() - 255. / p, y + 2. / p),
-            egui::vec2(106., 25.) / p,
+            egui::pos2(area.right() - 255. / p, y),
+            egui::vec2(106., 29.) / p,
         );
         let update = egui::Rect::from_min_size(
-            egui::pos2(area.right() - 419. / p, y),
-            egui::vec2(155., 29.) / p,
+            egui::pos2(area.right() - 449. / p, y),
+            egui::vec2(185., 29.) / p,
         );
         at(ui, price, "brokerPreviewUpdateOrderPrice", |ui| {
             ui.add_enabled_ui(enabled, |ui| {
@@ -982,7 +984,7 @@ impl TradeWorkspace {
                             }
                         }
                         5 => {
-                            ui.trading_label("NewTrade");
+                            ui.trading_caption("NewTrade");
                         }
                         6 => {
                             let credit = self.draft.get("tradeType").is_none_or(|t| {

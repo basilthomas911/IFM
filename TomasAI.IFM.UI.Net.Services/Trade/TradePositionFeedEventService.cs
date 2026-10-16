@@ -8,6 +8,8 @@ namespace TomasAI.IFM.UI.Net.Services.Trade;
 public class TradePositionFeedEventService(ITradePositionUIEventConsumer tradePositionEventConsumer)
     : UiServiceBase<TradePositionFeedEventService>
 {
+    public async Task StartRealtimeListenerAsync(Guid ownerId, Func<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, ValueTask> listener, Func<ValueTask>? reconnected = null)
+        => await ExecuteValueTaskAsync(() => tradePositionEventConsumer.StartRealtimeAsync(ownerId, listener, reconnected));
     /// <summary>Starts a plan or position listener owned by the selected trade view.</summary>
     public async Task StartIronCondorTradePositionListenerAsync(Guid ownerId, Func<IronCondorPositionChangedEvent, ValueTask> listenerAction)
         => await ExecuteValueTaskAsync(() => tradePositionEventConsumer.StartIronCondorAsync(ownerId, listenerAction));

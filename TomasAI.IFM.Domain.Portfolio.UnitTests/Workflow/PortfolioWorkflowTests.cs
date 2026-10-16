@@ -241,7 +241,7 @@ public sealed class PortfolioWorkflowTests
             ExecutionAttemptId = Guid.NewGuid() };
         aggregate.RecordFundTradeSubmission(closing);
         var finalized = aggregate.RecordFundTradeClosing(closing);
-        finalized.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.OrderCompleted));
+        finalized.Trades.Single(x => x.TradeId == 17002).TradeState.Should().Be(nameof(TradeState.Closed));
         finalized.Trades.Single(x => x.PrimaryTrade).TradeState.Should().Be(nameof(TradeState.Closed));
         finalized.Order.Status.Should().Be(nameof(FundCompositionState.Executed));
         var replay = aggregate.RecordFundTradeClosing(closing);

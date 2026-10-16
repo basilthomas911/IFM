@@ -52,7 +52,7 @@ public sealed class TradeFlowSerializationAndRecoveryTests
         var model = new TomasAI.IFM.Domain.Trade.Futures.Position.Model.StrategyPositionActorStateMachine();
         model.Open(trade, Guid.NewGuid(), opening.FilledAtUtc).Accepted.Should().BeTrue();
         var historicalReader = new MessagePackReader(MessagePackSerializer.Serialize(model.Current!));
-        historicalReader.ReadArrayHeader().Should().Be(13);
+        historicalReader.ReadArrayHeader().Should().Be(21);
         var historicalBuffer = new System.Buffers.ArrayBufferWriter<byte>();
         var historicalWriter = new MessagePackWriter(historicalBuffer);
         historicalWriter.WriteArrayHeader(12);

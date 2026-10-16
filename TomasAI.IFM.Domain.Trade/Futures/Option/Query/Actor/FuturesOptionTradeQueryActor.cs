@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
@@ -18,6 +19,7 @@ public sealed class FuturesOptionTradeQueryActor(IQueryActorContext<FuturesOptio
     public const string ActorName = FuturesOptionTradeActorNames.Query;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
+        [GetTradeRealtimeSnapshotQuery.Verb] = message => message.AsQuery<GetTradeRealtimeSnapshotQuery, TradeRealtimeSnapshot>()!,
         [GetIronCondorOptionTradeQuery.Verb] = message => message.AsQuery<GetIronCondorOptionTradeQuery, EstablishedTradeDefinition>()!,
         [GetVerticalSpreadOptionTradeQuery.Verb] = message => message.AsQuery<GetVerticalSpreadOptionTradeQuery, EstablishedTradeDefinition>()!,
         [GetIronCondorOptionTradesQuery.Verb] = message => message.AsQuery<GetIronCondorOptionTradesQuery, EstablishedTradeDefinition[]>()!,
@@ -40,6 +42,7 @@ public sealed class FuturesOptionTradeQueryActor(IQueryActorContext<FuturesOptio
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesOptionTradeQueryContext, IQuery, CancellationToken, ValueTask>>
     {
+        [typeof(GetTradeRealtimeSnapshotQuery)] = static (queryContext, query, token) => ((GetTradeRealtimeSnapshotQuery)query).ExecuteAsync(queryContext, token),
         [typeof(GetIronCondorOptionTradeQuery)] = static (queryContext, query, token) => ((GetIronCondorOptionTradeQuery)query).ExecuteAsync(queryContext, token),
         [typeof(GetVerticalSpreadOptionTradeQuery)] = static (queryContext, query, token) => ((GetVerticalSpreadOptionTradeQuery)query).ExecuteAsync(queryContext, token),
         [typeof(GetIronCondorOptionTradesQuery)] = static (queryContext, query, token) => ((GetIronCondorOptionTradesQuery)query).ExecuteAsync(queryContext, token),

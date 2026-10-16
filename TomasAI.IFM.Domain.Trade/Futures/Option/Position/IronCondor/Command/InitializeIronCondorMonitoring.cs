@@ -35,6 +35,17 @@ public static class InitializeIronCondorMonitoring
         {
             var input = command.MonitoringInitialization;
             var trade = input.IronCondorTrade;
+            if (input.ApprovedOrder is { } approval)
+            {
+                if (position is null || position.Id != command.EntityId || trade.Id != command.EntityId.Trade
+                    || position.StrategyKind != TradeStrategyKind.IronCondor || input.InitializedAtUtc.Kind != DateTimeKind.Utc
+                    || input.InitializedAtUtc == default || position.Legs.Length != trade.Legs.Length
+                    || trade.Legs.Any(leg => !position.Legs.Any(actual => actual.TradeLegId == leg.TradeLegId && actual.ContractId == leg.ContractId)))
+                    throw new ArgumentException("Matching persisted position and approved trade required.", nameof(command));
+                var approved = TomasAI.IFM.Domain.Trade.Model.ApprovedTradeMonitoringLimits.Create(approval, trade);
+                monitoringLimits = new(approved.TradeLimit, approved.SpreadLimits, null);
+                return true;
+            }
             if (position is null || position.Id != command.EntityId || trade.Id != command.EntityId.Trade || trade.StrategyKind != TradeStrategyKind.IronCondor || position.Legs.Length != 4 || input.FundFinancialRevision < 0 || input.TradeOrderRevision <= 0 || input.FundCashAsOfUtc.Kind != DateTimeKind.Utc || input.InitializedAtUtc.Kind != DateTimeKind.Utc || input.InitializedAtUtc == default || input.ValueDate == default || input.FundCashAsOfUtc > input.InitializedAtUtc || input.InitializedAtUtc - input.FundCashAsOfUtc > TimeSpan.FromSeconds(30))
                 throw new ArgumentException("Matching position, established trade, accepted order and ledger evidence required.",nameof(command));
             var type = IronCondorMonitoringInputReader.IdentifyTradeType(trade.Legs);

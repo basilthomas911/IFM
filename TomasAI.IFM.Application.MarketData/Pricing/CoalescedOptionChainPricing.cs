@@ -25,6 +25,9 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     readonly Task riskLoop;
     readonly Action<string>? fault;
     readonly IOptionTradeEvidenceWriter? tradeEvidence;
+    readonly Func<FuturesOptionChainQuoteChangedServiceEvent, ValueTask>? publishPricing;
+    readonly Func<string, bool>? displayRiskRequired;
+    readonly ConcurrentDictionary<string, FuturesOptionChainQuoteChangedServiceEvent> pendingPublications = new(StringComparer.Ordinal);
     int selectionCursor, riskCursor;
     long observations, calculations, ivSolves;
     public long QuoteObservations => Interlocked.Read(ref observations);
@@ -44,13 +47,17 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
 
     public CoalescedOptionChainPricing(OptionChainPricingInputStore inputs, Guid generation, OptionPricingRefreshPolicy policy,
         Func<string, OptionPricingQuote?> readUnderlying, TimeProvider? time = null, Action<string>? fault = null,
-        IOptionTradeEvidenceWriter? tradeEvidence = null)
+        IOptionTradeEvidenceWriter? tradeEvidence = null,
+        Func<FuturesOptionChainQuoteChangedServiceEvent, ValueTask>? publishPricing = null,
+        Func<string, bool>? displayRiskRequired = null)
     {
         ArgumentNullException.ThrowIfNull(policy);
         policy.Validate();
         this.inputs = inputs; this.generation = generation; this.policy = policy;
         this.readUnderlying = readUnderlying; clock = time ?? TimeProvider.System; this.fault = fault;
         this.tradeEvidence = tradeEvidence;
+        this.publishPricing = publishPricing;
+        this.displayRiskRequired = displayRiskRequired;
         selectionLoop = Task.Run(() => LoopAsync(false));
         riskLoop = Task.Run(() => LoopAsync(true));
     }
@@ -159,6 +166,10 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
         if (!entries.TryGetValue(id, out var entry)) return null;
         var risk = Volatile.Read(ref entry.Risk);
         if (risk is null) return null;
+        lock (entry.Gate)
+            if (entry.Latest is not { } quote || quote.SourceSequence != risk.Option.Sequence
+                || quote.EventTimestamp != risk.Option.EventAtUtc)
+                return new(null, Failure(id, "CalculationPending"));
         if (!inputs.TryGet(id, out var current) || current?.Context != risk.Context
             || Black76PricingModel.ValidateInputs(risk.Context, risk.Underlying, risk.Option,
                 entry.Route.Definition.StrikePrice, entry.Route.Definition.Right == OptionRightSelection.Call, clock.GetUtcNow()) is not null)
@@ -166,7 +177,8 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
         return risk.Result;
     }
     public void RequireRisk(string id, bool required) { if (entries.TryGetValue(id, out var entry)) entry.RiskRequired = required; }
-    public void Remove(string id) { lock (registration) entries.TryRemove(id, out _); }
+    public bool IsBusinessRiskRequired(string id) => entries.TryGetValue(id, out var entry) && entry.RiskRequired;
+    public void Remove(string id) { lock (registration) { entries.TryRemove(id, out _); pendingPublications.TryRemove(id, out _); } }
 
     async Task LoopAsync(bool risk)
     {
@@ -187,7 +199,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
     /// <summary>One coalesced sweep per cadence, yielding between bounded batches. Sweeps never queue timer ticks.</summary>
     public async Task ProcessSweepAsync(bool risk = false)
     {
-        var batch = entries.Values.Where(x => !risk || x.RiskRequired).ToArray();
+        var batch = entries.Values.Where(x => !risk || NeedsRisk(x)).ToArray();
         for (var processed = 0; processed < batch.Length; processed += policy.MaximumContractsPerPass)
         {
             stopping.Token.ThrowIfCancellationRequested();
@@ -195,11 +207,23 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
                 ProcessPassCore(risk, batch, Math.Min(policy.MaximumContractsPerPass, batch.Length - processed));
             await Task.Yield();
         }
+        if (risk) await FlushPublicationsAsync().ConfigureAwait(false);
     }
+
+    /// <summary>Drains bounded latest-per-contract display completions outside calculation locks.</summary>
+    public async Task FlushPublicationsAsync()
+    {
+        if (publishPricing is null) return;
+        foreach (var id in pendingPublications.Keys)
+            if (pendingPublications.TryRemove(id, out var value))
+                await publishPricing(value).ConfigureAwait(false);
+    }
+
+    bool NeedsRisk(Entry entry) => entry.RiskRequired || displayRiskRequired?.Invoke(entry.Route.FuturesOptionContractId) == true;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     void ProcessPassCore(bool risk, Entry[]? batch = null, int? maximum = null)
     {
-        batch ??= entries.Values.Where(x => !risk || x.RiskRequired).ToArray();
+        batch ??= entries.Values.Where(x => !risk || NeedsRisk(x)).ToArray();
         if (batch.Length == 0) return;
         ref var cursor = ref (risk ? ref riskCursor : ref selectionCursor);
         for (var i = 0; i < Math.Min(maximum ?? policy.MaximumContractsPerPass, batch.Length); ++i)
@@ -207,7 +231,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             stopping.Token.ThrowIfCancellationRequested();
             var entry = batch[cursor++ % batch.Length];
             if (cursor >= batch.Length) cursor = 0;
-            if (risk && !entry.RiskRequired) continue;
+            if (risk && !NeedsRisk(entry)) continue;
             LastQuoteTickSnapshot? tick;
             lock (entry.Gate) tick = entry.Latest;
             if (tick is not { BidPrice: not null, AskPrice: not null } observed
@@ -218,6 +242,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             {
                 Volatile.Write(ref entry.Selection, null);
                 Volatile.Write(ref entry.Risk, null);
+                if (risk) QueuePublication(entry, observed, Pending(entry.Route, "UnderlyingQuoteUnavailable"));
                 continue;
             }
             var quote = new OptionPricingQuote(observed.ContractId, observed.BidPrice!.Value, observed.AskPrice!.Value,
@@ -234,15 +259,36 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
                 invalid = Failure(quote.ContractId, "Recovering");
             if (invalid is not null)
             {
-                if (risk) Volatile.Write(ref entry.Risk, new(context, underlying, quote, new(null, invalid)));
+                if (risk)
+                {
+                    Volatile.Write(ref entry.Risk, new(context, underlying, quote, new(null, invalid)));
+                    QueuePublication(entry, observed, Pending(entry.Route, invalid.Code));
+                }
                 else Volatile.Write(ref entry.Selection, new(context, underlying, quote, null, null, null, at, invalid));
                 continue;
             }
             if (risk)
             {
                 var result = Black76PricingModel.Calculate(context, underlying, quote, strike, call, at);
-                if (inputs.TryGet(quote.ContractId, out var latest) && latest?.Context == context)
+                lock (entry.Gate)
+                {
+                    if (entry.Latest != tick || !inputs.TryGet(quote.ContractId, out var latest) || latest?.Context != context) continue;
                     Volatile.Write(ref entry.Risk, new(context, underlying, quote, result));
+                    var g = result.Value;
+                    QueuePublication(entry, observed, new()
+                    {
+                        IsValid = g is not null, PriceSource = OptionGreeksPriceSource.QuoteMidpoint,
+                        FuturesContractId = context.Contract.UnderlyingContractId,
+                        FuturesPrice = underlying.Bid / 2m + underlying.Ask / 2m,
+                        OptionMarkPrice = quote.Bid / 2m + quote.Ask / 2m,
+                        RiskFreeRate = context.Rate.AnnualContinuousRate, TimeToExpiryYears = g?.TimeToExpiry,
+                        ImpliedVolatility = g?.ImpliedVolatility, TheoreticalPrice = g?.TheoreticalPrice,
+                        Delta = g?.Delta, Gamma = g?.Gamma, Theta = g?.Theta, Vega = g?.Vega, Rho = g?.Rho,
+                        FuturesPriceSourceSequence = underlying.Sequence, OptionPriceSourceSequence = quote.Sequence,
+                        FuturesPriceTimestamp = underlying.EventAtUtc, OptionPriceTimestamp = quote.EventAtUtc,
+                        CalculatedAtUtc = at, PricingContextDigest = g?.ContextDigest, PricingFailure = result.Failure
+                    });
+                }
                 continue;
             }
             var calculator = new Unified.OptionCalculator();
@@ -269,6 +315,13 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
             Volatile.Write(ref entry.Selection, new(context, underlying, quote, iv, priced.Value?.Price, priced.Value?.Delta, at,
                 priced.Success ? null : Failure(quote.ContractId, priced.Failure.ToString())));
         }
+    }
+    void QueuePublication(Entry entry, LastQuoteTickSnapshot tick, OptionGreeksSnapshot greeks)
+    {
+        if (publishPricing is null) return;
+        var route = entry.Route;
+        pendingPublications[tick.ContractId] = new(Guid.NewGuid(), route.Definition.Underlying,
+            tick.ContractId, tick.ValueDate, route.Definition.MaturityDate, tick, greeks);
     }
     OptionGreeksSnapshot Pending(DatabentoOptionChainRoute route, string code) => new()
     {

@@ -5,6 +5,7 @@ struct State {
     view: TradeWorkspace,
     snapshot: ContractPublication,
     requests: Vec<serde_json::Value>,
+    fail_load: bool,
 }
 fn snapshot() -> ContractPublication {
     let mut rows = vec![
@@ -28,7 +29,34 @@ fn harness() -> Harness<'static, State> {
             }
             if let Some(request) = state.view.draw(ctx, &state.snapshot) {
                 let v: serde_json::Value = serde_json::from_str(&request).unwrap();
-                state.snapshot.outcomes=serde_json::from_value(serde_json::json!([{"requestId":v["requestId"],"state":"Completed","message":"","generation":3}])).unwrap();
+                let failed = state.fail_load && v["intent"] == "load-trade";
+                state.snapshot.outcomes=serde_json::from_value(serde_json::json!([{"requestId":v["requestId"],"state":if failed {"Failed"} else {"Completed"},"message":if failed {"Persisted trade limits were not found."} else {""},"generation":3}])).unwrap();
+                if v["intent"]=="close-trade" {
+                    let key=v["fields"]["tradeTabId"].as_str().unwrap();
+                    state.snapshot.result.rows.retain(|r|r.fields.get("kind").is_none_or(|k|k!="established" && !(k=="workspace-tab" && r.id==format!("workspace-tab:{key}"))));
+                }
+                if v["intent"]=="activate-trade" || v["intent"]=="close-trade" {
+                    let key=v["fields"]["tradeTabId"].as_str().unwrap();
+                    for row in &mut state.snapshot.result.rows {
+                        if row.fields.get("kind").is_some_and(|k|k=="workspace-tab") {
+                            let mut value:serde_json::Value=ifm_ui_rust::wire::decode(row.data.as_ref().unwrap()).unwrap();
+                            value["active"]=serde_json::json!(if v["intent"]=="close-trade" {true}else{value["key"]==key});
+                            row.data=Some(ifm_ui_rust::wire::encode_value(&value).unwrap().into());
+                        }
+                    }
+                }
+                if v["intent"]=="activate-trade" || v["intent"]=="close-trade" {
+                    let active=state.snapshot.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="workspace-tab")).map(|r|ifm_ui_rust::wire::decode::<serde_json::Value>(r.data.as_ref().unwrap()).unwrap()).find(|v|v["active"]==true);
+                    if let Some(active)=active {
+                        let id=active["key"].as_str().unwrap().split('.').filter_map(|v|v.parse::<i32>().ok()).collect::<Vec<_>>();
+                        if id.len()==4 {
+                            state.snapshot.result.rows.retain(|r|r.fields.get("kind").is_none_or(|k|k!="established"));
+                            let value=serde_json::json!({"id":{"portfolioId":id[0],"fundId":id[1],"orderId":id[2],"tradeId":id[3]}});
+                            let mut row:ifm_ui_rust::contract_editor::ContractRow=serde_json::from_value(serde_json::json!({"id":"established:active","fields":{"kind":"established"}})).unwrap();
+                            row.data=Some(ifm_ui_rust::wire::encode_value(&value).unwrap().into());state.snapshot.result.rows.push(row);
+                        }
+                    }
+                }
                 state.requests.push(v);
             }
         },
@@ -36,6 +64,7 @@ fn harness() -> Harness<'static, State> {
             view,
             snapshot: snapshot(),
             requests: vec![],
+            fail_load: false,
         },
     );
     h.set_size(eframe::egui::vec2(2100., 1300.));
@@ -292,7 +321,7 @@ fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
         );
     h.state_mut().snapshot.result.rows.push(
         serde_json::from_value(
-            serde_json::json!({"id":"established:1","fields":{"kind":"established","data":"{}"}}),
+            serde_json::json!({"id":"established:1","fields":{"kind":"established","data":serde_json::json!({"id":{"orderId":27,"tradeId":1}}).to_string()}}),
         )
         .unwrap(),
     );
@@ -302,9 +331,18 @@ fn load_trade_closes_the_editor_and_keeps_monitoring_outside_the_blotter() {
     h.run();
     h.run();
     assert!(h.query_by_label("Trade Order Editor").is_none());
-    assert!(h.query_by_label("Position History").is_some());
-    assert!(h.query_by_label("Iron Condor Trade").is_some());
+    assert!(h.query_by_label("ActionDateTime").is_some());
+    assert!(h.query_by_label("Close trade 27:1").is_some());
+    assert!(!h.state().view.open);
+    let panel = h.state().view.loaded_bounds.expect("Trade occupies the main center panel");
+    assert!(panel.left() < 10. && panel.top() < 10.);
+    assert!(panel.width() > 2000. && panel.height() > 1200.);
     assert!(!h.state().requests.iter().any(|v| v["intent"] == "close"));
+    h.get_by_label("Close trade 27:1").click();
+    h.run();
+    h.run();
+    assert!(h.state().view.loaded_bounds.is_none());
+    assert!(h.state().requests.iter().any(|v| v["intent"] == "close-trade"));
 }
 
 #[test]
@@ -479,4 +517,116 @@ fn broker_leg_delta_precision_and_grid_bounds_survive_value_updates() {
     h.run();
     assert!(h.query_by_label("-0.123457").is_some());
     assert_eq!(before, h.state().view.controls["brokerPreviewLegGrid"]);
+}
+
+#[test]
+fn failed_load_closes_editor_and_shows_a_separate_error() {
+    let mut h = harness();
+    h.state_mut().fail_load = true;
+    h.state_mut().snapshot.result.context.insert("canLoadTrade".into(), "True".into());
+    h.state_mut().snapshot.result.rows.iter_mut().find(|r| r.id == "trade:1").unwrap().fields.insert(
+        "data".into(), serde_json::json!({"index":0,"tradeId":1,"tradeState":"Open"}).to_string());
+    h.get_by_label("Trade Orders").click();
+    h.run();
+    h.get_by_label("Load Trade").click();
+    h.run();
+    assert!(!h.state().view.open);
+    h.run();
+    assert!(h.query_by_label("Trade Order Editor").is_none());
+    assert!(h.query_by_label("Load Trade Error").is_some());
+    assert!(h.query_by_label("Persisted trade limits were not found.").is_some());
+    assert!(h.state().view.loaded_bounds.is_none());
+    h.get_by_label("OK").click();
+    h.run();
+    assert!(h.state().requests.iter().any(|v| v["intent"] == "close"));
+}
+
+#[test]
+fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
+    let mut h=harness();
+    h.state_mut().snapshot.result.rows.iter_mut().find(|r|r.id=="trade:1").unwrap().fields.insert("data".into(),serde_json::json!({"index":0,"tradeId":1,"tradeState":"Open"}).to_string());
+    for (kind,value) in [
+        ("established",serde_json::json!({"id":{"orderId":27,"tradeId":1},"status":"Open","openingValue":-3.2,"establishedAtUtc":"2026-10-14T14:30:00Z","legs":[
+            {"tradeLegId":"sp","contractId":"SAVED-PUT","putCall":2,"strike":90,"signedQuantity":-1,"cashMultiplier":50,"expiry":"2026-11-20"},
+            {"tradeLegId":"lp","contractId":"LONG-PUT","putCall":2,"strike":85,"signedQuantity":1,"cashMultiplier":50,"expiry":"2026-11-20"}]})),
+        ("position",serde_json::json!({"orderId":27,"tradeId":1,"tradeType":"ShortIronCondor","valueDate":"2026-10-14","tradeStatus":"Open","netSpread":-3.2,"tradePnl":12.5})),
+        ("limits",serde_json::json!({"orderId":27,"tradeLimit":{"riskMargin":38.55,"maxProfit":11.45,"maxLoss":-38.55}})),
+        ("position-details",serde_json::json!({"valueDate":"2026-10-14","legs":[{"tradeLegId":"sp","signedQuantity":-1,"openingPrice":2.5,"currentPrice":2.3},{"tradeLegId":"lp","signedQuantity":1,"openingPrice":0.5,"currentPrice":0.4}]})),
+        ("plan",serde_json::json!({"valueDate":"2026-10-14","calculatedAtUtc":"2026-10-14T15:00:00Z","state":"Hold","action":"Monitor","explanation":"Saved plan evidence","totalPnl":12.5})),
+    ] {
+        h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:0"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
+    }
+    h.state_mut().snapshot.result.context.insert("canSelectPosition".into(),"True".into());
+    h.get_by_label("Trade Orders").click();h.run();
+    h.get_by_label("Load Trade").click();h.run();h.run();
+    for label in ["Option Contract Ids","Iron Condor Net Spread Path","ActionDateTime","SAVED-PUT","38.55","Saved plan evidence","Spread Type","PutCreditSpread"] {
+        assert!(h.query_all_by_label(label).next().is_some(),"Missing {label}");
+    }
+    assert!(h.state().view.loaded_bounds.unwrap().width()>2000.);
+    let controls=&h.state().view.controls;
+    assert!(controls["condor-chart"].left()>controls["condor-history"].right()-5.);
+    assert!(controls["condor-trade-info"].top()>controls["condor-history"].bottom());
+    assert!(controls["condor-limits"].top()>=controls["condor-contracts"].bottom()-6.);
+    assert!(controls["condor-plans"].top()>controls["condor-limits"].bottom());
+    assert!((controls["condor-plans"].bottom()-h.state().view.loaded_bounds.unwrap().bottom()).abs()<1.);
+    assert!(h.query_by_label("TradePlans").is_none());
+    if let Ok(path)=std::env::var("IFM_CONDOR_SCREENSHOT") {h.render().unwrap().save(path).unwrap();}
+    h.set_size(eframe::egui::vec2(1200.,800.));h.run();
+    assert!(h.query_by_label("Close trade 27:1").is_some());
+}
+
+fn loaded_tabs_harness() -> Harness<'static,State> {
+    let mut h=harness();
+    h.state_mut().snapshot.result.rows.iter_mut().find(|r|r.id=="trade:1").unwrap().fields.insert("data".into(),serde_json::json!({"index":0,"tradeId":1,"tradeState":"Open"}).to_string());
+    for (kind,key,value) in [
+        ("established","first",serde_json::json!({"id":{"portfolioId":101,"fundId":701,"orderId":27,"tradeId":1}})),
+        ("workspace-tab","101.701.27.1",serde_json::json!({"key":"101.701.27.1","title":"27:1","kind":"trade","active":true})),
+        ("workspace-tab","101.701.28.2",serde_json::json!({"key":"101.701.28.2","title":"28:2","kind":"trade","active":false})),
+    ] {
+        h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:{key}"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
+    }
+    h.get_by_label("Trade Orders").click();h.run();h.get_by_label("Load Trade").click();h.run();h.run();h
+}
+#[test]
+fn center_tabs_switch_and_close_only_the_requested_trade() {
+    let mut h=loaded_tabs_harness();
+    for label in ["27:1","28:2","Close trade 27:1","Close trade 28:2"] {assert!(h.query_by_label(label).is_some(),"Missing {label}");}
+    let controls=&h.state().view.controls;
+    let tab=controls["trade-tab:101.701.27.1"];let close=controls["close-trade:101.701.27.1"];
+    assert!(close.left()>tab.center().x && close.right()<=tab.right());
+    assert!(h.query_by_label("Close Trade").is_none());
+    h.get_by_label("28:2").click();h.run();h.run();
+    assert!(h.state().requests.iter().any(|r|r["intent"]=="activate-trade" && r["fields"]["tradeTabId"]=="101.701.28.2"));
+    h.get_by_label("Close trade 27:1").click();h.run();h.run();
+    assert!(h.query_by_label("27:1").is_none());assert!(h.query_by_label("28:2").is_some());
+    assert!(h.state().view.loaded_bounds.is_some());
+    h.get_by_label("Close trade 28:2").click();h.run();h.run();
+    assert!(h.state().view.loaded_bounds.is_none());
+    assert!(h.state().requests.iter().filter(|r|r["intent"]=="close-trade").count()==2);
+}
+#[test]
+fn a_failed_additional_load_keeps_existing_center_tabs_open() {
+    let mut h=loaded_tabs_harness();h.state_mut().fail_load=true;h.state_mut().view.open=true;h.run();
+    h.get_by_label("Load Trade").click();h.run();h.run();
+    assert!(h.query_by_label("Load Trade Error").is_some());
+    assert!(h.query_by_label("28:2").is_some());
+    assert!(h.state().view.loaded_bounds.is_some());
+}
+#[test]
+fn live_plan_publications_update_the_grid_without_a_user_refresh() {
+    let mut h=loaded_tabs_harness();
+    h.state_mut().snapshot.result.context.insert("live".into(),"True".into());
+    let requests_before=h.state().requests.len();
+    for revision in [1,2] {
+        let value=serde_json::json!({"planRevision":revision,"valueDate":"2026-10-16","ironCondorTradePlanSnapshot":{"actionDateTime":"2026-10-16T15:00:00Z","sequenceId":revision,"dailyPnl":revision as f64*1.25,"isComplete":true,"actionType":"Monitor","actionReason":format!("Incoming live plan {revision}")}});
+        let row=serde_json::from_value(serde_json::json!({"id":format!("plan:{revision}"),"fields":{"kind":"plan","data":value.to_string(),"actionDateTimeEastern":format!("2026-10-16 11:00:0{revision}.123")}})).unwrap();
+        h.state_mut().snapshot.result.rows.insert(0,row);
+        h.state_mut().snapshot.generation+=1;
+        h.run();
+        assert!(h.query_all_by_label(&format!("Incoming live plan {revision}")).next().is_some());
+        assert!(h.query_all_by_label(&format!("2026-10-16 11:00:0{revision}.123")).next().is_some());
+    }
+    assert!(h.query_all_by_label("Incoming live plan 1").next().is_some());
+    assert!(h.query_all_by_label("Incoming live plan 2").next().is_some());
+    assert_eq!(h.state().requests.len(),requests_before);
 }

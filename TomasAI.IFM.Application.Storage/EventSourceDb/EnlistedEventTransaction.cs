@@ -83,7 +83,12 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
                 var committed = await ScalarAsync("SELECT EXISTS(SELECT 1 FROM event_log WHERE commandid=$1);", [command.CommandId], cancellationToken).ConfigureAwait(false);
                 if (committed is false) return;
             }
-            throw new CommandAudit.CommandAuditDuplicateException(command.CommandId);
+            // An audit reservation alone is not proof of execution: old writers may have
+            // committed it separately. Only matching source facts can acknowledge a retry.
+            var hasCommittedEvents = await ScalarAsync(
+                "SELECT EXISTS(SELECT 1 FROM event_log l JOIN event_stream_id s ON l.eventstreamid=s.eventstreamid WHERE l.commandid=$1 AND s.eventstream=$2);",
+                [command.CommandId, command.StreamId], cancellationToken).ConfigureAwait(false);
+            throw new CommandAudit.CommandAuditDuplicateException(command.CommandId, hasCommittedEvents is true);
         }
     }
 

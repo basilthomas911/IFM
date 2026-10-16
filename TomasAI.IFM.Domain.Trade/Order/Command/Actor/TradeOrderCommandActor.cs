@@ -14,6 +14,15 @@ namespace TomasAI.IFM.Domain.Trade.Order.Command.Actor;
 /// <summary>Serializes the event-sourced Trade Order lifecycle using exact-type command dispatch.</summary>
 public sealed class TradeOrderCommandActor(ICommandActorContext<TradeOrderCommandActor> context) : BaseEventSourceCommandActor<TradeOrderCommandActor>(context, Typed(context).Logger)
 {
+    // The repository commits audit, source events, and material rows in one PostgreSQL transaction.
+    protected override bool AuditIsCommittedWithState(ICommand command)
+        => string.Equals(_services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+
+    protected override bool IsCommittedDuplicateException(ICommand command, Exception exception)
+        => AuditIsCommittedWithState(command)
+            && exception is TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditDuplicateException
+                { HasCommittedEvents: true } duplicate && duplicate.CommandId == command.CommandId;
+
     public const string ActorName = TradeOrderActorNames.Command;
     private readonly ITradeOrderCommandContext _services = Typed(context);
     private static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)

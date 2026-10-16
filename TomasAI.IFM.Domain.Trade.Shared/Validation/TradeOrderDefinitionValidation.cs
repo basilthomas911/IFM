@@ -52,7 +52,7 @@ public static class TradeOrderDefinitionValidation
     {
         public EstablishedTradeRules()
         {
-            RuleFor(trade => trade.SchemaVersion).InclusiveBetween((ushort)1, (ushort)3);
+            RuleFor(trade => trade.SchemaVersion).InclusiveBetween((ushort)1, (ushort)4);
             RuleFor(trade => trade.Id).Must(id => id.IsValid);
             RuleFor(trade => trade.AssetFamily).IsInEnum().NotEqual(TradeAssetFamily.Unknown);
             RuleFor(trade => trade.StrategyKind).IsInEnum().NotEqual(TradeStrategyKind.Unknown);

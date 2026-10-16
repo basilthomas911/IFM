@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
@@ -56,6 +57,7 @@ pub struct StrategyWorkspace {
     requested_history_page: Option<(String, usize, usize)>,
     cached_epoch: String,
     cached_generation: u64,
+    graph_time_frame: String,
     prices: Vec<[f64; 2]>,
     up: Vec<[f64; 2]>,
     down: Vec<[f64; 2]>,
@@ -121,7 +123,7 @@ impl StrategyWorkspace {
             .show_inside(ui, |ui| {
                 ui.set_min_height(ui.max_rect().height());
                 if self.prices.is_empty() {
-                    ui.trading_label(catalog.text(strings::NO_SIGNALS));
+                    ui.trading_caption(catalog.text(strings::NO_SIGNALS));
                 }
                 {
                     let mut plot = egui_plot::Plot::new("iti_price")
@@ -177,6 +179,12 @@ impl StrategyWorkspace {
                                 .unwrap_or_default()
                         })
                         .height((ui.available_height() - 44.0).max(40.0));
+                    // A timeframe switch must discard the previous timeframe's zoom/pan.
+                    // Ordinary live updates preserve the user's current viewport.
+                    if self.graph_time_frame != snapshot.time_frame {
+                        self.graph_time_frame.clone_from(&snapshot.time_frame);
+                        plot = plot.reset();
+                    }
                     if snapshot.graph_start_utc < snapshot.graph_end_utc {
                         plot = plot
                             .include_x(
@@ -310,7 +318,7 @@ impl StrategyWorkspace {
                                     ));
                                 }
                             }
-                            ui.trading_label(label);
+                            ui.trading_caption(label);
                         }
                     });
                     if graph.response.clicked() {
@@ -370,7 +378,7 @@ impl StrategyWorkspace {
             StrategyTab::Updates => {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     if snapshot.rows.is_empty() {
-                        ui.trading_label(catalog.text(strings::NO_WORKFLOWS));
+                        ui.trading_caption(catalog.text(strings::NO_WORKFLOWS));
                     } else {
                         let height = ui.text_style_height(&egui::TextStyle::Body) + 8.0;
                         let mut near_history_end = false;
@@ -428,14 +436,14 @@ impl StrategyWorkspace {
                                                 ui.add(
                                                     crate::presentation::label_widget(
                                                         egui::RichText::new(catalog.text(key))
-                                                            .color(crate::presentation::FOREGROUND),
+                                                            .color(crate::presentation::CAPTION_FOREGROUND),
                                                     )
                                                     .truncate(),
                                                 );
                                             });
                                         }
                                     })
-                                    .body(|body| {
+                                    .bordered_body(24.0, |body| {
                                         body.rows(height, snapshot.rows.len(), |mut table_row| {
                                             self.drawn_rows += 1;
                                             near_history_end |=

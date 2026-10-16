@@ -25,6 +25,40 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
 public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task Order_lifecycle_advances_within_one_definition_revision_and_conflicting_terms_roll_back()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ExecuteAsync(TradeSchemaSql.Create, [], ct));
+        var id = new TradeOrderId(Random.Shared.Next(50_000_000, 60_000_000), 1, 1);
+        var accepted = DateTime.UtcNow;
+        var order = new TradeOrderDefinition { Id = id, Revision = 1, DefinitionHash = "immutable-terms" };
+        var stream = "lifecycle-projection-" + Guid.NewGuid().ToString("N");
+        long version = 0;
+        async Task Save(TradeOrderDefinition value) => await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        {
+            var commandId = Guid.NewGuid();
+            await db.AppendAsync(stream, commandId, new TradeOrderChangedEvent
+            { Id = Guid.NewGuid(), EntityId = id, CommandId = commandId, TradeOrderDefinition = value, ReceivedOn = accepted }, version, ct);
+            await db.TradeFlowProjectOrderLifecycleAsync(value, accepted, ct);
+            return true;
+        });
+        foreach (var status in new[] { TradeOrderStatus.Draft, TradeOrderStatus.Approved, TradeOrderStatus.Ready, TradeOrderStatus.Executing })
+        {
+            order = order with { Status = status };
+            if (status == TradeOrderStatus.Executing)
+                order = order with { BoundExecutionAttemptId = Guid.NewGuid(), BoundExecutionChannel = ExecutionChannel.Broker, ExecutionBoundAtUtc = accepted };
+            await Save(order);
+            version++;
+        }
+        var conflict = order with { DefinitionHash = "changed-terms" };
+        await Assert.ThrowsAsync<System.IO.InvalidDataException>(() => Save(conflict));
+        (await fixture.EventCountAsync(stream)).Should().Be(4);
+        var payload = await fixture.Transactions.ExecuteOnceAsync((db, ct) => db.ScalarAsync(
+            "SELECT payload FROM trade.trade_order WHERE portfolioid=$1 AND fundid=$2 AND orderid=$3 AND revision=1;",
+            [id.PortfolioId, id.FundId, id.OrderId], ct));
+        MessagePackBinarySerializer.Shared.Deserialize<TradeOrderDefinition>((byte[])payload!).Should().BeEquivalentTo(order);
+    }
+
+    [Fact]
     public async Task EOD_retry_can_resume_matching_orphan_audit_but_not_change_payload_or_repeat_committed_events()
     {
         var id = new StrategyPositionId(new(999, 1, 1, 1), Guid.NewGuid());
@@ -214,6 +248,24 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         (await context.GetOpenPositionRoutesAsync(contract)).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Audit_only_reservation_is_not_a_committed_duplicate()
+    {
+        var id = new TradeOrderId(Random.Shared.Next(50_000_000, 60_000_000), 1, 1);
+        var command = new CreateTradeOrderCommand
+        {
+            CommandId = Guid.NewGuid(), EntityId = id,
+            Subject = new(ActorType.Command, CreateTradeOrderCommand.Actor, CreateTradeOrderCommand.Verb, id.Format())
+        };
+        await fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+        { await db.ReserveCommandAsync(command, ct); return true; });
+        var duplicate = await Assert.ThrowsAsync<CommandAuditDuplicateException>(() =>
+            fixture.Transactions.ExecuteOnceAsync(async (db, ct) =>
+            { await db.ReserveCommandAsync(command, ct); return true; }));
+        duplicate.HasCommittedEvents.Should().BeFalse();
+        (await fixture.EventCountAsync(command.StreamId)).Should().Be(0);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -237,9 +289,16 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
         (await fixture.EventCountAsync(command.StreamId)).Should().Be(fail?0:1);
         var count=await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ScalarAsync("SELECT count(*) FROM command_log WHERE commandid=$1;",[command.CommandId],ct));
         Convert.ToInt64(count).Should().Be(fail?0:1);
+        if (fail)
+        {
+            fail = false;
+            await Save();
+            (await fixture.EventCountAsync(command.StreamId)).Should().Be(1);
+        }
         if(!fail)
         {
-            await FluentActions.Awaiting(Save).Should().ThrowAsync<CommandAuditDuplicateException>();
+            var duplicate = await Assert.ThrowsAsync<CommandAuditDuplicateException>(Save);
+            duplicate.HasCommittedEvents.Should().BeTrue();
             await FluentActions.Awaiting(()=>fixture.Transactions.ExecuteOnceAsync(async(db,ct)=>{await db.ReserveCommandAsync(command with {Order=order with {DefinitionHash="conflicting-command"}},ct);return true;})).Should().ThrowAsync<CommandAuditPayloadConflictException>();
             (await fixture.EventCountAsync(command.StreamId)).Should().Be(1);
         }
@@ -277,6 +336,49 @@ public sealed class PostgresTradeFlowTests(PostgresTradePlanFixture fixture)
             (await context.GetTradeTypeLimitsAsync(tradeId)).Should().HaveCount(2);
             (await context.GetTradeTypeLimitAsync(tradeId,TradeType.PutCreditSpread)).Should().BeEquivalentTo(spreads[0]);
         }
+    }
+
+    [Fact]
+    public async Task Established_trade_and_approved_limits_rollback_commit_and_replay_together()
+    {
+        await fixture.Transactions.ExecuteOnceAsync((db,ct)=>db.ExecuteAsync(TradeSchemaSql.Create,[],ct));
+        var settings = new TomasAI.IFM.Shared.Storage.DbConnectionSettings().Add(TradeDbContext.TradeDbConnection,fixture.Connection,"System.Data.Postgres");
+        var factory = new Mock<IDbContextFactory>();
+        var context = new TradeDbContext(settings,factory.Object,Mock.Of<ISequenceIdGenerator>(),NullLogger<DbProvider>.Instance);
+        factory.SetupGet(x=>x.TradeDb).Returns(context);
+        var now = DateTime.UtcNow;
+        var id = new TradeEntityId(Random.Shared.Next(50_000_000,60_000_000), 1, 1, Random.Shared.Next(70_000_000,80_000_000));
+        var limit = new TradeLimitReadModel { TradeId = id.TradeId, TradeType = TradeType.ShortIronCondor,
+            RiskMargin = 5000, MaxLoss = -700, MaxProfit = 1300, CreatedOn = now, UpdatedOn = now, CreatedBy = "PortfolioApproval", UpdatedBy = "PortfolioApproval" };
+        var snapshot = new EstablishedTradeMonitoringLimits { PortfolioApprovalId = Guid.NewGuid(), OrderRevision = 1,
+            DefinitionHash = "approved", TradeLimit = limit,
+            SpreadLimits = [new(id.TradeId,TradeType.PutCreditSpread,16,2,2),new(id.TradeId,TradeType.CallCreditSpread,10,1.25m,1.25m)] };
+        var trade = new EstablishedTradeDefinition { Id = id, StrategyKind = TradeStrategyKind.IronCondor,
+            AssetFamily = TradeAssetFamily.FuturesOption, EvidenceRevision = 1, EstablishedAtUtc = now, MonitoringLimits = snapshot };
+        var stream = "approved-limits-" + Guid.NewGuid().ToString("N");
+        var commandId = Guid.NewGuid();
+        var source = new TomasAI.IFM.Domain.Trade.Shared.Futures.Option.OptionTradeChangedEvent
+            { Id = Guid.NewGuid(), EntityId = id, CommandId = commandId, ReceivedOn = now, State = trade };
+        async Task Save(bool fail) => await fixture.Transactions.ExecuteOnceAsync(async (db,ct) =>
+        {
+            await db.AppendAsync(stream,commandId,source,0,ct);
+            await db.TradeFlowProjectTradeAsync(trade,ct);
+            if (fail) throw new InvalidOperationException("Injected failure after trade and limits");
+            return true;
+        });
+        await FluentActions.Awaiting(() => Save(true)).Should().ThrowAsync<InvalidOperationException>();
+        (await context.GetEstablishedTradeAsync(id)).Should().BeNull();
+        (await context.GetTradeLimitAsync(id.TradeId)).Should().BeNull();
+        (await context.GetTradeTypeLimitsAsync(id.TradeId)).Should().BeEmpty();
+        (await fixture.EventCountAsync(stream)).Should().Be(0);
+        await Save(false);
+        (await context.GetEstablishedTradeAsync(id))!.MonitoringLimits.Should().BeEquivalentTo(snapshot);
+        (await context.GetTradeLimitAsync(id.TradeId))!.MaxLoss.Should().Be(-700);
+        (await context.GetTradeTypeLimitsAsync(id.TradeId)).Should().HaveCount(2);
+        // Rebuilding the trade must not overwrite subsequent authoritative monitoring adjustments.
+        await context.ProjectMonitoringLimitsAsync(limit with { MaxLoss = -600 },snapshot.SpreadLimits);
+        await context.UpsertEstablishedTradeAsync(trade);
+        (await context.GetTradeLimitAsync(id.TradeId))!.MaxLoss.Should().Be(-600);
     }
 
 }

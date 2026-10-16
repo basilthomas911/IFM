@@ -13,6 +13,15 @@ using TomasAI.IFM.Shared.Validation;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Command.Actor;
 public sealed class FuturesOptionTradeCommandActor(ICommandActorContext<FuturesOptionTradeCommandActor> context) : BaseEventSourceCommandActor<FuturesOptionTradeCommandActor>(context, Typed(context).Logger)
 {
+    // The repository commits audit, source events, and material rows in one PostgreSQL transaction.
+    protected override bool AuditIsCommittedWithState(ICommand command)
+        => string.Equals(_services.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal);
+
+    protected override bool IsCommittedDuplicateException(ICommand command, Exception exception)
+        => AuditIsCommittedWithState(command)
+            && exception is TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditDuplicateException
+                { HasCommittedEvents: true } duplicate && duplicate.CommandId == command.CommandId;
+
     public const string ActorName = FuturesOptionTradeActorNames.Command;
     readonly IFuturesOptionTradeCommandContext _services = Typed(context);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>

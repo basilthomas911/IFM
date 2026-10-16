@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
@@ -94,7 +95,7 @@ impl CalendarEditor {
                 &s.status
             });
             if !live {
-                ui.trading_label(c.text(strings::LIVE_REQUIRED));
+                ui.trading_caption(c.text(strings::LIVE_REQUIRED));
             }
             if let Some(o) = s.outcomes.last() {
                 ui.trading_label(format!("{}: {}", o.state, o.message));
@@ -104,7 +105,7 @@ impl CalendarEditor {
                     if ui.button(c.text(strings::CALENDAR_LOAD)).clicked() {
                         action = Some("load");
                     }
-                    let label = ui.trading_label(c.text(strings::CALENDAR_FILTER_DATE));
+                    let label = ui.trading_caption(c.text(strings::CALENDAR_FILTER_DATE));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter_date)
                             .desired_width(140.)
@@ -166,7 +167,7 @@ impl CalendarEditor {
                     .num_columns(2)
                     .show(ui, |ui| {
                         for (key, label) in FIELDS {
-                            let response = ui.trading_label(c.text(label));
+                            let response = ui.trading_caption(c.text(label));
                             let value = self.draft.entry(key.into()).or_default();
                             if key == "countryCode" {
                                 egui::ComboBox::from_id_salt("calendar-event-country")
@@ -244,7 +245,7 @@ impl CalendarEditor {
                     }
                 });
                 if self.confirm_remove {
-                    ui.trading_label(c.text(strings::CALENDAR_REMOVE_WARNING));
+                    ui.trading_caption(c.text(strings::CALENDAR_REMOVE_WARNING));
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CONFIRM_REMOVE)).clicked() {
                             self.confirm_remove = false;
@@ -259,7 +260,7 @@ impl CalendarEditor {
             self.drawn_rows = 0;
             if matches {
                 if s.result.rows.is_empty() {
-                    ui.trading_label(c.text(strings::CALENDAR_EMPTY));
+                    ui.trading_caption(c.text(strings::CALENDAR_EMPTY));
                 }
                 egui_extras::TableBuilder::new(ui)
                     .id_salt("calendar-table")
@@ -275,11 +276,11 @@ impl CalendarEditor {
                             strings::CALENDAR_NAME,
                         ] {
                             header.col(|ui| {
-                                ui.strong(c.text(label));
+                                ui.colored_label(crate::presentation::CAPTION_FOREGROUND, egui::RichText::new(c.text(label)).strong());
                             });
                         }
                     })
-                    .body(|body| {
+                    .bordered_body(24., |body| {
                         body.rows(26., s.result.rows.len(), |mut row| {
                             self.drawn_rows += 1;
                             let item = &s.result.rows[row.index()];

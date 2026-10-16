@@ -131,7 +131,7 @@ impl MainShell {
                         .halign(egui::Align::Min)
                         .truncate(),
                     );
-                    ui.trading_label("Time Frame:");
+                    ui.trading_caption("Time Frame:");
                     let previous = self.time_frame;
                     egui::ComboBox::from_id_salt("iti-time-frame")
                         .width(72.0)
@@ -151,7 +151,7 @@ impl MainShell {
                         action = Some(selected);
                     }
                 } else {
-                    ui.trading_label("Loading strategy observations...");
+                    ui.trading_caption("Loading strategy observations...");
                 }
             })
             .response

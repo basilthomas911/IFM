@@ -221,7 +221,7 @@ impl ParameterSets {
                 );
             }
             ui.horizontal_wrapped(|ui| {
-                ui.trading_label(c.text(strings::PARAM_HORIZON));
+                ui.trading_caption(c.text(strings::PARAM_HORIZON));
                 egui::ComboBox::from_id_salt("new-parameter-horizon")
                     .selected_text(&self.horizon)
                     .show_ui(ui, |ui| {
@@ -374,12 +374,12 @@ impl ParameterSets {
             });
             ui.add_enabled_ui(enabled && self.editing, |ui| {
                 ui.horizontal(|ui| {
-                    let label = ui.trading_label(c.text(strings::PARAM_NAME));
+                    let label = ui.trading_caption(c.text(strings::PARAM_NAME));
                     ui.text_edit_singleline(&mut self.name)
                         .labelled_by(label.id);
                 });
                 ui.horizontal(|ui| {
-                    let label = ui.trading_label(c.text(strings::PARAM_DESCRIPTION));
+                    let label = ui.trading_caption(c.text(strings::PARAM_DESCRIPTION));
                     ui.text_edit_singleline(&mut self.description)
                         .labelled_by(label.id);
                 });
@@ -481,7 +481,7 @@ impl ParameterSets {
                     );
                 }
                 "rename" => {
-                    ui.trading_label(c.text(strings::PARAM_RENAME));
+                    ui.trading_caption(c.text(strings::PARAM_RENAME));
                     ui.text_edit_singleline(&mut self.name);
                     ui.text_edit_multiline(&mut self.description);
                     button(
@@ -494,7 +494,7 @@ impl ParameterSets {
                     );
                 }
                 "assignment" => {
-                    ui.trading_label(c.text(strings::PARAM_ASSIGNMENT_NOTICE));
+                    ui.trading_caption(c.text(strings::PARAM_ASSIGNMENT_NOTICE));
                     if let Some(v) = s.result.document::<Value>("assignment") {
                         read_value(ui, &v, "assignment");
                         ui.horizontal(|ui| {
@@ -692,9 +692,9 @@ impl ParameterSets {
                     } else {
                         &self.name
                     });
-                    ui.trading_label(c.text(&format!("param_action_{}", intent.replace('-', "_"))));
+                    ui.trading_caption(c.text(&format!("param_action_{}", intent.replace('-', "_"))));
                     if self.confirm_generation != s.generation {
-                        ui.trading_label(c.text(strings::PARAM_STALE));
+                        ui.trading_caption(c.text(strings::PARAM_STALE));
                     }
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CANCEL)).clicked() {
@@ -768,7 +768,7 @@ fn edit_rows(
                                 key.as_str() != "RequirementId" && key.as_str() != "IsRequired"
                             }) {
                                 ui.vertical(|ui| {
-                                    ui.trading_label(c.text(&format!("param_field_{}", key)));
+                                    ui.trading_caption(c.text(&format!("param_field_{}", key)));
                                     ui.add_enabled_ui(editable, |ui| {
                                         let choice_key = match key.as_str() {
                                             "Metric" => Some(if kind == "signals" {

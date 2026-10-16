@@ -19,6 +19,7 @@ public class TradePositionUIEventConsumer(INatsEventListenerOptions options, ILo
     readonly ILogger _logger = logger;
     readonly INatsEventListenerOptions _monitoringOptions = options;
     readonly ConcurrentDictionary<Guid, TradePositionUIEventConsumer> _monitoringListeners = new();
+    readonly ConcurrentDictionary<Guid, TradePositionUIEventConsumer> _realtimeListeners = new();
     string _listenerName = EventConsumer;
 
     /// <summary>Starts an independent monitoring listener owned by one trade view.</summary>
@@ -40,6 +41,24 @@ public class TradePositionUIEventConsumer(INatsEventListenerOptions options, ILo
     {
         if (_monitoringListeners.TryRemove(ownerId, out var listener))
             await listener.StopAsync().ConfigureAwait(false);
+        if (_realtimeListeners.TryRemove(ownerId, out var realtime))
+            await realtime.StopAsync().ConfigureAwait(false);
+    }
+
+    public async ValueTask StartRealtimeAsync(Guid ownerId, Func<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, ValueTask> eventAction, Func<ValueTask>? reconnected = null)
+    {
+        if (ownerId == Guid.Empty) throw new ArgumentException("A monitoring owner is required.", nameof(ownerId));
+        var listener = new TradePositionUIEventConsumer(_monitoringOptions, _logger) { Reconnected = reconnected };
+        if (!_realtimeListeners.TryAdd(ownerId, listener)) throw new InvalidOperationException("The monitoring owner already has a realtime listener.");
+        try
+        {
+            await listener.StartAsync($"{EventConsumer}.Realtime.{ownerId:N}", new Dictionary<ActorMailboxId, List<string>>
+            {
+                [new(ActorType.Notify, TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.Actor)] =
+                    [TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.Verb]
+            }, async (_, message) => await eventAction(message.AsEvent<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent>()!).ConfigureAwait(false)).ConfigureAwait(false);
+        }
+        catch { _realtimeListeners.TryRemove(ownerId, out _); await listener.StopAsync().ConfigureAwait(false); throw; }
     }
 
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()

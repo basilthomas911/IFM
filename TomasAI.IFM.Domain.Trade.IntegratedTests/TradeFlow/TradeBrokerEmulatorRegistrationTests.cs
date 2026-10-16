@@ -67,7 +67,7 @@ public sealed class TradeBrokerEmulatorRegistrationTests
         container.Options.EnableAutoVerification = false;
         container.RegisterInstance<Microsoft.Extensions.Logging.ILogger>(NullLogger.Instance);
         var startup = productionHost
-            ? typeof(global::TomasAI.IFM.Application.Api.Server.Startup)
+            ? typeof(global::TomasAI.IFM.Application.Api.Server.Core.DependencyInjection.CoreServiceRegistration)
             : typeof(global::TomasAI.IFM.Application.Actor.IntegrationTests.Startup);
         startup.GetMethod("RegisterGenericTypes", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, [container, new ConfigurationManager(), NullLogger.Instance]);
@@ -86,15 +86,13 @@ public sealed class TradeBrokerEmulatorRegistrationTests
 }
 
 /// <summary>Starts the isolated actor host and verifies the emulator account runtime without a strategy workflow.</summary>
-public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
+public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint> sourceFactory)
     : IClassFixture<TomasAI.IFM.IntegrationTesting.KestrelWebApplicationFactory<TomasAI.IFM.Application.Api.Server.ApiServerEntryPoint>>
 {
     [Fact]
     public async Task Hosted_emulator_places_updates_and_cancels_through_Nats_actor_lifecycle()
     {
-        await using var host = sourceFactory.WithWebHostBuilder(builder => builder
-            .UseSetting("IFM_TEST_ACTOR_DOMAIN", "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount,TomasAI.IFM.Domain.Portfolio")
-            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
+        await using var host = sourceFactory.WithWebHostBuilder(ConfigureAuditHost);
         using var client = host.CreateClient();
         var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
         TomasAI.IFM.Shared.EventModelActor.Contracts.IActorProducer? producer = null;
@@ -139,8 +137,8 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
             var receivedExecutionEvents = new System.Collections.Concurrent.ConcurrentQueue<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent>();
             var cancelledNotification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             notifications = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorEventListener(
-                host.Services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsEventListenerOptions>(),
-                NullLogger.Instance,
+                new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsEventListenerOptions { Url = host.Services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts.INatsJetStreamProducerOptions>().Url },
+                host.Services.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("TradeFlowNotifications"),
                 host.Services.GetRequiredService<TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsConnectionManager>());
             await notifications.StartAsync($"OrderFillsTest-{Guid.NewGuid():N}", new()
             {
@@ -159,6 +157,28 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
             var submitted = await new TomasAI.IFM.Application.Api.Nats.Client.TradeOrderLifecycleApi(producer)
                 .SubmitAcceptedAsync(order, order.PortfolioApprovalId, TomasAI.IFM.Domain.Trade.Shared.ExecutionChannel.Broker);
             submitted.Success.Should().BeTrue(submitted.ErrorMessage);
+            // Retry the exact durable create after the order has advanced: do not
+            // reject it as a new draft, append again, or launch another execution.
+            static Guid StableId(params string[] values) => new(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(string.Join('|', values))).AsSpan(0, 16));
+            var seed = StableId(order.PortfolioApprovalId.ToString("N"), order.Id.Format());
+            var create = new TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand
+            {
+                CommandId = StableId(seed.ToString("N"), "create"), EntityId = order.Id, Order = order,
+                Subject = new(TomasAI.IFM.Shared.EventModelActor.ActorType.Command,
+                    TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand.Actor,
+                    TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand.Verb, order.Id.Format())
+            };
+            async Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TomasAI.IFM.Shared.EventSourcing.GuidResult>> SendCreate(
+                TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand command) =>
+                await producer.RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Order.CreateTradeOrderCommand,
+                    TomasAI.IFM.Domain.Trade.Shared.TradeOrderId, TomasAI.IFM.Shared.EventSourcing.GuidResult>(
+                        command.Subject, command, command.EntityId);
+            var retries = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => SendCreate(create)));
+            retries.Should().OnlyContain(result => result.Success);
+            var conflict = await SendCreate(create with { Order = order with { DefinitionHash = "conflicting-retry" } });
+            conflict.Success.Should().BeFalse("a reused command ID must not accept a different payload");
+
             var query = new TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderQueryApi(producer);
             var commands = new TomasAI.IFM.Application.Api.Nats.Client.BrokerOrderCommandApi(producer);
             var working = await WaitAsync(async () =>
@@ -186,7 +206,11 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
                     .GetAsync(order.Id, working.Id.Execution.ExecutionAttemptId);
                 return result.Value?.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Cancelled ? result.Value : null;
             });
-            await cancelledNotification.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            try { await cancelledNotification.Task.WaitAsync(TimeSpan.FromSeconds(15)); }
+            catch (TimeoutException error)
+            {
+                throw new InvalidOperationException($"Cancellation notification missing; received={notifications.MessageCount}; execution states={string.Join(',', receivedExecutionEvents.Select(value => value.OrderExecutionDefinition.Status))}", error);
+            }
             receivedExecutionEvents.Should().Contain(x => x.OrderExecutionDefinition.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Submitted);
             receivedExecutionEvents.Should().Contain(x => x.OrderExecutionDefinition.Status == TomasAI.IFM.Domain.Trade.Shared.OrderExecutionStatus.Cancelled);
         }
@@ -195,6 +219,7 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
             if (notifications is not null) await notifications.StopAsync();
             if (producer is not null) await producer.StopAsync();
             (await lifecycle.ShutdownActorsAsync(CancellationToken.None)).Succeeded.Should().BeTrue();
+            (await host.Services.GetRequiredService<ISupervisorBootstrap>().StopSupervisorAsync(CancellationToken.None)).Succeeded.Should().BeTrue();
         }
         static async Task<T> WaitAsync<T>(Func<Task<T?>> read) where T : class
         {
@@ -212,10 +237,7 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
     [Fact]
     public async Task Isolated_host_starts_broker_and_account_actors_with_one_coherent_snapshot()
     {
-        await using var host = sourceFactory.WithWebHostBuilder(builder => builder
-            .UseSetting("IFM_TEST_ACTOR_DOMAIN",
-                "TomasAI.IFM.Domain.Trade,TomasAI.IFM.Domain.BrokerAccount")
-            .UseSetting("IFM_TEST_NATS_URL", DomainActorIntegrationInfrastructureFixture.NatsUrl));
+        await using var host = sourceFactory.WithWebHostBuilder(ConfigureAuditHost);
         using var client = host.CreateClient();
         var lifecycle = host.Services.GetRequiredService<ISupervisorManagedActorLifecycle>();
         try
@@ -234,6 +256,7 @@ public sealed class TradeBrokerEmulatorHostTests(TomasAI.IFM.IntegrationTesting.
         {
             var shutdown = await lifecycle.ShutdownActorsAsync(CancellationToken.None);
             shutdown.Succeeded.Should().BeTrue(shutdown.FailureReason);
+            (await host.Services.GetRequiredService<ISupervisorBootstrap>().StopSupervisorAsync(CancellationToken.None)).Succeeded.Should().BeTrue();
         }
     }
 }

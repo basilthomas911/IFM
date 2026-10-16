@@ -45,7 +45,7 @@ impl ActorHealth {
         let enabled = live && !s.busy && self.pending.is_none();
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.trading_label(c.text(strings::ACTOR_FROM));
+                ui.trading_caption(c.text(strings::ACTOR_FROM));
                 ui.add(egui::TextEdit::singleline(&mut self.from).desired_width(250.));
                 if ui
                     .add_enabled(enabled, egui::Button::new(c.text(strings::ACTOR_REFRESH)))
@@ -103,7 +103,7 @@ impl ActorHealth {
                                 ui.selectable_value(&mut self.operation, value.clone(), value);
                             }
                         });
-                    ui.trading_label(c.text(strings::ACTOR_REASON));
+                    ui.trading_caption(c.text(strings::ACTOR_REASON));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.reason)
                             .char_limit(1024)
@@ -190,7 +190,7 @@ impl ActorHealth {
                     if self.confirm_generation != s.generation
                         || self.confirm_target != self.selected
                     {
-                        ui.trading_label(c.text(strings::ACTOR_STALE));
+                        ui.trading_caption(c.text(strings::ACTOR_STALE));
                     }
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CANCEL)).clicked() {

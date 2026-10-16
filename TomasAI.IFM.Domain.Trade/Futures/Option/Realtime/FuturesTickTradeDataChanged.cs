@@ -17,6 +17,14 @@ public static class FuturesTickTradeDataChanged
     {
         ArgumentNullException.ThrowIfNull(changed);
         ArgumentNullException.ThrowIfNull(context);
+        // A completed calculation is a read-model update, not another market price observation.
+        if (changed.OptionMarketPriceObservation?.OptionTickData is { } data)
+        {
+            foreach (var snapshot in context.RealtimeCache?.Apply(data) ?? [])
+                await context.SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
+                    TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(snapshot)).ConfigureAwait(false);
+            if (data.IsPricingUpdate) return;
+        }
         var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
         var observation = changed.OptionMarketPriceObservation;
         var tick = new PositionMarketTick(changed.TickDataId.ContractId, observation is null ? changed.TradeData.Price : (decimal)observation.OptionTickData.OptionPrice, observation?.SourceSequence ?? changed.TradeData.SourceSequence, receivedAtUtc);

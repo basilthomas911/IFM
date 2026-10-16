@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog,
@@ -140,10 +141,10 @@ impl ContractEditor {
                 );
             }
             if matches && s.result.rows.is_empty() {
-                ui.trading_label(c.text(strings::NO_CONTRACT_ROWS));
+                ui.trading_caption(c.text(strings::NO_CONTRACT_ROWS));
             }
             if !live {
-                ui.trading_label(c.text(strings::LIVE_REQUIRED));
+                ui.trading_caption(c.text(strings::LIVE_REQUIRED));
             }
             if let Some(last) = s.outcomes.last() {
                 ui.trading_label(format!("{}: {}", last.state, last.message));
@@ -200,7 +201,7 @@ impl ContractEditor {
                             fields.push(("lastTradeDate", strings::LAST_TRADE_DATE));
                         }
                         for (i, (key, label)) in fields.iter().enumerate() {
-                            let response = ui.trading_label(c.text(label));
+                            let response = ui.trading_caption(c.text(label));
                             let value = self.draft.entry((*key).into()).or_default();
                             let editable = *key != "contractId"
                                 && (!provider || *key == "description")
@@ -311,7 +312,7 @@ impl ContractEditor {
                     }
                 });
                 if self.confirm_remove {
-                    ui.trading_label(c.text(strings::REMOVE_CONTRACT_WARNING));
+                    ui.trading_caption(c.text(strings::REMOVE_CONTRACT_WARNING));
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CONFIRM_REMOVE)).clicked() {
                             action = Some("remove");
@@ -346,11 +347,11 @@ impl ContractEditor {
                             strings::DESCRIPTION,
                         ] {
                             header.col(|ui| {
-                                ui.strong(c.text(label));
+                                ui.colored_label(crate::presentation::CAPTION_FOREGROUND, egui::RichText::new(c.text(label)).strong());
                             });
                         }
                     })
-                    .body(|body| {
+                    .bordered_body(24.0, |body| {
                         body.rows(26.0, s.result.rows.len(), |mut row| {
                             self.drawn_rows += 1;
                             let r = &s.result.rows[row.index()];
@@ -426,7 +427,7 @@ impl ContractEditor {
                                             "exerciseResultContractId",
                                         ] {
                                             let caption = format!("review_{key}");
-                                            let label = ui.trading_label(c.text(&caption));
+                                            let label = ui.trading_caption(c.text(&caption));
                                             let value = self.draft.entry(key.into()).or_default();
                                             ui.add_enabled_ui(
                                                 key != "underlyingContractId",
@@ -469,7 +470,7 @@ impl ContractEditor {
                             self.confirm_review = true;
                         }
                         if self.confirm_review {
-                            ui.trading_label(c.text(strings::REFERENCE_REVIEW_WARNING));
+                            ui.trading_caption(c.text(strings::REFERENCE_REVIEW_WARNING));
                             if ui
                                 .button(c.text(strings::REFERENCE_REVIEW_CONFIRM))
                                 .clicked()

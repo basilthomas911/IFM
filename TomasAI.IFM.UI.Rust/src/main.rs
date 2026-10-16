@@ -148,7 +148,7 @@ impl eframe::App for App {
                             self.trade_workspace.submission_rejected(&id);
                             self.status = "Trade request queue is unavailable. Please try again.".into();
                         }
-                        self.shell.workspace = "Trade Orders".into();
+                        self.shell.workspace.clear();
                         self.lookup_tab = false;
                         self.contract_tab = false;
                         self.inspection_tab = false;
@@ -590,6 +590,7 @@ impl eframe::App for App {
         if let Some(action) = shell_action {
             let _ = self.tx.try_send(action);
         }
+        self.trade_workspace.loaded_bounds = None;
         if self.trade_workspace.is_visible() {
             if let Some(payload) = self.trade_workspace.draw(ctx, &self.trade_snapshot) {
                 if let Err(e) = self.editor_tx.try_send(payload.clone()) {
@@ -599,6 +600,7 @@ impl eframe::App for App {
                 }
             }
         }
+        if self.trade_workspace.loaded_bounds.is_none() {
         if self.catalog_tab {
             if let Some(payload) = self.strategy_catalog.draw(
                 ctx,
@@ -747,13 +749,14 @@ impl eframe::App for App {
                 grid.draw(ctx, catalog);
             } else {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    ui.trading_label(catalog.text(strings::LOADING_GRID));
+                    ui.trading_caption(catalog.text(strings::LOADING_GRID));
                 });
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.trading_label(&self.shell.workspace);
             });
+        }
         }
         if let Some(profile)=&mut self.read_profile {
             if profile.started.elapsed().as_secs()>=profile.seconds {ctx.send_viewport_cmd(egui::ViewportCommand::Close);}

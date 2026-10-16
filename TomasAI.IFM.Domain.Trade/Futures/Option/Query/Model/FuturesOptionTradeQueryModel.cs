@@ -31,6 +31,8 @@ internal static class FuturesOptionTradeQueryModel
     /// </summary>
     internal static async ValueTask<TradeLimitReadModel> GetTradeLimitAsync(this IDbContextFactory dbFactory, int tradeId, CancellationToken cancellationToken = default)
     {
+        if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await dbFactory.TradeDb.GetTradeLimitAsync(tradeId, cancellationToken).ConfigureAwait(false) ?? new();
         var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeLimit)}", FuturesOptionTradeQueryCql.GetTradeLimit).SetParameters(new GetTradeLimit(tradeId));
         var tradeLimit = cancellationToken.CanBeCanceled ? await (query.ExecuteSingleAsync(MapToTradeLimit!, cancellationToken)).ConfigureAwait(false) : await (query.ExecuteSingleAsync(MapToTradeLimit!)).ConfigureAwait(false);
         if (tradeLimit is null)
@@ -49,10 +51,12 @@ internal static class FuturesOptionTradeQueryModel
     /// <summary>
     /// Retrieves the trade type limit for the specified trade and trade type.
     /// </summary>
-    internal static ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType, CancellationToken cancellationToken = default)
+    internal static async ValueTask<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync(this IDbContextFactory dbFactory, int tradeId, TradeType tradeType, CancellationToken cancellationToken = default)
     {
+        if (string.Equals(dbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
+            return await dbFactory.TradeDb.GetTradeTypeLimitAsync(tradeId, tradeType, cancellationToken).ConfigureAwait(false);
         var query = dbFactory.TradeDb.Use($"{nameof(FuturesOptionTradeQueryCql)}.{nameof(FuturesOptionTradeQueryCql.GetTradeTypeLimit)}", FuturesOptionTradeQueryCql.GetTradeTypeLimit).SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()));
-        return new(cancellationToken.CanBeCanceled ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken) : query.ExecuteSingleAsync(MapToTradeTypeLimit));
+        return await (cancellationToken.CanBeCanceled ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken) : query.ExecuteSingleAsync(MapToTradeTypeLimit)).ConfigureAwait(false);
     }
 
     /// <summary>

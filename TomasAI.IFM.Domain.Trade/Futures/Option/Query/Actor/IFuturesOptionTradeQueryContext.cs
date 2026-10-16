@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Query.Actor;
 public interface IFuturesOptionTradeQueryContext : IQueryActorContext<FuturesOptionTradeQueryActor>
 {
+    TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? RealtimeCache => null;
     IDbContextFactory DbFactory { get; }
 
     IBlackboardService BlackboardService { get; }

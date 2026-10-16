@@ -92,7 +92,7 @@ impl LookupEditor {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(c.text(strings::LOOKUP_DEFINITIONS));
             if !live {
-                ui.trading_label(c.text(strings::LIVE_REQUIRED));
+                ui.trading_caption(c.text(strings::LIVE_REQUIRED));
             }
             ui.trading_label(&snapshot.status);
             if !self.error.is_empty() {
@@ -120,24 +120,24 @@ impl LookupEditor {
             });
             ui.add_enabled_ui(enabled, |ui| {
                 egui::Grid::new("lookup-fields").show(ui, |ui| {
-                    let category_label = ui.trading_label(c.text(strings::CATEGORY));
+                    let category_label = ui.trading_caption(c.text(strings::CATEGORY));
                     ui.add_enabled(
                         self.selected.is_none(),
                         egui::TextEdit::singleline(&mut self.draft.lookup_type_name),
                     )
                     .labelled_by(category_label.id);
                     ui.end_row();
-                    let short_code_label = ui.trading_label(c.text(strings::SHORT_CODE));
+                    let short_code_label = ui.trading_caption(c.text(strings::SHORT_CODE));
                     ui.text_edit_singleline(&mut self.draft.short_code)
                         .labelled_by(short_code_label.id);
                     ui.end_row();
-                    ui.trading_label(c.text(strings::DISPLAY_ORDER));
+                    ui.trading_caption(c.text(strings::DISPLAY_ORDER));
                     ui.add_enabled(
                         self.selected.is_none(),
                         egui::DragValue::new(&mut self.draft.order_id).range(0..=i32::MAX),
                     );
                     ui.end_row();
-                    let description_label = ui.trading_label(c.text(strings::DESCRIPTION));
+                    let description_label = ui.trading_caption(c.text(strings::DESCRIPTION));
                     ui.text_edit_singleline(&mut self.draft.description)
                         .labelled_by(description_label.id);
                     ui.end_row();
@@ -187,7 +187,7 @@ impl LookupEditor {
                         .unwrap_or_default();
                 }
                 if self.confirm_remove {
-                    ui.trading_label(c.text(strings::REMOVE_LOOKUP_WARNING));
+                    ui.trading_caption(c.text(strings::REMOVE_LOOKUP_WARNING));
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CONFIRM_REMOVE)).clicked() {
                             action = Some("remove");

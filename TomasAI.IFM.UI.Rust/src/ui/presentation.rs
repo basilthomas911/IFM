@@ -118,7 +118,7 @@ pub fn tab_value<T:PartialEq>(ui:&mut egui::Ui,current:&mut T,value:T,label:&str
 }
 
 
-/// Shared caption foreground for labels ending with a colon in both desktop clients.
+/// Shared foreground for field captions and grid headers in both desktop clients.
 pub const CAPTION_FOREGROUND: egui::Color32 = egui::Color32::from_rgb(174, 198, 239);
 
 pub fn label_text(text: impl Into<egui::WidgetText>) -> egui::WidgetText {
@@ -135,11 +135,20 @@ pub fn label_widget(text: impl Into<egui::WidgetText>) -> egui::Label {
     egui::Label::new(label_text(text))
 }
 
+/// Field caption, including captions without trailing punctuation.
+pub fn caption_widget(text: impl Into<egui::WidgetText>) -> egui::Label {
+    egui::Label::new(text.into().color(CAPTION_FOREGROUND))
+}
+
 pub trait TradingLabelUi {
+    fn trading_caption(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response;
     fn trading_label(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response;
     fn trading_colored_label(&mut self, color: impl Into<egui::Color32>, text: impl Into<egui::WidgetText>) -> egui::Response;
 }
 impl TradingLabelUi for egui::Ui {
+    fn trading_caption(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response {
+        self.add(caption_widget(text))
+    }
     fn trading_label(&mut self, text: impl Into<egui::WidgetText>) -> egui::Response {
         self.add(label_widget(text))
     }

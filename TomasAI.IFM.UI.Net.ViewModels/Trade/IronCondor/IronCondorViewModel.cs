@@ -142,6 +142,22 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     IReadOnlyDictionary<string, FuturesOptionTickDataV2ReadModel> _ironCondorLegObservations =
         new Dictionary<string, FuturesOptionTickDataV2ReadModel>();
     readonly object _legObservationGate = new();
+    TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeHotCache? _realtimeCache;
+    ITimer? _realtimeExpiry;
+    volatile bool _receivingRealtimeSnapshots;
+    /// <summary>One atomic whole-trade display version, refreshed on market and pricing changes.</summary>
+    public TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot? RealtimeSnapshot => _realtimeCache?.Read();
+    public void ApplyRealtimeSnapshot(TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot snapshot)
+    {
+        lock (_legObservationGate)
+        {
+            if (_realtimeCache?.AcceptSnapshot(snapshot) != true) return;
+            _receivingRealtimeSnapshots = true;
+            IronCondorLegObservations = snapshot.Legs.Where(leg => leg.Observation is not null)
+                .ToDictionary(leg => leg.Definition.ContractId, leg => leg.Observation!, StringComparer.Ordinal);
+            OnPropertyChanged(nameof(RealtimeSnapshot));
+        }
+    }
 
     PresentationError? _lastError;
     bool _isLoading;
@@ -206,6 +222,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _siteId = _appRoot.Services.CommandResponses.SiteId;
         _liveStreamsIds = [];
         _timeProvider = timeProvider ?? TimeProvider.System;
+        if (EstablishedTrade is not null && _valueDate is { } sessionDate)
+            _realtimeCache = new(EstablishedTrade, sessionDate, _timeProvider);
+        _realtimeExpiry = _timeProvider.CreateTimer(_ =>
+        {
+            if (IsLiveFeedEnabled && _realtimeCache?.Expire() == true) OnPropertyChanged(nameof(RealtimeSnapshot));
+        }, null, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(250));
         _historicalReadOnly = historicalReadOnly;
         _liveFeedLifecycle = new AsyncLifecycleCoordinator(EnableLiveFeedCoreAsync, DisableLiveFeedCoreAsync);
     }
@@ -225,6 +247,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (result.Value.Id != id || result.Value.StrategyKind != TradeStrategyKind.IronCondor)
             throw new InvalidOperationException("The returned Iron Condor does not match the selected trade.");
         EstablishedTrade = result.Value;
+        if (_valueDate is { } sessionDate) _realtimeCache = new(result.Value, sessionDate, _timeProvider);
         var positionId = StrategyPositionId.Create(result.Value.Id, TradeStrategyKind.IronCondor);
         var history = await _appRoot.Services.StrategyPositions.GetHistoryAsync(positionId,
             TradeStrategyKind.IronCondor, DateTime.SpecifyKind(DateTime.UnixEpoch, DateTimeKind.Utc),
@@ -244,8 +267,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     async Task LoadEstablishedTradeLimitsAsync(TradeEntityId tradeId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        TradeLimitReadModel? limits = null;
-        await _appRoot.Services.TradeQueries.GetTradeLimitsAsync(tradeId.TradeId, value => limits = value);
+        var limits = await _appRoot.Services.TradeQueries.GetPersistedTradeLimitsAsync(tradeId.TradeId, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (limits is null || limits.TradeId != tradeId.TradeId)
             throw new InvalidOperationException($"Persisted trade limits for trade {tradeId.TradeId} were not found.");
@@ -389,11 +411,15 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             || _valueDate.HasValue && observation.ValueDate != _valueDate.Value) return;
         lock (_legObservationGate)
         {
-            if (IronCondorLegObservations.TryGetValue(observation.ContractId, out var previous)
-                && previous.ValueDate == observation.ValueDate && observation.TickId <= previous.TickId) return;
+            if (_receivingRealtimeSnapshots) return;
+            if (_realtimeCache is not null && !_realtimeCache.Apply(observation)) return;
+            // The compatibility WinForms projection reads the same merged quote book as Rust.
+            var merged = _realtimeCache?.Read().Legs.FirstOrDefault(leg => leg.Definition.ContractId == observation.ContractId)?.Observation;
+            if (observation.IsTradeObservation && merged is null) { OnPropertyChanged(nameof(RealtimeSnapshot)); return; }
             var updated = new Dictionary<string, FuturesOptionTickDataV2ReadModel>(IronCondorLegObservations)
-            { [observation.ContractId] = observation };
+            { [observation.ContractId] = merged ?? observation };
             IronCondorLegObservations = updated;
+            OnPropertyChanged(nameof(RealtimeSnapshot));
         }
     }
 
@@ -418,7 +444,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             || IronCondorPosition is { } current && (position.Id != current.Id || position.RouteGeneration < current.RouteGeneration
                 || position.RouteGeneration == current.RouteGeneration && position.PositionSequence <= current.PositionSequence))
             return false;
+        lock (_legObservationGate) { if (!_receivingRealtimeSnapshots) _realtimeCache?.Apply(position); }
         IronCondorPosition = position;
+        OnPropertyChanged(nameof(RealtimeSnapshot));
         RememberPositionHistory(position);
         PublishPositionHistory();
         return true;
@@ -435,7 +463,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             || StrategyTradePlan is { } current && (plan.Position.RouteGeneration < current.Position.RouteGeneration
                 || plan.Position.RouteGeneration == current.Position.RouteGeneration && plan.PlanRevision <= current.PlanRevision))
             return false;
+        lock (_legObservationGate) { if (!_receivingRealtimeSnapshots) _realtimeCache?.Apply(plan); }
         StrategyTradePlan = plan;
+        OnPropertyChanged(nameof(RealtimeSnapshot));
         ApplyIronCondorPosition(plan.Position);
         return true;
     }
@@ -1142,6 +1172,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (_realtimeExpiry is { } expiry) await expiry.DisposeAsync();
         await DisableMarketDataFeedResetListener();
         _resetListenerCancellation.Dispose();
         await _liveFeedLifecycle.DisposeAsync();
@@ -1581,6 +1612,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     async Task EnableEstablishedMonitoringAsync(CancellationToken cancellationToken)
     {
         var trade = EstablishedTrade ?? throw new InvalidOperationException("No Iron Condor trade selected.");
+        _receivingRealtimeSnapshots = false;
+        _realtimeCache = new(trade, _valueDate!.Value, _timeProvider);
         if (trade.Legs.Length != 4 || trade.Legs.Select(leg => leg.ContractId).Distinct().Count() != 4)
             throw new InvalidOperationException("IronCondorMonitoring.LEGS.INVALID: four distinct contracts required.");
         _currentPositionChannel = new((position, token) =>
@@ -1604,6 +1637,18 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _currentMonitoringListeners = true;
         try
         {
+            // Subscribe before the initial read. AcceptSnapshot rejects a late query reply older than a notification.
+            await _appRoot.Services.TradePositionEvents.StartRealtimeListenerAsync(_monitoringOwnerId, changed =>
+            {
+                if (changed.EntityId == trade.Id) ApplyRealtimeSnapshot(changed.Snapshot);
+                return ValueTask.CompletedTask;
+            }, async () =>
+            {
+                var refreshed = await _appRoot.Services.EstablishedTrades.GetRealtimeAsync(trade.Id, _valueDate!.Value, cancellationToken);
+                if (refreshed.Success && refreshed.Value is { } current) ApplyRealtimeSnapshot(current);
+            });
+            var initialRealtime = await _appRoot.Services.EstablishedTrades.GetRealtimeAsync(trade.Id, _valueDate!.Value, cancellationToken);
+            if (initialRealtime.Success && initialRealtime.Value is { } initial) ApplyRealtimeSnapshot(initial);
             await _appRoot.Services.TradePositionEvents.StartIronCondorTradePositionListenerAsync(_monitoringOwnerId, changed =>
             {
                 if (changed.EntityId.Trade == trade.Id) _currentPositionChannel?.TryWrite(changed.PositionSnapshot);

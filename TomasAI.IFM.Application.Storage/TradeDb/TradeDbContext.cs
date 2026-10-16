@@ -40,7 +40,7 @@ public sealed class TradeDbContext(IDbConnectionSettings connectionSettings, IDb
     /// <inheritdoc/>
     public Task ProjectWorkflowAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, WorkflowStrategyStateUpdatedEvent source, CancellationToken token = default) => TradeDbContextExtensions.WorkflowProjectAsync(transaction, source, token);
     /// <inheritdoc/>
-    public Task<int> ProjectOrderAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default) => TradeDbContextExtensions.TradeFlowProjectOrderAsync(transaction, order, acceptedAtUtc, token);
+    public Task<int> ProjectOrderAsync(EventSourceDb.IEnlistedPostgresTransaction transaction, TradeOrderDefinition order, DateTime acceptedAtUtc, CancellationToken token = default) => TradeDbContextExtensions.TradeFlowProjectOrderLifecycleAsync(transaction, order, acceptedAtUtc, token);
     /// <inheritdoc/>
     public Task ProjectMonitoringLimitsAsync(TradeLimitReadModel limit, IReadOnlyList<TradeTypeLimitReadModel> spreads, CancellationToken token = default)
     {

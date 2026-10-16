@@ -10,6 +10,18 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public sealed class EstablishedTradeQueryApi(TomasAI.IFM.Shared.EventModelActor.Contracts.IActorProducer producer)
     : NatsClientApi(producer), IEstablishedTradeQueryApi
 {
+    public Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot>> GetRealtimeAsync(
+        TradeEntityId tradeId, DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        var query = new TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.GetTradeRealtimeSnapshotQuery
+        {
+            TradeId = tradeId, ValueDate = valueDate,
+            Subject = Subject(TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.GetTradeRealtimeSnapshotQuery.Actor,
+                TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.GetTradeRealtimeSnapshotQuery.Verb, tradeId.Format())
+        };
+        return RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.GetTradeRealtimeSnapshotQuery,
+            TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot>(query.Subject, query, cancellationToken).AsTask();
+    }
     /// <inheritdoc />
     public Task<ServiceResult<EstablishedTradeDefinition>> GetAsync(TradeEntityId tradeId, TradeStrategyKind strategyKind,
         CancellationToken cancellationToken = default) => strategyKind switch

@@ -1,3 +1,4 @@
+use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
@@ -99,7 +100,7 @@ impl YieldCurveEditor {
                 &s.status
             });
             if !live {
-                ui.trading_label(c.text(strings::LIVE_REQUIRED));
+                ui.trading_caption(c.text(strings::LIVE_REQUIRED));
             }
             if let Some(last) = s.outcomes.last() {
                 ui.trading_label(format!("{}: {}", last.state, last.message));
@@ -148,7 +149,7 @@ impl YieldCurveEditor {
                 egui::Grid::new("yield-rate-fields")
                     .num_columns(4)
                     .show(ui, |ui| {
-                        let label = ui.trading_label(c.text(strings::VALUE_DATE));
+                        let label = ui.trading_caption(c.text(strings::VALUE_DATE));
                         ui.add_enabled(
                             self.selected.is_none(),
                             egui::TextEdit::singleline(
@@ -160,7 +161,7 @@ impl YieldCurveEditor {
                         .labelled_by(label.id);
                         ui.end_row();
                         for (i, (key, label)) in TENORS.iter().enumerate() {
-                            let label = ui.trading_label(c.text(label));
+                            let label = ui.trading_caption(c.text(label));
                             ui.add(
                                 egui::TextEdit::singleline(
                                     self.draft.entry((*key).into()).or_default(),
@@ -221,7 +222,7 @@ impl YieldCurveEditor {
                     }
                 });
                 if self.confirm_remove {
-                    ui.trading_label(c.text(strings::REMOVE_RATE_WARNING));
+                    ui.trading_caption(c.text(strings::REMOVE_RATE_WARNING));
                     ui.horizontal(|ui| {
                         if ui.button(c.text(strings::CONFIRM_REMOVE)).clicked() {
                             action = Some("remove");
@@ -233,7 +234,7 @@ impl YieldCurveEditor {
                     });
                 }
                 ui.horizontal_wrapped(|ui| {
-                    let label = ui.trading_label(c.text(strings::IMPORT_DATE));
+                    let label = ui.trading_caption(c.text(strings::IMPORT_DATE));
                     ui.add(egui::TextEdit::singleline(&mut self.import_date).desired_width(160.))
                         .labelled_by(label.id);
                     if ui
@@ -258,15 +259,15 @@ impl YieldCurveEditor {
                     table
                         .header(24., |mut header| {
                             header.col(|ui| {
-                                ui.strong(c.text(strings::VALUE_DATE));
+                                ui.colored_label(crate::presentation::CAPTION_FOREGROUND, egui::RichText::new(c.text(strings::VALUE_DATE)).strong());
                             });
                             for (_, label) in TENORS {
                                 header.col(|ui| {
-                                    ui.strong(c.text(label));
+                                    ui.colored_label(crate::presentation::CAPTION_FOREGROUND, egui::RichText::new(c.text(label)).strong());
                                 });
                             }
                         })
-                        .body(|body| {
+                        .bordered_body(24., |body| {
                             body.rows(26., s.result.rows.len(), |mut row| {
                                 self.drawn_rows += 1;
                                 let item = &s.result.rows[row.index()];

@@ -56,7 +56,11 @@ public class KestrelWebApplicationFactory<TEntryPoint> : WebApplicationFactory<T
                 return readyServices;
 
             var services = base.Services;
-            var startupSignalType = typeof(TEntryPoint).Assembly.GetType(ActorRuntimeStartupSignalTypeName);
+            // The runtime startup signal lives in Api.Server.Core after the host split.
+            // Resolve it from loaded service assemblies rather than only the executable.
+            var startupSignalType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType(ActorRuntimeStartupSignalTypeName))
+                .FirstOrDefault(type => type is not null);
             if (startupSignalType is null)
                 return readyServices = services;
 

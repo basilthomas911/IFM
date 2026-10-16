@@ -50,7 +50,9 @@ public static class OptionTradeRealtimeEvent
                     0, 0, 0, 0, evidence.Greeks?.ImpliedVolatility ?? 0,
                     evidence.Underlying is { } underlying ? (double)((underlying.Bid + underlying.Ask) / 2m) : 0,
                     evidence.Greeks?.Delta ?? 0, evidence.Greeks?.Gamma ?? 0, evidence.Greeks?.Vega ?? 0,
-                    evidence.Greeks?.Theta ?? 0, evidence.Greeks?.Rho ?? 0) { GreeksAvailable = evidence.Greeks is not null },
+                    evidence.Greeks?.Theta ?? 0, evidence.Greeks?.Rho ?? 0) { GreeksAvailable = evidence.Greeks is not null,
+                        SourceGeneration = source.GenerationId, IsTradeObservation = true,
+                        ObservedAtUtc = DateTime.UnixEpoch.AddTicks(source.EventNanoseconds / 100) },
                 source.Sequence, DateTime.UnixEpoch.AddTicks(source.EventNanoseconds / 100)),
             TradeData = new(sequence, source.EventNanoseconds, source.ReceiveNanoseconds, 0,
                 checked((long)(source.Price * 1_000_000_000m)), source.Price, source.Size, 0, 0, 0)

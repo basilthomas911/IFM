@@ -11,8 +11,8 @@ pub fn report_list(ui:&mut egui::Ui,id:&str,columns:&[(&str,f32)],row_count:usiz
   let mut table=egui_extras::TableBuilder::new(ui).id_salt(id).striped(false).sense(egui::Sense::click()).cell_layout(egui::Layout::left_to_right(egui::Align::Center)).min_scrolled_height((height-row_height).max(0.)).max_scroll_height((height-row_height).max(0.));
   for(_,width)in columns{let column=if sizing{egui_extras::Column::exact(*width/scale)}else{egui_extras::Column::initial(*width/scale).at_least(40./scale).clip(true)};table=table.column(column.resizable(true));}
   table=table.column(egui_extras::Column::remainder().at_least(0.));
-  table.header(row_height,|mut row|{for(caption,_)in columns{row.col(|ui|{ui.painter().rect_filled(ui.max_rect(),0.,Color32::from_rgb(45,45,48));ui.add(crate::presentation::label_widget(egui::RichText::new(*caption).color(Color32::WHITE)).truncate());});}row.col(|ui|{ui.painter().rect_filled(ui.max_rect(),0.,Color32::from_rgb(45,45,48));});})
-   .body(|body|{body.rows(row_height,row_count,|mut row|{drawn+=1;let index=row.index();row.set_selected(selected==Some(index));for column in 0..columns.len(){row.col(|ui|{ui.add(crate::presentation::label_widget(egui::RichText::new(text(index,column)).color(Color32::WHITE)).truncate());});}row.col(|_|{});if row.response().clicked(){clicked=Some(index);}});});
+  table.header(row_height,|mut row|{for(caption,_)in columns{row.col(|ui|{ui.painter().rect_filled(ui.max_rect(),0.,Color32::from_rgb(45,45,48));ui.add(crate::presentation::label_widget(egui::RichText::new(*caption).color(crate::presentation::CAPTION_FOREGROUND)).truncate());});}row.col(|ui|{ui.painter().rect_filled(ui.max_rect(),0.,Color32::from_rgb(45,45,48));});})
+   .bordered_body(row_height, |body| {body.rows(row_height,row_count,|mut row|{drawn+=1;let index=row.index();row.set_selected(selected==Some(index));for column in 0..columns.len(){row.col(|ui|{ui.add(crate::presentation::label_widget(egui::RichText::new(text(index,column)).color(Color32::WHITE)).truncate());});}row.col(|_|{});if row.response().clicked(){clicked=Some(index);}});});
  });
  ui.painter().rect_stroke(bounds,0.,egui::Stroke::new(1./scale,Color32::from_gray(90)),egui::StrokeKind::Inside);(clicked,drawn)
 }
@@ -28,3 +28,58 @@ pub fn native_parent_center(scale:f32)->Option<egui::Pos2>{
 }
 #[cfg(not(target_os="windows"))]
 pub fn native_parent_center(_:f32)->Option<egui::Pos2>{None}
+
+
+/// Draw rules only after egui has resolved the scroll viewport's final bounds.
+/// During body layout its provisional clip can extend below a shrinking grid.
+pub trait BorderedTable {
+    fn bordered_body<F>(self, header_height: f32, contents: F) -> egui::scroll_area::ScrollAreaOutput<()>
+    where F: for<'b> FnOnce(egui_extras::TableBody<'b>);
+}
+struct ColumnBorders {
+    painter: egui::Painter,
+    columns: Vec<f32>,
+    clip: egui::Rect,
+    spacing: f32,
+    stroke: egui::Stroke,
+}
+impl ColumnBorders {
+    fn capture(body: &mut egui_extras::TableBody<'_>) -> Self {
+        let bounds=body.max_rect();let widths=body.widths().to_vec();let ui=body.ui_mut();
+        let spacing=ui.spacing().item_spacing;let mut x=bounds.left();let mut columns=Vec::new();
+        for width in widths.iter().take(widths.len().saturating_sub(1)) {
+            x+=width;columns.push(x+spacing.x/2.);x+=spacing.x;
+        }
+        Self {painter:ui.painter().clone(),columns,clip:ui.clip_rect(),spacing:spacing.y,stroke:egui::Stroke::new(1./ui.ctx().pixels_per_point(),crate::presentation::BORDER)}
+    }
+    fn paint(self, viewport: egui::Rect, header_height: f32) {
+        let mut grid=viewport;
+        grid.min.y-=header_height+if header_height>0. {self.spacing}else{0.};
+        let mut parent_clip=self.clip;
+        parent_clip.min.y-=header_height+if header_height>0. {self.spacing}else{0.};
+        let clip=grid.intersect(parent_clip);
+        if !clip.is_positive() {return;}
+        let painter=self.painter.with_clip_rect(clip);
+        let inset=self.stroke.width/2.;
+        for x in self.columns {
+            if x>=clip.left() && x<=clip.right() {
+                painter.vline(x,clip.top()+inset..=clip.bottom()-inset,self.stroke);
+            }
+        }
+    }
+}
+macro_rules! bordered_table {
+    ($table:ty) => {
+        impl BorderedTable for $table {
+            fn bordered_body<F>(self, header_height: f32, contents: F) -> egui::scroll_area::ScrollAreaOutput<()>
+            where F: for<'b> FnOnce(egui_extras::TableBody<'b>) {
+                let mut borders=None;
+                let output=self.body(|mut body| {borders=Some(ColumnBorders::capture(&mut body));contents(body);});
+                if let Some(borders)=borders {borders.paint(output.inner_rect,header_height);}
+                output
+            }
+        }
+    }
+}
+bordered_table!(egui_extras::Table<'_>);
+bordered_table!(egui_extras::TableBuilder<'_>);

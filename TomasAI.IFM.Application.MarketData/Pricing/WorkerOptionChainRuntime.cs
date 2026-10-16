@@ -50,12 +50,16 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         this.refreshPolicy = refreshPolicy ?? new();
         this.refreshPolicy.Validate();
         production = options.DeploymentProfile == FeedDeploymentProfile.Production;
-        pricing = new(inputs, generation, this.refreshPolicy, ReadUnderlying, clock, terminalFault, tradeEvidence);
+        var observations = optionObservations is null ? null
+            : new IndividualOptionObservationPublisher(generation, inputs, optionObservations, IsMonitoredContract, clock);
+        pricing = new(inputs, generation, this.refreshPolicy, ReadUnderlying, clock, terminalFault, tradeEvidence,
+            observations is null ? null : observations.PublishPricingAsync, individualContracts.ContainsKey);
         sessions = new(feeds, options, aggregation, prices, pricing, optionObservations is null
             ? new TransientSink()
-            : new IndividualOptionObservationPublisher(generation, inputs, optionObservations, individualContracts.ContainsKey, clock), state, time: clock);
+            : observations!, state, time: clock);
         expiryLoop = ExpireAsync();
     }
+    bool IsMonitoredContract(string id) => individualContracts.ContainsKey(id) || pricing.IsBusinessRiskRequired(id);
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task<WorkerOptionChainResult> AcquireAsync(WorkerOptionChainRequest request, CancellationToken cancellationToken)

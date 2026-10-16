@@ -224,7 +224,7 @@ impl StrategyCatalog {
                 ui.trading_colored_label(egui::Color32::YELLOW, c.text("catalog_number_error"));
             }
             if self.definition.is_null() {
-                ui.trading_label(c.text("catalog_select_notice"));
+                ui.trading_caption(c.text("catalog_select_notice"));
                 return;
             }
             let sections = sections(&self.kind);
@@ -343,13 +343,13 @@ impl StrategyCatalog {
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.trading_label(self.selected.as_deref().unwrap_or(""));
-                    ui.trading_label(c.text(if intent == "catalog-publish" {
+                    ui.trading_caption(c.text(if intent == "catalog-publish" {
                         "catalog_publish"
                     } else {
                         "catalog_retire"
                     }));
                     if self.confirm_generation != s.generation {
-                        ui.trading_label(c.text("catalog_stale"));
+                        ui.trading_caption(c.text("catalog_stale"));
                     }
                     if ui
                         .add_enabled(
