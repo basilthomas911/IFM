@@ -65,11 +65,12 @@ public sealed class StrategyPositionActorStateMachine
         if (optionTick is not null && (optionTick.ValueDate != valueDate || optionTick.TickId != sourceSequence
             || (decimal)optionTick.OptionPrice != price))
             return Reject("POSITION.OPTION_IDENTITY_MISMATCH", "Option payload and routed price/session identity differ.");
+        var acceptInArrivalOrder = Current.StrategyKind is TradeStrategyKind.IronCondor or TradeStrategyKind.VerticalSpread;
         if (optionTick is { IsPricingUpdate: true } && leg.OptionTick is { } prior
             && optionTick.SourceGeneration == prior.SourceGeneration && optionTick.TickId == prior.TickId)
         {
-            if (optionTick.ObservedAtUtc != prior.ObservedAtUtc
-                || optionTick.ObservationRevision <= prior.ObservationRevision)
+            if (!acceptInArrivalOrder && (optionTick.ObservedAtUtc != prior.ObservedAtUtc
+                || optionTick.ObservationRevision <= prior.ObservationRevision))
                 return Reject("POSITION.STALE_PRICING", "Pricing completion does not belong to the current leg quote.");
             _legs[tradeLegId] = StrategyPositionLegOptionData.Apply(leg, optionTick);
             Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.MarkToMarket,
@@ -82,14 +83,14 @@ public sealed class StrategyPositionActorStateMachine
             };
             return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
         }
-        if (occurredAtUtc < leg.LastPriceAtUtc)
+        if (!acceptInArrivalOrder && occurredAtUtc < leg.LastPriceAtUtc)
             return Reject("StrategyPosition.MARKET.STALE", "Market observation time is older than the current leg.");
-        if (optionTick is { IsTradeObservation: false } && leg.OptionTick is { } lastQuote
+        if (!acceptInArrivalOrder && optionTick is { IsTradeObservation: false } && leg.OptionTick is { } lastQuote
             && optionTick.ObservedAtUtc < lastQuote.ObservedAtUtc)
             return Reject("POSITION.STALE_OPTION_DATA", "Option observation precedes the retained quote.");
         var newSourceGeneration = optionTick is { IsTradeObservation: false } && leg.OptionTick is { } oldQuote
             && optionTick.SourceGeneration != oldQuote.SourceGeneration && optionTick.ObservedAtUtc > oldQuote.ObservedAtUtc;
-        if (!newSourceGeneration && sourceSequence <= leg.LastSourceSequence)
+        if (!acceptInArrivalOrder && !newSourceGeneration && sourceSequence <= leg.LastSourceSequence)
             return Reject("POSITION.DUPLICATE_OR_OUT_OF_ORDER", "Tick sequence is not newer than the current leg sequence.");
         var updatedLeg = optionTick is not null ? StrategyPositionLegOptionData.Apply(leg, optionTick) : leg;
         _legs[tradeLegId] = updatedLeg with

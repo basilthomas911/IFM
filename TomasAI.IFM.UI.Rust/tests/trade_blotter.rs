@@ -789,3 +789,32 @@ fn spread_chart_shows_price_limits_and_forward_spread_without_forward_limit() {
     }
     assert!(h.query_all_by_label("ForwardSpreadLimit").next().is_none());
 }
+
+#[test]
+fn live_plan_grid_never_requests_database_pages_and_stopped_grid_does() {
+    let mut publication=snapshot();
+    for (key,value) in [("activeTradeTab","101.701.1901.1501"),("planOffset","0"),
+        ("planTotal","10000"),("planDate","2026-10-19"),("latestPlanRevision","101"),
+        ("planMaximumRevision","100"),("live","True"),("monitorLive","True")] {
+        publication.result.context.insert(key.into(),value.into());
+    }
+    let mut row:ifm_ui_rust::contract_editor::ContractRow=serde_json::from_value(serde_json::json!({
+        "id":"established:1","fields":{"kind":"established"}})).unwrap();
+    row.data=Some(ifm_ui_rust::wire::encode_value(&serde_json::json!({
+        "id":{"portfolioId":101,"fundId":701,"orderId":1901,"tradeId":1501},"legs":[]})).unwrap().into());
+    publication.result.rows.push(row);
+    let mut view=TradeWorkspace::default();
+    let request:serde_json::Value=serde_json::from_str(&view.request("load-trade",&publication)).unwrap();
+    publication.outcomes.push(serde_json::from_value(serde_json::json!({
+        "requestId":request["requestId"],"state":"Completed","message":"Loaded"})).unwrap());
+    let mut h=Harness::new_state(|ctx,state:&mut(TradeWorkspace,ContractPublication,Vec<serde_json::Value>)|{
+        if let Some(request)=state.0.draw(ctx,&state.1){state.2.push(serde_json::from_str(&request).unwrap());}
+    },(view,publication,Vec::new()));
+    h.run_steps(3);
+    assert!(!h.state().2.iter().any(|request|request["intent"]=="plans-page"));
+    h.state_mut().1.result.context.insert("live".into(),"False".into());
+    h.state_mut().1.result.context.insert("monitorLive".into(),"False".into());
+    h.state_mut().1.generation+=1;
+    h.run();
+    assert!(h.state().2.iter().any(|request|request["intent"]=="plans-page"));
+}

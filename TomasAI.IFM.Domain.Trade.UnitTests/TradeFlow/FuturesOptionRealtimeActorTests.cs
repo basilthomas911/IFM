@@ -19,6 +19,23 @@ public sealed class FuturesOptionRealtimeActorTests
     static readonly DateTime Now = new(2026, 9, 12, 14, 0, 0, DateTimeKind.Utc);
 
     [Fact]
+    public async Task Option_router_forwards_repeated_and_lower_sequences_in_arrival_order()
+    {
+        var context = Substitute.For<IFuturesOptionRealtimeContext>();
+        var actor = Substitute.For<IActorService>();
+        var routes = new ContractIdRouteIndex();
+        routes.Add(new PortfolioFundTradeLeg(1,2,3,4,Guid.NewGuid(),Guid.NewGuid(),TradeStrategyKind.IronCondor,1), "ES-option");
+        context.RouteIndex.Returns(routes); context.ActorService.Returns(actor);
+        actor.SendAsync<ChangeTradeLegDataCommand,StrategyPositionId>(Arg.Any<ChangeTradeLegDataCommand>(),Arg.Any<StrategyPositionId>())
+            .Returns(new ServiceResult<Guid>(Guid.NewGuid()));
+        foreach (uint sequence in new uint[] { 100, 100, 1, 0 })
+            await new FuturesTickTradeDataChangedEvent { Id=Guid.NewGuid(), ReceivedOn=Now,
+                TickDataId=new("ES-option",DateOnly.FromDateTime(Now),sequence,Now),
+                TradeData=new FuturesTickTradeData(sequence,0,0,0,0,12.25m,1,0,0,0) }.ExecuteAsync(context);
+        await actor.Received(4).SendAsync<ChangeTradeLegDataCommand,StrategyPositionId>(Arg.Any<ChangeTradeLegDataCommand>(),Arg.Any<StrategyPositionId>());
+    }
+
+    [Fact]
     public async Task Quote_and_same_tick_pricing_completion_carry_full_data_to_position_with_distinct_command_ids()
     {
         var commands = new List<ChangeTradeLegDataCommand>();

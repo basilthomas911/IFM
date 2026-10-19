@@ -47,6 +47,10 @@ public sealed class DisplayDocumentGenerator : IIncrementalGenerator
    if(named.ContainingNamespace.ToDisplayString().StartsWith("System",StringComparison.Ordinal)&&named.Name!="KeyValuePair"||named.IsTupleType)return;
    if(named.AllInterfaces.Any(i=>i.OriginalDefinition.SpecialType==SpecialType.System_Collections_Generic_IEnumerable_T))return;
    if(!named.IsAnonymousType && (named.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal)||named.ContainingType?.DeclaredAccessibility==Accessibility.Private))return;
+   // Display documents can contain a closed MessagePack union through its base type.
+   // Register every declared variant, including nested configuration payloads.
+   foreach(var attribute in named.GetAttributes().Where(a=>a.AttributeClass?.ToDisplayString()=="MessagePack.UnionAttribute"))
+    if(attribute.ConstructorArguments.Length>1 && attribute.ConstructorArguments[1].Value is ITypeSymbol variant)Visit(variant,depth+1);
    var members=Members(named).ToArray();if(members.Length==0)return;
    shapes.Add(named);foreach(var member in members)Visit(member.Type,depth+1);
   }

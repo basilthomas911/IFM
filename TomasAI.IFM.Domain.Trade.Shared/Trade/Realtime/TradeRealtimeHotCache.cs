@@ -8,9 +8,8 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
 public sealed class TradeRealtimeHotCache
 {
     readonly object gate = new();
-    readonly HashSet<Guid> retiredGenerations = [];
     readonly HashSet<Guid> retiredMonitorGenerations = [];
-    readonly Queue<Guid> retiredSourceOrder = new(), retiredMonitorOrder = new();
+    readonly Queue<Guid> retiredMonitorOrder = new();
     readonly TimeProvider clock;
     TradeRealtimeSnapshot current;
     TradeRealtimeSnapshot? remote;
@@ -58,7 +57,7 @@ public sealed class TradeRealtimeHotCache
                 RememberRetired(retiredMonitorGenerations, retiredMonitorOrder, prior.MonitoringGeneration);
             }
             remote = snapshot;
-            var qualified = Qualify(snapshot);
+            var qualified = RetainValues(Qualify(RetainValues(snapshot, current)), current);
             ScheduleQualityCheck(qualified);
             Volatile.Write(ref current, qualified);
             return true;
@@ -74,11 +73,8 @@ public sealed class TradeRealtimeHotCache
             var index = TradeRealtimeSnapshotCalculations.FindLegIndex(current.Legs, observation.ContractId);
             if (index < 0) return false;
             var leg = current.Legs[index];
-            var previous = leg.Observation;
             if (observation.IsTradeObservation)
             {
-                if (observation.ObservedAtUtc < leg.LastTradeAtUtc
-                    || observation.ObservedAtUtc == leg.LastTradeAtUtc && observation.TickId <= leg.LastTradeSequence) return false;
                 Publish(current with { Legs = current.Legs.SetItem(index, leg with
                 {
                     LastTradePrice = observation.OptionPrice, LastTradeSequence = observation.TickId,
@@ -86,19 +82,12 @@ public sealed class TradeRealtimeHotCache
                 }) });
                 return true;
             }
-            if (retiredGenerations.Contains(observation.SourceGeneration)) return false;
-            if (previous is not null)
+            // The option ingress owns validation; the cache applies every matching arrival.
+            Publish(current with { Legs = current.Legs.SetItem(index, leg with
             {
-                if (previous.SourceGeneration != observation.SourceGeneration)
-                {
-                    if (observation.ObservedAtUtc <= previous.ObservedAtUtc || observation.IsPricingUpdate) return false;
-                    RememberRetired(retiredGenerations, retiredSourceOrder, previous.SourceGeneration);
-                }
-                else if (observation.TickId < previous.TickId
-                    || observation.ObservationRevision > 0 && observation.ObservationRevision <= previous.ObservationRevision
-                    || observation.TickId == previous.TickId && (!observation.IsPricingUpdate || observation.ObservationRevision == 0)) return false;
-            }
-            Publish(current with { Legs = current.Legs.SetItem(index, leg with { Observation = observation }) });
+                Observation = observation,
+                LastValidRisk = StrategyPositionLegOptionData.HasValidRisk(observation) ? observation : leg.LastValidRisk
+            }) });
             return true;
         }
     }
@@ -167,7 +156,8 @@ public sealed class TradeRealtimeHotCache
         Legs = snapshot.Legs.Select(leg =>
         {
             var mark = position.Legs.Single(item => item.TradeLegId == leg.Definition.TradeLegId);
-            return leg with { Position = mark, Observation = mark.OptionTick ?? leg.Observation };
+            return leg with { Position = mark, Observation = mark.OptionTick ?? leg.Observation,
+                LastValidRisk = mark.OptionRisk is {} risk && StrategyPositionLegOptionData.HasValidRisk(risk) ? risk : leg.LastValidRisk };
         }).ToImmutableArray()
     };
 
@@ -184,14 +174,65 @@ public sealed class TradeRealtimeHotCache
         nextQualityCheck = next;
     }
 
+    /// <summary>Retains known numeric display values without changing current quote or plan quality metadata.</summary>
+    static TradeRealtimeSnapshot RetainValues(TradeRealtimeSnapshot next, TradeRealtimeSnapshot previous)
+    {
+        if (next.TradeId != previous.TradeId || next.ValueDate != previous.ValueDate
+            || next.PositionId != previous.PositionId || next.CompositionVersion != previous.CompositionVersion
+            || !SamePositionQuantities(next, previous)) return next;
+        var summary = next.Summary; var prior = previous.Summary;
+        var plan = next.Plan ?? previous.Plan;
+        return next with
+        {
+            Summary = summary with { UnderlyingPrice = summary.UnderlyingPrice ?? prior.UnderlyingPrice,
+                NetDelta = summary.NetDelta ?? prior.NetDelta, NetGamma = summary.NetGamma ?? prior.NetGamma,
+                NetVega = summary.NetVega ?? prior.NetVega, NetTheta = summary.NetTheta ?? prior.NetTheta,
+                NetRho = summary.NetRho ?? prior.NetRho, PositionValue = summary.PositionValue ?? prior.PositionValue,
+                DailyPnlPoints = summary.DailyPnlPoints ?? prior.DailyPnlPoints, NetSpread = summary.NetSpread ?? prior.NetSpread },
+            Position = next.Position ?? previous.Position,
+            Plan = plan,
+            LastAvailablePlan = plan?.IronCondorTradePlanSnapshot?.IsComplete == true ? null
+                : next.LastAvailablePlan ?? (previous.Plan?.IronCondorTradePlanSnapshot?.IsComplete == true ? previous.Plan : previous.LastAvailablePlan),
+            Legs = next.Legs.Select(leg =>
+            {
+                var priorLeg = previous.Legs.FirstOrDefault(old => old.Definition.TradeLegId == leg.Definition.TradeLegId
+                    && old.Definition.ContractId == leg.Definition.ContractId);
+                return leg with { Observation = leg.Observation ?? priorLeg?.Observation,
+                    Position = leg.Position ?? priorLeg?.Position,
+                    LastValidRisk = leg.LastValidRisk
+                        ?? (leg.Observation is {} quote && StrategyPositionLegOptionData.HasValidRisk(quote) ? quote : null)
+                        ?? leg.Position?.OptionRisk ?? priorLeg?.LastValidRisk,
+                    LastTradePrice = leg.LastTradePrice ?? priorLeg?.LastTradePrice,
+                    LastTradeSequence = leg.LastTradePrice.HasValue ? leg.LastTradeSequence : priorLeg?.LastTradeSequence ?? 0,
+                    LastTradeAtUtc = leg.LastTradePrice.HasValue ? leg.LastTradeAtUtc : priorLeg?.LastTradeAtUtc ?? default };
+            }).ToImmutableArray(),
+            Spreads = RetainSpreads(next.Spreads, previous.Spreads)
+        };
+    }
+
+    // A broker fill changes the quantity basis; values for a different financial composition are not reusable.
+    static bool SamePositionQuantities(TradeRealtimeSnapshot next, TradeRealtimeSnapshot previous) =>
+        next.Position is not {} position || previous.Position is not {} prior
+        || position.Legs.Length == prior.Legs.Length && position.Legs.All(leg => prior.Legs.Any(old =>
+            old.TradeLegId == leg.TradeLegId && old.ContractId == leg.ContractId && old.SignedQuantity == leg.SignedQuantity));
+
+    static ImmutableArray<TradeSpreadRealtimeSnapshot> RetainSpreads(ImmutableArray<TradeSpreadRealtimeSnapshot> next,
+        ImmutableArray<TradeSpreadRealtimeSnapshot> previous) => next.Select(spread =>
+    {
+        var prior = previous.FirstOrDefault(old => old.PutCall == spread.PutCall);
+        return prior is null ? spread : spread with { NetSpread = spread.NetSpread ?? prior.NetSpread,
+            TradeValue = spread.TradeValue ?? prior.TradeValue, TradePnl = spread.TradePnl ?? prior.TradePnl,
+            OtmProbability = spread.OtmProbability ?? prior.OtmProbability, ForwardPrice = spread.ForwardPrice ?? prior.ForwardPrice };
+    }).ToImmutableArray();
+
     void Publish(TradeRealtimeSnapshot next)
     {
-        next = Qualify(next);
+        next = RetainValues(Qualify(next), current);
         var spreads = TradeRealtimeSnapshotCalculations.CalculateSpreads(next);
         var published = next with { SnapshotRevision = remote is null ? current.SnapshotRevision + 1 : current.SnapshotRevision,
             QualityRevision = remote is null ? 0 : current.QualityRevision + 1,
-            Summary = next.Summary with { NetSpread = spreads[0].NetSpread is {} put && spreads[1].NetSpread is {} call ? put + call : null },
-            PublishedAtUtc = clock.GetUtcNow(), Spreads = spreads };
+            Summary = next.Summary with { NetSpread = spreads[0].NetSpread is {} put && spreads[1].NetSpread is {} call ? put + call : SamePositionQuantities(next, current) ? next.Summary.NetSpread : null },
+            PublishedAtUtc = clock.GetUtcNow(), Spreads = RetainSpreads(spreads, SamePositionQuantities(next, current) ? current.Spreads : []) };
         ScheduleQualityCheck(published);
         Volatile.Write(ref current, published);
     }

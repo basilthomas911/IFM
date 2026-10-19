@@ -406,33 +406,12 @@ fn managed_portfolio_documents_render_all_controls_within_the_original_dialog_di
             .save(output.join(format!("rust-{view}.png")))
             .unwrap();
         if key == "ledger" {
-            let before = h.state().requests.len();
-            let pos = h.state().manager.controls["ledger.button.Close"].center();
-            h.input_mut().events.extend([
-                egui::Event::PointerMoved(pos),
-                egui::Event::PointerButton {
-                    pos,
-                    button: egui::PointerButton::Primary,
-                    pressed: true,
-                    modifiers: Default::default(),
-                },
-            ]);
-            h.run_steps(1);
-            h.input_mut().events.push(egui::Event::PointerButton {
-                pos,
-                button: egui::PointerButton::Primary,
-                pressed: false,
-                modifiers: Default::default(),
-            });
-            h.run();
-            assert!(
-                h.state().requests.len() > before,
-                "Ledger Close did not react to a mouse click"
-            );
-            assert_eq!(
-                h.state().requests.last().unwrap()["intent"],
-                "portfolio-cancel"
-            );
+            assert!(!h.state().manager.controls.contains_key("ledger.button.Close"));
+            assert!(!h.state().manager.controls.contains_key("ledger.button.Refresh"));
+            let grid = h.state().manager.controls["ledger.grid-area"];
+            for field in ["control", "period", "start", "end", "account", "rule", "reason"] {
+                assert!(h.state().manager.controls[&format!("ledger.{field}")].top() >= grid.bottom());
+            }
         }
     }
 }
@@ -447,7 +426,7 @@ fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_contro
         "grids":[{"key":"funds","columns":["FundId","Name","Portfolio","OperatingState","FundMandateVersion"],
             "selected":fund_id,"rows":[{"id":fund_id,"fields":{"FundId":"701","Name":"Fixture Fund",
                 "Portfolio":"Fixture Portfolio","OperatingState":"Active","FundMandateVersion":"1"}}]}],
-        "fundView":{"key":"financials","title":"Fixture Fund — Financials","width":1150,"height":700,
+        "fundView":{"key":"financials","title":"Fixture Fund â€” Financials","width":1150,"height":700,
             "captionWidth":170,"fields":[
                 {"key":"cash","caption":"Available Cash:","kind":"label","value":"12,345.00 USD"},
                 {"key":"pendingWithdrawals","caption":"Pending Withdrawals:","kind":"label","value":"500.00 USD"},
@@ -599,6 +578,14 @@ fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_contro
     let controls = &h.state().manager.controls;
     assert!(controls["fund-tabs"].contains_rect(controls["dialog-risk-history"]));
     assert!(controls.contains_key("grid-risk-history"));
+    assert!(!controls.contains_key("risk-history.button.Refresh"));
+    assert!(!controls.contains_key("risk-history.button.Next page"));
+    let caption = controls["risk-history.date.caption"];
+    let date = controls["risk-history.date"];
+    assert!((caption.left()-controls["dialog-risk-history"].left()).abs()<1.);
+    assert!(date.left()>caption.right() && date.left()-caption.right()<10.);
+    assert!((date.center().y-caption.center().y).abs()<6.);
+    assert!(h.query_by_label("Evaluation Date:").is_some());
     assert!(!controls.contains_key("grid-balances"));
     assert!(h.query_by_label("Evidence").is_some());
     h.run_steps(3);
@@ -611,12 +598,8 @@ fn funds_embed_financial_and_risk_tabs_below_grid_with_equal_width_action_contro
             .save(std::path::Path::new(&output).join("risk-history.png"))
             .unwrap();
     }
-    h.get_by_label("Refresh").click();
-    h.run();
-    let request = h.state().requests.last().unwrap();
-    assert_eq!(request["intent"], "portfolio-financial");
-    assert_eq!(request["fields"]["action"], "Refresh");
-    assert_eq!(request["fields"]["date"], "2026-10-18");
+    assert!(h.query_by_label("Refresh").is_none());
+    assert!(h.query_by_label("Next page").is_none());
 }
 
 #[test]
@@ -1272,4 +1255,129 @@ fn fund_transaction_uses_compact_layout_without_inline_status_and_routes_financi
         h.state().requests.last().unwrap()["intent"],
         "portfolio-cancel"
     );
+}
+
+#[test]
+fn ledger_places_fields_below_full_width_grid_and_preserves_apply() {
+    let keys = ["control", "period", "start", "end", "account", "rule", "reason"];
+    let fields: Vec<_> = keys.iter().map(|key| serde_json::json!({
+        "key":key,"caption":key,"value":"test","kind":if *key == "reason" {"multiline"} else {"text"},"enabled":true
+    })).collect();
+    let document = serde_json::json!({"context":{},"grids":[],"enabled":{},"dialogs":[{
+        "key":"ledger","title":"Portfolio ledger administration","width":1120,"height":710,"captionWidth":95,
+        "fields":fields,"buttons":["Apply","Refresh","Close"],"status":"Book ready",
+        "grids":[{"key":"periods","columns":["Period"],"rows":[]}]
+    }]});
+    let mut manager = PortfolioManager::default(); manager.open();
+    let state = State { manager, requests:vec![], publication:ContractPublication {
+        generation:7, result:ifm_ui_rust::contract_editor::ContractResult {
+            view:"portfolio".into(), documents:BTreeMap::from([("portfolio".into(),ifm_ui_rust::wire::encode_value(&document).unwrap().into())]), ..Default::default()
+        }, ..Default::default()
+    }};
+    let mut h = Harness::builder().with_size(egui::vec2(1800.,1200.)).build_state(|ctx,state:&mut State| {
+        if let Some(payload)=state.manager.draw(ctx,&state.publication,true) {
+            let request: serde_json::Value = serde_json::from_str(&payload).unwrap();
+            state.publication.outcomes.push(EditorOutcome {
+                request_id: request["requestId"].as_str().unwrap().into(),
+                state: "Completed".into(), message: String::new(),
+            });
+            state.requests.push(request);
+        }
+    },state);
+    ifm_ui_rust::apply_winforms_typography(&h.ctx).unwrap(); h.run();
+    let controls=&h.state().manager.controls;
+    let bounds=controls["dialog-ledger"]; let grid=controls["ledger.grid-area"];
+    assert!((grid.width()-bounds.width()).abs()<1.);
+    assert!((grid.height()/(bounds.bottom()-grid.top())-2./3.).abs()<0.01);
+    for (index,key) in keys.iter().enumerate() {
+        let field=controls[&format!("ledger.{key}")];
+        assert!(bounds.contains_rect(field),"{key} outside form: {field:?} vs {bounds:?}");
+        assert!(field.top()>grid.bottom());
+        if index<4 {assert!(field.right()<bounds.center().x);}
+    }
+    let apply=controls["ledger.button.Apply"];
+    assert!(controls["window-ledger"].height() < 500.);
+    assert!((apply.right()-bounds.right()).abs()<1.);
+    assert!(apply.width()>=140.);
+    assert!(apply.top()>grid.bottom());
+    assert!((apply.top()-controls["ledger.account"].top()).abs()<6.);
+    assert!((controls["ledger.control"].top()-controls["ledger.account"].top()).abs()<6.);
+    let group_gap=controls["ledger.account.caption"].left()-controls["ledger.control"].right();
+    assert!(group_gap>=0. && group_gap<70.);
+    assert!(controls["ledger.reason"].right()<apply.left());
+    assert!(bounds.contains_rect(apply));
+    assert!(!controls.contains_key("ledger.button.Refresh")); assert!(!controls.contains_key("ledger.button.Close"));
+    let pos=apply.center();
+    h.input_mut().events.extend([egui::Event::PointerMoved(pos),egui::Event::PointerButton {pos,button:egui::PointerButton::Primary,pressed:true,modifiers:Default::default()}]); h.run_steps(1);
+    h.input_mut().events.push(egui::Event::PointerButton {pos,button:egui::PointerButton::Primary,pressed:false,modifiers:Default::default()}); h.run();
+    let request=h.state().requests.last().unwrap(); assert_eq!(request["intent"],"portfolio-financial"); assert_eq!(request["fields"]["action"],"Apply");
+    for key in keys {assert_eq!(request["fields"][key],"test");}
+}
+
+#[test]
+fn fund_allocation_uses_compact_aligned_fields_and_centered_actions() {
+    let keys=["TargetWeight","MinimumWeight","MaximumWeight","AllocatedCapital","Currency","SourcePolicyVersion"];
+    let fields:Vec<_>=keys.iter().map(|key|serde_json::json!({"key":key,"caption":key,"value":"1","enabled":true})).collect();
+    let document=serde_json::json!({"context":{},"grids":[],"enabled":{},"dialogs":[{
+        "key":"allocation","title":"Fund Allocation","width":640,"height":280,"captionWidth":225,"fields":fields,"buttons":["Save","Cancel"]
+    }]});
+    let mut manager=PortfolioManager::default(); manager.open();
+    let state=State {manager,requests:vec![],publication:ContractPublication {generation:7,result:ifm_ui_rust::contract_editor::ContractResult {
+        view:"portfolio".into(),documents:BTreeMap::from([("portfolio".into(),ifm_ui_rust::wire::encode_value(&document).unwrap().into())]),..Default::default()
+    },..Default::default()}};
+    let mut h=Harness::builder().with_size(egui::vec2(1800.,1200.)).build_state(|ctx,state:&mut State| {
+        if let Some(payload)=state.manager.draw(ctx,&state.publication,true) {
+            let request:serde_json::Value=serde_json::from_str(&payload).unwrap();
+            state.publication.outcomes.push(EditorOutcome{request_id:request["requestId"].as_str().unwrap().into(),state:"Completed".into(),message:String::new()});state.requests.push(request);
+        }
+    },state);
+    ifm_ui_rust::apply_winforms_typography(&h.ctx).unwrap();h.run();
+    let controls=&h.state().manager.controls;let bounds=controls["dialog-allocation"];
+    assert!(controls["window-allocation"].height()<300.);
+    let save=controls["allocation.button.Save"];let cancel=controls["allocation.button.Cancel"];
+    assert!(((save.left()+cancel.right())/2.-bounds.center().x).abs()<1.);
+    for key in keys {
+        let input=controls[&format!("allocation.{key}")];let caption=controls[&format!("allocation.{key}.caption")];
+        assert!(bounds.contains_rect(input));assert!((input.left()-caption.right()-20.).abs()<1.);assert!(input.bottom()<save.top());
+        assert!(h.query_by_label(&format!("{key}:")).is_some());
+    }
+    assert!((save.top()-controls["allocation.SourcePolicyVersion"].bottom()-20.).abs()<1.);
+    h.get_by_label("Save").click();h.run();assert_eq!(h.state().requests.last().unwrap()["intent"],"portfolio-save");
+    h.get_by_label("Cancel").click();h.run();assert_eq!(h.state().requests.last().unwrap()["intent"],"portfolio-cancel");
+}
+
+#[test]
+fn risk_envelope_and_assignment_follow_compact_fund_editor_layout() {
+    for (key,title,keys) in [
+        ("envelope","Fund Risk Envelope",vec!["CapacityState","Currency","AllocatedCapital","AvailableCapital","MaximumRiskPerTrade","MaximumAggregateRisk","MaximumMargin","MaximumGrossNotional","MaximumContracts","MaximumOpenPositions","RemainingLossBudget","days"]),
+        ("assignment","Trade Template Assignment",vec!["Enabled","TradeTemplateId","TradeTemplateVersion","DecisionHorizon","UnderlyingUniverse","AssetType","deployment","Priority","TradeSelectionHintProfileId","TradeSelectionHintProfileVersion","OrderCompositionProfileId","OrderCompositionProfileVersion"])
+    ] {
+        let fields:Vec<_>=keys.iter().map(|name|serde_json::json!({"key":name,"caption":name,"value":"1","kind":if *name=="Enabled" {"check"} else {"text"},"enabled":true})).collect();
+        let document=serde_json::json!({"context":{},"grids":[],"enabled":{},"dialogs":[{
+            "key":key,"title":title,"width":780,"height":450,"captionWidth":225,"fields":fields,"buttons":["Save","Cancel"],"status":"Ready"
+        }]});
+        let mut manager=PortfolioManager::default();manager.open();
+        let state=State{manager,requests:vec![],publication:ContractPublication{generation:7,result:ifm_ui_rust::contract_editor::ContractResult{
+            view:"portfolio".into(),documents:BTreeMap::from([("portfolio".into(),ifm_ui_rust::wire::encode_value(&document).unwrap().into())]),..Default::default()
+        },..Default::default()}};
+        let mut h=Harness::builder().with_size(egui::vec2(1800.,1200.)).build_state(|ctx,state:&mut State|{
+            if let Some(payload)=state.manager.draw(ctx,&state.publication,true){
+                let request:serde_json::Value=serde_json::from_str(&payload).unwrap();
+                state.publication.outcomes.push(EditorOutcome{request_id:request["requestId"].as_str().unwrap().into(),state:"Completed".into(),message:String::new()});state.requests.push(request);
+            }
+        },state);
+        ifm_ui_rust::apply_winforms_typography(&h.ctx).unwrap();h.run();
+        let controls=&h.state().manager.controls;let bounds=controls[&format!("dialog-{key}")];let save=controls[&format!("{key}.button.Save")];let cancel=controls[&format!("{key}.button.Cancel")];
+        assert!(controls[&format!("window-{key}")].height()<500.);
+        assert!(bounds.contains_rect(save));assert!(bounds.contains_rect(cancel));
+        assert!(((save.left()+cancel.right())/2.-bounds.center().x).abs()<1.);
+        for name in &keys {
+            let input=controls[&format!("{key}.{name}")];let caption=controls[&format!("{key}.{name}.caption")];
+            assert!(bounds.contains_rect(input),"{key}.{name} clipped");assert!((input.left()-caption.right()-20.).abs()<1.);assert!(input.bottom()<save.top());
+            assert!(h.query_by_label(&format!("{name}:")).is_some());
+        }
+        assert!((save.top()-controls[&format!("{key}.{}",keys.last().unwrap())].bottom()-20.).abs()<1.);
+        h.get_by_label("Save").click();h.run();assert_eq!(h.state().requests.last().unwrap()["intent"],"portfolio-save");
+        h.get_by_label("Cancel").click();h.run();assert_eq!(h.state().requests.last().unwrap()["intent"],"portfolio-cancel");
+    }
 }

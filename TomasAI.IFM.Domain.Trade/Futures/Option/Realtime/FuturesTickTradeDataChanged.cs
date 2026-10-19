@@ -29,10 +29,8 @@ public static class FuturesTickTradeDataChanged
         var observation = changed.OptionMarketPriceObservation;
         var tick = new PositionMarketTick(observation?.OptionTickData.ContractId ?? changed.TickDataId.ContractId, observation is null ? changed.TradeData.Price : (decimal)observation.OptionTickData.OptionPrice, observation?.SourceSequence ?? changed.TradeData.SourceSequence, receivedAtUtc);
         PortfolioFundTradeLeg[] routes;
-        // A completion has the same market sequence as its quote. The position owner fences its pricing revision.
-        var outcome = observation?.OptionTickData.IsPricingUpdate == true
-            ? context.RouteIndex.TryGetRoutes(tick.ContractId, out routes) ? MarketRouteLookupOutcome.Routed : MarketRouteLookupOutcome.NoOpenPosition
-            : context.RouteIndex.TryRoute(in tick, out routes);
+        // Option ingress already validates observations. Route every arrival, including repeated or reset sequences.
+        var outcome = context.RouteIndex.TryRoute(in tick, out routes, enforceSequenceOrdering: false);
         if (outcome != MarketRouteLookupOutcome.Routed)
         {
             LogIgnoredTick(context, tick.ContractId, outcome);

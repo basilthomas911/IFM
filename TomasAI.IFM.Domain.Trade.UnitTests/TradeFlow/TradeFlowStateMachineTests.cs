@@ -733,7 +733,7 @@ public sealed class TradeFlowStateMachineTests
     [Fact]
     public void Stale_route_and_duplicate_tick_are_expected_rejections_without_exceptions()
     {
-        var trade = Fixture.Trade();
+        var trade = Fixture.Trade() with { StrategyKind = TradeStrategyKind.FuturesOutright };
         var state = new StrategyPositionActorStateMachine();
         state.Open(trade, Guid.NewGuid(), Now);
         var leg = trade.Legs[0];
@@ -741,6 +741,26 @@ public sealed class TradeFlowStateMachineTests
         state.UpdateLeg(leg.TradeLegId, 2m, 1, Now.AddSeconds(1), 99).Code.Should().Be("POSITION.STALE_ROUTE");
         state.UpdateLeg(leg.TradeLegId, 2m, 1, Now.AddSeconds(1), 1).Accepted.Should().BeTrue();
         state.UpdateLeg(leg.TradeLegId, 3m, 1, Now.AddSeconds(2), 1).Code.Should().Be("POSITION.DUPLICATE_OR_OUT_OF_ORDER");
+    }
+
+    [Theory]
+    [InlineData(TradeStrategyKind.IronCondor)]
+    [InlineData(TradeStrategyKind.VerticalSpread)]
+    public void Option_legs_accept_every_arrival_after_restart_without_comparing_provider_sequences(TradeStrategyKind kind)
+    {
+        var trade = Fixture.Trade() with { StrategyKind = kind };
+        var state = new StrategyPositionActorStateMachine();
+        var prior = state.Open(trade, Guid.NewGuid(), Now).Value!;
+        state.Replay(prior with { Legs = prior.Legs.Select(leg => leg with { LastSourceSequence = 2_083_318_764 }).ToArray() });
+        // Friday's stored high sequence must not reject Monday's lower sequence, for any of the four legs.
+        foreach (var leg in trade.Legs)
+        {
+            state.UpdateLeg(leg.TradeLegId, 3m, 2, Now.AddDays(3), 1).Accepted.Should().BeTrue();
+            state.UpdateLeg(leg.TradeLegId, 4m, 1, Now.AddDays(3).AddMilliseconds(-1), 1).Accepted.Should().BeTrue();
+            state.UpdateLeg(leg.TradeLegId, 5m, 1, Now.AddDays(3), 1).Accepted.Should().BeTrue();
+        }
+        state.Current!.Legs.Should().OnlyContain(leg => leg.CurrentPrice == 5m && leg.LastSourceSequence == 1);
+        state.Current.PositionSequence.Should().Be(prior.PositionSequence + 12);
     }
 
     [Fact]

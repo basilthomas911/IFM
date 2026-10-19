@@ -157,6 +157,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             _receivingRealtimeSnapshots = true;
             IronCondorLegObservations = snapshot.Legs.Where(leg => leg.Observation is not null)
                 .ToDictionary(leg => leg.Definition.ContractId, leg => leg.Observation!, StringComparer.Ordinal);
+            if (snapshot.Position is { } position) ApplyIronCondorPosition(position);
+            if (snapshot.Plan is { } plan) ApplyIronCondorTradePlan(plan);
             OnPropertyChanged(nameof(RealtimeSnapshot));
         }
     }

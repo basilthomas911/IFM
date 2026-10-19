@@ -47,6 +47,8 @@ pub mod bridge;
 pub use bridge::{publication_transfer, wire};
 /// Reference-data editor state machines. Views edit local drafts and send correlated intents; managed services validate and persist changes.
 pub mod editors;
+/// Reference manager window and its WinForms command rail.
+pub mod reference;
 pub use editors::{calendar_editor, contract_editor, lookup_editor, yield_curve_editor};
 /// Strategy workflow observations, published decision details, catalog definitions, and parameter-set administration.
 pub mod strategy;

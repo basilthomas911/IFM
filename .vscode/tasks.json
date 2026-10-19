@@ -231,7 +231,7 @@
         "${workspaceFolder}/scripts/Build/Invoke-DotNet.ps1",
         "publish",
         "${workspaceFolder}/TomasAI.IFM.Application.ServerManager.SchedulerHost/TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj",
-        "-m:1",
+        "/maxcpucount:1",
         "--configuration",
         "Debug",
         "--no-self-contained",

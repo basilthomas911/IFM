@@ -62,7 +62,7 @@ internal static class TradeRealtimeSnapshotCalculations
                 changedLegs[i] = leg with { QuoteStatus = quoteStatus, PricingStatus = pricingStatus, Scenario = scenario };
             }
             anyStale |= stale;
-            var retainedRisk = leg.Position?.OptionRisk;
+            var retainedRisk = leg.LastValidRisk ?? leg.Position?.OptionRisk;
             var risk = retainedRisk ?? quote;
             complete &= retainedRisk is not null || pricingStatus == "Available";
             generation ??= quote.SourceGeneration;

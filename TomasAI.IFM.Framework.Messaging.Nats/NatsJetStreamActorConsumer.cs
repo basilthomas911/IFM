@@ -187,14 +187,14 @@ public class NatsJetStreamActorConsumer(
             // A JetStream stream can be rebuilt after storage corruption while its durable
             // consumer metadata survives. In that case the acknowledgement floor can point
             // beyond the rebuilt stream and JetStream silently treats retained messages as
-            // already delivered. Recreate only that impossible cursor; valid consumers and
-            // empty streams remain untouched.
+            // already delivered. Startup purging can leave the rebuilt stream empty, so
+            // validate its cursor even before the first new lifecycle event is published.
+            // Valid acknowledgement floors, including those on purged streams, are retained.
             var consumer = await (js.CreateOrUpdateConsumerAsync(streamName, consumerConfig, cancellationToken)).ConfigureAwait(false);
             var currentStream = await js.GetStreamAsync(
                 streamName,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             if (RequiresCursorRecovery(
-                    Convert.ToUInt64(currentStream.Info.State.Messages),
                     Convert.ToUInt64(currentStream.Info.State.LastSeq),
                     Convert.ToUInt64(consumer.Info.AckFloor.StreamSeq)))
             {
@@ -361,20 +361,16 @@ public class NatsJetStreamActorConsumer(
     /// Determines whether a durable consumer cursor is impossible for the retained stream state
     /// and must be recreated so retained messages can be delivered.
     /// </summary>
-    /// <param name="retainedMessages">The number of messages currently retained by the stream.</param>
     /// <param name="lastStreamSequence">The stream's current last sequence.</param>
     /// <param name="acknowledgementFloorStreamSequence">The durable consumer's acknowledged stream sequence.</param>
     /// <returns>
-    /// <see langword="true"/> only when the stream retains messages and the durable acknowledgement
-    /// floor is strictly beyond its last sequence; otherwise, <see langword="false"/>.
+    /// <see langword="true"/> when the durable acknowledgement floor is strictly beyond the
+    /// stream's last sequence, even if startup purging has removed every message.
     /// </returns>
     internal static bool RequiresCursorRecovery(
-        ulong retainedMessages,
         ulong lastStreamSequence,
         ulong acknowledgementFloorStreamSequence)
-        => retainedMessages > 0
-            && lastStreamSequence > 0
-            && acknowledgementFloorStreamSequence > lastStreamSequence;
+        => acknowledgementFloorStreamSequence > lastStreamSequence;
 
     int GetDispatcherCapacity()
         => _options switch

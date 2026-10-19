@@ -580,3 +580,22 @@ Remove runtime use of [app/hosting.rs](../../TomasAI.IFM.UI.Rust/src/app/hosting
 - [ ] Deployment documentation and development launch scripts describe the new client accurately.
 
 The earlier [Rust UI migration roadmap](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md) remains a source of screen/control history. This plan replaces its in-process .NET hosting target for the standalone-client work. No production implementation or runtime qualification is claimed by this design.
+
+
+## 16 Reference form alignment ? 2026-10-19
+
+Scope is the three editors in the WinForms Reference Data Manager: Lookup Types, trade strategy families, and parameter sets. Other Rust Reference menu entries are outside this screen-alignment work.
+
+The Rust client now uses the original Reference selector and five-command rail, including its two-stage Add/Change ? Save and Cancel behavior. Lookup lists and fields, all seven strategy-catalog kinds, and parameter area/component/version navigation use the original form structure. Parameter inspection dialogs retain their source actions; interval changes remain local until the working copy is saved. Startup evidence and monitored-signal dialogs restore their parent inspection when closed.
+
+The bridge display generator now follows declared MessagePack union variants. This fixes live startup-history documents failing to encode polymorphic parameter values. Report documents use enum names for the original grid captions; domain API contracts and persisted configurations are unchanged.
+
+Verification evidence is under `.artifacts/reference-parity/`:
+
+- Rust checks: **41 passed**, with **two existing ignored portfolio tests** (`rust-qualification.log`).
+- Desktop/bridge integration checks: **five passed**, zero failures (`reference-verified.trx` and `reference-verified.log`).
+- FlaUI covers the three editors, all seven catalog kinds, read-only parameter dialogs, startup row double-click ? evidence ? monitored signals, and a new Regime Discovery working copy ? intervals ? cancellation. Tests do not save, publish, retire or assign reference definitions.
+- Screenshots and UI Automation inventories for WinForms and Rust are in `flaui/`. The WinForms baseline supplies the missing `LookupTypes` selector definition in the test only; lookup records and the other editor data come from the live services.
+- **Remaining live qualification prerequisite:** `documents/regime-versions.json` is empty. Assignment-dialog verification against live data therefore requires a published Regime Discovery version. Its populated-state renderer and cancel behavior are covered by the Rust fixture test. No test configuration was published to satisfy this prerequisite.
+
+This is UI alignment in the current managed-bridge client. It does not complete the standalone runtime or remove managed hosting requirements in the final checklist above.

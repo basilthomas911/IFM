@@ -66,6 +66,11 @@ pub struct LookupEditor {
     pub last_action: String,
     /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Original Reference editor mode: view, add, or change.
+    pub edit_mode: u8,
+    category: String,
+    order_text: String,
+    reference_loaded: bool,
 }
 impl LookupEditor {
     /// Serialize the lookup draft/action with a fresh request ID and retain it for outcome correlation.
@@ -86,16 +91,7 @@ impl LookupEditor {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"lookup","intent":action,"expectedGeneration":snapshot.generation,"lookup":if action=="load" {None} else {Some(row)}}).to_string()
     }
-    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
-    ///
-    /// This renderer owns local lookup draft, stable selection, confirmation, and submission-error state.
-    pub fn draw(
-        &mut self,
-        ctx: &egui::Context,
-        snapshot: &EditorPublication,
-        c: &Catalog,
-        live: bool,
-    ) -> Option<String> {
+    fn observe(&mut self, snapshot: &EditorPublication) {
         if let Some(id) = &self.pending {
             if let Some(outcome) = snapshot
                 .outcomes
@@ -103,6 +99,7 @@ impl LookupEditor {
                 .find(|x| &x.request_id == id && x.state != "Pending")
             {
                 if outcome.state == "Completed" {
+                    self.edit_mode = 0;
                     if self.last_action == "remove" {
                         self.selected = None;
                         self.draft = Default::default();
@@ -120,6 +117,301 @@ impl LookupEditor {
                 self.pending = None;
             }
         }
+    }
+    /// Original Reference master/detail lists and four-field editor with the shared command rail.
+    pub fn draw_reference(
+        &mut self,
+        ctx: &egui::Context,
+        snapshot: &EditorPublication,
+        live: bool,
+    ) -> Option<String> {
+        self.observe(snapshot);
+        if self.selected.is_none() && self.edit_mode == 0 {
+            if let Some(row) = snapshot.rows.first() {
+                self.select_reference(row);
+            }
+        }
+        let valid = !self.draft.lookup_type_name.trim().is_empty()
+            && !self.draft.short_code.trim().is_empty();
+        let commands = crate::reference::Commands {
+            editing: self.edit_mode != 0,
+            changing: self.edit_mode == 2,
+            ready: live
+                && !snapshot.busy
+                && self.pending.is_none()
+                && !self.confirm_remove
+                && self.error.is_empty(),
+            add: true,
+            change: self.selected.is_some(),
+            remove: self.selected.is_some(),
+            save: valid,
+        };
+        crate::reference::show(ctx, 0, commands, |ui, command| {
+            let mut action = None;
+            if live && !self.reference_loaded && self.pending.is_none() {
+                self.reference_loaded = true;
+                action = Some("load");
+            }
+            match command {
+                Some("add") if self.edit_mode == 0 => {
+                    self.draft = Default::default();
+                    self.order_text.clear();
+                    self.edit_mode = 1;
+                }
+                Some("change") if self.edit_mode == 0 => self.edit_mode = 2,
+                Some("add" | "change") => {
+                    if self.edit_mode == 1 {
+                        self.draft.order_id = snapshot
+                            .rows
+                            .iter()
+                            .filter(|r| r.lookup_type_name == self.draft.lookup_type_name)
+                            .map(|r| r.order_id)
+                            .max()
+                            .and_then(|id| id.checked_add(1))
+                            .unwrap_or(0);
+                    } else if let Ok(order) = self.order_text.parse::<i32>() {
+                        if order < 0 {
+                            self.error = "Order ID must be a non-negative integer.".into();
+                            return None;
+                        }
+                        self.draft.order_id = order;
+                    } else {
+                        self.error = "Order ID must be a non-negative integer.".into();
+                        return None;
+                    }
+                    action = Some(if self.edit_mode == 1 { "add" } else { "change" });
+                }
+                Some("remove") => self.confirm_remove = true,
+                Some("close") => {
+                    self.edit_mode = 0;
+                    if let Some(row) = snapshot.rows.iter().find(|r| {
+                        self.selected.as_ref() == Some(&(r.lookup_type_name.clone(), r.order_id))
+                    }) {
+                        self.select_reference(row);
+                    }
+                }
+                _ => {}
+            }
+            let ready = live && !snapshot.busy && self.pending.is_none();
+            if self.confirm_remove || !self.error.is_empty() {
+                ui.disable();
+            }
+            egui::SidePanel::left("reference-lookup-navigation")
+                .default_width(454.)
+                .min_width(280.)
+                .resizable(true)
+                .frame(egui::Frame::NONE.fill(crate::presentation::BACKGROUND))
+                .show_inside(ui, |ui| {
+                    let width = ui.available_width();
+                    let header = |ui: &mut egui::Ui, title: &str| {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(width, 30.), egui::Sense::hover());
+                        ui.painter()
+                            .rect_filled(rect, 0., crate::presentation::BACKGROUND);
+                        ui.put(rect, crate::presentation::caption_widget(title));
+                    };
+                    header(ui, "Lookup Type Names");
+                    let mut names: Vec<_> = snapshot
+                        .rows
+                        .iter()
+                        .map(|row| row.lookup_type_name.as_str())
+                        .collect();
+                    names.sort();
+                    names.dedup();
+                    egui::Frame::NONE.fill(egui::Color32::BLACK).show(ui, |ui| {
+                        ui.set_min_width(width);
+                        egui::ScrollArea::vertical()
+                            .id_salt("reference-lookup-names")
+                            .min_scrolled_height(210.)
+                            .max_height(210.)
+                            .auto_shrink([false, false])
+                            .show_rows(ui, 23., names.len(), |ui, range| {
+                                for index in range {
+                                    let name = names[index];
+                                    if ui
+                                        .add_enabled(
+                                            ready && self.edit_mode == 0,
+                                            egui::Button::new(
+                                                egui::RichText::new(name)
+                                                    .color(egui::Color32::WHITE),
+                                            )
+                                            .frame(true)
+                                            .fill(if self.category == name {
+                                                egui::Color32::from_rgb(0, 120, 215)
+                                            } else {
+                                                egui::Color32::BLACK
+                                            })
+                                            .stroke(egui::Stroke::NONE)
+                                            .min_size(egui::vec2(ui.available_width(), 23.))
+                                            .selected(self.category == name),
+                                        )
+                                        .clicked()
+                                    {
+                                        if let Some(row) = snapshot
+                                            .rows
+                                            .iter()
+                                            .find(|row| row.lookup_type_name == name)
+                                        {
+                                            self.select_reference(row);
+                                        }
+                                    }
+                                }
+                            });
+                    });
+                    header(ui, "Lookup Type Short Codes");
+                    let rows: Vec<_> = snapshot
+                        .rows
+                        .iter()
+                        .filter(|row| row.lookup_type_name == self.category)
+                        .collect();
+                    egui::Frame::NONE.fill(egui::Color32::BLACK).show(ui, |ui| {
+                        ui.set_min_width(width);
+                        let height = ui.available_height();
+                        egui::ScrollArea::vertical()
+                            .id_salt("reference-lookup-codes")
+                            .min_scrolled_height(height)
+                            .max_height(height)
+                            .auto_shrink([false, false])
+                            .show_rows(ui, 23., rows.len(), |ui, range| {
+                                self.drawn_rows = range.len();
+                                for index in range {
+                                    let row = rows[index];
+                                    if ui
+                                        .add_enabled(
+                                            ready && self.edit_mode == 0,
+                                            egui::Button::new(
+                                                egui::RichText::new(&row.short_code)
+                                                    .color(egui::Color32::WHITE),
+                                            )
+                                            .frame(true)
+                                            .fill(
+                                                if self.selected.as_ref()
+                                                    == Some(&(
+                                                        row.lookup_type_name.clone(),
+                                                        row.order_id,
+                                                    ))
+                                                {
+                                                    egui::Color32::from_rgb(0, 120, 215)
+                                                } else {
+                                                    egui::Color32::BLACK
+                                                },
+                                            )
+                                            .stroke(egui::Stroke::NONE)
+                                            .min_size(egui::vec2(ui.available_width(), 23.))
+                                            .selected(
+                                                self.selected.as_ref()
+                                                    == Some(&(
+                                                        row.lookup_type_name.clone(),
+                                                        row.order_id,
+                                                    )),
+                                            ),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.select_reference(row);
+                                    }
+                                }
+                            });
+                    });
+                });
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::NONE
+                        .fill(crate::presentation::BACKGROUND)
+                        .inner_margin(4),
+                )
+                .show_inside(ui, |ui| {
+                    egui::Grid::new("reference-lookup-fields")
+                        .num_columns(2)
+                        .min_row_height(35.)
+                        .show(ui, |ui| {
+                            for index in 0..4 {
+                                let caption = [
+                                    "Lookup Type Name:",
+                                    "Short Code:",
+                                    "Order Id:",
+                                    "Description:",
+                                ][index];
+                                let label = ui.add_sized(
+                                    [170., 23.],
+                                    crate::presentation::caption_widget(caption)
+                                        .halign(egui::Align::Max),
+                                );
+                                let value = match index {
+                                    0 => &mut self.draft.lookup_type_name,
+                                    1 => &mut self.draft.short_code,
+                                    2 => &mut self.order_text,
+                                    _ => &mut self.draft.description,
+                                };
+                                let width = if index == 2 {
+                                    143.
+                                } else {
+                                    ui.available_width().max(80.)
+                                };
+                                let edit = if index == 3 {
+                                    egui::TextEdit::multiline(value).desired_rows(4)
+                                } else {
+                                    egui::TextEdit::singleline(value)
+                                };
+                                ui.add_sized(
+                                    [width, if index == 3 { 72. } else { 23. }],
+                                    edit.interactive(ready && self.edit_mode != 0),
+                                )
+                                .labelled_by(label.id);
+                                ui.end_row();
+                            }
+                        });
+                });
+            if self.confirm_remove {
+                egui::Window::new("Remove Lookup Type")
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(format!(
+                            "Are you sure you want to remove Lookup Type {}:{} ?",
+                            self.draft.lookup_type_name, self.draft.order_id
+                        ));
+                        ui.horizontal(|ui| {
+                            if ui.button("Yes").clicked() {
+                                action = Some("remove");
+                                self.confirm_remove = false;
+                            }
+                            if ui.button("No").clicked() {
+                                self.confirm_remove = false;
+                            }
+                        });
+                    });
+            }
+            if !self.error.is_empty() {
+                egui::Window::new("Lookup Type Editor Error")
+                    .collapsible(false)
+                    .show(ctx, |ui| {
+                        ui.label(&self.error);
+                        if ui.button("OK").clicked() {
+                            self.error.clear();
+                        }
+                    });
+            }
+            action.map(|action| self.intent(action, snapshot))
+        })
+    }
+    fn select_reference(&mut self, row: &LookupRow) {
+        self.selected = Some((row.lookup_type_name.clone(), row.order_id));
+        self.category = row.lookup_type_name.clone();
+        self.draft = row.clone();
+        self.order_text = row.order_id.to_string();
+    }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns local lookup draft, stable selection, confirmation, and submission-error state.
+    pub fn draw(
+        &mut self,
+        ctx: &egui::Context,
+        snapshot: &EditorPublication,
+        c: &Catalog,
+        live: bool,
+    ) -> Option<String> {
+        self.observe(snapshot);
         let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading(c.text(strings::LOOKUP_DEFINITIONS));

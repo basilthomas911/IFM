@@ -74,7 +74,7 @@ public static class TradeLifecycleCommandValidation
         var effectiveAt = GetEffectiveAt(command);
         if (effectiveAt is not null && effectiveAt.Value.Kind != DateTimeKind.Utc)
             errors.Add(new("EffectiveAtUtc must be UTC."));
-        ValidateMarketEvidence(errors, command);
+        ValidateMarketEvidence(errors, command, assetFamily);
         if (command is ChangeTradeLegDataCommand routed && (routed.TradeType != strategy || string.IsNullOrWhiteSpace(routed.ContractId)))
             errors.Add(new("Routed ContractId and TradeType must match the strategy Position."));
         ValidateCorrectionAndClose(errors, command);
@@ -103,7 +103,7 @@ public static class TradeLifecycleCommandValidation
     }
 
     /// <summary>Validates a market mark's leg identity, price, sequence and route generation.</summary>
-    private static void ValidateMarketEvidence(List<ValidationError> errors, ICommand<StrategyPositionId> command)
+    private static void ValidateMarketEvidence(List<ValidationError> errors, ICommand<StrategyPositionId> command, TradeAssetFamily assetFamily)
     {
         var market = command switch
         {
@@ -118,7 +118,7 @@ public static class TradeLifecycleCommandValidation
                 errors.Add(new("TradeLegId is required."));
             if (quote.Price <= 0)
                 errors.Add(new("Price must be positive."));
-            if (quote.SourceSequence <= 0)
+            if (assetFamily != TradeAssetFamily.FuturesOption && quote.SourceSequence <= 0)
                 errors.Add(new("SourceSequence must be positive."));
             if (quote.RouteGeneration <= 0)
                 errors.Add(new("RouteGeneration must be positive."));

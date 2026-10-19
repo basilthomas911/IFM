@@ -1,3 +1,4 @@
+use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_rust::{Catalog, lookup_editor::*};
 struct State {
@@ -6,6 +7,9 @@ struct State {
     intents: Vec<String>,
 }
 fn setup(count: usize, live: bool) -> Harness<'static, State> {
+    setup_mode(count, live, false)
+}
+fn setup_mode(count: usize, live: bool, reference: bool) -> Harness<'static, State> {
     let c: Catalog = serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap();
     let snapshot = EditorPublication {
         schema: 1,
@@ -24,7 +28,11 @@ fn setup(count: usize, live: bool) -> Harness<'static, State> {
     };
     Harness::new_state(
         move |ctx, s: &mut State| {
-            if let Some(intent) = s.view.draw(ctx, &s.snapshot, &c, live) {
+            if let Some(intent) = if reference {
+                s.view.draw_reference(ctx, &s.snapshot, live)
+            } else {
+                s.view.draw(ctx, &s.snapshot, &c, live)
+            } {
                 s.intents.push(intent)
             }
         },
@@ -92,4 +100,55 @@ fn lookup_history_is_virtualized() {
     h.run();
     assert!(h.state().view.drawn_rows > 0);
     assert!(h.state().view.drawn_rows < 40);
+}
+
+#[test]
+fn reference_lookup_preserves_lists_four_fields_and_two_step_add_without_extra_controls() {
+    let mut h = setup_mode(3, true, true);
+    h.set_size(eframe::egui::vec2(1800., 1200.));
+    h.run();
+    let request: serde_json::Value =
+        serde_json::from_str(h.state().intents.last().unwrap()).unwrap();
+    h.state_mut().snapshot.outcomes.push(EditorOutcome {
+        request_id: request["requestId"].as_str().unwrap().into(),
+        state: "Completed".into(),
+        message: String::new(),
+    });
+    h.run();
+    for label in [
+        "Reference Data Manager",
+        "Selection:",
+        "Lookup Type Names",
+        "Lookup Type Short Codes",
+        "Lookup Type Name:",
+        "Short Code:",
+        "Order Id:",
+        "Description:",
+        "Add",
+        "Change",
+        "Remove",
+        "Import",
+        "Close",
+    ] {
+        assert!(
+            h.query_all_by_label(label).next().is_some(),
+            "Missing {label}"
+        );
+    }
+    assert!(h.get_by_label("Import").accesskit_node().is_disabled());
+    for extra in ["Load lookups", "New lookup", "Cancel editing"] {
+        assert!(h.query_by_label(extra).is_none());
+    }
+    h.get_by_label("Add").click();
+    h.run();
+    assert_eq!(h.state().view.edit_mode, 1);
+    h.state_mut().view.draft.lookup_type_name = "Test".into();
+    h.state_mut().view.draft.short_code = "NEW".into();
+    h.run();
+    h.get_by_label("Save").click();
+    h.run();
+    let request: serde_json::Value =
+        serde_json::from_str(h.state().intents.last().unwrap()).unwrap();
+    assert_eq!(request["intent"], "add");
+    assert_eq!(request["lookup"]["orderId"], 3);
 }

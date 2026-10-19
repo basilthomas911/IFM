@@ -114,7 +114,7 @@ impl SidebarView {
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
             |ui| {
                 ui.add(
-                    crate::presentation::label_widget(egui::RichText::new("Economic Calendar").strong()).truncate(),
+                    crate::presentation::caption_widget(egui::RichText::new("Economic Calendar").strong()).truncate(),
                 );
             },
         );
@@ -165,7 +165,7 @@ impl SidebarView {
         });
         ui.add_sized(
             [ui.available_width(), 17.0],
-            crate::presentation::label_widget(egui::RichText::new(&snapshot.date).strong()).truncate(),
+            crate::presentation::caption_widget(egui::RichText::new(&snapshot.date).strong()).truncate(),
         );
         let selected = snapshot
             .calendar_rows
@@ -231,7 +231,7 @@ impl SidebarView {
                             row.col(|ui| {
                                 clicked |= ui
                                     .add(
-                                        crate::presentation::label_widget(value)
+                                        egui::Label::new(egui::RichText::new(value).color(crate::presentation::FOREGROUND))
                                             .truncate()
                                             .sense(egui::Sense::click()),
                                     )
@@ -263,7 +263,7 @@ impl SidebarView {
                     .enumerate()
                     {
                         columns[index * 2]
-                            .add(crate::presentation::label_widget(egui::RichText::new(*label).strong()).truncate());
+                            .add(crate::presentation::caption_widget(egui::RichText::new(*label).strong()).truncate());
                         columns[index * 2 + 1].add(crate::presentation::label_widget(*value).truncate());
                     }
                 });
@@ -343,7 +343,7 @@ impl SidebarView {
                                 ui.add(
                                     crate::presentation::label_widget(
                                         egui::RichText::new(label)
-                                            .color(crate::presentation::CAPTION_FOREGROUND),
+                                            .color(crate::presentation::FOREGROUND),
                                     )
                                     .truncate(),
                                 );
@@ -358,13 +358,13 @@ impl SidebarView {
                             let mut clicked = false;
                             row.col(|ui| {
                                 clicked |= ui
-                                    .add(crate::presentation::label_widget(&item.time).sense(egui::Sense::click()))
+                                    .add(egui::Label::new(egui::RichText::new(&item.time).color(crate::presentation::FOREGROUND)).sense(egui::Sense::click()))
                                     .clicked();
                             });
                             row.col(|ui| {
                                 clicked |= ui
                                     .add(
-                                        crate::presentation::label_widget(&item.message)
+                                        egui::Label::new(egui::RichText::new(&item.message).color(crate::presentation::FOREGROUND))
                                             .truncate()
                                             .sense(egui::Sense::click()),
                                     )

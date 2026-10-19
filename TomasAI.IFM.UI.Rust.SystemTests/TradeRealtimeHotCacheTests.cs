@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
@@ -6,6 +7,55 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 public sealed class TradeRealtimeHotCacheTests
 {
+    [Fact]
+    public void A_mirror_refresh_with_missing_values_retains_the_matching_trade_values()
+    {
+        var trade=Trade(); var clock=new Clock();
+        var source=new TradeRealtimeHotCache(trade,new(2026,10,16),clock);
+        var mirror=new TradeRealtimeHotCache(trade,new(2026,10,16),clock);
+        var quote=Quote(completed:true);
+        source.Apply(quote);
+        Assert.True(mirror.AcceptSnapshot(source.Read()));
+        var incomplete=source.Read() with { SnapshotRevision=source.Read().SnapshotRevision+1,
+            Legs=source.Read().Legs.Select(leg=>leg with { Observation=null,LastValidRisk=null }).ToImmutableArray(),
+            Summary=new() };
+        Assert.True(mirror.AcceptSnapshot(incomplete));
+        Assert.Equal(quote,mirror.Read().Legs[0].Observation);
+        Assert.Equal(quote,mirror.Read().Legs[0].LastValidRisk);
+        Assert.Equal(5000,mirror.Read().Summary.UnderlyingPrice);
+        var decoded=MessagePackBinarySerializer.Shared.Deserialize<TradeRealtimeSnapshot>(MessagePackBinarySerializer.Shared.Serialize(mirror.Read())!);
+        Assert.Equal(quote,decoded!.Legs[0].LastValidRisk);
+    }
+
+    [Fact]
+    public void Every_option_arrival_updates_the_cache_and_missing_risk_never_erases_valid_values()
+    {
+        var clock = new Clock(); var cache = new TradeRealtimeHotCache(Trade(), new(2026,10,16), clock);
+        var valid = Quote(tick: 2_083_318_764, revision: 100, completed: true);
+        Assert.True(cache.Apply(valid));
+        var pending = Quote(tick: 1, revision: 1) with { ObservedAtUtc=At.AddMilliseconds(-1), OptionPrice=12 };
+        Assert.True(cache.Apply(pending));
+        Assert.Equal(12,cache.Read().Legs[0].Observation!.OptionPrice);
+        Assert.Equal(valid,cache.Read().Legs[0].LastValidRisk);
+        Assert.Equal("Pending",cache.Read().Legs[0].PricingStatus);
+        Assert.True(cache.Apply(pending));
+        Assert.True(cache.Apply(pending with { IsPricingUpdate=true, PricingFailure="CalculationFailed" }));
+        Assert.Equal(valid,cache.Read().Legs[0].LastValidRisk);
+        var zero = valid with { TickId=1, ObservationRevision=1, Delta=0 };
+        Assert.True(cache.Apply(zero));
+        Assert.Equal(0,cache.Read().Legs[0].LastValidRisk!.Delta);
+        clock.Now=At.AddSeconds(2); Assert.True(cache.Expire());
+        Assert.Equal("Stale",cache.Read().Legs[0].PricingStatus);
+        Assert.Equal(0,cache.Read().Legs[0].LastValidRisk!.Delta);
+        Assert.True(cache.Apply(pending with { IsTradeObservation=true, OptionPrice=13 }));
+        Assert.Equal(13,cache.Read().Legs[0].LastTradePrice);
+        Assert.True(cache.Apply(pending with { IsTradeObservation=true, OptionPrice=14 }));
+        Assert.Equal(14,cache.Read().Legs[0].LastTradePrice);
+        Assert.Equal(zero,cache.Read().Legs[0].LastValidRisk);
+        Assert.True(cache.Apply(pending with { TickId=0, OptionPrice=15 }));
+        Assert.Equal(15,cache.Read().Legs[0].Observation!.OptionPrice);
+    }
+
     [Fact]
     public void Idle_expiry_does_not_allocate_or_advance_snapshot_revision()
     {
@@ -74,7 +124,7 @@ public sealed class TradeRealtimeHotCacheTests
     {
         SourceGeneration = Generation, ObservationRevision = revision, GreeksAvailable = completed,
         IsPricingUpdate = completed, ObservedAtUtc = At, CalculatedAtUtc = At,
-        ValidUntilUtc = At.AddSeconds(1), PricingFailure = completed ? null : "CalculationPending"
+        TheoreticalPrice = completed ? 10 : null, ValidUntilUtc = At.AddSeconds(1), PricingFailure = completed ? null : "CalculationPending"
     };
     sealed class Clock : TimeProvider
     {
@@ -94,9 +144,9 @@ public sealed class TradeRealtimeHotCacheTests
         Assert.Equal("Available", cache.Read().Legs[0].PricingStatus);
         Assert.Equal("Pending", first.Legs[0].PricingStatus);
         Assert.Equal(first.Legs[1], cache.Read().Legs[1]);
-        Assert.False(cache.Apply(Quote(revision: 2, completed: true)));
+        Assert.True(cache.Apply(Quote(revision: 2, completed: true)));
         Assert.True(cache.Apply(Quote(tick: 2, revision: 3)));
-        Assert.False(cache.Apply(Quote(tick: 1, revision: 4, completed: true)));
+        Assert.True(cache.Apply(Quote(tick: 1, revision: 4, completed: true)));
     }
 
     [Fact]
@@ -137,13 +187,13 @@ public sealed class TradeRealtimeHotCacheTests
     }
 
     [Fact]
-    public void Reconnect_fences_old_generations_and_other_trade_caches_are_independent()
+    public void Quote_arrivals_ignore_generation_order_and_other_trade_caches_are_independent()
     {
         var a = new TradeRealtimeHotCache(Trade(), new(2026, 10, 16), new Clock());
         var b = new TradeRealtimeHotCache(Trade(1502), new(2026, 10, 16), new Clock());
         a.Apply(Quote()); b.Apply(Quote());
         Assert.True(a.Apply(Quote() with { SourceGeneration = Guid.NewGuid(), ObservedAtUtc = At.AddMilliseconds(1) }));
-        Assert.False(a.Apply(Quote(tick: 900, revision: 900) with { ObservedAtUtc = At.AddSeconds(1) }));
+        Assert.True(a.Apply(Quote(tick: 900, revision: 900) with { ObservedAtUtc = At.AddSeconds(1) }));
         Assert.Equal(Generation, b.Read().Legs[0].Observation!.SourceGeneration);
         Assert.False(a.Apply(Quote() with { ContractId = "other" }));
         Assert.False(a.Apply(Quote() with { ValueDate = new(2026, 10, 15) }));
@@ -193,7 +243,7 @@ public sealed class TradeRealtimeHotCacheTests
     }
 
     [Fact]
-    public void Scenario_values_require_matching_position_and_fresh_leg_evidence()
+    public void Scenario_quality_becomes_stale_without_erasing_last_valid_forward_values()
     {
         var trade = Trade(); var clock = new Clock();
         var cache = new TradeRealtimeHotCache(trade, new(2026, 10, 16), clock);
@@ -226,14 +276,14 @@ public sealed class TradeRealtimeHotCacheTests
         Assert.True(cache.Expire());
         Assert.Equal("Stale", cache.Read().PlanStatus);
         Assert.Equal("Available", cache.Read().Legs[0].PricingStatus);
-        Assert.Null(cache.Read().Spreads[0].ForwardPrice);
+        Assert.Equal(-3, cache.Read().Spreads[0].ForwardPrice);
         Assert.Null(cache.Read().Legs[0].Scenario);
         plan = plan with { PlanRevision = 2, IronCondorTradePlanSnapshot = plan.IronCondorTradePlanSnapshot! with {
             RiskValidUntilUtc = At.AddSeconds(1).UtcDateTime } };
         Assert.True(cache.Apply(plan));
         Assert.True(cache.Apply(Quote(tick: 2, revision: 2, completed: true) with { ObservedAtUtc = At.AddMilliseconds(1) }));
         Assert.Equal("Stale", cache.Read().PlanStatus);
-        Assert.Null(cache.Read().Spreads[0].ForwardPrice);
+        Assert.Equal(-3, cache.Read().Spreads[0].ForwardPrice);
         Assert.Null(cache.Read().Legs[0].Scenario);
         cache.Apply(position with { PositionSequence = 2 });
         Assert.False(cache.Apply(plan with { PlanRevision = 99 }));

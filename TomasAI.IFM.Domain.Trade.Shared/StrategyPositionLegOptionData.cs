@@ -9,7 +9,7 @@ public static class StrategyPositionLegOptionData
     /// <summary>Only matching enriched contract metadata may supply currency per price point.</summary>
     public static decimal? ContractMultiplier(StrategyPositionLeg leg)
     {
-        var tick = leg.OptionTick ?? leg.OptionRisk;
+        var tick = leg.OptionTick?.PricingInputs is null ? leg.OptionRisk : leg.OptionTick;
         return tick?.ContractId == leg.ContractId && tick.PricingInputs?.Multiplier is > 0
             ? tick.PricingInputs.Multiplier : null;
     }
@@ -22,7 +22,7 @@ public static class StrategyPositionLegOptionData
     }
 
     public static bool IsValidQuote(FuturesOptionTickDataV2ReadModel value, string contractId) =>
-        value.ContractId == contractId && value.TickId > 0 && double.IsFinite(value.OptionPrice) && value.OptionPrice > 0 && value.OptionPrice < (double)decimal.MaxValue
+        value.ContractId == contractId && double.IsFinite(value.OptionPrice) && value.OptionPrice > 0 && value.OptionPrice < (double)decimal.MaxValue
         && value.ObservedAtUtc != default && value.ObservedAtUtc.Offset == TimeSpan.Zero
         && (value.IsTradeObservation || double.IsFinite(value.BidPrice) && double.IsFinite(value.AskPrice)
             && value.BidPrice >= 0 && value.AskPrice >= value.BidPrice && value.AskPrice > 0 && value.AskPrice < (double)decimal.MaxValue && value.BidSize >= 0 && value.AskSize >= 0);
@@ -42,7 +42,8 @@ public static class StrategyPositionLegOptionData
         {
             OptionTick = value,
             OptionRisk = HasValidRisk(value) ? value : leg.OptionRisk,
-            CashMultiplier = value.ContractId == leg.ContractId && value.PricingInputs?.Multiplier is > 0 ? value.PricingInputs.Multiplier : null,
+            CashMultiplier = value.PricingInputs is null ? leg.CashMultiplier
+                : value.ContractId == leg.ContractId && value.PricingInputs.Multiplier is > 0 ? value.PricingInputs.Multiplier : null,
             Scenario = null
         };
 

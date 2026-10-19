@@ -1,3 +1,4 @@
+use egui_kittest::kittest::NodeT;
 use egui_kittest::{Harness, kittest::Queryable};
 use ifm_ui_rust::{
     Catalog,
@@ -8,18 +9,29 @@ use std::collections::BTreeMap;
 fn fixture(editing: bool) -> (Catalog, ContractPublication) {
     let mut context:BTreeMap<String,String>=BTreeMap::from([("editing".into(),if editing{"True"}else{"False"}.into()),("canEdit".into(),"True".into()),("hasPayload".into(),"True".into()),("name".into(),"Fixture parameters".into()),("selectedId".into(),"fixture:1".into()),("component".into(),"fixture".into()),("components".into(),r#"[{"AreaCode":"fixture","AreaName":"Fixture area","ComponentCode":"fixture","Name":"Fixture component"}]"#.into()),("fields".into(),r#"[{"Path":"/Risk/AdverseMove","Value":"0.20","Kind":4,"Group":"Risk","Name":"Adverse move"}]"#.into()),("signals".into(),"[]".into()),("observations".into(),"[]".into()),("intervals".into(),"[]".into())]);
     let mut documents = BTreeMap::new();
-    for key in ["components", "fields", "signals", "observations", "intervals"] {
-        let value: serde_json::Value=serde_json::from_str(&context.remove(key).unwrap()).unwrap();
-        documents.insert(key.into(),ifm_ui_rust::wire::encode_value(&value).unwrap().into());
+    for key in [
+        "components",
+        "fields",
+        "signals",
+        "observations",
+        "intervals",
+    ] {
+        let value: serde_json::Value = serde_json::from_str(&context.remove(key).unwrap()).unwrap();
+        documents.insert(
+            key.into(),
+            ifm_ui_rust::wire::encode_value(&value).unwrap().into(),
+        );
     }
     (
         serde_json::from_str(include_str!("../catalog/strings.en.json")).unwrap(),
         ContractPublication {
             generation: 7,
             status: "Ready".into(),
-            result: ContractResult { documents,
+            result: ContractResult {
+                documents,
                 view: "parameter-sets".into(),
-                rows: vec![ContractRow { data: None,
+                rows: vec![ContractRow {
+                    data: None,
                     id: "fixture:1".into(),
                     fields: BTreeMap::from([
                         ("name".into(), "Fixture parameters".into()),
@@ -161,4 +173,159 @@ fn newer_publication_prevents_confirming_an_older_publish_selection() {
     h.get_by_label("Cancel").click();
     h.run();
     assert!(h.state().0.confirmation.is_none());
+}
+
+#[test]
+fn reference_parameters_preserve_navigation_toolbar_and_exact_four_main_tabs() {
+    let (c, s) = fixture(false);
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut ParameterSets| {
+            state.draw_reference(ctx, &s, &c, true);
+        },
+        ParameterSets::default(),
+    );
+    h.set_size(eframe::egui::vec2(1800., 1200.));
+    h.run();
+    for label in [
+        "Reference Data Manager",
+        "Selection:",
+        "Parameter Set",
+        "Fixture area",
+        "Fixture component",
+        "Fixture parameters - v1 (Draft)",
+        "Add",
+        "Change",
+        "Remove",
+        "Import",
+        "Close",
+        "New horizon",
+        "Name",
+        "Refresh",
+        "Legacy versions",
+        "Payload",
+        "Schema",
+        "Intervals",
+        "Validate",
+        "Publish",
+        "Assignment",
+        "Startup preview",
+        "Recent startups",
+        "Compare",
+        "Operations",
+        "Signals",
+        "Observations",
+        "Calculation parameters",
+        "Validation",
+    ] {
+        assert!(
+            h.query_all_by_label(label).next().is_some(),
+            "Missing {label}"
+        );
+    }
+    assert_eq!(h.query_all_by_label("Intervals").count(), 1);
+    assert!(h.get_by_label("Import").accesskit_node().is_disabled());
+    h.get_by_label("Calculation parameters").click();
+    h.run();
+    assert!(h.query_by_label("Parameter").is_some());
+    assert!(h.query_by_label("Value").is_some());
+    h.get_by_label("Payload").click();
+    h.run();
+    assert!(h.state().pending.is_some()); // The source opens the modal only after its read has completed.
+    assert!(h.query_by_label("Parameter values").is_none());
+}
+
+#[test]
+fn reference_startup_history_reads_messagepack_documents_and_uses_grid_double_click() {
+    let (c, mut s) = fixture(false);
+    s.result.documents.insert("startupRuns".into(),ifm_ui_rust::wire::encode_value(&serde_json::json!([{"RunId":"run-42","CreatedAtUtc":"2026-10-19T10:00:00Z","CreatedBy":"fixture","Scopes":[],"Plan":{"Fingerprint":"snapshot-fingerprint"}}])).unwrap().into());
+    let mut editor = ParameterSets::default();
+    editor.section = "startupRuns".into();
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut ParameterSets| {
+            state.draw_reference(ctx, &s, &c, true);
+        },
+        editor,
+    );
+    h.set_size(eframe::egui::vec2(1800., 1200.));
+    h.run();
+    for label in [
+        "Recent parameter startup snapshots",
+        "RunId",
+        "CreatedAtUtc",
+        "Assignments",
+        "Fingerprint",
+        "run-42",
+        "snapshot-fingerprint",
+    ] {
+        assert!(
+            h.query_all_by_label(label).next().is_some(),
+            "Missing {label}"
+        );
+    }
+    assert!(h.query_by_label("Show preparation report").is_none());
+}
+
+#[test]
+fn reference_interval_cancel_restores_working_copy_without_submitting() {
+    let (c, mut s) = fixture(true);
+    s.result.context.insert("regime".into(), "True".into());
+    s.result.documents.insert("intervals".into(),ifm_ui_rust::wire::encode_value(&serde_json::json!([{"TimeFrame":5,"Weight":1.5,"MaximumAgeSeconds":300,"IsRequired":true}])).unwrap().into());
+    let mut editor = ParameterSets::default();
+    editor.section = "intervals".into();
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut (ParameterSets, Option<String>)| {
+            if let Some(intent) = state.0.draw_reference(ctx, &s, &c, true) {
+                state.1 = Some(intent);
+            }
+        },
+        (editor, None),
+    );
+    h.set_size(eframe::egui::vec2(1800., 1200.));
+    h.run();
+    for label in ["Interval", "Relative weight", "Max age (seconds)", "Apply"] {
+        assert!(
+            h.query_all_by_label(label).next().is_some(),
+            "Missing {label}"
+        );
+    }
+    h.state_mut().0.intervals[0]["Weight"] = serde_json::json!(7);
+    // The original command rail has Cancel as well; use the last matching button in the dialog.
+    h.query_all_by_label("Cancel").last().unwrap().click();
+    h.run();
+    assert_eq!(h.state().0.intervals[0]["Weight"], 1.5);
+    assert!(h.state().1.is_none());
+}
+
+#[test]
+fn published_assignment_dialog_preserves_information_and_three_original_actions() {
+    let (c, mut s) = fixture(false);
+    s.result.rows[0]
+        .fields
+        .insert("status".into(), "Published".into());
+    s.result.documents.insert("assignment".into(),ifm_ui_rust::wire::encode_value(&serde_json::json!({"Scope":{"WorkflowDefinitionId":"IntrinsicTimeStrategy"},"Assignment":{"Enabled":true,"Reference":{"SetId":"published-fixture","Version":1}}})).unwrap().into());
+    let mut editor = ParameterSets::default();
+    editor.section = "assignment".into();
+    let mut h = Harness::new_state(
+        move |ctx, state: &mut ParameterSets| {
+            state.draw_reference(ctx, &s, &c, true);
+        },
+        editor,
+    );
+    h.set_size(eframe::egui::vec2(1800., 1200.));
+    h.run();
+    for label in [
+        "Workflow parameter assignment",
+        "Assign selected",
+        "Disable",
+        "Cancel",
+    ] {
+        assert!(
+            h.query_all_by_label(label).next().is_some(),
+            "Missing {label}"
+        );
+    }
+    h.get_by_label("Cancel").click();
+    h.run();
+    assert!(h.state().pending.is_none());
+    assert!(h.query_by_label("Workflow parameter assignment").is_none());
 }

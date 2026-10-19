@@ -26,6 +26,8 @@ public sealed record TradeRealtimeSnapshot
     [Key(14)] public int CompositionVersion { get; init; }
     /// <summary>Client-only expiry changes do not consume or invent backend snapshot revisions.</summary>
     [Key(15)] public long QualityRevision { get; init; }
+    /// <summary>Last complete plan while the current plan is incomplete; retained display values never change PlanStatus.</summary>
+    [Key(16)] public StrategyTradePlanSnapshot? LastAvailablePlan { get; init; }
 }
 
 /// <summary>Signed contract-weighted model sensitivities: Theta/year, Vega and Rho/unit decimal. PnL is authoritative position points.</summary>
@@ -56,6 +58,8 @@ public sealed record TradeLegRealtimeSnapshot
     [Key(7)] public DateTimeOffset LastTradeAtUtc { get; init; }
     /// <summary>Qualified strategy scenario; its Vega is per volatility percentage point and Theta per day.</summary>
     [Key(8)] public IronCondorTradePlanLegObservation? Scenario { get; init; }
+    /// <summary>Last valid calculation, with original timestamps, retained while a later calculation is pending or unavailable.</summary>
+    [Key(9)] public FuturesOptionTickDataV2ReadModel? LastValidRisk { get; init; }
 }
 
 [MessagePackObject]

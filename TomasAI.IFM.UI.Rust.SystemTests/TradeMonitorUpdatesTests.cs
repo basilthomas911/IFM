@@ -20,15 +20,15 @@ public sealed class TradeMonitorUpdatesTests
         Explanation=$"Live revision {revision}"
     };
     [Fact]
-    public void Live_notifications_merge_saved_history_without_duplicates_and_keep_newest_first()
+    public void Live_notifications_exclude_database_rows_and_stopped_mode_excludes_live_rows()
     {
         var monitor=new Monitor();var changes=0;
         using var updates=new TradeMonitorUpdates(monitor,()=>monitor.Current,()=>monitor.Live,()=>changes++);
         monitor.Send(Plan(2));monitor.Send(Plan(3));monitor.Send(Plan(3));
-        Assert.Equal(new long[]{3,2,1},updates.Plans([Plan(1),Plan(2)]).Select(p=>p.PlanRevision));
+        Assert.Equal(new long[]{3,2},updates.Plans([Plan(1),Plan(2)]).Select(p=>p.PlanRevision));
         Assert.Equal(3,changes);
         monitor.Live=false;monitor.Send(Plan(4));
-        Assert.Equal(new long[]{3,2,1},updates.Plans([Plan(1)]).Select(p=>p.PlanRevision));
+        Assert.Equal(new long[]{1},updates.Plans([Plan(1)]).Select(p=>p.PlanRevision));
         monitor.Raise("IronCondorPlanHistory");
         Assert.Single(updates.Plans([Plan(1)]));
     }
@@ -50,10 +50,26 @@ public sealed class TradeMonitorUpdatesTests
     {
         var monitor=new Monitor{Live=false};
         using var updates=new TradeMonitorUpdates(monitor,()=>monitor.Current,()=>monitor.Live,()=>{});
+        updates.BeginLive();
         monitor.Send(Plan(1));Assert.Empty(updates.Plans([]));
         monitor.Live=true;monitor.Raise("IsLiveFeedEnabled");
         Assert.Equal(1,Assert.Single(updates.Plans([])).PlanRevision);
     }
+    [Fact]
+    public void Starting_live_never_seeds_a_previously_loaded_plan_and_each_live_cycle_starts_empty()
+    {
+        var monitor=new Monitor { Live=false,Current=Plan(100) };
+        using var updates=new TradeMonitorUpdates(monitor,()=>monitor.Current,()=>monitor.Live,()=>{});
+        Assert.Equal(100,Assert.Single(updates.Plans([Plan(100)])).PlanRevision);
+        updates.BeginLive(); monitor.Live=true; monitor.Raise("IsLiveFeedEnabled");
+        Assert.Empty(updates.Plans([Plan(100)]));
+        monitor.Send(Plan(101)); Assert.Equal(101,Assert.Single(updates.Plans([Plan(100)])).PlanRevision);
+        monitor.Live=false;monitor.Raise("IsLiveFeedEnabled");updates.EndLive();
+        Assert.Equal(100,Assert.Single(updates.Plans([Plan(100)])).PlanRevision);
+        updates.BeginLive();monitor.Live=true;monitor.Raise("IsLiveFeedEnabled");
+        Assert.Empty(updates.Plans([Plan(100)]));
+    }
+
     [Fact]
     public async Task Notifications_refresh_the_gateway_publication_without_user_actions()
     {
@@ -63,11 +79,11 @@ public sealed class TradeMonitorUpdatesTests
         await using var gateway=new ContractEditorGateway(_=>Task.FromResult(Snapshot()),_=>true);
         var request=new ContractEditorIntent(1,Guid.NewGuid(),"trade-orders","load",1,null,[]);
         Assert.Equal(0,gateway.Submit(request));await gateway.DrainAsync();
-        var initial=gateway.Snapshot();Assert.Single(initial.Result.Rows);
+        var initial=gateway.Snapshot();Assert.Empty(initial.Result.Rows);
         monitor.Send(Plan(2));Assert.True(changed);
         Assert.True(gateway.TryRefresh("trade-orders",()=>Task.FromResult(Snapshot())));await gateway.DrainAsync();
         var refreshed=gateway.Snapshot();
-        Assert.True(refreshed.Generation>initial.Generation);Assert.Equal(2,refreshed.Result.Rows.Length);
+        Assert.True(refreshed.Generation>initial.Generation);Assert.Single(refreshed.Result.Rows);
         Assert.Equal("plan:2",refreshed.Result.Rows[0].Id);
         Assert.Equal("101.701.1901.1501",refreshed.Result.Context!["activeTradeTab"]);
         Assert.Single(refreshed.Outcomes); // No synthetic refresh commands/outcomes accumulate.

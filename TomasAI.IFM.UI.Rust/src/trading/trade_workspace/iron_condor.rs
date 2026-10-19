@@ -49,9 +49,12 @@ fn realtime_spreads(snapshot: &Value, long: bool) -> Vec<Value> {
                     ("delta","Delta",true),("gamma","Gamma",true),("theta","Theta",true),
                     ("vega","Vega",true),("rho","Rho",true),("impliedVolatility","IV",true)
                 ] {
-                    row[format!("{prefix}{suffix}")] = if risk && leg["pricingStatus"] != "Available"
-                        || !risk && leg["quoteStatus"] != "Available" {Value::Null}
-                        else {leg["observation"][field].clone()};
+                    // Freshness is status metadata. A pending/failed calculation must not erase retained values.
+                    let retained = if leg["lastValidRisk"].is_object() { &leg["lastValidRisk"] }
+                        else if leg["position"]["optionRisk"].is_object() { &leg["position"]["optionRisk"] }
+                        else if leg["pricingStatus"] == "Available" { &leg["observation"] } else { &Value::Null };
+                    row[format!("{prefix}{suffix}")] = if risk { retained[field].clone() }
+                        else { leg["observation"][field].clone() };
                 }
             }
         }
@@ -69,6 +72,21 @@ fn realtime_spreads(snapshot: &Value, long: bool) -> Vec<Value> {
 #[cfg(test)]
 mod realtime_cache_tests {
     use super::*;
+    #[test]
+    fn pending_and_stale_pricing_keep_valid_greeks_and_new_zero_values_are_displayed() {
+        let mut snapshot=json!({"legs":[{"definition":{"putCall":2,"signedQuantity":-1,"strike":5000},
+            "quoteStatus":"Stale","pricingStatus":"Pending", "observation":{"bidPrice":9,"askPrice":11,"delta":0},
+            "lastValidRisk":{"delta":-0.4,"gamma":0.01,"vega":12,"rho":0.1,"theta":-3,"impliedVolatility":0.2}}]});
+        let rows=realtime_spreads(&snapshot,false);
+        assert_eq!(rows[0]["shortDelta"],-0.4); assert_eq!(rows[0]["shortBid"],9);
+        snapshot["legs"][0]["lastValidRisk"]["delta"]=json!(0);
+        snapshot["legs"][0]["pricingStatus"]=json!("Stale");
+        assert_eq!(realtime_spreads(&snapshot,false)[0]["shortDelta"],0);
+        let detail=retained_plan_values(&json!({"forwardLossRatio":null,"dailyPnl":0}),
+            &json!({"forwardLossRatio":0.25,"dailyPnl":10}));
+        assert_eq!(detail["forwardLossRatio"],0.25); assert_eq!(detail["dailyPnl"],0);
+    }
+
     /// Regression check: whole snapshot binds all greeks and forward values without local valuation.
     #[test]
     fn whole_snapshot_binds_all_greeks_and_forward_values_without_local_valuation() {
@@ -90,6 +108,19 @@ mod realtime_cache_tests {
         assert_eq!(rows[0]["shortBid"],9);
     }
 }
+/// Retain available numeric plan fields for display; current plan status still reports readiness.
+fn retained_plan_values(current: &Value, previous: &Value) -> Value {
+    let mut fields = current.as_object().cloned().unwrap_or_default();
+    if let Some(previous) = previous.as_object() {
+        for (key, value) in previous {
+            if value.is_number() || value.as_str().is_some_and(|v| v.parse::<f64>().is_ok()) {
+                if fields.get(key).is_none_or(Value::is_null) { fields.insert(key.clone(), value.clone()); }
+            }
+        }
+    }
+    Value::Object(fields)
+}
+
 /// Read a numeric property from a JSON-shaped published value for formatting/plotting; missing values remain absent.
 fn number(v: &Value, key: &str) -> Option<f64> {
     v[key]
@@ -388,13 +419,14 @@ impl TradeWorkspace {
             if show_chart {self.condor_chart(ui,s,&trade,&position,rr(left,0.,chart_w,graph_h));}
             ui.painter().hline(bounds.x_range(),o.y+graph_h/p,egui::Stroke::new(1.0_f32,GRAY));
             let plans=values(&display,"plan");let realtime=one(&display,"realtime");
-            let plan=if realtime.is_object(){realtime["plan"].clone()}else{plans.first().cloned().unwrap_or_default()};let detail=&plan["ironCondorTradePlanSnapshot"];
+            let plan=if realtime.is_object(){realtime["plan"].clone()}else{plans.first().cloned().unwrap_or_default()};let detail=retained_plan_values(&plan["ironCondorTradePlanSnapshot"],
+                &realtime["lastAvailablePlan"]["ironCondorTradePlanSnapshot"]);
             let history_row=selected.and_then(|i|history.get(i)).cloned().unwrap_or_default();
             let mut net=number(&history_row,"netSpread").or_else(||number(&trade,"openingValue"));
             if realtime.is_object(){net=number(&realtime["summary"],"netSpread");}
             else if let Some(marks)=position["legs"].as_array(){let qty=marks.iter().filter_map(|l|number(l,"signedQuantity")).map(f64::abs).reduce(f64::min).unwrap_or_default();if qty>0.{net=Some(marks.iter().map(|l|number(l,"currentPrice").unwrap_or_default()*number(l,"signedQuantity").unwrap_or_default()).sum::<f64>()/qty);}}
-            let daily=number(detail,"dailyPnl").or_else(||number(&history_row,"tradePnl"));
-            let asset=if realtime.is_object(){formatted(&realtime["summary"],"underlyingPrice")}else{formatted(detail,"underlyingPrice")};
+            let daily=number(&detail,"dailyPnl").or_else(||number(&history_row,"tradePnl"));
+            let asset=if realtime.is_object(){formatted(&realtime["summary"],"underlyingPrice")}else{formatted(&detail,"underlyingPrice")};
             let summary_y=graph_h+6.;
             let top_fields=[("Value Date:",formatted(&history_row,"valueDate"),BLACK),
                 ("Trade Status:",if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
@@ -402,7 +434,7 @@ impl TradeWorkspace {
                 ("Net Spread:",net.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
                 ("Daily P&L:",daily.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
                 ("Asset Price:",asset,BLACK),
-                ("Fwd Loss:",if realtime.is_object() && realtime["planStatus"]!="Available" {"N/A".into()}else{number(detail,"forwardLossRatio").map(|n|format!("{:.1}%",n*100.)).unwrap_or_else(||"N/A".into())},severity(detail))];
+                ("Fwd Loss:",number(&detail,"forwardLossRatio").map(|n|format!("{:.1}%",n*100.)).unwrap_or_else(||"N/A".into()),severity(&detail))];
             // Full-width proportional header, with the same caption/value weights as tableLayoutPanel1.
             let weights=[120.,120.,120.,90.,55.,45.,120.,80.,110.,96.,114.,90.,88.,70.];
             let feed_w=165.;let usable=w-feed_w-16.;let total:f32=weights.iter().sum();let mut x=7.;
@@ -431,8 +463,8 @@ impl TradeWorkspace {
                 ui.painter().rect_filled(egui::Rect::from_min_size(progress.min,egui::vec2(progress.width()*percent as f32,progress.height())),0.,color);
                 field(ui,rr(w*0.225,summary_y+38.,w*0.12,28.),"condor-profit",format!("{pnl:.2} @ {:.2}%",percent*100.),color,WHITE,true);
             }else{label(ui,rr(w*0.225,summary_y+38.,w*0.12,28.),"N/A",WHITE,false,true);}
-            field(ui,rr(w*0.35,summary_y+36.,w*0.12,32.),"condor-plan-action",text(detail,"actionType"),severity(detail),WHITE,false);
-            let reason=if detail.is_null(){text(&plan,"explanation")}else if detail["isComplete"]==true{text(detail,"actionReason")}else{detail["unavailableReasons"].as_array().map(|r|r.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("; ")).unwrap_or_default()};
+            field(ui,rr(w*0.35,summary_y+36.,w*0.12,32.),"condor-plan-action",text(&detail,"actionType"),severity(&detail),WHITE,false);
+            let reason=if detail.is_null(){text(&plan,"explanation")}else if detail["isComplete"]==true{text(&detail,"actionReason")}else{detail["unavailableReasons"].as_array().map(|r|r.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("; ")).unwrap_or_default()};
             label(ui,rr(w*0.47,summary_y+36.,w*0.525,32.),reason,WHITE,false,false);
             self.draw_condor_spreads(ui,s,&trade,&position,rr(7.,summary_y+71.,w-14.,108.));
             let log_y=upper+7.;ui.painter().hline(bounds.x_range(),o.y+(log_y-3.)/p,egui::Stroke::new(1.0_f32,GRAY));
@@ -450,8 +482,10 @@ impl TradeWorkspace {
             let context = &s.result.context;
             let offset = context.get("planOffset").and_then(|v| v.parse().ok()).unwrap_or(0);
             let total = context.get("planTotal").and_then(|v| v.parse().ok()).unwrap_or(plan_rows.len());
-            let virtual_mode = context.contains_key("planTotal");
-            let scope = format!("{}:{}", context.get("activeTradeTab").cloned().unwrap_or_default(), context.get("planDate").cloned().unwrap_or_default());
+            // Live rows are pushed by the monitor. Database paging belongs exclusively to stopped mode.
+            let live_plans = monitor_flag(s,"live");
+            let virtual_mode = !live_plans && context.contains_key("planTotal");
+            let scope = format!("{}:{}:{}", context.get("activeTradeTab").cloned().unwrap_or_default(), context.get("planDate").cloned().unwrap_or_default(), if live_plans {"live"} else {"database"});
             let page_id = if virtual_mode { format!("condor-plans-{scope}") } else { "condor-plans".to_owned() };
             let (_, missing, first_visible) = table_window(ui,plan_rect,&page_id,&plan_rows,&columns,None,
                 virtual_mode.then_some((offset,total)));

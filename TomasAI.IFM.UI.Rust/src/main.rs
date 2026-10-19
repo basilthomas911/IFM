@@ -130,8 +130,6 @@ struct App {
     grid: Option<ifm_ui_rust::virtual_grid::GridView>,
     /// Whether the grid view is shown in the application.
     grid_tab: bool,
-    /// Whether the fixture grid load action has already been sent.
-    grid_requested: bool,
     /// Optional collected frame-duration samples for native profiling.
     frame_times: Vec<f64>,
     /// Optional publication-to-render timing recorder.
@@ -264,280 +262,21 @@ impl eframe::App for App {
                     if ui.button("Portfolio").clicked() {
                         self.portfolio.open();
                     }
-                    ui.menu_button("Reference", |ui| {
-                        if ui
-                            .selectable_label(
-                                !self.lookup_tab
-                                    && !self.grid_tab
-                                    && !self.inspection_tab
-                                    && !self.contract_tab
-                                    && !self.yield_tab
-                                    && !self.calendar_tab
-                                    && !self.provider_tab
-                                    && !self.scheduled_tab
-                                    && !self.catalog_tab
-                                    && !self.parameter_tab
-                                    && !self.actor_tab
-                                    && !self.health_tab,
-                                catalog.text(strings::DETAILS),
-                            )
-                            .clicked()
-                        {
-                            self.yield_tab = false;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.scheduled_tab = false;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.contract_tab = false;
-                            self.grid_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.lookup_tab,
-                                catalog.text(strings::LOOKUP_DEFINITIONS),
-                            )
-                            .clicked()
-                        {
-                            self.contract_tab = false;
-                            self.grid_tab = false;
-                            self.yield_tab = false;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.scheduled_tab = false;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.lookup_tab = true;
-                            self.inspection_tab = false;
-                        }
-                        for (label, risk) in [
-                            (strings::STRATEGY_OBSERVATION, false),
-                            (strings::RISK_HISTORY, true),
-                        ] {
-                            if ui
-                                .selectable_label(
-                                    self.inspection_tab && self.inspection.risk == risk,
-                                    catalog.text(label),
-                                )
-                                .clicked()
-                            {
-                                self.contract_tab = false;
-                                self.yield_tab = false;
-                                self.calendar_tab = false;
-                                self.provider_tab = false;
-                                self.scheduled_tab = false;
-                                self.health_tab = false;
-                                self.actor_tab = false;
-                                self.parameter_tab = false;
-                                self.catalog_tab = false;
-                                self.inspection_tab = true;
-                                self.lookup_tab = false;
-                                self.grid_tab = false;
-                                self.inspection.risk = risk;
-                            }
-                        }
-                        for (label, option) in [
-                            (strings::FUTURES_CONTRACTS, false),
-                            (strings::OPTION_CONTRACTS, true),
-                        ] {
-                            if ui
-                                .selectable_label(
-                                    self.contract_tab && self.contract.option == option,
-                                    catalog.text(label),
-                                )
-                                .clicked()
-                            {
-                                if self.contract.option != option {
-                                    self.contract.reset();
-                                }
-                                self.contract.option = option;
-                                self.yield_tab = false;
-                                self.calendar_tab = false;
-                                self.provider_tab = false;
-                                self.scheduled_tab = false;
-                                self.health_tab = false;
-                                self.actor_tab = false;
-                                self.parameter_tab = false;
-                                self.catalog_tab = false;
-                                self.contract_tab = true;
-                                self.lookup_tab = false;
-                                self.inspection_tab = false;
-                                self.grid_tab = false;
-                            }
-                        }
-                        if ui
-                            .selectable_label(self.yield_tab, catalog.text(strings::YIELD_CURVE))
-                            .clicked()
-                        {
-                            self.yield_tab = true;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.scheduled_tab = false;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.contract_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.provider_tab,
-                                catalog.text(strings::PROVIDER_DEFINITIONS),
-                            )
-                            .clicked()
-                        {
-                            self.provider_tab = true;
-                            self.calendar_tab = false;
-                            self.yield_tab = false;
-                            self.contract_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.calendar_tab,
-                                catalog.text(strings::ECONOMIC_CALENDAR),
-                            )
-                            .clicked()
-                        {
-                            self.calendar_tab = true;
-                            self.provider_tab = false;
-                            self.scheduled_tab = false;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.yield_tab = false;
-                            self.contract_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.health_tab,
-                                catalog.text(strings::OPERATIONS_HEALTH),
-                            )
-                            .clicked()
-                        {
-                            self.health_tab = true;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.scheduled_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.contract_tab = false;
-                            self.yield_tab = false;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(self.catalog_tab, catalog.text("strategy_catalog"))
-                            .clicked()
-                        {
-                            self.catalog_tab = true;
-                            self.parameter_tab = false;
-                            self.actor_tab = false;
-                            self.health_tab = false;
-                            self.scheduled_tab = false;
-                            self.provider_tab = false;
-                            self.calendar_tab = false;
-                            self.yield_tab = false;
-                            self.contract_tab = false;
-                            self.inspection_tab = false;
-                            self.lookup_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.parameter_tab,
-                                catalog.text(strings::PARAMETER_SETS),
-                            )
-                            .clicked()
-                        {
-                            self.parameter_tab = true;
-                            self.catalog_tab = false;
-                            self.actor_tab = false;
-                            self.health_tab = false;
-                            self.scheduled_tab = false;
-                            self.provider_tab = false;
-                            self.calendar_tab = false;
-                            self.yield_tab = false;
-                            self.contract_tab = false;
-                            self.inspection_tab = false;
-                            self.lookup_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(self.actor_tab, catalog.text(strings::ACTOR_HEALTH))
-                            .clicked()
-                        {
-                            self.actor_tab = true;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.health_tab = false;
-                            self.scheduled_tab = false;
-                            self.provider_tab = false;
-                            self.calendar_tab = false;
-                            self.yield_tab = false;
-                            self.contract_tab = false;
-                            self.inspection_tab = false;
-                            self.lookup_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.scheduled_tab,
-                                catalog.text(strings::SCHEDULED_TASKS),
-                            )
-                            .clicked()
-                        {
-                            self.scheduled_tab = true;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.contract_tab = false;
-                            self.yield_tab = false;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.grid_tab = false;
-                        }
-                        if ui
-                            .selectable_label(self.grid_tab, catalog.text(strings::GRID))
-                            .clicked()
-                        {
-                            self.lookup_tab = false;
-                            self.inspection_tab = false;
-                            self.contract_tab = false;
-                            self.yield_tab = false;
-                            self.calendar_tab = false;
-                            self.provider_tab = false;
-                            self.scheduled_tab = false;
-                            self.health_tab = false;
-                            self.actor_tab = false;
-                            self.parameter_tab = false;
-                            self.catalog_tab = false;
-                            self.grid_tab = true;
-                            if !self.grid_requested && self.tx.try_send(3).is_ok() {
-                                self.grid_requested = true;
-                            }
-                        }
-                    });
+                    // WinForms Reference opens one manager; its Selection dropdown owns navigation.
+                    if ui.button("Reference").clicked() {
+                        self.lookup_tab = true;
+                        self.catalog_tab = false;
+                        self.parameter_tab = false;
+                        self.contract_tab = false;
+                        self.inspection_tab = false;
+                        self.yield_tab = false;
+                        self.calendar_tab = false;
+                        self.provider_tab = false;
+                        self.scheduled_tab = false;
+                        self.health_tab = false;
+                        self.actor_tab = false;
+                        self.grid_tab = false;
+                    }
                     ui.menu_button("System", |ui| {
                         for (label, section) in [
                             ("Scheduled Tasks", 0),
@@ -672,9 +411,15 @@ impl eframe::App for App {
                 }
             }
         }
-        if self.trade_workspace.loaded_bounds.is_none() {
+        if self.trade_workspace.loaded_bounds.is_none() || self.lookup_tab || self.catalog_tab || self.parameter_tab {
+        if let Some(selected)=ctx.data_mut(|data|data.remove_temp::<usize>(egui::Id::new("reference-selection"))) {
+            self.lookup_tab=selected==0;self.catalog_tab=selected==1;self.parameter_tab=selected==2;
+        }
+        if ctx.data_mut(|data|data.remove_temp::<bool>(egui::Id::new("reference-closed"))).unwrap_or(false) {
+            self.lookup_tab=false;self.catalog_tab=false;self.parameter_tab=false;
+        }
         if self.catalog_tab {
-            if let Some(payload) = self.strategy_catalog.draw(
+            if let Some(payload) = self.strategy_catalog.draw_reference(
                 ctx,
                 &self.contract_snapshot,
                 catalog,
@@ -686,7 +431,7 @@ impl eframe::App for App {
                 }
             }
         } else if self.parameter_tab {
-            if let Some(payload) = self.parameters.draw(
+            if let Some(payload) = self.parameters.draw_reference(
                 ctx,
                 &self.contract_snapshot,
                 catalog,
@@ -805,10 +550,9 @@ impl eframe::App for App {
                 }
             }
         } else if self.lookup_tab {
-            if let Some(payload) = self.editor.draw(
+            if let Some(payload) = self.editor.draw_reference(
                 ctx,
                 &self.editor_snapshot,
-                catalog,
                 self.snapshot.as_ref().is_some_and(|s| s.mode == "Live"),
             ) {
                 if self.editor_tx.try_send(payload).is_err() {
@@ -1089,7 +833,6 @@ fn main() -> eframe::Result {
                 strategy: ifm_ui_rust::strategy_workspace::StrategyWorkspace::for_shell(),
                 grid: None,
                 grid_tab: false,
-                grid_requested: false,
                 frame_times: Vec::new(),
                 latency: ifm_ui_rust::latency::LatencyTrace::from_env(),
                 read_profile: if std::env::var("DOTNET_ENVIRONMENT").is_ok_and(|v|v=="Development") && std::env::var("IFM_RUST_UI_MODE").is_ok_and(|v|v=="live") {

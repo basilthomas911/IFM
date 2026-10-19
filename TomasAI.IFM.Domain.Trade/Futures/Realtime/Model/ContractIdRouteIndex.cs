@@ -117,23 +117,23 @@ public sealed class ContractIdRouteIndex
     }
 
     /// <summary>Classifies a tick and returns the stable route array without allocating.</summary>
-    public MarketRouteLookupOutcome TryRoute(in PositionMarketTick tick, out PortfolioFundTradeLeg[] routes)
+    public MarketRouteLookupOutcome TryRoute(in PositionMarketTick tick, out PortfolioFundTradeLeg[] routes, bool enforceSequenceOrdering = true)
     {
         ReceivedTicks++;
         routes = [];
-        if (string.IsNullOrWhiteSpace(tick.ContractId) || tick.Price <= 0 || tick.SourceSequence <= 0 || tick.OccurredAtUtc.Kind != DateTimeKind.Utc)
+        if (string.IsNullOrWhiteSpace(tick.ContractId) || tick.Price <= 0 || enforceSequenceOrdering && tick.SourceSequence <= 0 || tick.OccurredAtUtc.Kind != DateTimeKind.Utc)
         {
             InvalidTicks++;
             return MarketRouteLookupOutcome.InvalidTick;
         }
 
-        if (_lastSourceSequences.TryGetValue(tick.ContractId, out var last) && tick.SourceSequence <= last)
+        if (enforceSequenceOrdering && _lastSourceSequences.TryGetValue(tick.ContractId, out var last) && tick.SourceSequence <= last)
         {
             DuplicateOrOutOfOrderTicks++;
             return MarketRouteLookupOutcome.DuplicateOrOutOfOrder;
         }
 
-        _lastSourceSequences[tick.ContractId] = tick.SourceSequence;
+        if (enforceSequenceOrdering) _lastSourceSequences[tick.ContractId] = tick.SourceSequence;
         if (!_routes.TryGetValue(tick.ContractId, out routes!))
         {
             UnroutedTicks++;

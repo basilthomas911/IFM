@@ -13,6 +13,7 @@ public sealed class TradeMonitorUpdates : IDisposable
     readonly object gate = new();
     readonly Dictionary<string, StrategyTradePlanSnapshot> livePlans = new(StringComparer.Ordinal);
     bool disposed;
+    bool collectingLivePlans;
 
     public TradeMonitorUpdates(INotifyPropertyChanged source, Func<StrategyTradePlanSnapshot?> currentPlan,
         Func<bool> isLive, Action changed)
@@ -28,22 +29,32 @@ public sealed class TradeMonitorUpdates : IDisposable
         lock(gate)
         {
             if(disposed)return;
-            if(args.PropertyName=="IronCondorPlanHistory" && !isLive())livePlans.Clear();
-            if(isLive() && args.PropertyName is "StrategyTradePlan" or "IsLiveFeedEnabled" or null or "")
+            if(args.PropertyName=="IsLiveFeedEnabled" && !isLive()) { collectingLivePlans=false; livePlans.Clear(); }
+            if((collectingLivePlans || isLive()) && args.PropertyName=="StrategyTradePlan")
             {
                 if(currentPlan() is {} plan)livePlans.TryAdd(Identity(plan),plan);
-                while(livePlans.Count>100)livePlans.Remove(livePlans.MinBy(pair=>pair.Value.PlanRevision).Key);
+                while(livePlans.Count>100)livePlans.Remove(livePlans.MinBy(pair=>(pair.Value.Position.RouteGeneration,pair.Value.PlanRevision)).Key);
             }
             changed();
         }
     }
+    /// <summary>Starts a new live collection before subscribing; a previously loaded database plan is never seeded.</summary>
+    public void BeginLive()
+    {
+        lock(gate) { collectingLivePlans=true; livePlans.Clear(); changed(); }
+    }
+    /// <summary>Releases live rows when monitoring stops or startup fails.</summary>
+    public void EndLive()
+    {
+        lock(gate) { collectingLivePlans=false; livePlans.Clear(); changed(); }
+    }
+    /// <summary>Selects exactly one source: generated notifications while live, the supplied database page while stopped.</summary>
     public IReadOnlyList<StrategyTradePlanSnapshot> Plans(IEnumerable<StrategyTradePlanSnapshot> saved)
     {
         lock(gate)
         {
-            // Prefer the live observation when persisted history catches up with the same version.
-            return saved.Concat(livePlans.Values).GroupBy(Identity,StringComparer.Ordinal).Select(group=>group.Last())
-                .OrderByDescending(plan=>plan.Position.RouteGeneration).ThenByDescending(plan=>plan.PlanRevision)
+            if(!isLive())return saved.ToArray();
+            return livePlans.Values.OrderByDescending(plan=>plan.Position.RouteGeneration).ThenByDescending(plan=>plan.PlanRevision)
                 .ThenByDescending(plan=>plan.CalculatedAtUtc).ToArray();
         }
     }

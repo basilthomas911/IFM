@@ -106,6 +106,9 @@ impl Dialog {
         matches!(
             self.key.as_str(),
             "posting"
+                | "allocation"
+                | "envelope"
+                | "assignment"
                 | "new-fund"
                 | "version-fund"
                 | "fund-state"
@@ -119,6 +122,9 @@ impl Dialog {
         matches!(
             self.key.as_str(),
             "posting"
+                | "allocation"
+                | "envelope"
+                | "assignment"
                 | "new-fund"
                 | "version-fund"
                 | "fund-state"
@@ -521,7 +527,8 @@ impl PortfolioManager {
             } else {
                 0.
             };
-            let size = egui::vec2(dialog.width - 16., dialog.height - 39. + status_height)
+            let dialog_height = if dialog.key == "ledger" { 470. } else { dialog.height };
+            let size = egui::vec2(dialog.width - 16., dialog_height - 39. + status_height)
                 .min((ctx.screen_rect().size() - egui::vec2(24., 64.)).max(egui::vec2(400., 250.)));
             let window = egui::Window::new(presentation::dialog_title(&dialog.title))
                 .id(egui::Id::new(("portfolio-dialog", &dialog.key)))
@@ -541,9 +548,9 @@ impl PortfolioManager {
                     }
                     .min(size),
                 )
-                .resizable(!dialog.uses_compact_layout())
+                .resizable(!dialog.uses_compact_layout() && dialog.key != "ledger")
                 .default_pos(ctx.screen_rect().center() - size / 2.);
-            let window = if dialog.uses_compact_layout() {
+            let window = if dialog.uses_compact_layout() || dialog.key == "ledger" {
                 window.fixed_size(size)
             } else {
                 window
@@ -1150,7 +1157,7 @@ impl PortfolioManager {
     ) {
         let bounds = ui.available_rect_before_wrap();
         self.controls.insert(format!("dialog-{}", d.key), bounds);
-        let toolbar = matches!(d.key.as_str(), "risk-policy" | "risk-history");
+        let toolbar = d.key == "risk-policy";
         if toolbar {
             self.dialog_buttons(ui, d, ready, action);
         }
@@ -1180,57 +1187,64 @@ impl PortfolioManager {
             });
         } else if d.key == "ledger" {
             ui.trading_label(&d.status);
-            let height = (ui.available_height() - 85.).max(60.);
-            let left = egui::Rect::from_min_size(
-                egui::pos2(bounds.left(), ui.cursor().top()),
-                egui::vec2((bounds.width() - 342.).max(200.), height),
-            );
-            let right = egui::Rect::from_min_max(
-                egui::pos2(left.right() + 12., left.top()),
-                egui::pos2(bounds.right(), bounds.bottom()),
-            );
-            ui.scope_builder(egui::UiBuilder::new().max_rect(left), |ui| {
-                ui.set_clip_rect(left.intersect(ui.clip_rect()));
-                self.dialog_tabs(ui, d, height, ready, action);
+            let content = egui::Rect::from_min_max(ui.cursor().min, bounds.max);
+            let grid_height = content.height() * (2. / 3.);
+            let grid = egui::Rect::from_min_size(content.min, egui::vec2(content.width(), grid_height));
+            self.controls.insert("ledger.grid-area".into(), grid);
+            ui.scope_builder(egui::UiBuilder::new().max_rect(grid), |ui| {
+                ui.set_clip_rect(grid.intersect(ui.clip_rect()));
+                self.dialog_tabs(ui, d, grid_height, ready, action);
             });
-            ui.scope_builder(egui::UiBuilder::new().max_rect(right), |ui| {
-                ui.set_clip_rect(right.intersect(ui.clip_rect()));
-                self.fields(ui, d, ready, action);
-                for label in &d.buttons {
-                    if Self::button(
-                        ui,
-                        &mut self.controls,
-                        &format!("{}.button.{label}", d.key),
-                        label,
-                        ready
-                            && d.button_enabled
-                                .as_ref()
-                                .and_then(|e| e.get(label))
-                                .copied()
-                                .unwrap_or(true),
-                    ) {
-                        let mut fields = self.dialog_fields(d);
-                        fields.insert("action".into(), label.clone());
-                        *action = Some((
-                            if label == "Close" {
-                                "portfolio-cancel"
-                            } else {
-                                "portfolio-financial"
+            let gap = 16.;
+            let fields_top = grid.bottom() + 8.;
+            let left_width = 330.;
+            let action_width = 140.;
+            let right_left = content.left() + left_width + gap;
+            let right_right = content.right() - action_width - gap;
+            let actions_rect = egui::Rect::from_min_size(
+                egui::pos2(content.right() - action_width, fields_top), egui::vec2(action_width, 28.));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(actions_rect), |ui| {
+                let mut actions = d.clone();
+                actions.buttons.retain(|label| !matches!(label.as_str(), "Refresh" | "Close"));
+                self.dialog_buttons(ui, &actions, ready, action);
+            });
+            for group in 0..2 {
+                let (left, right) = if group == 0 {
+                    (content.left(), content.left() + left_width)
+                } else {
+                    (right_left, right_right)
+                };
+                let rect = egui::Rect::from_min_max(
+                    egui::pos2(left, fields_top), egui::pos2(right, content.bottom()));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                    ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+                    egui::Grid::new(("ledger-bottom-fields", group))
+                        .num_columns(2)
+                        .min_row_height(24.)
+                        .show(ui, |ui| {
+                            let range = if group == 0 { 0..4.min(d.fields.len()) } else { 4.min(d.fields.len())..d.fields.len() };
+                            for field in &d.fields[range] {
+                                if self.field(ui, d, field, ready) {
+                                    *action = Some(("portfolio-choice".into(), None, self.dialog_fields(d)));
+                                }
+                                ui.end_row();
                             }
-                            .into(),
-                            None,
-                            fields,
-                        ));
-                    }
-                }
-            });
+                        });
+                });
+            }
         } else if d.key == "financials" {
             self.financials(ui, d, ready, action);
         } else if d.key == "risk-history" {
             if let Some(f) = d.fields.first() {
-                if self.field(ui, d, f, ready) {
-                    *action = Some(("portfolio-choice".into(), None, self.dialog_fields(d)));
-                }
+                ui.horizontal(|ui| {
+                    let caption = ui.add(presentation::caption_widget("Evaluation Date:"));
+                    self.controls.insert(format!("{}.{}.caption", d.key, f.key), caption.rect);
+                    let mut date = f.clone();
+                    date.caption.clear();
+                    if self.field(ui, d, &date, ready) {
+                        *action = Some(("portfolio-choice".into(), None, self.dialog_fields(d)));
+                    }
+                });
             }
             if let Some(g) = d.grids.as_ref().and_then(|g| g.first()) {
                 self.dialog_grid(ui, d, g, ui.available_height() * 0.35, ready, action);
@@ -1293,7 +1307,7 @@ impl PortfolioManager {
                 self.dialog_buttons(ui, d, ready, action);
             });
         }
-        if !d.uses_compact_layout() {
+        if !d.uses_compact_layout() && d.key != "ledger" {
             border(ui, bounds);
         }
         ui.allocate_rect(bounds, egui::Sense::hover());
@@ -1580,7 +1594,9 @@ impl PortfolioManager {
         };
         let mut selection_changed = false;
         ui.add_enabled_ui(ready && f.enabled, |ui| {
-            let width = if d.key == "risk-policy" {
+            let width = if d.key == "ledger" && f.key == "reason" {
+                (ui.available_width() - 4.).max(60.)
+            } else if d.key == "risk-policy" {
                 self.policy_value_width
             } else {
                 let pane_width = if d.key == "ledger" {
@@ -1727,7 +1743,7 @@ impl PortfolioManager {
                     let mut checked = value.eq_ignore_ascii_case("true");
                     let r = ui.add(crate::presentation::checkbox(
                         &mut checked,
-                        if d.key == "posting" { "" } else { &f.caption },
+                        if d.uses_compact_layout() { "" } else { &f.caption },
                     ));
                     if r.changed() {
                         *value = checked.to_string();
@@ -1762,7 +1778,9 @@ impl PortfolioManager {
                         .interactive(false)
                         .font(egui::TextStyle::Monospace),
                 ),
-                "multiline" => ui.add_sized([width, 64.], egui::TextEdit::multiline(value)),
+                "multiline" => ui.add_sized(
+                    [width, if d.key == "ledger" { 40. } else { 64. }],
+                    egui::TextEdit::multiline(value).desired_rows(if d.key == "ledger" { 2 } else { 4 })),
                 _ => ui.add_sized([width, 24.], egui::TextEdit::singleline(value)),
             };
             if f.kind == "multiline" && response.has_focus() {
@@ -1822,7 +1840,7 @@ impl PortfolioManager {
             ui.with_layout(
                 if embedded_policy {
                     egui::Layout::top_down(egui::Align::Min)
-                } else if footer {
+                } else if footer || d.key == "ledger" {
                     egui::Layout::right_to_left(egui::Align::Center)
                 } else {
                     egui::Layout::left_to_right(egui::Align::Center)
@@ -1850,7 +1868,12 @@ impl PortfolioManager {
                                 .and_then(|e| e.get(label))
                                 .copied()
                                 .unwrap_or(true);
-                        let clicked = if embedded_policy {
+                        let clicked = if d.key == "ledger" {
+                            let response = ui.add_enabled(enabled,
+                                egui::Button::new(label.as_str()).min_size(egui::vec2(140., 28.)));
+                            self.controls.insert(format!("{}.button.{label}", d.key), response.rect);
+                            response.clicked()
+                        } else if embedded_policy {
                             let width = self.controls["risk-policy-actions"].width();
                             let response = ui.add_enabled(
                                 enabled,

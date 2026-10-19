@@ -23,6 +23,8 @@ sealed class DesktopViewTestHost : IDisposable
    finally{SynchronizationContext.SetSynchronizationContext(null);try{form?.Dispose();scope?.DisposeAsync().AsTask().GetAwaiter().GetResult();closed.TrySetResult();}catch(Exception e){closed.TrySetException(e);}}
   }){IsBackground=true,Name="WinForms parity STA host"};thread.SetApartmentState(ApartmentState.STA);thread.Start();ready.Task.WaitAsync(TimeSpan.FromSeconds(20)).GetAwaiter().GetResult();
  }
+ /// <summary>Reads the test-owned form on its STA thread for baseline diagnostics.</summary>
+ public T Inspect<T>(Func<System.Windows.Forms.Form,T> read) => (T)form!.Invoke(new Func<T>(()=>read(form)));
  public void Dispose()
  {
   if(form is not null&&!form.IsDisposed)form.BeginInvoke(new Action(async()=>{try{if(close is not null)await close();form.Close();}catch(Exception e){closed.TrySetException(e);form.Close();}}));

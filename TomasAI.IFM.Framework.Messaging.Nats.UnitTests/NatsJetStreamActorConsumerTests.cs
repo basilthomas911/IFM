@@ -8,20 +8,23 @@ namespace TomasAI.IFM.Framework.Messaging.Nats.UnitTests;
 public sealed class NatsJetStreamActorConsumerTests
 {
     [Theory]
-    [InlineData(5, 2_294_812, 2_294_824, true)]
-    [InlineData(5, 2_294_824, 2_294_824, false)]
-    [InlineData(5, 2_294_825, 2_294_824, false)]
-    [InlineData(0, 2_294_812, 2_294_824, false)]
-    [InlineData(5, 0, 2_294_824, false)]
+    [InlineData(2_294_812, 2_294_824, true)]
+    [InlineData(2_294_824, 2_294_824, false)]
+    [InlineData(2_294_825, 2_294_824, false)]
+    // The observed startup failure: purge emptied the rebuilt stream before consumer startup.
+    [InlineData(2583, 19_499_427, true)]
+    [InlineData(0, 2_294_824, true)]
+    [InlineData(0, 0, false)]
+    // A normal purge keeps the last sequence and must preserve the valid consumer.
+    [InlineData(2583, 2583, false)]
+    [InlineData(2583, 2500, false)]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
-    public void RequiresCursorRecovery_OnlyAcceptsImpossibleNonEmptyStreamCursor(
-        ulong retainedMessages,
+    public void RequiresCursorRecovery_RejectsImpossibleCursorEvenWhenStreamIsEmpty(
         ulong lastStreamSequence,
         ulong acknowledgementFloorStreamSequence,
         bool expected)
     {
         var actual = NatsJetStreamActorConsumer.RequiresCursorRecovery(
-            retainedMessages,
             lastStreamSequence,
             acknowledgementFloorStreamSequence);
 
