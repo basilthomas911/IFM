@@ -1,9 +1,13 @@
+//! Trade blotter and Broker Trade panels. Published option-chain cells, selected legs, reports, and reconciliation evidence are arranged with stable widget IDs; file selection chooses a local report path without importing it directly.
+
 use crate::wire::WireNumber as _;
 use super::order_layout::{at, rect};
 use super::*;
+/// Borrow a published trade context value; absent keys produce an empty string.
 fn context<'a>(s: &'a ContractPublication, key: &str) -> &'a str {
     s.result.context.get(key).map(String::as_str).unwrap_or("")
 }
+/// Decode the first trade row of a requested kind for presentation, using the empty-value fallback when missing.
 fn value(s: &ContractPublication, kind: &str) -> serde_json::Value {
     s.result
         .rows
@@ -12,9 +16,11 @@ fn value(s: &ContractPublication, kind: &str) -> serde_json::Value {
         .map(data)
         .unwrap_or_default()
 }
+/// Mirrored call/put option-chain column order, with Strike in the center.
 pub(super) const OPTION_COLUMNS: [&str; 13] = [
     "Selected", "Delta", "OI", "Vol", "Bid", "Ask", "Strike", "Bid", "Ask", "Vol", "OI", "Delta", "Selected",
 ];
+/// Paint an option-chain column heading with the selected-side highlight convention.
 pub(super) fn option_header(ui: &mut egui::Ui, label: &str, center_selected: bool) {
     ui.painter().rect_filled(ui.max_rect(), 0., crate::presentation::COMMAND);
     if label == "Strike" || (center_selected && label == "Selected") {
@@ -23,10 +29,12 @@ pub(super) fn option_header(ui: &mut egui::Ui, label: &str, center_selected: boo
         ui.add(crate::presentation::label_widget(egui::RichText::new(label).color(crate::presentation::CAPTION_FOREGROUND)).truncate());
     }
 }
+/// Draw a strike cell using its published display text and requested color.
 pub(super) fn strike_cell(ui: &mut egui::Ui, strike: &str, color: Color32) {
     ui.add_sized(ui.available_size(), crate::presentation::label_widget(
         egui::RichText::new(strike).color(color).strong()).halign(egui::Align::Center).truncate());
 }
+/// Format one option-chain property for display without recalculating quote or risk values.
 pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
     let Some(number) = v[key].wire_number() else {
         return if v[key].is_null() {
@@ -57,9 +65,11 @@ pub(super) fn option_cell(v: &serde_json::Value, key: &str) -> String {
     }
 }
 // Position caption/value glyphs on the same text line, independent of control padding.
+/// Draw a market/Broker Trade header value within fixed bounds using the default foreground.
 fn market_header_text(ui: &mut egui::Ui, bounds: egui::Rect, text: &str, align: egui::Align) {
     market_header_text_colored(ui, bounds, text, align, None);
 }
+/// Draw an aligned header value using the optional explicit foreground color.
 fn market_header_text_colored(ui: &mut egui::Ui, bounds: egui::Rect, text: &str, align: egui::Align, color: Option<Color32>) {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let height = ui.fonts(|fonts| fonts.row_height(&font));
@@ -81,6 +91,7 @@ fn market_header_text_colored(ui: &mut egui::Ui, bounds: egui::Rect, text: &str,
     });
 }
 impl TradeWorkspace {
+    /// Draw a read-only bounded trade display field and retain its control rectangle.
     fn display(&mut self, ui: &mut egui::Ui, r: egui::Rect, id: &str, value: &str) {
         at(ui, r, id, |ui| {
             ui.painter().rect_filled(r, 0., Color32::BLACK);
@@ -94,6 +105,7 @@ impl TradeWorkspace {
         });
         self.controls.insert(id.into(), r);
     }
+    /// Draw a market-panel header field with its stable control identity.
     fn header_display(&mut self, ui: &mut egui::Ui, bounds: egui::Rect, id: &str, value: &str) {
         at(ui, bounds, id, |ui| {
             ui.painter().rect_filled(bounds, 0., Color32::BLACK);
@@ -104,6 +116,7 @@ impl TradeWorkspace {
         });
         self.controls.insert(id.into(), bounds);
     }
+    /// Draw a bounded choice control backed by the local trade draft; return whether its selection changed.
     fn choice(
         &mut self,
         ui: &mut egui::Ui,
@@ -141,6 +154,7 @@ impl TradeWorkspace {
         self.controls.insert(key.into(), r);
         old != *selected
     }
+    /// Compose the trade blotter tabs/panels from the current publication and return a requested action key.
     pub(super) fn draw_blotter(
         &mut self,
         ui: &mut egui::Ui,
@@ -349,7 +363,7 @@ impl TradeWorkspace {
                 );
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
                 if ui
-                    .add_enabled(editable, egui::Checkbox::new(&mut checked, "Live Feed"))
+                    .add_enabled(editable, crate::presentation::checkbox(&mut checked, "Live Feed"))
                     .changed()
                 {
                     self.draft.insert("live".into(), checked.to_string());
@@ -551,6 +565,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Lay out market-trade selectors, option-chain data, and staging controls within the supplied scaled panel.
     fn market_panel(
         &mut self,
         ui: &mut egui::Ui,
@@ -784,6 +799,7 @@ impl TradeWorkspace {
         );
         action
     }
+    /// Lay out broker-trade selected legs, order controls, fills tree, and fill details using published execution state.
     fn broker_panel(
         &mut self,
         ui: &mut egui::Ui,
@@ -1058,6 +1074,7 @@ impl TradeWorkspace {
         );
         action
     }
+    /// Show managed inspection properties, falling back to the supplied published value when detailed data is absent.
     pub(super) fn inspection_properties(
         &mut self,
         ui: &mut egui::Ui,
@@ -1089,11 +1106,12 @@ impl TradeWorkspace {
             .get("propertySelected")
             .cloned()
             .unwrap_or_default();
+        let row_spacing = ui.spacing().item_spacing.y;
         egui_extras::TableBuilder::new(ui)
             .id_salt("broker-property-grid")
             .resizable(true)
             .sense(egui::Sense::click())
-            .max_scroll_height(height)
+            .fill_grid(properties.len(), 22. / p, row_spacing, height)
             .column(egui_extras::Column::initial(width / 3.).at_least(60. / p))
             .column(egui_extras::Column::remainder())
             .bordered_body(0., |body| {
@@ -1123,6 +1141,7 @@ impl TradeWorkspace {
             }
         }
     }
+    /// Render the managed staged-order rows and their selection state.
     fn staging_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
         let legs: Vec<_> = s
@@ -1145,10 +1164,12 @@ impl TradeWorkspace {
             "Validation / Review",
         ];
         let height = ui.available_height();
+        let row_spacing = ui.spacing().item_spacing.y;
+        let body_height = (height - 25. / p - row_spacing).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
             .id_salt("legStagingGrid")
             .resizable(true)
-            .max_scroll_height(height);
+            .fill_grid(legs.len(), 27. / p, row_spacing, body_height);
         for _ in headers {
             table = table.column(egui_extras::Column::remainder());
         }
@@ -1204,6 +1225,7 @@ impl TradeWorkspace {
                 });
             });
     }
+    /// Render the selected broker/reconciliation evidence from published data.
     fn evidence_panel(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         egui::ScrollArea::both().id_salt("durable-evidence-text").show(ui,|ui|{
    let account=value(s,"account");ui.trading_label(format!("Account: {}; Gate={}; Qualification={}; Cash={}; Available={}",text(&account["id"],"accountAlias"),text(&account,"gate"),text(&account,"qualificationStatus"),text(&account["snapshot"],"cashBalance"),text(&account["snapshot"],"availableFunds")));ui.add_space(16.);
@@ -1211,6 +1233,7 @@ impl TradeWorkspace {
    for execution in s.result.rows.iter().filter(|r|r.fields.get("kind").is_some_and(|k|k=="execution")).map(data){ui.trading_label(format!("Execution {}: {}; Requested={}; Cumulative={}; Revision={}",text(&execution["id"],"executionAttemptId"),text(&execution,"status"),text(&execution,"orderQuantity"),text(&execution,"cumulativeFilledQuantity"),text(&execution,"orderRevision")));if let Some(fills)=execution["fills"].as_array(){for fill in fills{ui.trading_label(format!("  {}: Quantity={}; Price={}; Commission={}; External={}; At={}",text(fill,"contractId"),text(fill,"signedQuantity"),text(fill,"price"),text(fill,"commission"),text(fill,"externalExecutionId"),text(fill,"filledAtUtc")));}}ui.add_space(16.);}
   });
     }
+    /// Draw editable option-leg rows within the allotted height and report whether the leg selection changed.
     fn leg_grid(
         &mut self,
         ui: &mut egui::Ui,
@@ -1234,10 +1257,12 @@ impl TradeWorkspace {
             "Leg", "Side", "Role", "Contract", "Strike", "Qty", "Bid", "Ask", "Mid", "Delta",
             "Age", "Selected",
         ];
+        let row_spacing = ui.spacing().item_spacing.y;
+        let body_height = (height - 25. / p - row_spacing).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
             .id_salt("broker-leg-grid")
             .resizable(true)
-            .max_scroll_height(height - 25. / p);
+            .fill_grid(legs.len(), 24. / p, row_spacing, body_height);
         for (i, _) in titles.iter().enumerate() {
             table = table.column(if i == 3 {
                 egui_extras::Column::remainder().at_least(150. / p)
@@ -1323,6 +1348,7 @@ impl TradeWorkspace {
             });
         changed
     }
+    /// Render selected trade legs from the current managed publication.
     fn selected_grid(&mut self, ui: &mut egui::Ui, s: &ContractPublication) {
         let p = ui.ctx().pixels_per_point();
         let market = value(s, "market");
@@ -1333,10 +1359,12 @@ impl TradeWorkspace {
             .filter(|r| r.fields.get("kind").is_some_and(|k| k == "leg"))
             .map(data)
             .collect();
+        let row_spacing = ui.spacing().item_spacing.y;
+        let body_height = (ui.available_height() - 24. / p - row_spacing).max(0.);
         let mut table = egui_extras::TableBuilder::new(ui)
             .id_salt("selectedStrategyLegsGrid")
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .max_scroll_height(126. / p);
+            .fill_grid(legs.len(), 27. / p, row_spacing, body_height);
         for index in 0..13 {
             let column = self
                 .draft
@@ -1395,38 +1423,64 @@ impl TradeWorkspace {
 /// Uses the Windows common file dialog; file contents are read and hashed by the managed adapter.
 #[cfg(target_os = "windows")]
 pub(super) fn pick_report() -> Option<String> {
+    /// C-layout OPENFILENAMEW storage for the Windows report-file chooser; pointer buffers must outlive the native call.
     #[repr(C)]
     struct OpenFileName {
+        /// Structure size used by the native ABI or platform API.
         size: u32,
+        /// Native owner window handle for the report-file dialog.
         owner: isize,
+        /// Native module instance handle in the OPENFILENAMEW structure.
         instance: isize,
+        /// Double-null-terminated UTF-16 filter pairs for the native file chooser.
         filter: *const u16,
+        /// Pointer to the optional custom filter buffer.
         custom: *mut u16,
+        /// Maximum custom filter buffer size required by the native API.
         custom_max: u32,
+        /// Zero-based patch array index or insertion offset.
         index: u32,
+        /// Pointer to the selected-file UTF-16 buffer, owned by the caller.
         file: *mut u16,
+        /// Capacity of the selected-file buffer in UTF-16 code units.
         file_max: u32,
+        /// Pointer to an optional file-title output buffer.
         file_title: *mut u16,
+        /// Capacity of the optional title output buffer in UTF-16 code units.
         title_max: u32,
+        /// Optional initial-directory UTF-16 pointer.
         directory: *const u16,
+        /// Optional null-terminated UTF-16 title pointer for the native file chooser.
         title: *const u16,
+        /// Windows file-dialog option bits.
         flags: u32,
+        /// Selected filename offset returned by the Windows dialog.
         offset: u16,
+        /// Selected filename extension offset returned by the Windows dialog.
         extension: u16,
+        /// Optional default-extension UTF-16 pointer.
         default_extension: *const u16,
+        /// Typed binary MessagePack row payload or the publication's one-time native display cache, according to the enclosing type.
         data: isize,
+        /// Optional native file-dialog hook procedure pointer.
         hook: isize,
+        /// Selected new-definition template key.
         template: *const u16,
+        /// Reserved OPENFILENAMEW pointer; initialized according to the Windows contract.
         reserved: *mut core::ffi::c_void,
+        /// Reserved OPENFILENAMEW integer field.
         reserved_size: u32,
+        /// Extended Windows file-dialog option bits.
         flags_ex: u32,
     }
     #[link(name = "comdlg32")]
     unsafe extern "system" {
+        /// Invoke the Windows wide-character file chooser. The caller must provide a valid C-layout structure and live writable buffers.
         fn GetOpenFileNameW(value: *mut OpenFileName) -> i32;
     }
     #[link(name = "user32")]
     unsafe extern "system" {
+        /// Return the calling thread's active native window handle, or null when none exists.
         fn GetActiveWindow() -> *mut core::ffi::c_void;
     }
     let mut file = vec![0u16; 32768];
@@ -1453,6 +1507,7 @@ pub(super) fn pick_report() -> Option<String> {
         None
     }
 }
+/// Choose an existing local report file with the platform file dialog; cancellation or an unsupported platform returns None.
 #[cfg(not(target_os = "windows"))]
 pub(super) fn pick_report() -> Option<String> {
     None

@@ -1,0 +1,106 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Trade plan snapshot property reference</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:32px;max-width:1500px;color:#202530}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbc4d0;padding:9px;text-align:left;vertical-align:top}th{background:#eaf0f8;position:sticky;top:0}code{white-space:nowrap}tr:nth-child(even){background:#f7f9fc}</style>
+<h1>Iron Condor trade-plan snapshot: property reference</h1>
+<p>Updated 2026-10-17. Position.Legs is the authoritative leg collection. Each leg retains its latest accepted quote, last valid risk result (with original timestamps), economic pricing conventions and derived scenario evidence. Quote changes and pricing completions both reach the position owner. No simultaneous four-leg update is required.</p>
+<p>Current spread/position values use retained marks. Greeks use last valid calculations. Scenario prices are repriced with the retained conventions and policy. Quote/risk age is retained separately. Missing inputs remain null with reasons. Legacy fields explicitly marked unavailable below are not implemented by this daily-risk calculator.</p>
+<p>Historical snapshot 640 is unchanged. Missing historical risk inputs cannot be recreated from four marks alone. The new representation is populated by accepted enriched observations after deployment.</p>
+<table><thead><tr><th>Property</th><th>Short description</th><th>How it uses option legs / other inputs</th></tr></thead><tbody><tr><td><code>OrderId</code></td><td>Trade identity</td><td>Position.Id.Trade; no pricing calculation.</td></tr>
+<tr><td><code>TradeId</code></td><td>Trade identity</td><td>Position.Id.Trade; no pricing calculation.</td></tr>
+<tr><td><code>ValueDate</code></td><td>Exchange session</td><td>Plan.ValueDate, not UTC calendar date.</td></tr>
+<tr><td><code>SequenceId</code></td><td>Snapshot revision</td><td>Plan.PlanRevision; independent of individual tick sequence.</td></tr>
+<tr><td><code>ActionDate</code></td><td>Calculation instant</td><td>Plan.CalculatedAtUtc; UI formats Eastern time.</td></tr>
+<tr><td><code>TradeDate</code></td><td>Established-trade reference</td><td>Captured trade reference inputs; not inferred from current prices.</td></tr>
+<tr><td><code>MaturityDate</code></td><td>Established-trade reference</td><td>Captured trade reference inputs; not inferred from current prices.</td></tr>
+<tr><td><code>TradeType</code></td><td>Established-trade reference</td><td>Captured trade reference inputs; not inferred from current prices.</td></tr>
+<tr><td><code>ActionType</code></td><td>Monitoring action</td><td>ExitTradePosition when exit is recommended; otherwise WarnTradePosition; null for incomplete calculation.</td></tr>
+<tr><td><code>ActionSubType</code></td><td>Limit outcome</td><td>ForwardLossRiskLimitReached / ForwardLossRiskLimitClear only for complete calculations; null when unavailable.</td></tr>
+<tr><td><code>ActionState</code></td><td>Decision severity</td><td>RedAlert on exit; Warning for negative daily P&amp;L above warning ratio; otherwise Normal; null when incomplete.</td></tr>
+<tr><td><code>ActionReason</code></td><td>Decision explanation alias</td><td>Copies ExitReason.</td></tr>
+<tr><td><code>TradePnl</code></td><td>Gross total currency P&amp;L</td><td>(Position.UnrealizedPnl + Position.RealizedPnl) * multiplier. Does not subtract commissions.</td></tr>
+<tr><td><code>ForwardLossRatio</code></td><td>Projected loss / daily allowance</td><td>ForwardLoss / DailyLossLimit; requires a positive limit.</td></tr>
+<tr><td><code>MaxProfit</code></td><td>Legacy field; currently unavailable</td><td>Not assigned by this calculator. Requires opening premium, strikes, quantities, multiplier and commission convention.</td></tr>
+<tr><td><code>MaxLoss</code></td><td>Legacy field; currently unavailable</td><td>Not assigned by this calculator. Requires strike widths, opening premium, quantities, multiplier and commission convention.</td></tr>
+<tr><td><code>MinProfitTarget</code></td><td>Legacy field; currently unavailable</td><td>Not assigned; requires approved limit or explicit target rule.</td></tr>
+<tr><td><code>DailyProfitTarget</code></td><td>Legacy field; currently unavailable</td><td>Not assigned; requires approved limit or explicit target rule.</td></tr>
+<tr><td><code>AssetPrice</code></td><td>Legacy field; currently unavailable</td><td>Legacy alias not mapped; use UnderlyingPrice.</td></tr>
+<tr><td><code>VolatilityPrice</code></td><td>Current volatility-instrument price</td><td>Front-contract VX hot-cache price for the snapshot session: latest valid trade, or bid/ask midpoint when newer. Numeric price, not a classification; missing data remains null.</td></tr>
+<tr><td><code>PutOTMProbability</code></td><td>Legacy short-option OTM probability</td><td>z=ln(strike / retained underlying)/(retained IV * sqrt(remaining years)); put=1-Phi(z), call=Phi(z). Uses exact expiry and 360/365 year convention.</td></tr>
+<tr><td><code>CallOTMProbability</code></td><td>Legacy short-option OTM probability</td><td>z=ln(strike / retained underlying)/(retained IV * sqrt(remaining years)); put=1-Phi(z), call=Phi(z). Uses exact expiry and 360/365 year convention.</td></tr>
+<tr><td><code>ShortPutGamma</code></td><td>Short-option gamma</td><td>Copied from last valid risk for the corresponding short leg.</td></tr>
+<tr><td><code>ShortCallGamma</code></td><td>Short-option gamma</td><td>Copied from last valid risk for the corresponding short leg.</td></tr>
+<tr><td><code>NetPrice</code></td><td>Signed whole-position marked points</td><td>sum(CurrentPrice_i * SignedQuantity_i); quantity-scaled, not per strategy unit.</td></tr>
+<tr><td><code>ForwardPrice</code></td><td>Legacy field; currently unavailable</td><td>Legacy alias not mapped; use CombinedForwardPrice for the projected price per unit.</td></tr>
+<tr><td><code>ForwardDelta</code></td><td>Projected signed delta per unit</td><td>sum(projected leg delta_i * signed quantity_i) / Quantity.</td></tr>
+<tr><td><code>StopLossLimit</code></td><td>Legacy field; currently unavailable</td><td>Not assigned; requires approved stop/trailing-stop rule.</td></tr>
+<tr><td><code>Position</code></td><td>Authoritative position</td><td>Contains the single authoritative Legs array, opening basis, quantities, current marks, full OptionTick, last valid OptionRisk, and derived scenario evidence per leg.</td></tr>
+<tr><td><code>SourceEventId</code></td><td>Originating position/event identity</td><td>Copied from originating request; no leg formula.</td></tr>
+<tr><td><code>UnavailableReasons</code></td><td>Missing input or failure explanations</td><td>Includes missing retained risk by contract, pricing convention/scenario failures and required-input validation. No fabricated zeros.</td></tr>
+<tr><td><code>CalculationVersion</code></td><td>Calculation contract version</td><td>IronCondor/RetainedPositionLegs/v2; identifies marked current-price basis and authoritative position-leg representation.</td></tr>
+<tr><td><code>IsComplete</code></td><td>Required calculation availability</td><td>CalculationStatus == Complete for current snapshots; legacy snapshots use retained-field completeness checks.</td></tr>
+<tr><td><code>ActionDateTime</code></td><td>Calculation instant</td><td>Plan.CalculatedAtUtc; UI formats Eastern time.</td></tr>
+<tr><td><code>DailyPnl</code></td><td>Net session currency P&amp;L</td><td>Position.DailyPnl * multiplier - actual opening/closing commissions attributable to ValueDate.</td></tr>
+<tr><td><code>DailyLoss</code></td><td>Nonnegative session loss</td><td>max(0, -DailyPnl).</td></tr>
+<tr><td><code>DailyLossLimit</code></td><td>Configured loss allowance</td><td>Published strategy risk policy; not calculated from ticks.</td></tr>
+<tr><td><code>LossHeadroom</code></td><td>Remaining daily allowance</td><td>DailyLossLimit - DailyLoss.</td></tr>
+<tr><td><code>ForwardDailyPnl</code></td><td>Projected net session P&amp;L</td><td>DailyPnl + ProjectedPositionValueChange - EstimatedExitCosts.</td></tr>
+<tr><td><code>ForwardLoss</code></td><td>Nonnegative projected loss</td><td>max(0, -ForwardDailyPnl).</td></tr>
+<tr><td><code>ForwardLossHeadroom</code></td><td>Remaining projected allowance</td><td>DailyLossLimit - ForwardLoss.</td></tr>
+<tr><td><code>ProjectedPositionValueChange</code></td><td>Projected change from marked position</td><td>ForwardPositionValue - CurrentPositionValue.</td></tr>
+<tr><td><code>EstimatedExitCommission</code></td><td>Additional closing commission</td><td>sum(abs(signed leg quantities)) * policy.ExitCommissionPerContract; independent of scenario success.</td></tr>
+<tr><td><code>EstimatedExitSlippage</code></td><td>Crossing plus additional tick allowance</td><td>max(0, signed current marked value - bid/ask liquidation value) + sum(closing-side tick increment_i * abs(quantity_i) * configured extra ticks * multiplier). Requires retained tick conventions.</td></tr>
+<tr><td><code>EstimatedExitCosts</code></td><td>Total additional closing costs</td><td>EstimatedExitCommission + EstimatedExitSlippage; neither is replaced with zero when unavailable.</td></tr>
+<tr><td><code>PutSpreadPrice</code></td><td>Signed marked put spread per unit</td><td>sum(CurrentPrice_i * SignedQuantity_i) / Quantity, over the two puts.</td></tr>
+<tr><td><code>CallSpreadPrice</code></td><td>Signed marked call spread per unit</td><td>sum(CurrentPrice_i * SignedQuantity_i) / Quantity, over the two calls.</td></tr>
+<tr><td><code>CombinedSpreadPrice</code></td><td>Signed marked condor per unit</td><td>PutSpreadPrice + CallSpreadPrice.</td></tr>
+<tr><td><code>PutForwardPrice</code></td><td>Projected signed put spread currency value</td><td>sum(projected put price_i * signed quantity_i * validated contract multiplier_i).</td></tr>
+<tr><td><code>CallForwardPrice</code></td><td>Projected signed call spread currency value</td><td>sum(projected call price_i * signed quantity_i * validated contract multiplier_i).</td></tr>
+<tr><td><code>CombinedForwardPrice</code></td><td>Projected signed condor price points per strategy unit</td><td>(PutForwardPrice + CallForwardPrice) / (Quantity * validated contract multiplier).</td></tr>
+<tr><td><code>CurrentPositionValue</code></td><td>Marked position currency value</td><td>sum(CurrentPrice_i * SignedQuantity_i) * ContractMultiplier. Available independently of Greeks.</td></tr>
+<tr><td><code>ForwardPositionValue</code></td><td>Projected currency value</td><td>CombinedForwardPrice * Quantity * ContractMultiplier.</td></tr>
+<tr><td><code>EstimatedCloseValue</code></td><td>Executable-side liquidation value</td><td>sum((bid for long, ask for short) * signed quantity) * multiplier. Requires two-sided quote data.</td></tr>
+<tr><td><code>NetDelta</code></td><td>Signed delta per strategy unit</td><td>sum(last valid leg Delta * signed quantity) / Quantity. No cross-leg timestamp synchronization required.</td></tr>
+<tr><td><code>NetGamma</code></td><td>Signed gamma per strategy unit</td><td>sum(last valid leg Gamma * signed quantity) / Quantity. No cross-leg timestamp synchronization required.</td></tr>
+<tr><td><code>NetVega</code></td><td>Signed vega per strategy unit</td><td>sum(last valid leg Vega * signed quantity) / Quantity. Vega is converted from unit volatility to one IV percentage point (/100).</td></tr>
+<tr><td><code>NetTheta</code></td><td>Signed theta per strategy unit</td><td>sum(last valid leg Theta * signed quantity) / Quantity. Theta is converted from annual to daily using the retained 360/365 day-count convention.</td></tr>
+<tr><td><code>UnderlyingPrice</code></td><td>Latest retained futures reference</td><td>UnderlyingPrice from the leg risk observation with the latest CalculatedAtUtc. Retains its provenance; not inferred from option marks.</td></tr>
+<tr><td><code>DistanceToShortPut</code></td><td>Distance above short put</td><td>UnderlyingPrice - short put strike.</td></tr>
+<tr><td><code>DistanceToShortCall</code></td><td>Distance below short call</td><td>Short call strike - UnderlyingPrice.</td></tr>
+<tr><td><code>TimeToExpiryDays</code></td><td>Fractional calendar days remaining</td><td>(Latest exact retained contract ExpirationUtc - calculation instant).TotalDays. MaturityDate alone does not provide expiration time.</td></tr>
+<tr><td><code>ScenarioHorizonSeconds</code></td><td>Scenario configuration</td><td>Published policy horizon in seconds and IV shift in percentage points. Configuration is retained even if repricing fails.</td></tr>
+<tr><td><code>ScenarioUnderlyingPrice</code></td><td>Selected adverse futures level</td><td>Price all four legs at F +/- configured adverse points, with time advanced by horizon and IV shifted; select lowest signed projected position value.</td></tr>
+<tr><td><code>ScenarioUnderlyingMove</code></td><td>Signed futures scenario change</td><td>ScenarioUnderlyingPrice - UnderlyingPrice.</td></tr>
+<tr><td><code>ScenarioVolatilityShift</code></td><td>Scenario configuration</td><td>Published policy horizon in seconds and IV shift in percentage points. Configuration is retained even if repricing fails.</td></tr>
+<tr><td><code>ScenarioKind</code></td><td>Selected adverse direction</td><td>AdverseFuturesDown or AdverseFuturesUp; only assigned after scenario calculation.</td></tr>
+<tr><td><code>PricingModelVersion</code></td><td>Scenario model provenance</td><td>Model versions from retained leg pricing conventions (legacy captured scenarios use calculator/policy versions).</td></tr>
+<tr><td><code>OldestQuoteAtUtc</code></td><td>Oldest retained quote timestamp</td><td>min(leg.OptionTick.ObservedAtUtc); old snapshots can use stored scenario quote evidence.</td></tr>
+<tr><td><code>RiskValidUntilUtc</code></td><td>Original risk validity deadline</td><td>min(last valid leg risk ValidUntilUtc). Kept as provenance; expiry does not erase retained values.</td></tr>
+<tr><td><code>CalculationStatus</code></td><td>Availability result</td><td>Complete when required values can be calculated from retained valid data; otherwise Stale or Unavailable with explicit reasons. Complete does not imply all retained quotes are recent or legacy indicator fields populated.</td></tr>
+<tr><td><code>ExitRecommended</code></td><td>Configured daily-loss trigger</td><td>DailyPnl &lt; 0 and ForwardLossRatio &gt;= configured exit ratio, after required inputs pass validation. This calculator does not submit orders.</td></tr>
+<tr><td><code>ExitReason</code></td><td>Decision explanation</td><td>Text describing whether the configured daily forward-loss trigger was reached; null if unavailable.</td></tr>
+<tr><td><code>Quantity</code></td><td>Complete strategy units</td><td>Absolute signed quantity per leg after validating four balanced put/call legs with equal absolute quantities.</td></tr>
+<tr><td><code>ContractMultiplier</code></td><td>Currency per option price point</td><td>Retained broker pricing conventions / leg cash multiplier, or captured established-trade reference. Not inferred from root symbol.</td></tr>
+<tr><td><code>Currency</code></td><td>Broker contract currency</td><td>Common retained currency for all four legs. Missing or mixed currencies remain unavailable.</td></tr>
+<tr><td><code>Legs</code></td><td>Compatibility projection only</td><td>C# getter projects Position.Legs. Not a second stored collection and excluded from JSON. New wire slot 96 is empty; old wire legs are read into position legs.</td></tr>
+<tr><td><code>LegacyLegs</code></td><td>Historical wire adapter</td><td>Reserved MessagePack key 96. Reads historic scenario observations into Position.Legs; always writes empty; excluded from JSON.</td></tr>
+<tr><td><code>StrategyRiskParameterSet</code></td><td>Policy provenance</td><td>Exact published policy and canonical hash; needed for scenario, costs and thresholds.</td></tr>
+<tr><td><code>RiskParameterSetHash</code></td><td>Policy provenance</td><td>Exact published policy and canonical hash; needed for scenario, costs and thresholds.</td></tr>
+<tr><td><code>CurrentPriceBasis</code></td><td>Current valuation convention</td><td>PositionMark. Theoretical prices are separate retained risk values.</td></tr></tbody></table><h2>Generic StrategyTradePlanSnapshot wrapper</h2><table><thead><tr><th>Property</th><th>Short description</th><th>Leg data / source</th></tr></thead><tbody><tr><td><code>SchemaVersion</code></td><td>Generic contract version</td><td>Defaults to 1; independent of individual tick schema.</td></tr>
+<tr><td><code>Position</code></td><td>Authoritative position</td><td>Same position-leg state used by the strategy-specific snapshot; includes its derived scenario evidence.</td></tr>
+<tr><td><code>ValueDate</code></td><td>Exchange session</td><td>Captured plan exchange value date.</td></tr>
+<tr><td><code>PlanRevision</code></td><td>Revision</td><td>Latest stored revision + 1.</td></tr>
+<tr><td><code>OpeningValue</code></td><td>Signed opening points</td><td>sum(leg.OpeningPrice * leg.SignedQuantity).</td></tr>
+<tr><td><code>CurrentValue</code></td><td>Signed current points</td><td>sum(leg.CurrentPrice * leg.SignedQuantity).</td></tr>
+<tr><td><code>TotalPnl</code></td><td>Gross total points</td><td>Position.RealizedPnl + Position.UnrealizedPnl; unlike nested TradePnl, not currency-scaled.</td></tr>
+<tr><td><code>ForwardTradePrice</code></td><td>Generic forward-price slot</td><td>For complete monitoring, maps nested CombinedForwardPrice. On incomplete monitoring the generic base algorithm value remains provisional; consult State/ReasonCode.</td></tr>
+<tr><td><code>ForwardPnl</code></td><td>Generic projected-P&amp;L slot</td><td>For complete monitoring, maps nested ForwardDailyPnl. Incomplete generic base values are provisional, not validated daily currency risk.</td></tr>
+<tr><td><code>ForwardLoss</code></td><td>Generic projected-loss slot</td><td>For complete monitoring, maps nested ForwardLoss. Incomplete generic base values are provisional.</td></tr>
+<tr><td><code>State</code></td><td>Plan readiness/severity</td><td>CalculationFailed if nested monitoring is incomplete, otherwise Normal/Warning/ExitRequired from daily forward-risk policy.</td></tr>
+<tr><td><code>Action</code></td><td>Monitoring recommendation</td><td>Hold on incomplete inputs, otherwise Monitor or ExitAtMarket. No order is placed by snapshot calculation.</td></tr>
+<tr><td><code>RequiresExit</code></td><td>Exit recommendation</td><td>False on incomplete inputs; otherwise nested ExitRecommended.</td></tr>
+<tr><td><code>MaterialChange</code></td><td>Publication indicator</td><td>Current command path sets true for each accepted new snapshot.</td></tr>
+<tr><td><code>ReasonCode</code></td><td>Machine-readable reason</td><td>Missing-input or daily-risk policy decision code.</td></tr>
+<tr><td><code>Explanation</code></td><td>Human-readable reason</td><td>UnavailableReasons joined for incomplete monitoring; otherwise nested ExitReason.</td></tr>
+<tr><td><code>Parameters</code></td><td>Generic plan configuration</td><td>Validated generic algorithm parameters; version contributes to fingerprint.</td></tr>
+<tr><td><code>ContentHash</code></td><td>Content identity</td><td>Hash of position identity/revision, generic values/decision and serialized strategy snapshot.</td></tr>
+<tr><td><code>CalculatedAtUtc</code></td><td>Calculation instant</td><td>Captured request time; scenario time/expiry calculations use this instant.</td></tr>
+<tr><td><code>IronCondorTradePlanSnapshot</code></td><td>Strategy-specific snapshot</td><td>The full property table above; risk data is derived from Position.Legs, not a second authoritative leg array.</td></tr></tbody></table></html>

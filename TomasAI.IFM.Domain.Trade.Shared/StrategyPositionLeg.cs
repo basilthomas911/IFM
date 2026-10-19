@@ -22,4 +22,12 @@ public sealed record StrategyPositionLeg
     [Key(10)] public DateOnly? Expiry { get; init; }
     [Key(11)] public decimal? Strike { get; init; }
     [Key(12)] public byte? PutCall { get; init; }
+    /// <summary>Latest accepted quote including sizes, source identity, pricing outcome and optional statistics.</summary>
+    [Key(13)] public TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? OptionTick { get; init; }
+    /// <summary>Last successfully calculated risk observation; retained through pending or failed calculations with its original timestamps.</summary>
+    [Key(14)] public TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? OptionRisk { get; init; }
+    /// <summary>Captured model/scenario evidence for this leg; never a separate authoritative leg collection.</summary>
+    [Key(15)] public TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanLegObservation? Scenario { get; init; }
+    [Key(16)] public decimal? CashMultiplier { get; init; }
+
 }

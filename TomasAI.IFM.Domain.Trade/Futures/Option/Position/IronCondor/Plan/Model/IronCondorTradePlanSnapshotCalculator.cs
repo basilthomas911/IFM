@@ -10,7 +10,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 /// <summary>Creates daily-loss snapshots from frozen position, broker-currency and OptionCalculator scenario observations.</summary>
 /// <remarks>All money values use the broker contract currency. No database access, retry, historical replay or inferred scenario occurs here.</remarks>
-public sealed class IronCondorTradePlanSnapshotCalculator
+public sealed partial class IronCondorTradePlanSnapshotCalculator
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0015", Justification = "The exception message is a published domain reason code consumed by failure mapping; adding a parameter suffix would change that contract.")]
     /// <summary>Prices all legs under both adverse futures moves and selects the scenario with the lowest projected signed position value.</summary>
@@ -26,7 +26,7 @@ public sealed class IronCondorTradePlanSnapshotCalculator
         var policy = parameterSet.IronCondor!;
         var current = IronCondorOptionCalculator.Calculate(trade.Legs, risk, atUtc, token);
         var contracts = risk.Select(scope => scope.Instruments.Single().Instrument.Pricing!.Contract).ToArray();
-        if (contracts.Any(contract => !string.Equals(contract.Root, parameterSet.InstrumentRoot, StringComparison.Ordinal)) || trade.Id != position.Id.Trade || contracts.Select(c => c.Currency).Distinct(StringComparer.Ordinal).Count() != 1 || string.IsNullOrWhiteSpace(contracts[0].Currency))
+        if (contracts.Select(contract => contract.Multiplier).Distinct().Count() != 1 || contracts.Any(contract => contract.Multiplier <= 0) || contracts.Any(contract => !string.Equals(contract.Root, parameterSet.InstrumentRoot, StringComparison.Ordinal)) || trade.Id != position.Id.Trade || contracts.Select(c => c.Currency).Distinct(StringComparer.Ordinal).Count() != 1 || string.IsNullOrWhiteSpace(contracts[0].Currency))
             throw new ArgumentException("IronCondorRisk.CONTRACT_POLICY_OR_CURRENCY_MISMATCH");
         // Qualified scopes may capture consecutive futures ticks. Reprice all four legs against
         // the newest shared-contract quote, rather than requiring identical prices across scopes.
@@ -140,7 +140,8 @@ public sealed class IronCondorTradePlanSnapshotCalculator
         ArgumentNullException.ThrowIfNull(position);
         return new()
         {
-            ContractMultiplier = inputs?.ContractCashMultiplier,
+            VolatilityPrice = inputs?.VolatilityPrice,
+            ContractMultiplier = StrategyPositionLegOptionData.CommonContractMultiplier(position),
             ValueDate = position.ValueDate,
             RouteGeneration = position.RouteGeneration,
             PositionSequence = position.PositionSequence,
@@ -157,17 +158,28 @@ public sealed class IronCondorTradePlanSnapshotCalculator
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(inputs);
+        if (plan.Position.Legs.Any(leg => leg.OptionTick is not null))
+            inputs = CaptureRetainedInputs(plan.Position, inputs, plan.CalculatedAtUtc);
         inputs.StrategyRiskParameterSet?.Validate();
         var policy = inputs.StrategyRiskParameterSet?.IronCondor;
         var position = plan.Position;
-        var observations = inputs.Legs.Select(leg => leg with { MarkPrice = position.Legs.FirstOrDefault(mark => mark.TradeLegId == leg.TradeLegId)?.CurrentPrice }).ToArray();
+        // Position owns every leg. Scenario capture contributes only model evidence for those exact legs.
+        position = position with { Legs = position.Legs.Select(leg =>
+        {
+            var scenario = inputs.Legs.FirstOrDefault(candidate => candidate.TradeLegId == leg.TradeLegId
+                && candidate.ContractId == leg.ContractId && candidate.SignedQuantity == leg.SignedQuantity) ?? leg.Scenario;
+            return leg with { Scenario = scenario, Strike = leg.Strike ?? scenario?.Strike,
+                Expiry = leg.Expiry ?? scenario?.Expiry, PutCall = leg.PutCall ?? scenario?.PutCall };
+        }).ToArray() };
+        plan = plan with { Position = position };
+        var observations = position.Legs.Select(StrategyPositionLegOptionData.Observe).ToArray();
         // Model scenario quotes can serve successive marks until their deadline. Daily PnL always comes from this position.
         if (inputs.ContractMultiplier is> 0)
             inputs = inputs with
             {
                 DailyPnl = position.DailyPnl * inputs.ContractMultiplier.Value - inputs.ActualDailyCommission
             };
-        var reasons = new List<string>();
+        var reasons = new List<string>(inputs.UnavailableReasons);
         if (inputs.ValueDate != plan.ValueDate || inputs.RouteGeneration != position.RouteGeneration || observations.Any(l => !position.Legs.Any(p => p.TradeLegId == l.TradeLegId && string.Equals(p.ContractId, l.ContractId, StringComparison.Ordinal) && p.SignedQuantity == l.SignedQuantity)))
             reasons.Add("Scenario pricing belongs to another value date, position quantity, contract or generation.");
         if (policy is null || inputs.DailyLossLimit != policy.DailyLossLimit || inputs.ScenarioHorizonSeconds != policy.ScenarioHorizonSeconds || inputs.ScenarioVolatilityShift != policy.ScenarioVolatilityShiftPercentagePoints)
@@ -183,7 +195,7 @@ public sealed class IronCondorTradePlanSnapshotCalculator
             reasons.Add("Additional closing commission and nonduplicated slippage estimates are required.");
         var oldest = observations.Length == 4 && observations.All(l => l.QuoteAtUtc.HasValue) ? observations.Min(l => l.QuoteAtUtc) : null;
         var stale = oldest is null || oldest.Value.Kind != DateTimeKind.Utc || oldest > plan.CalculatedAtUtc || plan.CalculatedAtUtc - oldest > TimeSpan.FromSeconds(policy?.MaximumQuoteAgeSeconds ?? plan.Parameters.MaximumDataAgeSeconds) || inputs.RiskValidUntilUtc is null || inputs.RiskValidUntilUtc.Value.Kind != DateTimeKind.Utc || inputs.RiskValidUntilUtc <= plan.CalculatedAtUtc;
-        if (stale)
+        if (stale && !position.Legs.All(leg => leg.OptionTick is not null))
             reasons.Add("Four fresh quotes and unexpired risk inputs are required.");
         if (observations.Any(l => l.MarkPrice is null or <= 0 || l.TheoreticalPrice is null or < 0 || l.ForwardPrice is null or < 0))
             reasons.Add("Current and scenario option-leg prices are required.");
@@ -192,7 +204,13 @@ public sealed class IronCondorTradePlanSnapshotCalculator
             snapshot = CalculateSpreadMetrics(snapshot, observations, inputs, q);
         snapshot = snapshot with
         {
-            LossHeadroom = snapshot.DailyLossLimit - snapshot.DailyLoss
+            LossHeadroom = snapshot.DailyLossLimit - snapshot.DailyLoss,
+            TradePnl = inputs.ContractMultiplier is > 0 ? (position.UnrealizedPnl + position.RealizedPnl) * inputs.ContractMultiplier : null,
+            NetPrice = position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity),
+            CurrentPositionValue = position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity) * inputs.ContractMultiplier,
+            ShortPutGamma = observations.FirstOrDefault(leg => leg.PutCall == 2 && leg.SignedQuantity < 0)?.Gamma,
+            ShortCallGamma = observations.FirstOrDefault(leg => leg.PutCall == 1 && leg.SignedQuantity < 0)?.Gamma,
+            EstimatedExitCosts = inputs.EstimatedExitCommission + inputs.EstimatedExitSlippage
         };
         if (reasons.Count == 0)
             snapshot = CalculateForwardRisk(snapshot, inputs, policy!);
@@ -219,7 +237,7 @@ public sealed class IronCondorTradePlanSnapshotCalculator
                     true => nameof(ActionState.RedAlert),
                     _ => warning ? nameof(ActionState.Warning) : nameof(ActionState.Normal)})}),
             ActionReason = snapshot.ExitReason,
-            ActionSubType = exit ? nameof(ActionSubType.ForwardLossRiskLimitReached) : nameof(ActionSubType.ForwardLossRiskLimitClear)
+            ActionSubType = reasons.Count > 0 ? null : exit ? nameof(ActionSubType.ForwardLossRiskLimitReached) : nameof(ActionSubType.ForwardLossRiskLimitClear)
         };
         return snapshot with
         {
@@ -248,12 +266,12 @@ public sealed class IronCondorTradePlanSnapshotCalculator
             SequenceId = plan.PlanRevision,
             Position = position,
             SourceEventId = sourceEventId,
-            Legs = observations,
             PutOTMProbability = inputs.PutOTMProbability,
             CallOTMProbability = inputs.CallOTMProbability,
             Quantity = quantity,
             ContractMultiplier = inputs.ContractMultiplier,
             Currency = inputs.Currency,
+            VolatilityPrice = inputs.VolatilityPrice,
             DailyPnl = inputs.DailyPnl,
             DailyLoss = inputs.DailyPnl is { } pnl ? CalculateDailyLoss(pnl) : null,
             DailyLossLimit = inputs.DailyLossLimit,
@@ -271,7 +289,8 @@ public sealed class IronCondorTradePlanSnapshotCalculator
             TimeToExpiryDays = inputs.TimeToExpiryDays,
             StrategyRiskParameterSet = inputs.StrategyRiskParameterSet,
             RiskParameterSetHash = inputs.StrategyRiskParameterSet?.Hash(),
-            CalculationVersion = "IronCondor/DailyForwardLoss/v1"
+            CalculationVersion = "IronCondor/RetainedPositionLegs/v3",
+            CurrentPriceBasis = "PositionMark"
         };
     }
 
@@ -280,10 +299,10 @@ public sealed class IronCondorTradePlanSnapshotCalculator
     {
         snapshot = snapshot with
         {
-            PutSpreadPrice = CalculateSpreadPrice(observations, 2, q, false),
-            CallSpreadPrice = CalculateSpreadPrice(observations, 1, q, false),
-            PutForwardPrice = CalculateSpreadPrice(observations, 2, q, true),
-            CallForwardPrice = CalculateSpreadPrice(observations, 1, q, true),
+            PutSpreadPrice = CalculateMarkedSpreadPrice(observations, 2, q),
+            CallSpreadPrice = CalculateMarkedSpreadPrice(observations, 1, q),
+            PutForwardPrice = CalculateSpreadPrice(observations, 2, q, true) * q * inputs.ContractMultiplier,
+            CallForwardPrice = CalculateSpreadPrice(observations, 1, q, true) * q * inputs.ContractMultiplier,
             NetDelta = CalculateExposure(observations, q, l => l.Delta),
             NetGamma = CalculateExposure(observations, q, l => l.Gamma),
             NetVega = CalculateExposure(observations, q, l => l.Vega),
@@ -295,12 +314,12 @@ public sealed class IronCondorTradePlanSnapshotCalculator
         snapshot = snapshot with
         {
             CombinedSpreadPrice = snapshot.PutSpreadPrice + snapshot.CallSpreadPrice,
-            CombinedForwardPrice = snapshot.PutForwardPrice + snapshot.CallForwardPrice
+            CombinedForwardPrice = inputs.ContractMultiplier is > 0 ? (snapshot.PutForwardPrice + snapshot.CallForwardPrice) / (q * inputs.ContractMultiplier) : null
         };
         snapshot = snapshot with
         {
             CurrentPositionValue = snapshot.CombinedSpreadPrice * q * inputs.ContractMultiplier,
-            ForwardPositionValue = snapshot.CombinedForwardPrice * q * inputs.ContractMultiplier,
+            ForwardPositionValue = snapshot.PutForwardPrice + snapshot.CallForwardPrice,
             EstimatedCloseValue = CalculateCloseValue(observations, inputs.ContractMultiplier)
         };
         return snapshot;
@@ -346,6 +365,9 @@ public sealed class IronCondorTradePlanSnapshotCalculator
     }
 
     /// <summary>Calculates signed OptionCalculator spread points per strategy unit = sum(legPrice * signedQuantity) / quantity.</summary>
+    static decimal? CalculateMarkedSpreadPrice(IronCondorTradePlanLegObservation[] legs, byte putCall, int quantity) =>
+        legs.Where(leg => leg.PutCall == putCall).Sum(leg => leg.MarkPrice * leg.SignedQuantity) / quantity;
+
     public static decimal? CalculateSpreadPrice(IronCondorTradePlanLegObservation[] legs, byte putCall, int quantity, bool forward)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);

@@ -23,6 +23,30 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.PortfolioDb;
 public sealed class PostgresAcceptedPortfolioTests(PostgresTradePlanFixture fixture)
 {
     [Fact]
+    public async Task New_fund_version_disables_older_projections_and_replay_cannot_reactivate_them()
+    {
+        var settings=new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection,fixture.Connection,"System.Data.Postgres");
+        await new PortfolioSchemaDb(settings,NullLogger<DbProvider>.Instance).CreateAllAsync();
+        var id=Random.Shared.Next(100000000,900000000);var time=DateTime.UtcNow;
+        var first=new FundMandateReadModel{PortfolioId=id,FundId=id,FundMandateVersion=1,Name="Versioned Fund",TradingYear=2026,DecisionHorizon="Daily",OperatingState=FundOperatingState.Active,EffectiveFromUtc=time,CreatedOnUtc=time};
+        var second=first with {FundMandateVersion=2};
+        await fixture.Transactions.ExecuteOnceAsync(async(db,token)=>{
+            await db.WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel>.Create(first,1,1,time),token);
+            await db.WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel>.Create(second,2,2,time),token);
+            await db.WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel>.Create(first,1,1,time),token);
+            var rows=await db.QueryAsync("SELECT operating_state,payload_json::text,payload_hash FROM portfolio.fund_by_portfolio WHERE fund_id=$1 ORDER BY fund_mandate_version",[id],r=>(State:r.GetString(0),Value:System.Text.Json.JsonSerializer.Deserialize<FundMandateReadModel>(r.GetString(1))!,Hash:r.GetString(2)),token);
+            rows.Should().HaveCount(2);rows[0].State.Should().Be("Disabled");rows[0].Value.OperatingState.Should().Be(FundOperatingState.Disabled);
+            rows[0].Hash.Should().Be(PortfolioProjection<FundMandateReadModel>.Create(rows[0].Value,2,2,time).PayloadHash);
+            rows[1].State.Should().Be("Active");
+            var active=await db.QueryAsync("SELECT fund_mandate_version FROM portfolio.active_fund_by_portfolio_horizon WHERE fund_id=$1",[id],r=>r.GetInt64(0),token);
+            active.Should().Equal(2L);
+            await db.WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel>.Create(second with{OperatingState=FundOperatingState.Disabled},3,3,time),token);
+            (await db.QueryAsync("SELECT fund_id FROM portfolio.active_fund_by_portfolio_horizon WHERE fund_id=$1",[id],r=>r.GetInt32(0),token)).Should().BeEmpty();
+            return true;
+        });
+    }
+
+    [Fact]
     public async Task Financial_history_context_write_preserves_identity_payload_and_duplicate_delivery()
     {
         var settings = new DbConnectionSettings().Add(PortfolioDbContext.PortfolioDbConnection, fixture.Connection, "System.Data.Postgres");

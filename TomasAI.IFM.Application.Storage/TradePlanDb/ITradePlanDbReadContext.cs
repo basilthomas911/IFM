@@ -11,6 +11,9 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 /// </summary>
 public interface ITradePlanDbReadContext
 {
+    /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>
+    Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
+
     /// <summary>Gets the current material Trade Plan for a strategy position.</summary>
     /// <param name="positionId">The strategy-position identity.</param>
     /// <param name="strategy">The trade strategy that selects the materialized-plan table.</param>

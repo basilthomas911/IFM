@@ -1,75 +1,126 @@
+//! ITI signal chart and Strategy Updates/Details/Summary tabs.
+//!
+//! Chart points are rebuilt only when epoch or generation changes. Timeframe changes
+//! reset prior zoom/pan state. Virtualized workflow rows emit bounded history-page
+//! actions rather than rendering every row. Pipeline indicators stop at the first
+//! failed actor. Prices, actor states, and decision summaries are backend projections.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, DetailsView, Snapshot, strings};
 use eframe::egui;
 use serde::Deserialize;
+/// One backend workflow execution row with its actor pipeline and selection action.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkflowRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Numeric bridge action used to open this workflow row.
     pub action: u32,
+    /// Stable signal identity linking workflow rows to graph points.
     #[serde(default)]
     pub trigger_identity: String,
+    /// Formatted workflow occurrence time.
     pub occurred_on: String,
+    /// Published workflow trigger/signal label.
     pub signal: String,
+    /// Published market trend label.
     pub trend: String,
+    /// Published futures price formatted for the workflow grid.
     pub futures_price: String,
+    /// Published workflow result label.
     pub outcome: String,
+    /// Published terminal workflow state.
     pub end_state: String,
+    /// Published ordered actor-stage results for the pipeline indicator.
     pub actors: Vec<WorkflowActor>,
 }
+/// Published actor-stage result used to paint the pipeline indicator.
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct WorkflowActor {
+    /// Published or edited display name.
     pub name: String,
+    /// Published or edited display value; formatting/validation belongs to its managed field contract.
     pub value: String,
+    /// Backend lifecycle/execution state or correlated outcome state.
     #[serde(default)]
     pub state: String,
 }
+/// Published ITI point with UTC time, optional market-time coordinate, direction, and tooltip.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphPoint {
+    /// Stable published identity used to link chart signals and workflow rows.
     pub identity: String,
+    /// UTC Unix-seconds coordinate of the published ITI signal.
     pub utc_seconds: f64,
+    /// Optional backend market-time coordinate used instead of UTC on the ITI chart.
     #[serde(default)]
     pub market_seconds: Option<f64>,
+    /// Published ITI signal price used as the chart y coordinate.
     pub price: f64,
+    /// Published signal direction selecting the chart marker/color.
     pub direction: String,
+    /// Backend-generated explanatory text for the chart point.
     pub tooltip: String,
 }
+/// Published workflow-summary section and its backend state/explanation.
 #[derive(Clone, Debug, Deserialize)]
 pub struct SummarySection {
+    /// Published form/window/section title.
     pub title: String,
+    /// Backend lifecycle/execution state or correlated outcome state.
     pub state: String,
+    /// Published workflow-summary sections or summary text.
     pub summary: String,
+    /// Detailed published workflow summary/evidence text.
     pub content: String,
 }
+/// Selected Strategy Updates, Details, or Summary page.
 #[derive(Default, PartialEq)]
 pub enum StrategyTab {
+    /// Workflow history grid and pipeline-stage indicators.
     Updates,
+    /// Selected workflow node tree and read-only properties.
     #[default]
     Details,
+    /// Published summary sections for the selected workflow.
     Summary,
 }
+/// Strategy tab selection, graph cache, and deduplicated virtual history-page request state.
 #[derive(Default)]
 pub struct StrategyWorkspace {
+    /// Selected strategy/trading page index or enum.
     pub tab: StrategyTab,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Last workflow/offset/page tuple requested, used to suppress duplicate history loads.
     requested_history_page: Option<(String, usize, usize)>,
+    /// Epoch associated with the cached strategy chart points.
     cached_epoch: String,
+    /// Generation associated with the cached strategy chart points.
     cached_generation: u64,
+    /// Timeframe associated with current chart zoom/cache; a switch resets plot bounds.
     graph_time_frame: String,
+    /// Cached ITI x/y points rebuilt only when the publication changes.
     prices: Vec<[f64; 2]>,
+    /// Cached upward ITI signal marker points.
     up: Vec<[f64; 2]>,
+    /// Cached downward ITI signal marker points.
     down: Vec<[f64; 2]>,
+    /// Cached non-directional ITI event marker points.
     other: Vec<[f64; 2]>,
 }
 impl StrategyWorkspace {
+    /// Create the strategy workspace with Strategy Updates initially selected for the main shell.
     pub fn for_shell() -> Self {
         Self {
             tab: StrategyTab::Updates,
             ..Self::default()
         }
     }
+    /// Render the ITI chart and workflow tabs as a standalone central panel; return a numeric selection/history action.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -85,6 +136,7 @@ impl StrategyWorkspace {
             });
         result
     }
+    /// Update the graph cache for new epoch/generation, draw the chart and virtual workflow tabs, and return a selection/history action without backend I/O.
     pub fn draw_inside(
         &mut self,
         ui: &mut egui::Ui,
@@ -117,6 +169,7 @@ impl StrategyWorkspace {
             }
         }
         egui::TopBottomPanel::top("strategy_graph")
+            .show_separator_line(false)
             .resizable(true)
             .default_height((ui.available_height() / 3.0).max(100.0))
             .min_height(80.0)
@@ -353,7 +406,7 @@ impl StrategyWorkspace {
                     }
                 }
             });
-        egui::TopBottomPanel::top("strategy_workspace_tabs").show_inside(ui, |ui| {
+        egui::TopBottomPanel::top("strategy_workspace_tabs").show_separator_line(false).show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 crate::presentation::tab_value(ui,
                     &mut self.tab,
@@ -377,6 +430,7 @@ impl StrategyWorkspace {
             StrategyTab::Details => details.draw_inside(ui, snapshot, catalog),
             StrategyTab::Updates => {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
+                    let grid_border = ui.available_rect_before_wrap();
                     if snapshot.rows.is_empty() {
                         ui.trading_caption(catalog.text(strings::NO_WORKFLOWS));
                     } else {
@@ -527,6 +581,11 @@ impl StrategyWorkspace {
                             }
                         }
                     }
+                    ui.painter().rect_stroke(
+                        grid_border.intersect(ui.clip_rect()), 0.,
+                        egui::Stroke::new(1. / ui.ctx().pixels_per_point(), crate::presentation::BORDER),
+                        egui::StrokeKind::Inside,
+                    );
                 });
             }
             StrategyTab::Summary => {
@@ -544,6 +603,7 @@ impl StrategyWorkspace {
     }
 }
 
+/// Map backend actor-stage state to the pipeline indicator palette.
 pub fn pipeline_color(state: &str) -> egui::Color32 {
     match state {
         "Processing" => egui::Color32::YELLOW,
@@ -552,6 +612,7 @@ pub fn pipeline_color(state: &str) -> egui::Color32 {
     }
 }
 
+/// Return the number of actor indicators through the first failed stage, including that stage.
 pub fn visible_pipeline_count(actors: &[WorkflowActor]) -> usize {
     actors
         .iter()

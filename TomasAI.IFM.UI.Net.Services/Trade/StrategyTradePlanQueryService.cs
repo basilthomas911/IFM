@@ -83,6 +83,10 @@ public sealed class StrategyTradePlanQueryService(IStrategyTradePlanQueryApi que
     /// <param name="onCompleted">Receives the loaded history page.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>A task that completes after the callback receives the result.</returns>
+    public Task GetIronCondorHistoryPageAsync(StrategyPositionId position, DateOnly date, int offset, int size,
+        long? maximumRevision, Action<StrategyTradePlanHistoryPage> completed, CancellationToken cancellationToken = default)
+        => ExecuteAsync(() => _queryApi.GetIronCondorHistoryPageAsync(position, date, offset, size, maximumRevision, cancellationToken), completed);
+
     public Task GetHistoryAsync(StrategyTradePlanSnapshot selected, int pageSize,
         byte[]? pagingState, Action<StrategyTradePlanHistoryPage> onCompleted,
         CancellationToken cancellationToken = default) => selected.Position.StrategyKind switch

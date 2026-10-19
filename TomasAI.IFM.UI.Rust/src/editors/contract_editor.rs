@@ -1,3 +1,11 @@
+//! Futures and futures-option contract editors and shared publication DTOs.
+//!
+//! `ContractPublication` is also the common envelope used by administrative and trade
+//! screens. Row fields contain display strings; optional binary row data and named
+//! documents preserve typed MessagePack payloads. Native render identities and prepared
+//! trade data are skipped by serde and must never become part of the managed contract.
+//! Editor requests carry the publication generation and a request ID for correlation.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
@@ -8,54 +16,97 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+/// Stable row identity, display fields, and optional typed MessagePack row payload.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Named field definitions or display/edit values supplied by the enclosing model.
     pub fields: BTreeMap<String, String>,
+    /// Optional binary MessagePack payload containing the typed row data behind the display fields.
     #[serde(default)]
     pub data: Option<serde_bytes::ByteBuf>,
 }
+/// Managed view result containing display rows, choices, context, and named binary documents.
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractResult {
+    /// Managed view key identifying which result schema/row kinds are published.
     pub view: String,
+    /// Rows supplied by the enclosing publication/model; they are not fetched during drawing.
     pub rows: Vec<ContractRow>,
+    /// Published permitted values for the field/editor.
     pub choices: BTreeMap<String, Vec<String>>,
+    /// Whether the managed result reports additional data beyond this page.
     pub has_more: bool,
+    /// Managed view context/eligibility values indexed by stable keys.
     #[serde(default)]
     pub context: BTreeMap<String, String>,
+    /// Named typed MessagePack documents supplied alongside display rows.
     #[serde(default)]
     pub documents: BTreeMap<String, serde_bytes::ByteBuf>,
 }
+/// Immutable editor/trade publication with request outcomes and native-only render cache identity.
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContractPublication {
+    /// Native-only identity: new deserializations invalidate display caches even at equal generations.
+    #[serde(skip)]
+    pub render_token: std::sync::Arc<()>,
+    /// Native-only once-prepared trade rows, excluded from the managed wire contract.
+    #[serde(skip)]
+    pub prepared_trade_display: crate::trade_workspace::PreparedTradeDisplay,
+    /// Wire schema version used to interpret this publication.
     pub schema: u32,
+    /// Publication generation used for change detection and request correlation.
     pub generation: u64,
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Whether the managed view currently reports work in progress.
     pub busy: bool,
+    /// Latest managed view result projected into this envelope.
     pub result: ContractResult,
+    /// Correlated managed results for submitted request IDs.
     pub outcomes: Vec<EditorOutcome>,
 }
+impl ContractPublication {
+    /// Call after editing a publication in place. Received wire publications get a fresh token automatically.
+    pub fn invalidate_render_cache(&mut self) {
+        self.render_token = std::sync::Arc::new(());
+        self.prepared_trade_display = Default::default();
+    }
+}
 impl ContractResult {
+    /// Decode a named binary MessagePack document; return None when it is absent or cannot be decoded as the requested type.
     pub fn document<T: serde::de::DeserializeOwned>(&self, key: &str) -> Option<T> {
         self.documents.get(key).and_then(|bytes| crate::wire::decode(bytes).ok())
     }
 }
+/// Contract editor state for futures or options, including drafts, confirmation, and convention review.
 #[derive(Default)]
 pub struct ContractEditor {
+    /// Whether this contract editor is in futures-option mode.
     pub option: bool,
+    /// Unsaved local edit values retained across immediate-mode frames.
     pub draft: BTreeMap<String, String>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Whether the local remove/delete confirmation is open.
     pub confirm_remove: bool,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Whether the contract-convention review panel is visible.
     pub review_open: bool,
+    /// Whether convention-review confirmation is pending locally.
     pub confirm_review: bool,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
 }
 impl ContractEditor {
+    /// Reset local view/request state to its initial values.
     pub fn reset(&mut self) {
         self.selected = None;
         self.draft.clear();
@@ -63,6 +114,7 @@ impl ContractEditor {
         self.review_open = false;
         self.confirm_review = false;
     }
+    /// Return the managed view key corresponding to the currently selected editor mode.
     fn view(&self) -> &str {
         if self.option {
             "option-contract"
@@ -70,12 +122,16 @@ impl ContractEditor {
             "futures-contract"
         }
     }
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
         self.last_action = action.into();
         serde_json::json!({"schema":1,"requestId":id,"view":self.view(),"intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":self.draft}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns contract editor state for futures or options, including drafts, confirmation, and convention review.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -246,7 +302,7 @@ impl ContractEditor {
                                 .is_some_and(|x| x.eq_ignore_ascii_case("true"));
                             ui.add_enabled(
                                 !provider || key == "onTheRun",
-                                egui::Checkbox::new(&mut value, c.text(label)),
+                                crate::presentation::checkbox(&mut value, c.text(label)),
                             );
                             self.draft.insert(key.into(), value.to_string());
                         }
@@ -393,7 +449,7 @@ impl ContractEditor {
         });
         if self.review_open {
             let enabled = live && !s.busy && self.pending.is_none() && matches;
-            egui::Window::new(c.text(strings::REFERENCE_REVIEW))
+            egui::Window::new(crate::presentation::dialog_title(c.text(strings::REFERENCE_REVIEW)))
                 .id(egui::Id::new("contract-conventions"))
                 .collapsible(false)
                 .resizable(true)

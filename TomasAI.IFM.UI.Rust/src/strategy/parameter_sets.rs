@@ -1,4 +1,6 @@
-﻿use crate::presentation::TradingLabelUi as _;
+﻿//! Strategy parameter-set editing, comparison, and activation previews. Field paths retain identity across nested component editors; numeric text buffers preserve incomplete edits until managed validation.
+
+use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
 };
@@ -6,45 +8,77 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+/// Flattened managed parameter field with a stable nested path, scalar kind, group, and editable textual value.
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Field {
+    /// Stable nested parameter-field path or patch target path, according to the enclosing model.
     #[serde(rename = "Path")]
     pub path: String,
+    /// Published or edited display value; formatting/validation belongs to its managed field contract.
     #[serde(rename = "Value")]
     pub value: String,
+    /// Managed field-kind discriminator selecting the editor widget/representation.
     #[serde(rename = "Kind")]
     pub kind: u8,
+    /// Selected parameter group or the group containing a field.
     #[serde(rename = "Group")]
     pub group: String,
+    /// Published or edited display name.
     #[serde(rename = "Name")]
     pub name: String,
 }
+/// Parameter-set browser/editor with nested drafts, comparison identities, and confirmation generation.
 #[derive(Default)]
 pub struct ParameterSets {
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Publication generation used for change detection and request correlation.
     generation: u64,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Whether a local edit session is active.
     pub editing: bool,
+    /// Published or edited display name.
     pub name: String,
+    /// Human-readable description supplied by the domain projection or local draft.
     pub description: String,
+    /// Edited strategy decision horizon.
     pub horizon: String,
+    /// Selected editor section/tab key or index.
     pub section: String,
+    /// Selected parameter group or the group containing a field.
     pub group: String,
+    /// Named field definitions or display/edit values supplied by the enclosing model.
     pub fields: Vec<Field>,
+    /// Local signal-definition draft associated with the selected parameter set.
     pub signals: Value,
+    /// Local nested observation definitions from the parameter-set draft.
     pub observations: Value,
+    /// Local interval definitions from the parameter-set draft.
     pub intervals: Value,
+    /// Published/editable nested parameter component definitions.
     components: Value,
+    /// Currently selected parameter component key.
     component: String,
+    /// Pending local confirmation action/dialog key.
     pub confirmation: Option<String>,
+    /// Publication generation captured when confirmation was opened.
     confirm_generation: u64,
+    /// Legacy parameter-set identity retained for compatibility operations.
     legacy_id: String,
+    /// Selected comparison/execution run identifier.
     run_id: String,
+    /// Other parameter-set identity selected for comparison.
     compare_id: String,
+    /// Text buffers preserving incomplete numeric edits across frames.
     numeric_text: BTreeMap<String, String>,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
 }
 impl ParameterSets {
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns parameter-set browser/editor with nested drafts, comparison identities, and confirmation generation.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -684,7 +718,7 @@ impl ParameterSets {
             }
         });
         if let Some(intent) = self.confirmation.clone() {
-            egui::Window::new(c.text(strings::PARAM_CONFIRM))
+            egui::Window::new(crate::presentation::dialog_title(c.text(strings::PARAM_CONFIRM)))
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.trading_label(if intent == "legacy-create" {
@@ -722,12 +756,15 @@ impl ParameterSets {
         action.map(|intent|{self.section=match intent{"validate-parameter"=>"validation","schema-parameter"=>"schema","payload-parameter"=>"payload","compare-parameter"=>"compare","audit-parameter"=>"audit","assignment"|"assign-parameter"|"disable-assignment"=>"assignment","startup-preview"=>"startupPreview","startup-runs"=>"startupRuns","startup-report"=>"startupReport","signal-monitoring"=>"signalMonitoring","legacy-parameters"|"legacy-prev"|"legacy-next"|"legacy-preview"=>"legacy",_=>&self.section}.into();let id=new_request_id();self.pending=Some(id.clone());let mut documents = serde_json::Map::new();if ["validate-parameter","save-draft","intervals"].contains(&intent)&&self.editing{documents.insert("changes".into(),serde_json::to_value(&self.fields).unwrap());documents.insert("signals".into(),self.signals.clone());documents.insert("observations".into(),self.observations.clone());}extra.insert("name".into(),self.name.clone());extra.insert("description".into(),self.description.clone());extra.insert("horizon".into(),self.horizon.clone());documents.insert("intervals".into(),self.intervals.clone());extra.insert("runId".into(),self.run_id.clone());extra.insert("legacyId".into(),self.legacy_id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"parameter-sets","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":extra,"documents":documents}).to_string()})
     }
 }
+/// Decode the requested named managed document into a JSON-shaped editing/display value, using the local empty-value fallback on failure.
 fn parse(result: &crate::contract_editor::ContractResult, key: &str) -> Value {
     result.document(key).unwrap_or(json!([]))
 }
+/// Render a parameter value recursively as read-only data with a stable widget identity.
 fn read_value(ui: &mut egui::Ui, value: &Value, id: &str) {
     read_json(ui, &value.to_string(), id);
 }
+/// Draw a localized eligible button and store its action key when clicked.
 fn button(
     ui: &mut egui::Ui,
     c: &Catalog,
@@ -743,6 +780,7 @@ fn button(
         *action = Some(intent);
     }
 }
+/// Render parameter/component rows, preserving incomplete numeric text separately from the structured draft.
 fn edit_rows(
     ui: &mut egui::Ui,
     data: &mut Value,
@@ -827,7 +865,7 @@ fn edit_rows(
                                                 });
                                         } else if let Some(boolean) = value.as_bool() {
                                             let mut b = boolean;
-                                            if ui.checkbox(&mut b, "").changed() {
+                                            if ui.add(crate::presentation::checkbox(&mut b, "")).changed() {
                                                 *value = json!(b);
                                             }
                                         } else {
@@ -883,6 +921,7 @@ fn edit_rows(
         rows.push(match kind{"signals"=>json!({"RequirementId":"00000000-0000-0000-0000-000000000000","Enabled":true,"Metric":0,"TimeFrame":0,"PeriodLength":0,"MaximumAgeSeconds":0,"PrepareAtStartup":true,"Monitor":true}),"observations"=>json!({"RequirementId":"00000000-0000-0000-0000-000000000000","Enabled":true,"Metric":0,"MaximumAgeSeconds":0,"PrepareAtStartup":true,"Monitor":true}),_=>json!({"TimeFrame":0,"Weight":1,"MaximumAgeSeconds":0,"IsRequired":true})});
     }
 }
+/// Parse evidence text into a read-only tree when possible, otherwise show the original text.
 fn read_json(ui: &mut egui::Ui, text: &str, salt: &str) {
     if let Ok(value) = serde_json::from_str::<Value>(text) {
         egui::ScrollArea::both()
@@ -894,6 +933,7 @@ fn read_json(ui: &mut egui::Ui, text: &str, salt: &str) {
         ui.trading_label(text);
     }
 }
+/// Render a nested JSON object/array/scalar using its full path as stable widget identity.
 fn json_node(ui: &mut egui::Ui, path: &str, value: &Value) {
     match value {
         Value::Object(fields) => {

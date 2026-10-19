@@ -19,14 +19,15 @@ internal static class TradeRealtimeSnapshotCalculations
         var detail = plan?.IronCondorTradePlanSnapshot;
         var planCurrent = plan is not null && snapshot.Position is { } position
             && plan.Position.RouteGeneration == position.RouteGeneration && plan.Position.PositionSequence == position.PositionSequence
-            && detail?.IsComplete == true && detail.RiskValidUntilUtc is { } deadline && deadline > now.UtcDateTime;
+            && detail?.IsComplete == true && (position.Legs.All(leg => leg.OptionTick is not null && leg.OptionRisk is not null)
+                || detail.RiskValidUntilUtc is { } deadline && deadline > now.UtcDateTime);
         if (planCurrent)
         {
             foreach (var leg in snapshot.Legs)
             {
                 var quote = leg.Observation;
                 var matched = false;
-                if (quote is not null && quote.GreeksAvailable == true && quote.ValidUntilUtc > now)
+                if (quote is not null && (leg.Position?.OptionRisk is not null || quote.GreeksAvailable == true && quote.ValidUntilUtc > now))
                     foreach (var input in detail!.Legs)
                         if (input.TradeLegId == leg.Definition.TradeLegId && input.QuoteAtUtc >= quote.ObservedAtUtc.UtcDateTime)
                         { matched = true; break; }
@@ -61,28 +62,34 @@ internal static class TradeRealtimeSnapshotCalculations
                 changedLegs[i] = leg with { QuoteStatus = quoteStatus, PricingStatus = pricingStatus, Scenario = scenario };
             }
             anyStale |= stale;
-            complete &= pricingStatus == "Available";
+            var retainedRisk = leg.Position?.OptionRisk;
+            var risk = retainedRisk ?? quote;
+            complete &= retainedRisk is not null || pricingStatus == "Available";
             generation ??= quote.SourceGeneration;
-            complete &= generation == quote.SourceGeneration;
+            complete &= retainedRisk is not null || generation == quote.SourceGeneration;
             if (quote.ObservedAtUtc < oldest) oldest = quote.ObservedAtUtc;
             if (quote.ObservedAtUtc > newest) newest = quote.ObservedAtUtc;
-            if (!stale && quote.UnderlyingPrice > 0
-                && (underlying is null || quote.CalculatedAtUtc > latestUnderlyingCalculation))
-            { underlying = quote.UnderlyingPrice; latestUnderlyingCalculation = quote.CalculatedAtUtc; }
+            if ((!stale || retainedRisk is not null) && risk.UnderlyingPrice > 0
+                && (underlying is null || risk.CalculatedAtUtc > latestUnderlyingCalculation))
+            { underlying = risk.UnderlyingPrice; latestUnderlyingCalculation = risk.CalculatedAtUtc; }
             var quantity = leg.Position?.SignedQuantity ?? leg.Definition.SignedQuantity;
-            delta += quote.Delta * quantity; gamma += quote.Gamma * quantity;
-            vega += quote.Vega * quantity; theta += quote.Theta * quantity; rho += quote.Rho * quantity;
+            delta += risk.Delta * quantity; gamma += risk.Gamma * quantity;
+            vega += risk.Vega * quantity; theta += risk.Theta * quantity; rho += risk.Rho * quantity;
         }
-        complete &= newest - oldest <= TimeSpan.FromSeconds(1);
+        complete &= snapshot.Legs.All(leg => leg.Position?.OptionRisk is not null) || newest - oldest <= TimeSpan.FromSeconds(1);
+        decimal? positionValue = snapshot.Position is { } currentPosition && currentPosition.Legs.Length > 0
+            && currentPosition.Legs.All(leg => StrategyPositionLegOptionData.ContractMultiplier(leg) is > 0)
+            ? currentPosition.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity * StrategyPositionLegOptionData.ContractMultiplier(leg)!.Value)
+            : null;
         var summary = snapshot.Summary;
         double? netDelta = complete ? delta : null, netGamma = complete ? gamma : null,
             netVega = complete ? vega : null, netTheta = complete ? theta : null, netRho = complete ? rho : null;
         if (summary.UnderlyingPrice != underlying || summary.NetDelta != netDelta || summary.NetGamma != netGamma
             || summary.NetVega != netVega || summary.NetTheta != netTheta || summary.NetRho != netRho
-            || summary.PositionValue != snapshot.Position?.MarketValue || summary.DailyPnlPoints != snapshot.Position?.DailyPnl)
+            || summary.PositionValue != positionValue || summary.DailyPnlPoints != snapshot.Position?.DailyPnl)
             summary = summary with { UnderlyingPrice = underlying, NetDelta = netDelta, NetGamma = netGamma,
                 NetVega = netVega, NetTheta = netTheta, NetRho = netRho,
-                PositionValue = snapshot.Position?.MarketValue, DailyPnlPoints = snapshot.Position?.DailyPnl };
+                PositionValue = positionValue, DailyPnlPoints = snapshot.Position?.DailyPnl };
         ImmutableArray<TradeSpreadRealtimeSnapshot>.Builder? changedSpreads = null;
         if (!planCurrent)
             for (var i = 0; i < snapshot.Spreads.Length; i++)
@@ -117,8 +124,9 @@ internal static class TradeRealtimeSnapshotCalculations
             else if (count == 2) second = leg;
             else break;
         }
-        var valid = count == 2 && first!.Position is not null && second!.Position is not null
-            && first.Definition.CashMultiplier > 0 && second.Definition.CashMultiplier > 0;
+        var firstMultiplier = first?.Position is { } firstPosition ? StrategyPositionLegOptionData.ContractMultiplier(firstPosition) : null;
+        var secondMultiplier = second?.Position is { } secondPosition ? StrategyPositionLegOptionData.ContractMultiplier(secondPosition) : null;
+        var valid = count == 2 && first!.Position is not null && second!.Position is not null;
         decimal? netSpread = null;
         decimal value = 0, pnl = 0;
         if (valid)
@@ -129,13 +137,17 @@ internal static class TradeRealtimeSnapshotCalculations
             // Preserve Enumerable.Sum's checked quantity arithmetic and short-circuiting.
             if (balanced && checked(a.SignedQuantity + b.SignedQuantity) == 0 && quantity > 0)
                 netSpread = (a.CurrentPrice * a.SignedQuantity + b.CurrentPrice * b.SignedQuantity) / quantity;
-            value = a.CurrentPrice * a.SignedQuantity * first.Definition.CashMultiplier
-                + b.CurrentPrice * b.SignedQuantity * second.Definition.CashMultiplier;
-            pnl = (a.CurrentPrice - a.OpeningPrice) * a.SignedQuantity * first.Definition.CashMultiplier
-                + (b.CurrentPrice - b.OpeningPrice) * b.SignedQuantity * second.Definition.CashMultiplier;
+            if (firstMultiplier is > 0 && secondMultiplier is > 0)
+            {
+                value = a.CurrentPrice * a.SignedQuantity * firstMultiplier.Value
+                    + b.CurrentPrice * b.SignedQuantity * secondMultiplier.Value;
+                pnl = (a.CurrentPrice - a.OpeningPrice) * a.SignedQuantity * firstMultiplier.Value
+                    + (b.CurrentPrice - b.OpeningPrice) * b.SignedQuantity * secondMultiplier.Value;
+            }
         }
         return new() { PutCall = right, NetSpread = netSpread,
-            TradeValue = valid ? value : null, TradePnl = valid ? pnl : null,
+            TradeValue = valid && firstMultiplier is > 0 && secondMultiplier is > 0 ? value : null,
+            TradePnl = valid && firstMultiplier is > 0 && secondMultiplier is > 0 ? pnl : null,
             OtmProbability = plan?.IsComplete == true ? right == 2 ? plan.PutOTMProbability : plan.CallOTMProbability : null,
             ForwardPrice = plan?.IsComplete == true ? right == 2 ? plan.PutForwardPrice : plan.CallForwardPrice : null };
     }

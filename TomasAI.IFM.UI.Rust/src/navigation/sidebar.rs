@@ -1,63 +1,102 @@
+//! Economic calendar, status console, and feed-control publications. Rows retain stable selection identities, keyboard navigation stays within bounds, and new backend errors are surfaced once per error sequence.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
+/// Reserved numeric bridge action for toggling the managed market feed.
 pub const FEED_TOGGLE_ACTION: u32 = 0xB0000000;
+/// Backend-authoritative availability and running state of the market-feed command.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FeedControl {
+    /// Whether the backend feed controller is initialized and available.
     pub ready: bool,
+    /// Whether the backend currently permits the feed start/stop action.
     pub can_toggle: bool,
+    /// Whether the managed view currently reports work in progress.
     pub busy: bool,
+    /// Whether the feed is currently reported active.
     pub active: bool,
 }
 // This declaration follows the shared publication's serde defaults.
+/// Economic-calendar page, status history, feed-control eligibility, and sequenced error information.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SidebarPublication {
+    /// Backend-authoritative feed action eligibility and running state.
     pub feed_control: FeedControl,
+    /// Selected history/calendar/rate period sent to the managed query.
     pub period: String,
+    /// Selected or published calendar country code.
     pub country: String,
+    /// Available calendar country filter choices.
     pub countries: Vec<String>,
+    /// Published date or selected UTC query date in the enclosing calendar contract.
     pub date: String,
+    /// Published economic-calendar rows, or their count in the geometry report.
     pub calendar_rows: Vec<CalendarRow>,
+    /// Backend-selected stable calendar event identity.
     pub selected_id: String,
+    /// Published status-console rows, or their count in the geometry report.
     pub status_rows: Vec<StatusRow>,
+    /// Whether the managed view currently reports work in progress.
     pub busy: bool,
+    /// User-visible validation, submission, or transport error text.
     pub error: String,
+    /// Monotonic error identity used to avoid redisplaying the same backend error.
     pub error_sequence: u64,
 }
+/// One published economic-calendar row with display-ready outcome values.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct CalendarRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Already formatted row time from the managed display projection.
     pub time: String,
+    /// Selected or published calendar country code.
     pub country: String,
+    /// Published economic event name.
     pub event: String,
+    /// Published actual release value.
     pub actual: String,
+    /// Published forecast release value.
     pub forecast: String,
+    /// Published prior release value.
     pub prior: String,
 }
+/// Stable status-console row with formatted time and message.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct StatusRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Already formatted row time from the managed display projection.
     pub time: String,
+    /// Human-readable status or request-outcome explanation.
     pub message: String,
 }
+/// Native sidebar row selection and one-time error presentation state.
 #[derive(Default)]
 pub struct SidebarView {
+    /// Number of status rows actually rendered in the last frame.
     pub drawn_status_rows: usize,
+    /// Stable identity of the selected status-console row.
     pub selected_status_id: String,
+    /// Last backend error identity already processed by the view.
     last_error_sequence: u64,
+    /// Optional currently displayed error-dialog text.
     error_dialog: Option<String>,
 }
 impl SidebarPublication {
+    /// Borrow the latest published status message, or None when status history is empty.
     pub fn latest_status(&self) -> Option<&str> {
         self.status_rows.first().map(|row| row.message.as_str())
     }
 }
 impl SidebarView {
+    /// Render the economic-calendar tabs, filters, rows, and selected details; return the numeric action for a user query/selection.
     pub fn calendar(&mut self, ui: &mut egui::Ui, snapshot: &SidebarPublication) -> Option<u32> {
         let mut action = None;
         let (header_rect, _) =
@@ -133,6 +172,7 @@ impl SidebarView {
             .iter()
             .find(|row| row.id == snapshot.selected_id);
         let list_height = (ui.available_height() - 30.0).max(18.0);
+        let calendar_border = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), list_height));
         let focus_id = ui.make_persistent_id("calendar-list-focus");
         ui.interact(
             egui::Rect::from_min_size(
@@ -205,6 +245,7 @@ impl SidebarView {
                     })
                 });
             });
+        draw_grid_border(ui, calendar_border);
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_width(), 26.0),
             egui::Layout::top_down(egui::Align::Min),
@@ -234,7 +275,7 @@ impl SidebarView {
         }
         if let Some(message) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
-                ui.heading("Economic Calendar Error");
+                ui.heading(crate::presentation::dialog_title("Economic Calendar Error"));
                 ui.trading_label(message);
                 if ui.button("OK").clicked() {
                     self.error_dialog = None;
@@ -243,8 +284,10 @@ impl SidebarView {
         }
         action
     }
+    /// Render the bounded visible status rows and present each new sequenced backend error once.
     pub fn status(&mut self, ui: &mut egui::Ui, snapshot: &SidebarPublication) {
         self.drawn_status_rows = 0;
+        let status_border = ui.available_rect_before_wrap();
         let focus_id = ui.make_persistent_id("status-list-focus");
         ui.interact(
             ui.available_rect_before_wrap(),
@@ -335,9 +378,20 @@ impl SidebarView {
                         })
                     });
             });
+        draw_grid_border(ui, status_border);
     }
 }
 
+/// Paint the calendar/status viewport's inside border without extending into adjacent controls.
+fn draw_grid_border(ui: &egui::Ui, rect: egui::Rect) {
+    ui.painter().rect_stroke(
+        rect.intersect(ui.clip_rect()), 0.,
+        egui::Stroke::new(1. / ui.ctx().pixels_per_point(), crate::presentation::BORDER),
+        egui::StrokeKind::Inside,
+    );
+}
+
+/// Resolve arrow/Home/End/Page navigation within the available row count. Return a new in-bounds selection only when a relevant key is pressed.
 fn navigate(ui: &egui::Ui, selected: Option<usize>, count: usize, page: usize) -> Option<usize> {
     if count == 0 {
         return None;

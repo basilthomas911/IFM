@@ -1,3 +1,5 @@
+//! Actor hierarchy, resource health, and operator actions. A confirmation captures generation and target identity so a changed selection cannot silently redirect an operation.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog,
@@ -7,18 +9,30 @@ use crate::{
     strings,
 };
 use eframe::egui;
+/// Actor diagnostics selection, operation parameters, and generation-bound confirmation state.
 #[derive(Default)]
 pub struct ActorHealth {
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Operator-entered justification accompanying an administrative action.
     pub reason: String,
+    /// Selected actor-administration operation key.
     pub operation: String,
+    /// Actor query/filter origin text.
     pub from: String,
+    /// Whether the actor operation confirmation is open.
     pub confirm: bool,
+    /// Publication generation captured when confirmation was opened.
     pub confirm_generation: u64,
+    /// Stable target identity captured for confirmation; later selection changes do not retarget it.
     pub confirm_target: Option<String>,
 }
 impl ActorHealth {
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns actor diagnostics selection, operation parameters, and generation-bound confirmation state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -178,7 +192,7 @@ impl ActorHealth {
             }
         });
         if self.confirm {
-            egui::Window::new(c.text(strings::ACTOR_CONFIRM))
+            egui::Window::new(crate::presentation::dialog_title(c.text(strings::ACTOR_CONFIRM)))
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.trading_label(format!(
@@ -219,6 +233,7 @@ impl ActorHealth {
         action.map(|intent|{let id=new_request_id();self.pending=Some(id.clone());serde_json::json!({"schema":1,"requestId":id,"view":"actor-health","intent":intent,"expectedGeneration":s.generation,"originalId":self.selected,"fields":{"fromUtc":self.from,"operation":self.operation,"reason":self.reason}}).to_string()})
     }
 }
+/// Render an actor row and nested child rows, keeping selection tied to the published actor ID.
 fn draw_row(
     ui: &mut egui::Ui,
     row: &ContractRow,

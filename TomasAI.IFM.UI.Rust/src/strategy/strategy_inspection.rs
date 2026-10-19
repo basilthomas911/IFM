@@ -1,3 +1,5 @@
+//! Risk/workflow inspection with paged results, decision evidence, and the shared details tree. Queries and refreshes are correlated through publication outcomes; the UI does not re-evaluate risk.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, DetailsView, Snapshot,
@@ -7,44 +9,72 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+/// Stable inspection result row and its display fields.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectionRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Human-readable caption for this identity/value.
     pub label: String,
+    /// Named field definitions or display/edit values supplied by the enclosing model.
     pub fields: BTreeMap<String, String>,
 }
+/// Inspection query page with optional workflow details, risk decision/evidence, and continuation state.
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectionResult {
+    /// Managed risk/workflow inspection view key identifying this query result.
     pub view: String,
+    /// Rows supplied by the enclosing publication/model; they are not fetched during drawing.
     pub rows: Vec<InspectionRow>,
+    /// Optional complete workflow details snapshot for the selected inspection result.
     pub detail: Option<Snapshot>,
+    /// Published risk decision explanation.
     pub decision: String,
+    /// Backend-provided risk/workflow evidence text; displayed without reevaluating the decision.
     pub evidence: String,
+    /// Backend continuation token for the next inspection query page.
     pub paging_state: Option<String>,
+    /// Managed view context/eligibility values indexed by stable keys.
     pub context: Option<BTreeMap<String, String>>,
 }
+/// Versioned inspection result and outcomes for correlated user requests.
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectionPublication {
+    /// Wire schema version used to interpret this publication.
     pub schema: u32,
+    /// Publication generation used for change detection and request correlation.
     pub generation: u64,
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Whether the managed view currently reports work in progress.
     pub busy: bool,
+    /// Latest managed view result projected into this envelope.
     pub result: InspectionResult,
+    /// Correlated managed results for submitted request IDs.
     pub outcomes: Vec<EditorOutcome>,
 }
+/// Risk/workflow inspection filters, result selection, evidence visibility, and pending request.
 pub struct StrategyInspection {
+    /// Whether the inspection view is in risk-history mode.
     pub risk: bool,
+    /// Named field definitions or display/edit values supplied by the enclosing model.
     pub fields: BTreeMap<String, String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Shared selected workflow details-tree state.
     pub details: DetailsView,
+    /// Whether the inspection view shows the published evidence text.
     pub evidence: bool,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
 }
 impl Default for StrategyInspection {
+    /// Construct the view's initial filters, selection, and draft settings without issuing backend commands.
     fn default() -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -76,6 +106,7 @@ impl Default for StrategyInspection {
     }
 }
 impl StrategyInspection {
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &InspectionPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -88,6 +119,9 @@ impl StrategyInspection {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":if self.risk{"risk"}else{"observation"},"intent":action,"fields":fields}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns risk/workflow inspection filters, result selection, evidence visibility, and pending request.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,

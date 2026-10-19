@@ -17,21 +17,25 @@ public static class FuturesTickTradeDataChanged
     {
         ArgumentNullException.ThrowIfNull(changed);
         ArgumentNullException.ThrowIfNull(context);
-        // A completed calculation is a read-model update, not another market price observation.
+        // Quotes and pricing completions both reach the position owner; completions do not create another price mark.
         if (changed.OptionMarketPriceObservation?.OptionTickData is { } data)
         {
+            if (!StrategyPositionLegOptionData.IsValidQuote(data, data.ContractId)) return;
             foreach (var snapshot in context.RealtimeCache?.Apply(data) ?? [])
                 await context.SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
                     TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(snapshot)).ConfigureAwait(false);
-            if (data.IsPricingUpdate) return;
         }
         var receivedAtUtc = changed.ReceivedOn.Kind == DateTimeKind.Utc ? changed.ReceivedOn : DateTime.SpecifyKind(changed.ReceivedOn, DateTimeKind.Utc);
         var observation = changed.OptionMarketPriceObservation;
-        var tick = new PositionMarketTick(changed.TickDataId.ContractId, observation is null ? changed.TradeData.Price : (decimal)observation.OptionTickData.OptionPrice, observation?.SourceSequence ?? changed.TradeData.SourceSequence, receivedAtUtc);
-        var outcome = context.RouteIndex.TryRoute(in tick, out var routes);
+        var tick = new PositionMarketTick(observation?.OptionTickData.ContractId ?? changed.TickDataId.ContractId, observation is null ? changed.TradeData.Price : (decimal)observation.OptionTickData.OptionPrice, observation?.SourceSequence ?? changed.TradeData.SourceSequence, receivedAtUtc);
+        PortfolioFundTradeLeg[] routes;
+        // A completion has the same market sequence as its quote. The position owner fences its pricing revision.
+        var outcome = observation?.OptionTickData.IsPricingUpdate == true
+            ? context.RouteIndex.TryGetRoutes(tick.ContractId, out routes) ? MarketRouteLookupOutcome.Routed : MarketRouteLookupOutcome.NoOpenPosition
+            : context.RouteIndex.TryRoute(in tick, out routes);
         if (outcome != MarketRouteLookupOutcome.Routed)
         {
-            LogIgnoredTick(context, changed.TickDataId.ContractId, outcome);
+            LogIgnoredTick(context, tick.ContractId, outcome);
             return;
         }
 
@@ -49,7 +53,9 @@ public static class FuturesTickTradeDataChanged
         var actorName = route.TradeType == TradeStrategyKind.IronCondor ? FuturesIronCondorTradePositionCommandActor.ActorName : FuturesVerticalSpreadTradePositionCommandActor.ActorName;
         var command = new ChangeTradeLegDataCommand
         {
-            CommandId = TickCommandId(changed.Id, route.StrategyPositionId, route.TradeLegId),
+            CommandId = TickCommandId(changed.OptionMarketPriceObservation?.OptionTickData is { } observation
+                ? TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{observation.SourceGeneration:N}|{observation.ObservationRevision}|{observation.IsPricingUpdate}")
+                : changed.Id, route.StrategyPositionId, route.TradeLegId),
             Subject = new ActorSubject(ActorType.Command, actorName, ChangeTradeLegDataCommand.Verb, positionId.Format()),
             EntityId = positionId,
             TradeLegId = route.TradeLegId,
@@ -58,6 +64,7 @@ public static class FuturesTickTradeDataChanged
             SourceSequence = tick.SourceSequence,
             RouteGeneration = route.Generation,
             EffectiveAtUtc = tick.OccurredAtUtc,
+            OptionTick = changed.OptionMarketPriceObservation?.OptionTickData,
             TradeType = route.TradeType
         };
         var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);

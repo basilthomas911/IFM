@@ -1,5 +1,32 @@
 use eframe::egui;
 use egui_kittest::{Harness,kittest::{Queryable,NodeT}};
+
+#[test]
+fn report_grid_reclaims_hidden_scrollbar_gutters() {
+ let ctx=egui::Context::default();ifm_ui_rust::presentation::apply(&ctx);
+ for rows in [0, 1, 30, 1] {
+  let mut bounds=egui::Rect::NOTHING;
+  let mut output=None;
+  for _ in 0..4 {
+   output=Some(ctx.run(egui::RawInput {screen_rect:Some(egui::Rect::from_min_size(egui::Pos2::ZERO,egui::vec2(600.,400.))),..Default::default()},|ctx| {
+    egui::CentralPanel::default().show(ctx,|ui| {
+     bounds=egui::Rect::from_min_size(ui.cursor().min,egui::vec2(ui.available_width(),180.));
+     ifm_ui_rust::control_parity::report_list(ui,"fit-grid",&[("Id",80.),("Value",120.)],rows,None,180.,|_,_|"Value".into());
+    });
+   }));
+  }
+  let output=output.unwrap();
+  let header_right=output.shapes.iter().filter_map(|shape|match &shape.shape {
+   egui::Shape::Rect(rect) if rect.fill==ifm_ui_rust::presentation::COMMAND => Some(rect.rect.right()),_=>None
+  }).fold(f32::NEG_INFINITY,f32::max);
+  let expected_right=bounds.right()-if rows==30 {ctx.style().spacing.scroll.allocated_width()}else{0.};
+  assert!((header_right-expected_right).abs()<1.,"Header does not match the actual scrollbar visibility: rows={rows}, {header_right} vs {expected_right}");
+  let bottom=output.shapes.iter().filter_map(|shape|match &shape.shape {
+   egui::Shape::LineSegment{points,stroke} if stroke.color==ifm_ui_rust::presentation::BORDER && points[0].x==points[1].x => Some(points[1].y),_=>None
+  }).fold(f32::NEG_INFINITY,f32::max);
+  assert!((bottom-bounds.bottom()).abs()<1.,"Gridlines stop at a hidden horizontal scrollbar gutter: {bottom} vs {bounds:?}");
+ }
+}
 #[test]
 fn report_list_selects_row_from_empty_space_after_last_column(){
  let mut h=Harness::new_ui_state(|ui,state:&mut Option<usize>|{let(result,_)=ifm_ui_rust::control_parity::report_list(ui,"orders",&[("Order Id",80.),("Reference",200.)],2,*state,300.,|row,column|format!("{row}:{column}"));if result.is_some(){*state=result;}},None);

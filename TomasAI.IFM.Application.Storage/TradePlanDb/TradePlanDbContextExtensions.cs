@@ -70,6 +70,53 @@ internal static class TradePlanDbContextExtensions
         return page.Items.FirstOrDefault();
     }
 
+    internal async Task<StrategyTradePlanHistoryPage> ReadOffsetHistoryAsync(StrategyPositionId position, TradeStrategyKind strategy,
+        DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token)
+    {
+        position.RequireTradePlanScope(strategy, date);
+        size.RequireTradePlanPageSize();
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        if (maximumRevision is < 0) throw new ArgumentOutOfRangeException(nameof(maximumRevision));
+        var table = "trade_plan." + strategy.ToTradePlanTable();
+        var filter = TradePlanDbSql.PositionFilter + " AND ($7::bigint IS NULL OR planRevision <= $7)";
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
+        await connection.OpenAsync(token).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token).ConfigureAwait(false);
+        object?[] scope = [position.Trade.PortfolioId, position.Trade.FundId, position.Trade.OrderId, position.Trade.TradeId, position.PositionId, date];
+        await using var count = new NpgsqlCommand($"SELECT count(*),coalesce(max(planRevision),0),max(calculatedAtUtc) FROM {table} WHERE {filter}", connection, transaction);
+        foreach (var value in scope) count.Parameters.Add(new NpgsqlParameter { Value = value! });
+        count.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Bigint, Value = (object?)maximumRevision ?? DBNull.Value });
+        long total, anchor;
+        DateTime? chartEnd;
+        await using (var reader = await count.ExecuteReaderAsync(token).ConfigureAwait(false))
+        {
+            await reader.ReadAsync(token).ConfigureAwait(false);
+            total = reader.GetInt64(0); anchor = maximumRevision ?? reader.GetInt64(1);
+            chartEnd = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
+        }
+        await using var command = new NpgsqlCommand($"SELECT payload FROM {table} WHERE {filter} ORDER BY planRevision DESC OFFSET $8 LIMIT $9", connection, transaction);
+        foreach (var value in scope) command.Parameters.Add(new NpgsqlParameter { Value = value! });
+        foreach (var value in new object[] { anchor, offset, size }) command.Parameters.Add(new NpgsqlParameter { Value = value });
+        var items = new List<StrategyTradePlanSnapshot>(size);
+        await using (var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
+                items.Add(MessagePackBinarySerializer.Shared.Deserialize<StrategyTradePlanSnapshot>(reader.GetFieldValue<byte[]>(0)));
+        var points = new List<StrategyTradePlanChartPoint>();
+        if (offset == 0 && chartEnd is { } end)
+        {
+            // At most one price-only sample per 18-second bucket (about 1,200 points in six hours).
+            // No historical position/leg payload is fetched for the chart.
+            await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '18 seconds',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,combinedForwardPrice FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '18 seconds',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
+            foreach (var value in scope) chart.Parameters.Add(new NpgsqlParameter { Value = value! });
+            foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(new NpgsqlParameter { Value = value });
+            await using var reader = await chart.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false)) points.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
+        }
+        await transaction.CommitAsync(token).ConfigureAwait(false);
+        return new(items.ToArray(), null) { Offset = offset, TotalCount = total, MaximumRevision = anchor,
+            ChartEndUtc = chartEnd, ChartPoints = points.ToArray() };
+    }
+
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetHistoryAsyncCore(StrategyPositionId position, TradeStrategyKind strategy, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)
     {
         position.RequireTradePlanScope(strategy, date);

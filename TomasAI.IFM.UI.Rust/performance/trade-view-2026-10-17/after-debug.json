@@ -1,0 +1,29 @@
+[
+  {
+    "frames": 60,
+    "maxMs": 53.6051,
+    "p50Ms": 46.316,
+    "p95Ms": 49.524499999999996,
+    "plans": 100,
+    "preparationP50Ms": 0.934,
+    "preparedFirstFrameP50Ms": 45.2748
+  },
+  {
+    "frames": 60,
+    "maxMs": 53.1062,
+    "p50Ms": 45.686299999999996,
+    "p95Ms": 52.3616,
+    "plans": 1000,
+    "preparationP50Ms": 8.5221,
+    "preparedFirstFrameP50Ms": 47.3487
+  },
+  {
+    "frames": 60,
+    "maxMs": 54.2335,
+    "p50Ms": 46.9507,
+    "p95Ms": 50.82,
+    "plans": 10000,
+    "preparationP50Ms": 84.975,
+    "preparedFirstFrameP50Ms": 48.8755
+  }
+]

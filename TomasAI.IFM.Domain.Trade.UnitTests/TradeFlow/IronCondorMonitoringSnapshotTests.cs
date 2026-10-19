@@ -18,6 +18,46 @@ public sealed class IronCondorMonitoringSnapshotTests
     };
 
     [Fact]
+    public void Removed_snapshot_fields_are_absent_and_their_old_wire_slots_are_not_reused()
+    {
+        string[] removed = ["LossProbability", "MScore", "AssetStdDev", "AssetMean", "AssetPriceChange",
+            "MarketTrend", "MarketVolatility", "MarketDirection", "TradeRisk", "FiftyDayMA", "FiveDayXMA",
+            "GammaRisk", "TrendType", "TrendStrength", "Rsi", "RsiSlope", "Tdi", "TdiStrength",
+            "CreatedOn", "CreatedBy", "IronCondorTradePlanInputs"];
+        foreach (var name in removed) typeof(IronCondorTradePlanSnapshot).GetProperty(name).Should().BeNull();
+        string[] kept = ["MaxProfit", "MaxLoss", "MinProfitTarget", "DailyProfitTarget", "StopLossLimit", "VolatilityPrice", "AssetPrice", "ForwardPrice"];
+        foreach (var name in kept) typeof(IronCondorTradePlanSnapshot).GetProperty(name).Should().NotBeNull();
+        var legacy = new SnapshotBeforeFieldRemoval();
+        var snapshot = MessagePackSerializer.Deserialize<IronCondorTradePlanSnapshot>(MessagePackSerializer.Serialize(legacy));
+        snapshot.MaxProfit.Should().Be(850); snapshot.MaxLoss.Should().Be(-500);
+        snapshot.AssetPrice.Should().Be(6000); snapshot.ForwardPrice.Should().Be(10);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(snapshot);
+        foreach (var name in removed) json.TryGetProperty(name, out _).Should().BeFalse();
+        var reader = new MessagePackReader(MessagePackSerializer.Serialize(snapshot));
+        reader.ReadArrayHeader();
+        for (var index = 0; index < 14; index++) reader.Skip();
+        reader.TryReadNil().Should().BeTrue(); // removed LossProbability, key 14
+        reader.TryReadNil().Should().BeTrue(); // removed MScore, key 15
+        reader.ReadString().Should().Be("850"); // MaxProfit remains key 16
+    }
+
+    [MessagePackObject]
+    public sealed record SnapshotBeforeFieldRemoval
+    {
+        [Key(14)] public double LossProbability { get; init; } = .2;
+        [Key(15)] public double MScore { get; init; } = .7;
+        [Key(16)] public decimal MaxProfit { get; init; } = 850;
+        [Key(17)] public decimal MaxLoss { get; init; } = -500;
+        [Key(20)] public decimal AssetPrice { get; init; } = 6000;
+        [Key(37)] public decimal ForwardPrice { get; init; } = 10;
+        [Key(48)] public StrategyPositionSnapshot Position { get; init; } = new();
+        [Key(49)] public Guid SourceEventId { get; init; }
+        [Key(50)] public IronCondorTradePlanInputs Inputs { get; init; } = new();
+        [Key(51)] public string[] UnavailableReasons { get; init; } = [];
+        [Key(52)] public string CalculationVersion { get; init; } = "OldSnapshot";
+    }
+
+    [Fact]
     public void Monitoring_plan_does_not_require_durable_projection()
         => new IronCondorTradePlanUpdatedEvent().RequiresDurableProjection.Should().BeFalse();
 
@@ -27,29 +67,23 @@ public sealed class IronCondorMonitoringSnapshotTests
         var snapshot = IronCondorMonitoringSnapshotCompute.Create(Plan, Guid.NewGuid(), null);
         snapshot.TradePnl.Should().Be(42);
         snapshot.ForwardPrice.Should().BeNull();
-        snapshot.MScore.Should().BeNull();
-        snapshot.TradeRisk.Should().BeNull();
         snapshot.IsComplete.Should().BeFalse();
         snapshot.UnavailableReasons.Should().Contain(x => x.Contains("DISTRIBUTION"));
     }
 
     [Fact]
-    public void Captured_values_use_legacy_formulas_and_copy_the_baseline()
+    public void Captured_values_use_retained_legacy_forward_price_formulas()
     {
         var inputs = Inputs;
         var snapshot = IronCondorMonitoringSnapshotCompute.Create(Plan, Guid.NewGuid(), inputs);
         snapshot.ForwardPrice.Should().Be(10);
         snapshot.ForwardLossRatio.Should().Be(0.5);
-        snapshot.MScore.Should().Be(IronCondorLegacyValueInitializers.CalculateMScore(0.5, inputs.HistoricalForwardLossRatios));
-        inputs.HistoricalForwardLossRatios[0] = 99;
-        snapshot.IronCondorTradePlanInputs!.HistoricalForwardLossRatios[0].Should().Be(0.2);
     }
 
     [Fact]
     public void Stale_distribution_cannot_produce_a_risk_classification()
     {
         var snapshot = IronCondorMonitoringSnapshotCompute.Create(Plan, Guid.NewGuid(), Inputs with { ObservedAtUtc = Now.AddMinutes(-2) });
-        snapshot.TradeRisk.Should().BeNull();
         snapshot.UnavailableReasons.Should().Contain(x => x.Contains("stale"));
     }
 

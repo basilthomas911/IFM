@@ -31,7 +31,7 @@ public sealed class StrategyPositionActorStateMachine
                 return Reject("POSITION.MISSING_FILL", $"Leg {leg.TradeLegId} has no opening fill.");
             var openingPrice = fills.Sum(value => value.Price * Math.Abs(value.SignedQuantity)) / absoluteQuantity;
             var filledQuantity = fills.Sum(static value => value.SignedQuantity);
-            _legs.Add(leg.TradeLegId, new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = filledQuantity, OpeningPrice = openingPrice, CurrentPrice = openingPrice, LastPriceAtUtc = openedAtUtc, AssetFamily = leg.AssetFamily, ContractKey = leg.ContractKey, Expiry = leg.Expiry, Strike = leg.Strike, PutCall = leg.PutCall });
+            _legs.Add(leg.TradeLegId, new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, SignedQuantity = filledQuantity, OpeningPrice = openingPrice, CurrentPrice = openingPrice, LastPriceAtUtc = openedAtUtc, AssetFamily = leg.AssetFamily, ContractKey = leg.ContractKey, Expiry = leg.Expiry, Strike = leg.Strike, PutCall = leg.PutCall, CashMultiplier = leg.CashMultiplier });
         }
 
         _orderedLegIds = _legs.Keys.Order().ToArray();
@@ -40,7 +40,7 @@ public sealed class StrategyPositionActorStateMachine
     }
 
     public TradeDecision<StrategyPositionSnapshot> UpdateLeg(Guid tradeLegId, decimal price, long sourceSequence, DateTime occurredAtUtc, long routeGeneration) => UpdateLeg(tradeLegId, null, price, sourceSequence, occurredAtUtc, routeGeneration);
-    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(Guid tradeLegId, string? contractId, decimal price, long sourceSequence, DateTime occurredAtUtc, long routeGeneration)
+    public TradeDecision<StrategyPositionSnapshot> UpdateLeg(Guid tradeLegId, string? contractId, decimal price, long sourceSequence, DateTime occurredAtUtc, long routeGeneration, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? optionTick = null)
     {
         if (Current is null)
             return Reject("POSITION.NOT_FOUND", "Position does not exist.");
@@ -60,11 +60,39 @@ public sealed class StrategyPositionActorStateMachine
             return Reject("StrategyPosition.SESSION.SEALED", "Market updates cannot change a finalized value date.");
         if (Current.ValueDate != default && valueDate < Current.ValueDate)
             return Reject("StrategyPosition.SESSION.STALE", "Market update belongs to an older value date.");
+        if (optionTick is not null && !StrategyPositionLegOptionData.IsValidQuote(optionTick, leg.ContractId))
+            return Reject("POSITION.INVALID_OPTION_DATA", "Option observation identity or price data is invalid.");
+        if (optionTick is not null && (optionTick.ValueDate != valueDate || optionTick.TickId != sourceSequence
+            || (decimal)optionTick.OptionPrice != price))
+            return Reject("POSITION.OPTION_IDENTITY_MISMATCH", "Option payload and routed price/session identity differ.");
+        if (optionTick is { IsPricingUpdate: true } && leg.OptionTick is { } prior
+            && optionTick.SourceGeneration == prior.SourceGeneration && optionTick.TickId == prior.TickId)
+        {
+            if (optionTick.ObservedAtUtc != prior.ObservedAtUtc
+                || optionTick.ObservationRevision <= prior.ObservationRevision)
+                return Reject("POSITION.STALE_PRICING", "Pricing completion does not belong to the current leg quote.");
+            _legs[tradeLegId] = StrategyPositionLegOptionData.Apply(leg, optionTick);
+            Current = Build(Current.Id, Current.StrategyKind, StrategyPositionPhase.MarkToMarket,
+                checked(Current.PositionSequence + 1), Current.RouteGeneration,
+                occurredAtUtc > Current.AsOfUtc ? occurredAtUtc : Current.AsOfUtc, true, Current.RealizedPnl) with
+            {
+                LastMarketObservationUtc = Current.LastMarketObservationUtc,
+                HistoryAsOfUtc = Current.HistoryAsOfUtc,
+                HistoryPositionSequence = Current.HistoryPositionSequence
+            };
+            return TradeDecision<StrategyPositionSnapshot>.Accept(Current);
+        }
         if (occurredAtUtc < leg.LastPriceAtUtc)
             return Reject("StrategyPosition.MARKET.STALE", "Market observation time is older than the current leg.");
-        if (sourceSequence <= leg.LastSourceSequence)
+        if (optionTick is { IsTradeObservation: false } && leg.OptionTick is { } lastQuote
+            && optionTick.ObservedAtUtc < lastQuote.ObservedAtUtc)
+            return Reject("POSITION.STALE_OPTION_DATA", "Option observation precedes the retained quote.");
+        var newSourceGeneration = optionTick is { IsTradeObservation: false } && leg.OptionTick is { } oldQuote
+            && optionTick.SourceGeneration != oldQuote.SourceGeneration && optionTick.ObservedAtUtc > oldQuote.ObservedAtUtc;
+        if (!newSourceGeneration && sourceSequence <= leg.LastSourceSequence)
             return Reject("POSITION.DUPLICATE_OR_OUT_OF_ORDER", "Tick sequence is not newer than the current leg sequence.");
-        _legs[tradeLegId] = leg with
+        var updatedLeg = optionTick is not null ? StrategyPositionLegOptionData.Apply(leg, optionTick) : leg;
+        _legs[tradeLegId] = updatedLeg with
         {
             CurrentPrice = price,
             LastSourceSequence = sourceSequence,

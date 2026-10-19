@@ -19,4 +19,18 @@ public sealed class TradePlanDisplayTests
         Assert.Equal("2026-01-15 07:34:56.000",TradePlanDisplay.ActionTime(new(){CalculatedAtUtc=new DateTime(2026,1,15,12,34,56,DateTimeKind.Utc)}));
         Assert.Null(TradePlanDisplay.ActionTime(new()));
     }
+    [Fact]
+    public void History_document_keeps_valuation_fields_without_repeating_leg_graphs()
+    {
+        var plan = new StrategyTradePlanSnapshot { PlanRevision = 640, IronCondorTradePlanSnapshot = new()
+            { MaxProfit = 572.50m, CurrentPositionValue = -542.50m, ContractMultiplier = 50, VolatilityPrice = 19.90m } };
+        var document = MessagePack.MessagePackSerializer.ConvertToJson(TradePlanDisplay.EncodeHistory(plan));
+        using var json = System.Text.Json.JsonDocument.Parse(document);
+        Assert.False(json.RootElement.TryGetProperty("position", out _));
+        var detail = json.RootElement.GetProperty("ironCondorTradePlanSnapshot");
+        Assert.False(detail.TryGetProperty("position", out _));
+        Assert.Equal("50", detail.GetProperty("contractMultiplier").GetString());
+        Assert.Equal("-542.50", detail.GetProperty("currentPositionValue").GetString());
+        Assert.Equal("19.90", detail.GetProperty("volatilityPrice").GetString());
+    }
 }

@@ -1,3 +1,11 @@
+//! Virtualized fixture grid with background filtering and stable row selection.
+//!
+//! The full deterministic fixture is held in an `Arc`; a background worker returns
+//! filtered/sorted row indexes while rendering touches only the visible row range.
+//! Selection uses row IDs rather than positions. This component demonstrates local
+//! render virtualization, not server paging. Production trade plans use the separate
+//! offset/page-size loading path in the trade workspace.
+
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
@@ -5,27 +13,44 @@ use std::{
     ops::Range,
     sync::{Arc, mpsc},
 };
+/// Display-ready fixture row used to exercise virtual rendering and navigation.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GridRow {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: u64,
+    /// Published sequence/order value; transfer sequences are tracked independently for each kind.
     pub sequence: u64,
+    /// Display-ready timestamp for the fixture grid.
     pub timestamp: String,
+    /// Published/formatted daily P&L text; rendering does not revalue it.
     pub daily_pnl: String,
+    /// Published/formatted forward-loss ratio text in the fixture grid.
     pub forward_loss_ratio: String,
 }
+/// Locally virtualized fixture grid with immutable source rows, background index filtering, and stable ID selection.
 pub struct GridView {
+    /// Complete immutable fixture dataset shared with background filter/sort workers.
     pub rows: Arc<Vec<GridRow>>,
+    /// Indexes into immutable fixture rows after filtering/sorting.
     pub order: Vec<usize>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<u64>,
+    /// Logical row-index range actually rendered in the latest virtual-grid frame.
     pub drawn: Range<usize>,
+    /// Editable text used to filter the fixture rows or native file chooser.
     pub filter: String,
+    /// Whether fixture rows are ordered by descending sequence.
     pub descending: bool,
+    /// Receiver for the most recently requested background filter/sort index calculation.
     pending: Option<mpsc::Receiver<Vec<usize>>>,
+    /// Pending vertical scroll offset requested by navigation.
     jump: Option<f32>,
+    /// Current keyboard-navigation index in the filtered/sorted row order.
     cursor: Option<usize>,
 }
 impl GridView {
+    /// Create a grid holding all immutable fixture rows with their initial natural index order; no background work is started yet.
     pub fn new(rows: Vec<GridRow>) -> Self {
         let order = (0..rows.len()).collect();
         Self {
@@ -40,6 +65,7 @@ impl GridView {
             cursor: None,
         }
     }
+    /// Filter/sort row indexes on a background thread while keeping the full immutable fixture rows shared.
     pub fn rebuild(&mut self) {
         let rows = self.rows.clone();
         let filter = self.filter.clone();
@@ -64,6 +90,7 @@ impl GridView {
             let _ = tx.send(order);
         });
     }
+    /// Accept completed background index work, render only visible fixture rows, and maintain ID-based selection and bounded keyboard/scroll navigation.
     pub fn draw(&mut self, ctx: &egui::Context, catalog: &crate::Catalog) {
         if let Some(rx) = &self.pending {
             if let Ok(order) = rx.try_recv() {

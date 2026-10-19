@@ -19,7 +19,7 @@ public sealed class IndividualOptionObservationPublisher(
 
     /// <summary>Maps midpoint = bid + (ask - bid) / 2; invalid or chain-wide quotes do not enter position monitoring.</summary>
     /// <param name="quote">The actual provider quote with its canonical option identity.</param>
-    /// <returns>The publication enqueue operation, with no pricing or storage wait. Book-size-only changes are suppressed for at most one second.</returns>
+    /// <returns>The publication enqueue operation, with no pricing or storage wait. Repeated unchanged quotes are suppressed for at most one second; price and size changes are emitted.</returns>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the existing public contract and named argument compatibility; changing parameter names or order would break callers.")]
     public ValueTask PublishAsync(FuturesOptionChainQuoteChangedServiceEvent quote) => PublishQuoteAsync(quote, false);
@@ -41,7 +41,7 @@ public sealed class IndividualOptionObservationPublisher(
                 && previous.BidSize == tick.BidSize && previous.AskSize == tick.AskSize
                 && clock.GetElapsedTime(previous.Timestamp, timestamp) < TimeSpan.FromSeconds(1))
                 return ValueTask.CompletedTask;
-            // Every changed bid/ask is emitted. A continuing unchanged provider quote emits once per second
+            // Every changed bid/ask or size is emitted. A continuing unchanged provider quote emits once per second
             // to keep position freshness current without persisting every depth/size update as a new mark.
             if (!pricingUpdate) publishedQuotes[tick.ContractId] = (tick.BidPrice!.Value, tick.AskPrice!.Value, tick.BidSize, tick.AskSize, timestamp);
         }
@@ -55,6 +55,7 @@ public sealed class IndividualOptionObservationPublisher(
             var underlyingDeadline = greeks.FuturesPriceTimestamp.AddMilliseconds(input.Context.MaximumQuoteAgeMilliseconds);
             if (underlyingDeadline < deadline) deadline = underlyingDeadline;
         }
+        var request = Black76PricingModel.CreateRequest(contract, 1, 1, true, 1, input.Context.Rate.AnnualContinuousRate);
         var observation = new FuturesOptionTickDataV2ReadModel(tick.ContractId, tick.ValueDate, tick.SourceSequence,
             TimeOnly.FromDateTime(tick.EventTimestamp.UtcDateTime), (double)mark,
             (double)tick.BidPrice!.Value, (double)tick.AskPrice!.Value, checked((int)tick.BidSize), checked((int)tick.AskSize),
@@ -65,7 +66,16 @@ public sealed class IndividualOptionObservationPublisher(
                 ObservedAtUtc = tick.EventTimestamp, CalculatedAtUtc = greeks.CalculatedAtUtc,
                 ValidUntilUtc = deadline, UnderlyingSourceSequence = greeks.FuturesPriceSourceSequence,
                 PricingFailure = greeks.PricingFailure?.Code, PricingContextDigest = greeks.PricingContextDigest,
-                IsPricingUpdate = pricingUpdate, TheoreticalPrice = greeks.TheoreticalPrice };
+                IsPricingUpdate = pricingUpdate, TheoreticalPrice = greeks.TheoreticalPrice,
+                PricingInputs = new()
+                {
+                    Currency = contract.Currency, Multiplier = contract.Multiplier, ExpirationUtc = contract.ExpirationUtc,
+                    DaysPerYear = contract.DayCount == TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365,
+                    AnnualContinuousRate = request.Rate, Exercise = request.Exercise.ToString(), Premium = request.Premium.ToString(),
+                    BidTickIncrement = TomasAI.IFM.Framework.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.BidPrice.Value, combinationLeg: true),
+                    AskTickIncrement = TomasAI.IFM.Framework.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.AskPrice.Value, combinationLeg: true),
+                    ModelVersion = input.Context.PricerVersion
+                } };
         return publisher.PublishAsync(new FuturesTickTradeDataChangedEvent
         {
             Subject = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb, entity.Format()),

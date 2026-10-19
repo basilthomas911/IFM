@@ -8,6 +8,9 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 /// <summary>Client read surface for current and historical strategy Trade Plans.</summary>
 public interface IStrategyTradePlanQueryApi
 {
+    /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>
+    Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryPageAsync(StrategyPositionId positionId, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
+
     Task<ServiceResult<StrategyTradePlanSnapshot?>> GetCurrentIronCondorAsync(
         StrategyPositionId positionId, DateOnly valueDate, CancellationToken cancellationToken = default);
     Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryAsync(

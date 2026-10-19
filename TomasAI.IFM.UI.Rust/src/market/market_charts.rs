@@ -1,24 +1,38 @@
+//! Published market-price series with Eastern-time labels and symbol-specific display formatting. Charts consume backend points and bounds; they do not query providers or construct missing prices.
+
 use crate::presentation::TradingLabelUi as _;
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+/// Backend chart window, optional price bounds, status, and named price series.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct ChartSnapshot {
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Published lower x-axis bound in UTC Unix seconds.
     pub start: f64,
+    /// Published upper x-axis bound in UTC Unix seconds.
     pub end: f64,
+    /// Optional backend-supplied lower price-axis bound.
     pub minimum: Option<f64>,
+    /// Optional backend-supplied upper price-axis bound.
     pub maximum: Option<f64>,
+    /// Named published chart series for the selected market view.
     pub series: Vec<ChartSeries>,
 }
+/// One published market series with its display name, color role, and x/y points.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct ChartSeries {
+    /// Published or edited display name.
     pub name: String,
+    /// Published color name/role mapped to the native palette.
     pub color: String,
+    /// Published x/y chart points; time-series x values use the enclosing chart's time coordinate.
     pub points: Vec<[f64; 2]>,
 }
+/// Map a published series color name (for example Yellow or Fuchsia) to its native chart color, defaulting to white.
 pub fn series_color(name: &str) -> egui::Color32 {
     match name {
         "Yellow" => egui::Color32::YELLOW,
@@ -30,6 +44,7 @@ pub fn series_color(name: &str) -> egui::Color32 {
         _ => egui::Color32::WHITE,
     }
 }
+/// Render the selected ES/ES-BB/VX published chart with Eastern-time axes and bounded price/time ranges.
 pub fn draw(ui: &mut egui::Ui, charts: &BTreeMap<String, ChartSnapshot>, selected: &mut usize) {
     ui.horizontal(|ui| {
         for (index, name) in ["ES", "ES-BB", "VX"].iter().enumerate() {

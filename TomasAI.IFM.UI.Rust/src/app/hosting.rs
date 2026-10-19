@@ -1,39 +1,71 @@
+//! In-process .NET 10 hosting and ABI lifetime management.
+//!
+//! The loader locates hostfxr, opens the bridge runtime configuration, obtains the
+//! managed function table, and creates one managed session. ABI structs use C layout;
+//! field order, sizes, calling conventions, and negative status codes are contractual.
+//! The loaded library must outlive all function pointers and the session handle.
+//!
+//! ABI v4 submits MessagePack intents; v5 adds sequence-aware full/delta publication
+//! copies. The wrapper owns native buffers and copies managed results before returning.
+//! Only the intake worker should call this host; UI code sends intents through channels.
+//! Errors are returned as strings for presentation by the application.
+
 use libloading::Library;
 use std::{
     ffi::c_void,
     path::{Path, PathBuf},
 };
+/// C-layout base bridge function table. Keep field order and function-pointer signatures synchronized with the managed ABI.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Api {
+    /// Version identifier supplied by this contract.
     pub version: u32,
+    /// Structure size used by the native ABI or platform API.
     pub size: u32,
+    /// Managed callback creating a session handle in caller-owned output storage.
     pub create: unsafe extern "C" fn(*mut u64) -> i32,
+    /// Managed callback copying a publication kind into a caller-owned byte buffer.
     pub copy: unsafe extern "C" fn(u64, u32, *mut u8, i32, *mut i32) -> i32,
+    /// Managed action key or callback for the operation described by this enclosing contract.
     pub action: unsafe extern "C" fn(u64, u32) -> i32,
+    /// Managed callback releasing the session handle.
     pub destroy: unsafe extern "C" fn(u64) -> i32,
 }
+/// ABI v4 extension adding a structured MessagePack intent submission callback.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ApiV4 {
+    /// ABI prefix whose C layout must match the preceding interface version.
     pub base: Api,
+    /// Managed callback accepting a MessagePack intent buffer for the session.
     pub submit: unsafe extern "C" fn(u64, *const u8, i32) -> i32,
 }
+/// ABI v5 callback signature for sequence-aware publication copies. Buffer length/status and UTC tick outputs follow the managed C ABI.
 type CopyChanged = unsafe extern "C" fn(u64,u32,*mut u64,*mut u8,i32,*mut i32,*mut i64,*mut i64)->i32;
+/// ABI v5 extension adding sequence-aware changed-publication copies.
 #[repr(C)]
 #[derive(Clone,Copy)]
-pub struct ApiV5 {pub base:ApiV4,pub copy_changed:CopyChanged}
+pub struct ApiV5 {/** ABI prefix whose C layout must match the preceding interface version. */ pub base:ApiV4,/** Required v5 changed-copy callback; the Managed wrapper makes this optional when negotiation falls back to v4. */ pub copy_changed:CopyChanged}
+/// Owner of the loaded host library, bridge function table, and managed session handle. Drop destroys the session before unloading the library.
 pub struct Managed {
+    /// Loaded hostfxr library retained for the full lifetime of its function pointers.
     _library: Library,
+    /// Negotiated managed ABI base function table.
     api: Api,
+    /// Managed callback accepting a MessagePack intent buffer for the session.
     submit: unsafe extern "C" fn(u64, *const u8, i32) -> i32,
+    /// Opaque managed session handle; valid only until destroy succeeds or ownership ends.
     handle: u64,
+    /// Optional ABI v5 sequence-aware copy callback.
     copy_changed: Option<CopyChanged>,
 }
+/// Encode a Windows path/string as null-terminated UTF-16 for the hostfxr API.
 fn wide(s: impl AsRef<std::ffi::OsStr>) -> Vec<u16> {
     use std::os::windows::ffi::OsStrExt;
     s.as_ref().encode_wide().chain(Some(0)).collect()
 }
+/// Accept a nonnegative native status or return an operation-labelled hexadecimal error.
 fn checked(code: i32, what: &str) -> Result<(), String> {
     if code < 0 {
         Err(format!("{what}: 0x{code:08x}"))
@@ -42,7 +74,13 @@ fn checked(code: i32, what: &str) -> Result<(), String> {
     }
 }
 impl Managed {
+    /// Load .NET 10 hostfxr and the staged managed bridge, validate the function table, and create a session. Returns a startup error if dependencies or ABI negotiation fail.
     pub fn load(root: &Path) -> Result<Self, String> {
+        // SAFETY: hostfxr exports and bridge delegates use the declared native
+        // calling conventions. UTF-16 buffers and output storage remain alive
+        // for each synchronous call. Only a successful version/size negotiation
+        // permits reading the function table; Managed retains the library until
+        // after the session is destroyed.
         unsafe {
             let dotnet = std::env::var_os("DOTNET_ROOT")
                 .map(PathBuf::from)
@@ -144,7 +182,11 @@ impl Managed {
             })
         }
     }
+    /// Copy one complete publication into Rust-owned bytes, retrying with the required buffer size. Returns native copy errors to the caller.
     pub fn copy(&self, kind: u32) -> Result<Vec<u8>, String> {
+        // SAFETY: the session and library are owned by self. The initial null
+        // buffer is a size query; subsequent calls receive a live Vec buffer
+        // with its full writable length. Managed code must respect that length.
         unsafe {
             let mut required = 0;
             checked(
@@ -173,12 +215,16 @@ impl Managed {
             Err("Publication grew beyond bounded retries".into())
         }
     }
+    /// Poll one publication kind into the transfer cache. Returns whether an unacknowledged update is ready; v5 reconstruction failures reset the base and trigger a full-copy retry.
     pub fn poll(&self,kind:u32,cache:&mut ifm_ui_rust::publication_transfer::TransferCache)->Result<bool,String>{
         let Some(copy)=self.copy_changed else{return Ok(cache.legacy(kind,self.copy(kind)?));};
         if kind>8{return Err("Invalid publication kind".into());}
         for attempt in 0..4 {
             let mut cursor=cache.sequence(kind);let mut required=0;let mut produced=0;let mut source=0;
             let capacity=cache.scratch.len();
+            // SAFETY: output pointers reference live stack values and scratch
+            // owns capacity bytes for this synchronous call. Do not resize or
+            // consume scratch until the callback has returned.
             let result=unsafe{copy(self.handle,kind,&mut cursor,cache.scratch.as_mut_ptr(),capacity as i32,&mut required,&mut produced,&mut source)};
             if result==2{return Ok(cache.pending(kind));}
             checked(result,"conditional publication copy")?;
@@ -191,8 +237,11 @@ impl Managed {
         }
         Err("Publication changed beyond bounded transfer retries".into())
     }
+    /// Encode a structured intent as MessagePack and submit it to the managed session. Success means accepted by the callback, not business completion.
     pub fn submit(&self, payload: &str) -> Result<(), String> {
         let payload = ifm_ui_rust::wire::encode_intent(payload)?;
+        // SAFETY: payload stays alive for the call; the managed submit contract
+        // copies/consumes its bytes synchronously rather than retaining a pointer.
         unsafe {
             checked(
                 (self.submit)(self.handle, payload.as_ptr(), payload.len() as i32),
@@ -200,12 +249,17 @@ impl Managed {
             )
         }
     }
+    /// Forward a numeric action to the managed session; a successful callback does not imply business completion.
     pub fn action(&self, action: u32) -> Result<(), String> {
+        // SAFETY: self owns the valid session and the library backing this delegate.
         unsafe { checked((self.api.action)(self.handle, action), "fixture action") }
     }
 }
 impl Drop for Managed {
+    /// Destroy the managed session while its host library and function pointers remain alive.
     fn drop(&mut self) {
+        // SAFETY: this owner destroys its session once, before Rust drops the
+        // retained Library field and invalidates the managed function pointers.
         unsafe {
             let result = (self.api.destroy)(self.handle);
             if result != 0 {

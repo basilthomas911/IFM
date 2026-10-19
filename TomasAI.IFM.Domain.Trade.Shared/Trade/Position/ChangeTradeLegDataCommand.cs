@@ -29,7 +29,7 @@ public sealed record ChangeTradeLegDataCommand : ICommand<StrategyPositionId>
     /// <param name="effectiveAtUtc">The EffectiveAtUtc field.</param>
     /// <param name="tradeType">The TradeType field.</param>
     [SerializationConstructor]
-    public ChangeTradeLegDataCommand(Guid commandId, ActorSubject subject, bool postEvents, StrategyPositionId entityId, Guid tradeLegId, string contractId, decimal price, long sourceSequence, long routeGeneration, DateTime effectiveAtUtc, TradeStrategyKind tradeType)
+    public ChangeTradeLegDataCommand(Guid commandId, ActorSubject subject, bool postEvents, StrategyPositionId entityId, Guid tradeLegId, string contractId, decimal price, long sourceSequence, long routeGeneration, DateTime effectiveAtUtc, TradeStrategyKind tradeType, TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? optionTick = null)
     {
         CommandId = commandId;
         Subject = subject;
@@ -42,6 +42,7 @@ public sealed record ChangeTradeLegDataCommand : ICommand<StrategyPositionId>
         RouteGeneration = routeGeneration;
         EffectiveAtUtc = effectiveAtUtc;
         TradeType = tradeType;
+        OptionTick = optionTick;
     }
     public const string Verb = "ChangeTradeLegData";
 
@@ -56,6 +57,8 @@ public sealed record ChangeTradeLegDataCommand : ICommand<StrategyPositionId>
     [Key(8)] public long RouteGeneration { get; init; }
     [Key(9)] public DateTime EffectiveAtUtc { get; init; }
     [Key(10)] public TradeStrategyKind TradeType { get; init; }
+
+    [Key(11)] public TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel? OptionTick { get; init; }
 
     [IgnoreMember] public string CommandName => nameof(ChangeTradeLegDataCommand);
     [IgnoreMember]

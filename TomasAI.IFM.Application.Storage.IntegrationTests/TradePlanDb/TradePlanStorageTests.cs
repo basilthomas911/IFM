@@ -53,7 +53,7 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
             {
                 Position = plan.Position, SourceEventId = Guid.NewGuid(), SequenceId = plan.PlanRevision,
                 OrderId = plan.Position.Id.Trade.OrderId, TradeId = plan.Position.Id.Trade.TradeId,
-                ValueDate = plan.ValueDate, TradePnl = 42, ForwardLossRatio = 0.5, MScore = 0.7,
+                ValueDate = plan.ValueDate, TradePnl = 42, ForwardLossRatio = 0.5,
                 UnavailableReasons = ["analytics not captured"]
             }
         };
@@ -65,8 +65,8 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var scalar = await fixture.TradePlanDb.Database
             .Use("MonitoringScalarReadback", "SELECT tradePnl,forwardLossRatio,mScore,inputStatus,sourceEventId FROM iron_condor_trade_plan WHERE portfolioId=? AND fundId=? AND orderId=? AND tradeId=? AND positionId=? AND valueDate=? AND planRevision=?;")
             .SetParameters(new MonitoringReadbackParameters(plan))
-            .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDouble(1), record.GetDouble(2), record.GetString(3)));
-        scalar.Should().Be((42m, 0.5, 0.7, "Unavailable"));
+            .ExecuteSingleAsync(record => (record.GetDecimal(0), record.GetDouble(1), record.IsNull(2), record.GetString(3)));
+        scalar.Should().Be((42m, 0.5, true, "Unavailable"));
     }
 
     [Fact]
@@ -75,11 +75,12 @@ public sealed class TradePlanStorageTests(TradePlanStorageFixture fixture)
         var policy = TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet.CreateIronCondorDevelopmentDefault();
         var plan = Plan(Random.Shared.Next(4_200_001, 4_500_000), 1, -400m, material: true);
         plan = plan with { IronCondorTradePlanSnapshot = new() {
-            Position = plan.Position, ActionDateTime = plan.CalculatedAtUtc, SequenceId = 1,
+            Position = plan.Position with { Legs = plan.Position.Legs.Select(leg => leg with
+            { Scenario = new() { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId, ForwardPrice = 20 } }).ToArray() },
+            ActionDateTime = plan.CalculatedAtUtc, SequenceId = 1,
             DailyPnl = -400, ForwardLoss = 1100, ForwardLossRatio = 1.1, DailyLossLimit = 1000,
             Currency = "USD", NetGamma = .001, PutForwardPrice = -20, CallForwardPrice = -15,
-            StrategyRiskParameterSet = policy, RiskParameterSetHash = policy.Hash(), CalculationStatus = "Complete",
-            Legs = [new() { ContractId = "fixture", ForwardPrice = 20 }] } };
+            StrategyRiskParameterSet = policy, RiskParameterSetHash = policy.Hash(), CalculationStatus = "Complete" } };
         plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
         await fixture.TradePlanDb.ProjectMaterialAsync(plan);
         var restored = await fixture.TradePlanDb.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate);

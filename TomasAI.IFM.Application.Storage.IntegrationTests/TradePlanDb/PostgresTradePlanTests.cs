@@ -63,6 +63,84 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
     };
 
     [Fact]
+    public async Task Chart_reads_six_hours_of_price_only_samples_separately_from_the_grid_page()
+    {
+        var original = Plan();
+        var at = original.CalculatedAtUtc;
+        foreach (var (revision, hours, price) in new[] { (1,0,-10m), (2,5,-11m), (3,7,-12m) })
+        {
+            var plan = original with { PlanRevision = revision, CalculatedAtUtc = at.AddHours(hours),
+                IronCondorTradePlanSnapshot = new() { Position = original.Position, CombinedSpreadPrice = price, CombinedForwardPrice = price - .5m } };
+            plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
+            await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+            { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
+        }
+        var first = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        first.Items.Should().HaveCount(1);
+        first.ChartEndUtc.Should().BeCloseTo(at.AddHours(7), TimeSpan.FromMicroseconds(1));
+        first.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m,-12m);
+        first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-12.5m);
+        var older = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
+        older.ChartPoints.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Offset_pages_read_only_the_requested_window_and_keep_a_stable_revision_boundary()
+    {
+        var original = Plan();
+        async Task Insert(long revision)
+        {
+            var plan = original with { PlanRevision = revision };
+            plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) + revision };
+            await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+            { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
+        }
+        for (var revision = 1; revision <= 125; revision++) await Insert(revision);
+        var first = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 50);
+        first.TotalCount.Should().Be(125);
+        first.Items.Should().HaveCount(50);
+        first.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(76, 50).Reverse().Select(i => (long)i));
+        await Insert(126);
+        var next = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 50, 50, first.MaximumRevision);
+        next.Offset.Should().Be(50); next.TotalCount.Should().Be(125);
+        next.Items.Select(plan => plan.PlanRevision).Should().Equal(Enumerable.Range(26, 50).Reverse().Select(i => (long)i));
+        var tail = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 100, 50, first.MaximumRevision);
+        tail.Items.Should().HaveCount(25);
+        var empty = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 10000, 50, first.MaximumRevision);
+        empty.Items.Should().BeEmpty(); empty.TotalCount.Should().Be(125);
+        var invalid = async () => await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, -1, 50);
+        await invalid.Should().ThrowAsync<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public async Task Retained_snapshot_fields_round_trip_while_removed_legacy_columns_remain_null()
+    {
+        var plan = Plan();
+        plan = plan with { IronCondorTradePlanSnapshot = new()
+        {
+            Position = plan.Position, SourceEventId = Guid.NewGuid(), SequenceId = plan.PlanRevision, ValueDate = plan.ValueDate,
+            MaxProfit = 850, MaxLoss = -500, MinProfitTarget = 100, DailyProfitTarget = 50,
+            StopLossLimit = .2, VolatilityPrice = 18.25m, AssetPrice = 6000, ForwardPrice = 10,
+            CalculationStatus = "Unavailable", UnavailableReasons = ["retained-field roundtrip"]
+        } };
+        plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        { await fixture.Plans.ProjectMaterialAsync(transaction, plan, token); return true; });
+        (await fixture.Plans.GetCurrentAsync(plan.Position.Id, plan.Position.StrategyKind, plan.ValueDate)).Should().BeEquivalentTo(plan);
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("SELECT maxProfit,maxLoss,minProfitTarget,dailyProfitTarget,stopLossLimit,volatilityPrice,assetPrice,forwardPrice,mScore,marketTrend FROM trade_plan.iron_condor_trade_plan WHERE positionId=$1 AND planRevision=$2;", connection);
+        command.Parameters.AddWithValue(plan.Position.Id.PositionId); command.Parameters.AddWithValue(plan.PlanRevision);
+        await using var row = await command.ExecuteReaderAsync();
+        (await row.ReadAsync()).Should().BeTrue();
+        row.GetDecimal(0).Should().Be(850); row.GetDecimal(1).Should().Be(-500);
+        row.GetDecimal(2).Should().Be(100); row.GetDecimal(3).Should().Be(50);
+        row.GetDouble(4).Should().Be(.2); row.GetDecimal(5).Should().Be(18.25m);
+        row.GetDecimal(6).Should().Be(6000); row.GetDecimal(7).Should().Be(10);
+        row.IsDBNull(8).Should().BeTrue(); row.IsDBNull(9).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Event_plan_and_activity_commit_together_and_scalar_values_round_trip()
     {
         var plan = Plan();

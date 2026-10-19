@@ -29,15 +29,15 @@ public sealed partial record IronCondorTradePlanSnapshot
     [Key(63)] public decimal? EstimatedExitSlippage { get; init; }
     /// <summary>Gets additional closing commissions plus slippage, in currency.</summary>
     [Key(64)] public decimal? EstimatedExitCosts { get; init; }
-    /// <summary>Gets signed current put spread price per strategy unit, in points.</summary>
+    /// <summary>Gets signed current marked put spread price per strategy unit, in points.</summary>
     [Key(65)] public decimal? PutSpreadPrice { get; init; }
-    /// <summary>Gets signed current call spread price per strategy unit, in points.</summary>
+    /// <summary>Gets signed current marked call spread price per strategy unit, in points.</summary>
     [Key(66)] public decimal? CallSpreadPrice { get; init; }
     /// <summary>Gets signed sum of current put and call spread prices per strategy unit.</summary>
     [Key(67)] public decimal? CombinedSpreadPrice { get; init; }
-    /// <summary>Gets signed put spread price under the captured coherent scenario, in points per unit.</summary>
+    /// <summary>Gets signed put spread forward value in currency, including quantity and the validated contract multiplier.</summary>
     [Key(68)] public decimal? PutForwardPrice { get; init; }
-    /// <summary>Gets signed call spread price under the same scenario, in points per unit.</summary>
+    /// <summary>Gets signed call spread forward value in currency, including quantity and the validated contract multiplier.</summary>
     [Key(69)] public decimal? CallForwardPrice { get; init; }
     /// <summary>Gets signed sum of forward put and call prices per strategy unit.</summary>
     [Key(70)] public decimal? CombinedForwardPrice { get; init; }
@@ -93,9 +93,28 @@ public sealed partial record IronCondorTradePlanSnapshot
     [Key(95)] public string? Currency { get; init; }
     /// <summary>Gets the four frozen quote, price and Greek observations used by this snapshot.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
-    [Key(96)] public IronCondorTradePlanLegObservation[] Legs { get; init; } = [];
+    [IgnoreMember, System.Text.Json.Serialization.JsonIgnore, Newtonsoft.Json.JsonIgnore]
+    public IronCondorTradePlanLegObservation[] Legs => Position.Legs.Select(StrategyPositionLegOptionData.Observe).ToArray();
+    /// <summary>Reserved wire slot: reads old snapshots into Position.Legs; new snapshots write no duplicate legs.</summary>
+    [Key(96), System.Text.Json.Serialization.JsonIgnore, Newtonsoft.Json.JsonIgnore]
+    public IronCondorTradePlanLegObservation[] LegacyLegs
+    {
+        get => [];
+        init
+        {
+            if (value is not { Length: > 0 }) return;
+            Position = Position with { Legs = Position.Legs.Select(leg => leg with
+            {
+                Scenario = leg.Scenario ?? value.FirstOrDefault(old => old.TradeLegId == leg.TradeLegId && old.ContractId == leg.ContractId)
+            }).ToArray() };
+        }
+    }
     /// <summary>Gets the exact versioned risk policy used by this snapshot.</summary>
     [Key(97)] public TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet? StrategyRiskParameterSet { get; init; }
     /// <summary>Gets the canonical policy hash for input provenance.</summary>
     [Key(98)] public string? RiskParameterSetHash { get; init; }
+    /// <summary>Current spread and position values use retained position marks, not theoretical prices.</summary>
+    [Key(99)] public string? CurrentPriceBasis { get; init; }
+    /// <summary>Current numeric price of the configured volatility instrument (VX for now).</summary>
+    [Key(100)] public decimal? VolatilityPrice { get; init; }
 }

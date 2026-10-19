@@ -213,9 +213,11 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, ILogger<D
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1062", Justification = "The typed extension validates the projection or deletion before dereferencing it; the DbContext delegates parameter validation to its binding extensions.")]
     public Task UpsertFundAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken ct = default)
     {
-        var x = row.RequiredValue();
-        return this.WriteAsync(nameof(PortfolioDbSql.Fund.Upsert), PortfolioDbSql.Fund.Upsert,
-            this.ToParameters(x.PortfolioId, x.FundId, x.FundMandateVersion, x.OperatingState.ToString(), row.ToCommonValues(), x.TradingYear, x.DecisionHorizon, x.EffectiveFromUtc), ct);
+        return this.RequiredTransactions.ExecuteAsync(async (db, token) =>
+        {
+            await db.WriteFundProjectionAsync(row, token).ConfigureAwait(false);
+            return true;
+        }, ct);
     }
     /// <inheritdoc />
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1725", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]

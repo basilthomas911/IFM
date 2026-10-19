@@ -38,40 +38,40 @@ internal readonly record struct IronCondorScalarParameters(StrategyTradePlanSnap
                 Snapshot.ActionReason,
                 Snapshot.TradePnl,
                 Snapshot.ForwardLossRatio,
-                Snapshot.LossProbability,
-                Snapshot.MScore,
+                null, // Reserved legacy scalar column: LossProbability
+                null, // Reserved legacy scalar column: MScore
                 Snapshot.MaxProfit,
                 Snapshot.MaxLoss,
                 Snapshot.MinProfitTarget,
                 Snapshot.DailyProfitTarget,
                 Snapshot.AssetPrice,
-                Snapshot.AssetStdDev,
-                Snapshot.AssetMean,
-                Snapshot.AssetPriceChange,
-                Snapshot.MarketTrend,
-                Snapshot.MarketVolatility,
-                Snapshot.MarketDirection,
-                Snapshot.VixVolatility,
-                Snapshot.TradeRisk,
-                Snapshot.FiftyDayMA,
-                Snapshot.FiveDayXMA,
+                null, // Reserved legacy scalar column: AssetStdDev
+                null, // Reserved legacy scalar column: AssetMean
+                null, // Reserved legacy scalar column: AssetPriceChange
+                null, // Reserved legacy scalar column: MarketTrend
+                null, // Reserved legacy scalar column: MarketVolatility
+                null, // Reserved legacy scalar column: MarketDirection
+                Snapshot.VolatilityPrice,
+                null, // Reserved legacy scalar column: TradeRisk
+                null, // Reserved legacy scalar column: FiftyDayMA
+                null, // Reserved legacy scalar column: FiveDayXMA
                 Snapshot.PutOTMProbability,
                 Snapshot.CallOTMProbability,
                 Snapshot.ShortPutGamma,
                 Snapshot.ShortCallGamma,
-                Snapshot.GammaRisk,
+                null, // Reserved legacy scalar column: GammaRisk
                 Snapshot.NetPrice,
                 Snapshot.ForwardPrice,
                 Snapshot.ForwardDelta,
                 Snapshot.StopLossLimit,
-                Snapshot.TrendType,
-                Snapshot.TrendStrength,
-                Snapshot.Rsi,
-                Snapshot.RsiSlope,
-                Snapshot.Tdi,
-                Snapshot.TdiStrength,
-                Snapshot.CreatedOn,
-                Snapshot.CreatedBy,
+                null, // Reserved legacy scalar column: TrendType
+                null, // Reserved legacy scalar column: TrendStrength
+                null, // Reserved legacy scalar column: Rsi
+                null, // Reserved legacy scalar column: RsiSlope
+                null, // Reserved legacy scalar column: Tdi
+                null, // Reserved legacy scalar column: TdiStrength
+                null, // Reserved legacy scalar column: CreatedOn
+                null, // Reserved legacy scalar column: CreatedBy
                 Snapshot.SourceEventId, Plan.Position.PositionSequence, Plan.Position.RouteGeneration,
                 Snapshot.CalculationVersion, Snapshot.IsComplete ? "Complete" : "Unavailable",
                 Snapshot.ActionDateTime,

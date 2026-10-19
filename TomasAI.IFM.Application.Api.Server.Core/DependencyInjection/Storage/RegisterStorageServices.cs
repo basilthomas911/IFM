@@ -196,7 +196,9 @@ public static partial class CoreServiceRegistration
                 provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator>>(),
                 provider.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()));
         services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
-        services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<PortfolioDbContext>() as PortfolioDbContext)!);
+        services.AddSingleton(provider => new PortfolioDbContext(provider.GetRequiredService<IDbConnectionSettings>(),
+            provider.GetRequiredService<ILogger<DbProvider>>(),
+            provider.GetRequiredService<TomasAI.IFM.Application.Storage.EventSourceDb.IPostgresEventTransaction>()));
         services.AddSingleton<IPortfolioDbReadContext>(provider => provider.GetRequiredService<PortfolioDbContext>());
         services.AddSingleton<IPortfolioDbWriteContext>(provider => provider.GetRequiredService<PortfolioDbContext>());
         services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);

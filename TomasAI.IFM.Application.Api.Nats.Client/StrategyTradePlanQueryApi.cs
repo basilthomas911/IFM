@@ -26,6 +26,16 @@ public sealed class StrategyTradePlanQueryApi(IActorProducer producer)
             query.Subject, query, cancellationToken).AsTask();
     }
 
+    public Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryPageAsync(
+        StrategyPositionId positionId, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null,
+        CancellationToken cancellationToken = default)
+    {
+        var id = new StrategyIronCondorTradePlanId(positionId, valueDate);
+        var query = new GetIronCondorTradePlanHistoryQuery { PlanId = id, Offset = offset, PageSize = pageSize,
+            MaximumRevision = maximumRevision, Subject = Subject(GetIronCondorTradePlanHistoryQuery.Actor, GetIronCondorTradePlanHistoryQuery.Verb, id.Format()) };
+        return RequestAsync<GetIronCondorTradePlanHistoryQuery, StrategyTradePlanHistoryPage>(query.Subject, query, cancellationToken).AsTask();
+    }
+
     public Task<ServiceResult<StrategyTradePlanHistoryPage>> GetIronCondorHistoryAsync(
         StrategyPositionId positionId, DateOnly valueDate, int pageSize = 100, byte[]? pagingState = null,
         CancellationToken cancellationToken = default)

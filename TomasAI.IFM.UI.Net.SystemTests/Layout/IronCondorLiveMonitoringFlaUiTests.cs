@@ -133,9 +133,9 @@ public sealed class IronCondorLiveMonitoringFlaUiTests(ITestOutputHelper output)
                             while (plans.Count > 4096) plans.TryDequeue(out _);
                             if (plans.Count <= 4) Record("PlanSourcePublished", new { plan.Id, plan.EventId, plan.SourceEventId,
                                 plan.Plan.PlanRevision, plan.Plan.CalculatedAtUtc, plan.Plan.ContentHash });
-                            if (plan.Plan.IronCondorTradePlanSnapshot?.IronCondorTradePlanInputs?.CalculatedSpreadPrices is { } calculated
+                            if (HasCalculatedPrices(plan.Plan)
                                 && Interlocked.CompareExchange(ref firstPricedRecorded, 1, 0) == 0)
-                                Record("FirstPricedPlan", new { plan.Id, plan.EventId, plan.Plan.PlanRevision, calculated });
+                                Record("FirstPricedPlan", new { plan.Id, plan.EventId, plan.Plan.PlanRevision, calculated = plan.Plan.IronCondorTradePlanSnapshot!.Position.Legs });
                         }
                         break;
                 }
@@ -232,18 +232,16 @@ public sealed class IronCondorLiveMonitoringFlaUiTests(ITestOutputHelper output)
             IronCondorTradePlanUpdatedEvent? pricedPlan = null;
             await WaitAsync(() =>
             {
-                pricedPlan = plans.LastOrDefault(plan => plan.Plan.IronCondorTradePlanSnapshot?.IronCondorTradePlanInputs?.CalculatedSpreadPrices is { } prices
-                    && prices.OptionLegPrices.Length == 4 && prices.ValidUntilUtc > DateTime.UtcNow);
+                pricedPlan = plans.LastOrDefault(plan => HasCurrentCalculatedPrices(plan.Plan, DateTime.UtcNow));
                 return pricedPlan is not null;
             }, TimeSpan.FromSeconds(45), failures);
             Assert.NotNull(pricedPlan);
-            Record(stage, pricedPlan.Plan.IronCondorTradePlanSnapshot!.IronCondorTradePlanInputs!.CalculatedSpreadPrices!);
+            Record(stage, pricedPlan.Plan.IronCondorTradePlanSnapshot!.Position.Legs);
             stage = "MonitoringBeyondOriginalLeaseExpiry";
             var renewalCheckAt = startedAt.AddSeconds(70);
             await WaitAsync(() => DateTime.UtcNow >= renewalCheckAt && plans.Any(plan =>
                 plan.Plan.CalculatedAtUtc >= renewalCheckAt
-                && plan.Plan.IronCondorTradePlanSnapshot?.IronCondorTradePlanInputs?.CalculatedSpreadPrices is { } renewedPrices
-                && renewedPrices.ValidUntilUtc > DateTime.UtcNow), TimeSpan.FromSeconds(90), failures);
+                && HasCurrentCalculatedPrices(plan.Plan, DateTime.UtcNow)), TimeSpan.FromSeconds(90), failures);
             Assert.Contains("ON", feed.Name);
             Record(stage, new { ElapsedSeconds = (DateTime.UtcNow-startedAt).TotalSeconds });
             var query = new StrategyTradePlanQueryApi(producer);
@@ -256,7 +254,7 @@ public sealed class IronCondorLiveMonitoringFlaUiTests(ITestOutputHelper output)
                 if (!result.Success) Record("ProjectionQueryFailure", result.ErrorMessage);
                 stored = result.Value;
                 return result.Success && stored is not null && stored.CalculatedAtUtc >= renewalCheckAt
-                    && stored.IronCondorTradePlanSnapshot?.IronCondorTradePlanInputs?.CalculatedSpreadPrices is not null
+                    && HasCalculatedPrices(stored)
                     && plans.Any(plan => plan.Plan.ContentHash == stored.ContentHash);
             }, TimeSpan.FromSeconds(30));
             var storedSource = plans.Last(plan => plan.Plan.ContentHash == stored!.ContentHash);
@@ -302,7 +300,7 @@ public sealed class IronCondorLiveMonitoringFlaUiTests(ITestOutputHelper output)
                         }).ToArray();
                     // Capture notifications after the UI read, so an event that arrived while the rows
                     // were being read can match its visible revision.
-                    var known = plans.Where(plan => plan.Plan.IronCondorTradePlanSnapshot?.IronCondorTradePlanInputs?.CalculatedSpreadPrices is not null)
+                    var known = plans.Where(plan => HasCalculatedPrices(plan.Plan))
                         .GroupBy(plan => plan.Plan.PlanRevision).ToDictionary(group => group.Key, group => group.Last());
                     visiblePlan = rows.FirstOrDefault(values => values.Length == 5
                         && values[0] == tradeId.OrderId.ToString(CultureInfo.InvariantCulture)
@@ -358,6 +356,16 @@ public sealed class IronCondorLiveMonitoringFlaUiTests(ITestOutputHelper output)
             }
         }
     }
+
+    // Pricing evidence now lives on the authoritative position legs rather than a duplicate input snapshot.
+    static bool HasCalculatedPrices(StrategyTradePlanSnapshot plan)
+        => plan.IronCondorTradePlanSnapshot is { } snapshot && snapshot.Position.Legs.Length == 4
+            && snapshot.Position.Legs.All(leg => leg.OptionRisk is { } risk
+                && risk.ContractId == leg.ContractId && StrategyPositionLegOptionData.HasValidRisk(risk));
+
+    static bool HasCurrentCalculatedPrices(StrategyTradePlanSnapshot plan, DateTime now)
+        => HasCalculatedPrices(plan) && plan.IronCondorTradePlanSnapshot!.RiskValidUntilUtc > now
+            && plan.IronCondorTradePlanSnapshot.Position.Legs.All(leg => leg.OptionRisk!.ValidUntilUtc.UtcDateTime > now);
 
     static void ClickModalButton(AutomationElement button)
     {

@@ -20,13 +20,15 @@ public sealed record GetIronCondorTradePlanHistoryQuery : IQuery<StrategyTradePl
     /// <param name="pageSize">The PageSize field.</param>
     /// <param name="pagingState">The PagingState field.</param>
     [SerializationConstructor]
-    public GetIronCondorTradePlanHistoryQuery(ActorSubject subject, IActorEntityId entityId, IronCondorTradePlanId planId, int pageSize, byte[]? pagingState)
+    public GetIronCondorTradePlanHistoryQuery(ActorSubject subject, IActorEntityId entityId, IronCondorTradePlanId planId, int pageSize, byte[]? pagingState, int? offset = null, long? maximumRevision = null)
     {
         Subject = subject;
         EntityId = entityId;
         PlanId = planId;
         PageSize = pageSize;
         PagingState = pagingState;
+        Offset = offset;
+        MaximumRevision = maximumRevision;
     }
     [IgnoreMember] public const string Actor = GetCurrentIronCondorTradePlanQuery.Actor;
     [IgnoreMember] public const string Verb = "GetIronCondorTradePlanHistory";
@@ -37,6 +39,8 @@ public sealed record GetIronCondorTradePlanHistoryQuery : IQuery<StrategyTradePl
     [Key(3)] public int PageSize { get; init; } = 100;
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1819", Justification = "Preserve the existing serialized array payload and public trade model contract.")]
     [Key(4)] public byte[]? PagingState { get; init; }
+    [Key(5)] public int? Offset { get; init; }
+    [Key(6)] public long? MaximumRevision { get; init; }
     [IgnoreMember] public int ErrorCode => ErrorId;
     [IgnoreMember] public string? QueryParams => null;
 }

@@ -19,6 +19,16 @@ fn shared_theme_matches_winforms_control_baseline() {
     );
     assert_eq!(style.visuals.widgets.hovered.bg_fill, presentation::HOVER);
     assert_eq!(style.visuals.widgets.active.bg_fill, presentation::PRESSED);
+    assert!(style.spacing.scroll.foreground_color);
+    for widget in [
+        &style.visuals.widgets.noninteractive,
+        &style.visuals.widgets.inactive,
+        &style.visuals.widgets.hovered,
+        &style.visuals.widgets.active,
+        &style.visuals.widgets.open,
+    ] {
+        assert_eq!(widget.fg_stroke.color, egui::Color32::from_rgb(128, 128, 128));
+    }
     assert_eq!(
         style.visuals.widgets.inactive.corner_radius,
         egui::CornerRadius::ZERO

@@ -29,6 +29,7 @@ fn fixture(count: usize) -> (Catalog, ContractPublication) {
             context: BTreeMap::from([("snapshotId".into(), "pinned-snapshot".into())]),
         },
         outcomes: vec![],
+        ..Default::default()
     };
     (c, s)
 }

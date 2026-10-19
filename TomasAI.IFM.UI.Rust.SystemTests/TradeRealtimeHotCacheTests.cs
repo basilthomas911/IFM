@@ -178,7 +178,9 @@ public sealed class TradeRealtimeHotCacheTests
             Id = StrategyPositionId.Create(trade.Id, TradeStrategyKind.IronCondor), ValueDate = new(2026, 10, 16),
             PositionSequence = 2, RouteGeneration = 1,
             Legs = trade.Legs.Select((leg, i) => new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId,
-                SignedQuantity = leg.SignedQuantity, CurrentPrice = 10 + i, OpeningPrice = 5 }).ToArray()
+                SignedQuantity = leg.SignedQuantity, CurrentPrice = 10 + i, OpeningPrice = 5,
+                OptionTick = Quote(completed: true) with { ContractId = leg.ContractId,
+                    PricingInputs = new() { Multiplier = 50 } } }).ToArray()
         };
         Assert.True(cache.Apply(position));
         var put = cache.Read().Spreads[0];
@@ -208,8 +210,11 @@ public sealed class TradeRealtimeHotCacheTests
             Position = position, ValueDate = position.ValueDate, PlanRevision = 1,
             IronCondorTradePlanSnapshot = new() { CalculationStatus = "Complete", RiskValidUntilUtc = At.AddMilliseconds(500).UtcDateTime,
                 PutForwardPrice = -3, CallForwardPrice = -4, PutOTMProbability = .7, CallOTMProbability = .8,
-                Legs = trade.Legs.Select(leg => new IronCondorTradePlanLegObservation { TradeLegId = leg.TradeLegId,
-                    ContractId = leg.ContractId, QuoteAtUtc = At.UtcDateTime, ForwardPrice = 3 }).ToArray() }
+                Position = position with { Legs = position.Legs.Select(leg => leg with
+                {
+                    Scenario = new IronCondorTradePlanLegObservation { TradeLegId = leg.TradeLegId,
+                        ContractId = leg.ContractId, QuoteAtUtc = At.UtcDateTime, ForwardPrice = 3 }
+                }).ToArray() } }
         };
         Assert.True(cache.Apply(plan));
         Assert.Equal("Available", cache.Read().PlanStatus);

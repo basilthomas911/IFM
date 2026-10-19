@@ -103,6 +103,7 @@ public record FuturesOptionTickDataV2ReadModel
     [Key(29)] public bool IsTradeObservation { get; init; }
     [Key(30)] public double? TheoreticalPrice { get; init; }
     [Key(31)] public long UnderlyingSourceSequence { get; init; }
+    [Key(32)] public OptionTickPricingInputs? PricingInputs { get; init; }
 
     /// <summary>
     /// Composite entity identifier (not serialized).

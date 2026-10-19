@@ -20,6 +20,65 @@ Windows x64 egui/eframe host with .NET 10 hosted in-process. The managed project
 
 The library re-exports the existing module names at its root so callers retain their current import paths. Generate string identifiers with `scripts/UI/Rust/Generate-UiCatalog.ps1`.
 
+## Standalone Rust client migration
+
+The [standalone client migration plan](../Documents/system/IFM-Standalone-Rust-UI-Migration-Plan-v1.0.md) covers moving managed client models, view models, services and subscriptions into Rust while preserving the C# backend actor contracts and NATS/MessagePack/LZ4 protocol. The [source inventory](../Documents/system/IFM-Standalone-Rust-UI-Source-Inventory.md) links the frontend files in scope. This is an implementation design; the current runtime still uses the managed bridge.
+
+## Source documentation
+
+Every file under `src/` has a module overview. Types, fields, variants, constants,
+functions, traits, and internal helpers have Rust documentation comments. Start
+with the architecture overview in [src/lib.rs](src/lib.rs), then follow the module
+pages in the generated documentation. Private implementation details are included
+when built with:
+
+```powershell
+cd TomasAI.IFM.UI.Rust
+$env:RUSTDOCFLAGS = '-D missing_docs -D rustdoc::broken_intra_doc_links'
+cargo doc --no-deps --document-private-items
+Remove-Item Env:RUSTDOCFLAGS
+```
+
+Open `target/doc/ifm_ui_rust/index.html` for the library. The source links beside
+each item show its implementation. Documentation builds need no running API,
+database, NATS server, or desktop session.
+
+The executable's `main.rs` and private `app::hosting` module are documented too.
+To generate their pages explicitly, run
+`cargo doc --bin ifm-ui-rust --no-deps --document-private-items`. The binary and
+library share a crate name and output location; copy that output elsewhere if you
+want to retain both, then run `cargo rustdoc --lib -- --document-private-items`
+to restore the library index. `cargo test --doc` verifies the wire/transfer examples.
+
+| To understand or change | Start here |
+| --- | --- |
+| Startup, bounded channels, polling, repaint, shutdown | [main.rs](src/main.rs) |
+| .NET hosting, ABI negotiation, native buffer ownership | [hosting.rs](src/app/hosting.rs) |
+| Full/delta transfer, sequencing, embedded MessagePack, acknowledgements | [publication_transfer.rs](src/bridge/publication_transfer.rs) |
+| MessagePack intents, named documents, display-number conversion | [wire.rs](src/bridge/wire.rs) |
+| Three-pane shell, calendar, status console | [navigation](src/navigation/mod.rs) |
+| ITI chart, workflow history, strategy definitions and parameters | [strategy](src/strategy/mod.rs) |
+| Reference-data editors and shared publication/outcome models | [editors](src/editors/mod.rs) |
+| Portfolio/fund administration and Risk Policy drafts/versions | [portfolio](src/portfolio/mod.rs) |
+| Trade orders, Broker Trade, established trades and trade tabs | [trading](src/trading/mod.rs) |
+| Decode-once trade display cache and bounded background cleanup | [display_cache.rs](src/trading/trade_workspace/display_cache.rs) |
+| Trade-plan offset/page-size requests and the recent spread chart | [iron_condor.rs](src/trading/trade_workspace/iron_condor.rs) |
+| Market Data manager, instruments, outlook and charts | [market](src/market/mod.rs) |
+| Actor health, operational health, schedules and run history | [operations](src/operations/mod.rs) |
+| Colors, fonts, tab headers, grid borders and scrollbars | [ui](src/ui/mod.rs) |
+| Shared generated text keys | [localization](src/localization/mod.rs) |
+| Optional bounded CPU publication-to-render timing | [diagnostics](src/diagnostics/mod.rs) |
+
+Keep business valuation, validation, and persistence in the managed services.
+Document a new view's published inputs, local draft/selection state, emitted
+actions, and pending/outcome behavior. For a virtual production grid, document both
+visible-row rendering and the backend paging query. The `virtual_grid` component
+is a full-data fixture demonstration; it is not the production trade-plan loader.
+
+Edit `catalog/strings.en.json` and regenerate the catalog to add localized text.
+The generator emits documentation for Rust keys; `Generate-UiCatalog.ps1 -Check`
+verifies the checked-in generated files. Do not hand-edit generated string docs.
+
 ## Run
 
 From the repository root:

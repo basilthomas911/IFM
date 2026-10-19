@@ -1,15 +1,23 @@
+//! Operational health and dataset projections. Visible rows are rendered from the published query result; severity colors communicate backend state without recalculating it.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
 };
 use eframe::egui;
+/// Operational dataset/health view selection and pending-query state.
 #[derive(Default)]
 pub struct OperationsHealth {
+    /// Whether the operational-health view displays the dataset section.
     pub datasets: bool,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
 }
+/// Map published status/severity text to its view-specific indicator color.
 pub fn status_color(status: &str) -> egui::Color32 {
     match status.to_uppercase().as_str() {
         "GREEN" | "UP" | "HEALTHY" => egui::Color32::LIGHT_GREEN,
@@ -22,6 +30,9 @@ pub fn status_color(status: &str) -> egui::Color32 {
     }
 }
 impl OperationsHealth {
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns operational dataset/health view selection and pending-query state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,

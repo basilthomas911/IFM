@@ -14,6 +14,7 @@ egui_extras = { version = "=0.32.3", default-features = false, features = ["date
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 libloading = "0.8"
 wgpu = { version = "=25.0.2", default-features = false, features = ["dx12", "wgsl"] }
+chrono-tz = "0.10.4"
 [features]
 visual-tests = []
 [dev-dependencies]

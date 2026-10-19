@@ -25,3 +25,10 @@ control-pipe shutdown and verifies that its owned API/UI children exited before 
 
 These profiles run from repository Debug output and do not publish to or launch from the Production deployment
 directories.
+
+Build and publish tasks invoke scripts/Build/Invoke-DotNet.ps1. It fills missing
+APPDATA and ProgramFiles(x86) values from Windows known folders before running
+dotnet, avoiding NuGet restore failures such as Value cannot be null (path1)
+when VS Code inherits an incomplete environment. Existing values are preserved;
+no user or machine environment settings are changed. The Rust UI build uses the
+same initializer before generating its catalog and building the managed bridge.

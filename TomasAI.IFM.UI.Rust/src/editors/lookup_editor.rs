@@ -1,45 +1,74 @@
+//! Lookup CRUD editing and shared request outcomes. A request ID identifies the local pending action; rendering never treats submission as proof of successful persistence.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, strings};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
+/// Published lookup entry and its creation/audit display fields.
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LookupRow {
+    /// Published lookup category forming part of the entry identity.
     pub lookup_type_name: String,
+    /// Published lookup short code.
     pub short_code: String,
+    /// Published lookup ordering/business identifier.
     pub order_id: i32,
+    /// Human-readable description supplied by the domain projection or local draft.
     pub description: String,
+    /// Formatted creation timestamp from the managed record.
     pub created_on: String,
+    /// Recorded creator identity from the managed record.
     pub created_by: String,
 }
+/// Managed result for one request ID. Submission and completion are separate states.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorOutcome {
+    /// Correlation identifier of the UI request whose outcome is reported.
     pub request_id: String,
+    /// Backend lifecycle/execution state or correlated outcome state.
     pub state: String,
+    /// Human-readable status or request-outcome explanation.
     pub message: String,
 }
+/// Lookup publication with generation, busy/status fields, rows, and correlated outcomes.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorPublication {
+    /// Wire schema version used to interpret this publication.
     pub schema: u32,
+    /// Publication generation used for change detection and request correlation.
     pub generation: u64,
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Whether the managed view currently reports work in progress.
     pub busy: bool,
+    /// Rows supplied by the enclosing publication/model; they are not fetched during drawing.
     pub rows: Vec<LookupRow>,
+    /// Correlated managed results for submitted request IDs.
     pub outcomes: Vec<EditorOutcome>,
 }
+/// Local lookup draft, stable selection, confirmation, and submission-error state.
 #[derive(Default)]
 pub struct LookupEditor {
+    /// Unsaved local edit values retained across immediate-mode frames.
     pub draft: LookupRow,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<(String, i32)>,
+    /// Whether the local remove/delete confirmation is open.
     pub confirm_remove: bool,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// User-visible validation, submission, or transport error text.
     pub error: String,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     pub last_action: String,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
 }
 impl LookupEditor {
+    /// Serialize the lookup draft/action with a fresh request ID and retain it for outcome correlation.
     fn intent(&mut self, action: &str, snapshot: &EditorPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -57,6 +86,9 @@ impl LookupEditor {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"lookup","intent":action,"expectedGeneration":snapshot.generation,"lookup":if action=="load" {None} else {Some(row)}}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns local lookup draft, stable selection, confirmation, and submission-error state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -233,8 +265,10 @@ impl LookupEditor {
     }
 }
 
+/// Create a process-local request identifier using time and an atomic counter. Used for UI correlation, not cryptographic identity.
 pub fn new_request_id() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
+    /// Process-local atomic counter contributing uniqueness to editor request IDs.
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

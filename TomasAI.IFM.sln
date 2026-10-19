@@ -279,7 +279,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Referenc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.SystemAdmin.Benchmarks", "TomasAI.IFM.Domain.SystemAdmin.Benchmarks\TomasAI.IFM.Domain.SystemAdmin.Benchmarks.csproj", "{6E2D0A65-AB18-4FE7-AF9B-9F72B96BB5C1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI", "TomasAI.IFM.UI\TomasAI.IFM.UI.csproj", "{5AAA07F1-D165-42D6-B4ED-C523973DE815}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI", "TomasAI.IFM.UI.Wpf\TomasAI.IFM.UI.csproj", "{5AAA07F1-D165-42D6-B4ED-C523973DE815}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.MarketData", "TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj", "{D25794EA-0C80-4A45-A683-F9458E165DBB}"
 EndProject

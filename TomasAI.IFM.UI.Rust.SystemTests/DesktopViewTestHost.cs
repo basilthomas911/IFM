@@ -7,6 +7,9 @@ sealed class DesktopViewTestHost : IDisposable
  System.Windows.Forms.Form? form;
  Func<Task>? close;
  public IntPtr Handle => ready.Task.GetAwaiter().GetResult();
+ public IntPtr FindFormHandle(string title) => form is null || form.IsDisposed ? IntPtr.Zero
+  : (IntPtr)form.Invoke(new Func<IntPtr>(() => System.Windows.Forms.Application.OpenForms.Cast<System.Windows.Forms.Form>()
+      .FirstOrDefault(candidate => candidate.Text == title)?.Handle ?? IntPtr.Zero));
  public DesktopViewTestHost(Func<RustClientServiceScope,(System.Windows.Forms.Form Form,Func<Task> Close)> create)
  {
   var thread=new Thread(()=>{

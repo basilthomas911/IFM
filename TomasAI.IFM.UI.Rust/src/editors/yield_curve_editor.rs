@@ -1,3 +1,5 @@
+//! Yield-curve rate editing, date filtering, imports, and tenor definitions. Draft strings are forwarded to managed validation; the renderer does not calculate or normalize financial rates.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
@@ -5,6 +7,7 @@ use crate::{
 };
 use eframe::egui;
 use std::collections::BTreeMap;
+/// Yield-curve tenor property names paired with shared localized caption keys.
 pub const TENORS: [(&str, &str); 12] = [
     ("oneMonth", "rate_1m"),
     ("twoMonth", "rate_2m"),
@@ -19,18 +22,28 @@ pub const TENORS: [(&str, &str); 12] = [
     ("twentyYear", "rate_20y"),
     ("thirtyYear", "rate_30y"),
 ];
+/// Local yield-curve draft, date/period selection, and pending request state.
 #[derive(Default)]
 pub struct YieldCurveEditor {
+    /// Unsaved local edit values retained across immediate-mode frames.
     pub draft: BTreeMap<String, String>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Selected history/calendar/rate period sent to the managed query.
     pub period: String,
+    /// Date requested for the yield-curve import.
     pub import_date: String,
+    /// Whether the local remove/delete confirmation is open.
     pub confirm_remove: bool,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
 }
 impl YieldCurveEditor {
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -40,6 +53,9 @@ impl YieldCurveEditor {
         fields.insert("importDate".into(), self.import_date.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"yield-curve","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns local yield-curve draft, date/period selection, and pending request state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,

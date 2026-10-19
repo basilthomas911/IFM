@@ -75,8 +75,14 @@
     {
       "label": "IFM: Build API Server (Debug)",
       "type": "process",
-      "command": "dotnet",
+      "command": "powershell.exe",
       "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Build/Invoke-DotNet.ps1",
         "build",
         "${workspaceFolder}/TomasAI.IFM.Application.Api.Server/TomasAI.IFM.Application.Api.Server.csproj",
         "--configuration",
@@ -92,8 +98,14 @@
     {
       "label": "IFM: Build UI.Net (Debug)",
       "type": "process",
-      "command": "dotnet",
+      "command": "powershell.exe",
       "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Build/Invoke-DotNet.ps1",
         "build",
         "${workspaceFolder}/TomasAI.IFM.UI.Net/TomasAI.IFM.UI.Net.csproj",
         "--configuration",
@@ -109,8 +121,14 @@
     {
       "label": "IFM: Build Server Manager (Debug)",
       "type": "process",
-      "command": "dotnet",
+      "command": "powershell.exe",
       "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Build/Invoke-DotNet.ps1",
         "build",
         "${workspaceFolder}/TomasAI.IFM.Application.ServerManager/TomasAI.IFM.Application.ServerManager.csproj",
         "--configuration",
@@ -203,8 +221,14 @@
     {
       "label": "IFM: Build Scheduler Host (Debug)",
       "type": "process",
-      "command": "dotnet",
+      "command": "powershell.exe",
       "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Build/Invoke-DotNet.ps1",
         "publish",
         "${workspaceFolder}/TomasAI.IFM.Application.ServerManager.SchedulerHost/TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj",
         "-m:1",

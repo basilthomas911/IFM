@@ -1,24 +1,42 @@
+//! Versioned strategy catalog administration. Schema-specific sections and templates edit a local JSON-shaped draft; published reference choices and managed commands control validation, lifecycle, and persistence.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id};
 use eframe::egui;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+/// Versioned strategy-definition browser/editor with local JSON draft and lifecycle confirmation.
 #[derive(Default)]
 pub struct StrategyCatalog {
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Local JSON-shaped strategy catalog draft.
     pub definition: Value,
+    /// Whether a local edit session is active.
     pub editing: bool,
+    /// Pending local confirmation action/dialog key.
     pub confirmation: Option<String>,
+    /// Publication generation used for change detection and request correlation.
     generation: u64,
+    /// Publication generation captured when confirmation was opened.
     confirm_generation: u64,
+    /// Managed discriminator selecting the schema, field widget, row group, or patch segment behavior.
     kind: String,
+    /// Whether catalog filtering includes all lifecycle states.
     show_all: bool,
+    /// Selected new-definition template key.
     template: String,
+    /// Selected editor section/tab key or index.
     section: String,
+    /// Text buffers preserving incomplete numeric definition edits.
     numbers: BTreeMap<String, String>,
 }
 impl StrategyCatalog {
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns versioned strategy-definition browser/editor with local JSON draft and lifecycle confirmation.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -97,7 +115,7 @@ impl StrategyCatalog {
                         action = Some("catalog-section");
                     }
                     if ui
-                        .checkbox(&mut self.show_all, c.text("catalog_all"))
+                        .add(crate::presentation::checkbox(&mut self.show_all, c.text("catalog_all")))
                         .changed()
                     {
                         action = Some("catalog-section");
@@ -339,7 +357,7 @@ impl StrategyCatalog {
                 });
         });
         if let Some(intent) = self.confirmation.clone() {
-            egui::Window::new(c.text("catalog_confirm"))
+            egui::Window::new(crate::presentation::dialog_title(c.text("catalog_confirm")))
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.trading_label(self.selected.as_deref().unwrap_or(""));
@@ -373,6 +391,7 @@ impl StrategyCatalog {
         action.map(|intent|{let request_id=new_request_id();self.pending=Some(request_id.clone());json!({"schema":1,"requestId":request_id,"view":"strategy-catalog","intent":intent,"expectedGeneration":s.generation,"originalId":target,"fields":fields}).to_string()})
     }
 }
+/// Decode the requested named managed document into a JSON-shaped editing/display value, using the local empty-value fallback on failure.
 fn parse(s: &ContractPublication, key: &str) -> Value {
     s.result
         .context
@@ -380,6 +399,7 @@ fn parse(s: &ContractPublication, key: &str) -> Value {
         .and_then(|x| serde_json::from_str(x).ok())
         .unwrap_or(Value::Null)
 }
+/// Build a stable display/selection identity from a published strategy-catalog key.
 fn identity(key: &Value) -> String {
     let kind = key["Kind"]
         .as_u64()
@@ -405,6 +425,7 @@ fn identity(key: &Value) -> String {
         key["Version"]
     )
 }
+/// Return the editor section names appropriate to the selected strategy-catalog definition kind.
 fn sections(kind: &str) -> Vec<&'static str> {
     let mut rows = vec!["Definition"];
     rows.extend(match kind {
@@ -428,6 +449,7 @@ fn sections(kind: &str) -> Vec<&'static str> {
     }
     rows
 }
+/// Render schema-aware strategy definition editors using published references and separate numeric text buffers.
 fn edit(
     ui: &mut egui::Ui,
     key: &str,
@@ -634,7 +656,7 @@ fn edit(
             }
             Value::Bool(v) => {
                 ui.add_enabled_ui(enabled, |ui| {
-                    ui.checkbox(v, "").labelled_by(label.id);
+                    ui.add(crate::presentation::checkbox(v, "")).labelled_by(label.id);
                 });
             }
             Value::Number(_) => {
@@ -670,6 +692,7 @@ fn edit(
         }
     });
 }
+/// Construct a local strategy-definition draft using the selected template and published reference/product choices.
 fn template(key: &str, refs: &Value, products: &Value) -> Value {
     match key {
         "Families" | "Structures" | "Variants" => {

@@ -278,3 +278,6 @@ __pycache__/
 **/TestResults/
 /test-support/lookup-layout-evidence/*.png
 /test-support/strategy-catalog-evidence/*.png
+
+# Runtime MessagePack logs
+*.mpklog

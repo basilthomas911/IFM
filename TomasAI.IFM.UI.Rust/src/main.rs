@@ -1,72 +1,150 @@
+//! Native executable, application event loop, and managed-publication intake.
+//!
+//! `main` selects the required display GPU, creates bounded channels, starts the
+//! managed host on a worker, and creates the eframe application. The worker polls
+//! publication kinds, decodes changed data, prepares trade display rows, and requests
+//! repaints. The UI thread drains updates and emits actions with nonblocking sends.
+//!
+//! Channels bound memory: updates have capacity 4; numeric and structured actions
+//! each have capacity 32. A publication is acknowledged only after its update has
+//! been queued, so a full update channel does not silently consume the pending data.
+//! Shutdown signals the worker before joining it and finishing optional profiling.
+//! No trading command is executed directly by an egui paint callback.
+
 #![windows_subsystem = "windows"]
 use ifm_ui_rust::presentation::TradingLabelUi as _;
+/// Native executable support. The runtime loader stays private to the binary; reusable view code lives in the library.
 mod app;
 use app::hosting;
 use eframe::egui;
 use ifm_ui_rust::{Catalog, DetailsView, Snapshot, strings};
 use std::{sync::mpsc, time::Duration};
+/// Owned message from the managed-intake worker to the application/UI thread.
 enum Update {
+    /// A worker update paired with its source/publication/native-receipt timing stamp.
     Stamped(Box<Update>, ifm_ui_rust::publication_transfer::Stamp),
+    /// Initial localized catalog and strategy snapshot, delivered together after host startup.
     Ready(Catalog, Snapshot),
+    /// Changed strategy observation/details publication.
     Snapshot(Snapshot),
+    /// Worker/transport error text for display in the application.
     Error(String),
+    /// Request ID and error for an intent rejected before execution.
     SubmissionRejected(String, String),
+    /// Changed trading publication with background-prepared display data.
     Trades(ifm_ui_rust::contract_editor::ContractPublication),
+    /// Changed contract/administration publication.
     Contracts(ifm_ui_rust::contract_editor::ContractPublication),
+    /// Changed risk/workflow inspection publication.
     Inspection(ifm_ui_rust::strategy_inspection::InspectionPublication),
+    /// Changed lookup editor publication.
     Editor(ifm_ui_rust::lookup_editor::EditorPublication),
+    /// Loaded deterministic fixture rows for the local virtual-grid demonstration.
     Grid(Vec<ifm_ui_rust::virtual_grid::GridRow>),
+    /// Changed main-window dashboard/outlook/chart projection.
     Dashboard(ifm_ui_rust::shell::Dashboard),
+    /// Changed feed/calendar/status publication.
     Sidebar(ifm_ui_rust::sidebar::SidebarPublication),
 }
-struct ReadProfile {started:std::time::Instant,seconds:u64,stage:u8}
+/// Opt-in staged read-only profiling session; records start time, duration, and progress.
+struct ReadProfile {/** Monotonic time at which the profiling session began. */ started:std::time::Instant,/** Requested profiling duration in seconds. */ seconds:u64,/** Current profiling or task-run stage. */ stage:u8}
+/// UI-thread application state. Owns cached publications/views and bounded channels to the managed-intake worker.
 struct App {
+    /// UI-thread receiver for owned updates from the intake worker.
     rx: mpsc::Receiver<Update>,
+    /// Bounded sender of numeric user actions to the intake worker.
     tx: mpsc::SyncSender<u32>,
+    /// Localized catalog obtained from the managed bridge.
     catalog: Option<Catalog>,
+    /// Latest immutable strategy publication retained for rendering.
     snapshot: Option<Snapshot>,
+    /// Read-only workflow tree/property renderer with persistent selected-node identity.
     view: DetailsView,
+    /// Main three-pane shell state.
     shell: ifm_ui_rust::shell::MainShell,
+    /// Strategy observation tabs and graph cache.
     strategy: ifm_ui_rust::strategy_workspace::StrategyWorkspace,
+    /// Bounded sender of structured intent payloads to the intake worker.
     editor_tx: mpsc::SyncSender<String>,
+    /// Lookup editor draft/selection state.
     editor: ifm_ui_rust::lookup_editor::LookupEditor,
+    /// Latest lookup publication.
     editor_snapshot: ifm_ui_rust::lookup_editor::EditorPublication,
+    /// Whether the catalog view is shown in the application.
     catalog_tab: bool,
+    /// Strategy catalog browser/editor state.
     strategy_catalog: ifm_ui_rust::strategy_catalog::StrategyCatalog,
+    /// Whether the parameter view is shown in the application.
     parameter_tab: bool,
+    /// Parameter-set browser/editor state.
     parameters: ifm_ui_rust::parameter_sets::ParameterSets,
+    /// Whether the actor view is shown in the application.
     actor_tab: bool,
+    /// Actor health view and confirmation state.
     actor_health: ifm_ui_rust::actor_health::ActorHealth,
+    /// Whether the health view is shown in the application.
     health_tab: bool,
+    /// Operational health view state.
     health: ifm_ui_rust::operations_health::OperationsHealth,
+    /// Whether the scheduled view is shown in the application.
     scheduled_tab: bool,
+    /// Scheduled-task editor/run-history state.
     scheduled: ifm_ui_rust::scheduled_tasks::ScheduledTasks,
+    /// Whether the provider view is shown in the application.
     provider_tab: bool,
+    /// Provider browsing/mapping state.
     provider_browser: ifm_ui_rust::provider_browser::ProviderBrowser,
+    /// Whether the calendar view is shown in the application.
     calendar_tab: bool,
+    /// Economic-calendar editor state.
     calendar_editor: ifm_ui_rust::calendar_editor::CalendarEditor,
+    /// Trade-order dialogs and established-trade tab state.
     trade_workspace: ifm_ui_rust::trade_workspace::TradeWorkspace,
+    /// Latest trading publication, prepared for display outside the UI thread.
     trade_snapshot: ifm_ui_rust::contract_editor::ContractPublication,
+    /// Whether the yield view is shown in the application.
     yield_tab: bool,
+    /// Yield-curve editor draft/selection state.
     yield_editor: ifm_ui_rust::yield_curve_editor::YieldCurveEditor,
+    /// Combined Market Data dialog state.
+    market_data: ifm_ui_rust::market::market_data_manager::MarketDataManager,
+    /// Portfolio Administration dialog state.
+    portfolio: ifm_ui_rust::portfolio::PortfolioManager,
+    /// Whether the contract view is shown in the application.
     contract_tab: bool,
+    /// Contract editor instance reused by the enclosing screen.
     contract: ifm_ui_rust::contract_editor::ContractEditor,
+    /// Latest shared contract/administration publication.
     contract_snapshot: ifm_ui_rust::contract_editor::ContractPublication,
+    /// Whether the lookup view is shown in the application.
     lookup_tab: bool,
+    /// Whether the inspection view is shown in the application.
     inspection_tab: bool,
+    /// Risk/workflow inspection view state.
     inspection: ifm_ui_rust::strategy_inspection::StrategyInspection,
+    /// Latest inspection query publication.
     inspection_snapshot: ifm_ui_rust::strategy_inspection::InspectionPublication,
+    /// Display-ready status supplied by the managed projection or current view state.
     status: String,
+    /// Optional locally virtualized fixture-grid state.
     grid: Option<ifm_ui_rust::virtual_grid::GridView>,
+    /// Whether the grid view is shown in the application.
     grid_tab: bool,
+    /// Whether the fixture grid load action has already been sent.
     grid_requested: bool,
+    /// Optional collected frame-duration samples for native profiling.
     frame_times: Vec<f64>,
+    /// Optional publication-to-render timing recorder.
     latency: Option<ifm_ui_rust::latency::LatencyTrace>,
+    /// Optional staged read-only trade profiling session.
     read_profile: Option<ReadProfile>,
+    /// Compiled local string catalog used before the managed catalog is ready.
     fallback: Catalog,
+    /// Owned intake thread handle joined during application shutdown.
     worker: Option<std::thread::JoinHandle<()>>,
 }
 impl eframe::App for App {
+    /// Drain worker messages, update cached publications and view state, draw the main window/dialogs, and enqueue user intents without blocking on backend work.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let frame_started = std::time::Instant::now();
         let mut stamps=[None;9];
@@ -97,9 +175,14 @@ impl eframe::App for App {
                 }
                 Update::SubmissionRejected(id, e) => {
                     self.trade_workspace.submission_rejected(&id);
+                    self.market_data.submission_rejected(&id, &e);
+                    self.portfolio.submission_rejected(&id, &e);
                     self.status = e;
                 }
                 Update::Error(e) => {
+                    self.trade_workspace.transport_failed(&e);
+                    self.market_data.transport_failed(&e);
+                    self.portfolio.transport_failed(&e);
                     self.editor.error = e.clone();
                     self.editor.pending = None;
                     self.inspection.pending = None;
@@ -121,7 +204,7 @@ impl eframe::App for App {
                     self.shell.dashboard = s;
                 }
                 Update::Sidebar(s) => self.shell.sidebar_snapshot = s,
-                Update::Trades(s) => self.trade_snapshot = s,
+                Update::Trades(s) => ifm_ui_rust::trade_workspace::TradeWorkspace::replace_publication(&mut self.trade_snapshot, s),
                 Update::Contracts(s) => self.contract_snapshot = s,
                 Update::Editor(s) => self.editor_snapshot = s,
                 Update::Inspection(s) => self.inspection_snapshot = s,
@@ -163,6 +246,7 @@ impl eframe::App for App {
                         self.scheduled_tab = false;
                     }
                     if ui.button("Market Data").clicked() {
+                        self.market_data.open();
                         self.shell.workspace = "Market Data".into();
                         self.lookup_tab = false;
                         self.contract_tab = false;
@@ -178,19 +262,7 @@ impl eframe::App for App {
                         self.scheduled_tab = false;
                     }
                     if ui.button("Portfolio").clicked() {
-                        self.shell.workspace = "Portfolio".into();
-                        self.lookup_tab = false;
-                        self.contract_tab = false;
-                        self.inspection_tab = false;
-                        self.parameter_tab = false;
-                        self.catalog_tab = false;
-                        self.calendar_tab = false;
-                        self.yield_tab = false;
-                        self.provider_tab = false;
-                        self.grid_tab = false;
-                        self.actor_tab = false;
-                        self.health_tab = false;
-                        self.scheduled_tab = false;
+                        self.portfolio.open();
                     }
                     ui.menu_button("Reference", |ui| {
                         if ui
@@ -758,6 +830,20 @@ impl eframe::App for App {
             });
         }
         }
+        if let Some(payload) = self.market_data.draw(ctx, &self.contract_snapshot,
+            self.snapshot.as_ref().is_some_and(|s| s.mode == "Live")) {
+            if self.editor_tx.try_send(payload).is_err() {
+                self.market_data.reject_submission();
+                self.status = catalog.text(strings::QUEUE_FULL).into();
+            }
+        }
+        if let Some(payload) = self.portfolio.draw(ctx, &self.contract_snapshot,
+            self.snapshot.as_ref().is_some_and(|s| s.mode == "Live")) {
+            if self.editor_tx.try_send(payload).is_err() {
+                self.portfolio.reject_submission();
+                self.status = catalog.text(strings::QUEUE_FULL).into();
+            }
+        }
         if let Some(profile)=&mut self.read_profile {
             if profile.started.elapsed().as_secs()>=profile.seconds {ctx.send_viewport_cmd(egui::ViewportCommand::Close);}
             else if let Some(request)=self.trade_workspace.profile_read(profile.stage,&self.trade_snapshot){
@@ -774,6 +860,7 @@ impl eframe::App for App {
     }
 }
 impl Drop for App {
+    /// Signal worker shutdown, join the intake thread, and finish any optional profiling output.
     fn drop(&mut self) {
         if let Ok(path) = std::env::var("IFM_RUST_UI_METRICS") {
             let mut warm = self
@@ -796,6 +883,7 @@ impl Drop for App {
         }
     }
 }
+/// Create bounded channels and the managed-intake worker, configure the display GPU/window, and run eframe. Returns startup/render-loop errors through eframe.
 fn main() -> eframe::Result {
     let root = std::env::current_exe()
         .unwrap()
@@ -895,6 +983,8 @@ fn main() -> eframe::Result {
                         }
                         if managed.poll(8,&mut publications)? {
                             let trade=ifm_ui_rust::wire::decode(publications.bytes(8)).map_err(|e|e.to_string())?;
+                            // Decode and prepare historical display rows on the existing intake worker.
+                            ifm_ui_rust::trade_workspace::TradeWorkspace::prepare_publication(&trade);
                             if updates.try_send(stamped(Update::Trades(trade),8,&publications)).is_ok(){publications.acknowledge(8);ctx.request_repaint();}
                         }
                         if managed.poll(5,&mut publications)? {
@@ -983,6 +1073,8 @@ fn main() -> eframe::Result {
                 trade_snapshot: Default::default(),
                 yield_tab: false,
                 yield_editor: Default::default(),
+                market_data: Default::default(),
+                portfolio: Default::default(),
                 contract_tab: false,
                 contract: Default::default(),
                 contract_snapshot: Default::default(),

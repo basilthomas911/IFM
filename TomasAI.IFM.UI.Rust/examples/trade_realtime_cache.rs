@@ -24,6 +24,21 @@ fn main() -> eframe::Result {
     let file = std::env::args().nth(1).expect("Pass the managed-generated publication fixture JSON file");
     let mut publications: Vec<ContractPublication> = serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
     assert!(!publications.is_empty());
+    // Offline scrollbar verification with enough history to overflow both axes.
+    if std::env::args().any(|arg| arg == "--scroll-fixture") {
+        for publication in &mut publications {
+            publication.result.rows.retain(|row| row.fields.get("kind").is_none_or(|kind| kind != "plan"));
+            for index in 0..640 {
+                let value = serde_json::json!({"calculatedAtUtc":format!("Scroll row {index:03}"),
+                    "explanation":format!("Scrollbar verification {index:03}"),"totalPnl":index});
+                publication.result.rows.push(serde_json::from_value(serde_json::json!({
+                    "id":format!("plan:{index}"),"fields":{"kind":"plan"},
+                    "data":ifm_ui_rust::wire::encode_value(&value).unwrap()
+                })).unwrap());
+            }
+            publication.invalidate_render_cache();
+        }
+    }
     let mut view = TradeWorkspace::default();
     let request: serde_json::Value = serde_json::from_str(&view.request("load-trade", &publications[0])).unwrap();
     for publication in &mut publications {
@@ -35,6 +50,7 @@ fn main() -> eframe::Result {
         viewport: eframe::egui::ViewportBuilder::default().with_inner_size([1900., 1100.]),
         ..Default::default()
     }, Box::new(move |cc| {
+        ifm_ui_rust::apply_winforms_typography(&cc.egui_ctx)?;
         cc.egui_ctx.enable_accesskit();
         Ok(Box::new(Probe {view,publications,started:Instant::now()}))
     }))

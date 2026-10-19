@@ -1,6 +1,9 @@
+//! Center-workspace tab strip for loaded trades. Stable trade identities select/close individual tabs and preserve per-trade display state; closing one tab does not close the order editor or unrelated trades.
+
 //! Center document tab strip. Content is selected by the bridge's stable document key.
 use super::*;
 impl TradeWorkspace {
+    /// Render loaded-trade tabs, select the active trade by identity, and emit individual close/select actions.
     pub(super) fn draw_workspace_tabs(
         &mut self,
         ui: &mut egui::Ui,
@@ -8,21 +11,11 @@ impl TradeWorkspace {
         bounds: egui::Rect,
     ) -> Option<&'static str> {
         let p = ui.ctx().pixels_per_point();
-        let mut tabs: Vec<_> = s
-            .result
-            .rows
-            .iter()
-            .filter(|r| r.fields.get("kind").is_some_and(|k| k == "workspace-tab"))
-            .map(data)
-            .collect();
+        let display = self.display_cache.as_ref().unwrap().model.clone();
+        let mut tabs = display.values("workspace-tab").to_vec();
         // Older publications and offline layout fixtures contain the active document only.
         if tabs.is_empty() {
-            if let Some(trade) = s
-                .result
-                .rows
-                .iter()
-                .find(|r| r.fields.get("kind").is_some_and(|k| k == "established"))
-                .map(data)
+            if let Some(trade) = display.values("established").first()
             {
                 tabs.push(serde_json::json!({"key":trade["id"].to_string(),"title":format!("{}:{}",text(&trade["id"],"orderId"),text(&trade["id"],"tradeId")),"active":true}));
             }

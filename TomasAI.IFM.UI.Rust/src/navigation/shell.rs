@@ -1,59 +1,107 @@
+//! Three-pane application shell and published dashboard model.
+//!
+//! The side panes start at 22 percent of available width and remain user-resizable.
+//! Viewport changes reset remembered pane sizes. The left pane hosts strategy
+//! observations; the right pane hosts outlook, charts, calendar, and status. The
+//! center workspace is composed by the executable. Optional shell metrics record
+//! geometry for tests; they are not market or portfolio data.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{Catalog, DetailsView, Snapshot, strategy_workspace::StrategyWorkspace};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Managed main-screen dashboard projection for feed health, outlook, calendar labels, and market charts.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Dashboard {
+    /// Published form/window/section title.
     pub title: String,
+    /// Optional backend report that the market feed is running.
     #[serde(default)]
     pub feed_running: Option<bool>,
+    /// Published feed-health state used for the toolbar indicator.
     pub feed_health: String,
+    /// Backend explanation of the current feed-health state.
     pub feed_health_reason: String,
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Published market-outlook display fields.
     pub outlook: BTreeMap<String, String>,
+    /// Published semantic caption/value cells including color roles.
     pub outlook_cells: BTreeMap<String, crate::market_outlook::OutlookCell>,
+    /// Backend market-outlook status text.
     pub outlook_status: String,
+    /// Published calendar labels exposed by the dashboard.
     pub calendars: Vec<String>,
+    /// Published charts indexed by market symbol/tab key.
     pub market_charts: BTreeMap<String, crate::market_charts::ChartSnapshot>,
 }
+/// Persistent three-pane shell state, selected observations/timeframe, and sidebar/dashboard publications.
 #[derive(Default)]
 pub struct MainShell {
+    /// Current main workspace selection key.
     pub workspace: String,
+    /// Latest managed dashboard projection consumed by the market/outlook panes.
     pub dashboard: Dashboard,
+    /// Selected Strategy/Latency/Traffic/Errors/Saturation tab index.
     pub observation_tab: usize,
+    /// Observation timeframe index: Daily (0), Weekly (1), or Monthly (2).
     pub time_frame: usize,
+    /// Selected market chart tab index.
     pub market_tab: usize,
+    /// Latest economic-calendar/status publication.
     pub sidebar_snapshot: crate::sidebar::SidebarPublication,
+    /// Persistent calendar/status view state.
     pub sidebar_view: crate::sidebar::SidebarView,
+    /// Last time optional shell geometry was written; throttles diagnostic I/O.
     last_metrics: Option<std::time::Instant>,
+    /// Previous viewport dimensions used to reset remembered pane geometry on resize.
     viewport_size: Option<egui::Vec2>,
 }
+/// Serializable layout/interaction diagnostics for desktop verification; coordinate arrays use logical points.
 #[derive(Serialize)]
 pub struct ShellGeometry {
+    /// Most recent status-console message captured for diagnostics.
     pub latest_status: String,
+    /// Number of published status-console rows recorded for diagnostics.
     pub status_rows: usize,
+    /// Count of status rows actually drawn in the diagnostic frame.
     pub status_drawn_rows: usize,
+    /// Whether the calendar publication is busy.
     pub calendar_busy: bool,
+    /// Number of published calendar rows recorded for diagnostics.
     pub calendar_rows: usize,
+    /// Selected calendar period recorded for layout verification.
     pub calendar_period: String,
+    /// Selected calendar country recorded for layout verification.
     pub calendar_country: String,
+    /// Stable selected calendar event identity recorded for diagnostics.
     pub calendar_selected_id: String,
+    /// Selected ES/ES-BB/VX chart tab index recorded for diagnostics.
     pub market_tab: usize,
+    /// Left edge or left-pane bounds in the enclosing coordinate system.
     pub left: [f32; 4],
+    /// Right edge or right-pane bounds in the enclosing coordinate system.
     pub right: [f32; 4],
+    /// Physical pixels per egui logical point for the current viewport.
     pub pixels_per_point: f32,
+    /// Viewport dimensions in logical points.
     pub viewport: [f32; 2],
+    /// Optional pointer position in logical points for interaction diagnostics.
     pub pointer: Option<[f32; 2]>,
+    /// Whether the primary pointer button was held during the diagnostic frame.
     pub primary_down: bool,
+    /// Whether the left-pane resize interaction was active.
     pub left_dragging: bool,
 }
+/// Convert a rectangle to the left/top/right/bottom array used in shell diagnostics.
 fn bounds(rect: egui::Rect) -> [f32; 4] {
     [rect.left(), rect.top(), rect.width(), rect.height()]
 }
 impl MainShell {
+    /// Select the requested operational screen while clearing the other system-view visibility flags.
     pub fn select_system(
         &mut self,
         section: u8,
@@ -65,6 +113,7 @@ impl MainShell {
         *actor = section == 1;
         *health = section == 2;
     }
+    /// Lay out the strategy and market side panes, render current publications, and return a numeric user action when a control changes.
     pub fn draw_panes(
         &mut self,
         ctx: &egui::Context,
@@ -99,7 +148,6 @@ impl MainShell {
                         crate::presentation::tab_value(ui,&mut self.observation_tab, index, *label);
                     }
                 });
-                ui.separator();
                 if self.observation_tab != 0 {
                     let message = [
                         "",

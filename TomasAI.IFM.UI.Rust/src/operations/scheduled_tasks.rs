@@ -1,3 +1,5 @@
+//! Scheduled-task setup, daily-time editing, preview/confirmation, and run history. Draft schedule fields are sent to the managed scheduler; Rust does not create its own timer or execute jobs.
+
 use crate::presentation::TradingLabelUi as _;
 use crate::{
     Catalog, contract_editor::ContractPublication, lookup_editor::new_request_id, strings,
@@ -5,16 +7,24 @@ use crate::{
 use eframe::egui;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+/// Published scheduled-task execution status and timestamps.
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Run {
+    /// Stable identity used to correlate selection, rows, or commands.
     pub id: String,
+    /// Scheduled run's intended firing time in UTC as published by the scheduler.
     pub intended_fire_time_utc: String,
+    /// Display-ready status supplied by the managed projection or current view state.
     pub status: String,
+    /// Current profiling or task-run stage.
     pub stage: String,
+    /// Published explanation of this scheduler run status/stage.
     pub detail: String,
+    /// Optional actual task start time in UTC.
     pub started_at_utc: Option<String>,
 }
+/// Map published status/severity text to its view-specific indicator color.
 pub fn status_color(status: &str) -> egui::Color32 {
     match status {
         "Scheduled" | "Requested" | "Dispatched" => egui::Color32::from_rgb(30, 144, 255),
@@ -24,24 +34,41 @@ pub fn status_color(status: &str) -> egui::Color32 {
         _ => egui::Color32::GRAY,
     }
 }
+/// Schedule editor, weekday/time draft, run selection, and preview/confirmation state.
 pub struct ScheduledTasks {
+    /// Whether the scheduled-task setup editor is open.
     pub setup: bool,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Stable identity of the selected task execution.
     pub selected_run: Option<String>,
+    /// Unsaved local edit values retained across immediate-mode frames.
     pub draft: BTreeMap<String, String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Pending local confirmation action/dialog key.
     pub confirmation: Option<String>,
+    /// Operator-entered justification accompanying an administrative action.
     pub reason: String,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Edited daily schedule hour.
     pub hour: u8,
+    /// Edited daily schedule minute.
     pub minute: u8,
+    /// Enabled days in Sunday-through-Saturday order, serialized to scheduler weekday names.
     pub days: [bool; 7],
+    /// Field values captured for the current preview/confirmation.
     preview_fields: BTreeMap<String, String>,
+    /// Captured schedule ID/version identity used when submitting the current preview or edit.
     target: (String, String),
+    /// Whether the schedule draft represents a newly created definition.
     new: bool,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
 }
 impl Default for ScheduledTasks {
+    /// Construct the view's initial filters, selection, and draft settings without issuing backend commands.
     fn default() -> Self {
         Self {
             setup: false,
@@ -62,6 +89,7 @@ impl Default for ScheduledTasks {
         }
     }
 }
+/// Create the scheduler's initial editable field values without persisting a schedule.
 fn defaults() -> BTreeMap<String, String> {
     BTreeMap::from(
         [
@@ -82,6 +110,7 @@ fn defaults() -> BTreeMap<String, String> {
     )
 }
 impl ScheduledTasks {
+    /// Copy the hour/minute/weekday controls into the scheduler draft's daily recurrence fields.
     pub fn apply_daily_time(&mut self) {
         let days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
             .into_iter()
@@ -95,6 +124,7 @@ impl ScheduledTasks {
         );
     }
 
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -110,6 +140,9 @@ impl ScheduledTasks {
         fields.insert("reason".into(), self.reason.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"scheduled-tasks","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns schedule editor, weekday/time draft, run selection, and preview/confirmation state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -176,7 +209,7 @@ impl ScheduledTasks {
      }
     });
     ui.trading_caption(c.text(strings::SCHEDULE_SAVED_ACCEPTANCE));
-    ui.horizontal_wrapped(|ui|{ui.trading_caption(c.text(strings::SCHEDULE_DAILY_TIME));ui.add_enabled(idle,egui::DragValue::new(&mut self.hour).range(0..=23));ui.trading_caption(":");ui.add_enabled(idle,egui::DragValue::new(&mut self.minute).range(0..=59));ui.trading_caption(c.text(strings::SCHEDULE_DAYS));for(i,day)in ["SUN","MON","TUE","WED","THU","FRI","SAT"].iter().enumerate(){ui.add_enabled(idle,egui::Checkbox::new(&mut self.days[i],*day));}if ui.add_enabled(idle,egui::Button::new(c.text(strings::SCHEDULE_USE_TIME))).clicked(){self.apply_daily_time();}});
+    ui.horizontal_wrapped(|ui|{ui.trading_caption(c.text(strings::SCHEDULE_DAILY_TIME));ui.add_enabled(idle,egui::DragValue::new(&mut self.hour).range(0..=23));ui.trading_caption(":");ui.add_enabled(idle,egui::DragValue::new(&mut self.minute).range(0..=59));ui.trading_caption(c.text(strings::SCHEDULE_DAYS));for(i,day)in ["SUN","MON","TUE","WED","THU","FRI","SAT"].iter().enumerate(){ui.add_enabled(idle,crate::presentation::checkbox(&mut self.days[i],*day));}if ui.add_enabled(idle,egui::Button::new(c.text(strings::SCHEDULE_USE_TIME))).clicked(){self.apply_daily_time();}});
 
     egui::ScrollArea::vertical().id_salt("schedule-definitions").max_height(150.).show_rows(ui,24.,if matching{s.result.rows.len()}else{0},|ui,range|{
      self.drawn_rows=range.len();for i in range {let r=&s.result.rows[i];if ui.add_enabled(idle,egui::Button::new(format!("{} | {} | {}",r.fields.get("name").unwrap_or(&r.id),r.fields.get("expression").map(String::as_str).unwrap_or(""),r.fields.get("installationStatus").map(String::as_str).unwrap_or(""))).selected(self.selected.as_ref()==Some(&r.id))).clicked(){self.selected=Some(r.id.clone());self.draft=r.fields.clone();self.new=false;}}
@@ -221,7 +254,7 @@ impl ScheduledTasks {
    }
   });
         if let Some(intent) = self.confirmation.clone() {
-            egui::Window::new(c.text(strings::SCHEDULE_CONFIRM))
+            egui::Window::new(crate::presentation::dialog_title(c.text(strings::SCHEDULE_CONFIRM)))
                 .collapsible(false)
                 .show(ctx, |ui| {
                     ui.trading_label(&intent);

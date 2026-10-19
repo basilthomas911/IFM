@@ -51,4 +51,6 @@ public sealed record IronCondorDailyRiskInputs
     [Key(20)] public double? PutOTMProbability { get; init; }
     /// <summary>Gets the short call model OTM estimate.</summary>
     [Key(21)] public double? CallOTMProbability { get; init; }
+    [Key(22)] public string[] UnavailableReasons { get; init; } = [];
+    [Key(23)] public decimal? VolatilityPrice { get; init; }
 }

@@ -78,4 +78,5 @@ public sealed record IronCondorTradePlanInputs
     [Key(32)] public IronCondorDailyRiskInputs? DailyRiskInputs { get; init; }
     /// <summary>Gets the exact published strategy risk policy selected before background pricing.</summary>
     [Key(33)] public TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk.StrategyRiskParameterSet? StrategyRiskParameterSet { get; init; }
+    [Key(34)] public decimal? VolatilityPrice { get; init; }
 }

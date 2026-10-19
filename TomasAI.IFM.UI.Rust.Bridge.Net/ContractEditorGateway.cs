@@ -11,7 +11,7 @@ public sealed record ContractEditorPublication([property: MessagePack.Key("schem
 public sealed class ContractEditorGateway(Func<ContractEditorIntent,Task<ContractEditorResult>> execute, Func<ContractEditorIntent,bool>? validate) : IAsyncDisposable
 {
     public ContractEditorGateway(Func<ContractEditorIntent,Task<ContractEditorResult>> execute) : this(execute,null) {}
-    public static bool SupportsView(string? view) => view is "futures-contract" or "option-contract" or "yield-curve" or "economic-calendar" or "provider-definitions" or "scheduled-tasks" or "operations-health" or "actor-health" or "parameter-sets" or "strategy-catalog";
+    public static bool SupportsView(string? view) => view is "portfolio" or "futures-contract" or "option-contract" or "yield-curve" or "economic-calendar" or "provider-definitions" or "scheduled-tasks" or "operations-health" or "actor-health" or "parameter-sets" or "strategy-catalog";
     readonly object gate = new();
     readonly Dictionary<Guid,(byte[] Payload,EditorOutcome Outcome)> requests = [];
     readonly Queue<Guid> completedReadRefreshes = new();
@@ -33,7 +33,7 @@ public sealed class ContractEditorGateway(Func<ContractEditorIntent,Task<Contrac
     public byte[] WireSnapshot() => wire.Read(Snapshot());
     public int Submit(ContractEditorIntent input)
     {
-        if(validate is not null ? !validate(input) : (input.Schema != 1 || input.RequestId == Guid.Empty || !SupportsView(input.View)
+        if(input.View == "portfolio" ? !PortfolioSession.Validate(input) : validate is not null ? !validate(input) : (input.Schema != 1 || input.RequestId == Guid.Empty || !SupportsView(input.View)
            || !ParameterSetSession.Actions.Contains(input.Intent) && !StrategyCatalogSession.Actions.Contains(input.Intent) && input.Intent is not ("load" or "next" or "add" or "change" or "remove" or "range" or "import" or "review" or "preview" or "publish" or "history" or "more-output" or "output" or "enable" or "disable" or "run" or "resolve" or "supervise")
            || (input.Intent=="review" && input.View is not ("futures-contract" or "option-contract"))
            || (input.View=="operations-health" && input.Intent!="load")
@@ -55,6 +55,7 @@ public sealed class ContractEditorGateway(Func<ContractEditorIntent,Task<Contrac
         lock(gate)
         {
             if(requests.TryGetValue(input.RequestId,out var previous)) return previous.Payload.AsSpan().SequenceEqual(payload)?0:-1;
+            if(input.View=="portfolio" && input.Intent!="load" && (input.ExpectedGeneration!=generation || result.View!="portfolio"))return -5;
             if(input.View=="parameter-sets" && input.Intent is not ("load" or "resume-parameter") && (input.ExpectedGeneration!=generation || result.View!="parameter-sets"))return -5;
             if(input.View=="parameter-sets" && input.Intent=="select" && !result.Rows.Any(x=>x.Id==input.OriginalId))return -5;
             if(input.View=="parameter-sets" && input.Intent is not ("load" or "resume-parameter" or "component" or "select") && (input.OriginalId??"")!=result.Context?.GetValueOrDefault("selectedId"))return -5;
@@ -94,7 +95,8 @@ public sealed class ContractEditorGateway(Func<ContractEditorIntent,Task<Contrac
         }
     }
     static bool IsReadRefresh(ContractEditorIntent input)
-        => input.View=="trade-orders" && input.Intent is "refresh-chain" or "refresh-execution";
+        => input.View=="trade-orders" && input.Intent is "refresh-chain" or "refresh-execution"
+            || input.View=="portfolio" && input.Intent is "load" or "portfolio-refresh" or "portfolio-select" or "portfolio-fund" or "portfolio-fund-filter" or "portfolio-fund-view" or "portfolio-metrics" or "portfolio-choice" or "portfolio-cancel";
     // Only idempotent polling outcomes expire; mutation request IDs remain protected.
     void RetainReadRefreshOutcome(ContractEditorIntent input)
     {

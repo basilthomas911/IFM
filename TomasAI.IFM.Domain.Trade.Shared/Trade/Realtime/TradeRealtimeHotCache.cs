@@ -164,7 +164,11 @@ public sealed class TradeRealtimeHotCache
     static TradeRealtimeSnapshot WithPosition(TradeRealtimeSnapshot snapshot, StrategyPositionSnapshot position) => snapshot with
     {
         Position = position,
-        Legs = snapshot.Legs.Select(leg => leg with { Position = position.Legs.Single(mark => mark.TradeLegId == leg.Definition.TradeLegId) }).ToImmutableArray()
+        Legs = snapshot.Legs.Select(leg =>
+        {
+            var mark = position.Legs.Single(item => item.TradeLegId == leg.Definition.TradeLegId);
+            return leg with { Position = mark, Observation = mark.OptionTick ?? leg.Observation };
+        }).ToImmutableArray()
     };
 
     TradeRealtimeSnapshot Qualify(TradeRealtimeSnapshot snapshot) => TradeRealtimeSnapshotCalculations.Qualify(snapshot, clock.GetUtcNow());

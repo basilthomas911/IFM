@@ -32,6 +32,7 @@ public sealed class TradeMonitorUpdates : IDisposable
             if(isLive() && args.PropertyName is "StrategyTradePlan" or "IsLiveFeedEnabled" or null or "")
             {
                 if(currentPlan() is {} plan)livePlans.TryAdd(Identity(plan),plan);
+                while(livePlans.Count>100)livePlans.Remove(livePlans.MinBy(pair=>pair.Value.PlanRevision).Key);
             }
             changed();
         }

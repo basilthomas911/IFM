@@ -1,3 +1,5 @@
+//! Provider instrument browser and draft mapping workflow. Filters, selected instruments, mapping edits, preview evidence, and confirmation are local state; the managed bridge owns discovery and mapping persistence.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
@@ -6,18 +8,29 @@ use crate::{
 use eframe::egui;
 use std::collections::BTreeMap;
 
+/// Provider filters, stable selection, mapping draft, preview binding, and pending-request state.
 pub struct ProviderBrowser {
+    /// Editable query filters retained between frames.
     pub filters: BTreeMap<String, String>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Whether the provider mapping editor is visible.
     pub mapping_open: bool,
+    /// Unsaved provider instrument mapping fields.
     pub mapping: BTreeMap<String, String>,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
+    /// Field values captured for the current preview/confirmation.
     preview_fields: BTreeMap<String, String>,
+    /// Filters corresponding to the displayed result, used to distinguish unsent edits.
     published_filters: Option<BTreeMap<String, String>>,
 }
 impl Default for ProviderBrowser {
+    /// Construct the view's initial filters, selection, and draft settings without issuing backend commands.
     fn default() -> Self {
         Self {
             filters: BTreeMap::from([
@@ -39,6 +52,7 @@ impl Default for ProviderBrowser {
     }
 }
 impl ProviderBrowser {
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -67,6 +81,9 @@ impl ProviderBrowser {
         };
         serde_json::json!({"schema":1,"requestId":id,"view":"provider-definitions","intent":action,"expectedGeneration":s.generation,"originalId":original,"fields":fields}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns provider filters, stable selection, mapping draft, preview binding, and pending-request state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,
@@ -143,7 +160,7 @@ impl ProviderBrowser {
                         ("includeHistory", strings::PROVIDER_HISTORY),
                     ] {
                         let mut checked = self.filters.get(field).is_some_and(|x| x == "true");
-                        if ui.checkbox(&mut checked, c.text(label)).changed() {
+                        if ui.add(crate::presentation::checkbox(&mut checked, c.text(label))).changed() {
                             self.filters.insert(field.into(), checked.to_string());
                         }
                     }
@@ -303,7 +320,7 @@ impl ProviderBrowser {
         });
         if self.mapping_open {
             let mut cancel = false;
-            egui::Window::new(c.text(strings::PROVIDER_MAPPING))
+            egui::Window::new(crate::presentation::dialog_title(c.text(strings::PROVIDER_MAPPING)))
                 .collapsible(false)
                 .resizable(true)
                 .default_width(600.)

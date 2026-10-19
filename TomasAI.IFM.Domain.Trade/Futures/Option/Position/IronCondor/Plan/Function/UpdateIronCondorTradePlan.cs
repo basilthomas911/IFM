@@ -34,6 +34,7 @@ public static class UpdateIronCondorTradePlan
         var monitoring = new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().Create(calculated, command.SourceEventId, inputs?.TradeDate, inputs?.MaturityDate, inputs?.DailyRiskInputs ?? TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(command.Position, inputs));
         monitoring = monitoring with
         {
+            VolatilityPrice = inputs?.VolatilityPrice,
             TradeType = inputs?.TradeType.ToString()
         };
         calculated = ApplyMonitoringRecommendation(calculated, monitoring);
@@ -71,6 +72,7 @@ public static class UpdateIronCondorTradePlan
         if (!monitoring.IsComplete)
             return plan with
             {
+                Position = monitoring.Position,
                 IronCondorTradePlanSnapshot = monitoring,
                 State = TradePlanState.CalculationFailed,
                 Action = TradePlanAction.Hold,
@@ -82,6 +84,7 @@ public static class UpdateIronCondorTradePlan
         var warning = monitoring.DailyPnl < 0 && monitoring.ForwardLossRatio >= monitoring.StrategyRiskParameterSet?.IronCondor?.WarningForwardLossRatio;
         return plan with
         {
+            Position = monitoring.Position,
             IronCondorTradePlanSnapshot = monitoring,
             State = ((exit) switch
             {

@@ -6,6 +6,7 @@ using NpgsqlTypes;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -203,6 +204,32 @@ public static class PortfolioDbContextExtensions
     }
     extension(IEnlistedPostgresTransaction transaction)
     {
+        /// <summary>Stores the current mandate and disables superseded mandate projections atomically.</summary>
+        public async Task WriteFundProjectionAsync(PortfolioProjection<FundMandateReadModel> row, CancellationToken token)
+        {
+            var fund = row.Value;
+            await transaction.ScalarAsync("SELECT pg_advisory_xact_lock(1701,$1)", [fund.FundId], token).ConfigureAwait(false);
+            var versions = await transaction.QueryAsync(
+                "SELECT payload_json::text FROM portfolio.fund_by_portfolio WHERE portfolio_id=$1 AND fund_id=$2 FOR UPDATE",
+                [fund.PortfolioId, fund.FundId], reader => JsonSerializer.Deserialize<FundMandateReadModel>(reader.GetString(0))!, token).ConfigureAwait(false);
+            if (versions.Any(v => v.FundMandateVersion > fund.FundMandateVersion))
+            {
+                fund = fund with { OperatingState = FundOperatingState.Disabled };
+                row = PortfolioProjection<FundMandateReadModel>.Create(fund, row.AggregateVersion, row.SourceEventId, row.UpdatedOnUtc);
+            }
+            foreach (var old in versions.Where(v => v.FundMandateVersion < fund.FundMandateVersion && v.OperatingState != FundOperatingState.Disabled))
+            {
+                var disabled = PortfolioProjection<FundMandateReadModel>.Create(old with { OperatingState = FundOperatingState.Disabled }, row.AggregateVersion, row.SourceEventId, row.UpdatedOnUtc);
+                await transaction.WritePortfolioValuesAsync("""
+                    UPDATE portfolio.fund_by_portfolio SET operating_state='Disabled',schema_version=$4,aggregate_version=$5,
+                    source_event_id=$6,updated_on_utc=$7,payload_json=$8,payload_hash=$9
+                    WHERE portfolio_id=$1 AND fund_id=$2 AND fund_mandate_version=$3 AND source_event_id<=$6
+                    """, token, old.PortfolioId, old.FundId, old.FundMandateVersion, disabled.ToCommonValues()).ConfigureAwait(false);
+            }
+            await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.Upsert, token, fund.PortfolioId, fund.FundId,
+                fund.FundMandateVersion, fund.OperatingState.ToString(), row.ToCommonValues(), fund.TradingYear, fund.DecisionHorizon, fund.EffectiveFromUtc).ConfigureAwait(false);
+        }
+
         /// <summary>Persists accepted business rows, indexes and deletions without reloading aggregate state.</summary>
         public async Task PersistAcceptedPortfolioAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token = default)
         {
@@ -253,8 +280,7 @@ public static class PortfolioDbContextExtensions
         private async Task WriteFundAsync(IEvent source,PortfolioProjectionFacts facts,CancellationToken token)
         {
             if (facts.Fund is { } value)
-                await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.Upsert,token,value.PortfolioId,value.FundId,value.FundMandateVersion,value.OperatingState.ToString(),facts.ToAcceptedRow(value,source).ToCommonValues(),value.TradingYear,value.DecisionHorizon,value.EffectiveFromUtc)
-                .ConfigureAwait(false);
+                await transaction.WriteFundProjectionAsync(facts.ToAcceptedRow(value,source),token).ConfigureAwait(false);
             if (facts.Assignment is { } assigned)
                 await transaction.WritePortfolioValuesAsync(PortfolioDbSql.Fund.UpsertAssignment,token,assigned.PortfolioId,assigned.FundId,assigned.FundMandateVersion,assigned.TradeTemplateId,assigned.TradeTemplateVersion,facts.ToAcceptedRow(assigned,source).ToCommonValues())
                 .ConfigureAwait(false);

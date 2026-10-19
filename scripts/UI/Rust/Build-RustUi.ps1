@@ -1,6 +1,9 @@
-param([switch]$Run,[switch]$Release,[switch]$Live)
+# Interactive immediate-mode rendering needs optimized Rust and egui code.
+# Use -Release:$false explicitly when an unoptimized host is needed for debugging.
+param([switch]$Run,[switch]$Release=$true,[switch]$Live)
 $ErrorActionPreference='Stop'
 $repoRoot=(Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
+& (Join-Path $repoRoot 'scripts/Build/Initialize-DotNetEnvironment.ps1')
 & "$PSScriptRoot/Generate-UiCatalog.ps1"
 Push-Location $repoRoot
 try {

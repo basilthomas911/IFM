@@ -39,7 +39,7 @@ public static class ChangeTradeLegData
     /// <returns>True when the transition is accepted.</returns>
     internal static bool Compute(this ChangeTradeLegDataCommand command, IronCondorPositionCommandState state, out PositionChange positionChange)
     {
-        var positionDecision = IronCondorPositionTransition.Compute(state.PositionSnapshot, machine => machine.UpdateLeg(command.TradeLegId, command.ContractId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration));
+        var positionDecision = IronCondorPositionTransition.Compute(state.PositionSnapshot, machine => machine.UpdateLeg(command.TradeLegId, command.ContractId, command.Price, command.SourceSequence, command.EffectiveAtUtc, command.RouteGeneration, command.OptionTick));
         positionChange = new(positionDecision.Accepted, positionDecision.Value, positionDecision.Code, positionDecision.Detail);
         return positionChange.Accepted;
     }

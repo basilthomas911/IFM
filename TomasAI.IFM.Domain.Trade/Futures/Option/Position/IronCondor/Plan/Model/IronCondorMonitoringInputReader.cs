@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model
 /// <remarks>One refresh per trade/session runs at a time. Missing providers stay unavailable; old fixture rows and fabricated
 /// distributions are never substituted. This is a read cache, not command state or a trade-plan replay queue.</remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Retain the existing public positional contract with optional callbacks following the cancellation token.")]
-public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<InsertSpreadDistributionCommand, CancellationToken, Task>? recordDistributions = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null)
+public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<InsertSpreadDistributionCommand, CancellationToken, Task>? recordDistributions = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, string volatilitySymbol = "VX")
 {
     int observerStarted;
     readonly ConcurrentDictionary<(TradeEntityId, DateOnly), Entry> entries = new();
@@ -48,7 +48,8 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                 _ = Task.Run(() => RefreshAsync(entry, position, valueDate));
             }
 
-            if (!entry.PricingRefreshing && entry.Trade is not null && nowUtc >= entry.NextPricingUtc)
+            if (!entry.PricingRefreshing && entry.Trade is not null && nowUtc >= entry.NextPricingUtc
+                && !position.Legs.All(leg => leg.OptionTick is not null))
             {
                 entry.PricingRefreshing = true;
                 entry.NextPricingUtc = nowUtc.AddSeconds(1);
@@ -57,6 +58,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
 
             if (entry.Inputs is not { } inputs)
                 return null;
+            inputs = inputs with { VolatilityPrice = marketData is null ? null : VolatilityMarketPriceReader.Read(marketData, volatilitySymbol, valueDate, nowUtc) };
             return inputs.OptionRiskValidUntilUtc is { } until && until <= nowUtc ? inputs with
             {
                 ShortPutGamma = null,
@@ -107,7 +109,8 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                         continue;
                     }
 
-                    var owned = trade is not null && (captureOptionRisk is not null || optionRisk?.HasScopes(trade.Legs.Select(leg => leg.ContractId), date) == true);
+                    var owned = trade is not null && (position.Legs.All(leg => leg.OptionTick is not null)
+                        || captureOptionRisk is not null || optionRisk?.HasScopes(trade.Legs.Select(leg => leg.ContractId), date) == true);
                     IronCondorTradePlanInputs? inputs;
                     if (owned)
                         inputs = Capture(position, date, now);
@@ -124,7 +127,8 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                                 ForwardDelta = null,
                                 PutOTMProbability = null,
                                 CallOTMProbability = null,
-                                DailyRiskInputs = null
+                                DailyRiskInputs = null,
+                                VolatilityPrice = marketData is null ? null : VolatilityMarketPriceReader.Read(marketData, volatilitySymbol, date, now)
                             };
                     }
 
@@ -195,7 +199,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
             var inputs = new IronCondorTradePlanInputs
             {
                 StrategyRiskParameterSet = policy,
-                ContractCashMultiplier = trade.Legs.Select(leg => leg.CashMultiplier).Distinct().Count() == 1 && trade.Legs[0].CashMultiplier > 0 ? trade.Legs[0].CashMultiplier : null,
+                ContractCashMultiplier = StrategyPositionLegOptionData.CommonContractMultiplier(position),
                 OpeningCommission = trade.OpeningCommission,
                 TradeType = IdentifyTradeType(trade.Legs),
                 TradeDate = trade.TradeDate,

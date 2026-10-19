@@ -1,20 +1,31 @@
+//! Market-outlook caption/value matrix. Published color roles are mapped to the native palette; numeric signals and outlook decisions remain backend-owned.
+
 //! Compact MarketOutlookView row layout and WinForms semantic colors.
 use crate::shell::Dashboard;
 use eframe::egui;
 use serde::Deserialize;
 
+/// Outlook caption row height in logical points.
 pub const LABEL_HEIGHT: f32 = 17.0;
+/// Outlook value row height in logical points.
 pub const VALUE_HEIGHT: f32 = 24.0;
+/// Outlook status line height in logical points.
 pub const STATUS_HEIGHT: f32 = 18.0;
+/// Total reference height of the six-row outlook matrix plus its status line.
 pub const HEIGHT: f32 = 6.0 * (LABEL_HEIGHT + VALUE_HEIGHT) + STATUS_HEIGHT;
+/// Backend market-outlook display value and semantic foreground/background roles.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct OutlookCell {
+    /// Published or edited display value; formatting/validation belongs to its managed field contract.
     pub value: String,
+    /// Published foreground color role for this outlook cell.
     pub foreground: String,
+    /// Published background color role for this outlook cell.
     pub background: String,
 }
 
+/// Translate a published market-outlook color role into the native display palette.
 pub fn color(role: &str) -> egui::Color32 {
     match role {
         "DarkText" | "DarkSurface" => egui::Color32::BLACK,
@@ -28,6 +39,7 @@ pub fn color(role: &str) -> egui::Color32 {
         _ => egui::Color32::from_rgb(240, 240, 240),
     }
 }
+/// Render the outlook caption/value matrix and its published status using semantic cell colors.
 pub fn draw(ui: &mut egui::Ui, dashboard: &Dashboard) {
     ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
     pair(
@@ -121,6 +133,7 @@ pub fn draw(ui: &mut egui::Ui, dashboard: &Dashboard) {
         ],
     );
 }
+/// Draw the requested outlook caption/value columns using published semantic cell colors.
 fn pair(ui: &mut egui::Ui, dashboard: &Dashboard, columns: &[(&str, &str)]) {
     let (row, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), LABEL_HEIGHT + VALUE_HEIGHT),

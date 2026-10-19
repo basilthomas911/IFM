@@ -22,6 +22,11 @@ public sealed class TradePlanDbContext(
         logger),
       ITradePlanDbContext
 {
+    /// <inheritdoc />
+    public Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy,
+        DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default)
+        => this.ReadOffsetHistoryAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);
+
     internal readonly ILogger<DbProvider> tradePlanLogger = logger;
 
     /// <inheritdoc />

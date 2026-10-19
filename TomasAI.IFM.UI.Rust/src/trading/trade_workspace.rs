@@ -1,10 +1,27 @@
+//! Trade-order editor and established-trade workspace coordinator.
+//!
+//! The renderer sends correlated intents for loading, composing, staging, execution,
+//! reconciliation, and virtual plan paging. A pending background refresh may allow
+//! continued interaction, while uncertain execution submissions must be reconciled.
+//! Loading a trade closes the order editor and opens the center workspace; load errors
+//! remain visible. Named child modules implement the blotter, order layout, established
+//! Iron Condor view, tab strip, and publication display cache.
+
 //! Native trading workspace. All persistence and trade eligibility stays in shared managed models.
 use crate::control_parity::BorderedTable as _;
+use crate::control_parity::FilledGrid as _;
 use crate::wire::WireNumber as _;
 use crate::presentation::TradingLabelUi as _;
+/// Trade blotter and Broker Trade panels. Published option-chain cells, selected legs, reports, and reconciliation evidence are arranged with stable widget IDs; file selection chooses a local report path without importing it directly.
 mod blotter;
+/// Trade-order layout helpers for selectors, order lists, leg grids, execution/fills, and drafts. Rectangles convert reference coordinates to the current scale; controls obey the managed eligibility flags and local pending state.
 mod order_layout;
+/// Established Iron Condor trade view, plan window, and spread chart.
 mod iron_condor;
+/// Publication-owned decoded trade display data.
+mod display_cache;
+pub use display_cache::PreparedTradeDisplay;
+/// Center-workspace tab strip for loaded trades. Stable trade identities select/close individual tabs and preserve per-trade display state; closing one tab does not close the order editor or unrelated trades.
 mod workspace_tabs;
 use crate::{
     contract_editor::{ContractPublication, ContractRow},
@@ -12,35 +29,64 @@ use crate::{
 };
 use eframe::egui::{self, Color32};
 use std::collections::BTreeMap;
+/// Trade-order dialogs and center trade tabs, with drafts, request correlation, chart caches, and measured control bounds.
 #[derive(Default)]
 pub struct TradeWorkspace {
+    /// Active decoded trade model and its publication validity keys.
+    display_cache: Option<display_cache::TradeDisplayCache>,
+    /// Whether the view/dialog is currently shown.
     pub open: bool,
+    /// Selected strategy/trading page index or enum.
     tab: usize,
+    /// Selected trade-composer subtab index.
     compose_tab: usize,
+    /// Current trading dialog/view key.
     dialog: String,
+    /// Unsaved local edit values retained across immediate-mode frames.
     draft: BTreeMap<String, String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pending: Option<String>,
+    /// Dialog that owns the current pending trading request.
     pending_dialog: String,
+    /// Action key associated with the current pending request.
     pending_action: String,
+    /// One action deferred while an allowed background refresh finishes.
     deferred_action: Option<&'static str>,
+    /// Submission error text already dismissed by the operator.
     dismissed_submission_error: String,
+    /// Whether an established-trade center view is open.
     loaded_open: bool,
+    /// Stable identity of the chart/position currently cached for the selected trade.
     loaded_spread_id: String,
+    /// Cached net-spread points for the active loaded trade.
     loaded_spread_points: Vec<[f64; 2]>,
+    /// Cached forward-spread points for the active loaded trade.
+    loaded_forward_points: Vec<[f64; 2]>,
+    /// Per-trade chart/selection state retained while switching center tabs.
     loaded_view_states: BTreeMap<String,(Vec<[f64;2]>,Option<String>)>,
+    /// User-visible error from loading an established trade.
     load_error: String,
+    /// Latest qualification-dialog bounds for layout checks.
     qualification_bounds: Option<egui::Rect>,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Latest logical-point view/window bounds used by layout diagnostics.
     pub bounds: Option<egui::Rect>,
+    /// Latest bounds of the established-trade center view.
     pub loaded_bounds: Option<egui::Rect>,
+    /// Latest logical-point control rectangles keyed by stable names for layout/accessibility verification.
     pub controls: BTreeMap<String, egui::Rect>,
+    /// Current trade blotter source filter.
     source_filter: String,
+    /// Last blotter refresh time in egui seconds, used to throttle automatic queries.
     last_blotter_refresh: f64,
 }
+/// Decode a row's binary MessagePack data for display, returning null on missing or malformed data.
 fn data(row: &ContractRow) -> serde_json::Value {
     row.data.as_ref().ok_or_else(|| "Missing binary row data".to_owned()).and_then(|bytes| crate::wire::decode(bytes))
         .unwrap_or_default()
 }
+/// Read a JSON-shaped display property as text; null becomes empty and non-string scalars use their serialized representation.
 fn text(v: &serde_json::Value, key: &str) -> String {
     match &v[key] {
         serde_json::Value::String(s) => s.clone(),
@@ -48,6 +94,7 @@ fn text(v: &serde_json::Value, key: &str) -> String {
         v => v.to_string(),
     }
 }
+/// Read a managed context flag using its canonical True display representation.
 fn flag(s: &ContractPublication, key: &str) -> bool {
     s.result.context.get(key).is_some_and(|v| v == "True")
 }
@@ -63,13 +110,16 @@ impl TradeWorkspace {
             },_=>None
         }
     }
+    /// Report whether trading UI, a loaded trade, a pending request, or a load error requires drawing.
     pub fn is_visible(&self) -> bool {
         self.open || self.loaded_open || self.pending.is_some() || !self.load_error.is_empty()
     }
 
+    /// Identify pending chain/execution/plan-page refreshes that may permit continued UI interaction.
     fn background_refresh(&self) -> bool {
-        self.pending.is_some() && matches!(self.pending_action.as_str(), "refresh-chain" | "refresh-execution")
+        self.pending.is_some() && matches!(self.pending_action.as_str(), "refresh-chain" | "refresh-execution" | "plans-page")
     }
+    /// Allow interactions only when idle or when a background refresh can safely defer another action.
     fn interaction_ready(&self, s: &ContractPublication) -> bool {
         (!s.busy && self.pending.is_none()) || (self.background_refresh() && self.deferred_action.is_none())
     }
@@ -85,6 +135,15 @@ impl TradeWorkspace {
             self.deferred_action = None;
         }
     }
+    /// Surface transfer failures even after Load Trade has closed the editor.
+    pub fn transport_failed(&mut self, message: &str) {
+        if self.pending_action == "load-trade" {
+            self.load_error = message.to_owned();
+            self.pending = None;
+            self.pending_action.clear();
+        }
+    }
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -97,6 +156,9 @@ impl TradeWorkspace {
         }
         serde_json::json!({"schema":1,"requestId":id,"view":"trade-orders","intent":action,"expectedGeneration":s.generation,"originalId":s.result.context.get("orderId"),"fields":self.draft}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns trade-order dialogs and center trade tabs, with drafts, request correlation, chart caches, and measured control bounds.
     pub fn draw(&mut self, ctx: &egui::Context, s: &ContractPublication) -> Option<String> {
         if self.pending.as_ref().is_some_and(|id| {
             s.outcomes
@@ -168,7 +230,7 @@ impl TradeWorkspace {
             (pane.width() - 2.0 * gutter - chrome.x).max(1.),
             (target_height - chrome.y).max(1.),
         );
-        let response = egui::Window::new("Trade Order Editor")
+        let response = egui::Window::new(crate::presentation::dialog_title("Trade Order Editor"))
             .enabled(self.dialog != "qualification")
             .id(egui::Id::new("trade-order-editor"))
             .open(&mut open)
@@ -265,12 +327,12 @@ impl TradeWorkspace {
         if !self.dialog.is_empty() && self.dialog != "qualification" && self.dialog != "eod" {
             let kind = self.dialog.clone();
             let mut keep = true;
-            egui::Window::new(match kind.as_str() {
+            egui::Window::new(crate::presentation::dialog_title(match kind.as_str() {
                 "create-order" => "Add Fund Order",
                 "create-trade" => "Add Trade",
                 "remove-order" => "Delete Order",
                 _ => "Remove Trade",
-            })
+            }))
             .id(egui::Id::new("trade-dialog"))
             .open(&mut keep)
             .collapsible(false)
@@ -339,7 +401,7 @@ impl TradeWorkspace {
                 let mut keep = true;
                 let mut decision = None;
                 let submitting = value["submitting"].as_bool().unwrap_or(false);
-                egui::Window::new("Submit Order")
+                egui::Window::new(crate::presentation::dialog_title("Submit Order"))
                     .enabled(!submitting)
                     .id(egui::Id::new("trade-confirmation"))
                     .open(&mut keep)
@@ -406,7 +468,7 @@ impl TradeWorkspace {
         if let Some(error) = s.result.context.get("submissionError")
             .filter(|_| !s.result.documents.contains_key("confirmation")) {
             if !error.is_empty() && *error != self.dismissed_submission_error {
-                egui::Window::new("Order Submission Error")
+                egui::Window::new(crate::presentation::dialog_title("Order Submission Error"))
                     .id(egui::Id::new("submission-error"))
                     .collapsible(false).resizable(false)
                     .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
@@ -418,7 +480,7 @@ impl TradeWorkspace {
             }
         }
         if !self.load_error.is_empty() {
-            egui::Window::new("Load Trade Error")
+            egui::Window::new(crate::presentation::dialog_title("Load Trade Error"))
                 .id(egui::Id::new("load-trade-error"))
                 .collapsible(false).resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
@@ -467,6 +529,7 @@ impl TradeWorkspace {
             payload.to_string()
         })
     }
+    /// Render the current trade-composition panels and return the requested managed action.
     fn draw_composer(
         &mut self,
         ui: &mut egui::Ui,
@@ -474,10 +537,11 @@ impl TradeWorkspace {
     ) -> Option<&'static str> {
         self.draw_blotter(ui, s)
     }
+    /// Render end-of-day trade controls and return the selected backend action key.
     fn eod(&mut self, ctx: &egui::Context, s: &ContractPublication) -> Option<&'static str> {
         let mut action = None;
         let mut open = true;
-        egui::Window::new("Trade End Of Day")
+        egui::Window::new(crate::presentation::dialog_title("Trade End Of Day"))
             .open(&mut open)
             .fixed_size([543., 477.])
             .anchor(
@@ -551,6 +615,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Render trade qualification/evidence in its measured dialog bounds and return an operator action.
     fn qualification(
         &mut self,
         ctx: &egui::Context,
@@ -613,7 +678,7 @@ impl TradeWorkspace {
             );
         let size = egui::vec2(840., 600.);
         let parent = self.bounds.unwrap_or(ctx.available_rect());
-        let response=egui::Window::new("Emulator Broker Account Qualification").open(&mut open).default_pos(parent.center()-size/2.).fixed_size(size-chrome+egui::vec2(0.,5./p)).show(ctx,|ui|{
+        let response=egui::Window::new(crate::presentation::dialog_title("Emulator Broker Account Qualification")).open(&mut open).default_pos(parent.center()-size/2.).fixed_size(size-chrome+egui::vec2(0.,5./p)).show(ctx,|ui|{
             ui.set_min_size(size-chrome+egui::vec2(0.,5./p));
             ui.painter().rect_filled(ui.max_rect(),0.,Color32::BLACK);
             let origin=self.qualification_bounds.map(|r|r.min).unwrap_or(ui.cursor().min-egui::vec2(frame.total_margin().sum().x/2.,title_height));
@@ -650,6 +715,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Render rows of the requested published trade kind and return the selected row identity.
     fn table(
         &mut self,
         ui: &mut egui::Ui,
@@ -703,6 +769,7 @@ impl TradeWorkspace {
         clicked.map(|index| rows[index].id.split_once(':').unwrap().1.to_string())
     }
 
+    /// Render a published object's scalar properties as a read-only grid.
     fn properties(ui: &mut egui::Ui, value: &serde_json::Value) {
         egui::ScrollArea::both().show(ui, |ui| {
             egui::Grid::new("trade-properties")
@@ -721,6 +788,7 @@ impl TradeWorkspace {
                 });
         });
     }
+    /// Render one caption/value pair inside the trade-confirmation layout.
     fn confirmation_field(ui: &mut egui::Ui, label: &str, value: impl FnOnce(&mut egui::Ui)) {
         let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 28.), egui::Sense::hover());
         let label_rect = egui::Rect::from_min_size(row.min, egui::vec2(170., row.height()));
@@ -737,6 +805,7 @@ impl TradeWorkspace {
             .layout(layout), value);
     }
 
+    /// Render the confirmation's published option legs and contract details.
     fn confirmation_legs_grid(ui: &mut egui::Ui, value: &serde_json::Value, s: &ContractPublication) {
         let selected: Vec<_> = s.result.rows.iter()
             .filter(|row| row.fields.get("kind").is_some_and(|kind| kind == "leg"))
@@ -749,11 +818,11 @@ impl TradeWorkspace {
             .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(80, 80, 84)))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
+                let row_spacing = ui.spacing().item_spacing.y;
                 egui_extras::TableBuilder::new(ui)
                     .id_salt("confirmation-order-legs")
                     .striped(true)
-                    .vscroll(true)
-                    .max_scroll_height(135.)
+                    .fill_grid(rows.len(), 27., row_spacing, 135.)
                     .column(egui_extras::Column::remainder().clip(true))
                     .column(egui_extras::Column::exact(125.).clip(true))
                     .column(egui_extras::Column::exact(65.).clip(true))

@@ -1,3 +1,5 @@
+//! Economic-calendar CRUD view. Filter date/country, row selection, deletion confirmation, and local drafts survive frames; outcomes release the matching pending request.
+
 use crate::control_parity::BorderedTable as _;
 use crate::presentation::TradingLabelUi as _;
 use crate::{
@@ -5,6 +7,7 @@ use crate::{
 };
 use eframe::egui;
 use std::collections::BTreeMap;
+/// Calendar field names paired with localized caption keys in editor order.
 const FIELDS: [(&str, &str); 12] = [
     ("eventDate", "calendar_event_utc"),
     ("countryCode", "calendar_country"),
@@ -19,18 +22,28 @@ const FIELDS: [(&str, &str); 12] = [
     ("createdOn", "calendar_created_on"),
     ("createdBy", "calendar_created_by"),
 ];
+/// Persistent calendar editor selection, draft, filter, and pending-request state.
 #[derive(Default)]
 pub struct CalendarEditor {
+    /// Unsaved local edit values retained across immediate-mode frames.
     pub draft: BTreeMap<String, String>,
+    /// Stable selected identity/index; interpretation follows the enclosing view's row contract.
     pub selected: Option<String>,
+    /// Current asynchronous request/work item awaiting completion; cleared only by its matching outcome or explicit host failure handling.
     pub pending: Option<String>,
+    /// Calendar date filter sent with the next query.
     pub filter_date: String,
+    /// Selected or published calendar country code.
     pub country: String,
+    /// Whether the local remove/delete confirmation is open.
     pub confirm_remove: bool,
+    /// Count of rows actually drawn in the most recent frame, used by virtualization checks.
     pub drawn_rows: usize,
+    /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
 }
 impl CalendarEditor {
+    /// Build a correlated user intent against the current publication generation and retain its request ID as pending. The caller must enqueue the returned payload.
     pub fn request(&mut self, action: &str, s: &ContractPublication) -> String {
         let id = new_request_id();
         self.pending = Some(id.clone());
@@ -40,6 +53,9 @@ impl CalendarEditor {
         fields.insert("filterCountry".into(), self.country.clone());
         serde_json::json!({"schema":1,"requestId":id,"view":"economic-calendar","intent":action,"expectedGeneration":s.generation,"originalId":self.selected,"fields":fields}).to_string()
     }
+    /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
+    ///
+    /// This renderer owns persistent calendar editor selection, draft, filter, and pending-request state.
     pub fn draw(
         &mut self,
         ctx: &egui::Context,

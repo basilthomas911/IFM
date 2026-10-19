@@ -31,6 +31,7 @@ fn fixture() -> (Catalog, ContractPublication) {
             has_more: false,
         },
         outcomes: vec![],
+        ..Default::default()
     };
     (c, s)
 }

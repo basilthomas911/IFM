@@ -33,6 +33,14 @@ public sealed class IndividualOptionObservationTests
         Assert.Equal(default, changed.TradeData);
         Assert.Equal(100, changed.OptionMarketPriceObservation!.OptionTickData.OptionPrice);
         Assert.Equal(OptionMarketPriceBasis.QuoteMidpoint, changed.OptionMarketPriceObservation.PriceBasis);
+        var pricing = changed.OptionMarketPriceObservation.OptionTickData.PricingInputs!;
+        Assert.Equal(Context().Contract.Currency, pricing.Currency);
+        Assert.Equal(Context().Contract.Multiplier, pricing.Multiplier);
+        Assert.Equal(Context().Contract.ExpirationUtc, pricing.ExpirationUtc);
+        Assert.Contains(pricing.DaysPerYear, new[] { 360, 365 });
+        Assert.True(pricing.BidTickIncrement > 0 && pricing.AskTickIncrement > 0);
+        Assert.False(string.IsNullOrEmpty(pricing.Exercise));
+        Assert.False(string.IsNullOrEmpty(pricing.Premium));
         Assert.False(changed.OptionMarketPriceObservation.OptionTickData.GreeksAvailable);
         Assert.Equal(At.UtcDateTime, changed.OptionMarketPriceObservation.EventAtUtc);
         using var mirror = new DatasetWorkerCurrentValues();
@@ -82,7 +90,7 @@ public sealed class IndividualOptionObservationTests
     }
 
     [Fact]
-    public async Task Repeated_depth_updates_do_not_build_position_backlog_but_actual_quotes_and_freshness_are_preserved()
+    public async Task Repeated_unchanged_quotes_do_not_build_position_backlog_but_actual_quotes_and_freshness_are_preserved()
     {
         var clock = new QuoteClock();
         var inputs = new OptionChainPricingInputStore(); inputs.Set(new(Context(), Quote("ES-future", 5000)));
@@ -92,7 +100,7 @@ public sealed class IndividualOptionObservationTests
         await observations.PublishAsync(quote);
         for (var index = 0; index < 1000; index++)
             await observations.PublishAsync(quote with { EventId = Guid.NewGuid(), Tick = quote.Tick with
-                { SourceSequence = 43 + index, BidSize = (uint)(index + 1) } });
+                { SourceSequence = 43 + index } });
         await downstream.Received(1).PublishAsync(Arg.Any<FuturesTickTradeDataChangedEvent>());
         var changedQuote = quote with { EventId = Guid.NewGuid(), Tick = quote.Tick with { BidPrice = 100 } };
         await observations.PublishAsync(changedQuote);

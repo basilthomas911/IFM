@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -58,6 +59,7 @@ public sealed class EstablishedIronCondorViewModelTests
             viewModel.TradeLimitSnapshot.Should().NotBeNull();
             viewModel.TradeLimitSnapshot!.TradeLimit.TradeId.Should().Be(actual.Id.TradeId);
             viewModel.TradeLimitSnapshot.OrderId.Should().Be(actual.Id.OrderId);
+            viewModel.TradeLimitSnapshot.FundBalance.Should().Be(125000m);
             viewModel.TradeLimitSnapshot.TradeLimit.MaxProfit.Should().Be(652.50m);
         }
     }
@@ -174,6 +176,13 @@ public sealed class EstablishedIronCondorViewModelTests
                 ContractId = call.ArgAt<string>(0),ValueDate = date.AddDays(1),TickTime = new TimeOnly(15,30),BidPrice = 2.5,Delta = 0.25
             }));
         services.FeedQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketDataFeed.MarketDataFeedQueryService(feed));
+        var planApi = Substitute.For<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IStrategyTradePlanQueryApi>();
+        planApi.GetCurrentIronCondorAsync(id,date.AddDays(1),Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot>(new() {
+                Position = Position(1,19,StrategyPositionPhase.MarkToMarket),
+                IronCondorTradePlanSnapshot = new() { ContractMultiplier = 50m, DailyPnl = 997.40m }
+            }));
+        services.StrategyTradePlanQueries.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyTradePlanQueryService(planApi));
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services);
         var vm = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
@@ -184,6 +193,7 @@ public sealed class EstablishedIronCondorViewModelTests
         vm.TradeHistory.Select(row => row.TradeStatus).Should().Equal(TradeStatus.Open,TradeStatus.IntraDay,TradeStatus.EndOfDay,TradeStatus.Close);
         vm.TradeHistory[2].TradePnl.Should().Be(20);
         await vm.LoadSavedPositionDataAsync(2);
+        vm.TradeHistory[2].TradePnl.Should().Be(997.40m);
         vm.SelectedSavedPosition!.Phase.Should().Be(StrategyPositionPhase.EndOfDay);
         vm.SavedLegObservations.Should().HaveCount(4);
         vm.SavedLegObservations.Values.Should().OnlyContain(quote => quote.ValueDate == date.AddDays(1) && quote.BidPrice == 2.5);
@@ -257,6 +267,12 @@ public sealed class EstablishedIronCondorViewModelTests
 
     static void ConfigureTradeLimits(IUiServiceCatalog services)
     {
+        var financial = Substitute.For<IPortfolioFinancialApi>();
+        financial.GetAccountBalancesAsync(Arg.Is<FinancialReadScope>(scope => scope.PortfolioId == 101 && scope.FundId == 701),
+            Arg.Any<GetAccountBalancesRequest>(), Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<FinancialRead<FinancialBalanceSnapshot>>(new(FinancialReadStatus.Found,
+                new(101,"Active",[],0,125000m,true),1,DateTime.UtcNow)));
+        services.PortfolioFinancial.Returns(financial);
         var queries = Substitute.For<ITradeQueryApi>();
         queries.GetTradeLimitAsync(1101).Returns(new ServiceOk<TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel>(new() {
             TradeId = 1101, TradeType = TradeType.ShortIronCondor, MaxProfit = 652.50m, RiskMargin = 1847.50m

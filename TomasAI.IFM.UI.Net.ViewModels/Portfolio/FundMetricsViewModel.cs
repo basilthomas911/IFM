@@ -55,7 +55,7 @@ public sealed class FundMetricsViewModel : ObservableObject, IDisposable
             var rows = new List<FinancialTransactionRow>(); FinancialPageCursor? cursor = null;
             do
             {
-                var result = await _api.GetFundTransactionsPageAsync(scope, new(200, cursor), load.Token).ConfigureAwait(false);
+                var result = await _api.GetFundTransactionsPageAsync(scope, new(100, cursor), load.Token).ConfigureAwait(false);
                 if (!result.Success || result.Value?.Value is not { } page)
                     throw new InvalidOperationException(result.ErrorMessage ?? "Portfolio financial transactions are unavailable.");
                 rows.AddRange(page.Items); cursor = page.NextCursor;

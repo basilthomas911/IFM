@@ -5,7 +5,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model
 /// <summary>Builds legacy monitoring values from captured observations without changing actor state.</summary>
 public static class IronCondorMonitoringSnapshotCompute
 {
-    /// <summary>Maps committed valuation and computes forwardPrice, forwardLossRatio and MScore using recovered formulas.</summary>
+    /// <summary>Maps committed valuation and computes forwardPrice and forwardLossRatio using recovered formulas.</summary>
     /// <param name = "tradePlan">The coherent calculated position valuation.</param>
     /// <param name = "sourceEventId">The initiating position observation event.</param>
     /// <param name = "inputs">Captured distribution and historical baseline; null explicitly degrades legacy monitoring.</param>
@@ -15,16 +15,16 @@ public static class IronCondorMonitoringSnapshotCompute
         ArgumentNullException.ThrowIfNull(tradePlan);
         var id = tradePlan.Position.Id.Trade;
         var reasons = new List<string>();
-        var snapshot = CreateBaseSnapshot(tradePlan, id, sourceEventId, inputs);
+        var snapshot = CreateBaseSnapshot(tradePlan, id, sourceEventId);
         snapshot = CaptureBusinessObservations(snapshot, tradePlan, inputs, reasons);
         if (tradePlan.Position.AsOfUtc.Kind != DateTimeKind.Utc || tradePlan.Position.AsOfUtc == default || tradePlan.Position.AsOfUtc > tradePlan.CalculatedAtUtc || tradePlan.CalculatedAtUtc - tradePlan.Position.AsOfUtc > TimeSpan.FromSeconds(tradePlan.Parameters.MaximumDataAgeSeconds))
             reasons.Add("IronCondorTradePlan.INPUTS.POSITION: position prices are unavailable, future-dated or stale.");
         if (inputs?.FundCashAsOfUtc is { } cashAt && (cashAt.Kind != DateTimeKind.Utc || cashAt > tradePlan.CalculatedAtUtc || tradePlan.CalculatedAtUtc - cashAt > TimeSpan.FromSeconds(30)))
             reasons.Add("IronCondorTradePlan.INPUTS.CASH: captured Fund cash is stale.");
         if (inputs is null)
-            reasons.Add("IronCondorTradePlan.INPUTS.DISTRIBUTION: forward spread prices and MScore baseline are unavailable.");
-        else if (inputs.TradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor) || inputs.ObservedAtUtc.Kind != DateTimeKind.Utc || inputs.ObservedAtUtc == default || inputs.ObservedAtUtc > tradePlan.CalculatedAtUtc || tradePlan.CalculatedAtUtc - inputs.ObservedAtUtc > TimeSpan.FromSeconds(tradePlan.Parameters.MaximumDataAgeSeconds) || string.IsNullOrWhiteSpace(inputs.BaselineIdentity) || string.IsNullOrWhiteSpace(inputs.DistributionIdentity))
-            reasons.Add("IronCondorTradePlan.INPUTS.DISTRIBUTION: distribution/baseline identity or observation timestamp is invalid or stale.");
+            reasons.Add("IronCondorTradePlan.INPUTS.DISTRIBUTION: forward spread prices are unavailable.");
+        else if (inputs.TradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor) || inputs.ObservedAtUtc.Kind != DateTimeKind.Utc || inputs.ObservedAtUtc == default || inputs.ObservedAtUtc > tradePlan.CalculatedAtUtc || tradePlan.CalculatedAtUtc - inputs.ObservedAtUtc > TimeSpan.FromSeconds(tradePlan.Parameters.MaximumDataAgeSeconds) || string.IsNullOrWhiteSpace(inputs.DistributionIdentity))
+            reasons.Add("IronCondorTradePlan.INPUTS.DISTRIBUTION: distribution identity or observation timestamp is invalid or stale.");
         else
         {
             try
@@ -37,12 +37,7 @@ public static class IronCondorMonitoringSnapshotCompute
                     ForwardPrice = forwardPrice,
                     ForwardLossRatio = ratio
                 };
-                var mScore = IronCondorLegacyValueInitializers.CalculateMScore(ratio, inputs.HistoricalForwardLossRatios);
-                snapshot = snapshot with
-                {
-                    MScore = mScore,
-                    TradeRisk = IronCondorLegacyValueInitializers.CalculateTradeRisk(inputs.TradeType, mScore, inputs.TradeType == TradeType.ShortIronCondor ? forwardPrice > snapshot.NetPrice : forwardPrice < snapshot.NetPrice).ToString()
-                };
+
             }
             catch (ArgumentException error)
             {
@@ -50,8 +45,8 @@ public static class IronCondorMonitoringSnapshotCompute
             }
         }
 
-        if (snapshot.TradeDate is null || snapshot.MaturityDate is null || snapshot.FiftyDayMA is null || snapshot.FiveDayXMA is null || snapshot.PutOTMProbability is null || snapshot.CallOTMProbability is null || snapshot.LossProbability is null || snapshot.ForwardDelta is null || snapshot.StopLossLimit is null)
-            reasons.Add("IronCondorTradePlan.INPUTS.BASELINE: expiry, daily averages or distribution/risk observations are incomplete.");
+        if (snapshot.TradeDate is null || snapshot.MaturityDate is null || snapshot.PutOTMProbability is null || snapshot.CallOTMProbability is null || snapshot.ForwardDelta is null || snapshot.StopLossLimit is null)
+            reasons.Add("IronCondorTradePlan.INPUTS.BASELINE: expiry or distribution/risk observations are incomplete.");
         if (snapshot.NetPrice is null)
             reasons.Add("IronCondorTradePlan.INPUTS.PRICING: current qualified four-leg OptionCalculator spread prices are unavailable.");
         if (reasons.Count == 0 && inputs is not null && snapshot.ForwardLossRatio is not null)
@@ -64,15 +59,9 @@ public static class IronCondorMonitoringSnapshotCompute
         };
     }
 
-    /// <summary>Copies versioned domain observations and calculates gamma risk without querying providers or changing state.</summary>
-    /// <param name = "snapshot">The proposed monitoring output.</param>
-    /// <param name = "tradePlan">The coherent position valuation and session identity.</param>
-    /// <param name = "inputs">The captured business observations.</param>
-    /// <param name = "reasons">Receives explicit unavailable-input reasons.</param>
-    /// <returns>The output populated only with observed business values.</returns>
-    /// <summary>Copies the accepted legacy plan identity, valuation and detached input snapshot before calculating monitoring metrics.</summary>
+    /// <summary>Copies accepted identity and valuation without retaining the retired input container.</summary>
     static IronCondorTradePlanSnapshot CreateBaseSnapshot(StrategyTradePlanSnapshot tradePlan, TradeEntityId id,
-        Guid sourceEventId, IronCondorTradePlanInputs? inputs)
+        Guid sourceEventId)
     {
         return new IronCondorTradePlanSnapshot
         {
@@ -83,14 +72,8 @@ public static class IronCondorMonitoringSnapshotCompute
             ActionDate = tradePlan.CalculatedAtUtc,
             TradePnl = tradePlan.TotalPnl,
             ActionReason = tradePlan.Explanation,
-            CreatedOn = tradePlan.CalculatedAtUtc,
-            CreatedBy = "IronCondorTradePlanFunction",
             Position = tradePlan.Position,
-            SourceEventId = sourceEventId,
-            IronCondorTradePlanInputs = inputs is null ? null : inputs with
-            {
-                HistoricalForwardLossRatios = [..inputs.HistoricalForwardLossRatios]
-            }
+            SourceEventId = sourceEventId
         };
     }
 
@@ -106,52 +89,30 @@ public static class IronCondorMonitoringSnapshotCompute
             };
         else
             reasons.Add("IronCondorTradePlan.INPUTS.LIMITS: matching configured trade limits are unavailable.");
-        if (inputs?.UnderlyingStatistics is { } underlying && underlying.ValueDate == tradePlan.ValueDate && underlying.ClosePrice > 0 && double.IsFinite(underlying.DailyStdDev) && underlying.DailyStdDev >= 0 && double.IsFinite(underlying.Mean) && double.IsFinite(underlying.DailyPercentChange))
+        if (inputs?.UnderlyingStatistics is { } underlying && underlying.ValueDate == tradePlan.ValueDate && underlying.ClosePrice > 0)
             snapshot = snapshot with
             {
-                AssetPrice = Convert.ToDecimal(underlying.ClosePrice),
-                AssetStdDev = underlying.DailyStdDev,
-                AssetMean = underlying.Mean,
-                AssetPriceChange = underlying.DailyPercentChange,
-                MarketTrend = underlying.MarketDirection.ToString(),
-                MarketVolatility = underlying.MarketVolatility.ToString(),
-                MarketDirection = underlying.PriceDirection.ToString(),
-                VixVolatility = underlying.PriceVolatility.ToString()
+                AssetPrice = Convert.ToDecimal(underlying.ClosePrice)
             };
         else
             reasons.Add("IronCondorTradePlan.INPUTS.UNDERLYING: current-session underlying statistics are unavailable.");
-        if (inputs?.TradeSignal is { } signal && signal.ValueDate == tradePlan.ValueDate && double.IsFinite(signal.RSI) && double.IsFinite(signal.RSISlope))
-            snapshot = snapshot with
-            {
-                TrendType = signal.TrendType.ToString(),
-                TrendStrength = signal.TrendStrength.ToString(),
-                Rsi = signal.RSI,
-                RsiSlope = signal.RSISlope,
-                Tdi = signal.TDI.ToString(),
-                TdiStrength = signal.TDIStrength.ToString()
-            };
-        else
-            reasons.Add("IronCondorTradePlan.INPUTS.ANALYTICS: current-session seeded analytics are unavailable.");
         if (inputs?.ShortPutGamma is { } put && inputs.ShortCallGamma is { } call && double.IsFinite(put) && double.IsFinite(call) && put >= 0 && call >= 0)
             snapshot = snapshot with
             {
                 ShortPutGamma = put,
-                ShortCallGamma = call,
-                GammaRisk = IronCondorLegacyValueInitializers.CalculateGammaRisk(call, put).ToString()
+                ShortCallGamma = call
             };
         else
             reasons.Add("IronCondorTradePlan.INPUTS.GREEKS: qualified short-leg Greeks are unavailable.");
         return snapshot with
         {
+            VolatilityPrice = inputs?.VolatilityPrice,
             TradeDate = inputs?.TradeDate,
             MaturityDate = inputs?.MaturityDate,
             PutOTMProbability = inputs?.PutOTMProbability,
             CallOTMProbability = inputs?.CallOTMProbability,
-            LossProbability = inputs?.LossProbability,
             ForwardDelta = inputs?.ForwardDelta,
             StopLossLimit = inputs?.StopLossLimit,
-            FiftyDayMA = inputs?.FiftyDayMA,
-            FiveDayXMA = inputs?.FiveDayXMA,
             NetPrice = inputs?.CalculatedSpreadPrices is { } calculated && calculated.CalculatedAtUtc <= tradePlan.CalculatedAtUtc && calculated.ValidUntilUtc > tradePlan.CalculatedAtUtc ? Convert.ToDecimal(calculated.CombinedSpreadPrice) : null
         };
     }

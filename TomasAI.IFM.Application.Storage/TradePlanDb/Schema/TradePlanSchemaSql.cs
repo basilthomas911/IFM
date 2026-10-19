@@ -107,6 +107,7 @@ ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS marketTre
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS marketVolatility text;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS marketDirection text;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS vixVolatility text;
+ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS volatilityPrice numeric;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS tradeRisk text;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS fiftyDayMA double precision;
 ALTER TABLE trade_plan.iron_condor_trade_plan ADD COLUMN IF NOT EXISTS fiveDayXMA double precision;

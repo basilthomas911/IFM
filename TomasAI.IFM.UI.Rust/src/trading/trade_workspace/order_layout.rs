@@ -1,9 +1,13 @@
+//! Trade-order layout helpers for selectors, order lists, leg grids, execution/fills, and drafts. Rectangles convert reference coordinates to the current scale; controls obey the managed eligibility flags and local pending state.
+
 use crate::wire::WireNumber as _;
 use super::*;
 use chrono::{Datelike, NaiveDate};
+/// Convert WinForms reference coordinates and dimensions into a scaled egui rectangle relative to the given origin.
 pub(super) fn rect(o: egui::Pos2, p: f32, x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
     egui::Rect::from_min_size(o + egui::vec2(x, y) / p, egui::vec2(w, h) / p)
 }
+/// Run a widget renderer in a child UI with the requested stable ID and maximum rectangle. Callers own any additional clipping requirements.
 pub(super) fn at<R>(
     ui: &mut egui::Ui,
     r: egui::Rect,
@@ -14,6 +18,7 @@ pub(super) fn at<R>(
         .inner
 }
 impl TradeWorkspace {
+    /// Derive editor-button availability from the published selected order/trade rows and current source filter. Submission/pending gates are applied by the caller.
     pub(super) fn order_button_enabled(&self, s: &ContractPublication, flag_key: &str) -> bool {
         match flag_key {
             "canCreateOrder" => true,
@@ -54,6 +59,7 @@ impl TradeWorkspace {
             _ => false,
         }
     }
+    /// Render portfolio/fund/strategy/order selector controls in their reference layout and return the chosen action key.
     pub(super) fn draw_selectors(
         &mut self,
         ui: &mut egui::Ui,
@@ -136,6 +142,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Render order/expiry selection lists and the selected order summary in the reference layout.
     pub(super) fn draw_order_lists(
         &mut self,
         ui: &mut egui::Ui,
@@ -342,6 +349,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Edit a bounded numeric trade draft value with the configured step and decimal precision.
     pub(super) fn numeric(
         &mut self,
         ui: &mut egui::Ui,
@@ -368,6 +376,7 @@ impl TradeWorkspace {
             *stored = format!("{value:.decimals$}");
         }
     }
+    /// Render the option-chain grid from the published contracts/quotes and return selection/refresh actions.
     pub(super) fn option_grid(
         &mut self,
         ui: &mut egui::Ui,
@@ -398,12 +407,13 @@ impl TradeWorkspace {
         });
         let columns = super::blotter::OPTION_COLUMNS;
         let height = (ui.available_height() - 24. / p - ui.spacing().item_spacing.y).max(0.);
+        let row_spacing = ui.spacing().item_spacing.y;
         let mut table = egui_extras::TableBuilder::new(ui)
             .id_salt("option-chain")
             .resizable(true)
             .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .max_scroll_height(height);
+            .fill_grid(strikes.len(), 24. / p, row_spacing, height);
         for _ in columns {
             table = table.column(egui_extras::Column::remainder().clip(true));
         }
@@ -515,6 +525,7 @@ impl TradeWorkspace {
         action
     }
 
+    /// Render order execution, fills, price update, and cancellation controls using managed eligibility.
     pub(super) fn draw_execution(
         &mut self,
         ui: &mut egui::Ui,
@@ -779,6 +790,7 @@ impl TradeWorkspace {
         }
         action
     }
+    /// Render an opening/closing trade draft and its eligible preview/submission actions.
     pub(super) fn draw_draft(
         &mut self,
         ui: &mut egui::Ui,
@@ -1051,6 +1063,7 @@ impl TradeWorkspace {
         action
     }
 }
+/// Return the last calendar date in the input date's month.
 fn month_end(date: NaiveDate) -> NaiveDate {
     let next = if date.month() == 12 {
         NaiveDate::from_ymd_opt(date.year() + 1, 1, 1)

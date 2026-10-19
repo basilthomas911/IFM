@@ -139,7 +139,7 @@ public sealed class IronCondorDisposableSnapshotTests
         var result = await request.ExecuteAsync(state, context, input => input.Complete(TimeProvider.System), CancellationToken.None);
         result.Completed!.Plan.PlanRevision.Should().Be(1);
         result.Completed.Plan.CalculatedAtUtc.Should().Be(request.RequestedAtUtc);
-        result.Completed.Plan.IronCondorTradePlanSnapshot!.DailyPnl.Should().Be(0);
+        result.Completed.Plan.IronCondorTradePlanSnapshot!.DailyPnl.Should().BeNull();
         result.Completed.Plan.IronCondorTradePlanSnapshot.CalculationStatus.Should().NotBe("Complete");
         result.Completed.Plan.IronCondorTradePlanSnapshot.StopLossLimit.Should().BeNull();
         var fresh = new IronCondorTradePlanFunctionState().Prepare(request);

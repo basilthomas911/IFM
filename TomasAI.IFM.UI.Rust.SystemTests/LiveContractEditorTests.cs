@@ -48,7 +48,7 @@ public unsafe class LiveContractEditorTests
    var selected=page.Result.Rows.Single(row=>row.Fields["rawSymbol"]=="ESZ6");
    var preview=Run(api,handle,new(1,Guid.NewGuid(),"provider-definitions","preview",page.Generation,selected.Id,new(){["existingContractId"]="ES20261218",["exchangeTimeZoneId"]="America/Chicago"}));
    Assert.Equal("Change",preview.Result.Context!["previewMode"]);Assert.Equal(selected.Id,preview.Result.Context["previewSelectedId"]);
-   using var mapped=JsonDocument.Parse(preview.Result.Context["previewContract"]);var value=mapped.RootElement;
+   using var mapped=JsonDocument.Parse(MessagePack.MessagePackSerializer.ConvertToJson(preview.Result.Documents["previewContract"]));var value=mapped.RootElement;
    Assert.Equal("ES20261218",value.GetProperty("contractId").GetString());Assert.Equal(1,value.GetProperty("schemaVersion").GetInt32());Assert.Equal(selected.Fields["definitionDigest"],value.GetProperty("definitionDigest").GetString());
    // Destroy cancels the preview; no publish intent is issued.
   }finally{Assert.Equal(0,api.Base.Destroy(handle));Environment.SetEnvironmentVariable("IFM_RUST_UI_MODE",old);}

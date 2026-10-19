@@ -128,6 +128,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     TradeHistoryReadModel[] _tradeHistorySnapshot = [];
     TradePlanReadModel[] _tradePlans = [];
     StrategyTradePlanSnapshot? _strategyTradePlan;
+    /// <summary>Native virtual grids query their own bounded history windows.</summary>
+    public bool VirtualTradePlanHistory { get; set; }
     StrategyTradePlanSnapshot[] _ironCondorPlanHistory = [];
     long _planHistoryRequest;
     DateOnly? _selectedPlanValueDate;
@@ -272,9 +274,18 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (limits is null || limits.TradeId != tradeId.TradeId)
             throw new InvalidOperationException($"Persisted trade limits for trade {tradeId.TradeId} were not found.");
         _tradeLimits = limits;
-        TradeLimitSnapshot = new(tradeId.OrderId, limits, null);
+        var scope = new FinancialReadScope
+        {
+            PortfolioId = tradeId.PortfolioId, FundId = tradeId.FundId,
+            Access = new(Environment.UserName, ["LedgerRead"], [tradeId.PortfolioId])
+        };
+        var result = await _appRoot.Services.PortfolioFinancial.GetAccountBalancesAsync(scope, new(), cancellationToken);
+        decimal? balance = result?.Success == true && result.Value?.Value is { } accounts ? accounts.AvailableCash : null;
+        if (balance.HasValue) _fundBalance = balance.Value;
+        TradeLimitSnapshot = new(tradeId.OrderId, limits, balance);
     }
 
+    readonly Dictionary<DateOnly, IronCondorTradePlanSnapshot> _savedCurrencySnapshots = [];
     long _savedPositionRequest;
     StrategyPositionSnapshot? _selectedSavedPosition;
     /// <summary>Gets the persisted whole-position snapshot selected for read-only display.</summary>
@@ -313,6 +324,34 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 }).ToArray()
             };
         }
+        // The latest saved plan owns the enriched current position; lifecycle rows may predate its last mark.
+        // Opening and closing history retain their original execution snapshots.
+        if (position is not null && position.Phase is not (StrategyPositionPhase.Open or StrategyPositionPhase.Close)
+            && _appRoot.Services.StrategyTradePlanQueries is { } plans)
+        {
+            var latest = await plans.GetCurrentAsync(position.Id,
+                TradeStrategyKind.IronCondor, row.ValueDate).ConfigureAwait(false);
+            if (request != Volatile.Read(ref _savedPositionRequest)) return;
+            if (latest?.Position is { } current && current.Id == position.Id && current.ValueDate == row.ValueDate
+                && current.RouteGeneration == position.RouteGeneration
+                && (current.PositionSequence >= position.PositionSequence
+                    || position.Legs.Length == current.Legs.Length && position.Legs.All(leg => current.Legs.Any(saved =>
+                        saved.TradeLegId == leg.TradeLegId && saved.ContractId == leg.ContractId
+                        && saved.SignedQuantity == leg.SignedQuantity && saved.CurrentPrice == leg.CurrentPrice
+                        && saved.OpeningPrice == leg.OpeningPrice))))
+                {
+                position = current.PositionSequence >= position.PositionSequence ? current : position with { Legs = position.Legs.Select(leg => {
+                    var enriched = current.Legs.Single(saved => saved.TradeLegId == leg.TradeLegId);
+                    return leg with { OptionTick = enriched.OptionTick, OptionRisk = enriched.OptionRisk,
+                        Scenario = enriched.Scenario, CashMultiplier = StrategyPositionLegOptionData.ContractMultiplier(enriched) };
+                }).ToArray() };
+                if (latest.IronCondorTradePlanSnapshot is { ContractMultiplier: > 0 } currency)
+                {
+                    _savedCurrencySnapshots[row.ValueDate] = currency;
+                    PublishPositionHistory();
+                }
+            }
+        }
         _selectedSavedPosition = position;
         _savedLegObservations = new Dictionary<string, FuturesOptionTickDataV2ReadModel>();
         OnPropertyChanged(nameof(SelectedSavedPosition));
@@ -320,9 +359,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         var quotes = await Task.WhenAll(trade.Legs.Select(async leg =>
             await _appRoot.Services.FeedQueries.GetSavedOptionLegAsync(leg.ContractId,row.ValueDate))).ConfigureAwait(false);
         if (request != Volatile.Read(ref _savedPositionRequest)) return;
-        _savedLegObservations = quotes.Where(quote => quote is not null && quote.ValueDate == row.ValueDate
+        _savedLegObservations = (position?.Legs.Select(leg => leg.OptionTick).Where(quote => quote is not null)
+                ?? Enumerable.Empty<FuturesOptionTickDataV2ReadModel?>()).Concat(quotes)
+            .Where(quote => quote is not null && quote.ValueDate == row.ValueDate
                 && trade.Legs.Any(leg => leg.ContractId == quote.ContractId))
-            .ToDictionary(quote => quote!.ContractId, quote => quote!);
+            .GroupBy(quote => quote!.ContractId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(quote => quote!.ObservedAtUtc).First()!);
         OnPropertyChanged(nameof(SavedLegObservations));
     }
 
@@ -360,7 +402,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 var quantity = position.Legs.Select(leg => Math.Abs(leg.SignedQuantity)).DefaultIfEmpty(0).Min();
                 return new TradeHistoryReadModel(trade.Id.OrderId, trade.Id.TradeId, _fundOrderTrade.TradeType,
                     date, expiry.DayNumber - date.DayNumber, status, 0m,
-                    quantity > 0 ? position.MarketValue / quantity : position.MarketValue, position.DailyPnl);
+                    quantity > 0 ? position.Legs.Sum(leg => leg.CurrentPrice * leg.SignedQuantity) / quantity : 0m,
+                    _savedCurrencySnapshots.TryGetValue(date, out var currency) && currency.DailyPnl is { } daily
+                        ? daily : position.DailyPnl);
             }).ToArray();
         _tradeHistory = [opening, .. rows];
         TradeHistory = [.. _tradeHistory];
@@ -465,8 +509,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             return false;
         lock (_legObservationGate) { if (!_receivingRealtimeSnapshots) _realtimeCache?.Apply(plan); }
         StrategyTradePlan = plan;
+        if (plan.IronCondorTradePlanSnapshot is { ContractMultiplier: > 0 } currency)
+            _savedCurrencySnapshots[plan.ValueDate] = currency;
         OnPropertyChanged(nameof(RealtimeSnapshot));
         ApplyIronCondorPosition(plan.Position);
+        PublishPositionHistory();
         return true;
     }
 
@@ -781,6 +828,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     async Task LoadIronCondorTradePlans(DateOnly? selectedValueDate = null)
     {
+        if (VirtualTradePlanHistory) return;
         var request = Interlocked.Increment(ref _planHistoryRequest);
         _ironCondorPlanHistory = [];
         OnPropertyChanged(nameof(IronCondorPlanHistory));

@@ -21,12 +21,15 @@ fn harness() -> Harness<'static, State> {
     let mut h = Harness::new_state(
         |ctx, state: &mut State| {
             // Encode authored row documents exactly as the managed binary bridge does.
+            let mut changed = false;
             for row in &mut state.snapshot.result.rows {
                 if let Some(document)=row.fields.remove("data") {
+                    changed = true;
                     let value:serde_json::Value=serde_json::from_str(&document).unwrap();
                     row.data=Some(ifm_ui_rust::wire::encode_value(&value).unwrap().into());
                 }
             }
+            if changed { state.snapshot.invalidate_render_cache(); }
             if let Some(request) = state.view.draw(ctx, &state.snapshot) {
                 let v: serde_json::Value = serde_json::from_str(&request).unwrap();
                 let failed = state.fail_load && v["intent"] == "load-trade";
@@ -559,7 +562,7 @@ fn established_iron_condor_dashboard_displays_saved_limits_and_leg_marks() {
     h.state_mut().snapshot.result.context.insert("canSelectPosition".into(),"True".into());
     h.get_by_label("Trade Orders").click();h.run();
     h.get_by_label("Load Trade").click();h.run();h.run();
-    for label in ["Option Contract Ids","Iron Condor Net Spread Path","ActionDateTime","SAVED-PUT","38.55","Saved plan evidence","Spread Type","PutCreditSpread"] {
+    for label in ["Option Contract Ids","Iron Condor Net / Forward Spread (price points)","ActionDateTime","SAVED-PUT","38.55","Saved plan evidence","Spread Type","PutCreditSpread"] {
         assert!(h.query_all_by_label(label).next().is_some(),"Missing {label}");
     }
     assert!(h.state().view.loaded_bounds.unwrap().width()>2000.);
@@ -586,6 +589,101 @@ fn loaded_tabs_harness() -> Harness<'static,State> {
         h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({"id":format!("{kind}:{key}"),"fields":{"kind":kind,"data":value.to_string()}})).unwrap());
     }
     h.get_by_label("Trade Orders").click();h.run();h.get_by_label("Load Trade").click();h.run();h.run();h
+}
+
+fn scrolling_trade_plans_harness() -> Harness<'static,State> {
+    trade_plans_harness(200)
+}
+fn trade_plans_harness(count: usize) -> Harness<'static,State> {
+    let mut h = loaded_tabs_harness();
+    ifm_ui_rust::presentation::apply(&h.ctx);
+    for i in 0..count {
+        let value = serde_json::json!({"calculatedAtUtc":format!("plan-row-{i:03}"),"explanation":"scroll fixture"});
+        h.state_mut().snapshot.result.rows.push(serde_json::from_value(serde_json::json!({
+            "id":format!("plan:{i}"),"fields":{"kind":"plan","data":value.to_string()}
+        })).unwrap());
+    }
+    h.set_size(eframe::egui::vec2(1200., 800.));
+    h.run();
+    h
+}
+
+#[test]
+#[ignore = "Explicit CPU frame benchmark; run alone in debug and release"]
+fn benchmark_trade_view_mouse_frames() {
+    use eframe::egui::{Event, pos2};
+    let mut results = Vec::new();
+    for count in [100, 1_000, 10_000] {
+        let mut h = trade_plans_harness(count);
+        h.ctx.style_mut(|style| style.interaction.tooltip_delay = f32::INFINITY);
+        let mut times = Vec::new();
+        for frame in 0..65 {
+            h.input_mut().events.push(Event::PointerMoved(pos2(40. + (frame % 20) as f32 * 20., 590.)));
+            let start = std::time::Instant::now();
+            h.step();
+            if frame >= 5 { times.push(start.elapsed().as_secs_f64() * 1_000.); }
+        }
+        times.sort_by(f64::total_cmp);
+        let mut preparation = Vec::new(); let mut first_frames = Vec::new();
+        for _ in 0..5 {
+            h.state_mut().snapshot.invalidate_render_cache();
+            let start = std::time::Instant::now();
+            TradeWorkspace::prepare_publication(&h.state().snapshot);
+            preparation.push(start.elapsed().as_secs_f64() * 1_000.);
+            let start = std::time::Instant::now(); h.step();
+            first_frames.push(start.elapsed().as_secs_f64() * 1_000.);
+        }
+        preparation.sort_by(f64::total_cmp); first_frames.sort_by(f64::total_cmp);
+        let result = serde_json::json!({"plans":count,"frames":times.len(),"p50Ms":times[30],"p95Ms":times[57],"maxMs":times[59],
+            "preparationP50Ms":preparation[2],"preparedFirstFrameP50Ms":first_frames[2]});
+        println!("{result}"); results.push(result);
+    }
+    if let Ok(path) = std::env::var("IFM_TRADE_FRAME_BENCHMARK") {
+        std::fs::write(path, serde_json::to_vec_pretty(&results).unwrap()).unwrap();
+    }
+}
+
+#[test]
+fn trade_plan_grid_scrolls_both_axes_inside_its_bounds() {
+    use eframe::egui::{Event, MouseWheelUnit, Modifiers, vec2};
+    let mut h = scrolling_trade_plans_harness();
+    let bounds = h.state().view.controls["condor-plans"];
+    assert!(h.query_by_label("plan-row-000").is_some());
+    let header_x = h.get_by_label("ActionDateTime").accesskit_node().bounding_box().unwrap().x0;
+    h.input_mut().events.extend([
+        Event::PointerMoved(bounds.center()),
+        Event::MouseWheel { unit: MouseWheelUnit::Point, delta: vec2(0., -300.), modifiers: Modifiers::NONE },
+    ]);
+    h.run_steps(8);
+    assert!(h.query_by_label("plan-row-000").is_none(), "Vertical wheel must advance the plan rows");
+    h.input_mut().events.push(Event::MouseWheel {
+        unit: MouseWheelUnit::Point, delta: vec2(-600., 0.), modifiers: Modifiers::NONE,
+    });
+    h.run_steps(8);
+    let shifted = h.query_by_label("ActionDateTime").map(|node| node.accesskit_node().bounding_box().unwrap().x0);
+    assert!(shifted.is_none_or(|x| x < header_x - 100.), "Horizontal wheel must move the columns: {shifted:?}");
+}
+
+#[test]
+fn trade_plan_scrollbars_are_clickable_inside_the_grid() {
+    use eframe::egui::{Event, Modifiers, PointerButton, pos2};
+    let mut h = scrolling_trade_plans_harness();
+    let bounds = h.state().view.controls["condor-plans"];
+    if let Ok(path) = std::env::var("IFM_CONDOR_SCROLL_SCREENSHOT") { h.render().unwrap().save(path).unwrap(); }
+    for (axis, point) in [pos2(bounds.right() - 6., bounds.center().y), pos2(bounds.center().x, bounds.bottom() - 6.)].into_iter().enumerate() {
+        h.input_mut().events.push(Event::PointerMoved(point));
+        h.run_steps(2);
+        h.input_mut().events.push(Event::PointerButton { pos:point, button:PointerButton::Primary, pressed:true, modifiers:Modifiers::NONE });
+        h.run_steps(2);
+        let dragged = point + if axis == 0 { eframe::egui::vec2(0., 40.) } else { eframe::egui::vec2(80., 0.) };
+        h.input_mut().events.push(Event::PointerMoved(dragged));
+        h.run_steps(2);
+        h.input_mut().events.push(Event::PointerButton { pos:dragged, button:PointerButton::Primary, pressed:false, modifiers:Modifiers::NONE });
+        h.run_steps(8);
+        if axis == 0 { assert!(h.query_by_label("plan-row-000").is_none(), "Vertical scrollbar must advance the rows before horizontal scrolling"); }
+    }
+    let header = h.query_by_label("ActionDateTime").map(|node|node.accesskit_node().bounding_box().unwrap().x0);
+    assert!(header.is_none_or(|x| x < bounds.left() as f64 - 100.), "Horizontal scrollbar must move the columns: {header:?}");
 }
 #[test]
 fn center_tabs_switch_and_close_only_the_requested_trade() {
@@ -629,4 +727,65 @@ fn live_plan_publications_update_the_grid_without_a_user_refresh() {
     assert!(h.query_all_by_label("Incoming live plan 1").next().is_some());
     assert!(h.query_all_by_label("Incoming live plan 2").next().is_some());
     assert_eq!(h.state().requests.len(),requests_before);
+}
+
+#[test]
+fn load_trade_transfer_failure_remains_visible_after_editor_closes() {
+    let mut view = TradeWorkspace::default();
+    view.request("load-trade", &snapshot());
+    view.transport_failed("Trade history transfer failed");
+    assert!(view.is_visible());
+    let mut h = Harness::new_state(|ctx, (view, snapshot): &mut (TradeWorkspace, ContractPublication)| {
+        view.draw(ctx, snapshot);
+    }, (view, snapshot()));
+    h.run();
+    assert!(h.query_all_by_label("Trade history transfer failed").next().is_some());
+}
+
+#[test]
+fn virtual_plan_grid_requests_only_visible_rows_after_trade_is_loaded() {
+    let mut publication = snapshot();
+    publication.result.context.insert("activeTradeTab".into(), "101.701.1901.1501".into());
+    publication.result.context.insert("planOffset".into(), "0".into());
+    publication.result.context.insert("planTotal".into(), "10000".into());
+    publication.result.context.insert("planDate".into(), "2026-10-16".into());
+    publication.result.rows.push(serde_json::from_value(serde_json::json!({"id":"established:1", "fields":{"kind":"established"}, "data":null})).unwrap());
+    publication.result.rows.last_mut().unwrap().data = Some(ifm_ui_rust::wire::encode_value(&serde_json::json!({"id":{"portfolioId":101,"fundId":701,"orderId":1901,"tradeId":1501},"legs":[]})).unwrap().into());
+    let mut view = TradeWorkspace::default();
+    let id = view.request("load-trade", &publication);
+    let request:serde_json::Value = serde_json::from_str(&id).unwrap();
+    publication.outcomes.push(serde_json::from_value(serde_json::json!({"requestId":request["requestId"],"state":"Completed","message":"Loaded"})).unwrap());
+    let mut h = Harness::new_state(|ctx, state: &mut (TradeWorkspace, ContractPublication, Vec<serde_json::Value>)| {
+        if let Some(request)=state.0.draw(ctx,&state.1) {state.2.push(serde_json::from_str(&request).unwrap());}
+    }, (view, publication, Vec::new()));
+    h.run();
+    let page = h.state().2.iter().find(|request|request["intent"]=="plans-page").expect("visible page requested");
+    let size:usize = page["fields"]["pageSize"].as_str().unwrap().parse().unwrap();
+    assert!(size>0 && size<=100);
+    assert_eq!(page["fields"]["offset"], "0");
+    let page_id = page["requestId"].clone();
+    for index in 0..size {
+        let mut row:ifm_ui_rust::contract_editor::ContractRow = serde_json::from_value(serde_json::json!({"id":format!("plan:{index}"),"fields":{"kind":"plan"}})).unwrap();
+        row.data=Some(ifm_ui_rust::wire::encode_value(&serde_json::json!({"ironCondorTradePlanSnapshot":{"isComplete":true,"sequenceId":10000-index}})).unwrap().into());
+        h.state_mut().1.result.rows.push(row);
+    }
+    h.state_mut().1.generation += 1;
+    h.state_mut().1.outcomes.push(serde_json::from_value(serde_json::json!({"requestId":page_id,"state":"Completed","message":"Page loaded"})).unwrap());
+    h.run();
+    let bounds=h.state().0.controls["condor-plans"];
+    h.input_mut().events.extend([
+        eframe::egui::Event::PointerMoved(bounds.center()),
+        eframe::egui::Event::MouseWheel{unit:eframe::egui::MouseWheelUnit::Point,delta:eframe::egui::vec2(0.,-3000.),modifiers:eframe::egui::Modifiers::NONE},
+    ]);
+    h.run_steps(8);
+    assert!(h.state().2.iter().any(|request| request["intent"]=="plans-page" && request["fields"]["offset"].as_str().and_then(|v|v.parse::<usize>().ok()).is_some_and(|offset|offset>0)), "scrolling must query a new offset");
+}
+
+#[test]
+fn spread_chart_shows_price_limits_and_forward_spread_without_forward_limit() {
+    let mut h = loaded_tabs_harness();
+    for name in ["LossLimit", "WinLimit", "ForwardSpread", "NetSpread"] {
+        assert!(h.query_all_by_label(name).next().is_some(), "Missing chart legend {name}");
+    }
+    assert!(h.query_all_by_label("ForwardSpreadLimit").next().is_none());
 }
