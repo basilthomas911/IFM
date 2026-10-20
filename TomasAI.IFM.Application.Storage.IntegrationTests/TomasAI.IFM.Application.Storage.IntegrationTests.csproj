@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -54,4 +54,5 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.OptionPricer/TomasAI.IFM.Domain.OptionPricer.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.MarketData.Securities/TomasAI.IFM.Domain.MarketData.Securities.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Reference/TomasAI.IFM.Domain.Reference.csproj" /></ItemGroup>
+  <ItemGroup><Compile Include="../test-support/IronCondorForwardPriceTestScenario.cs" Link="Support/IronCondorForwardPriceTestScenario.cs" /></ItemGroup>
 </Project>

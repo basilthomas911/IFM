@@ -58,9 +58,11 @@ public sealed class ApiApplicationStartupActivities(
     IMarketSessionCalendar? marketSessionCalendar = null,
     IActorService? actorService = null,
     ConfigurationSchemaDb? configurationSchema = null,
-    FourHourDatabentoSeedReplay? liveSeedReplay = null) : IApplicationStartupActivities
+    FourHourDatabentoSeedReplay? liveSeedReplay = null) : IApplicationStartupActivities, TomasAI.IFM.Application.MarketData.IMarketSessionAnalyticsInitializer
 {
     readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
+    readonly SemaphoreSlim sessionAnalyticsGate = new(1, 1);
+    DateOnly? initializedAnalyticsDate;
 
     public async ValueTask<ApplicationStartupActivityOutcome> ApplyParameterSetsAsync(ApplicationStartupContext context, CancellationToken cancellationToken)
     {
@@ -120,8 +122,14 @@ public sealed class ApiApplicationStartupActivities(
     {
         await rolloverCheck.ExecuteAsync(context.ValueDate, cancellationToken)
             .ConfigureAwait(false);
+        await CaptureCurrentContractsAsync(context.ValueDate, cancellationToken).ConfigureAwait(false);
+        return ApplicationStartupActivityOutcome.Started;
+    }
+
+    async Task CaptureCurrentContractsAsync(DateOnly valueDate, CancellationToken cancellationToken)
+    {
         var assignments = await contractAuthority.ReconcileAsync(
-            context.ValueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
+            valueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
         var contracts = assignments.Select(static assignment => new FuturesContractV3ReadModel(
             assignment.ContractId,
             assignment.Description,
@@ -139,8 +147,7 @@ public sealed class ApiApplicationStartupActivities(
             throw new InvalidOperationException(
                 "The current-contract set must contain exactly one quarterly ES plus current-month and next-month VX.");
 
-        contractsByValueDate[context.ValueDate] = contracts;
-        return ApplicationStartupActivityOutcome.Started;
+        contractsByValueDate[valueDate] = contracts;
     }
 
     public async ValueTask<ApplicationStartupActivityOutcome> StartMarketDataAsync(
@@ -278,10 +285,39 @@ public sealed class ApiApplicationStartupActivities(
         if (marketSessionAuthority.Current.ActiveValueDate is null)
             return ApplicationStartupActivityOutcome.ScheduledStopped;
 
-        var es = RequiredEsContract(context.ValueDate);
+        await InitializeAsync(context.ValueDate, cancellationToken).ConfigureAwait(false);
+        return ApplicationStartupActivityOutcome.Started;
+    }
+
+    /// <summary>Initializes each trading date once and confirms projected indicator values before feed-start completion.</summary>
+    public async Task InitializeAsync(DateOnly valueDate, CancellationToken cancellationToken)
+    {
+        await sessionAnalyticsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (initializedAnalyticsDate == valueDate
+                && marketOutlookCache.TryGetInputs(new MarketOutlookEntityId(RequiredEsContract(valueDate).ContractId, valueDate), out var current)
+                && SessionIndicatorReadiness.IsReady(current, RequiredEsContract(valueDate).ContractId, valueDate)) return;
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromMinutes(5));
+            if (!contractsByValueDate.ContainsKey(valueDate))
+                await CaptureCurrentContractsAsync(valueDate, deadline.Token).ConfigureAwait(false);
+            await InitializeSessionIndicatorsAsync(valueDate, deadline.Token).ConfigureAwait(false);
+            var contractId = RequiredEsContract(valueDate).ContractId;
+            await WaitForInitializedIndicatorsAsync(contractId, valueDate, deadline.Token).ConfigureAwait(false);
+            initializedAnalyticsDate = valueDate;
+            logger.LogInformation("Session indicators initialized; MethodName={MethodName} ValueDate={ValueDate} ContractId={ContractId} Indicators={Indicators}",
+                nameof(InitializeAsync), valueDate, contractId, "ADX,ATR,MACD,RSI,TDI");
+        }
+        finally { sessionAnalyticsGate.Release(); }
+    }
+
+    async Task InitializeSessionIndicatorsAsync(DateOnly valueDate, CancellationToken cancellationToken)
+    {
+        var es = RequiredEsContract(valueDate);
         var activations = FuturesIntradaySignalActivationProfile.Create(
             es.ContractId,
-            context.ValueDate);
+            valueDate);
         cancellationToken.ThrowIfCancellationRequested();
         FuturesTradeSessionBarReadModel[] liveSeedBars = [];
         if (liveSeedReplay is not null)
@@ -329,14 +365,13 @@ public sealed class ApiApplicationStartupActivities(
         if (liveSeedBars.Length != 48)
             await SeedMarketOutlookIndicatorsAsync(
                     es.ContractId,
-                    context.ValueDate,
+                    valueDate,
                     liveSeedBars,
                     cancellationToken)
                 .ConfigureAwait(false);
         else
             logger.LogInformation(
                 "{Component}.{Method} "+"Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento replay bars for {ContractId}.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                liveSeedBars.Length,es.ContractId);
-        return ApplicationStartupActivityOutcome.Started;
     }
 
     async Task<ServiceResult<Guid>> StartSeededFiveMinuteAdxAsync(
@@ -759,6 +794,20 @@ public sealed class ApiApplicationStartupActivities(
         }
         throw new TimeoutException(
             $"Historical Analytics warm-up {attemptId} did not complete within {options.ParticipantTimeout}.");
+    }
+
+    async Task WaitForInitializedIndicatorsAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken)
+    {
+        var entityId = new MarketOutlookEntityId(contractId, valueDate);
+        var startedAt = timeProvider.GetTimestamp();
+        while (timeProvider.GetElapsedTime(startedAt) < options.ParticipantTimeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (marketOutlookCache.TryGetInputs(entityId, out var inputs)
+                && SessionIndicatorReadiness.IsReady(inputs, contractId, valueDate)) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(250), timeProvider, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException($"ADX, ATR, MACD, RSI and TDI initialization did not produce current-session five-minute values for {contractId} on {valueDate:yyyy-MM-dd}.");
     }
 
     async Task WaitForRealtimeAnalyticsAttachmentsAsync(

@@ -60,6 +60,10 @@ public sealed class DatasetWorkerManifestIntegrationTests
         Assert.True((await runtime.ReconcileOnceAsync(default))!.AllRoutesReady);
         Assert.True(desired.TryGet("GLBX.MDP3", Date, out var terminal));
         Assert.Equal("ES20270319", Assert.Single(terminal.Contracts).DomainContractId);
+        await recovery.StopAllAsync();
+        await runtime.CloseSessionAsync(default);
+        Assert.Null(await runtime.ReconcileOnceAsync(default));
+        Assert.Equal(committed, await store.ReadAsync("IFM", "GLBX.MDP3", default));
         await runtime.StopAsync(default);
     }
 

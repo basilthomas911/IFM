@@ -19,7 +19,8 @@ public sealed class DatabentoMarketDataWatchdogService(
     DatabentoStage3Options? stage3Options = null,
     IDatabentoDatasetProcessRecovery? processRecovery = null,
     TomasAI.IFM.Application.MarketData.OperationsHealth.MarketDataOperationsHealthService? operationsHealth = null,
-    IDatabentoRecoveryRequester? recoveryRequester = null)
+    IDatabentoRecoveryRequester? recoveryRequester = null,
+    IMarketSessionAnalyticsInitializer? sessionAnalytics = null)
     : BackgroundService, IMarketDataLifecycleRequests
 {
     const int MaximumRecoveryAttempts = 3;
@@ -68,7 +69,10 @@ public sealed class DatabentoMarketDataWatchdogService(
         _requestedStartValueDate = valueDate;
         Measure(MarketDataOperationStage.DatabentoLifecycle, MarketDataOperationOutcome.Requested, Guid.Empty);
         if (runtime.ActiveValueDate == valueDate && Current.State == DatabentoLifecycleState.Healthy)
+        {
+            if (sessionAnalytics is not null) await sessionAnalytics.InitializeAsync(valueDate, token).ConfigureAwait(false);
             return;
+        }
         var correlationId = Guid.CreateVersion7(timeProvider.GetUtcNow());
         Transition(DatabentoLifecycleState.Starting, valueDate, correlationId, 0, "Initial startup.");
         try
@@ -92,6 +96,8 @@ public sealed class DatabentoMarketDataWatchdogService(
                 throw new InvalidOperationException(Current.Reason, exception);
             }
         }
+        // Analytics failures must fail this command without triggering provider hard recovery.
+        if (sessionAnalytics is not null) await sessionAnalytics.InitializeAsync(valueDate, token).ConfigureAwait(false);
     }, cancellationToken);
 
     public Task StopAsync(DateOnly valueDate, CancellationToken cancellationToken = default) => SerializedAsync(async token =>

@@ -17,6 +17,7 @@ public sealed class ScheduledTaskSession : IDisposable
     ScheduledTaskRunUiModel[] runs = [];
     readonly Dictionary<Guid,ScheduledTaskRunUiModel[]> histories=[];
     readonly Dictionary<Guid,string> nextFires=[];
+    readonly Dictionary<Guid,byte[]?> historyCursors=[];
     byte[]? cursor;
     string output = "";
     Guid? outputRun;
@@ -44,7 +45,7 @@ public sealed class ScheduledTaskSession : IDisposable
         {
             model.Environment = Field(input,"environment"); model.HostId = Field(input,"hostId");
             if (model.Environment.Length == 0 || model.HostId.Length == 0) throw new ArgumentException("Environment and host are required");
-            model.SelectedScheduleId = null; historySchedule = null; runs = []; histories.Clear(); nextFires.Clear(); cursor = null; output = ""; preview = null;
+            model.SelectedScheduleId = null; historySchedule = null; runs = []; histories.Clear(); nextFires.Clear(); historyCursors.Clear(); cursor = null; output = ""; preview = null;
             if (!initialized) { await model.InitializeAsync(); initialized = true; } else await model.RefreshAsync();
         }
         else
@@ -66,19 +67,20 @@ public sealed class ScheduledTaskSession : IDisposable
                 case "history":
                 case "next":
                     Required(selected);
+                    if(input.Intent=="next" && historySchedule!=selected!.Id){historySchedule=selected.Id;runs=histories.GetValueOrDefault(selected.Id)??[];cursor=historyCursors.GetValueOrDefault(selected.Id);}
                     if (input.Intent == "next" && (historySchedule != selected!.Id || cursor is null)) throw new InvalidOperationException("No continuation for this schedule");
                     var page = await model.LoadRunHistoryAsync(selected!.Id,input.Intent == "next" ? cursor : null);
                     if (page is not null)
                     {
                         runs = (input.Intent == "next" ? runs.Concat(page.Runs) : page.Runs).DistinctBy(x=>x.Id).OrderBy(x=>x.IntendedFireTimeUtc).ToArray();
                         histories[selected!.Id]=runs;
-                        cursor = page.PagingState; historySchedule = selected.Id; output = ""; outputRun = null; offset = 0; outputEnd = true;
+                        historyCursors[selected!.Id]=page.PagingState; cursor = page.PagingState; historySchedule = selected.Id; output = ""; outputRun = null; offset = 0; outputEnd = true;
                     }
                     break;
                 case "output":
                 case "more-output":
                 case "resolve":
-                    if (historySchedule != Required(selected).Id) throw new InvalidOperationException("Load this task's run history first");
+                    Required(selected); if (historySchedule != selected!.Id) { runs = histories.GetValueOrDefault(selected.Id) ?? []; historySchedule=selected.Id; cursor=historyCursors.GetValueOrDefault(selected.Id); }
                     var run = runs.Single(x=>x.Id.ToString("D") == Field(input,"runId"));
                     if (input.Intent == "resolve")
                     {
@@ -101,11 +103,13 @@ public sealed class ScheduledTaskSession : IDisposable
         if (error is not null) throw new InvalidOperationException(error);
         if(input.Intent is "load" or "add" or "change" or "enable" or "disable") {
             foreach(var definition in model.State.Schedules.Where(x=>!x.Removed)) {
-                var timing=await model.PreviewAsync(definition.Schedule);
+                var page=await model.LoadRunHistoryAsync(definition.Id,null);if(page is not null){histories[definition.Id]=page.Runs;historyCursors[definition.Id]=page.PagingState;}
+                var timing=definition.Enabled&&!definition.Removed ? await model.PreviewAsync(definition.Schedule) : null;
                 nextFires[definition.Id]=timing is {Valid:true,NextFireTimesUtc.Length:>0} ? timing.NextFireTimesUtc[0].ToString("O") : "";
             }
             if(error is not null)throw new InvalidOperationException(error);
         }
+        if(input.Intent=="load" && model.State.Schedules.FirstOrDefault(x=>!x.Removed) is {} first){historySchedule=first.Id;runs=histories.GetValueOrDefault(first.Id)??[];cursor=historyCursors.GetValueOrDefault(first.Id);}
         return Publication();
     }
     public async Task<ContractEditorResult> RefreshPublicationAsync()
@@ -122,7 +126,7 @@ public sealed class ScheduledTaskSession : IDisposable
             new(){["taskKey"]=state.Projects.Where(x=>x.Available).Select(x=>x.TaskKey).ToArray()},
             cursor is not null, new(){["hostStatus"]=state.HostStatus,["output"]=output,
                 ["outputRun"]=outputRun?.ToString("D") ?? "",["outputEnd"]=outputEnd.ToString(),["historySchedule"]=historySchedule?.ToString("D") ?? ""
-                }){Documents=new(){["histories"]=BridgeDocument.Encode(histories,true),["nextFires"]=BridgeDocument.Encode(nextFires,true),["runs"]=BridgeDocument.Encode(runs,true),["preview"]=BridgeDocument.Encode(preview,true),["projects"]=BridgeDocument.Encode(state.Projects,true)}};
+                }){Documents=new(){["historyMore"]=BridgeDocument.Encode(historyCursors.ToDictionary(x=>x.Key.ToString("D"),x=>x.Value is not null),true),["histories"]=BridgeDocument.Encode(histories,true),["nextFires"]=BridgeDocument.Encode(nextFires,true),["runs"]=BridgeDocument.Encode(runs,true),["preview"]=BridgeDocument.Encode(preview,true),["projects"]=BridgeDocument.Encode(state.Projects,true)}};
     }
     static ScheduledTaskDefinitionUiModel Required(ScheduledTaskDefinitionUiModel? row) => row is {Removed:false} ? row : throw new InvalidOperationException("Select a current schedule");
     ScheduledTaskScheduleUiModel ReadSchedule(ContractEditorIntent i) => new(Field(i,"taskKey"),Field(i,"name"),model.Environment,model.HostId,
@@ -134,6 +138,6 @@ public sealed class ScheduledTaskSession : IDisposable
         ["startsAtUtc"]=d.Schedule.StartsAtUtc?.ToString("O") ?? "",["endsAtUtc"]=d.Schedule.EndsAtUtc?.ToString("O") ?? "",
         ["maximumRuntimeSeconds"]=d.Schedule.MaximumRuntimeSeconds.ToString(CultureInfo.InvariantCulture),["dispatchToleranceSeconds"]=d.Schedule.DispatchToleranceSeconds.ToString(CultureInfo.InvariantCulture),
         ["description"]=d.Schedule.Description,["enabled"]=d.Enabled.ToString(),["installationStatus"]=d.InstallationStatus,["installationDetail"]=d.InstallationDetail,
-        ["revision"]=d.Revision.ToString(CultureInfo.InvariantCulture)};
+        ["desiredRevision"]=d.DesiredRevision.ToString(CultureInfo.InvariantCulture),["appliedRevision"]=d.AppliedRevision.ToString(CultureInfo.InvariantCulture),["activeRunId"]=d.ActiveRunId?.ToString("D")??"",["revision"]=d.Revision.ToString(CultureInfo.InvariantCulture)};
     public void Dispose() { model.DisposeAsync().AsTask().GetAwaiter().GetResult(); scope?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
 }

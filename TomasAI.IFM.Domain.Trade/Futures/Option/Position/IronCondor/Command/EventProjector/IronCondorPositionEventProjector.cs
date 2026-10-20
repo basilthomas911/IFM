@@ -29,6 +29,10 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(IronCondorPositionChangedEvent), typeof(IronCondorMonitoringInitializedEvent), typeof(IronCondorTradePlanUpdatedEvent)];
 
+    /// <inheritdoc/>
+    protected override bool ShouldPublishProjectionEvent(TomasAI.IFM.Shared.EventSourcing.IEvent domainEvent)
+        => domainEvent is not IronCondorTradePlanUpdatedEvent plan || plan.Plan.MaterialChange;
+
     /// <summary>Projects history without replaying market-mark UI/plan notifications; financial boundaries keep their existing lifecycle.</summary>
     /// <param name = "changed">The committed position event.</param><returns>The history or financial projection operation.</returns>
     async Task ProjectAsync(IronCondorPositionChangedEvent changed)

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
+﻿using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.State;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -31,7 +31,9 @@ public static class UpdateIronCondorTradePlan
             MaterialChange = true
         };
         var inputs = command.IronCondorTradePlanInputs;
-        var monitoring = new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().Create(calculated, command.SourceEventId, inputs?.TradeDate, inputs?.MaturityDate, inputs?.DailyRiskInputs ?? TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(command.Position, inputs));
+        var monitoring = command.UseForwardPriceFunction
+            ? new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().CreateFromForwardPrice(calculated, command)
+            : new TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator().Create(calculated, command.SourceEventId, inputs?.TradeDate, inputs?.MaturityDate, inputs?.DailyRiskInputs ?? TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model.IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(command.Position, inputs));
         monitoring = monitoring with
         {
             VolatilityPrice = inputs?.VolatilityPrice,
@@ -40,6 +42,7 @@ public static class UpdateIronCondorTradePlan
         calculated = ApplyMonitoringRecommendation(calculated, monitoring);
         calculated = calculated with
         {
+            MaterialChange = TradePlanPublication.ShouldPublish(state.LatestSourceTradePlan, calculated),
             ContentHash = TradePlanContractIdentity.PlanHash(calculated)
         };
         return ValueTask.FromResult(dispatch(new(typeof(IronCondorTradePlanUpdatedEvent), command, calculated)));
@@ -75,11 +78,22 @@ public static class UpdateIronCondorTradePlan
                 Position = monitoring.Position,
                 IronCondorTradePlanSnapshot = monitoring,
                 State = TradePlanState.CalculationFailed,
+                ForwardTradePrice = 0, ForwardPnl = 0, ForwardLoss = 0,
                 Action = TradePlanAction.Hold,
                 RequiresExit = false,
-                ReasonCode = "IronCondorTradePlan.INPUTS.UNAVAILABLE",
-                Explanation = string.Join("; ", monitoring.UnavailableReasons)
+                ReasonCode = monitoring.ForwardPriceCalculationError is not null
+                    ? "IronCondorTradePlan.FORWARD_PRICE.CALCULATION_FAILED" : "IronCondorTradePlan.INPUTS.UNAVAILABLE",
+                Explanation = monitoring.ForwardPriceCalculationError ?? string.Join("; ", monitoring.UnavailableReasons)
             };
+        if (monitoring.IronCondorForwardRisk is { } forwardRisk)
+            return plan with { IronCondorTradePlanSnapshot = monitoring, Position = monitoring.Position,
+                State = forwardRisk.ExitRecommended ? TradePlanState.ExitRequired : TradePlanState.Normal,
+                Action = forwardRisk.ExitRecommended ? TradePlanAction.ExitAtMarket : TradePlanAction.Monitor,
+                RequiresExit = forwardRisk.ExitRecommended, ForwardTradePrice = forwardRisk.IronCondorForwardPrice.ForwardPrice,
+                // The envelope retains its nonnegative loss-magnitude convention; typed risk retains signed loss.
+                ForwardPnl = forwardRisk.ForwardPnl ?? 0, ForwardLoss = -forwardRisk.ForwardLoss,
+                ReasonCode = forwardRisk.ExitRecommended ? "IronCondorTradePlan.FORWARD_MAX_LOSS_REACHED" : "IronCondorTradePlan.FORWARD_MAX_LOSS_CLEAR",
+                Explanation = monitoring.ExitReason ?? string.Empty };
         var exit = monitoring.ExitRecommended == true;
         var warning = monitoring.DailyPnl < 0 && monitoring.ForwardLossRatio >= monitoring.StrategyRiskParameterSet?.IronCondor?.WarningForwardLossRatio;
         return plan with

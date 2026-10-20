@@ -1055,8 +1055,14 @@ public abstract class BaseEventProjector<TActor>(
         }
     }
 
+    /// <summary>Allows monitoring projectors to suppress notifications without skipping storage projection.</summary>
+    /// <param name="domainEvent">The committed event being considered for publication.</param>
+    /// <returns>True to publish the event through its existing delivery contract.</returns>
+    protected virtual bool ShouldPublishProjectionEvent(IEvent domainEvent) => true;
+
     async ValueTask PublishProjectionEventAsync(IEvent domainEvent, CancellationToken cancellationToken)
     {
+        if (!ShouldPublishProjectionEvent(domainEvent)) return;
         domainEvent.CheckForEmptyCommandId();
         EventInitHelper.SetProperty(
             domainEvent,

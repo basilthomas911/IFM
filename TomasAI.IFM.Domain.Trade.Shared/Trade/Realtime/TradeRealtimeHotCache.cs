@@ -13,6 +13,8 @@ public sealed class TradeRealtimeHotCache
     readonly TimeProvider clock;
     TradeRealtimeSnapshot current;
     TradeRealtimeSnapshot? remote;
+    StrategyTradePlanSnapshot? publishedPlan;
+    StrategyTradePlanSnapshot? publishedAvailablePlan;
     bool retired;
     DateTimeOffset nextQualityCheck = DateTimeOffset.MaxValue;
 
@@ -31,6 +33,24 @@ public sealed class TradeRealtimeHotCache
     }
 
     public TradeRealtimeSnapshot Read() => Volatile.Read(ref current);
+
+    /// <summary>Captures live quotes and positions while exposing a new Iron Condor plan only when Daily PnL changes.</summary>
+    /// <returns>A notification payload; the full latest calculated plan remains available through <see cref="Read"/>.</returns>
+    public TradeRealtimeSnapshot ReadForPublication()
+    {
+        lock (gate)
+        {
+            if (current.Plan is not { } plan || plan.Position.StrategyKind != TradeStrategyKind.IronCondor)
+                return current;
+            if (TradePlanPublication.ShouldPublish(publishedPlan, plan))
+            {
+                publishedPlan = plan;
+                publishedAvailablePlan = current.LastAvailablePlan;
+            }
+            return ReferenceEquals(current.Plan, publishedPlan) && ReferenceEquals(current.LastAvailablePlan, publishedAvailablePlan)
+                ? current : current with { Plan = publishedPlan, LastAvailablePlan = publishedAvailablePlan };
+        }
+    }
     /// <summary>Fences work captured by a router before this cache was removed or replaced.</summary>
     public void Retire() { lock (gate) retired = true; }
 

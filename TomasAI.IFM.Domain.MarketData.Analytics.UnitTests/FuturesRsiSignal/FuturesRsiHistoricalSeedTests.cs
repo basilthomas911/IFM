@@ -158,6 +158,39 @@ public sealed class FuturesRsiHistoricalSeedTests
         Assert.True(double.IsFinite(signal.UpperVolatilityBand));
         Assert.True(double.IsFinite(signal.LowerVolatilityBand));
     }
+    [Fact]
+    public async Task Market_open_initialization_uses_prior_session_bars_but_publishes_Rsi_for_the_new_session()
+    {
+        var date = new DateOnly(2026, 10, 6);
+        var command = Command(TimeFrameType.FiveMinutes, 48, 13,
+            new DateTimeOffset(2026, 10, 5, 22, 0, 0, TimeSpan.Zero), date) with { ForceHistoricalInitialization = true };
+        Assert.All(command.HistoricalSeed!.Observations, bar => Assert.True(bar.ValueDate < date));
+        var state = new FuturesRsiSignalCommandState();
+        Assert.True(command.Execute(state, Calendar).Success);
+        var signal = Assert.Single(state.Events.OfType<FuturesRsiSignalGeneratedEvent>()).FuturesRsiSignal;
+        Assert.Equal(date, signal.ValueDate);
+        Assert.Equal(date, signal.Metadata!.ValueDate);
+        Assert.Equal(command.HistoricalSeed.Observations.Last().ObservationId, signal.Metadata.ObservationId);
+        Assert.True(signal.IsWarm);
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.MarketOutlookComponentEligibility.IsEligible(
+            new MarketOutlookEntityId(command.EntityId.ContractId, date), signal));
+        var window = Assert.Single(state.Events.OfType<FuturesRsiSignalsGeneratedEvent>());
+        Assert.Equal(date, window.FuturesRsiSignals.Last().ValueDate);
+        Assert.Contains(window.FuturesRsiSignals, value => value.ValueDate < date);
+        Assert.Equal(command.HistoricalSeed.Observations.Last().LastMarketEventUtc.UtcDateTime, signal.SourceEventTimestamp);
+        var context = NSubstitute.Substitute.For<TomasAI.IFM.Shared.EventModelActor.Contracts.IEventActorContext<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor.FuturesTdiSignalEventActor>>();
+        var logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor.FuturesTdiSignalEventActor>>();
+        await TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.FuturesRsiSignalsGenerated.ExecuteAsync(window, context, logger);
+        var request = Assert.Single(NSubstitute.SubstituteExtensions.ReceivedCalls(context)
+            .SelectMany(call => call.GetArguments().OfType<GenerateFuturesTdiSignalCommand>()));
+        var tdiState = new TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State.FuturesTdiSignalCommandState();
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.GenerateFuturesTdiSignal.Execute(request, tdiState).Success);
+        var tdi = Assert.Single(tdiState.Events.OfType<FuturesTdiSignalGeneratedEvent>()).FuturesTdiSignal;
+        Assert.Equal(date, tdi.ValueDate);
+        Assert.True(TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.MarketOutlookComponentEligibility.IsEligible(
+            new MarketOutlookEntityId(command.EntityId.ContractId, date), tdi));
+    }
+
     static StartFuturesRsiSignalCommand Command(TimeFrameType frame, int count = 16, int period = 14, DateTimeOffset? replayCutoff = null, DateOnly? valueDate = null)
     {
         var cutoff = replayCutoff ?? Cutoff;

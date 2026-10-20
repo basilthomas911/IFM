@@ -17,7 +17,7 @@ public static class OpenPositionRoutesChanged
             {
                 if (context.RealtimeCache?.Find(changed.Position.Id.Trade) is { } closing && closing.Apply(changed.Position))
                     await context.SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
-                        TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(closing.Read())).ConfigureAwait(false);
+                        TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(closing.ReadForPublication())).ConfigureAwait(false);
                 context.RealtimeCache?.Remove(changed.Position.Id.Trade);
             }
             return;
@@ -42,7 +42,7 @@ public static class OpenPositionRoutesChanged
             }
             if (cache?.Apply(changed.Position) == true)
                 await context.SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
-                    TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(cache.Read())).ConfigureAwait(false);
+                    TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(cache.ReadForPublication())).ConfigureAwait(false);
         }
     }
 }

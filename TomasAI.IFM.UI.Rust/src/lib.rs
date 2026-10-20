@@ -49,6 +49,11 @@ pub use bridge::{publication_transfer, wire};
 pub mod editors;
 /// Reference manager window and its WinForms command rail.
 pub mod reference;
+/// System administration dialog and backup workflow presentation.
+pub mod system_admin;
+/// Native backup setup and retained history view.
+#[path = "operations/database_backup.rs"]
+pub mod database_backup;
 pub use editors::{calendar_editor, contract_editor, lookup_editor, yield_curve_editor};
 /// Strategy workflow observations, published decision details, catalog definitions, and parameter-set administration.
 pub mod strategy;

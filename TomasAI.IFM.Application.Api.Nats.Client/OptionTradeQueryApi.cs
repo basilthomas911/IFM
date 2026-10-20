@@ -16,6 +16,16 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class OptionTradeQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), ITradeQueryApi
 {
+    /// <summary>Requests backend computation of the selected strategy quote snapshot.</summary>
+    public Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview>> GetTradeOrderPreviewAsync(
+        TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreviewRequest request, CancellationToken cancellationToken = default)
+    {
+        var subject = new ActorSubject(ActorType.Query, TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeOrderPreviewQuery.Actor,
+            TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeOrderPreviewQuery.Verb, "Preview");
+        return RequestAsync<TomasAI.IFM.Domain.Trade.Shared.Order.GetTradeOrderPreviewQuery, TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview>(subject,
+            new() { Subject = subject, TradeOrderPreviewRequest = request }, cancellationToken).AsTask();
+    }
+
     /// <summary>
     /// Return trade history for selected trade order
     /// </summary>

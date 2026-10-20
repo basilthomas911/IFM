@@ -22,6 +22,13 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
     /// <param name="leaseId">The owner lease identity.</param>
     public void Remove(Guid leaseId) => scopes.TryRemove(leaseId, out _);
 
+    /// <summary>Retires read-only native scope references after provider session shutdown.</summary>
+    public void CloseSession()
+    {
+        scopes.Clear();
+        unavailableReportedAt.Clear();
+    }
+
     /// <summary>Checks ownership of all exact leg scopes without opening subscriptions or requesting valuations.</summary>
     /// <param name="contractIds">The four monitored contracts.</param><param name="valueDate">The active exchange session.</param>
     /// <returns>True only when all contracts have retained scopes in the current admitted dataset generation.</returns>

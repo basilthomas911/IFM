@@ -53,7 +53,7 @@ public sealed class TradeRealtimeCacheRegistry
             }
         List<TradeRealtimeSnapshot>? expired = null;
         foreach (var cache in all)
-            if (cache.Expire()) (expired ??= []).Add(cache.Read());
+            if (cache.Expire()) (expired ??= []).Add(cache.ReadForPublication());
         return expired?.ToArray() ?? [];
     }
     public TradeRealtimeSnapshot[] Apply(FuturesOptionTickDataV2ReadModel observation)
@@ -65,7 +65,7 @@ public sealed class TradeRealtimeCacheRegistry
             if (cache.Apply(observation))
             {
                 changed ??= new TradeRealtimeSnapshot[interested.Length];
-                changed[count++] = cache.Read();
+                changed[count++] = cache.ReadForPublication();
             }
         if (changed is null) return [];
         if (count != changed.Length) Array.Resize(ref changed, count);

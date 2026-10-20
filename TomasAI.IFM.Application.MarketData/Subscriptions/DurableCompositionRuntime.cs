@@ -171,6 +171,23 @@ public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore st
         finally { serial.Release(); }
     }
 
+    /// <summary>Retires runtime leases after provider shutdown while preserving committed financial subscription intent.</summary>
+    public async Task CloseSessionAsync(CancellationToken cancellationToken)
+    {
+        await serial.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (admissions.TryGet(Dataset, out _))
+                throw new InvalidOperationException("Dataset admission must close before option runtime cleanup.");
+            hasActiveLeases = false;
+            active.Clear();
+            if (coordinator is not null) await coordinator.DisposeAsync().ConfigureAwait(false);
+            coordinator = null;
+            generation = Guid.Empty;
+        }
+        finally { serial.Release(); }
+    }
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken).ConfigureAwait(false);

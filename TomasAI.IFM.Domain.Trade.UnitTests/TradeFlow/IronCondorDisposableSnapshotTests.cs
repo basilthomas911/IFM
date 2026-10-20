@@ -157,6 +157,25 @@ public sealed class IronCondorDisposableSnapshotTests
         later.Completed.Plan.IronCondorTradePlanSnapshot!.StopLossLimit.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Unchanged_daily_pnl_still_calculates_a_new_revision_without_a_plan_notification()
+    {
+        var request = Request();
+        var context = Substitute.For<IIronCondorTradePlanFunctionContext>();
+        context.Algorithm.Returns(new IronCondorTradePlanAlgorithm());
+        var first = await request.ExecuteAsync(new IronCondorTradePlanFunctionState().Prepare(request), context,
+            input => input.Complete(TimeProvider.System), CancellationToken.None);
+        first.Completed!.Plan.MaterialChange.Should().BeTrue();
+        var next = request with { CommandId = Guid.NewGuid(), RequestedAtUtc = request.RequestedAtUtc.AddTicks(1) };
+        var state = new IronCondorTradePlanFunctionState();
+        state.ReplayEvents([Stored(first.Completed, 1)]);
+        state.Prepare(next);
+        var result = await next.ExecuteAsync(state, context, input => input.Complete(TimeProvider.System), CancellationToken.None);
+        result.Completed!.Plan.PlanRevision.Should().Be(first.Completed.Plan.PlanRevision + 1);
+        result.Completed.Plan.CalculatedAtUtc.Should().Be(next.RequestedAtUtc);
+        result.Completed.Plan.MaterialChange.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("time")]
     [InlineData("generation")]

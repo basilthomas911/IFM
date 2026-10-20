@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Pricing;
+﻿using TomasAI.IFM.Application.MarketData.Pricing;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
@@ -9,16 +9,15 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
-using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
-/// <summary>Captures the established trade, published risk policy and current OptionCalculator scenarios outside tick handling.</summary>
+/// <summary>Captures the established trade, published risk policy and current OptionCalculator observations outside tick handling.</summary>
 /// <remarks>One refresh per trade/session runs at a time. Missing providers stay unavailable; old fixture rows and fabricated
 /// distributions are never substituted. This is a read cache, not command state or a trade-plan replay queue.</remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "Retain the existing public positional contract with optional callbacks following the cancellation token.")]
-public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<InsertSpreadDistributionCommand, CancellationToken, Task>? recordDistributions = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, string volatilitySymbol = "VX")
+public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases, ILogger logger, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, Func<InitializeIronCondorMonitoringCommand, CancellationToken, Task>? initializeMonitoring = null, Func<TradeLegDefinition[], DateOnly, CancellationToken, Task<MarketCompositionSnapshot[]>>? captureOptionRisk = null, CancellationToken stoppingToken = default, Func<StrategyPositionSnapshot, DateOnly, IronCondorTradePlanInputs, DateTime, Task>? publishInputChange = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null, string volatilitySymbol = "VX")
 {
     int observerStarted;
     readonly ConcurrentDictionary<(TradeEntityId, DateOnly), Entry> entries = new();
@@ -32,7 +31,6 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
         ArgumentNullException.ThrowIfNull(position);
         _ = financialQueries;
         _ = initializeMonitoring;
-        _ = recordDistributions; // Constructor compatibility only: retired providers are never invoked.
         stoppingToken.ThrowIfCancellationRequested();
         var entry = entries.GetOrAdd((position.Id.Trade, valueDate), _ => new());
         if (publishInputChange is not null && Interlocked.CompareExchange(ref observerStarted, 1, 0) == 0)
@@ -265,11 +263,23 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                 OptionRiskAsOfUtc = risk.Min(scope => scope.EvaluatedAtUtc).UtcDateTime,
                 OptionRiskValidUntilUtc = prices.ValidUntilUtc
             };
-            if (inputs.StrategyRiskParameterSet is { } policy)
-                inputs = inputs with
-                {
-                    DailyRiskInputs = new IronCondorTradePlanSnapshotCalculator().CaptureScenarioInputs(trade, position, risk, policy, prices.CalculatedAtUtc, token)
-                };
+            // ForwardPrice owns projection. Capture current valuation evidence only; no adverse-scenario repricing.
+            var contracts = risk.Select(scope => scope.Instruments.Single().Instrument.Pricing!.Contract).ToArray();
+            if (contracts.Select(contract => contract.Multiplier).Distinct().Count() != 1
+                || contracts.Select(contract => contract.Currency).Distinct(StringComparer.Ordinal).Count() != 1)
+                throw new InvalidOperationException("IronCondorForwardPrice.CONTRACTS.MISMATCH");
+            var observations = position.Legs.Select(leg =>
+            {
+                var item = risk.Single(scope => scope.Instruments.Single().Instrument.ContractId == leg.ContractId).Instruments.Single();
+                return StrategyPositionLegOptionData.Observe(leg) with {
+                    TheoreticalPrice = checked((decimal)prices.OptionLegPrices.Single(price => price.ContractId == leg.ContractId).TheoreticalPrice),
+                    Delta = item.Valuation!.Delta, Gamma = item.Valuation.Gamma,
+                    Vega = item.Valuation.Vega / 100, Theta = item.Valuation.Theta / (item.Instrument.Pricing!.Contract.DayCount == TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365) };
+            }).ToArray();
+            inputs = inputs with { DailyRiskInputs = IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(position, inputs) with {
+                ContractMultiplier = contracts[0].Multiplier, Currency = contracts[0].Currency,
+                Legs = observations, RiskValidUntilUtc = prices.ValidUntilUtc,
+                PricingModelVersion = prices.CalculatorVersion + "/" + prices.NumericalPolicyVersion } };
             token.ThrowIfCancellationRequested();
             lock (entry)
                 entry.Inputs = CopyPricing(entry.Inputs!, inputs);

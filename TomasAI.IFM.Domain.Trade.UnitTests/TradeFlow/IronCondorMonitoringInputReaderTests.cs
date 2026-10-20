@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -120,13 +120,10 @@ public sealed class IronCondorMonitoringInputReaderTests
             new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel { UnderlyingContractId = "ES-future" });
         trades.GetTradeLimitAsync(4, Arg.Any<CancellationToken>()).Returns(new TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel
             { TradeId = 4, TradeType = TradeType.ShortIronCondor, MaxLoss = -2000, MaxProfit = 1300 });
-        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var historyCalls = 0; var pricingCalls = 0;
+        var pricingCalls = 0;
         var logger = Substitute.For<ILogger>();
         using var lifetime = new CancellationTokenSource();
         var reader = new IronCondorMonitoringInputReader(databases, logger,
-            recordDistributions: (_, _) => { Interlocked.Increment(ref historyCalls); started.TrySetResult(); return pending.Task; },
             captureOptionRisk: (_, _, _) => { Interlocked.Increment(ref pricingCalls); return Task.FromResult(risk); }, stoppingToken: lifetime.Token);
         var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor),
             Legs = legs.Select(leg => new StrategyPositionLeg { ContractId = leg.ContractId, SignedQuantity = leg.SignedQuantity, PutCall = leg.PutCall }).ToArray() };
@@ -135,15 +132,13 @@ public sealed class IronCondorMonitoringInputReaderTests
         while ((captured = reader.Capture(position, date, now))?.CalculatedSpreadPrices is null && elapsed.Elapsed < TimeSpan.FromSeconds(3))
             await Task.Delay(10);
         captured!.CalculatedSpreadPrices.Should().NotBeNull(string.Join("; ", logger.ReceivedCalls().SelectMany(call => call.GetArguments()).OfType<Exception>().Select(error => error.ToString())));
-        started.Task.IsCompleted.Should().BeFalse();
         var first = captured.CalculatedSpreadPrices!.CalculatedAtUtc;
         elapsed.Restart();
         while ((captured = reader.Capture(position, date, now.AddSeconds(1.1)))?.CalculatedSpreadPrices?.CalculatedAtUtc <= first
             && elapsed.Elapsed < TimeSpan.FromSeconds(2)) await Task.Delay(10);
         captured!.CalculatedSpreadPrices!.CalculatedAtUtc.Should().BeAfter(first);
-        pricingCalls.Should().Be(2); historyCalls.Should().Be(0);
+        pricingCalls.Should().Be(2);
         _ = trades.Received(1).GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>());
-        pending.TrySetException(new IOException("history unavailable"));
         lifetime.Cancel();
         FluentActions.Invoking(() => reader.Capture(position, date, now)).Should().Throw<OperationCanceledException>();
     }

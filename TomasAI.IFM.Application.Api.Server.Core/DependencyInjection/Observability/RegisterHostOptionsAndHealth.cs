@@ -194,7 +194,10 @@ public static partial class CoreServiceRegistration
         services.AddSingleton(inMemoryEventSourceActor.Validate());
         services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
         services.AddSingleton<IApplicationStartupHandoffStatusStore, ApplicationStartupHandoffStatusStore>();
-        services.AddSingleton<IApplicationStartupActivities, ApiApplicationStartupActivities>();
+        services.AddSingleton<ApiApplicationStartupActivities>();
+        services.AddSingleton<IApplicationStartupActivities>(provider => provider.GetRequiredService<ApiApplicationStartupActivities>());
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.IMarketSessionAnalyticsInitializer>(
+            provider => provider.GetRequiredService<ApiApplicationStartupActivities>());
         services.AddSingleton<IApplicationBootstrapReadiness, ApplicationBootstrapReadiness>();
         services.AddSingleton<ActorRuntimeStartupSignal>();
         services.AddSingleton<IActorRuntimeStartupSignal>(provider =>

@@ -101,20 +101,29 @@ internal static class TradePlanDbContextExtensions
         await using (var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
             while (await reader.ReadAsync(token).ConfigureAwait(false))
                 items.Add(MessagePackBinarySerializer.Shared.Deserialize<StrategyTradePlanSnapshot>(reader.GetFieldValue<byte[]>(0)));
-        var points = new List<StrategyTradePlanChartPoint>();
+        StrategyTradePlanChartPoint[] points = [];
         if (offset == 0 && chartEnd is { } end)
         {
-            // At most one price-only sample per 18-second bucket (about 1,200 points in six hours).
-            // No historical position/leg payload is fetched for the chart.
-            await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '18 seconds',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,combinedForwardPrice FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '18 seconds',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
-            foreach (var value in scope) chart.Parameters.Add(new NpgsqlParameter { Value = value! });
-            foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(new NpgsqlParameter { Value = value });
-            await using var reader = await chart.ExecuteReaderAsync(token).ConfigureAwait(false);
-            while (await reader.ReadAsync(token).ConfigureAwait(false)) points.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
+            // Cache the independent chart for one minute; grid rows retain their own revision boundary.
+            var series = await TradePlanChartCache.ReadAsync(
+                (context.ConnectionString, position, strategy, date, maximumRevision), async () =>
+            {
+                var samples = new List<StrategyTradePlanChartPoint>();
+                // Latest price-only sample per UTC minute (at most 361 buckets across six hours).
+                // No historical position/leg payload is fetched for the chart.
+                await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,combinedForwardPrice FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
+                foreach (var value in scope) chart.Parameters.Add(new NpgsqlParameter { Value = value! });
+                foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(new NpgsqlParameter { Value = value });
+                await using var reader = await chart.ExecuteReaderAsync(token).ConfigureAwait(false);
+                while (await reader.ReadAsync(token).ConfigureAwait(false)) samples.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
+                return new TradePlanChartCache.Series(end, samples.ToArray());
+            }, token).ConfigureAwait(false);
+            chartEnd = series.EndUtc;
+            points = series.Points;
         }
         await transaction.CommitAsync(token).ConfigureAwait(false);
         return new(items.ToArray(), null) { Offset = offset, TotalCount = total, MaximumRevision = anchor,
-            ChartEndUtc = chartEnd, ChartPoints = points.ToArray() };
+            ChartEndUtc = chartEnd, ChartPoints = points };
     }
 
     internal Task<QueryPage<StrategyTradePlanSnapshot>> GetHistoryAsyncCore(StrategyPositionId position, TradeStrategyKind strategy, DateOnly date, int size, byte[]? cursor = null, CancellationToken token = default)

@@ -12,7 +12,7 @@ public sealed class IronCondorMonitoringSnapshotTests
     static StrategyTradePlanSnapshot Plan => new() { CalculatedAtUtc = Now, ValueDate = new(2026, 10, 7), PlanRevision = 7, TotalPnl = 42 };
     static IronCondorTradePlanInputs Inputs => new()
     {
-        TradeType = TradeType.ShortIronCondor, PutForwardPrice = -8, CallForwardPrice = -2,
+        TradeType = TradeType.ShortIronCondor, PutForwardPrice = 8, CallForwardPrice = 2,
         ForwardLossPriceLimit = 20, HistoricalForwardLossRatios = [0.2, 0.4, 0.6],
         BaselineIdentity = "persisted-baseline/1", DistributionIdentity = "distribution/1", ObservedAtUtc = Now
     };
@@ -81,6 +81,16 @@ public sealed class IronCondorMonitoringSnapshotTests
     }
 
     [Fact]
+    public void Negative_component_sum_is_retained_when_the_legacy_ratio_is_unavailable()
+    {
+        var snapshot = IronCondorMonitoringSnapshotCompute.Create(Plan,Guid.NewGuid(),Inputs with { PutForwardPrice = -8, CallForwardPrice = -2 });
+        snapshot.ForwardPrice.Should().Be(-10m);
+        snapshot.ForwardLossRatio.Should().BeNull();
+        snapshot.IsComplete.Should().BeFalse();
+        snapshot.UnavailableReasons.Should().Contain(reason => reason.Contains("DISTRIBUTION"));
+    }
+
+    [Fact]
     public void Stale_distribution_cannot_produce_a_risk_classification()
     {
         var snapshot = IronCondorMonitoringSnapshotCompute.Create(Plan, Guid.NewGuid(), Inputs with { ObservedAtUtc = Now.AddMinutes(-2) });
@@ -135,5 +145,29 @@ public sealed class IronCondorMonitoringSnapshotTests
         result.RequiresExit.Should().BeFalse();
         result.State.Should().Be(TradePlanState.CalculationFailed);
         result.Action.Should().Be(TradePlanAction.Hold);
+    }
+    [Fact]
+    public void Forward_price_failure_keeps_current_plan_values_and_persists_zero_price_with_error()
+    {
+        const string error = "IronCondorForwardPrice.EXECUTION.FAILED; Invalid option valuation";
+        var calculated = Plan with { Position = Plan.Position with { DailyPnl = 2m } };
+        var command = new UpdateIronCondorTradePlanCommand {
+            Position = calculated.Position, UseForwardPriceFunction = true, ForwardPriceFailure = error,
+            IronCondorTradePlanInputs = new() { DailyRiskInputs = new() { ContractMultiplier = 50m, Currency = "CAD" } } };
+        var snapshot = new IronCondorTradePlanSnapshotCalculator().CreateFromForwardPrice(calculated, command);
+        var result = TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.UpdateIronCondorTradePlan
+            .ApplyMonitoringRecommendation(calculated, snapshot);
+        result.TotalPnl.Should().Be(42m);
+        snapshot.DailyPnl.Should().Be(100m);
+        snapshot.ForwardPrice.Should().Be(0m);
+        snapshot.CombinedForwardPrice.Should().Be(0m);
+        result.ForwardTradePrice.Should().Be(0m);
+        snapshot.ForwardPriceCalculationError.Should().Be($"Forward price calculation error: {error}");
+        result.Explanation.Should().Be(snapshot.ForwardPriceCalculationError);
+        snapshot.IronCondorForwardRisk.Should().BeNull();
+        snapshot.IsComplete.Should().BeFalse();
+        var restored = MessagePackSerializer.Deserialize<StrategyTradePlanSnapshot>(MessagePackSerializer.Serialize(result));
+        restored.IronCondorTradePlanSnapshot!.ForwardPriceCalculationError.Should().Be(snapshot.ForwardPriceCalculationError);
+        restored.IronCondorTradePlanSnapshot.ForwardPrice.Should().Be(0m);
     }
 }

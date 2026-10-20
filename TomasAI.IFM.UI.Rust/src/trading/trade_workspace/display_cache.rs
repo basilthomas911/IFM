@@ -72,6 +72,11 @@ impl TradeDisplayData {
             let Some(kind) = row.fields.get("kind") else { continue };
             if !["established", "position", "position-details", "limits", "plan", "realtime", "observation", "workspace-tab", "chart"].contains(&kind.as_str()) { continue; }
             let mut value = data(row);
+            if kind == "plan" { present_forward_risk(&mut value["ironCondorTradePlanSnapshot"]); }
+            if kind == "realtime" && value["plan"].is_object() {
+                present_forward_risk(&mut value["plan"]["ironCondorTradePlanSnapshot"]);
+                if value["lastAvailablePlan"].is_object() { present_forward_risk(&mut value["lastAvailablePlan"]["ironCondorTradePlanSnapshot"]); }
+            }
             if kind == "plan" {
                 if let Some(display) = row.fields.get("actionDateTimeEastern") {
                     value["actionDateTimeEastern"] = if display.is_empty() { Value::Null } else { json!(display) };
@@ -217,5 +222,15 @@ mod tests {
         let mut current = publication(1);
         TradeWorkspace::replace_publication(&mut current, publication(2));
         assert_eq!(view.prepare_trade_display(&current).plans[0]["dailyPnl"], 2);
+    }
+}
+
+/// Binds backend-computed signed risk to existing display fields without financial arithmetic.
+/// Historical rows without this versioned payload retain their original meanings.
+fn present_forward_risk(detail: &mut Value) {
+    let Some(risk) = detail.get("ironCondorForwardRisk").filter(|risk| risk.is_object()).cloned() else { return };
+    for (display, source) in [("forwardLoss", "forwardLoss"), ("forwardLossRatio", "forwardLossRatio"),
+        ("lossHeadroom", "forwardLossHeadroom")] {
+        detail[display] = risk[source].clone();
     }
 }

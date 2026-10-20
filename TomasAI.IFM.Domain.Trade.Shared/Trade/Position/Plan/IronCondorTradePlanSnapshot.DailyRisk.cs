@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
@@ -117,4 +117,9 @@ public sealed partial record IronCondorTradePlanSnapshot
     [Key(99)] public string? CurrentPriceBasis { get; init; }
     /// <summary>Current numeric price of the configured volatility instrument (VX for now).</summary>
     [Key(100)] public decimal? VolatilityPrice { get; init; }
+    /// <summary>Versioned signed total-forward-value risk; existing positive-loss wire members retain their historical meaning.</summary>
+    [Key(101)] public TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardRisk? IronCondorForwardRisk { get; init; }
+    /// <summary>Gets the forward-price calculation error; null identifies a calculation without this error.</summary>
+    /// <remarks>A zero forward price with this message is a failed-calculation fallback, not a successful zero-risk result.</remarks>
+    [Key(102)] public string? ForwardPriceCalculationError { get; init; }
 }

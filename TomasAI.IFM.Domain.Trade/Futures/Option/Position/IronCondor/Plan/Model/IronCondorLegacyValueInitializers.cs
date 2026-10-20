@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 
@@ -50,15 +50,15 @@ public static class IronCondorLegacyValueInitializers
         return forwardDelta;
     }
 
-    /// <summary>Calculates forwardPrice = abs(putForwardPrice) + abs(callForwardPrice), in price points.</summary>
+    /// <summary>Calculates forwardPrice = putForwardPrice + callForwardPrice, preserving both signs in price points.</summary>
     /// <param name="putForwardPrice">The put spread's forward price in points.</param>
     /// <param name="callForwardPrice">The call spread's forward price in points.</param>
-    /// <returns>The combined absolute forward spread price.</returns>
+    /// <returns>The algebraic sum of the put and call forward prices.</returns>
     public static decimal CalculateForwardPrice(decimal putForwardPrice, decimal callForwardPrice)
-        => Math.Abs(putForwardPrice) + Math.Abs(callForwardPrice);
+        => putForwardPrice + callForwardPrice;
 
     /// <summary>Calculates forwardLossRatio = forwardPrice / limitPrice; zero forward price returns zero.</summary>
-    /// <param name="forwardPrice">The combined absolute forward price in points.</param>
+    /// <param name="forwardPrice">The nonnegative forward price accepted by this legacy ratio calculation, in points.</param>
     /// <param name="limitPrice">Positive MaxLossLimit for a short condor or MinProfitLimit for a long condor, in points.</param>
     /// <returns>The dimensionless forward-loss ratio.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The price is negative or its limit is not positive.</exception>

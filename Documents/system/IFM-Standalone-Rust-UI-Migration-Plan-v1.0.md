@@ -18,7 +18,7 @@ The implementation reuses the current Rust views and ports the behavior presentl
 | Preserve existing compression | Implement MessagePack-CSharp Lz4BlockArray compatibility in Rust, including uncompressed messages |
 | Preserve backend actor ownership | Rust client actors own UI state and request lifetimes; they do not reproduce the server actor runtime, durable audit reservations, or event-sourced aggregates |
 | Reuse the Rust views | Replace their data and action provider incrementally; do not rebuild completed controls unnecessarily |
-| Move all managed client behavior | Include services, direct API calls in bridge sessions, local journals, and client calculation helpers |
+| Move UI behavior; relocate business computation | Port presentation, API calls, subscriptions, and local journals; move pricing, strategy calculations, and business data transformation to backend actors |
 | Preserve existing user behavior | Preserve menus, dialogs, actions, keyboard behavior, selection, dimensions, colors, loading order, and error handling |
 | Keep virtual grids virtual end to end | Fetch requested server pages and render visible rows; never preload all history to emulate paging |
 | Separate design from qualification | A Rust screen is complete only when contract, behavior, lifecycle, and desktop checks pass |
@@ -36,7 +36,7 @@ The [source inventory](IFM-Standalone-Rust-UI-Source-Inventory.md) records the f
 | [UI.Net.Views](../../TomasAI.IFM.UI.Net.Views) | 134 | WinForms views and control behavior | Reuse existing Rust views; port remaining features |
 | [UI.Net.ViewModels](../../TomasAI.IFM.UI.Net.ViewModels) | 80 | View state, workflows, operations, drafts, journals | Rust state and controllers |
 | [UI.Net.Models](../../TomasAI.IFM.UI.Net.Models) | 15 | Frontend data and presentation types | Rust presentation models |
-| [UI.Net.Services](../../TomasAI.IFM.UI.Net.Services) | 53 | Frontend orchestration, API access, subscriptions, local pricing | Rust application services |
+| [UI.Net.Services](../../TomasAI.IFM.UI.Net.Services) | 53 | Frontend orchestration, API access, subscriptions, local pricing | Rust UI orchestration; pricing and business transformations move to backend actors |
 | [UI.EventConsumer](../../TomasAI.IFM.UI.EventConsumer) | 41 | Typed backend event listeners and fan-out | Rust subscription services |
 | [UI.Net.Composition](../../TomasAI.IFM.UI.Net.Composition) | 1 | Shared client dependency registration | Explicit Rust startup composition |
 | [Application.Api.Nats.Client](../../TomasAI.IFM.Application.Api.Nats.Client) | 54 | Actor route construction and typed client calls | Rust actor API clients |
@@ -325,13 +325,15 @@ The Rust services should expose typed operations to controllers. UI actions must
 
 The existing client API set also contains broker-account, risk, order-selection/composition, supervisor, download-log, and specialized workflow clients. Include every reachable use in the operation registry. File presence alone does not establish that an API is used by the desktop.
 
-### 8.1 Local option pricing
+### 8.1 Backend option pricing and strategy previews
 
-[OptionPricingService](../../TomasAI.IFM.UI.Net.Services/OptionPricing/OptionPricingService.cs) currently invokes a local framework calculator for implied volatility and Greeks, using a 365-day year fraction. This is client-side behavior and cannot remain a managed call in the final executable.
+The API server owns option pricing, implied volatility, Greeks, strategy economics, and business data transformation. Rust owns input handling, request lifetimes, formatting, highlighting, and rendering; do not port local pricing or payoff engines into the standalone client.
 
-Use the existing [Rust option-pricer implementation](../../native.rust/OptionPricer.Rust/README.md) where it meets this wrapper's semantics. Port wrapper validation, input mapping, result/error handling, units, and day-count behavior; test numerical equivalence and edge cases. An existing backend pricing operation is an alternative only if it exposes equivalent behavior and meets interactive latency needs.
+The legacy [OptionPricingService](../../TomasAI.IFM.UI.Net.Services/OptionPricing/OptionPricingService.cs) and WinForms option-calculation paths are inventory references, not the target architecture. Reuse backend valuation operations for their behavior. Any necessary numerical parity tests, including units and the existing 365-day convention, belong to the backend pricing implementation.
 
-Keep local previews distinguishable from authoritative backend prices and risk data. They must not overwrite the enriched backend option-leg values or become a new authority for fund limits or trade acceptance. Cancel or discard calculations whose inputs changed while work was running.
+`GetTradeOrderPreviewQuery` on `TradeOrderQuery` computes selected-strategy net bid/ask/mid, default order price, quantity-adjusted delta/vega, spread values and widths, and payoff limits. Its stateless compute model belongs in `Domain.Trade/Order/Query/Model`; typed request/result contracts belong in `Domain.Trade.Shared/Order`. The Rust managed composer calls this query and only formats returned totals. Current refresh remains approximately one-second live polling, plus recalculation after draft input changes; pushed strategy previews are a separate future change.
+
+The preview request carries the exact selected-leg quote snapshot, cash multipliers, quantities, optional entered price, tick increment, and input revision. These are provisional display inputs, not financial authority. The backend validates the bounded inputs, calculates totals, and echoes the revision. The client rejects mismatched or superseded responses and never falls back to a local calculation. Missing quotes or Greeks remain unavailable. This operation neither reserves capital nor authorizes or submits an order; submission retains independent financial and broker validation against current evidence.
 
 ### 8.2 Pending financial journals
 
@@ -498,9 +500,9 @@ Cover every top-level menu, nested dialog, toolbar/context action, editor and ta
 
 Use deterministic data for screenshot comparisons. Exercise actual API loading independently; screenshots alone cannot prove command/event parity.
 
-### 12.4 Local calculations and journals
+### 12.4 Backend calculations, preview contracts, and journals
 
-The option-pricing wrapper tests must cover the current 365-day convention, units, input validation, expiry, invalid/near-zero inputs, solver convergence/failure and Greek conventions. Set explicit tolerances based on the existing numerical tests. A stale result from an old leg selection must not enter the new view.
+Backend pricing tests must cover day-count conventions, units, input validation, expiry, solver failures, and Greek conventions. Strategy preview tests cover condors, verticals, futures, quantities, signed order prices, ticks, incomplete inputs, bounded/unbounded payoffs, contract serialization, actor routing, and failed requests. UI tests verify formatting of server totals, revision matching, and that no local pricing fallback executes. A stale result from an old leg selection must not enter the new view.
 
 Journal tests include existing C# files, exact payload/hash preservation, atomic replacement, corruption, concurrent clients and terminal-phase protection. No release may silently ignore pending managed-client operations.
 
@@ -573,7 +575,7 @@ Remove runtime use of [app/hosting.rs](../../TomasAI.IFM.UI.Rust/src/app/hosting
 - [ ] Realtime trade projections recover after missed updates and reconnects.
 - [ ] Trading and financial outcomes remain correct under lost replies and restarts.
 - [ ] Existing pending journals survive client migration and rollback.
-- [ ] Local pricing previews pass numerical and stale-result checks.
+- [ ] Backend strategy previews pass numerical, API/serialization, input-revision, and UI formatting checks; the standalone UI contains no pricing/payoff engine.
 - [ ] Existing HTTP health features have native adapters, or explicitly implemented equivalent actor routes.
 - [ ] Performance, resource cleanup, desktop tests and live-session qualification have recorded results.
 - [ ] Standalone packaging and clean-machine operation are verified.
@@ -599,3 +601,19 @@ Verification evidence is under `.artifacts/reference-parity/`:
 - **Remaining live qualification prerequisite:** `documents/regime-versions.json` is empty. Assignment-dialog verification against live data therefore requires a published Regime Discovery version. Its populated-state renderer and cancel behavior are covered by the Rust fixture test. No test configuration was published to satisfy this prerequisite.
 
 This is UI alignment in the current managed-bridge client. It does not complete the standalone runtime or remove managed hosting requirements in the final checklist above.
+
+
+## 17 System administration screen alignment - 2026-10-19
+
+The WinForms `System` toolbar button opens `SystemAdminForm` as a modal System Admin Manager. Its reachable selector views are Backup Databases and Scheduled Tasks. Rust now follows that single-dialog flow rather than the earlier System dropdown. The manager uses the original 1293 by 850 logical client dimensions, a 37-pixel selector header, resizable bounds and the shared Rust trading palette (black surfaces, white data, pastel-blue captions, gray borders and semantic status colors).
+
+Backup Databases retains Logs and Setup, AWS Backup and Local Workstation source tabs, protection-set checkboxes, read-only host references, backup mode, Request Backup, policy load/save and editable policy properties, restore inputs, and Restore Backup (fresh copy). Logs retain the two source roots, dated run groups, separate PostgreSQL/ScyllaDB leaves, retained output, older history and cancellation. Source-specific policy/draft state is kept separate; policy updates preserve their accepted revision and immutable source/protection membership. The retired timeout/radio controls remain hidden, matching the actual WinForms runtime rather than obsolete Designer declarations.
+
+Scheduled Tasks retains Logs and Setup, all nine original setup commands, definitions and occurrence grids, zone-aware optional start/end bounds, recurrence controls, preview, review reason, run details, status, and retained stdout. The 68/32 editor split, 35/65 grid space and 40/60 log split follow the original view. Grid selection is full-row; scroll areas and draggable splitters keep long records inside the dialog. Service calls remain in the managed adapters; Rust does not execute jobs, perform backups, or enforce backup policy.
+
+Verification artifacts are `.artifacts/system-admin-rust-tests.log`, `.artifacts/system-admin-managed-tests.log`, `.artifacts/system-admin-flaui-qualified.log` and `.artifacts/system-admin-parity/flaui/`. The native UI and WinForms are compared using FlaUI against the same running development API. Command routing is exercised with isolated service fixtures, including backup/restore/cancel/policy operations and scheduler save/enable/disable/remove/run/resolve/output. Live desktop checks exercise navigation, source selection, checkbox eligibility and schedule preview without changing stored schedules or submitting backup/restore jobs. Both implementations' screenshots and UI Automation inventories are retained for visual review.
+
+This work aligns the current managed-bridge client and does not mark the standalone-runtime checklist above complete.
+
+
+System administration qualification completed with **7 Rust tests, 7 managed service/view tests, and 2 FlaUI tests passing**. The optimized native build and managed build succeeded. The live desktop test supplies only the two original selector catalogue entries in its WinForms baseline; backup, host and scheduler records are read from the running development services. A separate Cargo example (`examples/system_admin_actions.rs`) hosts the same production renderers with isolated fixtures, enabling FlaUI to exercise command buttons and typed policy/restore/schedule/review values without live administrative writes. Its accepted intents are recorded in `.artifacts/system-admin-parity/flaui/action-fixture.jsonl`. Source-specific defaults match the original: Local Workstation starts with the development restore profiles; a newly selected AWS source starts with blank restore profiles. Host-metadata/readiness failures retain the available dashboard/history instead of hiding them.

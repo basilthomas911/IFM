@@ -44,7 +44,7 @@ public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, 
         if (plan is not null) changed |= cache.Apply(plan);
         if (changed)
             await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent, TradeEntityId>(
-                TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(cache.Read())).ConfigureAwait(false);
+                TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent.From(cache.ReadForPublication())).ConfigureAwait(false);
         if (!position.IsOpen) realtimeCache.Remove(position.Id.Trade);
     }
     readonly System.Collections.Concurrent.ConcurrentDictionary<StrategyPositionId, StrategyPositionSnapshot> positions = new();

@@ -1,3 +1,5 @@
+﻿using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice;
+using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Position.Realtime;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -22,6 +24,26 @@ public static class IronCondorPositionChanged
             throw new InvalidOperationException("IronCondorTradePlan.VALUE_DATE.UNAVAILABLE: position observation is outside an active futures session.");
         var id = new IronCondorTradePlanId(changed.PositionSnapshot.Id, valueDate);
         var commandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{changed.PositionSnapshot.PositionSequence}|{UpdateIronCondorTradePlanCommand.Verb}");
+        var capturedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
+        var capturedInputs = context.CaptureMonitoringInputs(changed.PositionSnapshot, valueDate, capturedAtUtc);
+        IronCondorForwardPriceCalculatedEvent? forward = null;
+        string? forwardFailure = null;
+        var forwardRequest = new CalculateIronCondorForwardPriceCommand {
+            CommandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{changed.PositionSnapshot.PositionSequence}|{CalculateIronCondorForwardPriceCommand.Verb}"),
+            Subject = new(ActorType.Function, CalculateIronCondorForwardPriceCommand.Actor, CalculateIronCondorForwardPriceCommand.Verb, id.Format()),
+            EntityId = id, Position = changed.PositionSnapshot,
+            IronCondorForwardPriceInputs = changed.PositionSnapshot.CaptureForwardPriceInputs(capturedInputs),
+            SourceEventId = changed.Id, RequestedAtUtc = capturedAtUtc };
+        try {
+            var response = await context.RequestFunctionAsync<CalculateIronCondorForwardPriceCommand, IronCondorTradePlanId,
+                FunctionResult<IronCondorForwardPriceCalculatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(forwardRequest).ConfigureAwait(false);
+            forward = response.Value?.Completed;
+            forwardFailure = forward is not null ? null
+                : response.Value?.Failed is { } failed ? $"{failed.ErrorData}; {failed.ErrorMessage}"
+                : response.ErrorMessage ?? "Forward price unavailable.";
+        } catch (Exception error) when (error is not OperationCanceledException) {
+            forwardFailure = $"IronCondorForwardPrice.REQUEST.FAILED: {error.Message}";
+        }
         var command = new UpdateIronCondorTradePlanCommand
         {
             CommandId = commandId,
@@ -29,7 +51,8 @@ public static class IronCondorPositionChanged
             EntityId = id,
             Position = changed.PositionSnapshot,
             Parameters = context.Parameters,
-            IronCondorTradePlanInputs = context.CaptureMonitoringInputs(changed.PositionSnapshot, valueDate, context.TimeProvider.GetUtcNow().UtcDateTime),
+            IronCondorTradePlanInputs = capturedInputs,
+            UseForwardPriceFunction = true, IronCondorForwardPriceCalculated = forward, ForwardPriceFailure = forwardFailure,
             SourceEventId = changed.Id,
             RequestedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
         };

@@ -66,10 +66,10 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
     public async Task Chart_reads_six_hours_of_price_only_samples_separately_from_the_grid_page()
     {
         var original = Plan();
-        var at = original.CalculatedAtUtc;
-        foreach (var (revision, hours, price) in new[] { (1,0,-10m), (2,5,-11m), (3,7,-12m) })
+        var at = DateTime.SpecifyKind(new DateTime(2026, 10, 19, 10, 0, 0), DateTimeKind.Utc);
+        foreach (var (revision, hours, price) in new[] { (1,0,-10m), (2,5,-11m), (3,7,-12m), (4,7,-13m) })
         {
-            var plan = original with { PlanRevision = revision, CalculatedAtUtc = at.AddHours(hours),
+            var plan = original with { PlanRevision = revision, CalculatedAtUtc = at.AddHours(hours).AddSeconds(revision == 4 ? 40 : 0),
                 IronCondorTradePlanSnapshot = new() { Position = original.Position, CombinedSpreadPrice = price, CombinedForwardPrice = price - .5m } };
             plan = plan with { ContentHash = TradePlanContractIdentity.PlanHash(plan) };
             await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
@@ -77,9 +77,9 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         }
         var first = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
         first.Items.Should().HaveCount(1);
-        first.ChartEndUtc.Should().BeCloseTo(at.AddHours(7), TimeSpan.FromMicroseconds(1));
-        first.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m,-12m);
-        first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-12.5m);
+        first.ChartEndUtc.Should().BeCloseTo(at.AddHours(7).AddSeconds(40), TimeSpan.FromMicroseconds(1));
+        first.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m,-13m);
+        first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-13.5m);
         var older = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
         older.ChartPoints.Should().BeEmpty();
     }

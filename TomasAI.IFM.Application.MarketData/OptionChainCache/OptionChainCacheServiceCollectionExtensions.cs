@@ -19,7 +19,9 @@ public static class OptionChainCacheServiceCollectionExtensions
         services.TryAddSingleton<IOptionChainCache>(p => p.GetRequiredService<OptionChainCache>());
         services.TryAddSingleton<IOptionChainSnapshotPublisher>(p => p.GetRequiredService<OptionChainCache>());
         services.TryAddSingleton<IOptionUniverseSource, TUniverseSource>();
-        services.AddHostedService<OptionChainBackgroundUpdater>();
+        services.TryAddSingleton<OptionChainBackgroundUpdater>();
+        services.TryAddSingleton<IOptionFeedSessionCleanup, OptionFeedSessionCleanup>();
+        services.AddHostedService(p => p.GetRequiredService<OptionChainBackgroundUpdater>());
         return services;
     }
 }

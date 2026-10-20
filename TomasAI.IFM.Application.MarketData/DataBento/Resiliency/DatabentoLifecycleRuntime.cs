@@ -8,7 +8,8 @@ public sealed class DatabentoLifecycleRuntime(
     IDatabentoContractAuthority contractAuthority,
     IDatabentoContractRegistrationRegistry registrations,
     DatabentoWatchdogOptions options,
-    TimeProvider timeProvider) : IDatabentoLifecycleRuntime
+    TimeProvider timeProvider,
+    TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionFeedSessionCleanup? optionFeeds = null) : IDatabentoLifecycleRuntime
 {
     readonly System.Threading.Lock _generationSync = new();
     Guid _generation;
@@ -30,6 +31,8 @@ public sealed class DatabentoLifecycleRuntime(
         cancellationToken.ThrowIfCancellationRequested();
         if (marketDataApi.ActiveValueDate is { } valueDate)
             await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
+        if (optionFeeds is not null)
+            await optionFeeds.CloseSessionAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task<DatabentoDatasetResetResult> ResetDatasetAsync(

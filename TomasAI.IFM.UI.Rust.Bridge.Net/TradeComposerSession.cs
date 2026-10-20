@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
+using TomasAI.IFM.Domain.Trade.Shared.Order;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
@@ -163,6 +164,7 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
     decimal putDelta=16,callDelta=16,putWidth=50,callWidth=50;
     public TradeComposerSession(RustClientServiceScope root,TradeOrderEditorViewModel editor,CancellationToken cancellation){
         portfolioId=editor.SelectedPortfolio!.PortfolioId;editable=editor.CanSubmitOrder;canLive=editor.CanUseLiveFeed;
+        previewQuery=new(root.Services.TradeQueries);
         scope=root;token=cancellation;trade=editor.SelectedFundOrderTrade??throw new InvalidOperationException("Select a trade");
         underlying=editor.BaseContracts.Single(x=>x.ContractId==trade.BaseContractId);
         model=new(root,editor.SelectedPortfolio!.PortfolioId,editor.SelectedFundOrder!,trade,underlying);expiry=trade.EffectiveDate;
@@ -274,10 +276,16 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
         legs=nextLegs;}else{legs=legs.Select(l=>chain.Contracts.FirstOrDefault(x=>x.ContractId==l.ContractId) is {} c?ToLeg(c,l.Role):l).ToArray();}
     }
     BrokerTradeLegData ToLeg(EvaluatedOptionContractReadModel c,string role)=>new(c.ContractId,role,c.Strike,c.Bid,c.Ask,c.Delta,c.IsCall,c.Vega,decimal.Parse(underlying.Multiplier,CultureInfo.InvariantCulture),c.QuoteAtUtc,Frozen:!live);
+    readonly BrokerTradePreviewQuery previewQuery;
     public async Task<(ContractEditorRow[] Rows,Dictionary<string,string[]> Choices,Dictionary<string,string> Context)> SnapshotAsync(){
         var rows=new List<ContractEditorRow>();if(displayChain is not null)rows.Add(Row("market","0",displayChain));rows.AddRange(legs.OrderByDescending(x=>x.Strike).ThenByDescending(x=>x.IsCall).Select((x,n)=>Row("leg",n.ToString(),x)));rows.AddRange(EvidenceRows());
         if(chain is not null)rows.Add(Row("market-metrics","0",MarketMetrics()));
-        var preview=BrokerTradePreviewPresentation.Calculate(legs,legs.ToDictionary(x=>x.ContractId,_=>quantity),quantity,editedPrice,initialization);rows.Add(Row("broker-preview","0",preview));
+        var previewRequest = new TradeOrderPreviewRequest(0,
+            legs.Select(x => new TradeOrderPreviewLeg(x.ContractId, x.Sign, quantity, x.Strike, x.IsCall, x.IsFuture, x.Bid, x.Ask, x.Delta, x.Vega, x.Multiplier)).ToArray(),
+            quantity, editedPrice, model.StrategyKind == TradeStrategyKind.FuturesOutright ? 0.25m : 0.05m,
+            initialization?.UnderlyingPrice is { ClosePrice: > 0 } reference ? (decimal)reference.ClosePrice : null);
+        var totals = await previewQuery.ExecuteAsync(previewRequest, token);
+        var preview=BrokerTradePreviewPresentation.FromBackend(legs,totals,initialization);rows.Add(Row("broker-preview","0",preview));
         rows.Add(Row("qualification-report","0",new{path=reportPath,hash=reportHash,preview=reportPreview}));
         var account=await model.GetAccountAsync(token);if(!account.Success)scope.DiagnosticLogger.LogWarning("OrderSubmission AccountRefreshFailed SubmissionId={SubmissionId} ErrorCode={ErrorCode} ErrorMessage={ErrorMessage}",model.SubmissionId,account.ErrorCode,account.ErrorMessage);if(account.Value is {} a){rows.Add(Row("account","0",a));var displayFields=new Dictionary<string,string>(preview.Fields){["Route check"]=a.DevelopmentQualificationsExempt?"Development emulator - qualification exempt":$"{a.QualificationStatus} / {a.Gate}"};rows.RemoveAll(x=>x.Id=="broker-preview:0");rows.Add(Row("broker-preview","0",new{Fields=displayFields,preview.OrderPrice}));}
         return(rows.ToArray(),new(){["expiry"]=ExpiryChoices()},new(){["composerSessionId"]=sessionId,["expiry"]=expiry.ToString("yyyy-MM-dd"),["compositionType"]=trade.TradeType.ToString(),["brokerMode"]=scope.TradeExecution.Environment.ToString(),["composerStatus"]=status,["effectiveDate"]=trade.EffectiveDate.ToString("yyyy-MM-dd"),["editable"]=(editable&&!submitted&&!model.RequiresSubmissionReconciliation&&defaultsLoaded).ToString(),["submitted"]=submitted.ToString(),["live"]=live.ToString(),["quantity"]=quantity.ToString(CultureInfo.InvariantCulture),["price"]=preview.OrderPrice?.ToString(CultureInfo.InvariantCulture)??"",["previewKey"]=string.Join("|",legs.Select(x=>x.ContractId+x.Role)),["callDelta"]=callDelta.ToString(CultureInfo.InvariantCulture),["putDelta"]=putDelta.ToString(CultureInfo.InvariantCulture),["callWidth"]=callWidth.ToString(CultureInfo.InvariantCulture),["putWidth"]=putWidth.ToString(CultureInfo.InvariantCulture),["underlyingReferencePrice"]=initialization?.UnderlyingPrice?.ClosePrice.ToString(CultureInfo.InvariantCulture)??"",["underlying"]=underlying.ContractId,["symbol"]=underlying.Symbol,["multiplier"]=underlying.Multiplier,["venue"]=underlying.Exchange,["valueDate"]=scope.ValueDates.ValueDate.ToString("yyyy-MM-dd"),["executionAction"]=executionAction,["canPlaceOrder"]=(editable&&!submitted&&!model.RequiresSubmissionReconciliation&&legs.Length==(model.StrategyKind==TradeStrategyKind.FuturesOutright?1:model.StrategyKind==TradeStrategyKind.VerticalSpread?2:4)&&legs.All(x=>x.IsFuture||(x.Sign!=0&&x.Bid.HasValue&&x.Ask.HasValue))).ToString()});

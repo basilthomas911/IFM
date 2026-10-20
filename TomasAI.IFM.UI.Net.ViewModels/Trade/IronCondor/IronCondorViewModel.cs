@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Concurrent;
 using TomasAI.IFM.UI.Net.Models.Portfolio;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -170,6 +172,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     long _futuresEodRevision;
     long _errorSequence;
     bool _resetListenerEnabled;
+    bool _feedStatusListenerEnabled;
+    volatile bool _marketDataSessionStopped;
+    long _feedSessionRevision;
+    string _liveFeedStatusMessage = "";
     readonly object _liveStreamMetricsGate = new();
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresOptionTickMetrics = [];
     IronCondorLiveStreamMetricsSnapshot _liveStreamMetrics = new(
@@ -525,7 +531,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     public bool IsHistoricalReadOnly => _historicalReadOnly;
     /// <summary>Gets whether this established open trade may start monitoring in the configured session.</summary>
-    public bool CanEnableLiveFeed => !IsHistoricalReadOnly && !IsLoading && !_startingMonitoring
+    public bool CanEnableLiveFeed => !_marketDataSessionStopped && !IsHistoricalReadOnly && !IsLoading && !_startingMonitoring
         && EstablishedTrade?.Status == EstablishedTradeStatus.Open
         && TradeMonitoringPolicy.CanStart(_appRoot.AppEnvironment, _brokerEnvironment, _timeProvider.GetUtcNow());
 
@@ -534,6 +540,37 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     /// <summary>Locks history navigation during feed startup and active monitoring; realtime rows still update.</summary>
     public bool CanSelectPositionHistory => !_startingMonitoring && !IsLiveFeedEnabled;
+
+    /// <summary>Explains an API-initiated monitoring shutdown without replacing the last displayed prices.</summary>
+    public string LiveFeedStatusMessage
+    {
+        get => _liveFeedStatusMessage;
+        private set => SetProperty(ref _liveFeedStatusMessage, value);
+    }
+
+    /// <summary>Turns monitoring off after confirmed global feed shutdown; a later feed start permits manual reactivation.</summary>
+    public async ValueTask ApplyMarketDataFeedStatusAsync(IEvent feedEvent)
+    {
+        ArgumentNullException.ThrowIfNull(feedEvent);
+        switch (feedEvent)
+        {
+            case MarketDataFeedStoppedCompleteEvent:
+                Interlocked.Increment(ref _feedSessionRevision);
+                _marketDataSessionStopped = true;
+                IsLiveFeedEnabled = false;
+                LiveFeedStatusMessage = "Live feed OFF ? market data session closed by the API.";
+                OnPropertyChanged(nameof(CanEnableLiveFeed));
+                OnPropertyChanged(nameof(CanChangeLiveFeed));
+                await DisableLiveFeedAsync().ConfigureAwait(false);
+                break;
+            case MarketDataFeedStartedCompleteEvent:
+                _marketDataSessionStopped = false;
+                if (!IsLiveFeedEnabled) LiveFeedStatusMessage = "Live feed OFF ? market data available; enable monitoring to resume.";
+                OnPropertyChanged(nameof(CanEnableLiveFeed));
+                OnPropertyChanged(nameof(CanChangeLiveFeed));
+                break;
+        }
+    }
 
     public object[] LiveFeedLabels => new object[] { LiveFeedOff, LiveFeedOn };
     public bool IsLiveFeedEnabled
@@ -689,6 +726,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             {
                 if (_liveFeedEnabled)
                 {
+                    var sessionRevision = Volatile.Read(ref _feedSessionRevision);
                     await DisableLiveFeedAsync();
                     try
                     {
@@ -698,6 +736,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     {
                         return;
                     }
+                    if (_marketDataSessionStopped || sessionRevision != Volatile.Read(ref _feedSessionRevision)) return;
                     await EnableLiveFeedAsync();
                     await DeleteOptionTradeSpreadBarData();
                 }
@@ -1225,7 +1264,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (_realtimeExpiry is { } expiry) await expiry.DisposeAsync();
         await DisableMarketDataFeedResetListener();
         _resetListenerCancellation.Dispose();
-        await _liveFeedLifecycle.DisposeAsync();
+        try { await _liveFeedLifecycle.DisposeAsync(); }
+        finally {
+            if (_feedStatusListenerEnabled) {
+                await _appRoot.Services.FeedCommands.StopTradeFeedStatusListenerAsync(_monitoringOwnerId);
+                _feedStatusListenerEnabled = false;
+            }
+        }
     }
 
     async Task EnableLiveFeedCoreAsync(CancellationToken cancellationToken)
@@ -1233,6 +1278,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (_liveFeedEnabled)
             return;
 
+        if (!_feedStatusListenerEnabled) {
+            await _appRoot.Services.FeedCommands.StartTradeFeedStatusListenerAsync(_monitoringOwnerId, ApplyMarketDataFeedStatusAsync);
+            _feedStatusListenerEnabled = true;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_marketDataSessionStopped) throw new InvalidOperationException("The API market-data session is closed.");
+        LiveFeedStatusMessage = "";
         await LoadValueDate();
         cancellationToken.ThrowIfCancellationRequested();
         if (!_valueDate.HasValue)

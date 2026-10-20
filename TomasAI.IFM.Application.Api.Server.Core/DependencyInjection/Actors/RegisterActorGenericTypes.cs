@@ -294,6 +294,9 @@ public static partial class CoreServiceRegistration
         siContainer.AddRegistration<IRiskManagementFunctionContext>(
         siContainer.GetCurrentRegistrations().Single(registration =>
         registration.ServiceType == typeof(IFunctionActorContext<RiskManagementFunctionActor>)).Registration);
+        siContainer.AddRegistration<TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function.Actor.IIronCondorForwardPriceFunctionContext>(
+        siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
+        typeof(IFunctionActorContext<TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function.Actor.IronCondorForwardPriceFunctionActor>)).Registration);
         siContainer.AddRegistration<TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor.IIronCondorTradePlanFunctionContext>(
         siContainer.GetCurrentRegistrations().Single(registration => registration.ServiceType ==
         typeof(IFunctionActorContext<TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Function.Actor.IronCondorTradePlanFunctionActor>)).Registration);

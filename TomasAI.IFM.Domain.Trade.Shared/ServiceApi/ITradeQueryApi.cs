@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 public interface ITradeQueryApi
 {
+    /// <summary>Computes provisional strategy totals for the exact selected draft snapshot.</summary>
+    Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview>> GetTradeOrderPreviewAsync(TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreviewRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult<TradeHistoryReadModel[]>> GetTradeHistoryAsync(int orderId);
     Task<ServiceResult<string[]>> GetOptionLegContractIdsAsync(int tradeId);
     Task<ServiceResult<TradeLimitReadModel>> GetTradeLimitAsync(int tradeId);

@@ -11,6 +11,11 @@ namespace TomasAI.IFM.UI.Net.Services.Trade;
 /// </summary>
 public class TradeQueryService(ITradeQueryApi queryApi) : UiServiceBase<TradeQueryService>
 {
+    /// <summary>Obtains backend strategy preview totals; performs no financial computation in the client.</summary>
+    public Task<TomasAI.IFM.Shared.EventSourcing.ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview>> QueryTradeOrderPreviewAsync(
+        TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreviewRequest request, CancellationToken token = default)
+        => _queryApi.GetTradeOrderPreviewAsync(request, token);
+
     readonly ITradeQueryApi _queryApi = queryApi ?? throw new ArgumentNullException(nameof(queryApi));
 
     /// <summary>Returns a typed stored-trade result for composed queries, including normal not-found drafts.</summary>

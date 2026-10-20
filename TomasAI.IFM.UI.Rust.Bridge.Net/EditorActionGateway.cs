@@ -13,14 +13,13 @@ public sealed class EditorActionGateway : IAsyncDisposable
 {
  readonly object gate=new();
  readonly Func<EditorIntent,Task<LookupTypeUiModel[]>> execute;
- readonly Dictionary<Guid,(EditorIntent Intent,EditorOutcome Outcome)> requests=[];
- readonly Queue<Guid> completedReads=new();
+ readonly UiRequestHistory<EditorIntent> requests=new();
  LookupTypeUiModel[] rows=[]; long generation=1; bool busy; string status="Not loaded"; Task pending=Task.CompletedTask;
  public EditorActionGateway(Func<EditorIntent,Task<LookupTypeUiModel[]>> execute)=>this.execute=execute;
  readonly AsyncSessionOwner owner=new();
  readonly PublicationCache<EditorPublication> wire=new();
  EditorPublication? cached;
- public EditorPublication Snapshot(){lock(gate){if(cached?.Generation!=generation)cached=new(1,generation,status,busy,rows.ToArray(),requests.Values.Select(x=>x.Outcome).ToArray());return cached;}}
+ public EditorPublication Snapshot(){lock(gate){if(cached?.Generation!=generation)cached=new(1,generation,status,busy,rows.ToArray(),requests.Outcomes());return cached;}}
  public byte[] WireSnapshot()=>wire.Read(Snapshot());
  public ValueTask DisposeAsync()=>owner.DisposeAsync();
  public int Submit(EditorIntent intent)
@@ -28,16 +27,16 @@ public sealed class EditorActionGateway : IAsyncDisposable
   lock(gate)
   {
    if(intent.Schema!=1||intent.RequestId==Guid.Empty||intent.View!="lookup"||intent.Intent is not ("load" or "add" or "change" or "remove"))return -1;
-   if(requests.TryGetValue(intent.RequestId,out var old))return old.Intent==intent?0:-1;
-   if(busy||requests.Count>=256)return -4;
+   if(requests.TryGetValue(intent.RequestId,out var old))return old.Payload==intent?0:-1;
+   if(busy)return -4;
    if(intent.Intent!="load"&&(intent.ExpectedGeneration!=generation||intent.Lookup is not {IsValid:true}||intent.Lookup.OrderId<0))return -5;
-   requests.Add(intent.RequestId,(intent,new(intent.RequestId,"Pending","Awaiting backend completion")));
+   if(!requests.TryBegin(intent.RequestId,intent,"Awaiting backend completion"))return -4;
    busy=true;status="Pending";generation++;
    pending=owner.Enqueue(async()=>
    {
-    try{var loaded=await execute(intent);lock(gate){rows=loaded;status="Completed";requests[intent.RequestId]=(intent,new(intent.RequestId,"Completed","Backend completion received"));}}
-    catch(Exception e){lock(gate){status=e.Message;requests[intent.RequestId]=(intent,new(intent.RequestId,e is EditorOutcomeUnknownException?"Unknown":"Failed",e.Message));}}
-    finally{lock(gate){if(intent.Intent=="load"){completedReads.Enqueue(intent.RequestId);while(completedReads.Count>8)requests.Remove(completedReads.Dequeue());}busy=false;generation++;}}
+    try{var loaded=await execute(intent);lock(gate){rows=loaded;status="Completed";requests.Complete(intent.RequestId,new(intent.RequestId,"Completed","Backend completion received"),intent.Intent=="load");}}
+    catch(Exception e){lock(gate){status=e.Message;requests.Complete(intent.RequestId,new(intent.RequestId,e is EditorOutcomeUnknownException?"Unknown":"Failed",e.Message),intent.Intent=="load");}}
+    finally{lock(gate){busy=false;generation++;}}
    });
    return 0;
   }

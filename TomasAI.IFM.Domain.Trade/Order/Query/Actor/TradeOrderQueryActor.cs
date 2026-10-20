@@ -15,10 +15,12 @@ public sealed class TradeOrderQueryActor(IQueryActorContext<TradeOrderQueryActor
     public const string ActorName = TradeOrderActorNames.Query;
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
+        [GetTradeOrderPreviewQuery.Verb] = m => m.AsQuery<GetTradeOrderPreviewQuery, TradeOrderPreview>()!,
         [GetTradeOrderQuery.Verb] = m => m.AsQuery<GetTradeOrderQuery, TradeOrderDefinition>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<ITradeOrderQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<ITradeOrderQueryContext, IQuery, CancellationToken, ValueTask>>
     {
+        [typeof(GetTradeOrderPreviewQuery)] = static (c, q, t) => ((GetTradeOrderPreviewQuery)q).ExecuteAsync(c, t),
         [typeof(GetTradeOrderQuery)] = static (c, q, t) => ((GetTradeOrderQuery)q).ExecuteAsync(c, t)
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);

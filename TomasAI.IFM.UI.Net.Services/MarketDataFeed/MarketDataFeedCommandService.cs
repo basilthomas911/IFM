@@ -277,6 +277,14 @@ public class MarketDataFeedCommandService(
     public async Task StartMarketDataFeedStatusListenerAsync(Func<IEvent, ValueTask> listenerAction)
         => await ExecuteValueTaskAsync(() => _marketDataFeedStatusEventConsumer.StartAsync(listenerAction));
 
+    /// <summary>Listens for global feed lifecycle events without replacing another view's listener.</summary>
+    public Task StartTradeFeedStatusListenerAsync(Guid ownerId, Func<IEvent, ValueTask> listenerAction)
+        => _marketDataFeedStatusEventConsumer.StartMonitoringAsync(ownerId, listenerAction).AsTask();
+
+    /// <summary>Releases only the specified trade view's lifecycle subscription.</summary>
+    public Task StopTradeFeedStatusListenerAsync(Guid ownerId)
+        => _marketDataFeedStatusEventConsumer.StopMonitoringAsync(ownerId).AsTask();
+
     /// <summary>Stops the shell market-data feed terminal event listener.</summary>
     public async Task StopMarketDataFeedStatusListenerAsync()
         => await ExecuteValueTaskAsync(_marketDataFeedStatusEventConsumer.StopAsync);

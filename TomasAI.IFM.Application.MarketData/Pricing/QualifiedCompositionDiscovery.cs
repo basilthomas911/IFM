@@ -279,6 +279,9 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         }
     }
 
+    /// <summary>Forgets retired native leases after all dataset workers have stopped; no durable ownership is deleted.</summary>
+    public void CloseSession() => registrations.Clear();
+
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0)

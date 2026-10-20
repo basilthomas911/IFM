@@ -1,17 +1,20 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Order;
 using System.Globalization;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
-/// <summary>Shared WinForms/Rust broker-preview calculations. Contains no controls or service calls.</summary>
+/// <summary>Formats backend-computed broker preview totals. Contains no pricing or payoff calculations.</summary>
 public sealed record BrokerTradePreviewPresentation(IReadOnlyDictionary<string,string> Fields,decimal? OrderPrice)
 {
     /// <summary>Displays submitted contracts without inventing live quotes for stored legs.</summary>
     public static BrokerTradeLegData[] StoredLegs(TradeOrderComponentDefinition component)=>component.Legs.Select(leg=>new BrokerTradeLegData(leg.ContractId,leg.AssetFamily==TradeAssetFamily.Futures?$"{(leg.SignedQuantity<0?"-":"+")}Future":leg.SignedQuantity<0?(leg.PutCall==1?"-SC":"-SP"):(leg.PutCall==1?"+LC":"+LP"),leg.Strike,null,null,null,leg.PutCall==1,Multiplier:leg.CashMultiplier,IsFuture:leg.AssetFamily==TradeAssetFamily.Futures)).ToArray();
-    public static BrokerTradePreviewPresentation Calculate(IReadOnlyList<BrokerTradeLegData> legs,IReadOnlyDictionary<string,int> quantities,int quantity,decimal? editedOrderPrice,BrokerTradeInitializationResult? data)
+    /// <summary>Formats a backend preview and stored account context for existing controls.</summary>
+    public static BrokerTradePreviewPresentation FromBackend(IReadOnlyList<BrokerTradeLegData> legs, TradeOrderPreview preview, BrokerTradeInitializationResult? data)
     {
-        if(quantity<=0||legs.Any(x=>!quantities.TryGetValue(x.ContractId,out var q)||q<=0))throw new ArgumentException("Positive quantities are required");
-        var b=new Builder();Populate(b,legs,quantities,quantity,editedOrderPrice,data);return new(b.Fields,b.OrderPrice);
+        var b = new Builder { OrderPrice = preview.OrderPrice };
+        Populate(b, legs, preview, data);
+        return new(b.Fields, b.OrderPrice);
     }
     sealed class Builder
     {
@@ -20,7 +23,7 @@ public sealed record BrokerTradePreviewPresentation(IReadOnlyDictionary<string,s
         public void SetField(string caption,decimal? value)=>SetField(caption,value?.ToString("N2")??"Unavailable");
         public void SetField(string caption,string value)=>Fields[caption]=value;
     }
-    static void Populate(Builder b,IReadOnlyList<BrokerTradeLegData> legs,IReadOnlyDictionary<string,int> quantities,int quantity,decimal? editedOrderPrice,BrokerTradeInitializationResult? data)
+    static void Populate(Builder b,IReadOnlyList<BrokerTradeLegData> legs,TradeOrderPreview preview,BrokerTradeInitializationResult? data)
     {
             b.SetField("Value source", legs.Any(x => x.Frozen) ? "Frozen quotes / stored fund" : "Market Selection / stored fund");
             var asOf = legs.Where(x => x.QuoteAtUtc.HasValue).Select(x => x.QuoteAtUtc!.Value).ToArray();
@@ -39,56 +42,28 @@ public sealed record BrokerTradePreviewPresentation(IReadOnlyDictionary<string,s
             else b.SetField("Reserved capital", "Unavailable");
             if (legs.Count == 1 && legs[0].IsFuture)
             {
-                var future = legs[0];
-                var referencePrice = data?.UnderlyingPrice?.ClosePrice;
                 b.SetField("Value source", "Stored EOD reference - no bid/ask");
                 if (data?.UnderlyingPrice is { } eod) b.SetField("As of", $"EOD {eod.ValueDate:yyyy-MM-dd}");
                 b.SetField("Validation", "Reference price only - market quote required");
-                if (referencePrice is > 0)
-                {
-                    b.SetField("Net mid", ((decimal)referencePrice.Value).ToString("N2"));
-                    b.OrderPrice = (editedOrderPrice ?? future.Sign * (decimal)referencePrice.Value);
-                }
-                // An operator-entered limit remains valid even when no stored reference price exists.
-                if (editedOrderPrice is { } enteredPrice)
-                    b.OrderPrice = enteredPrice;
-                if (future.Multiplier.HasValue) b.SetField("Net delta", future.Sign * quantities[future.ContractId] * future.Multiplier.Value);
-                b.SetField("Net vega", 0m);
+                b.SetField("Net mid", preview.NetMid);
+                b.SetField("Net delta", preview.NetDelta?.ToString("0.####") ?? "Unavailable");
+                b.SetField("Net vega", preview.NetVega?.ToString("0.####") ?? "Unavailable");
                 b.SetField("Max profit", "Price dependent"); b.SetField("Max loss", "Price dependent");
                 return;
             }
-            var valid = legs.Count > 0 && legs.All(x => x.Sign != 0 && x.Bid.HasValue && x.Ask.HasValue);
-            var balanced = legs.Select(x => quantities[x.ContractId]).Distinct().Count() <= 1;
-            b.SetField("Validation", !valid ? "Select priced strategy legs" : !balanced ? "Unequal leg quantities - strategy changed" : data?.Errors.Length > 0 ? "Stored data incomplete" : "Preview - approval required");
-            if (!valid) return;
-            // Quotes remain per strategy unit; economics and exposures include actual leg quantities.
-            var netBid = legs.Sum(x => x.Sign * (x.Sign > 0 ? x.Bid!.Value : x.Ask!.Value) * quantities[x.ContractId]) / quantity;
-            var netAsk = legs.Sum(x => x.Sign * (x.Sign > 0 ? x.Ask!.Value : x.Bid!.Value) * quantities[x.ContractId]) / quantity;
-            b.SetField("Net bid", netBid); b.SetField("Net ask", netAsk); b.SetField("Net mid", (netBid + netAsk) / 2);
-            var tick = 0.05m;
-            b.OrderPrice = (editedOrderPrice ?? Math.Round((netBid + netAsk) / 2 / tick, MidpointRounding.AwayFromZero) * tick);
-            if (legs.All(x => x.Delta.HasValue && x.Multiplier.HasValue)) b.SetField("Net delta", legs.Sum(x => x.Sign * x.Delta!.Value * quantities[x.ContractId] * (double)x.Multiplier!.Value).ToString("0.####"));
-            if (legs.All(x => x.Vega.HasValue && x.Multiplier.HasValue)) b.SetField("Net vega", legs.Sum(x => x.Sign * x.Vega!.Value * quantities[x.ContractId] * (double)x.Multiplier!.Value).ToString("0.####"));
-            foreach (var call in new[] { true, false })
-            {
-                var pair = legs.Where(x => !x.IsFuture && x.IsCall == call).ToArray();
-                if (pair.Length == 2 && pair.All(x => x.Strike.HasValue) && pair.Sum(x => x.Sign) == 0)
-                    b.SetField(call ? "Call width" : "Put width", Math.Abs(pair[0].Strike!.Value - pair[1].Strike!.Value));
-                if (pair.Length > 0 && pair.All(x => x.Multiplier.HasValue))
-                    b.SetField(call ? "Call spread" : "Put spread", -pair.Sum(x => x.Sign * (x.Bid!.Value + x.Ask!.Value) / 2 * quantities[x.ContractId] * x.Multiplier!.Value));
-            }
-            if (legs.Any(x => x.IsFuture) || legs.Any(x => !x.Multiplier.HasValue || !x.Strike.HasValue)) return;
-            var cost = balanced && legs.Select(x => x.Multiplier).Distinct().Count() == 1 && b.OrderPrice is { } price
-                ? price * quantity * legs[0].Multiplier!.Value
-                : legs.Sum(x => x.Sign * (x.Bid!.Value + x.Ask!.Value) / 2 * quantities[x.ContractId] * x.Multiplier!.Value);
-            b.SetField("Est. credit", -cost);
-            var profits = legs.Select(x => x.Strike!.Value).Append(0m).Distinct().Select(spot =>
-                legs.Sum(x => x.Sign * quantities[x.ContractId] * x.Multiplier!.Value * Math.Max(x.IsCall ? spot - x.Strike!.Value : x.Strike!.Value - spot, 0m)) - cost).ToArray();
-            var slope = legs.Where(x => x.IsCall).Sum(x => x.Sign * quantities[x.ContractId] * x.Multiplier!.Value);
-            decimal? maxProfit = slope > 0 ? null : profits.Max();
-            decimal? maxLoss = slope < 0 ? null : Math.Max(0, -profits.Min());
-            b.SetField("Max profit", maxProfit is null ? "Unlimited" : maxProfit.Value.ToString("N2"));
-            b.SetField("Max loss", maxLoss is null ? "Unlimited" : maxLoss.Value.ToString("N2"));
-            b.SetField("Max return", maxLoss is > 0 && maxProfit.HasValue ? (maxProfit.Value / maxLoss.Value).ToString("P2") : "Unavailable");
+            b.SetField("Validation", !preview.HasCompleteQuotes ? "Select priced strategy legs" : !preview.HasBalancedQuantities ? "Unequal leg quantities - strategy changed" : data?.Errors.Length > 0 ? "Stored data incomplete" : "Preview - approval required");
+            if (!preview.HasCompleteQuotes) return;
+            b.SetField("Net bid", preview.NetBid); b.SetField("Net ask", preview.NetAsk); b.SetField("Net mid", preview.NetMid);
+            if (preview.NetDelta.HasValue) b.SetField("Net delta", preview.NetDelta.Value.ToString("0.####"));
+            if (preview.NetVega.HasValue) b.SetField("Net vega", preview.NetVega.Value.ToString("0.####"));
+            if (preview.CallWidth.HasValue) b.SetField("Call width", preview.CallWidth);
+            if (preview.PutWidth.HasValue) b.SetField("Put width", preview.PutWidth);
+            if (preview.CallSpreadValue.HasValue) b.SetField("Call spread", preview.CallSpreadValue);
+            if (preview.PutSpreadValue.HasValue) b.SetField("Put spread", preview.PutSpreadValue);
+            if (!preview.HasPayoffEstimate) return;
+            b.SetField("Est. credit", preview.EstimatedCredit);
+            b.SetField("Max profit", preview.HasUnlimitedProfit ? "Unlimited" : preview.MaximumProfit?.ToString("N2") ?? "Unavailable");
+            b.SetField("Max loss", preview.HasUnlimitedLoss ? "Unlimited" : preview.MaximumLoss?.ToString("N2") ?? "Unavailable");
+            b.SetField("Max return", preview.MaximumReturn?.ToString("P2") ?? "Unavailable");
     }
 }

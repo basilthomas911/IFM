@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Xunit;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -46,10 +46,18 @@ public sealed class IronCondorLegacyValueInitializerTests
     public void Trade_risk_preserves_strategy_and_critical_bands(TradeType strategy, double score, bool critical, TradeRiskType risk)
         => IronCondorLegacyValueInitializers.CalculateTradeRisk(strategy, score, critical).Should().Be(risk);
 
+    [Theory]
+    [InlineData(-12, 8, -4)]
+    [InlineData(12, -8, 4)]
+    [InlineData(-12, -8, -20)]
+    [InlineData(12, 8, 20)]
+    [InlineData(0, 0, 0)]
+    public void Forward_prices_add_components_without_changing_their_signs(int put, int call, int expected)
+        => IronCondorLegacyValueInitializers.CalculateForwardPrice(put, call).Should().Be(expected);
+
     [Fact]
-    public void Forward_prices_preserve_legacy_absolute_sum_and_price_limit_units()
+    public void Forward_price_ratio_preserves_legacy_price_limit_units()
     {
-        IronCondorLegacyValueInitializers.CalculateForwardPrice(-12m, 8m).Should().Be(20m);
         IronCondorLegacyValueInitializers.CalculateForwardLossRatio(20m, 25m).Should().Be(0.8);
         var invalid = () => IronCondorLegacyValueInitializers.CalculateForwardLossRatio(0m, 0m);
         invalid.Should().Throw<ArgumentOutOfRangeException>();

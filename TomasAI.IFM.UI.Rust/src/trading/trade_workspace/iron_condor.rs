@@ -21,6 +21,28 @@ const GRAY: Color32 = Color32::GRAY;
 const COMMAND: Color32 = Color32::from_rgb(45, 45, 48);
 /// Lime-green trade highlight color.
 const LIME: Color32 = Color32::from_rgb(50, 205, 50);
+/// Per-cell live direction, advanced only by a new market publication, never by repainting.
+#[derive(Clone)]
+struct LegValueChange {
+    revision: u64,
+    value: Option<f64>,
+    background: Color32,
+}
+impl LegValueChange {
+    /// Compares raw numeric values and keeps the last valid baseline through unavailable observations.
+    fn update(&mut self, revision: u64, value: Option<f64>) -> Color32 {
+        if self.revision != revision {
+            self.background = match (self.value, value) {
+                (Some(previous), Some(current)) if current > previous => Color32::from_rgb(0, 100, 0),
+                (Some(previous), Some(current)) if current < previous => Color32::from_rgb(139, 0, 0),
+                _ => BLACK,
+            };
+            self.revision = revision;
+            if value.is_some() { self.value = value; }
+        }
+        self.background
+    }
+}
 /// Clone the first decoded trade row in a group, or return null when the group is absent.
 fn one(display: &super::display_cache::TradeDisplayData, kind: &str) -> Value {
     values(display, kind).first().cloned().unwrap_or_default()
@@ -72,6 +94,17 @@ fn realtime_spreads(snapshot: &Value, long: bool) -> Vec<Value> {
 #[cfg(test)]
 mod realtime_cache_tests {
     use super::*;
+    #[test]
+    fn leg_value_colors_follow_updates_not_repaints_and_preserve_valid_baselines() {
+        let mut cell = LegValueChange { revision: 1, value: Some(-0.4), background: BLACK };
+        assert_eq!(cell.update(2, Some(-0.3)), Color32::from_rgb(0, 100, 0));
+        assert_eq!(cell.update(2, Some(-0.3)), Color32::from_rgb(0, 100, 0));
+        assert_eq!(cell.update(3, Some(-0.3)), BLACK);
+        assert_eq!(cell.update(4, Some(-0.5)), Color32::from_rgb(139, 0, 0));
+        assert_eq!(cell.update(5, Some(0.)), Color32::from_rgb(0, 100, 0));
+        assert_eq!(cell.update(6, None), BLACK);
+        assert_eq!(cell.update(7, Some(0.)), BLACK);
+    }
     #[test]
     fn pending_and_stale_pricing_keep_valid_greeks_and_new_zero_values_are_displayed() {
         let mut snapshot=json!({"legs":[{"definition":{"putCall":2,"signedQuantity":-1,"strike":5000},
@@ -347,6 +380,29 @@ fn severity(v: &Value) -> Color32 {
         _ => BLACK,
     }
 }
+/// Limits chart sampling using monotonic time, independent of quote timestamps and repaint frequency.
+#[derive(Clone, Default)]
+struct SpreadChartClock {
+    last_sample: Option<std::time::Instant>,
+}
+impl SpreadChartClock {
+    /// Accept the first point immediately, then at most one point every sixty seconds.
+    fn accept(&mut self, now: std::time::Instant) -> bool {
+        if self.last_sample.is_some_and(|last| now.duration_since(last).as_secs() < 60) {
+            return false;
+        }
+        self.last_sample = Some(now);
+        true
+    }
+}
+
+/// Merge the history/live boundary while retaining the latest sample in each UTC minute.
+fn coalesce_chart_minutes(points: &mut Vec<[f64; 2]>) {
+    points.sort_by(|a, b| b[0].total_cmp(&a[0]));
+    points.dedup_by_key(|point| (point[0] / 60.).floor() as i64);
+    points.reverse();
+}
+
 impl TradeWorkspace {
     /// Render the selected established trade in the center workspace and return any requested monitor/plan-page action.
     pub(super) fn draw_loaded_trade(
@@ -429,7 +485,7 @@ impl TradeWorkspace {
             let asset=if realtime.is_object(){formatted(&realtime["summary"],"underlyingPrice")}else{formatted(&detail,"underlyingPrice")};
             let summary_y=graph_h+6.;
             let top_fields=[("Value Date:",formatted(&history_row,"valueDate"),BLACK),
-                ("Trade Status:",if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
+                ("Trade Status:",if let Some(message)=s.result.context.get("monitorStatus").filter(|message| !message.is_empty()){message.clone()}else if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
                 ("DTE:",formatted(&history_row,"daysToExpiry"),BLACK),
                 ("Net Spread:",net.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
                 ("Daily P&L:",daily.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
@@ -470,12 +526,7 @@ impl TradeWorkspace {
             let log_y=upper+7.;ui.painter().hline(bounds.x_range(),o.y+(log_y-3.)/p,egui::Stroke::new(1.0_f32,GRAY));
             let plan_rows=&display.plans;
             let mut columns=vec![("actionDateTime","ActionDateTime",230.),("sequenceId","SequenceId",120.),("dailyPnl","DailyPnl",120.),("forwardLossRatio","ForwardLossRatio",120.),("forwardLoss","ForwardLoss",120.),("lossHeadroom","LossHeadroom",120.),("putForwardPrice","PutForwardPrice ($)",150.),("callForwardPrice","CallForwardPrice ($)",150.),("forwardDelta","ForwardDelta",120.),("netDelta","NetDelta",120.),("netGamma","NetGamma",120.),("netVega","NetVega",120.),("netTheta","NetTheta",120.),("estimatedExitCosts","EstimatedExitCosts",120.),("distanceToShortPut","DistanceToShortPut",120.),("distanceToShortCall","DistanceToShortCall",120.),("putSpreadPrice","PutSpreadPrice",120.),("callSpreadPrice","CallSpreadPrice",120.),("combinedSpreadPrice","CombinedSpreadPrice",120.),("currentPositionValue","CurrentPositionValue",120.),("estimatedCloseValue","EstimatedCloseValue",120.),("putOTMProbability","PutOTMProbability",120.),("callOTMProbability","CallOTMProbability",120.),("timeToExpiryDays","TimeToExpiryDays",120.),("scenarioHorizonSeconds","ScenarioHorizonSeconds",120.),("scenarioUnderlyingMove","ScenarioUnderlyingMove",120.),("scenarioVolatilityShift","ScenarioVolatilityShift",120.),("calculationStatus","CalculationStatus",120.),("exitRecommended","ExitRecommended",120.),("exitReason","ExitReason",320.)];
-            columns.splice(2..2, [
-                ("maxProfit", "MaxProfit", 120.), ("maxLoss", "MaxLoss", 120.),
-                ("minProfitTarget", "MinProfitTarget", 140.), ("dailyProfitTarget", "DailyProfitTarget", 150.),
-                ("stopLossLimit", "StopLossLimit", 130.), ("assetPrice", "AssetPrice", 120.),
-                ("forwardPrice", "ForwardPrice", 130.), ("volatilityPrice", "VolatilityPrice", 140.),
-            ]);
+            columns.insert(2, ("volatilityPrice", "VolatilityPrice", 140.));
             // Older generic plans still expose their explanation, without substituting blank legacy fields.
             if display.has_action_reason {columns.insert(2,("actionReason","Action Reason",320.));}
             let plan_rect=rr(0.,log_y,w,h-log_y);self.controls.insert("condor-plans".into(),plan_rect);
@@ -548,6 +599,11 @@ impl TradeWorkspace {
         let total: f32 = columns.iter().skip(1).map(|c| c.2).sum();
         let mut x = 0.;
         let rows = self.condor_spreads(ui, s, trade, position);
+        let realtime = one(&self.display_cache.as_ref().unwrap().model, "realtime");
+        let revision = realtime["snapshotRevision"].as_u64().unwrap_or(s.generation);
+        let change_scope = egui::Id::new(("option-leg-changes", trade["id"].to_string(),
+            s.result.context.get("activeTradeTab"), realtime["monitoringGeneration"].as_str()));
+        let live = monitor_flag(s, "live");
         for (i, (key, title, weight)) in columns.iter().enumerate() {
             let cw = if i == 0 {
                 180.
@@ -565,12 +621,23 @@ impl TradeWorkspace {
                 );
                 for (n, row) in rows.iter().enumerate() {
                     let r = rect(o, p, x + 2., 58. + n as f32 * 25., cw - 6., 25.);
+                    let background = if live && ((key.starts_with("short") || key.starts_with("long")) && !key.ends_with("Strike")
+                        || matches!(*key, "netSpread" | "tradeValue" | "tradePnl" | "otmProbability" | "forwardPrice")) {
+                        let id = change_scope.with((key, n));
+                        let value = number(row, key).filter(|value| value.is_finite());
+                        ui.ctx().data_mut(|data| {
+                            let cell = data.get_temp_mut_or_insert_with(id, || LegValueChange {
+                                revision, value, background: BLACK,
+                            });
+                            cell.update(revision, value)
+                        })
+                    } else { BLACK };
                     field(
                         ui,
                         r,
                         &format!("condor-{key}-{n}"),
                         formatted(row, key),
-                        BLACK,
+                        background,
                         if i == 0 {
                             Color32::MAGENTA
                         } else {
@@ -615,23 +682,30 @@ impl TradeWorkspace {
         let mut end = chart["chartEndUtc"].as_str().and_then(|at|chrono::DateTime::parse_from_rfc3339(at).ok()).map(|at|at.timestamp_millis() as f64/1000.);
         if monitor_flag(s,"live") {
             let realtime = one(&display,"realtime");
+            let clock_id = egui::Id::new(("condor-chart-clock", &self.loaded_spread_id,
+                s.result.context.get("activeTradeTab"), realtime["monitoringGeneration"].as_str()));
+            let mut clock = ui.ctx().data_mut(|data| data.get_temp::<SpreadChartClock>(clock_id)).unwrap_or_default();
             let plan = &realtime["plan"];
             if let (Some(price),Some(at)) = (number(&plan["ironCondorTradePlanSnapshot"],"combinedSpreadPrice"),plan["calculatedAtUtc"].as_str()) {
                 if let Ok(at) = chrono::DateTime::parse_from_rfc3339(at) {
-                    let time = at.timestamp_millis() as f64/1000.;
-                    if self.loaded_spread_points.last().is_none_or(|point|point[0]<time) {
-                        if self.loaded_spread_points.last().is_some_and(|point|(point[0]/18.).floor()==(time/18.).floor()) { self.loaded_spread_points.pop(); }
-                        self.loaded_spread_points.push([time,price]);
-                    }
-                    if let Some(forward) = number(&plan["ironCondorTradePlanSnapshot"],"combinedForwardPrice") {
-                        if self.loaded_forward_points.last().is_none_or(|point|point[0]<time) {
-                            if self.loaded_forward_points.last().is_some_and(|point|(point[0]/18.).floor()==(time/18.).floor()) {self.loaded_forward_points.pop();}
-                            self.loaded_forward_points.push([time,forward]);
+                    if clock.accept(std::time::Instant::now()) {
+                        let time = at.timestamp_millis() as f64/1000.;
+                        if self.loaded_spread_points.last().is_none_or(|point|point[0]<time) {
+                            if self.loaded_spread_points.last().is_some_and(|point|(point[0]/60.).floor()==(time/60.).floor()) { self.loaded_spread_points.pop(); }
+                            self.loaded_spread_points.push([time,price]);
                         }
+                        if let Some(forward) = number(&plan["ironCondorTradePlanSnapshot"],"combinedForwardPrice") {
+                            if self.loaded_forward_points.last().is_none_or(|point|point[0]<time) {
+                                if self.loaded_forward_points.last().is_some_and(|point|(point[0]/60.).floor()==(time/60.).floor()) {self.loaded_forward_points.pop();}
+                                self.loaded_forward_points.push([time,forward]);
+                            }
+                        }
+                        end = Some(end.unwrap_or(time).max(time));
                     }
-                    end = Some(end.unwrap_or(time).max(time));
+                    ui.ctx().data_mut(|data| data.insert_temp(clock_id, clock));
                 }
             }
+            if let Some(last) = self.loaded_spread_points.last() { end = Some(end.unwrap_or(last[0]).max(last[0])); }
             if let Some(end) = end {self.loaded_spread_points.retain(|point|point[0]>=end-21600.);}
             points.extend_from_slice(&self.loaded_spread_points);
             if let Some(end) = end {self.loaded_forward_points.retain(|point|point[0]>=end-21600.);}
@@ -639,10 +713,8 @@ impl TradeWorkspace {
         }
         if let Some(end) = end {points.retain(|point|point[0]>=end-21600. && point[0]<=end);}
         if let Some(end) = end {forward_points.retain(|point|point[0]>=end-21600. && point[0]<=end);}
-        forward_points.sort_by(|a,b|a[0].total_cmp(&b[0]));
-        forward_points.dedup_by(|a,b|a[0]==b[0]);
-        points.sort_by(|a,b|a[0].total_cmp(&b[0]));
-        points.dedup_by(|a,b|a[0]==b[0]);
+        coalesce_chart_minutes(&mut forward_points);
+        coalesce_chart_minutes(&mut points);
         at(
             ui,
             rect(o, p, 16., 47., w - 32., h - 145.),
@@ -856,5 +928,31 @@ mod eastern_chart_time_tests {
             let at = chrono::DateTime::parse_from_rfc3339(utc).unwrap();
             assert_eq!(at.with_timezone(&chrono_tz::America::New_York).format("%m-%d %H:%M %Z").to_string(), expected);
         }
+    }
+}
+
+#[cfg(test)]
+mod spread_chart_sampling_tests {
+    use super::{SpreadChartClock, coalesce_chart_minutes};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn history_and_live_points_keep_only_the_latest_sample_per_minute() {
+        let mut points = vec![[61., -11.], [40., -10.], [65., -12.], [120., -13.]];
+        coalesce_chart_minutes(&mut points);
+        assert_eq!(points, vec![[40., -10.], [65., -12.], [120., -13.]]);
+    }
+
+    #[test]
+    fn chart_accepts_first_point_then_waits_sixty_seconds() {
+        let mut clock = SpreadChartClock::default();
+        let start = Instant::now();
+        assert!(clock.accept(start));
+        for seconds in 0..60 {
+            assert!(!clock.accept(start + Duration::from_secs(seconds)));
+        }
+        assert!(clock.accept(start + Duration::from_secs(60)));
+        assert!(!clock.accept(start + Duration::from_secs(119)));
+        assert!(clock.accept(start + Duration::from_secs(120)));
     }
 }

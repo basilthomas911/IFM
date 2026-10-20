@@ -17,6 +17,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
     readonly Dictionary<string, ActiveScope> scopes = new(StringComparer.Ordinal);
     sealed record ActiveScope(PreparedOptionUniverse Universe, WorkerOptionChainRequest Lease);
     readonly HashSet<string> publishedLookups = new(StringComparer.Ordinal);
+    readonly SemaphoreSlim maintenance = new(1, 1);
     long version;
     Guid generation;
     readonly Dictionary<string, string> lastFailures = new(StringComparer.Ordinal);
@@ -29,6 +30,30 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
     /// <summary>Runs one bounded maintenance cycle. This entry point also supports integration verification.</summary>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep native resource ownership and recovery failure ordering together during this storage compatibility refactor.")]
     public async Task MaintainAsync(CancellationToken token)
+    {
+        await maintenance.WaitAsync(token).ConfigureAwait(false);
+        try { await MaintainCoreAsync(token).ConfigureAwait(false); }
+        finally { maintenance.Release(); }
+    }
+
+    /// <summary>Confirms all background option-chain scopes are retired after dataset admission closes.</summary>
+    public async Task CloseSessionAsync(CancellationToken token)
+    {
+        await maintenance.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (admissions.TryGet("GLBX.MDP3", out _))
+                throw new InvalidOperationException("Option feeds must lose dataset admission before session cleanup.");
+            publisher.Fence(generation);
+            generation = Guid.Empty;
+            publishedLookups.Clear(); lastFailures.Clear();
+            publishedPlans = []; nextPolicyRead = default;
+            await ReleaseAllAsync(token).ConfigureAwait(false);
+        }
+        finally { maintenance.Release(); }
+    }
+
+    async Task MaintainCoreAsync(CancellationToken token)
     {
         if (!admissions.TryGet("GLBX.MDP3", out var admission))
         {
@@ -213,10 +238,18 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         finally
         {
-            publisher.Fence(generation);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            try { await ReleaseAllAsync(timeout.Token).ConfigureAwait(false); }
+            try { await maintenance.WaitAsync(timeout.Token).ConfigureAwait(false);
+                try { publisher.Fence(generation); await ReleaseAllAsync(timeout.Token).ConfigureAwait(false); }
+                finally { maintenance.Release(); } }
             catch (Exception ex) { ApplicationDiagnosticLog.Write17(logger, ex); }
         }
     }
+    /// <summary>Releases maintenance synchronization after the hosted background task stops.</summary>
+    public override void Dispose()
+    {
+        base.Dispose();
+        maintenance.Dispose();
+    }
+
 }

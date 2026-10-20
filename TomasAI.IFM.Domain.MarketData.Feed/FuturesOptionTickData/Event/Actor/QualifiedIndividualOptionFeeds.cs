@@ -70,6 +70,11 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
             var acquired = await discovery.AcquireAsync(request, CancellationToken.None, renewAutomatically: true).ConfigureAwait(false);
             if (acquired.Lease is null || acquired.Failure is not null)
                 throw new InvalidOperationException($"OptionMonitoring.ACQUIRE.FAILED: {acquired.Failure?.Code}");
+            if (!admissions.TryGet("GLBX.MDP3", out var current) || current.GenerationId != admitted.GenerationId)
+            {
+                await discovery.ReleaseAsync(acquired.Lease, CancellationToken.None).ConfigureAwait(false);
+                throw new InvalidOperationException("OptionMonitoring.SESSION.CLOSED: acquisition belongs to a retired dataset.");
+            }
             leases[key] = acquired.Lease;
             riskReader?.Register(acquired.Lease);
         }
@@ -86,6 +91,12 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
         try
         {
             if (!leases.TryGetValue((owner, contractId), out var lease)) return;
+            if (!admissions.TryGet("GLBX.MDP3", out var current) || current.GenerationId != lease.GenerationId)
+            {
+                riskReader?.Remove(lease.LeaseId);
+                leases.Remove((owner, contractId));
+                return; // The closed worker already released its native connection.
+            }
             var released = await discovery.ReleaseAsync(lease, CancellationToken.None).ConfigureAwait(false);
             if (released.Failure is not null)
                 throw new InvalidOperationException($"OptionMonitoring.RELEASE.FAILED: {released.Failure.Code}");

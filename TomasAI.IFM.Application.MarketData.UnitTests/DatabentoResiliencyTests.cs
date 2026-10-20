@@ -14,6 +14,41 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 [Collection(ProcessResourceQualificationCollection.Name)]
 public sealed class DatabentoResiliencyTests
 {
+    [Fact]
+    public async Task Feed_start_waits_for_session_analytics_and_retries_failures_without_restarting_healthy_provider()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() }; runtime.SetActive(null);
+        var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var called = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analytics = Substitute.For<IMarketSessionAnalyticsInitializer>();
+        analytics.InitializeAsync(ValueDate, Arg.Any<CancellationToken>()).Returns(call => {
+            called.TrySetResult(); return initialized.Task;
+        });
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), sessionAnalytics: analytics);
+        var starting = service.StartAsync(ValueDate);
+        await called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        starting.IsCompleted.Should().BeFalse();
+        initialized.SetException(new InvalidOperationException("Historical seed unavailable"));
+        await FluentActions.Awaiting(() => starting).Should().ThrowAsync<InvalidOperationException>();
+        runtime.StartCount.Should().Be(1);
+        runtime.ResetDatasets.Should().BeEmpty();
+        analytics.InitializeAsync(ValueDate, Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        await service.StartAsync(ValueDate);
+        await analytics.Received(2).InitializeAsync(ValueDate, Arg.Any<CancellationToken>());
+        runtime.StartCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Next_session_feed_start_requests_analytics_for_the_new_value_date()
+    {
+        var runtime = new TestRuntime { Snapshot = Up() };
+        var analytics = Substitute.For<IMarketSessionAnalyticsInitializer>();
+        var service = Create(runtime, new InMemoryMarketDataServiceStore(), sessionAnalytics: analytics);
+        await service.StopAsync(ValueDate);
+        await service.StartAsync(ValueDate.AddDays(1));
+        await analytics.Received(1).InitializeAsync(ValueDate.AddDays(1), Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -763,7 +798,8 @@ public sealed class DatabentoResiliencyTests
         DatabentoTerminalFaultSignal? signal = null,
         DatabentoStage3Options? stage3 = null,
         IDatabentoDatasetProcessRecovery? processRecovery = null,
-        TimeProvider? timeProvider = null, IDatabentoRecoveryRequester? recoveryRequester = null)
+        TimeProvider? timeProvider = null, IDatabentoRecoveryRequester? recoveryRequester = null,
+        IMarketSessionAnalyticsInitializer? sessionAnalytics = null)
     {
         var authority = Substitute.For<IFuturesMarketSessionAuthority>();
         authority.Current.Returns(new MarketSessionReadModel
@@ -790,7 +826,7 @@ public sealed class DatabentoResiliencyTests
                 PersistenceRetryDelay = TimeSpan.Zero
             }, signal ?? new DatabentoTerminalFaultSignal(), clock,
             NullLogger<DatabentoMarketDataWatchdogService>.Instance,
-            stage3, processRecovery, new MarketDataOperationsHealthService(admissions), recoveryRequester);
+            stage3, processRecovery, new MarketDataOperationsHealthService(admissions), recoveryRequester, sessionAnalytics);
     }
 
     static DatabentoBulkWatchdogSnapshot Down() => new()

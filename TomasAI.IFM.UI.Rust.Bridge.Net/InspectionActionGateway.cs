@@ -5,14 +5,13 @@ public sealed record InspectionPublication([property: MessagePack.Key("schema")]
 public sealed class InspectionActionGateway : IAsyncDisposable
 {
  readonly object gate=new();readonly Func<InspectionIntent,Task<InspectionResult>> execute;
- readonly Dictionary<Guid,(byte[] Payload,EditorOutcome Outcome)> requests=[];
- readonly Queue<Guid> completedReads=new();
+ readonly UiRequestHistory<byte[]> requests=new(shortHistoryLimit:32);
  InspectionResult result=new("",[]);long generation=1;string status="Not loaded";bool busy;Task pending=Task.CompletedTask;
  public InspectionActionGateway(Func<InspectionIntent,Task<InspectionResult>> execute)=>this.execute=execute;
  readonly AsyncSessionOwner owner=new();
  readonly PublicationCache<InspectionPublication> wire=new();
  InspectionPublication? cached;
- public InspectionPublication Snapshot(){lock(gate){if(cached?.Generation!=generation)cached=new(1,generation,status,busy,result,requests.Values.Select(x=>x.Outcome).ToArray());return cached;}}
+ public InspectionPublication Snapshot(){lock(gate){if(cached?.Generation!=generation)cached=new(1,generation,status,busy,result,requests.Outcomes());return cached;}}
  public byte[] WireSnapshot()=>wire.Read(Snapshot());
  public ValueTask DisposeAsync()=>owner.DisposeAsync();
  public int Submit(InspectionIntent input)
@@ -22,9 +21,9 @@ public sealed class InspectionActionGateway : IAsyncDisposable
   lock(gate)
   {
    if(requests.TryGetValue(input.RequestId,out var old))return old.Payload.AsSpan().SequenceEqual(payload)?0:-1;
-   if(busy||requests.Count>=256)return -4;
-   requests.Add(input.RequestId,(payload,new(input.RequestId,"Pending","Loading")));busy=true;status="Loading";generation++;
-   pending=owner.Enqueue(async()=>{try{var loaded=await execute(input);lock(gate){if(input.Intent=="open"&&result.View==loaded.View)loaded=loaded with{Rows=result.Rows,PagingState=result.PagingState};result=loaded;status=loaded.Rows.Length==0&&loaded.Detail is null&&loaded.Decision.Length==0?"No history for these filters":"Loaded";requests[input.RequestId]=(payload,new(input.RequestId,"Completed","Loaded"));}}catch(Exception e){lock(gate){status=e.Message;requests[input.RequestId]=(payload,new(input.RequestId,"Failed",e.Message));}}finally{lock(gate){completedReads.Enqueue(input.RequestId);while(completedReads.Count>32)requests.Remove(completedReads.Dequeue());busy=false;generation++;}}});return 0;
+   if(busy)return -4;
+   if(!requests.TryBegin(input.RequestId,payload,"Loading"))return -4;busy=true;status="Loading";generation++;
+   pending=owner.Enqueue(async()=>{try{var loaded=await execute(input);lock(gate){if(input.Intent=="open"&&result.View==loaded.View)loaded=loaded with{Rows=result.Rows,PagingState=result.PagingState};result=loaded;status=loaded.Rows.Length==0&&loaded.Detail is null&&loaded.Decision.Length==0?"No history for these filters":"Loaded";requests.Complete(input.RequestId,new(input.RequestId,"Completed","Loaded"),true);}}catch(Exception e){lock(gate){status=e.Message;requests.Complete(input.RequestId,new(input.RequestId,"Failed",e.Message),true);}}finally{lock(gate){busy=false;generation++;}}});return 0;
   }
  }
  public Task DrainAsync(){lock(gate)return pending;}

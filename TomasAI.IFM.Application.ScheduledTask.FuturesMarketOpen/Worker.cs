@@ -47,7 +47,7 @@ public sealed class Worker(
                 await Task.Delay(TimeSpan.FromSeconds(1), feedDeadline.Token);
             }
             if (requiresAdmission || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IFM_SCHEDULED_RUN_ID")))
-                await receipts.RecordAsync(valueDate, "FeedsStarted", "Healthy subscribed GLBX.MDP3 generation confirmed for the API-selected value date; application initialization was not repeated.", deadline.Token);
+                await receipts.RecordAsync(valueDate, "FeedsStarted", "Healthy subscribed GLBX.MDP3 generation and session-specific ADX/ATR/MACD/RSI/TDI initialization confirmed for the API-selected value date; unrelated application startup activities were not repeated.", deadline.Token);
             logger.LogInformation("{Component}.{Method} Databento market feed ready for {ValueDate} {CommandId}.", nameof(Worker), nameof(ExecuteTaskAsync), valueDate, startCommandId);
 
         }

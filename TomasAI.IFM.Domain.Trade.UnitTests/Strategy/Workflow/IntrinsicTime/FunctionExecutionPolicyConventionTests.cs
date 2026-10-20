@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,6 +29,7 @@ public sealed class FunctionExecutionPolicyConventionTests
             .Where(t => !t.IsAbstract &&
                 t.BaseType?.Name.StartsWith("BaseEventSourceFunctionActor`", StringComparison.Ordinal) == true).ToArray();
         actors.Should().BeEquivalentTo([
+            typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.ForwardPrice.Function.Actor.IronCondorForwardPriceFunctionActor),
             typeof(RegimeDiscoveryFunctionActor),
             typeof(MarketConditionFunctionActor),
             typeof(TradeSelectionFunctionActor),

@@ -269,6 +269,12 @@ public sealed class DatasetWorkerProcessSupervisorTests
         var authority = Substitute.For<IDatabentoContractAuthority>();
         var admissions = new DatasetWorkerAdmissionRegistry();
         await using var workers = new DatasetWorkerProcessRecoveryService(Options(), admissions);
+        var cleanup = Substitute.For<TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionFeedSessionCleanup>();
+        cleanup.CloseSessionAsync(Arg.Any<CancellationToken>()).Returns(call => {
+            workers.Current.Should().BeEmpty();
+            admissions.TryGet("GLBX.MDP3", out _).Should().BeFalse();
+            return Task.CompletedTask;
+        });
         var runtime = new SupervisedDatabentoLifecycleRuntime(authority, registrations, workers,
             new DatabentoSupervisedWorkerOptions
             {
@@ -281,7 +287,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
                     StartSequence = 1
                 }
             }, TimeProvider.System,
-            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>());
+            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
 
         await runtime.StartAsync(new DateOnly(2026, 9, 4), CancellationToken.None);
         var before = await runtime.GetWatchdogSnapshotAsync(TimeSpan.FromSeconds(1), CancellationToken.None);
@@ -297,6 +303,21 @@ public sealed class DatasetWorkerProcessSupervisorTests
         reset.GenerationId.Should().NotBe(before.Feeds.Single().GenerationId);
         workers.Current.Should().BeEmpty();
         runtime.ActiveValueDate.Should().BeNull();
+        await cleanup.Received(1).CloseSessionAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Supervised_stop_propagates_option_cleanup_failure()
+    {
+        var cleanup = Substitute.For<TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionFeedSessionCleanup>();
+        cleanup.CloseSessionAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Cleanup failed")));
+        await using var workers = new DatasetWorkerProcessRecoveryService(Options(), new DatasetWorkerAdmissionRegistry());
+        var runtime = new SupervisedDatabentoLifecycleRuntime(Substitute.For<IDatabentoContractAuthority>(),
+            Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location }, TimeProvider.System,
+            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
+        var stop = () => runtime.StopAsync(CancellationToken.None);
+        await stop.Should().ThrowAsync<AggregateException>().WithMessage("*cleanup*");
+        await cleanup.Received(1).CloseSessionAsync(Arg.Any<CancellationToken>());
     }
 
     static DatasetWorkerStartRequest Request(Guid generation) => new()

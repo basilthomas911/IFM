@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
@@ -30,13 +30,10 @@ public static class IronCondorMonitoringSnapshotCompute
             try
             {
                 var forwardPrice = IronCondorLegacyValueInitializers.CalculateForwardPrice(inputs.PutForwardPrice, inputs.CallForwardPrice);
+                // Retain the signed price even if the legacy nonnegative ratio cannot classify it.
+                snapshot = snapshot with { TradeType = inputs.TradeType.ToString(), ForwardPrice = forwardPrice };
                 var ratio = IronCondorLegacyValueInitializers.CalculateForwardLossRatio(forwardPrice, inputs.ForwardLossPriceLimit);
-                snapshot = snapshot with
-                {
-                    TradeType = inputs.TradeType.ToString(),
-                    ForwardPrice = forwardPrice,
-                    ForwardLossRatio = ratio
-                };
+                snapshot = snapshot with { ForwardLossRatio = ratio };
 
             }
             catch (ArgumentException error)

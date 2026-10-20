@@ -24,6 +24,12 @@ public sealed record UpdateIronCondorTradePlanCommand : ICommand<IronCondorTrade
     [Key(7)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>Gets captured legacy inputs; omitted inputs are explicitly reported unavailable.</summary>
     [Key(8)] public IronCondorTradePlanInputs? IronCondorTradePlanInputs { get; init; }
+    /// <summary>Exact returned ForwardPrice calculation; never a precomputed loss.</summary>
+    [Key(9)] public TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceCalculatedEvent? IronCondorForwardPriceCalculated { get; init; }
+    /// <summary>Explicit unavailable reason from the ForwardPrice stage.</summary>
+    [Key(10)] public string? ForwardPriceFailure { get; init; }
+    /// <summary>Identifies the new production path; old stored requests preserve legacy interpretation.</summary>
+    [Key(11)] public bool UseForwardPriceFunction { get; init; }
     [IgnoreMember] public string CommandName => nameof(UpdateIronCondorTradePlanCommand);
     [IgnoreMember] public BoundedContextName RouteTo => BoundedContextName.StrategyPositionTradePlanBoundedContext;
     [IgnoreMember] public string StreamId => Subject.StreamId;

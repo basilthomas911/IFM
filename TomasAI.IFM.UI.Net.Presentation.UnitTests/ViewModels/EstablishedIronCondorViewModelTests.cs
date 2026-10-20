@@ -12,6 +12,35 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public sealed class EstablishedIronCondorViewModelTests
 {
+    [Fact]
+    public async Task Feed_stop_notification_turns_monitoring_off_and_feed_restart_requires_manual_reactivation()
+    {
+        var services = Substitute.For<IUiServiceCatalog>();
+        services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
+        var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
+        var trade = new EstablishedTradeDefinition { Id = new(101,701,1701,1101), StrategyKind = TradeStrategyKind.IronCondor,
+            Status = EstablishedTradeStatus.Open };
+        var vm = new IronCondorViewModel(root,
+            new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
+            new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade, brokerEnvironment: BrokerEnvironment.Emulator);
+        typeof(IronCondorViewModel).GetProperty(nameof(vm.IsLiveFeedEnabled))!.SetValue(vm,true);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        var stopped = new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStoppedCompleteEvent();
+        await vm.ApplyMarketDataFeedStatusAsync(stopped);
+        await vm.ApplyMarketDataFeedStatusAsync(stopped);
+        vm.IsLiveFeedEnabled.Should().BeFalse();
+        vm.CanEnableLiveFeed.Should().BeFalse();
+        vm.CanSelectPositionHistory.Should().BeTrue();
+        vm.LiveFeedStatusMessage.Should().Contain("closed by the API");
+        changed.Should().Contain(nameof(vm.IsLiveFeedEnabled));
+        await vm.ApplyMarketDataFeedStatusAsync(new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedCompleteEvent());
+        vm.CanEnableLiveFeed.Should().BeTrue();
+        vm.IsLiveFeedEnabled.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

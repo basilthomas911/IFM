@@ -6,6 +6,8 @@ This design connects live Databento option trades to monitoring an established I
 
 Follow [Actor Implementation Conventions](Actor-Implementation-Conventions.md), [Actor Event Modeling Conventions](Actor-Event-Modeling-Conventions.md) and [Structured Logging Conventions](Structured-Logging-Conventions.md).
 
+Proposed follow-up: [ForwardPrice Function migration design and implementation plan](Iron-Condor-ForwardPrice-Function-Migration-Design.md) defines the requested dedicated Function returning the projected strategy price and the signed plan calculation `ForwardLoss = ForwardPrice × contract multiplier × strategy quantity`. That proposal is not yet implemented; it includes the versioning required to preserve existing forward-risk history.
+
 ## Agreed event path
 
 ```mermaid

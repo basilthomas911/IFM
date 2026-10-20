@@ -62,6 +62,16 @@ public static class StartFuturesRsiSignal
             futuresRsiSignal = FuturesRsiWilderSignalFactory.Create(observation, command.EntityId.PeriodLength, futuresRsiWilderResult);
             if (futuresRsiSignal is { IsWarm: true, Metadata.IsValid: true }) historicalWarmSignals.Add(futuresRsiSignal);
         }
+        if (futuresRsiSignal is { } initializedRsiSignal)
+        {
+            // Publish the final seed result for the new session, preserving the historical TDI window and source lineage.
+            futuresRsiSignal = initializedRsiSignal with
+            {
+                ValueDate = command.EntityId.ValueDate,
+                Metadata = initializedRsiSignal.Metadata is { } metadata
+                    ? metadata with { ValueDate = command.EntityId.ValueDate } : null
+            };
+        }
         var restoredSignal = command.ForceHistoricalInitialization || currentFuturesRsiCheckpoint is null
             ? null : previousFuturesRsiSignals.LastOrDefault();
         var warmHistory = historicalWarmSignals.TakeLast(FuturesTdiConfiguration.Standard.RequiredRsiSamples).SkipLast(1).ToArray();

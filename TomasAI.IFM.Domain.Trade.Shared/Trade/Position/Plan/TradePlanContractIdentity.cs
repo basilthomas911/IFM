@@ -14,6 +14,10 @@ public static class TradePlanContractIdentity
     public static string Fingerprint(this UpdateIronCondorTradePlanCommand command) 
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (command.UseForwardPriceFunction)
+            return Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(new object[] {
+                command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId,
+                command.IronCondorTradePlanInputs!, command.IronCondorForwardPriceCalculated!, command.ForwardPriceFailure! })));
         return command.IronCondorTradePlanInputs is null
             ? Fingerprint(command.EntityId.Format(), command.Position, command.Parameters, command.SourceEventId)
             : Convert.ToHexString(SHA256.HashData(MessagePackSerializer.Serialize(command.IronCondorTradePlanInputs)

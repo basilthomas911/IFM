@@ -17,7 +17,8 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
     DatasetWorkerProcessRecoveryService workers,
     DatabentoSupervisedWorkerOptions workerOptions,
     TimeProvider timeProvider,
-    ITickAggregationEventPublisher publisher) : IDatabentoLifecycleRuntime
+    ITickAggregationEventPublisher publisher,
+    TomasAI.IFM.Application.MarketData.OptionChainCache.IOptionFeedSessionCleanup? optionFeeds = null) : IDatabentoLifecycleRuntime
 {
     int activeValueDateDayNumber;
     bool ownsPublisher;
@@ -138,6 +139,15 @@ public sealed class SupervisedDatabentoLifecycleRuntime(
         List<Exception>? failures = null;
         try { await workers.StopAllAsync(CancellationToken.None).ConfigureAwait(false); }
         catch (Exception exception) { (failures ??= []).Add(exception); }
+        if (optionFeeds is not null)
+        {
+            try
+            {
+                using var cleanupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await optionFeeds.CloseSessionAsync(cleanupDeadline.Token).WaitAsync(cleanupDeadline.Token).ConfigureAwait(false);
+            }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
         if (ownsPublisher)
         {
             try

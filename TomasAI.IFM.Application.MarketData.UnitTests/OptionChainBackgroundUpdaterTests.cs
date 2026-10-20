@@ -71,7 +71,9 @@ public sealed class OptionChainBackgroundUpdaterTests
         for (var i = 0; i < 1000; i++) cache.TryGetSnapshot(request);
         Assert.Equal(calls, market.ReceivedCalls().Count());
         admissions.Close("GLBX.MDP3", Generation);
+        await updater.CloseSessionAsync(default);
         await updater.MaintainAsync(default);
+        await updater.CloseSessionAsync(default);
         await market.Received(1).ReleaseAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRelease>(), Arg.Any<CancellationToken>());
         Assert.False(cache.TryGetSnapshot(request).IsReady);
     }

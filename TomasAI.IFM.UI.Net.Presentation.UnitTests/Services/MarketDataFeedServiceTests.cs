@@ -190,6 +190,22 @@ public sealed class MarketDataFeedServiceTests
         await _optionTickConsumer.DidNotReceive().StopAsync();
     }
 
+    [Fact]
+    public async Task Trade_feed_status_listeners_preserve_independent_view_and_shell_ownership()
+    {
+        var service = CreateModel();
+        var first = Guid.NewGuid(); var second = Guid.NewGuid();
+        Func<IEvent, ValueTask> listener = _ => ValueTask.CompletedTask;
+        await service.StartTradeFeedStatusListenerAsync(first, listener);
+        await service.StartTradeFeedStatusListenerAsync(second, listener);
+        await service.StopTradeFeedStatusListenerAsync(first);
+        await _statusConsumer.Received(1).StartMonitoringAsync(first, listener);
+        await _statusConsumer.Received(1).StartMonitoringAsync(second, listener);
+        await _statusConsumer.Received(1).StopMonitoringAsync(first);
+        await _statusConsumer.DidNotReceive().StopMonitoringAsync(second);
+        await _statusConsumer.DidNotReceive().StopAsync();
+    }
+
     MarketDataFeedCommandService CreateModel()
         => new(
             _commandApi,

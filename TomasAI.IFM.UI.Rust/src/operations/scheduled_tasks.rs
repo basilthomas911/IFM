@@ -66,6 +66,8 @@ pub struct ScheduledTasks {
     new: bool,
     /// Last submitted action key used to interpret completion and refresh behavior.
     last_action: String,
+    /// Safe administrative failure shown in the persistent status line.
+    last_error: String,
 }
 impl Default for ScheduledTasks {
     /// Construct the view's initial filters, selection, and draft settings without issuing backend commands.
@@ -85,7 +87,7 @@ impl Default for ScheduledTasks {
             preview_fields: BTreeMap::new(),
             target: (String::new(), String::new()),
             new: false,
-            last_action: String::new(),
+            last_action: String::new(),last_error:String::new(),
         }
     }
 }
@@ -143,12 +145,16 @@ impl ScheduledTasks {
     /// Render the view from its cached publication, keep draft/selection state across frames, and return a user intent when applicable. The caller owns submission.
     ///
     /// This renderer owns schedule editor, weekday/time draft, run selection, and preview/confirmation state.
-    pub fn draw(
+    pub fn draw(&mut self, ctx:&egui::Context, s:&ContractPublication, c:&Catalog, live:bool)->Option<String> {self.draw_impl(ctx,s,c,live,false)}
+    /// Render inside the original System Admin Manager selector shell.
+    pub fn draw_system(&mut self, ctx:&egui::Context, s:&ContractPublication, c:&Catalog, live:bool)->Option<String> {self.draw_impl(ctx,s,c,live,true)}
+    fn draw_impl(
         &mut self,
         ctx: &egui::Context,
         s: &ContractPublication,
         c: &Catalog,
         live: bool,
+        manager: bool,
     ) -> Option<String> {
         let matching = s.result.view == "scheduled-tasks";
         if let Some(id) = &self.pending {
@@ -157,6 +163,7 @@ impl ScheduledTasks {
                 .iter()
                 .find(|o| &o.request_id == id && o.state != "Pending")
             {
+                self.last_error=if o.state=="Completed" {String::new()}else{o.message.clone()};
                 if o.state == "Completed" && self.last_action == "load" {
                     self.target = (
                         self.draft["environment"].clone(),
@@ -192,16 +199,17 @@ impl ScheduledTasks {
                     self.draft.get("hostId").cloned().unwrap_or_default(),
                 );
         let mut action = None;
-        egui::CentralPanel::default().show(ctx,|ui| {
-   ui.horizontal_wrapped(|ui| {
+        crate::system_admin::panel(ctx,manager,1,!s.busy&&self.pending.is_none(),|ui| {
+   if !manager {ui.horizontal_wrapped(|ui| {
     for (key,label) in [("environment",strings::SCHEDULE_ENVIRONMENT),("hostId",strings::SCHEDULE_HOST)] {ui.trading_caption(c.text(label));ui.add_enabled(idle,egui::TextEdit::singleline(self.draft.entry(key.into()).or_default()).desired_width(160.).id_salt(key));}
     if ui.add_enabled(idle,egui::Button::new(c.text(strings::SCHEDULE_REFRESH))).clicked(){action=Some("load");}
    });
    ui.trading_label(s.result.context.get("hostStatus").map(String::as_str).unwrap_or(&s.status));ui.trading_label(&s.status);
    if matching && !target_ok {ui.trading_caption(c.text(strings::SCHEDULE_HOST_CHANGED));}
+   }
    ui.horizontal(|ui|{if crate::presentation::tab_label(ui,!self.setup,c.text(strings::SCHEDULE_LOGS)).clicked(){self.setup=false;}if crate::presentation::tab_label(ui,self.setup,c.text(strings::SCHEDULE_SETUP)).clicked(){self.setup=true;}});
    ui.separator();
-   if self.setup {
+   if self.setup && manager {self.draw_setup_parity(ui,s,idle,&mut action);} else if !self.setup && manager {self.draw_logs_parity(ui,s,idle&&target_ok,&mut action);} else if self.setup {
     ui.horizontal_wrapped(|ui| {
      if ui.add_enabled(idle&&target_ok,egui::Button::new(c.text(strings::SCHEDULE_NEW))).clicked(){let env=self.draft["environment"].clone();let host=self.draft["hostId"].clone();self.draft=defaults();self.draft.insert("environment".into(),env);self.draft.insert("hostId".into(),host);self.selected=None;self.new=true;}
      for (intent,key,allowed) in [("preview",strings::SCHEDULE_PREVIEW,true),(if self.new {"add"} else {"change"},strings::SCHEDULE_SAVE,self.new||self.selected.is_some()),("enable",strings::SCHEDULE_ENABLE,self.selected.is_some()),("disable",strings::SCHEDULE_DISABLE,self.selected.is_some()),("remove",strings::SCHEDULE_REMOVE,self.selected.is_some()),("run",strings::SCHEDULE_RUN,self.selected.is_some())] {
@@ -220,7 +228,12 @@ impl ScheduledTasks {
      ui.trading_caption(c.text(strings::SCHEDULE_ONE_TIME));let mut one=self.draft.get("oneTime").is_some_and(|v|v.eq_ignore_ascii_case("true"));if ui.add_enabled(idle,egui::Checkbox::without_text(&mut one)).changed(){self.draft.insert("oneTime".into(),one.to_string());}ui.end_row();
     });if let Some(v)=s.result.document::<serde_json::Value>("preview").filter(|_| self.preview_fields==self.draft){{ui.trading_caption(c.text(if v["valid"].as_bool()==Some(true){strings::SCHEDULE_PREVIEW_VALID}else{strings::SCHEDULE_PREVIEW_INVALID}));ui.monospace(serde_json::to_string_pretty(&v).unwrap_or_default());}} });
    }else{
-    ui.horizontal_wrapped(|ui| {if ui.add_enabled(idle&&target_ok&&self.selected.is_some(),egui::Button::new(c.text(strings::SCHEDULE_HISTORY))).clicked(){action=Some("history");}if ui.add_enabled(idle&&target_ok&&s.result.has_more,egui::Button::new(c.text(strings::SCHEDULE_MORE_HISTORY))).clicked(){action=Some("next");}if ui.add_enabled(idle&&target_ok&&self.selected_run.is_some()&&s.result.context.get("outputEnd").is_some_and(|v|v.eq_ignore_ascii_case("false")),egui::Button::new(c.text(strings::SCHEDULE_MORE_OUTPUT))).clicked(){action=Some("more-output");}});
+    if manager {ui.horizontal_wrapped(|ui|{
+        if ui.add_enabled(idle,egui::Button::new("Refresh logs")).clicked(){action=Some("load");}
+        for(label,color)in[("Scheduled",egui::Color32::from_rgb(30,144,255)),("Unscheduled",egui::Color32::GRAY),("Running",egui::Color32::YELLOW),("Succeeded",egui::Color32::GREEN),("Failed/uncertain",egui::Color32::RED)]{ui.colored_label(color,format!("? {label}"));}
+    });}
+    if !manager {ui.horizontal_wrapped(|ui| {if ui.add_enabled(idle&&target_ok&&self.selected.is_some(),egui::Button::new(c.text(strings::SCHEDULE_HISTORY))).clicked(){action=Some("history");}if ui.add_enabled(idle&&target_ok&&s.result.has_more,egui::Button::new(c.text(strings::SCHEDULE_MORE_HISTORY))).clicked(){action=Some("next");}if ui.add_enabled(idle&&target_ok&&self.selected_run.is_some()&&s.result.context.get("outputEnd").is_some_and(|v|v.eq_ignore_ascii_case("false")),egui::Button::new(c.text(strings::SCHEDULE_MORE_OUTPUT))).clicked(){action=Some("more-output");}});
+    }
     let runs:Vec<Run>=s.result.document("runs").unwrap_or_default();
     let histories:BTreeMap<String,Vec<Run>>=s.result.document("histories").unwrap_or_default();
     let fires:BTreeMap<String,String>=s.result.document("nextFires").unwrap_or_default();
@@ -237,17 +250,18 @@ impl ScheduledTasks {
                             let text=format!("{} | {} {} | {} {}",name,c.text(strings::SCHEDULE_SCHEDULED),fires.get(&row.id).map(String::as_str).filter(|v|!v.is_empty()).unwrap_or("-"),c.text(strings::SCHEDULE_RAN),latest.and_then(|r|r.started_at_utc.as_deref()).unwrap_or("-"));
                             egui::RichText::new(text).color(status_color(status))
                         }).id_salt(&row.id).icon(move |ui,_open,response|{ui.painter().circle_filled(response.rect.center(),4.,root_color);}).show(ui,|ui| {
-       if ui.add_enabled(idle&&target_ok,egui::Button::new(c.text(strings::SCHEDULE_HISTORY))).clicked(){self.selected=Some(row.id.clone());action=Some("history");}
+       if !manager&&ui.add_enabled(idle&&target_ok,egui::Button::new(c.text(strings::SCHEDULE_HISTORY))).clicked(){self.selected=Some(row.id.clone());action=Some("history");}
        if histories.contains_key(&row.id) || s.result.context.get("historySchedule")==Some(&row.id){
         let mut groups:BTreeMap<String,BTreeMap<String,BTreeMap<String,Vec<&Run>>>>=BTreeMap::new();for r in histories.get(&row.id).unwrap_or(&runs) {if r.intended_fire_time_utc.len()>=10 {groups.entry(r.intended_fire_time_utc[..4].into()).or_default().entry(r.intended_fire_time_utc[5..7].into()).or_default().entry(r.intended_fire_time_utc[8..10].into()).or_default().push(r);}}
-        for (year,months) in groups {egui::CollapsingHeader::new(&year).id_salt((&row.id,&year)).show(ui,|ui| {for (month,days) in months {egui::CollapsingHeader::new(&month).id_salt((&row.id,&year,&month)).show(ui,|ui|{for (day,items) in days {egui::CollapsingHeader::new(&day).id_salt((&row.id,&year,&month,&day)).show(ui,|ui| {for r in items {let label=format!("{} | {} {} | {} {} | {}",name,c.text(strings::SCHEDULE_SCHEDULED),r.intended_fire_time_utc,c.text(strings::SCHEDULE_RAN),r.started_at_utc.as_deref().unwrap_or("-"),r.status);ui.horizontal(|ui|{let (rect,_)=ui.allocate_exact_size(egui::vec2(10.,10.),egui::Sense::hover());ui.painter().circle_filled(rect.center(),4.,status_color(&r.status));if ui.add_enabled(idle&&target_ok,egui::Button::new(label).selected(self.selected_run.as_ref()==Some(&r.id))).clicked(){self.selected=Some(row.id.clone());self.selected_run=Some(r.id.clone());action=Some("output");}});}});}});}});}
+        for (year,months) in groups {egui::CollapsingHeader::new(&year).id_salt((&row.id,&year)).show(ui,|ui| {for (month,days) in months {egui::CollapsingHeader::new(&month).id_salt((&row.id,&year,&month)).show(ui,|ui|{for (day,items) in days {egui::CollapsingHeader::new(&day).id_salt((&row.id,&year,&month,&day)).show(ui,|ui| {for r in items {let label=format!("{} | {} {} | {} {} | {}",name,c.text(strings::SCHEDULE_SCHEDULED),r.intended_fire_time_utc,c.text(strings::SCHEDULE_RAN),r.started_at_utc.as_deref().unwrap_or("-"),r.status);ui.horizontal(|ui|{let (rect,_)=ui.allocate_exact_size(egui::vec2(10.,10.),egui::Sense::hover());ui.painter().circle_filled(rect.center(),4.,status_color(&r.status));if ui.add_enabled(idle&&target_ok,egui::Button::new(label).selected(self.selected_run.as_ref()==Some(&r.id))).clicked(){self.selected=Some(row.id.clone());self.draft=row.fields.clone();self.selected_run=Some(r.id.clone());action=Some("output");}});}});}});}});}
        }
       });}if runs.is_empty(){ui.trading_caption(c.text(strings::SCHEDULE_NO_RUNS));}
      });
      });
      ui.separator();
      ui.allocate_ui_with_layout(egui::vec2((content_size.x - tree_width - 5.0).max(0.0), content_size.y), egui::Layout::top_down(egui::Align::Min), |ui| {
-     ui.heading(c.text(strings::SCHEDULE_OUTPUT));if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=s.result.context.get("output").map(String::as_str).unwrap_or("").lines().collect::<Vec<_>>();egui::ScrollArea::both().id_salt("task-output").show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines[i]);}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
+     if !manager{ui.heading(c.text(strings::SCHEDULE_OUTPUT));}if s.result.context.get("outputRun")==self.selected_run.as_ref(){let lines=s.result.context.get("output").map(String::as_str).unwrap_or("").lines().collect::<Vec<_>>();egui::ScrollArea::both().id_salt("task-output").show_rows(ui,20.,lines.len(),|ui,range|{for i in range{ui.monospace(lines[i]);}});}else{ui.trading_caption(c.text(strings::SCHEDULE_NO_OUTPUT));}
+     if manager&&ui.add_enabled(idle&&self.selected_run.is_some()&&s.result.context.get("outputEnd").is_some_and(|v|v.eq_ignore_ascii_case("false")),egui::Button::new("Load more output")).clicked(){action=Some("more-output");}
      });
     });
     if runs.iter().any(|r|Some(&r.id)==self.selected_run.as_ref()&&r.status=="Uncertain"){ui.horizontal(|ui|{ui.trading_caption(c.text(strings::SCHEDULE_REASON));ui.text_edit_singleline(&mut self.reason);if ui.add_enabled(idle&&target_ok&&self.reason.trim().len()>=3,egui::Button::new(c.text(strings::SCHEDULE_RESOLVE))).clicked(){self.confirmation=Some("resolve".into());}});}
@@ -277,3 +291,6 @@ impl ScheduledTasks {
         action.map(|a| self.request(a, s))
     }
 }
+
+#[path = "scheduled_tasks_parity.rs"]
+mod parity;

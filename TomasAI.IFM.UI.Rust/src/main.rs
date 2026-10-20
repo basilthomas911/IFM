@@ -88,6 +88,12 @@ struct App {
     health: ifm_ui_rust::operations_health::OperationsHealth,
     /// Whether the scheduled view is shown in the application.
     scheduled_tab: bool,
+    /// WinForms-compatible modal System administration owner.
+    system_open: bool,
+    system_release_pending: bool,
+    system_load_pending: bool,
+    system_section: usize,
+    backup: ifm_ui_rust::database_backup::DatabaseBackup,
     /// Scheduled-task editor/run-history state.
     scheduled: ifm_ui_rust::scheduled_tasks::ScheduledTasks,
     /// Whether the provider view is shown in the application.
@@ -172,6 +178,9 @@ impl eframe::App for App {
                     }
                 }
                 Update::SubmissionRejected(id, e) => {
+                    if self.backup.pending.as_ref()==Some(&id){self.backup.pending=None;if self.system_open{self.system_load_pending=true;}else{self.system_release_pending=true;}}
+                    if self.scheduled.pending.as_ref()==Some(&id){self.scheduled.pending=None;if self.system_open{self.system_load_pending=true;}}
+
                     self.trade_workspace.submission_rejected(&id);
                     self.market_data.submission_rejected(&id, &e);
                     self.portfolio.submission_rejected(&id, &e);
@@ -188,7 +197,7 @@ impl eframe::App for App {
                     self.yield_editor.pending = None;
                     self.calendar_editor.pending = None;
                     self.provider_browser.pending = None;
-                    self.scheduled.pending = None;
+                    self.scheduled.pending = None;self.backup.pending=None;
                     self.health.pending = None;
                     self.actor_health.pending = None;
                     self.parameters.pending = None;
@@ -277,32 +286,10 @@ impl eframe::App for App {
                         self.actor_tab = false;
                         self.grid_tab = false;
                     }
-                    ui.menu_button("System", |ui| {
-                        for (label, section) in [
-                            ("Scheduled Tasks", 0),
-                            ("Actor Health", 1),
-                            ("Operations health", 2),
-                        ] {
-                            if ui.button(label).clicked() {
-                                self.shell.select_system(
-                                    section,
-                                    &mut self.scheduled_tab,
-                                    &mut self.actor_tab,
-                                    &mut self.health_tab,
-                                );
-                                self.lookup_tab = false;
-                                self.contract_tab = false;
-                                self.inspection_tab = false;
-                                self.parameter_tab = false;
-                                self.catalog_tab = false;
-                                self.calendar_tab = false;
-                                self.yield_tab = false;
-                                self.provider_tab = false;
-                                self.grid_tab = false;
-                                ui.close();
-                            }
-                        }
-                    });
+                    if ui.button("System").clicked() {
+                        self.system_open=true;self.system_load_pending=true;
+
+                    }
                     // The WinForms toolbar separator sits above the Operations splitter.
                     let left_width = egui::containers::panel::PanelState::load(
                         ctx,
@@ -595,6 +582,28 @@ impl eframe::App for App {
             }
             ctx.request_repaint_after(Duration::from_millis(20));
         }
+        if let Some(section)=ctx.data_mut(|d|d.remove_temp::<usize>(egui::Id::new("system-admin-selection"))) {
+            self.system_section=section;
+            self.system_load_pending=true;
+        }
+        if ctx.data_mut(|d|d.remove_temp::<bool>(egui::Id::new("system-admin-closed"))).unwrap_or(false){self.system_open=false;self.system_release_pending=true;self.system_load_pending=false;self.system_section=0;self.backup=Default::default();self.scheduled=Default::default();}
+        if self.system_release_pending&&!self.contract_snapshot.busy {
+            let payload=self.backup.request("backup-close",&self.contract_snapshot);
+            if self.editor_tx.try_send(payload).is_ok(){self.system_release_pending=false;}else{self.backup.pending=None;}
+        }
+        if self.system_open&&self.system_load_pending&&!self.system_release_pending&&!self.contract_snapshot.busy {
+            if self.system_section==0 {self.backup.reopen();self.system_load_pending=false;}
+            else if self.scheduled.pending.is_none(){
+                let payload=self.scheduled.request("load",&self.contract_snapshot);
+                if self.editor_tx.try_send(payload).is_ok(){self.system_load_pending=false;}else{self.scheduled.pending=None;}
+            }
+        }
+        if self.system_open {
+            let live=self.snapshot.as_ref().is_some_and(|s|s.mode=="Live");
+            let payload=if self.system_section==0 {self.backup.draw(ctx,&self.contract_snapshot,live)}
+                else {self.scheduled.draw_system(ctx,&self.contract_snapshot,catalog,live)};
+            if let Some(payload)=payload {if self.editor_tx.try_send(payload).is_err(){self.backup.pending=None;self.scheduled.pending=None;self.status=catalog.text(strings::QUEUE_FULL).into();}}
+        }
         if !self.trade_workspace.is_visible(){stamps[8]=None;}
         if let Some(trace)=&self.latency {trace.paint(ctx,stamps);}
         if self.frame_times.len() < 10000 {
@@ -808,6 +817,7 @@ fn main() -> eframe::Result {
                 health_tab: false,
                 health: Default::default(),
                 scheduled_tab: false,
+                system_open:false, system_release_pending:false, system_load_pending:false, system_section:0, backup:Default::default(),
                 scheduled: Default::default(),
                 provider_tab: false,
                 provider_browser: Default::default(),
