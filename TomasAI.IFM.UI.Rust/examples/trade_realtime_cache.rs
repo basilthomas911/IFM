@@ -6,10 +6,11 @@ struct Probe {
     view: TradeWorkspace,
     publications: Vec<ContractPublication>,
     started: Instant,
+    interval: u64,
 }
 impl eframe::App for Probe {
     fn update(&mut self, ctx: &eframe::egui::Context, _: &mut eframe::Frame) {
-        let index = ((self.started.elapsed().as_secs() / 3) as usize).min(self.publications.len() - 1);
+        let index = ((self.started.elapsed().as_secs() / self.interval) as usize).min(self.publications.len() - 1);
         let publication = &mut self.publications[index];
         if let Some(request) = self.view.draw(ctx, publication) {
             let request: serde_json::Value = serde_json::from_str(&request).unwrap();
@@ -21,6 +22,8 @@ impl eframe::App for Probe {
     }
 }
 fn main() -> eframe::Result {
+    let interval = std::env::var("IFM_TRADE_CACHE_INTERVAL_SECONDS").ok()
+        .and_then(|value| value.parse::<u64>().ok()).unwrap_or(3).max(1);
     let file = std::env::args().nth(1).expect("Pass the managed-generated publication fixture JSON file");
     let mut publications: Vec<ContractPublication> = serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
     assert!(!publications.is_empty());
@@ -52,6 +55,6 @@ fn main() -> eframe::Result {
     }, Box::new(move |cc| {
         ifm_ui_rust::apply_winforms_typography(&cc.egui_ctx)?;
         cc.egui_ctx.enable_accesskit();
-        Ok(Box::new(Probe {view,publications,started:Instant::now()}))
+        Ok(Box::new(Probe {view,publications,started:Instant::now(),interval}))
     }))
 }

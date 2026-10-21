@@ -88,4 +88,34 @@ public sealed class TradeMonitorUpdatesTests
         Assert.Equal("101.701.1901.1501",refreshed.Result.Context!["activeTradeTab"]);
         Assert.Single(refreshed.Outcomes); // No synthetic refresh commands/outcomes accumulate.
     }
+    [Fact]
+    public void Live_price_notifications_preserve_history_window_and_do_not_mark_saved_positions_dirty()
+    {
+        var monitor = new Monitor();
+        using var updates = new TradeMonitorUpdates(monitor, () => monitor.Current, () => monitor.Live, () => { });
+        for (var i = 0; i < 150; i++) monitor.Send(Plan(i));
+        var first = updates.Plans([]); var before = updates.Revisions;
+        Assert.Equal(100, first.Count);
+        monitor.Raise("RealtimeSnapshot");
+        Assert.Same(first, updates.Plans([]));
+        Assert.Equal(before.History, updates.Revisions.History);
+        Assert.Equal(before.SavedPositions, updates.Revisions.SavedPositions);
+        Assert.True(updates.Revisions.Position > before.Position);
+        monitor.Raise(""); Assert.True(updates.Revisions.History > before.History);
+        Assert.NotSame(first, updates.Plans([]));
+    }
+
+    [Fact]
+    public async Task A_notification_arriving_during_snapshot_keeps_a_newer_revision_pending()
+    {
+        var monitor = new Monitor(); long revision = 0;
+        using var updates = new TradeMonitorUpdates(monitor, () => monitor.Current, () => monitor.Live, () => Interlocked.Increment(ref revision));
+        monitor.Send(Plan(1));
+        var observed = Volatile.Read(ref revision);
+        var captured = updates.Plans([]);
+        await Task.Run(() => monitor.Send(Plan(2)));
+        Assert.True(Volatile.Read(ref revision) > observed);
+        Assert.Single(captured); Assert.Equal(2, updates.Plans([]).Count);
+        updates.Dispose(); var closed = revision; monitor.Send(Plan(3)); Assert.Equal(closed, revision);
+    }
 }

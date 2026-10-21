@@ -95,7 +95,10 @@ sealed class WireTree : IDisposable
                 var nested = new MessagePackReader(bytes.AsMemory(offset, (int)data.Length));
                 if (nested.NextMessagePackType is MessagePackType.Map or MessagePackType.Array)
                 {
-                    nodes[index].Kind = 3; nodes[index].First = Parse(ref nested, offset, depth + 1, null);
+                    nodes[index].Kind = 3;
+                    // Parsing can grow and replace the pooled array; assign only after it returns.
+                    var child = Parse(ref nested, offset, depth + 1, null);
+                    nodes[index].First = child;
                     if (!nested.End) throw new InvalidOperationException("Not a nested display document");
                 }
             }

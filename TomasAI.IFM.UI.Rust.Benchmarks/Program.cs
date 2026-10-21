@@ -5,6 +5,7 @@ using BenchmarkDotNet.Running;
 using Perfolizer.Horology;
 using TomasAI.IFM.UI.Rust.Bridge.Net;
 
+if(args.Length>0&&args[0]=="--trade-probe") {await TradeMonitorProbe.RunAsync(args[1]);return;}
 if(args.Length>0&&args[0]=="--probe") {await BridgeProbe.RunAsync(args[1]);return;}
 var config=ManualConfig.Create(DefaultConfig.Instance);
 foreach(var server in new[]{false,true}) config.AddJob(Job.Default.WithId(server?"Server":"Workstation")

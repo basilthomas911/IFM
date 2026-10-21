@@ -58,4 +58,34 @@ public sealed class PublicationTransferTests
         File.WriteAllBytes(Path.Combine(directory,"patch.msgpack"),next.Bytes);
         File.WriteAllBytes(Path.Combine(directory,"expected.msgpack"),expected);
     }
+    [Fact]
+    public void Cached_history_rows_preserve_patch_and_full_recovery_after_prepend_and_trim()
+    {
+        using var cache = new TradePlanRowCache();
+        var plans = Enumerable.Range(1, 100).Select(i => TradePlanRowCacheTests.Plan(i)).Reverse().ToArray();
+        var scope = new TradePlanHistoryScope(plans[0].Position.Id, plans[0].ValueDate, true);
+        byte[] Encode(TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot[] window)
+            => BridgeWire.Serialize(new ContractEditorPublication(1, 1, "Ready", false,
+                new("trade-orders", cache.Rows(window, scope), []), []));
+        using var stream = new PublicationTransfer(incremental: true);
+        var first = stream.Read(Encode(plans), 0)!.Value;
+        var secondPlans = new[] { TradePlanRowCacheTests.Plan(101) }.Concat(plans.Take(99)).ToArray();
+        var expected = Encode(secondPlans);
+        var next = stream.Read(expected, first.Sequence)!.Value;
+        Assert.True(next.Patch); Assert.True(next.Bytes.Length < first.Bytes.Length);
+        Assert.Equal(101, cache.Encodes);
+        if (Environment.GetEnvironmentVariable("IFM_TRANSFER_FIXTURES") is { Length: > 0 } fixtures)
+        {
+            var directory = Path.Combine(fixtures, "trade-history");
+            Directory.CreateDirectory(directory);
+            File.WriteAllBytes(Path.Combine(directory, "full.msgpack"), first.Bytes);
+            File.WriteAllBytes(Path.Combine(directory, "patch.msgpack"), next.Bytes);
+            File.WriteAllBytes(Path.Combine(directory, "expected.msgpack"), expected);
+        }
+        var thirdPlans = new[] { TradePlanRowCacheTests.Plan(102) }.Concat(secondPlans.Take(99)).ToArray();
+        var bytes = Encode(thirdPlans);
+        var missed = stream.Read(bytes, first.Sequence)!.Value;
+        Assert.False(missed.Patch); Assert.Same(bytes, missed.Bytes);
+        Assert.Null(stream.Read(bytes, missed.Sequence));
+    }
 }

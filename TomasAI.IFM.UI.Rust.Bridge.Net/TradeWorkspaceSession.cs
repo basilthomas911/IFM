@@ -23,7 +23,10 @@ sealed class TradeWorkspaceSession : IDisposable
         public string PlanError { get; set; } = "";
         public TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanChartPoint[] ChartPoints { get; set; } = [];
         public DateTime? ChartEndUtc { get; set; }
+        public TradeMonitorRowSections Sections { get; } = new();
+        public StrategyPositionId PositionId { get; } = StrategyPositionId.Create(Trade.Id, TradeStrategyKind.IronCondor);
     }
+    readonly TradePlanRowCache planRows = new();
     readonly Dictionary<string, OpenTrade> openTrades = new(StringComparer.Ordinal);
     string? activeTradeKey;
     OpenTrade? ActiveTrade => activeTradeKey is not null ? openTrades.GetValueOrDefault(activeTradeKey) : null;
@@ -190,6 +193,8 @@ sealed class TradeWorkspaceSession : IDisposable
                 var closeKey=Field(input,"tradeTabId");
                 if(openTrades.TryGetValue(closeKey,out var closingTrade)) {
                     closingTrade.Updates?.Dispose();
+                    closingTrade.Sections.Dispose();
+                    planRows.Clear(closingTrade.PositionId);
                     if(closingTrade.Monitor is not null)await closingTrade.Monitor.DisposeAsync();
                     openTrades.Remove(closeKey);
                     if(activeTradeKey==closeKey)activeTradeKey=openTrades.Keys.LastOrDefault();
@@ -253,20 +258,30 @@ sealed class TradeWorkspaceSession : IDisposable
         rows.AddRange(m.FundOrders.Select(x=>Row("order",x.OrderId.ToString(),new{x.OrderId,x.Status,CreatedOnUtc=EasternTime.FromUtc(x.CreatedOnUtc).ToString("yyyy-MMM-dd",CultureInfo.InvariantCulture),x.OperatorReference,source=x.Origin.ToString()=="ManualUi"?"Manual":"Strategy Workflow"})));
         rows.AddRange(m.FundOrderTrades.Select((x,n)=>Row("trade",x.TradeId.ToString(),new{index=n,x.TradeId,x.TradeType,x.EffectiveDate,x.TradeDate,x.MaturityDate,x.TradeState,x.TradeAction,x.BaseContractId})));
         rows.AddRange(openTrades.Select(pair=>Row("workspace-tab",pair.Key,new {key=pair.Key,title=$"{pair.Value.Trade.Id.OrderId}:{pair.Value.Trade.Id.TradeId}",kind="trade",active=pair.Key==activeTradeKey})));
-        if(established is not null){rows.Add(Row("established",established.Id.Format(),established));}
+        if(ActiveTrade is { } establishedTab) rows.AddRange(establishedTab.Sections.Rows(
+            TradeMonitorSection.Established, establishedTab.Trade, 0, establishedTab.Trade,
+            static trade => [Row("established", trade.Id.Format(), trade)]));
         if(monitor is {} activeMonitor){
             // Capture once: every live row in this publication comes from this revision.
             var live=activeMonitor.IsLiveFeedEnabled ? activeMonitor.RealtimeSnapshot : null;
             if(live is not null) rows.Add(Row("realtime","0",live));
-            rows.AddRange(activeMonitor.TradeHistory.Select((x,n)=>Row("position",n.ToString(),x)));
-            var savedPlans = ActiveTrade!.PlanPage?.Items ?? [];
-            var plans = ActiveTrade.Updates?.Plans(savedPlans).ToArray() ?? (activeMonitor.IsLiveFeedEnabled ? [] : savedPlans);
-            if(activeMonitor.IsLiveFeedEnabled)plans=plans.Where(plan=>plan.ValueDate==ActiveTrade.PlanDate).ToArray();
-            rows.AddRange(plans.Select((x,n)=>Row("plan",n.ToString(),x)));
-            rows.Add(Row("limits","0",activeMonitor.TradeLimitSnapshot));
-            rows.Add(Row("chart","0",new { ActiveTrade!.ChartEndUtc, Points = ActiveTrade.ChartPoints }));
-            rows.Add(Row("position-details","0",live?.Position ?? activeMonitor.SelectedSavedPosition));
-            if(live is null) rows.AddRange(activeMonitor.SavedLegObservations.Select((x,n)=>Row("observation",n.ToString(),x)));
+            var active = ActiveTrade!;
+            var revisions = active.Updates?.Revisions ?? default;
+            rows.AddRange(active.Sections.Rows(TradeMonitorSection.Positions, activeMonitor.TradeHistory, revisions.SavedPositions,
+                activeMonitor.TradeHistory, static history => history.Select((item, index) => Row("position", index.ToString(), item)).ToArray()));
+            var savedPlans = active.PlanPage?.Items ?? [];
+            var plans = active.Updates?.Plans(savedPlans, active.PlanDate)
+                ?? (activeMonitor.IsLiveFeedEnabled ? Array.Empty<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanSnapshot>() : savedPlans);
+            rows.AddRange(planRows.Rows(plans, new(active.PositionId, active.PlanDate, activeMonitor.IsLiveFeedEnabled)));
+            rows.AddRange(active.Sections.Rows(TradeMonitorSection.Limits, activeMonitor.TradeLimitSnapshot, revisions.Limits,
+                activeMonitor.TradeLimitSnapshot, static limits => [Row("limits", "0", limits)]));
+            rows.AddRange(active.Sections.Rows(TradeMonitorSection.Chart, active.ChartPoints, active.ChartEndUtc?.Ticks ?? 0,
+                (active.ChartEndUtc, active.ChartPoints), static chart => [Row("chart", "0", new { ChartEndUtc = chart.ChartEndUtc, Points = chart.ChartPoints })]));
+            var position = live?.Position ?? activeMonitor.SelectedSavedPosition;
+            rows.AddRange(active.Sections.Rows(TradeMonitorSection.PositionDetails, position, revisions.Position,
+                position, static selected => [Row("position-details", "0", selected)]));
+            if(live is null) rows.AddRange(active.Sections.Rows(TradeMonitorSection.Observations, activeMonitor.SavedLegObservations, revisions.Position,
+                activeMonitor.SavedLegObservations, static observations => observations.Select((item, index) => Row("observation", index.ToString(), item)).ToArray()));
         }
         if(newOrder is not null)rows.Add(Row("order-draft","0",new{newOrder.OrderId,newOrder.OrderDate,newOrder.OrderStatus}));
         if(endOfDay is not null)rows.Add(Row("eod","0",new{endOfDay.PortfolioId,endOfDay.FundId,endOfDay.OrderId,endOfDay.TradeId,endOfDay.ValueDate,endOfDay.OpenPrice,endOfDay.HighPrice,endOfDay.LowPrice,endOfDay.ClosePrice,endOfDay.Volume,endOfDay.TradePnl,endOfDay.FundBalance,endOfDay.CanRun,endOfDay.CommandId,endOfDay.IsCompleted,endOfDay.LastStatusMessage}));
@@ -276,5 +291,5 @@ sealed class TradeWorkspaceSession : IDisposable
             ["latestPlanRevision"]=(monitor?.IsLiveFeedEnabled==true?monitor.StrategyTradePlan?.PlanRevision??0:0).ToString(),["planMaximumRevision"]=(ActiveTrade?.PlanPage?.MaximumRevision??0).ToString(),["planOffset"]=(ActiveTrade?.PlanPage?.Offset??0).ToString(),["planTotal"]=(ActiveTrade?.PlanPage?.TotalCount??1).ToString(),["planLoaded"]=(monitor?.IsLiveFeedEnabled==true || ActiveTrade?.PlanPage is not null).ToString(),["planDate"]=ActiveTrade?.PlanDate.ToString("yyyy-MM-dd")??"",["planError"]=ActiveTrade?.PlanError??"",["monitorStatus"]=monitor?.LiveFeedStatusMessage??"",["monitorLive"]=monitor?.IsLiveFeedEnabled.ToString()??"False",["monitorCanLive"]=monitor?.CanEnableLiveFeed.ToString()??"False",["monitorCanSelectPosition"]=monitor?.CanSelectPositionHistory.ToString()??"False",["activeTradeTab"]=activeTradeKey??"",["fundName"]=ActiveTrade?.FundName??m.SelectedFund?.Name??"",["compositionType"]=ActiveTrade?.TradeType??m.SelectedFundOrderTrade?.TradeType.ToString()??"",["tradeAction"]=ActiveTrade?.TradeAction??m.SelectedFundOrderTrade?.TradeAction.ToString()??"",["canCreateOrder"]=m.CanCreateOrder.ToString(),["canRemoveOrder"]=m.CanDeleteOrder.ToString(),["canAddTrade"]=m.CanAddTrade.ToString(),["canRemoveTrade"]=m.CanRemoveTrade.ToString(),["canLoadTrade"]=m.CanLoadOrder.ToString(),["canSubmit"]=m.CanSubmitOrder.ToString(),["canEndOfDay"]=m.CanEndOfDay.ToString(),["canLive"]=monitor?.CanEnableLiveFeed.ToString()??"False",["live"]=monitor?.IsLiveFeedEnabled.ToString()??"False",["canSelectPosition"]=monitor?.CanSelectPositionHistory.ToString()??"False",["status"]=m.LastStatusMessage});
     }
     public void CancelPending()=>stopping.Cancel();
-    public void Dispose(){stopping.Cancel();foreach(var trade in openTrades.Values){trade.Updates?.Dispose();trade.Monitor?.DisposeAsync().AsTask().GetAwaiter().GetResult();}openTrades.Clear();endOfDay?.DisposeAsync().AsTask().GetAwaiter().GetResult();newOrder?.DisposeAsync().AsTask().GetAwaiter().GetResult();model?.DisposeAsync().AsTask().GetAwaiter().GetResult();scope.DisposeAsync().AsTask().GetAwaiter().GetResult();stopping.Dispose();}
+    public void Dispose(){stopping.Cancel();foreach(var trade in openTrades.Values){trade.Updates?.Dispose();trade.Sections.Dispose();trade.Monitor?.DisposeAsync().AsTask().GetAwaiter().GetResult();}openTrades.Clear();planRows.Dispose();endOfDay?.DisposeAsync().AsTask().GetAwaiter().GetResult();newOrder?.DisposeAsync().AsTask().GetAwaiter().GetResult();model?.DisposeAsync().AsTask().GetAwaiter().GetResult();scope.DisposeAsync().AsTask().GetAwaiter().GetResult();stopping.Dispose();}
 }

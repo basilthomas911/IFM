@@ -316,6 +316,14 @@ public sealed class TradeRealtimeHotCacheTests
         };
         cache.Apply(position);
         var publications = new List<object>();
+        using var history = new TomasAI.IFM.UI.Rust.Bridge.Net.TradePlanRowCache();
+        var plans = Enumerable.Range(1, 101).Select(index => new StrategyTradePlanSnapshot
+        {
+            Position = position, ValueDate = position.ValueDate, PlanRevision = index,
+            CalculatedAtUtc = new DateTime(2026, 10, 21, 15, 0, 0, DateTimeKind.Utc).AddSeconds(index),
+            IronCondorTradePlanSnapshot = new() { SequenceId = index,
+                ActionDateTime = new DateTime(2026, 10, 21, 15, 0, 0, DateTimeKind.Utc).AddSeconds(index) }
+        }).ToArray();
         for (var revision = 1; revision <= 2; revision++)
         {
             foreach (var leg in trade.Legs)
@@ -329,7 +337,9 @@ public sealed class TradeRealtimeHotCacheTests
             {
                 Row("established", trade), Row("realtime", cache.Read()), Row("position-details", position),
                 Row("workspace-tab", new Dictionary<string,object> { ["key"] = trade.Id.Format(), ["title"] = "1901:1501", ["kind"] = "trade", ["active"] = true })
-            };
+            }.Concat(history.Rows(plans.Skip(revision - 1).Take(100).Reverse().ToArray(),
+                new(position.Id, position.ValueDate, true)).Select(row => (object)new
+                { id = row.Id, fields = row.Fields, data = row.Data!.Select(value => (int)value).ToArray() })).ToArray();
             publications.Add(new { schema = 1, generation = revision, busy = false, status = "Completed", outcomes = Array.Empty<object>(),
                 result = new { view = "trade-orders", rows, choices = new Dictionary<string, string[]>(), hasMore = false,
                     context = new Dictionary<string,string> { ["live"] = "True", ["monitorLive"] = "True", ["canLoadTrade"] = "True",
@@ -338,6 +348,7 @@ public sealed class TradeRealtimeHotCacheTests
         var path = Environment.GetEnvironmentVariable("IFM_TRADE_CACHE_FIXTURE");
         if (!string.IsNullOrEmpty(path)) File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(publications));
         Assert.Equal(2, publications.Count);
+        Assert.Equal(101, history.Encodes);
         static object Row(string kind, object value) => new { id = kind + ":0", fields = new Dictionary<string,string> { ["kind"] = kind },
             data = TomasAI.IFM.UI.Rust.Bridge.Net.BridgeDocument.Encode(value, camelCase: true, enumNames: true).Select(value => (int)value).ToArray() };
     }

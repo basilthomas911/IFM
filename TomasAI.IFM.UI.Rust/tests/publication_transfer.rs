@@ -4,6 +4,17 @@ use ifm_ui_rust::publication_transfer::TransferCache;
 fn csharp_incremental_documents_and_recovery() {
     let root =
         std::path::PathBuf::from(std::env::var_os("IFM_TRANSFER_FIXTURES").expect("fixture root"));
+    verify_incremental_documents(&root);
+}
+
+#[test]
+#[ignore = "Requires IFM_TRANSFER_FIXTURES produced by PublicationTransferTests"]
+fn csharp_cached_trade_history_prepend_trim_and_recovery() {
+    let root = std::path::PathBuf::from(std::env::var_os("IFM_TRANSFER_FIXTURES").expect("fixture root"));
+    verify_incremental_documents(&root.join("trade-history"));
+}
+
+fn verify_incremental_documents(root: &std::path::Path) {
     let mut cache = TransferCache::default();
     cache.scratch = std::fs::read(root.join("full.msgpack")).unwrap();
     cache.complete(8, 0, 1, 100, 50).unwrap();

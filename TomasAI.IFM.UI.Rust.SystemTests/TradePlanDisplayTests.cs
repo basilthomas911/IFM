@@ -33,4 +33,33 @@ public sealed class TradePlanDisplayTests
         Assert.Equal("-542.50", detail.GetProperty("currentPositionValue").GetString());
         Assert.Equal("19.90", detail.GetProperty("volatilityPrice").GetString());
     }
+    internal static byte[] LegacyHistory(StrategyTradePlanSnapshot plan)
+    {
+        var fields = BridgeDocument.Map(plan, camelCase: true, enumNames: true);
+        fields.Remove("position"); fields.Remove("parameters");
+        if (fields.GetValueOrDefault("ironCondorTradePlanSnapshot") is Dictionary<string, object?> detail)
+        { detail.Remove("position"); detail.Remove("legs"); detail.Remove("legacyLegs"); detail.Remove("strategyRiskParameterSet"); }
+        return BridgeDocument.Encode(fields);
+    }
+
+    [Fact]
+    public void Typed_history_preserves_existing_wire_bytes_and_ignores_excluded_evidence()
+    {
+        var minimal = new StrategyTradePlanSnapshot { PlanRevision = 7, Explanation = "unicode ? & <>",
+            CurrentValue = -123.4500m, ForwardLoss = -700.00m,
+            IronCondorTradePlanSnapshot = new() { CurrentPositionValue = -542.50m, ContractMultiplier = 50, VolatilityPrice = 19.90m } };
+        var heavy = minimal with { Position = new() { Legs = Enumerable.Range(0, 10000)
+            .Select(i => new TomasAI.IFM.Domain.Trade.Shared.StrategyPositionLeg { ContractId = $"ES-{i}", CurrentPrice = i }).ToArray() } };
+        Assert.Equal(LegacyHistory(minimal), TradePlanDisplay.EncodeHistory(minimal));
+        Assert.Equal(LegacyHistory(heavy), TradePlanDisplay.EncodeHistory(heavy));
+        Assert.Equal(TradePlanDisplay.EncodeHistory(minimal), TradePlanDisplay.EncodeHistory(heavy));
+        Assert.Equal(LegacyHistory(minimal with { IronCondorTradePlanSnapshot = null }),
+            TradePlanDisplay.EncodeHistory(minimal with { IronCondorTradePlanSnapshot = null }));
+        // Warming descriptors and pooled buffers prevents measuring initialization as evidence traversal.
+        _ = TradePlanDisplay.EncodeHistory(heavy);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        _ = TradePlanDisplay.EncodeHistory(heavy);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < 32_000, $"History encoding traversed excluded evidence: {allocated} bytes");
+    }
 }

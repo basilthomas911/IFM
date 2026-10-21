@@ -8,6 +8,9 @@
   <ItemGroup>
     <!-- Prebuilt references keep BenchmarkDotNet's isolated builds from rebuilding the application graph. -->
     <Reference Include="TomasAI.IFM.UI.Rust.Bridge.Net"><HintPath>$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.UI.Rust.Bridge.Net.dll</HintPath></Reference>
+    <Reference Include="TomasAI.IFM.Domain.Trade.Shared"><HintPath>$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.Domain.Trade.Shared.dll</HintPath></Reference>
+    <Reference Include="TomasAI.IFM.Shared"><HintPath>$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.Shared.dll</HintPath></Reference>
+    <Reference Include="TomasAI.IFM.Domain.MarketData.Shared"><HintPath>$(BridgeBenchmarkAssemblyRoot)/TomasAI.IFM.Domain.MarketData.Shared.dll</HintPath></Reference>
     <None Include="$(BridgeBenchmarkAssemblyRoot)/*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8"/>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10"/>
