@@ -1,11 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
 
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
@@ -60,44 +58,6 @@ public class TradePositionUIEventConsumer(INatsEventListenerOptions options, ILo
         }
         catch { _realtimeListeners.TryRemove(ownerId, out _); await listener.StopAsync().ConfigureAwait(false); throw; }
     }
-
-    readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
-    {
-        [new ActorMailboxId(ActorType.Event, TradePositionUpdatedEvent.Actor)] = [TradePositionUpdatedEvent.Verb]
-    };
-
-    /// <summary>
-    /// start event consumer
-    /// </summary>
-    /// <param name="eventAction"></param>
-    public async ValueTask StartAsync(Action<TradePositionUpdatedEvent> eventAction)
-    {
-        await StartAsync(_listenerName, _eventMap, EventHandlerAsync);
-
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
-        {
-            try
-            {
-                _ = eventVerb switch
-                {
-                    _ when eventVerb == TradePositionUpdatedEvent.Verb => HandleEvent(eventMsg.AsEvent<TradePositionUpdatedEvent>()!, eventAction),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
-            }
-
-            IEvent HandleEvent(TradePositionUpdatedEvent e, Action<TradePositionUpdatedEvent> eventAction)
-            {
-                eventAction?.Invoke(e);
-                return e;
-            }
-        }
-    }
-
 
     /// <summary>Listens to current Iron Condor events using the persisted position and plan contracts.</summary>
     /// <param name="eventAction">The read-only monitoring callback.</param>

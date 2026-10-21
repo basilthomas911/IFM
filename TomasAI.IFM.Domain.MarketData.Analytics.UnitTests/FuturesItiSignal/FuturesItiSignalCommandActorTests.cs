@@ -415,8 +415,8 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         state.TradingDays.Should().Be(timePeriod switch
         {
             TimeFrameType.Daily => 1,
-            TimeFrameType.Weekly => 10,
-            TimeFrameType.Monthly => 30,
+            TimeFrameType.Weekly => 20,
+            TimeFrameType.Monthly => 60,
             _ => throw new ArgumentOutOfRangeException(nameof(timePeriod))
         });
     }

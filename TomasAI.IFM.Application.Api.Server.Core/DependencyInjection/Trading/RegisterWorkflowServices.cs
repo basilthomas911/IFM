@@ -111,17 +111,12 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
 using TomasAI.IFM.Framework.Telemetry.Metrics;
-using TomasAI.IFM.TradePlan;
-using TomasAI.IFM.TradePlan.HostedService;
-using TomasAI.IFM.Service.TradePosition;
-using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProducers;
-using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Model;
@@ -185,8 +180,6 @@ public static partial class CoreServiceRegistration
         //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
         services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(siContainer, e)!));
         services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(siContainer, e)!));
-        services.AddSingleton<IEventServiceApiResolver>(_ => new EventServiceApiResolver(eventHandlerType => GetContainerInstance(siContainer, eventHandlerType)!));
-        services.AddSingleton<IEventServiceHandlerResolver>(_ => new EventServiceHandlerResolver(eventHandlerType => GetContainerInstance(siContainer, eventHandlerType)!));
         services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
 
 

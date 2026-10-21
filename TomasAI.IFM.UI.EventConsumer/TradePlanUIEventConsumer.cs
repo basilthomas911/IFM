@@ -1,11 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
 
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
@@ -41,40 +39,6 @@ public class TradePlanUIEventConsumer(INatsEventListenerOptions options, ILogger
         if (_monitoringListeners.TryRemove(ownerId, out var listener))
             await listener.StopAsync().ConfigureAwait(false);
     }
-
-    readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
-    {
-        [new ActorMailboxId(ActorType.Event, TradePlanUpdatedEvent.Actor)] = [TradePlanUpdatedEvent.Verb]
-    };
-
-    public async ValueTask StartAsync(Func<TradePlanUpdatedEvent, ValueTask> eventAction)
-    {
-        await StartAsync(_listenerName, _eventMap, EventHandlerAsync);
-
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
-        {
-            try
-            {
-                await (eventVerb switch
-                {
-                    _ when eventVerb == TradePlanUpdatedEvent.Verb
-                        => HandleEventAsync(eventMsg.AsEvent<TradePlanUpdatedEvent>()!, eventAction),
-                    _ => ValueTask.CompletedTask
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
-            }
-
-            static ValueTask HandleEventAsync(
-                TradePlanUpdatedEvent e,
-                Func<TradePlanUpdatedEvent, ValueTask> eventAction)
-                => eventAction is null ? ValueTask.CompletedTask : eventAction(e);
-        }
-
-    }
-
 
     /// <summary>Listens to current Iron Condor events using the persisted position and plan contracts.</summary>
     /// <param name="eventAction">The read-only monitoring callback.</param>

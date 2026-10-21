@@ -34,9 +34,9 @@ public sealed class G3EventCatalogContractTests
             ["TomasAI.IFM.UI.EventConsumer/IntrinsicTimeStrategyWorkflowUIEventConsumer.cs"] =
                 ["IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePlanUIEventConsumer.cs"] =
-                ["TradePlanUpdatedEvent"],
+                ["IronCondorTradePlanUpdatedEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePositionUIEventConsumer.cs"] =
-                ["TradePositionUpdatedEvent"],
+                ["IronCondorPositionChangedEvent", "TradeRealtimeSnapshotChangedEvent"],
             ["TomasAI.IFM.UI.EventConsumer/TradePlacementUIEventConsumer.cs"] =
                 ["TradePlacementSetEvent", "TradePlacementWaitEvent", "TradePlacementClearedEvent"],
             ["TomasAI.IFM.UI.EventConsumer/MarketDataFeedResetUIEventConsumer.cs"] =
@@ -93,7 +93,7 @@ public sealed class G3EventCatalogContractTests
 
         var monitor = Read(
             "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs");
-        monitor.Should().Contain("OrderedBatchAsyncChannel<TradePlanReadModel>");
+        monitor.Should().Contain("LatestValueAsyncChannel<StrategyTradePlanSnapshot>");
         monitor.Should().Contain("KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>");
         monitor.Should().Contain("LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>");
     }

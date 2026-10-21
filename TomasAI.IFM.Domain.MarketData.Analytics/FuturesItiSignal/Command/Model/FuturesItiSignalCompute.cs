@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Model
 /// </summary>
 public sealed class FuturesItiSignalCompute
 {
-    internal const double DefaultBandPercentage = 0.15;
+    internal const double DefaultBandPercentage = 0.20;
     const double FuturesPriceTick = 0.25;
 
     readonly GenerateFuturesItiSignalCommand _command;
@@ -285,7 +285,7 @@ public sealed class FuturesItiSignalCompute
     static double CalculateLambda(
         double vixFuturesPrice,
         double baselineVix = 15.7,
-        double baseLambdaFactor = 0.003)
+        double baseLambdaFactor = 0.002)
     {
         var normalizedVolatility = vixFuturesPrice / baselineVix;
         var volatilityFactor = normalizedVolatility > 1
@@ -296,31 +296,32 @@ public sealed class FuturesItiSignalCompute
     }
 
     /// <summary>
-    /// Calculates the minimum threshold for a new signal to be published. 
-    /// The threshold is based on the intrinsic price,
-    /// the number of trading days in the time frame, 
-    /// and the futures price tick size. 
-    /// If the trend is down, the minimum target delta is returned. 
-    /// If the trend is up, the method checks if the trend extreme has moved sufficiently away from the intrinsic price 
-    /// and returns either the maximum of the trend delta and minimum target delta or just the minimum target delta.
+    /// Calculates the existing price/time threshold, then applies a directional factor:
+    /// 0.85 in an uptrend to recognize declines sooner, or 1.15 in a downtrend
+    /// to require stronger confirmation of an upward reversal.
     /// </summary>
-    /// <param name="signal"></param>
-    /// <param name="lambda"></param>
-    /// <returns></returns>
+    /// <param name="signal">The signal containing the current trend, price, and trading days.</param>
+    /// <param name="lambda">The volatility adjustment used in the base threshold.</param>
+    /// <returns>The direction-adjusted threshold used for reversal triggers and publication bands.</returns>
     static double CalculateThreshold(
         FuturesItiSignalV2ReadModel signal,
         double lambda)
     {
         var minimumTargetDelta = signal.IntrinsicPrice * lambda
             + Math.Sqrt(signal.TradingDays) * (FuturesPriceTick * signal.TradingDays);
-        if (signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend)
-            return minimumTargetDelta;
-
         var minimumExtremeDelta = minimumTargetDelta / Math.PI;
-        return signal.TrendExtreme - signal.IntrinsicPrice > minimumExtremeDelta
-            && signal.IntrinsicPrice > signal.TrendPrice + minimumTargetDelta
-                ? Math.Max(signal.TrendDelta, minimumTargetDelta)
-                : minimumTargetDelta;
+        var calculatedThreshold = signal.IntrinsicTimeTrend switch
+        {
+            IntrinsicTimeTrendType.DownTrend => minimumTargetDelta,
+            _ when signal.TrendExtreme - signal.IntrinsicPrice > minimumExtremeDelta
+                && signal.IntrinsicPrice > signal.TrendPrice + minimumTargetDelta
+                => Math.Max(signal.TrendDelta, minimumTargetDelta),
+            _ => minimumTargetDelta
+        };
+        var thresholdFactor = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.DownTrend
+            ? 1.15
+            : 0.85;
+        return calculatedThreshold * thresholdFactor;
     }
 
     static int DefaultTradingDays(TimeFrameType timePeriod)

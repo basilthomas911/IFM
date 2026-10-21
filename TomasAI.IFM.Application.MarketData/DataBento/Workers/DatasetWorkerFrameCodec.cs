@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -29,6 +30,12 @@ public static class DatasetWorkerFrameCodec
         Stream stream,
         int maximumBytes,
         CancellationToken cancellationToken)
+        => await ReadAsync(stream, maximumBytes, cancellationToken, ArrayPool<byte>.Shared).ConfigureAwait(false);
+
+    // The buffer is borrowed only through synchronous deserialization. Frame contracts own their strings,
+    // arrays and immutable collections; none expose a slice of the MessagePack input memory.
+    internal static async ValueTask<DatasetWorkerControlFrame> ReadAsync(
+        Stream stream, int maximumBytes, CancellationToken cancellationToken, ArrayPool<byte> pool)
     {
         ArgumentNullException.ThrowIfNull(stream);
         var prefix = new byte[sizeof(int)];
@@ -36,13 +43,21 @@ public static class DatasetWorkerFrameCodec
         var length = BinaryPrimitives.ReadInt32LittleEndian(prefix);
         if (length is < 2 || length > maximumBytes)
             throw new InvalidDataException($"Worker control frame length {length} is invalid.");
-        var payload = GC.AllocateUninitializedArray<byte>(length);
-        await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
-        var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload,
-            MessagePackBinarySerializer.ContentOptions.WithSecurity(MessagePackSecurity.UntrustedData),cancellationToken:cancellationToken)
-            ?? throw new InvalidDataException("Worker control frame is empty.");
-        Validate(frame);
-        return frame;
+        var payload = pool.Rent(length);
+        try
+        {
+            await stream.ReadExactlyAsync(payload.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+            var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload.AsMemory(0, length),
+                MessagePackBinarySerializer.ContentOptions.WithSecurity(MessagePackSecurity.UntrustedData), cancellationToken: cancellationToken)
+                ?? throw new InvalidDataException("Worker control frame is empty.");
+            Validate(frame);
+            return frame;
+        }
+        finally
+        {
+            // Frames contain a bootstrap token. Clear rented storage before sharing it with another reader.
+            pool.Return(payload, clearArray: true);
+        }
     }
 
     static void Validate(DatasetWorkerControlFrame frame)

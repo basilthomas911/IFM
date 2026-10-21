@@ -96,6 +96,48 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Theory]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_001, 0.85)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_999, 1.15)]
+    public void Evaluator_AppliesDirectionalFactorToThresholdTriggersAndBands(
+        IntrinsicTimeTrendType trend, double price, double factor)
+    {
+        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
+        {
+            IntrinsicTimeTrend = trend,
+            UpTrendTrigger = 5_100,
+            DownTrendTrigger = 4_900
+        };
+
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, price), current, out var changed)
+            .Should().BeTrue();
+
+        var expectedThreshold = (price * (0.002 * Math.Sqrt(20.0 / 15.7)) + 0.25) * factor;
+        changed.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendExtremeChanged);
+        changed.Threshold.Should().BeApproximately(expectedThreshold, 1e-10);
+        changed.BandSize.Should().BeApproximately(expectedThreshold * 0.20, 1e-10);
+        changed.UpTrendTrigger.Should().BeApproximately(
+            trend == IntrinsicTimeTrendType.UpTrend ? price : price + expectedThreshold, 1e-10);
+        changed.DownTrendTrigger.Should().BeApproximately(
+            trend == IntrinsicTimeTrendType.DownTrend ? price : price - expectedThreshold, 1e-10);
+    }
+
+    [Fact]
+    public void Evaluator_AppliesUptrendFactorAfterSelectingLargerTrendDelta()
+    {
+        var current = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 2) with
+        {
+            TrendExtreme = 5_200,
+            DownTrendTrigger = 4_900
+        };
+
+        FuturesItiSignalCompute.TryCompute(Command(TimeFrameType.Daily, 5_100), current, out var changed)
+            .Should().BeTrue();
+
+        changed.IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.Trending);
+        changed.Threshold.Should().BeApproximately(85.0, 1e-10);
+    }
+
+    [Theory]
     [InlineData(IntrinsicTimeTrendType.UpTrend, 5_010, 0.10)]
     [InlineData(IntrinsicTimeTrendType.UpTrend, 5_100, 1.00)]
     [InlineData(IntrinsicTimeTrendType.UpTrend, 5_125, 1.25)]

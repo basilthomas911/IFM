@@ -101,8 +101,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     List<FuturesEodDataV2ReadModel> _futuresEodData;
     LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _futuresEodChannel;
     KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>? _futuresOptionTickChannels;
-    LatestValueAsyncChannel<TradePositionChangeSourceReadModel>? _tradePositionChannel;
-    OrderedBatchAsyncChannel<TradePlanReadModel>? _tradePlanChannel;
     LatestValueAsyncChannel<OptionTradeSpreadBarDataInsertedCompleteEvent>? _spreadBarChannel;
     ConcurrentStack<IronCondorSpreadPathDataModel> _spreadPathQueue;
     List<TradePositionReadModel> _tradePositions;
@@ -1296,8 +1294,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         await EnableFuturesEodDataListener();
         await EnableFuturesOptionTickDataListener();
-        await EnableTradePositionListener();
-        await EnableTradePlanListener();
         await EnableOptionTradeSpreadBarDataListener();
         await EnableTradeLiveFeed();
         await UpdateDailyProfitTarget();
@@ -1450,130 +1446,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             }
         }
 
-        async Task EnableTradePositionListener()
-        {
-            if (_tradePositionChannel is not null)
-                return;
-
-            _tradePositionChannel = new LatestValueAsyncChannel<TradePositionChangeSourceReadModel>(
-                OnTradePositionUpdateAsync,
-                minimumInterval: TimeSpan.FromMilliseconds(50),
-                timeProvider: _timeProvider,
-                metricsChanged: PublishTradePositionMetrics);
-            PublishTradePositionMetrics(_tradePositionChannel.Metrics);
-            await _appRoot.Services.TradePositionEvents.ExecuteAsync(async model =>
-            {
-                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Trade Position Listener Error"));
-                await model.StartTradePositionListenerAsync(e =>
-                {
-                    _tradePositionChannel?.TryWrite(new TradePositionChangeSourceReadModel(e.PutTradePosition!, e.CallTradePosition!, e.TradePositionChangeSource, e.OptionLegId));
-                });
-            });
-            return;
-
-            async ValueTask OnTradePositionUpdateAsync(
-                TradePositionChangeSourceReadModel e,
-                CancellationToken cancellationToken)
-            {
-                try
-                {
-                    if (e.PutTradePosition?.OptionLegData is null || e.PutTradePosition?.EntityId.TradeStatus != TradeStatus.IntraDay
-                        || e.CallTradePosition?.OptionLegData is null || e.CallTradePosition?.EntityId.TradeStatus != TradeStatus.IntraDay)
-                        return;
-                    var putCreditSpread = _optionTrade.TradePositions!.Get(e.PutTradePosition.EntityId.FromTradeType(GetTradePositionTradeType(OptionType.Put)));
-                    var callCreditSpread = _optionTrade.TradePositions!.Get(e.CallTradePosition.EntityId.FromTradeType(GetTradePositionTradeType(OptionType.Call)));
-                    if ((putCreditSpread?.OptionLegData?.Length ?? 0) != 2 || (callCreditSpread?.OptionLegData?.Length ?? 0) != 2)
-                    {
-                        await ReloadIronCondorTrade();
-                        return;
-                    }
-                    else
-                    {
-                        switch (e.TradePositionChangeSource)
-                        {
-                            case TradePositionChangeSourceType.PutCreditSpreadLeg:
-                                _optionTrade.TradePositions?.Set(e.PutTradePosition);
-                                break;
-                            case TradePositionChangeSourceType.CallCreditSpreadLeg:
-                                _optionTrade.TradePositions?.Set(e.CallTradePosition);
-                                break;
-                            case TradePositionChangeSourceType.SpreadDistributionStatistics:
-                                _optionTrade.TradePositions?.Set(e.PutTradePosition);
-                                _optionTrade.TradePositions?.Set(e.CallTradePosition);
-                                break;
-                            default:
-                                return;
-                        }
-                        putCreditSpread = e.PutTradePosition;
-                        callCreditSpread = e.CallTradePosition;
-                        var spreads = (PutCreditSpread: putCreditSpread, CallCreditSpread: callCreditSpread);
-                        var netSpreadPrice = Math.Abs(Math.Abs(putCreditSpread?.NetSpread ?? 0m) + Math.Abs(callCreditSpread?.NetSpread ?? 0m));
-                        netSpreadPrice = netSpreadPrice < 0.0m ? 0.0m : netSpreadPrice;
-
-                        PublishPosition(
-                            e.PutTradePosition.EntityId,
-                            spreads,
-                            _optionTrade.TradeLimit!,
-                            netSpreadPrice,
-                            _fundBalance);
-                        var netForwardPrice = Math.Abs(putCreditSpread?.ForwardPrice ?? 0m) + Math.Abs(callCreditSpread?.ForwardPrice ?? 0m);
-                        netForwardPrice = netForwardPrice < 0.0m ? 0.0m : netForwardPrice;
-                        await InsertOptionTradeSpreadData(netForwardPrice, spreads);
-                        await LoadCurrentTradeHistory();
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                }
-            }
-
-        }
-
-        /// <summary>
-        /// start trade plan listener
-        /// </summary>
-        async Task EnableTradePlanListener()
-        {
-            if (_tradePlanChannel is not null)
-                return;
-
-            _tradePlanChannel = new OrderedBatchAsyncChannel<TradePlanReadModel>(
-                PublishTradePlanBatchAsync,
-                capacity: 256,
-                maximumBatchSize: 32,
-                readerRetryCount: 3,
-                readerRetryDelay: TimeSpan.FromMilliseconds(50),
-                timeProvider: _timeProvider,
-                metricsChanged: PublishTradePlanMetrics);
-            PublishTradePlanMetrics(_tradePlanChannel.Metrics);
-            await _appRoot.Services.TradePlanEvents.ExecuteAsync(async model =>
-            {
-                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Trade Plan Listener Error"));
-                await model.StartTradePlanListenerAsync(async e =>
-                {
-                    var tradePlan = e.TradePlan;
-                    if (!_valueDate.HasValue || tradePlan.OrderId != OrderId || tradePlan.TradeId != TradeId || tradePlan.ValueDate != _valueDate.Value)
-                        return;
-                    var channel = _tradePlanChannel;
-                    if (channel is not null)
-                        await channel.WriteAsync(tradePlan);
-                });
-            });
-
-            ValueTask PublishTradePlanBatchAsync(
-                IReadOnlyList<TradePlanReadModel> batch,
-                CancellationToken cancellationToken)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                TradePlans = [.. TradePlans.Concat(batch).TakeLast(500)];
-                return ValueTask.CompletedTask;
-            }
-        }
-
         ///
         async Task EnableOptionTradeSpreadBarDataListener()
         {
@@ -1645,19 +1517,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     TradeLimitSnapshot = new(OrderId, _tradeLimits, _fundBalance);
                 }
             });
-
-        Task LoadCurrentTradeHistory()
-             => _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
-             {
-                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Load Current Trade History Error"));
-                 await model.GetTradeHistoryAsync(_optionTrade.OrderId, tradeHistory =>
-                 {
-                     _tradeHistory = new(tradeHistory);
-                     TradeHistory = [.. tradeHistory];
-                 });
-             });
-
-
 
         TradeType GetTradePositionTradeType(OptionType optionType)
              => _optionTrade.TradeType switch
@@ -1807,10 +1666,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         }
         IsLiveFeedEnabled = false;
         await DisableOptionTradeSpreadBarDataListener();
-        await DisableTradePlanListener();
         await DisableFuturesEodDataListener();
         await DisableFuturesOptionTickDataListener();
-        await DisableTradePositionListenerAsync();
         await DisableTradeLiveFeed();
         return;
 
@@ -1858,38 +1715,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             {
                 if (channels is not null)
                     await channels.StopAsync();
-            }
-        }
-
-        async ValueTask DisableTradePositionListenerAsync()
-        {
-            var channel = Interlocked.Exchange(ref _tradePositionChannel, null);
-            if (channel is null)
-                return;
-
-            try
-            {
-                await _appRoot.Services.TradePositionEvents.StopTradePositionListenerAsync();
-            }
-            finally
-            {
-                await channel.StopAsync();
-            }
-        }
-
-        async Task DisableTradePlanListener()
-        {
-            var channel = Interlocked.Exchange(ref _tradePlanChannel, null);
-            if (channel is null)
-                return;
-            try
-            {
-                await _appRoot.Services.TradePlanEvents
-                    .ExecuteAsync(async model => await model.StopTradePlanListenerAsync());
-            }
-            finally
-            {
-                await channel.StopAsync();
             }
         }
 
@@ -2012,18 +1837,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         lock (_liveStreamMetricsGate)
             LiveStreamMetrics = LiveStreamMetrics with { FuturesEod = metrics };
-    }
-
-    void PublishTradePositionMetrics(LatestValueChannelMetrics metrics)
-    {
-        lock (_liveStreamMetricsGate)
-            LiveStreamMetrics = LiveStreamMetrics with { TradePosition = metrics };
-    }
-
-    void PublishTradePlanMetrics(OrderedBatchChannelMetrics metrics)
-    {
-        lock (_liveStreamMetricsGate)
-            LiveStreamMetrics = LiveStreamMetrics with { TradePlan = metrics };
     }
 
     void PublishFuturesOptionTickMetrics(string contractId, LatestValueChannelMetrics metrics)

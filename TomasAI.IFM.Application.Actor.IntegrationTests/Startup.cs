@@ -67,10 +67,6 @@ using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
-using TomasAI.IFM.TradePlan;
-using TomasAI.IFM.TradePlan.HostedService;
-using TomasAI.IFM.Service.TradePosition;
-using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.Application.Event;
@@ -85,7 +81,6 @@ using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProducers;
-using TomasAI.IFM.Shared.EventService;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Model;
@@ -297,8 +292,6 @@ public static class Startup
             //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
             //services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(e)!));
             //services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(e)!));
-            services.AddSingleton<IEventServiceApiResolver>(_ => new EventServiceApiResolver(eventHandlerType => GetContainerInstance(eventHandlerType)!));
-            services.AddSingleton<IEventServiceHandlerResolver>(_ => new EventServiceHandlerResolver(eventHandlerType => GetContainerInstance(eventHandlerType)!));
             //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
             services.AddSingleton<IOptionTradeLiveFeedMap, OptionTradeLiveFeedMap>();
 
@@ -666,18 +659,6 @@ public static class Startup
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();
             services.AddSingleton<IFuturesBarDataTimer, FuturesBarDataTimer>();
             //services.AddHostedService<MarketDataFeedHostedService>();
-
-            // trade position hosted service...
-            services.AddSingleton<ITradePositionService, TradePositionService>();
-            services.AddSingleton<ITradePositionEventConsumer, TradePositionEventConsumer>();
-            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
-                services.AddHostedService<TradePositionHostedService>();
-
-            // trade plan hosted service...
-            services.AddSingleton<ITradePlanService, TradePlanService>();
-            services.AddSingleton<ITradePlanEventConsumer, TradePlanEventConsumer>();
-            if (Environment.GetEnvironmentVariable("IFM_TICK_QUOTE_SOAK") != "true")
-                services.AddHostedService<TradePlanHostedService>();
 
             // trade placement hosted service...
             //services.AddSingleton<ITradePlacementEventService, TradePlacementEventService>();

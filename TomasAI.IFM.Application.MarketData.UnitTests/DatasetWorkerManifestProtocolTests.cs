@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using FluentAssertions;
 using MessagePack;
@@ -137,6 +138,62 @@ public sealed class DatasetWorkerManifestProtocolTests
 
         await read.Should().ThrowAsync<InvalidDataException>();
         stream.Position.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task Pooled_read_owns_decoded_fields_after_return_and_ignores_unused_buffer_tail()
+    {
+        var frame = Command(DatasetWorkerMessageKind.StartManifest);
+        using var stream = EncodeUnchecked(frame);
+        var pool = new PoisonPool();
+        var decoded = await DatasetWorkerFrameCodec.ReadAsync(stream, MaximumFrameBytes, default, pool);
+        Assert.Equal(1, pool.Rents); Assert.Equal(1, pool.Returns); Assert.True(pool.Cleared);
+        Assert.Equal(frame.BootstrapToken, decoded.BootstrapToken);
+        Assert.Equal(frame.Manifest!.Contracts.Single().DomainContractId, decoded.Manifest!.Contracts.Single().DomainContractId);
+    }
+
+    [Theory]
+    [InlineData("truncated")]
+    [InlineData("malformed")]
+    [InlineData("invalid-frame")]
+    [InlineData("cancelled")]
+    public async Task Pooled_read_returns_buffer_on_all_failure_paths(string failure)
+    {
+        var frame = Command(DatasetWorkerMessageKind.StartManifest);
+        using var encoded = EncodeUnchecked(failure == "invalid-frame" ? frame with { Sequence = 0 } : frame);
+        var bytes = encoded.ToArray();
+        if (failure == "truncated") Array.Resize(ref bytes, bytes.Length - 1);
+        if (failure == "malformed") bytes[4] = 0xc1;
+        using Stream stream = failure == "cancelled" ? new CancelPayloadStream(bytes) : new MemoryStream(bytes);
+        var pool = new PoisonPool();
+        var error = await Record.ExceptionAsync(async () =>
+            await DatasetWorkerFrameCodec.ReadAsync(stream, MaximumFrameBytes, default, pool));
+        switch (failure)
+        {
+            case "truncated": Assert.IsType<EndOfStreamException>(error); break;
+            case "malformed": Assert.IsType<MessagePackSerializationException>(error); break;
+            case "invalid-frame": Assert.IsType<InvalidDataException>(error); break;
+            case "cancelled": Assert.IsAssignableFrom<OperationCanceledException>(error); break;
+        }
+        Assert.Equal(1, pool.Rents); Assert.Equal(1, pool.Returns); Assert.True(pool.Cleared);
+    }
+
+    sealed class PoisonPool : ArrayPool<byte>
+    {
+        public int Rents, Returns;
+        public bool Cleared;
+        public override byte[] Rent(int minimumLength)
+        {
+            Rents++;
+            var value = new byte[minimumLength + 128]; Array.Fill(value, (byte)0xcc); return value;
+        }
+        public override void Return(byte[] array, bool clearArray = false)
+        { Returns++; Cleared = clearArray; Array.Fill(array, (byte)0xa5); }
+    }
+    sealed class CancelPayloadStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            => Position >= 4 ? ValueTask.FromCanceled<int>(new CancellationToken(true)) : base.ReadAsync(buffer, cancellationToken);
     }
 
     static DatasetWorkerControlFrame Command(DatasetWorkerMessageKind kind)
