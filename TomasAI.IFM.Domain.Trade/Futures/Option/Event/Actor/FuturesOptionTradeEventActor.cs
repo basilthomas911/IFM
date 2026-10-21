@@ -17,12 +17,10 @@ public class FuturesOptionTradeEventActor(IEventActorContext<FuturesOptionTradeE
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [OptionTradeEndOfDayProcessedEvent.Verb] = message => message.AsEvent<OptionTradeEndOfDayProcessedEvent>()!,
-        [OptionTradeLegDataChangedEvent.Verb] = message => message.AsEvent<OptionTradeLegDataChangedEvent>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IFuturesOptionTradeEventContext, IEvent, ILogger<FuturesOptionTradeEventActor>, ValueTask>> _receiveMap = new Dictionary<Type, Func<IFuturesOptionTradeEventContext, IEvent, ILogger<FuturesOptionTradeEventActor>, ValueTask>>
     {
         [typeof(OptionTradeEndOfDayProcessedEvent)] = static (eventContext, domainEvent, logger) => ((OptionTradeEndOfDayProcessedEvent)domainEvent).ExecuteAsync(eventContext, logger),
-        [typeof(OptionTradeLegDataChangedEvent)] = static (eventContext, domainEvent, logger) => ((OptionTradeLegDataChangedEvent)domainEvent).ExecuteAsync(eventContext, logger)
     }.ToFrozenDictionary();
     protected override IEvent ParseMessage(IEventActorContext<FuturesOptionTradeEventActor> context, IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
     protected override ValueTask ReceiveAsync(IEventActorContext<FuturesOptionTradeEventActor> context, IEvent @event) => ResolveMappedEventHandler(@event, _receiveMap)(Typed(context), @event, Typed(context).Logger);

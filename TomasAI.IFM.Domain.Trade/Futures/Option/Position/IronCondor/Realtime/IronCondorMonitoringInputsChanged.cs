@@ -1,8 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
-using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime;
 /// <summary>Requests a current monitoring calculation when background pricing, reference inputs or freshness change.</summary>
@@ -21,21 +18,12 @@ public static class IronCondorMonitoringInputsChanged
             return;
         if (changed.EntityId != changed.PositionSnapshot.Id || changed.ValueDate == default || changed.ReceivedOn.Kind != DateTimeKind.Utc)
             throw new ArgumentException("IronCondorMonitoring.INPUTS.IDENTITY_INVALID: matching position, session and UTC capture required.");
-        var id = new IronCondorTradePlanId(changed.EntityId, changed.ValueDate);
-        var command = new UpdateIronCondorTradePlanCommand
+        await new IronCondorPositionChangedEvent
         {
-            CommandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{UpdateIronCondorTradePlanCommand.Verb}"),
-            Subject = new(ActorType.Function, UpdateIronCondorTradePlanCommand.Actor, UpdateIronCondorTradePlanCommand.Verb, id.Format()),
-            EntityId = id,
-            Position = changed.PositionSnapshot,
-            Parameters = context.Parameters,
-            IronCondorTradePlanInputs = changed.IronCondorTradePlanInputs,
-            SourceEventId = changed.Id,
-            RequestedAtUtc = changed.ReceivedOn
-        };
-        var reply = await context.RequestFunctionAsync<UpdateIronCondorTradePlanCommand, IronCondorTradePlanId, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(command).ConfigureAwait(false);
-        if (reply.Value is not { IsCompleted: true })
-            throw new InvalidOperationException($"IronCondorMonitoring.EVALUATION.FAILED: {reply.ErrorMessage};{reply.Value?.Failed?.ErrorMessage}");
-        await context.PublishRealtimeAsync(changed.PositionSnapshot, reply.Value.Completed!.Plan).ConfigureAwait(false);
+            Id = changed.Id,
+            EntityId = changed.EntityId,
+            PositionSnapshot = changed.PositionSnapshot,
+            ReceivedOn = changed.ReceivedOn
+        }.CalculateMonitoringPlanAsync(context, changed.ValueDate, changed.IronCondorTradePlanInputs, changed.ReceivedOn).ConfigureAwait(false);
     }
 }

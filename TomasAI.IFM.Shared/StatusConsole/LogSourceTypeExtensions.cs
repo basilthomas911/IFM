@@ -14,7 +14,6 @@ public static class LogSourceTypeExtensions
         LogSourceType.Event => nameof(LogSourceType.Event),
         LogSourceType.MarketDataFeed => nameof(LogSourceType.MarketDataFeed),
         LogSourceType.MarketDataFeedEvent => nameof(LogSourceType.MarketDataFeedEvent),
-        LogSourceType.OptionPricer => nameof(LogSourceType.OptionPricer),
         LogSourceType.TWSMarketDataApi => nameof(LogSourceType.TWSMarketDataApi),
         LogSourceType.IFMApp => nameof(LogSourceType.IFMApp),
         LogSourceType.MarketData => nameof(LogSourceType.MarketData),

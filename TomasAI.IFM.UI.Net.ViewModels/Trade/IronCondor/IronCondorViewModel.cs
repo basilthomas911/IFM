@@ -6,8 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.OptionPricer.Shared;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
@@ -1315,13 +1313,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 });
             });
 
-        Task DeleteSpreadDistributionJobsInProgress()
-            => _appRoot.Services.SpreadDistributionJobs.ExecuteAsync(async model =>
-            {
-                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Delete Spread Distribution Jobs In Progress Error"));
-                var valueDate = _valueDate ?? _appRoot.ValueDates.ValueDate;
-                await model.DeleteSpreadDistributionJobsInProgressAsync(new SpreadDistributionJobEntityId(OrderId, TradeId, valueDate));
-            });
+
 
         Task EnableTradeLiveFeed()
             => _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
@@ -1339,7 +1331,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 var baseContract = _baseContracts.Where(e => e.Id.Symbol == _fundOrderTrade.BaseContractSymbol.Trim()).FirstOrDefault();
                 await model.StartStreamingFuturesOptionTickDataAsync(_liveStreamsIds, baseContract!, _valueDate!.Value, _optionTrade.MaturityDate, _riskFreeRate,
                     () => { });
-                await DeleteSpreadDistributionJobsInProgress();
                 IsLiveFeedEnabled = true;
                 _liveFeedLifecycle.RunAsync(RunPeriodicAsync);
             });
@@ -1370,7 +1361,6 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 cancellationToken.ThrowIfCancellationRequested();
                 CurrentFuturesEodData = futuresEodData;
                 FuturesEodRevision++;
-                await GenerateSpreadDistribution();
             }
         }
 
@@ -1667,32 +1657,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                  });
              });
 
-        Task GenerateSpreadDistribution(double lossProbabilityFactor = 0)
-            => _appRoot.Services.SpreadDistributionJobs.ExecuteAsync(async model =>
-            {
-                model.OnError((errorCode, errorMsg) => WriteStatusConsole(errorCode, errorMsg));
-                await model.IsSpreadDistributionJobInProgressAsync(OrderId, TradeId, async jobInProgress =>
-                {
-                    if (!jobInProgress)
-                    {
-                        await model.SubmitSpreadDistributionJobAsync(new SpreadDistributionJobReadModel
-                        (
-                            orderId: _optionTrade.OrderId,
-                            tradeId: _optionTrade.TradeId,
-                            tradeType: _optionTrade.TradeType,
-                            tradeStatus: TradeStatus.IntraDay,
-                            valueDate: _valueDate!.Value,
-                            daysToExpiry: _optionTrade.MaturityDate.DayNumber - _valueDate!.Value.DayNumber,
-                            jobSubmitted: DateTime.UtcNow,
-                            jobStatus: SpreadDistributionJobStatus.InProgress,
-                            jobCompleted: null,
-                            jobFailed: null,
-                            inProgress: true,
-                            lossProbabilityFactor: lossProbabilityFactor
-                        ));
-                    }
-                });
-            });
+
 
         TradeType GetTradePositionTradeType(OptionType optionType)
              => _optionTrade.TradeType switch

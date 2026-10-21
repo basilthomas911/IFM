@@ -34,7 +34,7 @@ public sealed class FuturesOptionTickDataEventContext : EventActorContext, IFutu
     {
         QualifiedFeeds = discovery is not null && admissions is not null && databases is not null
             && publication is not null && conversion is not null
-            ? new(discovery, admissions, databases, publication, conversion, riskReader) : null;
+            ? new(discovery, admissions, databases, publication, conversion, riskReader, logger) : null;
         Supervisor = IsArgumentNull.Set(supervisor);
         Logger = IsArgumentNull.Set(logger);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);

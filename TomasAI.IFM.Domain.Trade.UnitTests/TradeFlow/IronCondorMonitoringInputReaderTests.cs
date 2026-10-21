@@ -36,6 +36,36 @@ public sealed class IronCondorMonitoringInputReaderTests
     }
 
     [Theory]
+    [InlineData(-1000)]
+    [InlineData(-1927.50)]
+    public async Task Reference_capture_loads_persisted_currency_loss_limit_without_using_price_point_limit(double maximumLoss)
+    {
+        var databases = Substitute.For<IDbContextFactory>();
+        var trades = Substitute.For<ITradeDbContext>();
+        databases.TradeDb.Returns(trades);
+        var tradeId = new TradeEntityId(101,701,1901,1501);
+        var date = new DateOnly(2026,10,20);
+        var now = new DateTime(2026,10,20,15,0,0,DateTimeKind.Utc);
+        var legs = Legs(1).Select((leg,index) => leg with { ContractId = $"option-{index}", Expiry = date.AddMonths(1) }).ToArray();
+        trades.GetEstablishedTradeAsync(tradeId, Arg.Any<CancellationToken>()).Returns(new EstablishedTradeDefinition {
+            Id = tradeId, StrategyKind = TradeStrategyKind.IronCondor, Legs = legs, EstablishedAtUtc = now.AddDays(-4) });
+        var limits = new TomasAI.IFM.Domain.Trade.Shared.ViewModels.TradeLimitReadModel {
+            TradeId = 1501, MaxLoss = (decimal)maximumLoss, MaxLossLimit = 22.90m };
+        trades.GetTradeLimitAsync(1501, Arg.Any<CancellationToken>()).Returns(limits);
+        using var lifetime = new CancellationTokenSource();
+        var reader = new IronCondorMonitoringInputReader(databases, Substitute.For<ILogger>(), stoppingToken: lifetime.Token);
+        var position = new StrategyPositionSnapshot { Id = StrategyPositionId.Create(tradeId, TradeStrategyKind.IronCondor) };
+        TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanInputs? captured = null;
+        var deadline = Stopwatch.StartNew();
+        while ((captured = reader.Capture(position,date,now)) is null && deadline.Elapsed < TimeSpan.FromSeconds(3))
+            await Task.Delay(10);
+        captured.Should().NotBeNull();
+        captured!.TradeLimits.Should().BeSameAs(limits);
+        captured.TradeLimits!.MaxLoss.Should().Be((decimal)maximumLoss);
+        _ = trades.Received(1).GetTradeLimitAsync(1501, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
     [InlineData(1, TradeType.ShortIronCondor)]
     [InlineData(-1, TradeType.LongIronCondor)]
     public void Strategy_direction_comes_from_leg_strikes_and_actions(int direction, TradeType expected)
@@ -150,10 +180,9 @@ public sealed class IronCondorMonitoringInputReaderTests
         var trades = Substitute.For<ITradeDbContext>();
         var market = Substitute.For<TomasAI.IFM.Application.Storage.MarketDataDb.IMarketDataDbContext>();
         var securities = Substitute.For<TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext>();
-        var options = Substitute.For<TomasAI.IFM.Application.Storage.OptionPricerDb.IOptionPricerDbContext>();
         var financial = Substitute.For<TomasAI.IFM.Domain.Portfolio.Financial.Repository.IFinancialQueryStore>();
         databases.TradeDb.Returns(trades); databases.MarketDataDb.Returns(market);
-        databases.SecuritiesDb.Returns(securities); databases.OptionPricerDb.Returns(options);
+        databases.SecuritiesDb.Returns(securities);
         var (legs, _) = IronCondorOptionCalculatorTests.Evidence(atUtc: DateTimeOffset.UtcNow);
         var tradeId = new TradeEntityId(1, 2, 3, 4);
         var component = Guid.NewGuid();

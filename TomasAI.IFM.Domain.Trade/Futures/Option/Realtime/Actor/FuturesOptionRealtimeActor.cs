@@ -12,6 +12,8 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor;
 public sealed class FuturesOptionRealtimeActor(IRealtimeActorContext<FuturesOptionRealtimeActor> context) : BaseEventActor<FuturesOptionRealtimeActor>(context, ResolveContext(context).Logger)
 {
     public const string ActorName = "FuturesOptionRealtime";
+    /// <summary>Reports whether position-command dispatch is making progress rather than repeatedly returning errors.</summary>
+    public bool ArePositionUpdatesHealthy(DateTime nowUtc) => _runtime.RoutingProgress?.IsHealthy(nowUtc) ?? true;
     static readonly ActorTypeId TickRoute = new(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor, FuturesTickTradeDataChangedEvent.Verb);
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>
 (StringComparer.Ordinal)    {

@@ -86,6 +86,7 @@ public sealed class TradeRealtimeHotCache
 
     public bool Apply(FuturesOptionTickDataV2ReadModel observation)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         ArgumentNullException.ThrowIfNull(observation);
         lock (gate)
         {
@@ -121,6 +122,7 @@ public sealed class TradeRealtimeHotCache
 
     public bool Apply(StrategyPositionSnapshot position)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         ArgumentNullException.ThrowIfNull(position);
         lock (gate)
         {
@@ -134,6 +136,7 @@ public sealed class TradeRealtimeHotCache
 
     public bool Apply(StrategyTradePlanSnapshot plan)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         ArgumentNullException.ThrowIfNull(plan);
         lock (gate)
         {
@@ -154,6 +157,7 @@ public sealed class TradeRealtimeHotCache
     /// <summary>Expires quote/risk state without requiring another tick. Returns whether a revision was published.</summary>
     public bool Expire()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         lock (gate)
         {
             if (retired || clock.GetUtcNow() < nextQualityCheck) return false;

@@ -156,6 +156,49 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
         await Task.WhenAll(second.Replied.Task, third.Replied.Task).WaitAsync(TimeSpan.FromSeconds(1));
     }
 
+    [Fact]
+    public async Task Deferred_commits_preserve_source_order_and_failed_window_reloads_before_new_work()
+    {
+        var actor = CreateActor();
+        var warm = new TestMessage(TestCommand.Resident("one"));
+        await actor.HandleMessageAsync(warm, warm.Subject.ThreadId, default);
+        actor.BlockPersistence = true;
+        var second = new TestMessage(TestCommand.Resident("one"));
+        var third = new TestMessage(TestCommand.Resident("one"));
+        await actor.HandleMessageAsync(second, second.Subject.ThreadId, default);
+        await actor.HandleMessageAsync(third, third.Subject.ThreadId, default);
+        actor.StartedVersions.Should().Equal(0, 1); // Version 2 must not enter storage ahead of version 1.
+        actor.ReleasePersistence(fail: true);
+        await Task.WhenAll(second.Replied.Task, third.Replied.Task).WaitAsync(TimeSpan.FromSeconds(2));
+        actor.StartedVersions.Should().Equal(0, 1); // Discard speculative events after the failed commit.
+        second.Reply.Should().BeOfType<ServiceFailed<GuidResult>>();
+        third.Reply.Should().BeOfType<ServiceFailed<GuidResult>>();
+        var next = new TestMessage(TestCommand.Resident("one"));
+        await actor.HandleMessageAsync(next, next.Subject.ThreadId, default);
+        await next.Replied.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        actor.Loads.Should().Be(2);
+        actor.StartedVersions.Should().Equal(0, 1, 1);
+        next.Reply.Should().BeOfType<ServiceOk<GuidResult>>();
+    }
+
+    [Fact]
+    public async Task Queued_commits_start_only_after_the_previous_commit_completes()
+    {
+        var actor = CreateActor();
+        var warm = new TestMessage(TestCommand.Resident("one"));
+        await actor.HandleMessageAsync(warm, warm.Subject.ThreadId, default);
+        actor.BlockPersistence = true;
+        var second = new TestMessage(TestCommand.Resident("one"));
+        var third = new TestMessage(TestCommand.Resident("one"));
+        await actor.HandleMessageAsync(second, second.Subject.ThreadId, default);
+        await actor.HandleMessageAsync(third, third.Subject.ThreadId, default);
+        actor.StartedVersions.Should().Equal(0, 1);
+        actor.ReleasePersistence();
+        await Task.WhenAll(second.Replied.Task, third.Replied.Task).WaitAsync(TimeSpan.FromSeconds(2));
+        actor.StartedVersions.Should().Equal(0, 1, 2);
+        actor.Loads.Should().Be(1);
+    }
+
     static ResidentTestActor CreateActor(int maximumStreams = 8, int maximumCommands = 64)
     {
         var context = new Mock<ICommandActorContext<ResidentTestActor>>();
@@ -181,6 +224,8 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
         public bool FailNextSave { get; set; }
         public bool BlockPersistence { get; set; }
         readonly List<TaskCompletionSource> _persistence = [];
+        public List<long> StartedVersions { get; } = [];
+        long committedVersion;
 
         public ValueTask<IActorState> Load(ActorThreadId id, ICommand command)
             => base.OnLoadStateAsync(Context, id, command, CancellationToken.None);
@@ -194,7 +239,9 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
             ICommand command, CancellationToken cancellationToken)
         {
             Loads++;
-            return ValueTask.FromResult(new TestState { Id = threadId });
+            var state = new TestState { Id = threadId };
+            state.RestoreCommittedStreamVersion(committedVersion);
+            return ValueTask.FromResult(state);
         }
         protected override ValueTask SaveStateToStoreAsync(
             ICommandActorContext<ResidentTestActor> context, ActorThreadId threadId,
@@ -208,20 +255,28 @@ public sealed class BaseInMemoryEventSourceCommandActorTests
             }
             return ValueTask.CompletedTask;
         }
-        protected override ValueTask PersistResidentEventsAsync(
+        protected override async ValueTask PersistResidentEventsAsync(
             ICommandActorContext<ResidentTestActor> context, ICommand command,
             DomainEventCollection events, long expectedStreamVersion, CancellationToken cancellationToken)
         {
-            if (!BlockPersistence) return ValueTask.CompletedTask;
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (_persistence) _persistence.Add(completion);
-            return new ValueTask(completion.Task);
+            StartedVersions.Add(expectedStreamVersion);
+            if (BlockPersistence)
+            {
+                var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (_persistence) _persistence.Add(completion);
+                await completion.Task;
+            }
+            if (expectedStreamVersion != committedVersion) throw new InvalidOperationException("version conflict");
+            committedVersion += events.Count;
         }
-        public void ReleasePersistence()
+        public void ReleasePersistence(bool fail = false)
         {
+            BlockPersistence = false;
             TaskCompletionSource[] pending;
             lock (_persistence) { pending = _persistence.ToArray(); _persistence.Clear(); }
-            foreach (var completion in pending) completion.TrySetResult();
+            foreach (var completion in pending)
+                if (fail) completion.TrySetException(new InvalidOperationException("injected conflict"));
+                else completion.TrySetResult();
         }
         protected override ICommand ParseMessage(ICommandActorContext<ResidentTestActor> context, IActorMessage message)
             => message.AsCommand<TestCommand>()!;

@@ -9,9 +9,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Framework.OptionPricer.UnitTests" />
-    <InternalsVisibleTo Include="TomasAI.IFM.Domain.OptionPricer.Benchmarks" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
       <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
   </ItemGroup>
 

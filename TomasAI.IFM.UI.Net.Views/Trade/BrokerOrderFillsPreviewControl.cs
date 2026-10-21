@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Order;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Broker;
 using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.UI.Net.Services.Subscriptions;
@@ -639,6 +640,7 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
 {
     private readonly NumericUpDown _quantity = new() { Name = "brokerPreviewContractsValue", Minimum = 1, Maximum = 100000, Increment = 1, DecimalPlaces = 0, Value = 1, BackColor = Color.Black, ForeColor = Color.White };
     private readonly NumericUpDown _legQuantity = new() { Name = "brokerPreviewLegQuantity", Minimum = 1, Maximum = 100000, Increment = 1, DecimalPlaces = 0, Value = 1, BackColor = Color.Black, ForeColor = Color.White };
+    private readonly BrokerTradePreviewQuery? _previewQuery;
     private readonly Dictionary<string, int> _quantities = new(StringComparer.Ordinal);
     private IReadOnlyList<BrokerTradeLegData> _legs = [];
     private BrokerTradeInitializationResult? _data;
@@ -663,9 +665,10 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
 
     /// <summary>Creates a view-only broker trade preview for the selected canonical trade.</summary>
     public BrokerTradePreviewControl(int portfolioId, PortfolioFundEditorModel fund,
-        PortfolioFundOrderEditorModel order, PortfolioFundOrderTradeEditorModel trade)
+        PortfolioFundOrderEditorModel order, PortfolioFundOrderTradeEditorModel trade, IAppRoot? appRoot = null)
         : base(portfolioId, fund, order, trade)
     {
+        _previewQuery = appRoot is null ? null : new BrokerTradePreviewQuery(appRoot.Services.TradeQueries);
         ShowBrokerTradePane();
         var shell = (TableLayoutPanel)Controls.Find("brokerOrderFillsPreviewLayout", true).Single();
         var status = shell.GetControlFromPosition(0, 0);
@@ -857,9 +860,8 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
                 _legQuantity.Visible = _legQuantity.Bounds.Width > 0 && _legQuantity.Bounds.Height > 0;
             }
             else _legQuantity.Visible = false;
-            var presentation = BrokerTradePreviewPresentation.Calculate(_legs, _quantities, Quantity, _editedOrderPrice, _data);
-            foreach (var field in presentation.Fields) SetField(field.Key, field.Value);
-            Descendants(this).OfType<TextBox>().First(x => x.Name == "brokerPreviewNetLimitTicks").Text = presentation.OrderPrice?.ToString("0.########", CultureInfo.InvariantCulture) ?? "";
+            if (_previewQuery is not null)
+                UiExceptionReporter.Observe(RenderTotalsAsync(), nameof(RenderTotalsAsync), this);
             if (_legs.Count == 1 && _legs[0].IsFuture && _data?.UnderlyingPrice?.ClosePrice is {} referencePrice)
                 grid.Rows[0].Cells[11].Value = referencePrice;
         }
@@ -868,6 +870,28 @@ public sealed class BrokerTradePreviewControl : BrokerOrderFillsPreviewControl
             _binding = false;
             if (_execution is { } e) SetExecutionFields(e.OrderType, e.Algorithm, e.Action, e.Route, e.Venue, e.Tick);
         }
+    }
+
+    /// <summary>Requests quantity-adjusted totals from the backend and formats the current draft response.</summary>
+    private async Task RenderTotalsAsync()
+    {
+        var legs = _legs.ToArray();
+        var request = new TradeOrderPreviewRequest(0,
+            legs.Select(leg => new TradeOrderPreviewLeg(leg.ContractId, leg.Sign, _quantities[leg.ContractId],
+                leg.Strike, leg.IsCall, leg.IsFuture, leg.Bid, leg.Ask, leg.Delta, leg.Vega, leg.Multiplier)).ToArray(),
+            Quantity, _editedOrderPrice, legs.Length == 1 && legs[0].IsFuture ? .25m : .05m,
+            _data?.UnderlyingPrice is { ClosePrice: > 0 } reference ? (decimal)reference.ClosePrice : null);
+        var totals = await _previewQuery!.ExecuteAsync(request);
+        if (IsDisposed) return;
+        var presentation = BrokerTradePreviewPresentation.FromBackend(legs, totals, _data);
+        foreach (var field in presentation.Fields) SetField(field.Key, field.Value);
+        _binding = true;
+        try
+        {
+            Controls.Find("brokerPreviewNetLimitTicks", true).Single().Text =
+                presentation.OrderPrice?.ToString("0.########", CultureInfo.InvariantCulture) ?? "";
+        }
+        finally { _binding = false; }
     }
 
     internal void SetExecutionFields(string orderType, string algorithm, string action, string route, string venue, string tick)

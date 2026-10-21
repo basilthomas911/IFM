@@ -226,7 +226,7 @@ public class EsTradeBlotterControl : DarkTradingView, ITradeOrderControl, IAsync
                 BackColor = Color.Black,
                 ForeColor = Color.White
             };
-            _brokerTradePreview = new BrokerTradePreviewControl(portfolioId, fund, order, trade);
+            _brokerTradePreview = new BrokerTradePreviewControl(portfolioId, fund, order, trade, _appRoot);
             _brokerTradePreview.SetOrderTypeEditable(!_readOnly && _isNewTrade);
             _brokerTradePreview.EnableQualificationManagement();
             _brokerTradePreview.ManageQualificationRequested += (_, _) => UiExceptionReporter.Observe(

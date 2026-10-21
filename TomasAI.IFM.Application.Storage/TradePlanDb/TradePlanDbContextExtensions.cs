@@ -111,7 +111,7 @@ internal static class TradePlanDbContextExtensions
                 var samples = new List<StrategyTradePlanChartPoint>();
                 // Latest price-only sample per UTC minute (at most 361 buckets across six hours).
                 // No historical position/leg payload is fetched for the chart.
-                await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,combinedForwardPrice FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
+                await using var chart = new NpgsqlCommand($"SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01')) calculatedAtUtc,combinedSpreadPrice,CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END FROM {table} WHERE {filter} AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9 AND combinedSpreadPrice IS NOT NULL ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC", connection, transaction);
                 foreach (var value in scope) chart.Parameters.Add(new NpgsqlParameter { Value = value! });
                 foreach (var value in new object[] { anchor, end.AddHours(-6), end }) chart.Parameters.Add(new NpgsqlParameter { Value = value });
                 await using var reader = await chart.ExecuteReaderAsync(token).ConfigureAwait(false);

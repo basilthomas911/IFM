@@ -54,7 +54,7 @@ internal static class EventLogEngineQualification
             };
             foreach (var (name, suffix) in new[] {
                 ("Trade", "trade"), ("Fund", "fund"), ("Reference", "reference"),
-                ("OptionPricer", "optionpricer"), ("MarketData", "marketdata"), ("Securities", "securities") })
+                ("MarketData", "marketdata"), ("Securities", "securities") })
                 values[$"ConnectionStrings:{name}DbConnection"] =
                     $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{run}_{suffix}";
             values["IFM_TEST_MARKET_DATA_CONNECTION"] = values["ConnectionStrings:MarketDataDbConnection"];

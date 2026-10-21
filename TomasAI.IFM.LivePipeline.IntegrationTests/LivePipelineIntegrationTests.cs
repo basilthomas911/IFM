@@ -506,6 +506,49 @@ public sealed class LivePipelineIntegrationTests
     }
 
     [Fact]
+    public async Task Option_router_gets_three_resets_then_bounded_hard_resets_and_one_shutdown()
+    {
+        var time = new ManualTime();
+        var probe = new Probe(time) { Failure = "Option quote processing", FailureScope = "option-router",
+            RecoveryFailure = new TimeoutException("replacement unavailable") };
+        using var monitor = new LivePipelineMonitor(probe,time,NullLogger<LivePipelineMonitor>.Instance,
+            configuredOptions: new LivePipelineMonitorOptions { MaximumHardResetAttempts = 2 });
+        for (var minute = 0; minute < 40 && probe.Shutdowns == 0; minute++)
+        {
+            await monitor.CheckOnceAsync(default);
+            time.Advance(TimeSpan.FromMinutes(1));
+        }
+        Assert.Equal(2,probe.Resets);
+        Assert.Equal(1,probe.Shutdowns);
+        Assert.Equal(2,probe.ShutdownAttempts);
+        Assert.True(probe.DownstreamRecoveries.Count >= 6);
+        var count = probe.DownstreamRecoveries.Count;
+        await monitor.CheckOnceAsync(default);
+        Assert.Equal(count,probe.DownstreamRecoveries.Count);
+        Assert.Equal(1,probe.Shutdowns);
+    }
+
+    [Fact]
+    public async Task Brief_option_health_does_not_erase_the_three_reset_episode_budget()
+    {
+        var time = new ManualTime();
+        var probe = new Probe(time) { Failure = "Option quote processing", FailureScope = "option-router" };
+        using var monitor = new LivePipelineMonitor(probe,time,NullLogger<LivePipelineMonitor>.Instance);
+        await monitor.CheckOnceAsync(default);
+        time.Advance(TimeSpan.FromMinutes(1));
+        await monitor.CheckOnceAsync(default);
+        Assert.Single(probe.DownstreamRecoveries);
+        probe.Failure = null; probe.HealthyTarget = "Option quote processing";
+        time.Advance(TimeSpan.FromMinutes(1));
+        await monitor.CheckOnceAsync(default);
+        probe.Failure = "Option quote processing"; probe.HealthyTarget = null;
+        for (var i=0;i<3;i++)
+        { time.Advance(TimeSpan.FromMinutes(1)); await monitor.CheckOnceAsync(default); }
+        Assert.Equal(3,probe.DownstreamRecoveries.Count);
+        Assert.Equal(1,probe.Resets);
+    }
+
+    [Fact]
     public async Task Hosted_monitor_checks_every_minute_and_does_not_overlap()
     {
         var time = new ManualTime(); var probe = new Probe(time);
@@ -587,6 +630,8 @@ public sealed class LivePipelineIntegrationTests
         public bool Active = true;
         public string? HealthyTarget;
         public int Resets;
+        public int Shutdowns;
+        public int ShutdownAttempts;
         public int Checks;
         public List<LivePipelineCheck> DownstreamRecoveries { get; } = [];
         public Exception? RecoveryFailure;
@@ -617,6 +662,8 @@ public sealed class LivePipelineIntegrationTests
                 now, Active ? Date : null,
                 Failure is null && AdditionalFailure is null ? "Healthy" : "Degraded", checks);
         }
+        public Task ShutdownAsync(LivePipelineHealthSnapshot snapshot, int hardResetAttempts, CancellationToken token)
+        { Shutdowns++; ShutdownAttempts = hardResetAttempts; return Task.CompletedTask; }
         public Task HardResetAsync(LivePipelineHealthSnapshot unhealthySnapshot, CancellationToken token)
         {
             Resets++;

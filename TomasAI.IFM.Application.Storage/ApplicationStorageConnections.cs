@@ -24,7 +24,7 @@ public static class ApplicationStorageConnections
         [
             "EventSourceActorDbConnection", "ConfigurationDbConnection", "MarketDataServiceDbConnection",
             "SystemAdminDbConnection", "SequenceIdDbConnection", "PortfolioDbConnection", "MarketDataDbConnection",
-            "OptionPricerDbConnection", "ReferenceDbConnection", "SecuritiesDbConnection", "TradeDbConnection",
+            "ReferenceDbConnection", "SecuritiesDbConnection", "TradeDbConnection",
             "TradePlanDbConnection", "ScheduledTaskDbConnection"
         ];
         foreach (var name in postgresContexts)

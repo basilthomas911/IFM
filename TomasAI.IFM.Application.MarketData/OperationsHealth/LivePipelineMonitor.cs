@@ -26,6 +26,8 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     string lastHardResetState = "NotRequired";
     string? lastHardResetError;
     bool recoveryEpisodeTerminal;
+    int optionHardResetAttempts;
+    DateTime? optionHealthySinceUtc;
     public LivePipelineHealthSnapshot Current
     {
         get
@@ -59,6 +61,8 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 lastHardResetUtc = null;
                 lastHardResetState = "NotRequired";
                 lastHardResetError = null;
+                optionHardResetAttempts = 0;
+                optionHealthySinceUtc = null;
                 Publish(next);
                 lastAlert = null;
                 return;
@@ -68,16 +72,34 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             UpdateUpstreamWindows(upstream, now);
             var recoverable = next.Checks.Where(check => check.Required && !string.Equals(check.Component, "Market Outlook inputs", StringComparison.Ordinal) && DownstreamTarget(check)is not null).GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal).Select(group => group.FirstOrDefault(check => !IsHealthy(check)) ?? group.First()).OrderBy(check => DownstreamRank(DownstreamTarget(check)!)).ToArray();
             UpdateDownstreamWindows(recoverable, now);
+            if (!recoveryEpisodeTerminal && optionHardResetAttempts >= options.MaximumHardResetAttempts
+                && lastHardResetUtc is { } finalAttempt && now - finalAttempt >= options.RecoveryObservationWindow
+                && recoverable.Any(check => check.Component == "Option quote processing" && !IsHealthy(check)))
+            {
+                recoveryEpisodeTerminal = true;
+                await probe.ShutdownAsync(next, optionHardResetAttempts, token).ConfigureAwait(false);
+                return;
+            }
             Publish(Decorate(next));
             LogUnhealthyChecks(next);
             // A completed feed reset gets its full observation window. Old component retry
             // counters must not launch another reset or replace actors from pre-reset evidence.
             var observingReset = lastHardResetUtc is { } resetUtc && now - resetUtc < options.RecoveryObservationWindow;
             var dueUpstream = upstream.Where(check => !recoveryEpisodeTerminal && !IsHealthy(check) && upstreamRecoveries.TryGetValue(CheckKey(check), out var recovery) && recovery.Attempts < options.MaximumHardResetAttempts && (recovery.Attempts == 0 ? now - recovery.UnhealthySinceUtc >= options.HardResetDelay : recovery.State is "HardResetFailed" or "HardResetRecoveryFailed" && recovery.LastAttemptUtc is { } attempted && now - attempted >= options.RecoveryObservationWindow)).ToArray();
-            var exhaustedDownstream = downstreamRecoveries.Where(pair => pair.Value.Attempts >= 3 && pair.Value.State is "Failed" or "Requested" && pair.Value.LastAttemptUtc is { } last && now - last >= DownstreamRecoveryDelay).Select(pair => pair.Key).ToArray();
+            var exhaustedDownstream = downstreamRecoveries.Where(pair => recoverable.Any(check => DownstreamTarget(check) == pair.Key && !IsHealthy(check)) && pair.Value.Attempts >= 3 && pair.Value.State is "Failed" or "Requested" && pair.Value.LastAttemptUtc is { } last && now - last >= DownstreamRecoveryDelay).Select(pair => pair.Key).ToArray();
             var forcedResetDue = options.ForceOneHardResetAfterStartup && !forcedHardResetRequested && now - monitorStartedUtc >= options.HardResetDelay;
             if (!recoveryEpisodeTerminal && !observingReset && (dueUpstream.Length > 0 || exhaustedDownstream.Length > 0 || forcedResetDue))
             {
+                if (exhaustedDownstream.Contains("Option quotes", StringComparer.Ordinal))
+                {
+                    if (optionHardResetAttempts >= options.MaximumHardResetAttempts)
+                    {
+                        recoveryEpisodeTerminal = true;
+                        await probe.ShutdownAsync(next, optionHardResetAttempts, token).ConfigureAwait(false);
+                        return;
+                    }
+                    optionHardResetAttempts++;
+                }
                 forcedHardResetRequested = true;
                 foreach (var target in exhaustedDownstream)
                     downstreamRecoveries[target] = downstreamRecoveries[target] with
@@ -130,6 +152,11 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                     lastHardResetError = ex.Message;
                     AdvanceUpstreamRecovery(now, lastHardResetState, lastHardResetError);
                     ApplicationDiagnosticLog.Write10(logger, ex, nameof(LivePipelineMonitor), nameof(CheckOnceAsync));
+                }
+                finally
+                {
+                    if (!recoveryEpisodeTerminal && exhaustedDownstream.Contains("Option quotes", StringComparer.Ordinal))
+                        downstreamRecoveries.Remove("Option quotes");
                 }
             }
 
@@ -255,13 +282,27 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
             var target = DownstreamTarget(check)!;
             if (IsHealthy(check))
             {
+                if (target == "Option quotes")
+                {
+                    var attempted = optionHardResetAttempts > 0 || downstreamRecoveries.TryGetValue(target, out var priorOption) && priorOption.Attempts > 0;
+                    if (attempted)
+                    {
+                        optionHealthySinceUtc ??= now;
+                        if (now - optionHealthySinceUtc.Value < options.RecoveryObservationWindow) continue;
+                    }
+                    optionHardResetAttempts = 0;
+                    optionHealthySinceUtc = null;
+                }
                 if ((downstreamRecoveries.Remove(target, out var prior) && prior.Attempts > 0) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true))
                 {
                     RemainingApplicationDiagnosticLog.Write3(logger, null, nameof(CheckOnceAsync), target, prior.Attempts, check.Component, check.Scope, check.Reason, check.LastProgressUtc);
                 }
             }
             else
+            {
+                if (target == "Option quotes") optionHealthySinceUtc = null;
                 downstreamRecoveries.TryAdd(target, new(now, 0, null, "Pending", null));
+            }
         }
     }
 
@@ -374,6 +415,7 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
     static bool IsDatasetOwnedUpstream(LivePipelineCheck check) => IsHardResetTrigger(check);
     static string? DownstreamTarget(LivePipelineCheck check) => check.Component switch
     {
+        "Option quote processing" => "Option quotes",
         "Bar timer" or "Chart storage/query" => "Chart bars",
         "Analytics attachments" or "Analytics processing" => check.Scope.Split('/', 2)[0] is "RSI" or "ATR" or "ADX" or "MACD" ? check.Scope : null,
         "ITI route" or "ITI ingress" or "ITI durable completion" => "ITI",

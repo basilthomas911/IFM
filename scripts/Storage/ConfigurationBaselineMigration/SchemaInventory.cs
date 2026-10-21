@@ -14,7 +14,7 @@ internal static class SchemaInventory
     {
         var settings = new DbConnectionSettings();
         string[] names = ["ConfigurationDbConnection","EventSourceActorDbConnection","MarketDataDbConnection",
-            "MarketDataServiceDbConnection","OptionPricerDbConnection","PortfolioDbConnection","ReferenceDbConnection",
+            "MarketDataServiceDbConnection","PortfolioDbConnection","ReferenceDbConnection",
             "SecuritiesDbConnection","SequenceIdDbConnection","SystemAdminDbConnection","TradeDbConnection",
             "TradePlanDbConnection","ScheduledTaskDbConnection"];
         foreach (var name in names)
@@ -27,7 +27,6 @@ internal static class SchemaInventory
             ("EventSourceDb",new TomasAI.IFM.Application.Storage.EventSourceDb.Schema.EventSourceSchemaDb(settings,logger)),
             ("MarketDataDb",new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(settings,logger)),
             ("MarketDataServiceDb",new TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema.MarketDataServiceSchemaDb(settings,logger)),
-            ("OptionPricerDb",new TomasAI.IFM.Application.Storage.OptionPricerDb.Schema.OptionPricerSchemaDb(settings,logger)),
             ("PortfolioDb",new TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb(settings,logger)),
             ("ReferenceDb",new TomasAI.IFM.Application.Storage.ReferenceDb.Schema.ReferenceSchemaDb(settings,logger)),
             ("SecuritiesDb",new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(settings,logger)),

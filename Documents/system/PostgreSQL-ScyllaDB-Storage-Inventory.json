@@ -1073,33 +1073,6 @@
       "verifiedStagingTable": "market_data_service.watchdog_status_log"
     },
     {
-      "context": "OptionPricerDb",
-      "table": "option_pricer.option_pricer_device",
-      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
-      "target": "PostgreSQL",
-      "verifiedRuntimeSchema": true,
-      "stagingSchemaVerified": true,
-      "verifiedStagingTable": "option_pricer.option_pricer_device"
-    },
-    {
-      "context": "OptionPricerDb",
-      "table": "option_pricer.spread_distribution",
-      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
-      "target": "PostgreSQL",
-      "verifiedRuntimeSchema": true,
-      "stagingSchemaVerified": true,
-      "verifiedStagingTable": "option_pricer.spread_distribution"
-    },
-    {
-      "context": "OptionPricerDb",
-      "table": "option_pricer.spread_distribution_job",
-      "schemaSource": "TomasAI.IFM.Application.Storage/OptionPricerDb/Schema",
-      "target": "PostgreSQL",
-      "verifiedRuntimeSchema": true,
-      "stagingSchemaVerified": true,
-      "verifiedStagingTable": "option_pricer.spread_distribution_job"
-    },
-    {
       "context": "PortfolioDb",
       "table": "portfolio.accepted_position_close",
       "schemaSource": "TomasAI.IFM.Application.Storage/PortfolioDb/Schema",

@@ -17,7 +17,7 @@ internal static class OfflineSchemaPreparation
             throw new InvalidOperationException("Schema preparation requires an isolated local migration staging database.");
         var settings = new DbConnectionSettings();
         string[] names = ["ConfigurationDbConnection","EventSourceActorDbConnection","MarketDataDbConnection",
-            "MarketDataServiceDbConnection","OptionPricerDbConnection","PortfolioDbConnection","ReferenceDbConnection",
+            "MarketDataServiceDbConnection","PortfolioDbConnection","ReferenceDbConnection",
             "SecuritiesDbConnection","SequenceIdDbConnection","SystemAdminDbConnection","TradeDbConnection",
             "TradePlanDbConnection","ScheduledTaskDbConnection"];
         foreach (var name in names) settings.Add(name, connection, "System.Data.Postgres");
@@ -28,7 +28,6 @@ internal static class OfflineSchemaPreparation
             TomasAI.IFM.Application.Storage.ConfigurationDb.Schema.ConfigurationSchemaDb.WithoutLookupDefaults(settings,logger),
             new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema.MarketDataServiceSchemaDb(settings,logger),
-            new TomasAI.IFM.Application.Storage.OptionPricerDb.Schema.OptionPricerSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.PortfolioDb.Schema.PortfolioSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.ReferenceDb.Schema.ReferenceSchemaDb(settings,logger),
             new TomasAI.IFM.Application.Storage.SecuritiesDb.Schema.SecuritiesSchemaDb(settings,logger),

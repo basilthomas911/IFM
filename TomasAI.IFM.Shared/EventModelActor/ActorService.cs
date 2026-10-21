@@ -46,6 +46,7 @@ public class ActorService(IActorSupervisor supervisor)
         where TEntityId : IActorEntityId
     {
         ArgumentNullException.ThrowIfNull(command);
+        RealtimeActorGeneration.ThrowIfRetired();
         try
         {
             IsArgumentNull.Check(command);

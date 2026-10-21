@@ -137,6 +137,34 @@ public sealed class OrderCompositionDiscoveryTests
         await market.Received(2).AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Recovery_rebuilds_qualified_context_in_new_generation_and_forgets_old_lease_without_worker_release()
+    {
+        var mappings = Substitute.For<IOptionPricingConventionStore>(); var contract = Contract();
+        mappings.GetAsync(contract.ContractId, contract.MappingVersion, Arg.Any<CancellationToken>()).Returns(contract);
+        var market = Substitute.For<ICompositionMarketDataApi>(); var clock = new Clock(At);
+        market.AcquireAsync("GLBX.MDP3", Arg.Any<WorkerOptionChainRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new WorkerOptionChainResult(true, null));
+        await using var discovery = new QualifiedCompositionDiscovery(new(mappings),
+            new OptionPricingContextProvider(new(new CurveSource(Curve()), clock)), market, clock);
+        var admissions = new TomasAI.IFM.Application.MarketData.Databento.Resiliency.DatasetWorkerAdmissionRegistry();
+        var request = Request(contract);
+        admissions.Admit(new("GLBX.MDP3", request.ValueDate, Guid.NewGuid(), Generation, 1));
+        await using var recovery = new RecoveringOptionLeaseRegistry(discovery, admissions);
+        var owner = new TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner("OptionActor", "trade", contract.ContractId);
+        await recovery.AcquireAsync(owner, contract.ContractId, request);
+        var replacement = Guid.NewGuid();
+        admissions.Admit(new("GLBX.MDP3", request.ValueDate, Guid.NewGuid(), replacement, 1));
+        await recovery.ReconcileAsync(default);
+        var calls = market.ReceivedCalls().Where(x => x.GetMethodInfo().Name == nameof(ICompositionMarketDataApi.AcquireAsync))
+            .Select(x => (WorkerOptionChainRequest)x.GetArguments()[1]!).ToArray();
+        Assert.Equal(2, calls.Length);
+        Assert.Equal(replacement, calls[1].GenerationId);
+        Assert.All(calls[1].Options, x => Assert.Equal(replacement, x.Pricing.GenerationId));
+        Assert.True(discovery.IsLeaseCurrent(calls[1].LeaseId));
+        await market.DidNotReceive().ReleaseAsync(Arg.Any<string>(), Arg.Any<WorkerOptionChainRelease>(), Arg.Any<CancellationToken>());
+    }
+
     sealed class MutableClock : TimeProvider
     {
         public DateTimeOffset Now = At;

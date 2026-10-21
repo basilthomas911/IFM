@@ -1616,3 +1616,16 @@ This is logical abandonment and effect fencing, not forced termination of a mana
 ## Iron Condor monitoring source snapshots
 
 The monitoring Function saves each full plan snapshot event before submitting its one-attempt Scylla projection. Loading its stream reads only the latest persisted snapshot event, without historical replay or a resident plan cache. Project the committed payload directly; do not reread or validate its source, reconcile source and Scylla history, or repair dropped projections. Log failed writes and continue with the next snapshot. See the [monitoring snapshot event modeling convention](Actor-Event-Modeling-Conventions.md#iron-condor-monitoring-snapshot-persistence). This policy is confined to monitoring projections; financial persistence retains its existing guarantees.
+
+
+### Option quote routing recovery boundary (2026-10-20)
+
+- `TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor.FuturesOptionRealtimeActor` is explicitly disposable quote routing, despite living in Domain.Trade. Other Trade actors remain excluded from non-draining replacement; order, execution, fill, and financial command work retain durable handling.
+- Recovery retires the old generation, discards buffered quote work, constructs a fresh context/route index, reloads active routes, and readmits new work without waiting for the old handler. Shared hot-cache writes and command dispatch must honor the generation fence.
+- Required option-processing health checks admission (including empty quarantined queues), saturation, blocked handlers, and sustained failed position-command replies. Provider readiness alone is not proof of a healthy trade-monitoring path.
+- The live-pipeline monitor owns this router's recovery episode. The general health-action coordinator must not bypass its three replacement attempts with additional automatic resets. After three failed/unproven replacements, use the existing hard-recovery pipeline. Exhaustion of the configured hard-reset budget requests the existing bounded fatal API shutdown. Retry budgets clear only after sustained health for the configured recovery observation window.
+- Resident command persistence is ordered per stream. A failed speculative window must reach terminal outcomes before loading a new committed state owner; later speculative events are not persisted or silently acknowledged. Financial commands are not dropped or implicitly replayed.
+- API local logs roll at 128 MiB with 35 retained segments, alongside the daily boundary. GreptimeDB retention remains separately configured; local file-count retention is not a guarantee of a fixed number of days.
+
+
+Verification for this recovery boundary: 17 shared runtime/resident-state tests (including a full queue plus a blocked handler on all three mailbox implementations), 64 pipeline/fatal-shutdown tests, and 1591 Trade unit tests passed. Evidence: `.artifacts/option-recovery-shared-tests.log`, `.artifacts/option-recovery-pipeline-tests.log`, `.artifacts/option-recovery-trade-tests.log`. Tests use isolated build outputs; the running development API/UI were not restarted. These results verify code behavior under controlled failures and do not constitute an observed live recovery after deployment.

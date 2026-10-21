@@ -86,7 +86,7 @@ public sealed class Stage2DefinitionRuntimeTests
                     .UseSetting("IFM_TEST_REDIS_URL", infrastructure.RedisConnectionString)
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", pg);
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                    new[] { "Securities", "Reference", "Trade", "Fund", "OptionPricer", "MarketData" }
+                    new[] { "Securities", "Reference", "Trade", "Fund", "MarketData" }
                         .Select(name => new KeyValuePair<string, string?>($"ConnectionStrings:{name}DbConnection", pg))));
                 // This acceptance host runs only reference actors, never trading background services.
                 builder.ConfigureServices(services =>

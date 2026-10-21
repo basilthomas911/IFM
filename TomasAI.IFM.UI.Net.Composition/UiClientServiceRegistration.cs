@@ -22,7 +22,6 @@ using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
@@ -77,7 +76,6 @@ public sealed class UiClientServiceRegistration(Container container,IConfigurati
         void RegisterQueryServices()
         {
             _container!.RegisterSingleton<IApplicationQueryApi, ApplicationQueryApi>();
-            _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
             _container!.RegisterSingleton<PortfolioFinancialApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Portfolio.Shared.Financial.IPortfolioFinancialApi>(
@@ -126,7 +124,6 @@ public sealed class UiClientServiceRegistration(Container container,IConfigurati
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi, EstablishedTradeQueryApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeOrderLifecycleApi,
                 TradeOrderLifecycleApi>();
-            _container!.RegisterSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
             _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
             _container!.RegisterSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
@@ -211,7 +208,6 @@ public sealed class UiClientServiceRegistration(Container container,IConfigurati
             _container.RegisterSingleton<MarketDataAnalyticsQueryService>();
             _container.RegisterSingleton<MarketDataAnalyticsEventService>();
             _container.RegisterSingleton<IOptionPricingService, OptionPricingService>();
-            _container.RegisterSingleton<SpreadDistributionJobService>();
             _container.RegisterSingleton<StrategyOperationsService>(() => StrategyOperationsComposition.Create(
                 _container.GetInstance<IMarketDataAnalyticsQueryApi>(),
                 _container.GetInstance<IFuturesItiSignalUIEventConsumer>(),

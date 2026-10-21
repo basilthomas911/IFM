@@ -14,7 +14,7 @@ $dll = Join-Path $PSScriptRoot 'bin/Debug/net10.0/OfflineMigration.dll'
 if (-not (Test-Path -LiteralPath $dll)) { throw 'Build OfflineMigration before running this offline driver.' }
 $groups = [ordered]@{
     trade='trade_test_db'; trade_plan='trade_plan_test_db'; reference='reference_test_db'
-    securities='securities_test_db'; option_pricer='option_pricer_test_db'; market_data='market_data_test_db'
+    securities='securities_test_db'; market_data='market_data_test_db'
 }
 $priorTarget = $env:IFM_OFFLINE_MIGRATION_TARGET
 $results = [Collections.Generic.List[object]]::new()

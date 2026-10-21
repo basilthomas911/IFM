@@ -5,7 +5,6 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
-using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
@@ -42,7 +41,6 @@ public sealed class ApplicationSchemaInitializer(
                 .InitializeAsync(cancellationToken),
             services.GetRequiredService<MarketDataSchemaDb>().CreateAllAsync,
             services.GetRequiredService<TradeTickQuoteSchemaDb>().CreateAllAsync,
-            services.GetRequiredService<OptionPricerSchemaDb>().CreateAllAsync,
             services.GetRequiredService<MarketDataServiceSchemaDb>().CreateAllAsync,
             services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync,
             services.GetRequiredService<SystemAdminSchemaDb>().CreateAllAsync,

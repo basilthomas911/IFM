@@ -6,13 +6,11 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
-using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
@@ -36,7 +34,6 @@ public interface IDbContextFactory
 
     IMarketDataDbContext MarketDataDb { get; }
     ITradeTickQuoteDbContext TradeTickQuoteDb { get; }
-    IOptionPricerDbContext OptionPricerDb { get; }
     IReferenceDbContext ReferenceDb { get; }
     ISecuritiesDbContext SecuritiesDb { get; }
     ITradeDbContext TradeDb { get; }
@@ -54,7 +51,6 @@ public interface IDbContextFactory
     SequenceIdSchemaDb SequenceIdSchema { get; }
     MarketDataSchemaDb MarketDataSchema { get; }
     TradeTickQuoteSchemaDb TradeTickQuoteSchema { get; }
-    OptionPricerSchemaDb OptionPricerSchema { get; }
     ReferenceSchemaDb ReferenceSchema { get; }
     SecuritiesSchemaDb SecuritiesSchema { get; }
     TradeSchemaDb TradeSchema { get; }

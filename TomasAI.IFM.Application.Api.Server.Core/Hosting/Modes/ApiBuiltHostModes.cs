@@ -44,7 +44,7 @@ public static partial class ApiServerModes
                 databases.EventSourceSchema, databases.SequenceIdSchema, databases.SystemAdminSchema, databases.ConfigurationSchema,
                 databases.ReferenceSchema, databases.SecuritiesSchema, databases.TradeSchema,
                 databases.TradePlanSchema, databases.PortfolioSchema, databases.MarketDataSchema, databases.TradeTickQuoteSchema,
-                databases.OptionPricerSchema, databases.MarketDataServiceSchema,
+                databases.MarketDataServiceSchema,
                 app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>()
             ];
             foreach (var schema in schemas)

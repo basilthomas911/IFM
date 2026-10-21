@@ -134,19 +134,12 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
             var expectedVersion = slot.NextExpectedVersion;
             slot.NextExpectedVersion = checked(expectedVersion + events.Count);
             Task persistence;
-            try
-            {
-                persistence = PersistResidentEventsAsync(
-                    Context, command, events, expectedVersion, CancellationToken.None).AsTask();
-            }
-            catch
-            {
-                slot.NextExpectedVersion = expectedVersion;
-                throw;
-            }
             int pendingCount;
             lock (slot.Sync)
             {
+                // Preserve per-position source order even when the database schedules concurrent writers differently.
+                persistence = PersistInOrderAsync(slot, slot.PersistenceTail, command, events, expectedVersion);
+                slot.PersistenceTail = persistence;
                 slot.Pending.Add(persistence);
                 pendingCount = slot.Pending.Count;
             }
@@ -188,8 +181,14 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
 
         if (_resident.TryGetValue(threadId, out var existing))
         {
-            ActorRuntimeMetrics.ResidentStateHits.Add(1);
-            return existing.State;
+            if (!existing.Failed)
+            {
+                ActorRuntimeMetrics.ResidentStateHits.Add(1);
+                return existing.State;
+            }
+            // Finish the old durable window before replaying committed state. Never overlap state owners.
+            await AwaitSlotAsync(existing).ConfigureAwait(false);
+            RemoveResident(threadId, existing);
         }
 
         ActorRuntimeMetrics.ResidentStateMisses.Add(1);
@@ -299,21 +298,42 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
             await AwaitSlotAsync(slot).ConfigureAwait(false);
     }
 
+    /// <summary>Commits detached events in source order and invalidates the entire speculative window on failure.</summary>
+    async Task PersistInOrderAsync(ResidentSlot slot, Task previous, ICommand command, DomainEventCollection events, long expectedVersion)
+    {
+        try
+        {
+            await previous.ConfigureAwait(false);
+            lock (slot.Sync)
+                if (slot.Failed) throw new InvalidOperationException("Resident position window failed; reload committed source state before accepting further changes.");
+            await PersistResidentEventsAsync(Context, command, events, expectedVersion, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            slot.Failed = true;
+            throw;
+        }
+    }
+
     void RemoveResident(ActorThreadId threadId)
     {
-        if (_resident.TryRemove(threadId, out _))
-        {
-            ActorRuntimeMetrics.ResidentStateCount.Add(-1);
-            ActorRuntimeMetrics.ResidentStateEvictions.Add(1);
-        }
+        if (_resident.TryGetValue(threadId, out var slot)) RemoveResident(threadId, slot);
     }
 
     void RemoveResident(ActorThreadId threadId, ResidentSlot slot)
     {
-        if (_resident.TryRemove(new KeyValuePair<ActorThreadId, ResidentSlot>(threadId, slot)))
+        lock (slot.Sync)
         {
-            ActorRuntimeMetrics.ResidentStateCount.Add(-1);
-            ActorRuntimeMetrics.ResidentStateEvictions.Add(1);
+            if (!slot.PersistenceTail.IsCompleted)
+            {
+                slot.Failed = true;
+                return; // Retain the failed owner until all of its durable work has a terminal outcome.
+            }
+            if (_resident.TryRemove(new KeyValuePair<ActorThreadId, ResidentSlot>(threadId, slot)))
+            {
+                ActorRuntimeMetrics.ResidentStateCount.Add(-1);
+                ActorRuntimeMetrics.ResidentStateEvictions.Add(1);
+            }
         }
     }
 
@@ -332,6 +352,8 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
         public TState State { get; } = state;
         public object Sync { get; } = new();
         public List<Task> Pending { get; } = [];
+        public Task PersistenceTail { get; set; } = Task.CompletedTask;
+        public volatile bool Failed;
         public long NextExpectedVersion { get; set; } = expectedVersion;
         public bool Warmed { get; set; }
         public int PendingCount { get { lock (Sync) return Pending.Count; } }

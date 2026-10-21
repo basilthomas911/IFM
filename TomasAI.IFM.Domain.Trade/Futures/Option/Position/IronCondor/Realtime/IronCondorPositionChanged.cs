@@ -22,10 +22,27 @@ public static class IronCondorPositionChanged
         await context.PublishRealtimeAsync(changed.PositionSnapshot).ConfigureAwait(false);
         if (changed.PositionSnapshot.AsOfUtc.Kind != DateTimeKind.Utc || !FuturesTradingValueDate.TryGet(new DateTimeOffset(changed.PositionSnapshot.AsOfUtc), out var valueDate))
             throw new InvalidOperationException("IronCondorTradePlan.VALUE_DATE.UNAVAILABLE: position observation is outside an active futures session.");
-        var id = new IronCondorTradePlanId(changed.PositionSnapshot.Id, valueDate);
-        var commandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{changed.PositionSnapshot.PositionSequence}|{UpdateIronCondorTradePlanCommand.Verb}");
         var capturedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime;
         var capturedInputs = context.CaptureMonitoringInputs(changed.PositionSnapshot, valueDate, capturedAtUtc);
+        // The input reader publishes a generation-fenced notification when its background load completes.
+        // Keep position publication live while reference loading is pending; do not fabricate calendar dates.
+        if (capturedInputs is null)
+            return;
+        await changed.CalculateMonitoringPlanAsync(context, valueDate, capturedInputs, capturedAtUtc).ConfigureAwait(false);
+    }
+
+    /// <summary>Runs the same forward-price and trade-plan functions for ticks and completed reference refreshes.</summary>
+    /// <param name="changed">The source observation whose identity is retained by both Function requests.</param>
+    /// <param name="context">The current actor lifetime's messaging capabilities.</param>
+    /// <param name="valueDate">The exchange session for this captured observation.</param>
+    /// <param name="capturedInputs">The loaded trade references and captured pricing evidence.</param>
+    /// <param name="capturedAtUtc">The timestamp shared by the calculation requests.</param>
+    /// <returns>The completed forward-price/trade-plan workflow and realtime publication.</returns>
+    internal static async ValueTask CalculateMonitoringPlanAsync(this IronCondorPositionChangedEvent changed,
+        IIronCondorTradePositionRealtimeContext context, DateOnly valueDate, IronCondorTradePlanInputs capturedInputs, DateTime capturedAtUtc)
+    {
+        var id = new IronCondorTradePlanId(changed.PositionSnapshot.Id, valueDate);
+        var commandId = TradePlanContractIdentity.DeterministicId($"{changed.Id:N}|{changed.PositionSnapshot.PositionSequence}|{UpdateIronCondorTradePlanCommand.Verb}");
         IronCondorForwardPriceCalculatedEvent? forward = null;
         string? forwardFailure = null;
         var forwardRequest = new CalculateIronCondorForwardPriceCommand {
@@ -54,7 +71,7 @@ public static class IronCondorPositionChanged
             IronCondorTradePlanInputs = capturedInputs,
             UseForwardPriceFunction = true, IronCondorForwardPriceCalculated = forward, ForwardPriceFailure = forwardFailure,
             SourceEventId = changed.Id,
-            RequestedAtUtc = context.TimeProvider.GetUtcNow().UtcDateTime
+            RequestedAtUtc = capturedAtUtc
         };
         var reply = await context.RequestFunctionAsync<UpdateIronCondorTradePlanCommand, IronCondorTradePlanId, FunctionResult<IronCondorTradePlanUpdatedEvent, TradePlanFailedEvent<IronCondorTradePlanId>>>(command).ConfigureAwait(false);
         var terminal = reply.Value ?? throw new InvalidOperationException($"Iron Condor Trade Plan Function returned no result: {reply.ErrorMessage}");

@@ -39,11 +39,21 @@ public sealed class RealtimeActorReplacementTests
         Assert.True(old.Mailbox.ThreadQueues.Write(active, active.Subject));
         await old.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(old.Mailbox.ThreadQueues.Write(queued, queued.Subject));
+        var backlog = new List<Message> { queued };
         try
         {
+            var queue = old.Mailbox.ThreadQueues.GetThreadQueue(active.Subject.ThreadId);
+            // Observe-mode admission deliberately waits for space. Fill exactly to capacity, without a blocking extra write.
+            for (var index = 1; index < queue.Capacity; index++)
+            {
+                var buffered = new Message();
+                Assert.True(old.Mailbox.ThreadQueues.Write(buffered, buffered.Subject));
+                backlog.Add(buffered);
+            }
+            Assert.Equal(queue.Capacity, queue.Count);
             await supervisor.RestartAsync(old.Id).AsTask().WaitAsync(TimeSpan.FromSeconds(3));
             Assert.False(old.Release.Task.IsCompleted);
-            Assert.Equal(1, queued.Disposals);
+            Assert.All(backlog, buffered => Assert.Equal(1, buffered.Disposals));
             Assert.Equal(0, active.Disposals);
             Assert.NotSame(old.Mailbox, replacement.Mailbox);
             Assert.True(replacement.Mailbox.ThreadQueues.IsAccepting);

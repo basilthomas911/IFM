@@ -40,7 +40,8 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
     IDatabentoRecoveryRequester? recoveryRequester = null,
     ILogger<LivePipelineProbe>? logger = null,
     DatasetWorkerCurrentValues? supervisedValues = null,
-    DatasetWorkerProcessRecoveryService? supervisedWorkers = null) : ILivePipelineProbe
+    DatasetWorkerProcessRecoveryService? supervisedWorkers = null,
+    TomasAI.IFM.Application.Api.Server.Core.Recovery.Shutdown.IApiFatalRecoveryShutdown? fatalShutdown = null) : ILivePipelineProbe
 {
     readonly Dictionary<string, (ulong Produced, ulong Consumed, long Completed, ulong Ring, int Channel)> previous = new();
     readonly Dictionary<string, (DateTimeOffset Through, DateTime ObservedUtc)> closedWatermarks = new();
@@ -85,6 +86,11 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
         }
         catch (Exception ex) when (!token.IsCancellationRequested)
         { Add("Messaging transport", "NATS", false, "Shared connection probe failed: " + ex.Message); }
+        if (supervisor?.Children.TryGetValue(OptionQuoteMailbox, out var optionRouter) == true)
+            checks.Add(OptionQuoteProcessingHealth.Evaluate(optionRouter.Mailbox.Metrics.CaptureSnapshot(),
+                optionRouter.IsRunning, optionRouter.Mailbox.ThreadQueues.IsAccepting, now,
+                optionRouter is not TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor.FuturesOptionRealtimeActor router
+                    || router.ArePositionUpdatesHealthy(now)));
         var health = market.GetHealth();
         var epoch = health.Epoch;
         Add("Value date", "feed", health.ValueDate == date, "Feed epoch must match authoritative active date.");
@@ -276,6 +282,29 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
                 : checks.Any(x => x.Required && x.Status == "Unknown") ? "Unknown" : "Healthy", checks);
     }
 
+    static readonly ActorMailboxId OptionQuoteMailbox = new(ActorType.Realtime, "FuturesOptionRealtime");
+
+    /// <summary>Uses the existing bounded fatal shutdown owner after required quote processing exhausts hard recovery.</summary>
+    public async Task ShutdownAsync(LivePipelineHealthSnapshot unhealthySnapshot, int hardResetAttempts, CancellationToken token)
+    {
+        var owner = fatalShutdown ?? throw new InvalidOperationException("Fatal pipeline shutdown is not configured.");
+        var request = new DatabentoHardRecoveryRequest(Guid.CreateVersion7(time.GetUtcNow()),
+            unhealthySnapshot.ValueDate ?? throw new InvalidOperationException("Recovery value date is required."),
+            watchdog.Current.NativeGeneration, nameof(LivePipelineProbe), "Option quote processing exhausted hard-reset recovery.");
+        var failure = new DatabentoHardRecoveryResult(request.CorrelationId, request.ExpectedGenerationId, hardResetAttempts,
+            DatabentoHardRecoveryOutcome.Unrecoverable, "OptionQuoteProcessing", request.Reason);
+        try
+        {
+            await owner.RequestAsync(new(time.GetUtcNow(), request.Reason, request, failure))
+                .WaitAsync(TimeSpan.FromSeconds(30), token).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            owner.FailAndExit(error);
+            throw;
+        }
+    }
+
     static readonly ActorTypeId PriceRoute = new(ActorType.Realtime,
         FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
     static readonly ActorMailboxId ItiMailbox = new(ActorType.Realtime, FuturesItiSignalRealtimeActor.ActorName);
@@ -314,6 +343,9 @@ public sealed class LivePipelineProbe(MarketDataRuntimeHealthCheck feedCheck,
 
         switch (unhealthyCheck.Component)
         {
+            case "Option quote processing":
+                await RestartRealtimeActorAsync(OptionQuoteMailbox, token).ConfigureAwait(false);
+                break;
             case "ITI route":
                 await RestartRealtimeActorAsync(ItiMailbox, token).ConfigureAwait(false);
                 return;

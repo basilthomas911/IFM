@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -15,17 +16,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 /// <summary>Owns individual qualified option leases without using the retired in-process epoch.</summary>
 public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery discovery,
     DatasetWorkerAdmissionRegistry admissions, IDbContextFactory databases,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null) : IDisposable
+    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null, ILogger? logger = null) : IAsyncDisposable
 {
-    readonly Dictionary<(TickerStreamOwner Owner, string Contract), WorkerOptionChainRequest> leases = [];
+    readonly RecoveringOptionLeaseRegistry recovery = new(discovery, admissions, riskReader, logger);
     readonly SemaphoreSlim serial = new(1, 1);
-    int disposed;
 
-    /// <summary>Releases synchronization resources after the owning feed services have stopped.</summary>
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref disposed, 1) == 0) serial.Dispose();
-    }
+    /// <summary>Stops admission-driven recovery when the owning actor shuts down.</summary>
+    public ValueTask DisposeAsync() => recovery.DisposeAsync();
 
     /// <summary>Attaches one exact reviewed contract on a separate physical connection and requires worker acknowledgement.</summary>
     /// <param name="owner">The independent actor/view owner.</param>
@@ -38,16 +35,6 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
         await serial.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!admissions.TryGet("GLBX.MDP3", out var admitted) || admitted.ValueDate != valueDate)
-                throw new InvalidOperationException("OptionMonitoring.WORKER.NOT_ADMITTED");
-            var key = (owner, contract.ContractId);
-            if (leases.TryGetValue(key, out var existing))
-            {
-                if (existing.GenerationId == admitted.GenerationId) return;
-                await discovery.ReleaseAsync(existing, CancellationToken.None).ConfigureAwait(false);
-                riskReader?.Remove(existing.LeaseId);
-                leases.Remove(key);
-            }
             var candidate = CreateCandidate(contract);
             if (contract.ReviewState != ReferenceReviewState.Reviewed)
                 throw new InvalidDataException("OptionMonitoring.REFERENCE.NOT_REVIEWED");
@@ -64,19 +51,11 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
             var calendar = new OptionPricingCalendar(contract.CalendarVersion ?? "IFM-MarketDates",
                 contract.ExchangeTimeZoneId ?? "America/New_York", valueDate, maturity,
                 new TimeOnly(18, 0), dates.ToImmutableArray());
-            var request = new CompositionDiscoveryRequest(Guid.NewGuid(), admitted.GenerationId, valueDate,
+            var request = new CompositionDiscoveryRequest(Guid.NewGuid(), Guid.Empty, valueDate,
                 maturity, DateTimeOffset.UtcNow.AddSeconds(60), [candidate], true, calendar, publication, conversion,
                 SeparateContractConnection: true);
-            var acquired = await discovery.AcquireAsync(request, CancellationToken.None, renewAutomatically: true).ConfigureAwait(false);
-            if (acquired.Lease is null || acquired.Failure is not null)
-                throw new InvalidOperationException($"OptionMonitoring.ACQUIRE.FAILED: {acquired.Failure?.Code}");
-            if (!admissions.TryGet("GLBX.MDP3", out var current) || current.GenerationId != admitted.GenerationId)
-            {
-                await discovery.ReleaseAsync(acquired.Lease, CancellationToken.None).ConfigureAwait(false);
-                throw new InvalidOperationException("OptionMonitoring.SESSION.CLOSED: acquisition belongs to a retired dataset.");
-            }
-            leases[key] = acquired.Lease;
-            riskReader?.Register(acquired.Lease);
+            recovery.Start();
+            await recovery.AcquireAsync(owner, contract.ContractId, request).ConfigureAwait(false);
         }
         finally { serial.Release(); }
     }
@@ -87,23 +66,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
     /// <returns>The worker release acknowledgement operation.</returns>
     public async Task ReleaseAsync(TickerStreamOwner owner, string contractId)
     {
-        await serial.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (!leases.TryGetValue((owner, contractId), out var lease)) return;
-            if (!admissions.TryGet("GLBX.MDP3", out var current) || current.GenerationId != lease.GenerationId)
-            {
-                riskReader?.Remove(lease.LeaseId);
-                leases.Remove((owner, contractId));
-                return; // The closed worker already released its native connection.
-            }
-            var released = await discovery.ReleaseAsync(lease, CancellationToken.None).ConfigureAwait(false);
-            if (released.Failure is not null)
-                throw new InvalidOperationException($"OptionMonitoring.RELEASE.FAILED: {released.Failure.Code}");
-            riskReader?.Remove(lease.LeaseId);
-            leases.Remove((owner, contractId));
-        }
-        finally { serial.Release(); }
+        await recovery.ReleaseAsync(owner, contractId).ConfigureAwait(false);
     }
 
     /// <summary>Maps exact reviewed metadata; provider symbols and IDs remain inside pricing/transport boundaries.</summary>

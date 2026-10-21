@@ -2,8 +2,6 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
-using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.Extensions;
@@ -14,7 +12,6 @@ namespace TomasAI.IFM.Service.TradePosition;
 public class TradePositionService : ITradePositionService
 {
     readonly ITradeEventProducer _tradeEventProducer;
-    readonly IOptionPricerCommandApi _optionPricerCommandApi;
     readonly IStatusConsoleWriter _statusConsoleWriter;
     readonly ILogger<TradePositionService> _logger;
 
@@ -22,18 +19,15 @@ public class TradePositionService : ITradePositionService
     /// create trade position service
     /// </summary>
     /// <param name="tradeEventProducer"></param>
-    /// <param name="optionPricerCommandApi"></param>
     /// <param name="statusConsoleWriter"></param>
     /// <param name="logger"></param>
     /// <exception cref="ArgumentNullException"></exception>
     public TradePositionService(
         ITradeEventProducer tradeEventProducer,
-        IOptionPricerCommandApi optionPricerCommandApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<TradePositionService> logger)
     {
         _tradeEventProducer = tradeEventProducer ?? throw new ArgumentNullException(nameof(tradeEventProducer));
-        _optionPricerCommandApi = optionPricerCommandApi ?? throw new ArgumentNullException(nameof(optionPricerCommandApi));
         _statusConsoleWriter = statusConsoleWriter ?? throw new ArgumentNullException(nameof(statusConsoleWriter));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         TradePositionDiagnosticLog.Started(_logger);
@@ -120,29 +114,6 @@ public class TradePositionService : ITradePositionService
         {
             await (_tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeLegDataChangedFailEvent, OptionTradeEntityId>(ex))).ConfigureAwait(false);
             await (_statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, ex.GetErrorMessage())).ConfigureAwait(false);
-            TradePositionDiagnosticLog.EventFailed(_logger, ex, e.GetType().Name);
-        }
-    }
-
-    /// <summary>
-    /// execute option trade distibution statistics changed event
-    /// </summary>
-    /// <param name="e"></param>
-    /// <returns></returns>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Event service boundary reports failures through failure events, the status console, and structured exception logs.")]
-    public async Task ExecuteAsync(OptionTradeSpreadDistributionStatisticsUpdatedEvent e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        try
-        {
-            await (_optionPricerCommandApi.InsertSpreadDistributionsAsync(
-                e.PutSpreadDistribution.ToSpreadDistributionReadModel(),
-                e.CallSpreadDistribution.ToSpreadDistributionReadModel())).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            await (_tradeEventProducer.PostEventAsync(e.ToFailEvent<OptionTradeSpreadDistributionStatisticsUpdatedFailEvent, OptionTradeEntityId>(ex))).ConfigureAwait(false);
-            await (_statusConsoleWriter.WriteConsoleAsync(LogSourceType.TradePosition, $"{e.GetType().Name} failed due to {ex.GetErrorMessage()}")).ConfigureAwait(false);
             TradePositionDiagnosticLog.EventFailed(_logger, ex, e.GetType().Name);
         }
     }

@@ -47,6 +47,9 @@ public static class IronCondorForwardPriceCalculation
         var callShort = call.Single(l => l.SignedQuantity < 0);
         var remaining = inputs.MaturityDate.DayNumber - command.EntityId.ValueDate.DayNumber;
         var total = inputs.MaturityDate.DayNumber - inputs.TradeDate.DayNumber;
+        if (inputs.TradeDate == default || inputs.MaturityDate == default || remaining <= 0 || total <= 0)
+            throw new ArgumentException(FormattableString.Invariant(
+                $"IronCondorForwardPrice.DATES.INVALID: TradeDate={inputs.TradeDate:yyyy-MM-dd}; MaturityDate={inputs.MaturityDate:yyyy-MM-dd}; ValueDate={command.EntityId.ValueDate:yyyy-MM-dd}; RemainingDays={remaining}; OpeningDays={total}. Loaded entry/expiry dates and positive calendar day counts required."));
         // Legacy OTM = 1 - abs(short delta). On a tie put is selected as the risk side.
         var putRisk = 1 - Math.Abs(putShort.Delta) <= 1 - Math.Abs(callShort.Delta);
         double Forward(IronCondorForwardPriceLeg[] pair, bool risk) => AdjustSpread(

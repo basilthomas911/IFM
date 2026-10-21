@@ -33,7 +33,6 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.OptionPricer.Shared\TomasAI.IFM.Domain.OptionPricer.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
@@ -51,7 +50,7 @@
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Framework.Storage.Benchmarks/TomasAI.IFM.Framework.Storage.Benchmarks.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.OptionPricer/TomasAI.IFM.Domain.OptionPricer.csproj" /></ItemGroup>
+  <ItemGroup></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.MarketData.Securities/TomasAI.IFM.Domain.MarketData.Securities.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Reference/TomasAI.IFM.Domain.Reference.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../test-support/IronCondorForwardPriceTestScenario.cs" Link="Support/IronCondorForwardPriceTestScenario.cs" /></ItemGroup>

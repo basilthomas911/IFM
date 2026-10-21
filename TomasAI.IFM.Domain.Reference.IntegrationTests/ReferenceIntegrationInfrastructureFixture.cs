@@ -83,7 +83,7 @@ public sealed class ReferenceIntegrationInfrastructureFixture : IAsyncLifetime
                     .UseSetting("IFM_TEST_NATS_URL", NatsUrl)
                     .UseSetting("IFM_TEST_REDIS_URL", RedisConnectionString)
                     .UseSetting("IFM_TEST_POSTGRES_CONNECTION", PostgresConnectionString);
-                foreach (var name in new[] { "MarketData", "OptionPricer", "Reference", "Securities", "Trade" })
+                foreach (var name in new[] { "MarketData", "Reference", "Securities", "Trade" })
                     builder.UseSetting($"ConnectionStrings:{name}DbConnection", PostgresConnectionString);
                 builder.UseSetting("ConnectionStrings:TradeTickQuoteDbConnection", CqlConnectionString);
                 builder.ConfigureServices(services => services.RemoveAll<IHostedService>());

@@ -694,7 +694,7 @@ impl TradeWorkspace {
                             if self.loaded_spread_points.last().is_some_and(|point|(point[0]/60.).floor()==(time/60.).floor()) { self.loaded_spread_points.pop(); }
                             self.loaded_spread_points.push([time,price]);
                         }
-                        if let Some(forward) = number(&plan["ironCondorTradePlanSnapshot"],"combinedForwardPrice") {
+                        if let Some(forward) = number(&plan["ironCondorTradePlanSnapshot"],"forwardSpreadForChart") {
                             if self.loaded_forward_points.last().is_none_or(|point|point[0]<time) {
                                 if self.loaded_forward_points.last().is_some_and(|point|(point[0]/60.).floor()==(time/60.).floor()) {self.loaded_forward_points.pop();}
                                 self.loaded_forward_points.push([time,forward]);

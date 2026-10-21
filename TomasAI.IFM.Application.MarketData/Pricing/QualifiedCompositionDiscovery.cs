@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// Application entry point from a complete definition scope to a worker-owned qualified chain.
 /// Reference lookup and Treasury I/O run here, never inside a worker quote callback.
 /// </summary>
-public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null) : IAsyncDisposable
+public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null) : IAsyncDisposable, IRecoverableOptionDiscovery
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, RefreshRegistration> registrations = new();
@@ -153,6 +153,13 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             return Failed(ex.Code);
         }
     }
+
+    /// <summary>Forgets a retired worker lease locally without contacting that worker.</summary>
+    public void ForgetLease(Guid leaseId) => registrations.TryRemove(leaseId, out _);
+
+    /// <summary>Reports whether automatic maintenance still owns an unexpired lease.</summary>
+    public bool IsLeaseCurrent(Guid leaseId) => registrations.TryGetValue(leaseId, out var registration)
+        && registration.Lease.LeaseExpiresAtUtc > clock.GetUtcNow();
 
     public Task<WorkerOptionChainResult> ReleaseAsync(WorkerOptionChainRequest lease, CancellationToken cancellationToken)
     {

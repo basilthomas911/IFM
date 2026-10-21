@@ -66,6 +66,7 @@ public static class FuturesTickTradeDataChanged
             TradeType = route.TradeType
         };
         var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
+        context.RoutingProgress?.Record(tick.ContractId, result.Success, DateTime.UtcNow);
         if (!result.Success)
             FuturesTickTradeDataChangedLogging.RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);
     }

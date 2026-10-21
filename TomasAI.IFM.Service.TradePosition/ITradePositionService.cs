@@ -18,5 +18,4 @@ public interface ITradePositionService
     /// <summary>Processes updated option-spread distribution statistics.</summary>
     /// <param name="event">The distribution statistics event.</param>
     /// <returns>A task that completes when processing finishes.</returns>
-    Task ExecuteAsync(OptionTradeSpreadDistributionStatisticsUpdatedEvent e);
 }

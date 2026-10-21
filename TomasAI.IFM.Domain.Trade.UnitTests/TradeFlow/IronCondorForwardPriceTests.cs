@@ -37,6 +37,24 @@ public sealed class IronCondorForwardPriceTests
     }
 
     [Theory]
+    [InlineData("IronCondor/EntryCreditForwardPnl/v2", 10.82165536060817, -10.82165536060817)]
+    [InlineData("LegacyScenario/v1", -10.82165536060817, -10.82165536060817)]
+    public void Chart_projection_uses_signed_position_points_without_changing_raw_closing_cost(string version, double raw, double chart)
+    {
+        var snapshot = new TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanSnapshot {
+            CalculationVersion = version, CombinedSpreadPrice = -10.75m,
+            ForwardPrice = (decimal)raw, CombinedForwardPrice = (decimal)raw };
+        Assert.Equal((decimal)chart, snapshot.ForwardSpreadForChart);
+        Assert.Equal((decimal)raw, snapshot.ForwardPrice);
+        Assert.Equal((decimal)raw, snapshot.CombinedForwardPrice);
+        var restored = MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanSnapshot>(MessagePackSerializer.Serialize(snapshot));
+        Assert.Equal(snapshot.ForwardSpreadForChart, restored.ForwardSpreadForChart);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(snapshot, new System.Text.Json.JsonSerializerOptions {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+        Assert.Equal((decimal)chart, json.GetProperty("forwardSpreadForChart").GetDecimal());
+    }
+
+    [Theory]
     [InlineData(12.5, 3, -375, .75, false)]
     [InlineData(12.5, 4, -500, 1, true)]
     [InlineData(13, 4, -600, 1.2, true)]
@@ -123,6 +141,25 @@ public sealed class IronCondorForwardPriceTests
         Assert.Equal(0m,snapshot.ForwardPrice);
         Assert.Contains("ENTRY_CREDIT.UNAVAILABLE",snapshot.ForwardPriceCalculationError);
         Assert.Null(snapshot.IronCondorForwardRisk);
+    }
+
+    [Theory]
+    [InlineData(0, -10)]
+    [InlineData(-1, -10)]
+    [InlineData(10, 10)]
+    public void Invalid_calendar_intervals_report_exact_dates_and_day_counts(int maturityOffset, int tradeOffset)
+    {
+        var request = IronCondorForwardPriceTestScenario.Request();
+        var date = request.EntityId.ValueDate;
+        request = request with { IronCondorForwardPriceInputs = request.IronCondorForwardPriceInputs with {
+            TradeDate = date.AddDays(tradeOffset), MaturityDate = date.AddDays(maturityOffset) } };
+        var error = Assert.Throws<ArgumentException>(() => IronCondorForwardPriceCalculation.Calculate(request));
+        Assert.Contains("IronCondorForwardPrice.DATES.INVALID", error.Message);
+        Assert.Contains($"TradeDate={date.AddDays(tradeOffset):yyyy-MM-dd}", error.Message);
+        Assert.Contains($"MaturityDate={date.AddDays(maturityOffset):yyyy-MM-dd}", error.Message);
+        Assert.Contains($"ValueDate={date:yyyy-MM-dd}", error.Message);
+        Assert.Contains($"RemainingDays={maturityOffset}", error.Message);
+        Assert.Contains($"OpeningDays={maturityOffset-tradeOffset}", error.Message);
     }
 
     [Fact]

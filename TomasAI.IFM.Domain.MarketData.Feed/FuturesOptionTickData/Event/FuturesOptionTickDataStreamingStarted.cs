@@ -42,6 +42,7 @@ public static class FuturesOptionTickDataStreamingStarted
                 throw new InvalidOperationException(
                     "The Databento watchdog must start and qualify the value-date runtime before an option route is attached.");
             var owner = CreateOwner(e.EntityId, e.Contract.ContractId);
+            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
             if (p.QualifiedFeeds is { } feeds)
                 await feeds.AcquireAsync(owner, e.Contract, e.ValueDate).ConfigureAwait(false);
             else
@@ -51,7 +52,6 @@ public static class FuturesOptionTickDataStreamingStarted
                 if (!await p.MarketDataApi.StartStreamingFuturesOptionTickDataAsync(e.Contract.ContractId, owner).ConfigureAwait(false))
                     throw new InvalidOperationException($"Option contract '{e.Contract.ContractId}' acquisition was rejected.");
             }
-            p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
             await (eventApi.SendFuturesOptionTickDataStreamingStartedCompleteAsync(e)).ConfigureAwait(false);
 
             await (p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesOptionTickDataEvent, $"futures option {e.Contract.ContractId} streaming started")).ConfigureAwait(false);

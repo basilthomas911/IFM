@@ -191,12 +191,14 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
             var trade = await databases.TradeDb.GetEstablishedTradeAsync(position.Id.Trade, token).WaitAsync(token).ConfigureAwait(false);
             if (trade is null || trade.Id != position.Id.Trade || trade.StrategyKind != TradeStrategyKind.IronCondor || trade.Legs.Length != 4)
                 throw new InvalidOperationException("IronCondorMonitoring.TRADE.UNAVAILABLE: matching persisted trade is required.");
+            var tradeLimits = await databases.TradeDb.GetTradeLimitAsync(position.Id.Trade.TradeId, token).WaitAsync(token).ConfigureAwait(false);
             var policy = riskParameterSets is null ? null : await riskParameterSets.ResolveAsync(token).ConfigureAwait(false);
             if (trade.MaturityDate is not { } expiry)
                 throw new InvalidOperationException("IronCondorMonitoring.EXPIRY.INVALID: expiry required for every leg.");
             var inputs = new IronCondorTradePlanInputs
             {
                 StrategyRiskParameterSet = policy,
+                TradeLimits = tradeLimits,
                 ContractCashMultiplier = StrategyPositionLegOptionData.CommonContractMultiplier(position),
                 OpeningCommission = trade.OpeningCommission,
                 TradeType = IdentifyTradeType(trade.Legs),

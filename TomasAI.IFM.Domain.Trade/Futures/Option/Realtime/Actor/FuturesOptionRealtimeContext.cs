@@ -17,6 +17,7 @@ public sealed class FuturesOptionRealtimeContext : EventActorContext, IFuturesOp
         RealtimeCache = realtimeCache;
     }
 
+    public TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Model.OptionQuoteRoutingProgress RoutingProgress { get; } = new();
     public IDbContextFactory DbFactory { get; }
     public IActorService ActorService { get; }
     public ContractIdRouteIndex RouteIndex { get; }

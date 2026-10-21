@@ -73,7 +73,7 @@ public sealed class EventLogQualification
         // on the existing local Scylla listener; all other qualification routing stays fixed.
         if (scyllaPort is <= 0 or > ushort.MaxValue)
             throw new InvalidOperationException("The isolated qualification CQL port must be valid.");
-        foreach (var key in new[] { "Trade", "Fund", "Reference", "OptionPricer", "MarketData", "Securities" })
+        foreach (var key in new[] { "Trade", "Fund", "Reference", "MarketData", "Securities" })
             settings[$"ConnectionStrings:{key}DbConnection"] =
                 $"Contact Points=127.0.0.1;Port={scyllaPort};Default Keyspace=ifm_synthetic_{runId}_{key.ToLowerInvariant()}";
         foreach (var key in new[] { "TelemetryServerBaseUri" })

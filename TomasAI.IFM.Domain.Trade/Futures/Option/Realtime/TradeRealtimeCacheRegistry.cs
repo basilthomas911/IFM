@@ -15,6 +15,7 @@ public sealed class TradeRealtimeCacheRegistry
     readonly Dictionary<string, HashSet<TradeEntityId>> routes = new(StringComparer.Ordinal);
     public TradeRealtimeHotCache Register(EstablishedTradeDefinition trade, DateOnly date)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         lock (gate)
         {
             if (trades.TryGetValue(trade.Id, out var current))
@@ -44,6 +45,7 @@ public sealed class TradeRealtimeCacheRegistry
     }
     public TradeRealtimeSnapshot[] Expire()
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         var all = Volatile.Read(ref residentSnapshot);
         if (all is null)
             lock (gate)
@@ -58,6 +60,7 @@ public sealed class TradeRealtimeCacheRegistry
     }
     public TradeRealtimeSnapshot[] Apply(FuturesOptionTickDataV2ReadModel observation)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         if (!publishedRoutes.TryGetValue(observation.ContractId, out var interested)) return [];
         TradeRealtimeSnapshot[]? changed = null;
         var count = 0;
@@ -73,6 +76,7 @@ public sealed class TradeRealtimeCacheRegistry
     }
     public void Remove(TradeEntityId id)
     {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
         lock (gate)
         {
             if (!trades.TryRemove(id, out var cache)) return;

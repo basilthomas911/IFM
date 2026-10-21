@@ -5,7 +5,6 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
-using TomasAI.IFM.Application.Storage.OptionPricerDb.Schema;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
@@ -36,7 +35,6 @@ public static class DomainActorIntegrationInfrastructureFixture
         "MarketDataServiceDbConnection",
         "MarketDataDbConnection",
         "ReferenceDbConnection",
-        "OptionPricerDbConnection",
         "PortfolioDbConnection",
         "SequenceIdDbConnection",
         "SystemAdminDbConnection",
@@ -144,7 +142,6 @@ public static class DomainActorIntegrationInfrastructureFixture
         await new SequenceIdSchemaDb(settings, logger).CreateAllAsync();
         await new MarketDataSchemaDb(settings, logger).CreateAllAsync();
         await new MarketDataServiceSchemaDb(settings, logger).CreateAllAsync();
-        await new OptionPricerSchemaDb(settings, logger).CreateAllAsync();
         await new PortfolioSchemaDb(settings, logger).CreateAllAsync();
         await new ReferenceSchemaDb(settings, logger).CreateAllAsync();
         await new SecuritiesSchemaDb(settings, logger).CreateAllAsync();

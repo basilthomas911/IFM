@@ -14,7 +14,7 @@ public sealed class ApplicationStorageConnectionsTests
         var settings = ApplicationStorageConnections.Create(postgres, raw);
         string[] names = ["EventSourceActorDbConnection", "ConfigurationDbConnection", "MarketDataServiceDbConnection",
             "SystemAdminDbConnection", "SequenceIdDbConnection", "PortfolioDbConnection", "MarketDataDbConnection",
-            "OptionPricerDbConnection", "ReferenceDbConnection", "SecuritiesDbConnection", "TradeDbConnection",
+            "ReferenceDbConnection", "SecuritiesDbConnection", "TradeDbConnection",
             "TradePlanDbConnection", "ScheduledTaskDbConnection"];
         foreach (var name in names)
         {

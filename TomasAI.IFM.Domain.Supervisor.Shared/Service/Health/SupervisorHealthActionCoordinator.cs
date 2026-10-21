@@ -29,7 +29,9 @@ public sealed class SupervisorHealthActionCoordinator(
         if (!options.AutomaticMutationEnabled) return;
         foreach (var actor in snapshot.Actors)
             foreach (var thread in actor.Threads)
-                if (thread.RestartRequired && _active.TryAdd(thread.ThreadId, 0))
+                // This quote router has a pipeline-owned three-attempt budget and hard-reset escalation.
+                if (actor.ActorId != new ActorMailboxId(ActorType.Realtime, "FuturesOptionRealtime")
+                    && thread.RestartRequired && _active.TryAdd(thread.ThreadId, 0))
                     _ = Task.Run(() => RestartAsync(thread.ThreadId, thread.Generation));
     }
 

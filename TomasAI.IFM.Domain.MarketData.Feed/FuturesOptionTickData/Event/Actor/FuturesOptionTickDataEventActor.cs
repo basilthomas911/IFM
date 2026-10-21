@@ -47,20 +47,28 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "S3267", Justification = "Perform lifecycle or preparation operations sequentially with cancellation and failure handling at each item; retain explicit ordered awaits.")]
     protected override async ValueTask OnShutdown(IEventActorContext<FuturesOptionTickDataEventActor> context)
     {
-        foreach (var registration in _eventParameters.Streams.Drain())
+        try
         {
-            try
+            foreach (var registration in _eventParameters.Streams.Drain())
             {
-                if (_eventParameters.QualifiedFeeds is { } feeds)
-                    await feeds.ReleaseAsync(registration.Key.Owner, registration.Key.ContractId).ConfigureAwait(false);
-                else
-                    await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(registration.Key.ContractId, registration.Key.Owner).ConfigureAwait(false);
+                try
+                {
+                    if (_eventParameters.QualifiedFeeds is { } feeds)
+                        await feeds.ReleaseAsync(registration.Key.Owner, registration.Key.ContractId).ConfigureAwait(false);
+                    else
+                        await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(registration.Key.ContractId, registration.Key.Owner).ConfigureAwait(false);
+                }
+                catch (TomasAI.IFM.Application.MarketData.Contracts.MarketDataApiNotRunningException)
+                {
+                // The host may stop the transient market-data epoch before actor teardown.
+                // Draining the actor-owned registration is already complete in that case.
+                }
             }
-            catch (TomasAI.IFM.Application.MarketData.Contracts.MarketDataApiNotRunningException)
-            {
-            // The host may stop the transient market-data epoch before actor teardown.
-            // Draining the actor-owned registration is already complete in that case.
-            }
+        }
+        finally
+        {
+            if (_eventParameters.QualifiedFeeds is { } qualifiedFeeds)
+                await qualifiedFeeds.DisposeAsync().ConfigureAwait(false);
         }
     }
 

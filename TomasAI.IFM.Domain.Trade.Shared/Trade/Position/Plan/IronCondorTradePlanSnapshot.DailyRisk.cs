@@ -39,8 +39,13 @@ public sealed partial record IronCondorTradePlanSnapshot
     [Key(68)] public decimal? PutForwardPrice { get; init; }
     /// <summary>Gets signed call spread forward value in currency, including quantity and the validated contract multiplier.</summary>
     [Key(69)] public decimal? CallForwardPrice { get; init; }
-    /// <summary>Gets signed sum of forward put and call prices per strategy unit.</summary>
+    /// <summary>Gets combined forward points per strategy unit: raw closing cost for entry-credit v2, signed value for older scenario models.</summary>
     [Key(70)] public decimal? CombinedForwardPrice { get; init; }
+    /// <summary>Gets forward spread points on the same signed holding-value basis as CombinedSpreadPrice.</summary>
+    /// <remarks>The entry-credit calculation stores a positive closing cost; only this chart projection negates it.
+    /// Historical scenario models already used signed position values and retain their recorded convention.</remarks>
+    [IgnoreMember] public decimal? ForwardSpreadForChart => CalculationVersion == TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardRisk.EntryCreditCalculationVersion
+        ? -CombinedForwardPrice : CombinedForwardPrice;
     /// <summary>Gets signed current position valuation in currency.</summary>
     [Key(71)] public decimal? CurrentPositionValue { get; init; }
     /// <summary>Gets signed scenario position valuation in currency.</summary>

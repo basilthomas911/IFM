@@ -36,7 +36,9 @@ public static partial class CoreServiceRegistration
         new Serilog.Formatting.Json.JsonFormatter(renderMessage: true),
         "Logs/ifm-apiserver-.log",
         rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 7),
+        retainedFileCountLimit: 35,
+        fileSizeLimitBytes: 128 * 1024 * 1024,
+        rollOnFileSizeLimit: true),
         bufferSize: 4096,
         blockWhenFull: false,
         monitor: new TomasAI.IFM.Framework.Telemetry.Logging.AsyncLogBufferMonitor())

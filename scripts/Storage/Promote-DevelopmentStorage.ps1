@@ -21,7 +21,7 @@ if ($connection -notmatch '(?i)Database\s*=\s*event-source-dev-db(?:;|$)') { thr
 $connection = $connection -replace '(?i)Database\s*=\s*event-source-dev-db', 'Database=ifm_application_development'
 Copy-Item -LiteralPath $path -Destination $rollback
 $settings | Add-Member -Force NoteProperty Storage (@{ PostgresConnection = $connection })
-foreach ($key in @('EventSourceActorDbConnection','ConfigurationDbConnection','MarketDataServiceDbConnection','SystemAdminDbConnection','SequenceIdDbConnection','PortfolioDbConnection','MarketDataDbConnection','OptionPricerDbConnection','ReferenceDbConnection','SecuritiesDbConnection','TradeDbConnection','TradePlanDbConnection','ScheduledTaskDbConnection')) {
+foreach ($key in @('EventSourceActorDbConnection','ConfigurationDbConnection','MarketDataServiceDbConnection','SystemAdminDbConnection','SequenceIdDbConnection','PortfolioDbConnection','MarketDataDbConnection','ReferenceDbConnection','SecuritiesDbConnection','TradeDbConnection','TradePlanDbConnection','ScheduledTaskDbConnection')) {
     $settings.ConnectionStrings | Add-Member -Force NoteProperty $key $connection
 }
 $settings.ConnectionStrings | Add-Member -Force NoteProperty TradeTickQuoteDbConnection 'Contact Points=127.0.0.1;Default Keyspace=trade_tick_quote_test_db'

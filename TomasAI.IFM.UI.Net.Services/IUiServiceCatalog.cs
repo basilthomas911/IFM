@@ -85,7 +85,6 @@ public interface IUiServiceCatalog
     IOptionPricingService OptionPricing { get; }
 
     /// <summary>Gets the spread-distribution job service.</summary>
-    SpreadDistributionJobService SpreadDistributionJobs { get; }
 
     /// <summary>Gets the Strategy Operations service.</summary>
     StrategyOperationsService StrategyOperations { get; }

@@ -12,9 +12,9 @@ internal static class OfflineTableCopy
 {
     static readonly Regex Identifier = new("^[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
     static readonly HashSet<string> SourceKeyspaces = new(StringComparer.Ordinal)
-    { "market_data_test_db", "trade_test_db", "trade_plan_test_db", "reference_test_db", "securities_test_db", "option_pricer_test_db" };
+    { "market_data_test_db", "trade_test_db", "trade_plan_test_db", "reference_test_db", "securities_test_db" };
     static readonly HashSet<string> TargetSchemas = new(StringComparer.Ordinal)
-    { "market_data", "trade", "trade_plan", "reference", "securities", "option_pricer" };
+    { "market_data", "trade", "trade_plan", "reference", "securities" };
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "Schema is allowlisted and table/column identifiers are validated against a lowercase identifier grammar and database metadata.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "MA0051", Justification = "The offline copy, stable-source reread and target proof share one transaction; splitting ownership obscures its rollback boundary.")]

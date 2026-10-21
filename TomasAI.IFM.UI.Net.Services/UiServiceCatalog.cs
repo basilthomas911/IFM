@@ -45,7 +45,6 @@ public sealed class UiServiceCatalog(
     MarketDataAnalyticsQueryService analyticsQueries,
     MarketDataAnalyticsEventService analyticsEvents,
     IOptionPricingService optionPricing,
-    SpreadDistributionJobService spreadDistributionJobs,
     StrategyOperationsService strategyOperations,
     TradeQueryService tradeQueries,
     TradePlacementCommandService tradePlacementCommands,
@@ -114,7 +113,6 @@ public sealed class UiServiceCatalog(
     /// <inheritdoc />
     public IOptionPricingService OptionPricing { get; } = optionPricing;
     /// <inheritdoc />
-    public SpreadDistributionJobService SpreadDistributionJobs { get; } = spreadDistributionJobs;
     /// <inheritdoc />
     public StrategyOperationsService StrategyOperations { get; } = strategyOperations;
     /// <inheritdoc />
