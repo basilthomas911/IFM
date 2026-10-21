@@ -252,6 +252,7 @@ impl DetailsView {
             });
         egui::CentralPanel::default().show_inside(ui, |ui| {
             let property_grid_border = ui.available_rect_before_wrap();
+            control_parity::grid_viewport(ui, property_grid_border, |ui| {
             if let Some(node) = self
                 .selected
                 .as_deref()
@@ -284,6 +285,7 @@ impl DetailsView {
             } else {
                 ui.trading_caption(catalog.text(strings::SELECT));
             }
+            });
             ui.painter().rect_stroke(
                 property_grid_border.intersect(ui.clip_rect()), 0.,
                 egui::Stroke::new(1. / ui.ctx().pixels_per_point(), presentation::BORDER),

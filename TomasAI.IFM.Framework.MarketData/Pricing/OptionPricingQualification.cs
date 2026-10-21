@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Framework.MarketData.Pricing;
 
@@ -36,6 +37,8 @@ public static class OptionPricingQualification
                 || c.PremiumStyle == OptionPremiumStyle.Unknown || c.UnderlyingKind == PricingUnderlyingKind.Unknown
                 || string.IsNullOrWhiteSpace(c.Root) || string.IsNullOrWhiteSpace(c.Dataset))
                 return Fail("ContractMetadataUnavailable", "EconomicTerms");
+            if (!CmeEsOptionPremiumConvention.IsConsistent(c.Root, c.Exchange, (ReferencePremiumStyle)c.PremiumStyle))
+                return Fail("ContractConventionConflict", "PremiumStyle/CME-ES-PremiumPaid");
             if (c.UnderlyingKind != PricingUnderlyingKind.Futures || !string.Equals(c.Currency,"USD",StringComparison.Ordinal)
                 || c.ExerciseStyle is not (OptionExerciseStyle.European or OptionExerciseStyle.American)
                 || c.PremiumStyle is not (OptionPremiumStyle.PaidUpfront or OptionPremiumStyle.FuturesStyle)

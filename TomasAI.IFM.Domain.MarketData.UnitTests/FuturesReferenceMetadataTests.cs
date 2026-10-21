@@ -105,6 +105,22 @@ public sealed class FuturesReferenceMetadataTests
         Assert.Equal(value, ReferencePayloadCodec.ReadFuture(ReferencePayloadCodec.Write(value), value));
     }
 
+    [Theory]
+    [InlineData(ReferenceExerciseStyle.European, "XCME")]
+    [InlineData(ReferenceExerciseStyle.American, "CME")]
+    [InlineData(ReferenceExerciseStyle.European, "cme")]
+    [InlineData(ReferenceExerciseStyle.American, "xcme")]
+    public void Es_premium_terms_are_enforced_independently_of_exercise_style(ReferenceExerciseStyle exercise, string exchange)
+    {
+        var paid = Option() with { ExerciseStyle = exercise, Exchange = exchange };
+        Assert.DoesNotContain("CmeEsPremiumStyleConflict", FuturesReferenceQualification.Errors(paid));
+        var conflicting = paid with { PremiumStyle = ReferencePremiumStyle.FuturesStyleVariation };
+        Assert.Contains("CmeEsPremiumStyleConflict", FuturesReferenceQualification.Errors(conflicting));
+        Assert.Throws<InvalidDataException>(() => ReferencePayloadCodec.Write(conflicting));
+        Assert.DoesNotContain("CmeEsPremiumStyleConflict", FuturesReferenceQualification.Errors(
+            conflicting with { Symbol = "SYNTHETIC" }));
+    }
+
     [Fact]
     public void Reviewed_unknown_or_conflicting_metadata_cannot_qualify()
     {

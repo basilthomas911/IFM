@@ -13,12 +13,13 @@ public static class ApiServerProcess
         if (fatalRecoveryShutdown?.IsRequested == true) fatalRecoveryShutdown.FailAndExit(ex);
         else Environment.ExitCode = 1;
         if (args.Contains("--publish-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase)
+        || args.Contains("--repair-es-option-premium-only", StringComparer.OrdinalIgnoreCase)
         || args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase))
         {
             var detail = ex.Message;
             var key = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");
             if (!string.IsNullOrEmpty(key)) detail = detail.Replace(key, "[redacted]", StringComparison.Ordinal);
-            Console.Error.WriteLine("Option pricing reference publication failed: " + detail[..Math.Min(detail.Length, 2048)]);
+            Console.Error.WriteLine("Option pricing reference maintenance failed: " + detail[..Math.Min(detail.Length, 2048)]);
         }
         if (args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase))
         Console.Error.WriteLine("Instrument definition refresh failed: " + ex.Message);

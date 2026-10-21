@@ -431,6 +431,7 @@ impl StrategyWorkspace {
             StrategyTab::Updates => {
                 egui::CentralPanel::default().show_inside(ui, |ui| {
                     let grid_border = ui.available_rect_before_wrap();
+                    crate::control_parity::grid_viewport(ui, grid_border, |ui| {
                     if snapshot.rows.is_empty() {
                         ui.trading_caption(catalog.text(strings::NO_WORKFLOWS));
                     } else {
@@ -581,6 +582,7 @@ impl StrategyWorkspace {
                             }
                         }
                     }
+                    });
                     ui.painter().rect_stroke(
                         grid_border.intersect(ui.clip_rect()), 0.,
                         egui::Stroke::new(1. / ui.ctx().pixels_per_point(), crate::presentation::BORDER),

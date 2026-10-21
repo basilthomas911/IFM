@@ -134,6 +134,7 @@ impl MainShell {
         let width = ctx.available_rect().width();
         let mut action = None;
         let left = egui::SidePanel::left("operations-pane")
+            .show_separator_line(false)
             .resizable(true)
             .default_width(width * 0.22)
             .min_width(200.0)
@@ -205,18 +206,21 @@ impl MainShell {
             .response
             .rect;
         let right = egui::SidePanel::right("market-pane")
+            .show_separator_line(false)
             .resizable(true)
             .default_width(width * 0.22)
             .min_width(200.0)
             .show(ctx, |ui| {
                 ui.set_min_width(ui.max_rect().width());
                 egui::TopBottomPanel::top("market-outlook")
+                    .show_separator_line(false)
                     .frame(egui::Frame::NONE)
                     .exact_height(crate::market_outlook::HEIGHT)
                     .show_inside(ui, |ui| {
                         crate::market_outlook::draw(ui, &self.dashboard);
                     });
                 egui::TopBottomPanel::top("market-data-pane")
+                    .show_separator_line(false)
                     .frame(egui::Frame::NONE.inner_margin(egui::Margin {
                         left: 6,
                         right: 6,
@@ -233,6 +237,7 @@ impl MainShell {
                     });
                 let calendar_height = (ui.available_height() - 80.0).clamp(120.0, 245.0);
                 egui::TopBottomPanel::top("economic-calendar-pane")
+                    .show_separator_line(false)
                     .exact_height(calendar_height)
                     .show_inside(ui, |ui| {
                         if let Some(selected) =
@@ -247,6 +252,17 @@ impl MainShell {
             })
             .response
             .rect;
+        for (name, pane, left_pane) in [("operations-pane", left, true), ("market-pane", right, false)] {
+            let moving = ctx.read_response(egui::Id::new(name).with("__resize"))
+                .is_some_and(|response| response.dragged());
+            let stroke = egui::Stroke::new(
+                if moving { 3. } else { 1. } / ctx.pixels_per_point(),
+                if moving { egui::Color32::from_rgb(0, 191, 255) }
+                else { ctx.style().visuals.widgets.noninteractive.bg_stroke.color },
+            );
+            let x = if left_pane { pane.right() - stroke.width / 2. } else { pane.left() + stroke.width / 2. };
+            ctx.layer_painter(egui::LayerId::background()).vline(x, pane.y_range(), stroke);
+        }
         if let Ok(path) = std::env::var("IFM_RUST_SHELL_METRICS") {
             if self
                 .last_metrics

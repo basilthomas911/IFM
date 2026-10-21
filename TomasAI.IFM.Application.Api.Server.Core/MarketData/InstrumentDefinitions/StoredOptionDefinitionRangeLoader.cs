@@ -203,7 +203,7 @@ internal static class StoredOptionDefinitionRangeLoader
             && !string.IsNullOrWhiteSpace(definition.RawDefinitionReference);
         var multiplier = reviewedEsDefinition ? 50m : definition.Multiplier ?? underlyingMultiplier;
         var mappingVersion = reviewedEsDefinition
-            ? $"StoredInstrumentDefinition/v2/{definition.DefinitionDigest[..16]}"
+            ? $"StoredInstrumentDefinition/v3/{definition.DefinitionDigest[..16]}"
             : "StoredInstrumentDefinition/v1";
         return new(
             FuturesOptionContractId.Create(
@@ -250,7 +250,7 @@ internal static class StoredOptionDefinitionRangeLoader
             EffectiveUntilUtc = reviewedEsDefinition ? expiration : null,
             ExerciseStyle = reviewedEsDefinition ? ReferenceExerciseStyle.European : ReferenceExerciseStyle.Unknown,
             SettlementStyle = reviewedEsDefinition ? ReferenceSettlementStyle.DeliveryOfFuture : ReferenceSettlementStyle.Unknown,
-            PremiumStyle = reviewedEsDefinition ? ReferencePremiumStyle.FuturesStyleVariation : ReferencePremiumStyle.Unknown,
+            PremiumStyle = reviewedEsDefinition ? CmeEsOptionPremiumConvention.PremiumStyle : ReferencePremiumStyle.Unknown,
             DayCount = reviewedEsDefinition ? ReferenceDayCount.Actual365Fixed : ReferenceDayCount.Unknown,
             PremiumTickRule = reviewedEsDefinition ? ReferencePremiumTickRule.CmeEsGlobex358A : ReferencePremiumTickRule.Unknown,
             TickRuleVersion = reviewedEsDefinition ? OptionPremiumTicks.CmeEsGlobexVersion : null,

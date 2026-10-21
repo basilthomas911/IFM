@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.InstrumentDefinitions;
+using TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionPricing;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionChains;
 using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -102,9 +103,21 @@ public sealed class OptionRefreshAlgorithmsTests
         result.Select(option => option.UnderlyingContractId).Should().OnlyContain(id => id == future.ContractId);
         result.Should().OnlyContain(option => option.ReviewState == ReferenceReviewState.Reviewed);
         result.Should().OnlyContain(option =>
-            option.MappingVersion == $"StoredInstrumentDefinition/v2/{new string('a', 16)}");
+            option.MappingVersion == $"StoredInstrumentDefinition/v3/{new string('a', 16)}");
+        result.Should().OnlyContain(option => option.PremiumStyle == ReferencePremiumStyle.PremiumPaid);
         result.Should().OnlyContain(option => FuturesReferenceQualification.Errors(option).Count == 0);
         result.Select(ReviewedOptionConvention.From).Should().HaveCount(2);
+        foreach (var correct in result)
+        {
+            var former = correct with { PremiumStyle = ReferencePremiumStyle.FuturesStyleVariation,
+                MappingVersion = correct.MappingVersion.Replace("/v3/", "/v2/", StringComparison.Ordinal) };
+            var repaired = EsOptionPremiumMaintenance.Repair(former);
+            repaired.Should().Be(correct);
+            EsOptionPremiumMaintenance.Repair(repaired).Should().BeSameAs(repaired);
+            EsOptionPremiumMaintenance.Repair(former with { Symbol = "OTHER" }).PremiumStyle
+                .Should().Be(ReferencePremiumStyle.FuturesStyleVariation);
+            ReferencePayloadCodec.ReadOption(ReferencePayloadCodec.Write(repaired)).Should().Be(correct);
+        }
     }
 
     static InstrumentDefinitionSelection Definition(

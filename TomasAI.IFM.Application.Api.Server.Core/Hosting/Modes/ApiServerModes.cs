@@ -29,6 +29,14 @@ public static partial class ApiServerModes
     public static async Task<bool> RunBeforeBuildAsync(WebApplicationBuilder builder, string[] args)
     {
         var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
+        if (args.Contains("--repair-es-option-premium-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
+        {
+            if (!builder.Environment.IsDevelopment())
+                throw new InvalidOperationException("ES premium maintenance requires the Development environment.");
+            using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+            await EsOptionPremiumMaintenance.RunAsync(builder.Configuration, deadline.Token);
+            return true;
+        }
         var refreshInstrumentDefinitionsOnly = args.Contains("--refresh-instrument-definitions-only", StringComparer.OrdinalIgnoreCase);
         if (args.Contains("--publish-oct1-option-pricing-reference-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
         {

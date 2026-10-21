@@ -31,6 +31,7 @@ public static class FuturesReferenceQualification
         if (c.ExerciseStyle is not (ReferenceExerciseStyle.European or ReferenceExerciseStyle.American)) errors.Add("ExerciseStyle");
         if (c.SettlementStyle is not (ReferenceSettlementStyle.Cash or ReferenceSettlementStyle.DeliveryOfFuture)) errors.Add("SettlementStyle");
         if (c.PremiumStyle is not (ReferencePremiumStyle.PremiumPaid or ReferencePremiumStyle.FuturesStyleVariation)) errors.Add("PremiumStyle");
+        if (!CmeEsOptionPremiumConvention.IsConsistent(c.Symbol, c.Exchange, c.PremiumStyle)) errors.Add("CmeEsPremiumStyleConflict");
         if (c.OptionRight is not (ReferenceOptionRight.Call or ReferenceOptionRight.Put)
             || !string.Equals(c.OptionType,(c.OptionRight == ReferenceOptionRight.Call ? "Call" : "Put"),StringComparison.Ordinal)) errors.Add("OptionRight");
         if (c.DayCount is not (ReferenceDayCount.Actual365Fixed or ReferenceDayCount.Actual360)) errors.Add("DayCount");

@@ -7,6 +7,46 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 public sealed class TradeRealtimeHotCacheTests
 {
+    [Theory]
+    [InlineData(-.20, .80)]
+    [InlineData(.35, .65)]
+    [InlineData(0, 1)]
+    [InlineData(-1, 0)]
+    [InlineData(1, 0)]
+    public void Short_leg_delta_supplies_otm_estimate_without_a_complete_plan(double delta, double expected)
+    {
+        var cache = new TradeRealtimeHotCache(Trade(), new(2026, 10, 16), new Clock());
+        cache.Apply(Quote(completed: true) with { Delta = delta });
+        Assert.Equal(expected, cache.Read().Spreads.Single(spread => spread.PutCall == 2).OtmProbability!.Value, 10);
+        Assert.Null(cache.Read().Spreads.Single(spread => spread.PutCall == 1).OtmProbability);
+        Assert.Null(cache.Read().Plan);
+    }
+
+    [Fact]
+    public void Otm_estimates_use_each_short_leg_and_survive_pending_pricing()
+    {
+        var clock = new Clock();
+        var cache = new TradeRealtimeHotCache(Trade(), new(2026, 10, 16), clock);
+        cache.Apply(Quote(completed: true) with { Delta = -.20 });
+        cache.Apply(Quote(completed: true) with { ContractId = "option-2", Delta = .35 });
+        cache.Apply(Quote(completed: true) with { ContractId = "option-1", Delta = -.05 });
+        cache.Apply(Quote(tick: 2) with { Delta = 0 });
+        clock.Now = At.AddSeconds(2); cache.Expire();
+        Assert.Equal(.80, cache.Read().Spreads.Single(spread => spread.PutCall == 2).OtmProbability!.Value, 10);
+        Assert.Equal(.65, cache.Read().Spreads.Single(spread => spread.PutCall == 1).OtmProbability!.Value, 10);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(1.01)]
+    public void Invalid_delta_does_not_create_an_otm_estimate(double delta)
+    {
+        var cache = new TradeRealtimeHotCache(Trade(), new(2026, 10, 16), new Clock());
+        cache.Apply(Quote(completed: true) with { Delta = delta });
+        Assert.Null(cache.Read().Spreads.Single(spread => spread.PutCall == 2).OtmProbability);
+    }
+
     [Fact]
     public void A_mirror_refresh_with_missing_values_retains_the_matching_trade_values()
     {

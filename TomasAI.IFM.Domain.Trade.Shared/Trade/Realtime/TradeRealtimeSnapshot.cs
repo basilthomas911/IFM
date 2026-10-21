@@ -69,6 +69,7 @@ public sealed record TradeSpreadRealtimeSnapshot
     [Key(1)] public decimal? NetSpread { get; init; }
     [Key(2)] public decimal? TradeValue { get; init; }
     [Key(3)] public decimal? TradePnl { get; init; }
+    /// <summary>OTM estimate as a fraction, derived from the short leg's delta when available.</summary>
     [Key(4)] public double? OtmProbability { get; init; }
     [Key(5)] public decimal? ForwardPrice { get; init; }
 }

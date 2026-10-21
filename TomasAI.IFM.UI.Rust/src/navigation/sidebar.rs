@@ -199,9 +199,11 @@ impl SidebarView {
         if let Some(index) = navigation {
             action = Some(0xA0000000 + index as u32);
         }
+        crate::control_parity::grid_viewport(ui, calendar_border, |ui| {
+        let body_height = (ui.available_height() - ui.spacing().scroll.allocated_width()).max(0.);
         egui::ScrollArea::horizontal()
             .id_salt(("calendar-horizontal", &snapshot.period, &snapshot.country))
-            .max_height(list_height)
+            .max_height(ui.available_height())
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let list_ctx = ui.ctx().clone();
@@ -211,8 +213,8 @@ impl SidebarView {
                         &snapshot.period,
                         &snapshot.country,
                     ))
-                    .min_scrolled_height((list_height - 14.0).max(0.0))
-                    .max_scroll_height((list_height - 14.0).max(0.0))
+                    .min_scrolled_height(body_height)
+                    .max_scroll_height(body_height)
                     .sense(egui::Sense::click())
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(egui_extras::Column::initial(80.0).at_least(60.0))
@@ -245,6 +247,7 @@ impl SidebarView {
                     })
                 });
             });
+        });
         draw_grid_border(ui, calendar_border);
         ui.allocate_ui_with_layout(
             egui::vec2(ui.available_width(), 26.0),
@@ -311,14 +314,20 @@ impl SidebarView {
         if let Some(index) = navigation {
             self.selected_status_id = snapshot.status_rows[index].id.clone();
         }
+        crate::control_parity::grid_viewport(ui, status_border, |ui| {
+        let body_height = (ui.available_height() - 24. - ui.spacing().item_spacing.y
+            - ui.spacing().scroll.allocated_width()).max(0.);
         egui::ScrollArea::horizontal()
             .id_salt("status-console-horizontal")
             .auto_shrink([false, false])
+            .max_height(ui.available_height())
             .show(ui, |ui| {
                 let list_ctx = ui.ctx().clone();
                 let mut table = egui_extras::TableBuilder::new(ui)
                     .id_salt("status-console-list")
                     .resizable(true)
+                    .min_scrolled_height(body_height)
+                    .max_scroll_height(body_height)
                     .sense(egui::Sense::click())
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(egui_extras::Column::initial(170.0).at_least(100.0))
@@ -378,6 +387,7 @@ impl SidebarView {
                         })
                     });
             });
+        });
         draw_grid_border(ui, status_border);
     }
 }

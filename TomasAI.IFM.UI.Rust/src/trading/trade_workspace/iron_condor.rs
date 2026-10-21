@@ -259,9 +259,9 @@ fn table_window(
     let mut missing = None;
     let mut first_visible = None;
     let clicked = at(ui, r, id, |ui| {
-
-        ui.set_clip_rect(r.intersect(ui.clip_rect()));
-        ui.set_max_height(r.height());
+        let outer = r;
+        let r = outer.shrink(1. / ui.ctx().pixels_per_point());
+        let clicked = crate::control_parity::grid_viewport(ui, outer, |ui| {
         // Reserve space for both bars inside the fixed grid rectangle. Floating bars
         // disappear at rest and the horizontal bar otherwise falls below the body.
         let p = ui.ctx().pixels_per_point();
@@ -292,6 +292,7 @@ fn table_window(
                         .sum::<f32>()
                         .max(r.width() - 14. / p),
                 );
+                let body_height = (r.height() - row_height - ui.spacing().item_spacing.y - scroll_bar).max(0.);
                 let mut grid = egui_extras::TableBuilder::new(ui)
                     .id_salt(id)
                     .scroll_bar_visibility(visibility)
@@ -299,8 +300,8 @@ fn table_window(
                     .sense(egui::Sense::click())
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .auto_shrink([false, false])
-                    .min_scrolled_height((r.height() - row_height - scroll_bar).max(0.))
-                    .max_scroll_height((r.height() - row_height - scroll_bar).max(0.));
+                    .min_scrolled_height(body_height)
+                    .max_scroll_height(body_height);
                 for (index, (_, _, width)) in columns.iter().enumerate() {
                     grid = grid.column(
                         if index + 1 == columns.len() {
@@ -357,8 +358,10 @@ fn table_window(
                     })
                 });
             });
+        clicked
+        });
         ui.painter().rect_stroke(
-            r,
+            outer,
             0.,
             egui::Stroke::new(1.0_f32, GRAY),
             egui::StrokeKind::Inside,
@@ -594,7 +597,7 @@ impl TradeWorkspace {
             ("tradeValue", "Trade\nValue", 70.),
             ("tradePnl", "Trade\nPnl", 70.),
             ("otmProbability", "OTM\nProb", 70.),
-            ("forwardPrice", "Forward\nPrice", 70.),
+            ("forwardPrice", "Fwd\nPrice", 70.),
         ];
         let total: f32 = columns.iter().skip(1).map(|c| c.2).sum();
         let mut x = 0.;
@@ -640,6 +643,8 @@ impl TradeWorkspace {
                         background,
                         if i == 0 {
                             Color32::MAGENTA
+                        } else if key.ends_with("Strike") {
+                            Color32::from_rgb(0, 191, 255)
                         } else {
                             WHITE
                         },

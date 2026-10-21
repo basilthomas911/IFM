@@ -126,7 +126,7 @@ public sealed class IronCondorOptionCalculatorTests
             var contract = new OptionPricingConvention
             {
                 SchemaVersion=3, ContractId=leg.ContractId, Dataset="GLBX.MDP3", PublisherId=1, InstrumentId=(uint)(index+1), RawSymbol=leg.ContractId,
-                Root="ES", Exchange="XCME", Currency="USD", UnderlyingContractId="ES-future", ExerciseStyle=exercise,
+                Root=premium == OptionPremiumStyle.FuturesStyle ? "SYNTHETIC" : "ES", Exchange="XCME", Currency="USD", UnderlyingContractId="ES-future", ExerciseStyle=exercise,
                 PremiumStyle=premium, UnderlyingKind=PricingUnderlyingKind.Futures, Right=leg.PutCall==1 ? PricingOptionRight.Call : PricingOptionRight.Put,
                 Strike=leg.Strike, SettlementStyle=OptionSettlementStyle.DeliveryOfFuture, ExpirationUtc=expiryAt, LastTradingUtc=expiryAt,
                 DayCount=PricingDayCount.Actual365Fixed, CalendarVersion=calendar.Version, Multiplier=50, TickSize=0.25m,

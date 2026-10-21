@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime;
 
-/// <summary>Allocation-conscious immutable display calculations. Financial provenance rules remain unchanged.</summary>
+/// <summary>Allocation-conscious immutable display calculations from qualified and retained trade inputs.</summary>
 internal static class TradeRealtimeSnapshotCalculations
 {
     internal static int FindLegIndex(ImmutableArray<TradeLegRealtimeSnapshot> legs, string contractId)
@@ -95,9 +95,9 @@ internal static class TradeRealtimeSnapshotCalculations
             for (var i = 0; i < snapshot.Spreads.Length; i++)
             {
                 var spread = snapshot.Spreads[i];
-                if (spread.OtmProbability is null && spread.ForwardPrice is null) continue;
+                if (spread.ForwardPrice is null) continue;
                 changedSpreads ??= snapshot.Spreads.ToBuilder();
-                changedSpreads[i] = spread with { OtmProbability = null, ForwardPrice = null };
+                changedSpreads[i] = spread with { ForwardPrice = null };
             }
         var status = complete ? "Available" : anyStale ? "Stale" : "Pending";
         var planStatus = planCurrent ? "Available" : plan is null ? "Unavailable" : "Stale";
@@ -148,7 +148,19 @@ internal static class TradeRealtimeSnapshotCalculations
         return new() { PutCall = right, NetSpread = netSpread,
             TradeValue = valid && firstMultiplier is > 0 && secondMultiplier is > 0 ? value : null,
             TradePnl = valid && firstMultiplier is > 0 && secondMultiplier is > 0 ? pnl : null,
-            OtmProbability = plan?.IsComplete == true ? right == 2 ? plan.PutOTMProbability : plan.CallOTMProbability : null,
+            OtmProbability = ShortLegOtmProbability(first) ?? ShortLegOtmProbability(second)
+                ?? (plan?.IsComplete == true ? right == 2 ? plan.PutOTMProbability : plan.CallOTMProbability : null),
             ForwardPrice = plan?.IsComplete == true ? right == 2 ? plan.PutForwardPrice : plan.CallForwardPrice : null };
+    }
+
+    // Delta is per contract in [-1, 1]; store a fraction for the existing percentage formatter.
+    // This is a delta-based estimate, independent of trade-plan completeness and position quantity.
+    static double? ShortLegOtmProbability(TradeLegRealtimeSnapshot? leg)
+    {
+        if (leg is null || leg.Definition.SignedQuantity >= 0) return null;
+        var risk = leg.LastValidRisk ?? leg.Position?.OptionRisk
+            ?? (leg.PricingStatus == "Available" ? leg.Observation : null);
+        return risk is { Delta: var delta } && double.IsFinite(delta) && Math.Abs(delta) <= 1
+            ? 1 - Math.Abs(delta) : null;
     }
 }

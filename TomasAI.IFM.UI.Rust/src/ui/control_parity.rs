@@ -9,6 +9,17 @@
 //! Native equivalents for WinForms report lists. Selection belongs to the row,
 //! while data retrieval remains owned by the managed view model.
 use eframe::egui::{self,Color32};
+/// Keep headers, body and both scrollbars inside a one-physical-pixel grid border.
+pub fn grid_viewport<R>(ui: &mut egui::Ui, bounds: egui::Rect, contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let inside = bounds.shrink(1. / ui.ctx().pixels_per_point());
+    let result = ui.scope_builder(egui::UiBuilder::new().max_rect(inside), |ui| {
+        ui.set_clip_rect(inside.intersect(ui.clip_rect()));
+        ui.set_max_size(inside.size());
+        contents(ui)
+    }).inner;
+    ui.advance_cursor_after_rect(bounds);
+    result
+}
 /// Fill the allotted grid area; reserve a vertical gutter only when rows overflow.
 pub trait FilledGrid {
     /// Use row height/spacing and allotted body height to fill the viewport and enable vertical scrolling only on overflow.
@@ -24,6 +35,12 @@ impl FilledGrid for egui_extras::TableBuilder<'_> {
 }
 /// Render a report list with resizable columns and full-row selection. Column widths are physical reference pixels divided by DPI scale; returns clicked index and rendered-row count.
 pub fn report_list(ui:&mut egui::Ui,id:&str,columns:&[(&str,f32)],row_count:usize,selected:Option<usize>,height:f32,mut text:impl FnMut(usize,usize)->String)->(Option<usize>,usize){
+ let bounds=egui::Rect::from_min_size(ui.cursor().min,egui::vec2(ui.available_width(),height));
+ let result=grid_viewport(ui,bounds,|ui|report_list_content(ui,id,columns,row_count,selected,ui.available_height(),&mut text));
+ ui.painter().rect_stroke(bounds,0.,egui::Stroke::new(1./ui.ctx().pixels_per_point(),Color32::from_gray(90)),egui::StrokeKind::Inside);
+ result
+}
+fn report_list_content(ui:&mut egui::Ui,id:&str,columns:&[(&str,f32)],row_count:usize,selected:Option<usize>,height:f32,mut text:impl FnMut(usize,usize)->String)->(Option<usize>,usize){
  let scale=ui.ctx().pixels_per_point();let row_height=24./scale;let bounds=egui::Rect::from_min_size(ui.cursor().min,egui::vec2(ui.available_width(),height));let mut clicked=None;let mut drawn=0;
  let spacing=ui.spacing().item_spacing.y;
  let width_id=ui.id().with((id,"column-width"));let overflow_id=ui.id().with((id,"horizontal-overflow"));
@@ -50,7 +67,7 @@ pub fn report_list(ui:&mut egui::Ui,id:&str,columns:&[(&str,f32)],row_count:usiz
  let needs_horizontal=measured_width+vertical_gutter>bounds.width()+0.5;
  ui.ctx().data_mut(|data| {data.insert_temp(width_id,measured_width);data.insert_temp(overflow_id,needs_horizontal);});
  if needs_horizontal!=horizontal || (measured_width-content_width).abs()>0.5 {ui.ctx().request_repaint();}
- ui.painter().rect_stroke(bounds,0.,egui::Stroke::new(1./scale,Color32::from_gray(90)),egui::StrokeKind::Inside);(clicked,drawn)
+ (clicked,drawn)
 }
 
 /// WinForms CenterParent includes the native title bar and frame. eframe's
