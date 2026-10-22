@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 /// <summary>Durably retried acquire-before-release boundary; never recaptures or refreshes accepted evidence.</summary>
-public sealed class CompositionDiscoveryHandoff(ICommittedBusinessEventJournal journal, IDurableSubscriptionIntentStore intent, ICompositionPreparationStore preparations, ICompositionMarketDataApi market, IDurableCompositionReconciler runtime)
+public sealed class CompositionDiscoveryHandoff(ICommittedBusinessEventJournal journal, IDurableSubscriptionIntentStore intent, ICompositionPreparationStore preparations, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi market)
 {
     public async Task CompletePendingAsync(CancellationToken cancellationToken)
     {
@@ -27,7 +27,7 @@ public sealed class CompositionDiscoveryHandoff(ICommittedBusinessEventJournal j
         var terminal = workflow.State.Status is WorkflowStrategyMachineStatus.Failed or WorkflowStrategyMachineStatus.TimedOut or WorkflowStrategyMachineStatus.Cancelled || workflow.State.Status == WorkflowStrategyMachineStatus.Completed && workflow.State.Outcome == StrategyWorkflowOutcome.NoTrade;
         if (evidence is not null && (selected is not null || terminal))
         {
-            var realized = await runtime.ReconcileOnceAsync(cancellationToken).ConfigureAwait(false);
+            var realized = await market.ReconcileCommittedSubscriptionsAsync(cancellationToken).ConfigureAwait(false);
             if (realized is not { AllRoutesReady: true })
                 return;
             var current = await intent.ReadAsync("IFM", "GLBX.MDP3", cancellationToken).ConfigureAwait(false);
@@ -44,7 +44,7 @@ public sealed class CompositionDiscoveryHandoff(ICommittedBusinessEventJournal j
                 throw new InvalidDataException("Handoff evidence differs from accepted preparation.");
             if (prepared.DiscoveryLease is { } discovery && discovery.GenerationId == realized.GenerationId)
             {
-                var released = await market.ReleaseAsync(prepared.Dataset, discovery, cancellationToken).ConfigureAwait(false);
+                var released = await market.ReleaseCompositionAsync(prepared.Dataset, discovery, cancellationToken).ConfigureAwait(false);
                 if (released.Failure is not null)
                     throw new CompositionMarketSourceException(released.Failure.Code);
             }

@@ -11,12 +11,21 @@ namespace TomasAI.IFM.Application.MarketData.Historical;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1724", Justification = "Preserve the published type name and its CLR identity.")]
 public sealed class HistoricalDataLoader
 {
-    private readonly IMarketDataHistoricalApi historicalApi;
+    private readonly IMarketDataHistoricalApi historicalApi = null!;
+    private readonly Contracts.IMarketDataApi? remote;
     private readonly IHistoricalDataLoaderStore dataLoaderStore;
     private readonly IHistoricalObservationStore observationStore;
     private readonly IHistoricalReplayPublisher replayPublisher;
     private readonly IMarketSessionCalendar calendar;
     private readonly TimeProvider timeProvider;
+
+    /// <summary>Creates the API adapter; acquisition and checkpointing remain in Host.</summary>
+    public HistoricalDataLoader(Contracts.IMarketDataApi remote)
+    {
+        this.remote = remote;
+        dataLoaderStore = null!; observationStore = null!; replayPublisher = null!;
+        calendar = null!; timeProvider = null!;
+    }
 
     /// <summary>Initializes the data load coordinator.</summary>
     public HistoricalDataLoader(
@@ -42,6 +51,7 @@ public sealed class HistoricalDataLoader
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (remote is not null) return await remote.LoadHistoricalAsync(request, cancellationToken).ConfigureAwait(false);
         var existing = await dataLoaderStore.GetAsync(
             request.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
         var checkpoint = existing?.Checkpoint ?? new HistoricalAcquisitionCheckpoint

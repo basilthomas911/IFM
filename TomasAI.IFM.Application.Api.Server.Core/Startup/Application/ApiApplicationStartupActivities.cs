@@ -35,15 +35,13 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Startup.Application;
 /// </summary>
 public sealed class ApiApplicationStartupActivities(
     IFuturesMarketSessionAuthority marketSessionAuthority,
-    IDatabentoContractAuthority contractAuthority,
-    IFuturesContractRolloverStartupCheck rolloverCheck,
     IFmpMarketDataImportCoordinator referenceImportCoordinator,
     IMarketDataFeedCommandApi marketDataFeedCommandApi,
     IMarketDataFeedQueryApi marketDataFeedQueryApi,
     IMarketDataAnalyticsCommandApi analyticsCommandApi,
     IHistoricalDataLoaderStore historicalDataLoaderStore,
     IDbContextFactory dbContextFactory,
-    DatabentoMarketDataApi marketDataApi,
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi,
     IMarketOutlookUpdateWriter marketOutlookWriter,
     IMarketOutlookOperations marketOutlookOperations,
     IMarketOutlookHotCache marketOutlookCache,
@@ -120,28 +118,13 @@ public sealed class ApiApplicationStartupActivities(
         ApplicationStartupContext context,
         CancellationToken cancellationToken)
     {
-        await rolloverCheck.ExecuteAsync(context.ValueDate, cancellationToken)
-            .ConfigureAwait(false);
         await CaptureCurrentContractsAsync(context.ValueDate, cancellationToken).ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
     }
 
     async Task CaptureCurrentContractsAsync(DateOnly valueDate, CancellationToken cancellationToken)
     {
-        var assignments = await contractAuthority.ReconcileAsync(
-            valueDate, nameof(ApiApplicationStartupActivities), cancellationToken).ConfigureAwait(false);
-        var contracts = assignments.Select(static assignment => new FuturesContractV3ReadModel(
-            assignment.ContractId,
-            assignment.Description,
-            assignment.RootSymbol,
-            assignment.LocalSymbol,
-            assignment.SecurityType,
-            assignment.Currency,
-            assignment.Exchange,
-            assignment.Multiplier,
-            assignment.LastTradeDate,
-            assignment.ContractRole != DatabentoContractRole.VxSecondMonth,
-            true)).ToArray();
+        var contracts = await marketDataApi.PrepareSessionAsync(valueDate, cancellationToken).ConfigureAwait(false);
         if (contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "ES")) != 1
             || contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "VX")) != 2)
             throw new InvalidOperationException(

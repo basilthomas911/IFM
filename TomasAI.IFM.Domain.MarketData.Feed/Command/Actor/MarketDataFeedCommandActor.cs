@@ -140,15 +140,11 @@ public class MarketDataFeedCommandActor(
         };
 
     /// <summary>Loads the API-prepared assignments without discovering contracts in the caller.</summary>
-    static async ValueTask<ServiceResult<GuidResult>> ExecuteStartAsync(StartMarketDataFeedCommand start, ICommandActorContext<MarketDataFeedCommandActor> context, MarketDataFeedCommandState state)
+    internal static async ValueTask<ServiceResult<GuidResult>> ExecuteStartAsync(StartMarketDataFeedCommand start, ICommandActorContext<MarketDataFeedCommandActor> context, MarketDataFeedCommandState state)
     {
-        var assignments = await context.Container.Resolve<IDatabentoContractAuthority>()
-            .ReconcileAsync(start.ValueDate, nameof(MarketDataFeedCommandActor), CancellationToken.None).ConfigureAwait(false);
-        var contracts = assignments.Select(assignment => new FuturesContractV3ReadModel(
-            assignment.ContractId, assignment.Description, assignment.RootSymbol, assignment.LocalSymbol,
-            assignment.SecurityType, assignment.Currency, assignment.Exchange, assignment.Multiplier,
-            assignment.LastTradeDate, assignment.ContractRole != DatabentoContractRole.VxSecondMonth, true)).ToArray();
-        context.Logger.LogInformation("Starting API-owned market session {ValueDate} with {ContractCount} prepared contracts; CommandId={CommandId}.",
+        var contracts = await context.Container.Resolve<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>()
+            .PrepareSessionAsync(start.ValueDate, CancellationToken.None).ConfigureAwait(false);
+        context.Logger.LogInformation("Starting Host-backed market session {ValueDate} with {ContractCount} prepared contracts; CommandId={CommandId}.",
             start.ValueDate, contracts.Length, start.CommandId);
         return start.Execute(state, contracts);
     }

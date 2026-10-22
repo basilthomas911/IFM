@@ -28,7 +28,8 @@ public sealed class YieldCurveRatesImportedHandlerTests
         var (api, _, factory, _, context) = Dependencies();
         var treasury = Substitute.For<ITreasuryCurve, ITreasuryCurveIdentity>();
         ((ITreasuryCurveIdentity)treasury).DownloadLogProvider.Returns("USTreasury");
-        api.TreasuryCurve.Returns(treasury);
+        api.ReadTreasuryCurvesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await treasury.GetRangeAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<CancellationToken>(2))).ToArray());
         treasury.GetRangeAsync(date, date, Arg.Any<CancellationToken>()).Returns(fails
             ? Task.FromException<IReadOnlyList<TreasuryCurveSnapshot>>(new HttpRequestException("offline"))
             : Task.FromResult<IReadOnlyList<TreasuryCurveSnapshot>>([Curve(date) with { Source = "USTreasury" }]));
@@ -145,15 +146,16 @@ public sealed class YieldCurveRatesImportedHandlerTests
             Arg.Any<YieldCurveRatesImportedFailEvent>());
     }
 
-    static (IReferenceDataApi Api, ITreasuryCurve Treasury, IDbContextFactory Factory,
+    static (IMarketDataApi Api, ITreasuryCurve Treasury, IDbContextFactory Factory,
         IMarketDataDbContext Db, IEventActorContext Context) Dependencies()
     {
-        var api = Substitute.For<IReferenceDataApi>();
+        var api = Substitute.For<IMarketDataApi>();
         var treasury = Substitute.For<ITreasuryCurve>();
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         var context = Substitute.For<IEventActorContext>();
-        api.TreasuryCurve.Returns(treasury);
+        api.ReadTreasuryCurvesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await treasury.GetRangeAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<CancellationToken>(2))).ToArray());
         dbFactory.MarketDataDb.Returns(db);
         db.InsertYieldCurveRatesAsync(
                 Arg.Any<YieldCurveRateReadModel[]>(),

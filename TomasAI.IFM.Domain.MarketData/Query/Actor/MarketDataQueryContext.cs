@@ -20,11 +20,6 @@ public sealed class MarketDataQueryContext : QueryActorContext, IMarketDataQuery
         ILogger<MarketDataQueryActor> logger,
         IFuturesMarketSessionAuthority marketSessionAuthority,
         TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketDataApi = null,
-        QualifiedCompositionDiscovery? compositionDiscovery = null,
-        ICompositionMarketDataApi? compositionMarketData = null,
-        DatasetWorkerAdmissionRegistry? workerAdmissions = null,
-        TreasuryPublicationPolicy? treasuryPublication = null,
-        TreasuryRateConversionPolicy? treasuryConversion = null,
         TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector? ivCollector = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName))
     {
@@ -32,11 +27,6 @@ public sealed class MarketDataQueryContext : QueryActorContext, IMarketDataQuery
         Logger = IsArgumentNull.Set(logger);
         MarketSessionAuthority = IsArgumentNull.Set(marketSessionAuthority);
         MarketDataApi = marketDataApi;
-        CompositionDiscovery = compositionDiscovery;
-        CompositionMarketData = compositionMarketData;
-        WorkerAdmissions = workerAdmissions;
-        TreasuryPublication = treasuryPublication;
-        TreasuryConversion = treasuryConversion;
         IvCollector = ivCollector;
     }
     /// <inheritdoc/>
@@ -47,10 +37,5 @@ public sealed class MarketDataQueryContext : QueryActorContext, IMarketDataQuery
     public IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
     /// <inheritdoc/>
     public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
-    public QualifiedCompositionDiscovery? CompositionDiscovery { get; }
-    public ICompositionMarketDataApi? CompositionMarketData { get; }
-    public DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
-    public TreasuryPublicationPolicy? TreasuryPublication { get; }
-    public TreasuryRateConversionPolicy? TreasuryConversion { get; }
     public TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector? IvCollector { get; }
 }

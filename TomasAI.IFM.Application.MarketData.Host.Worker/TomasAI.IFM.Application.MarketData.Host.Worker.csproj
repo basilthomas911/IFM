@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.10" />
+  </ItemGroup>
+  <!-- Named apphosts bind to the same Worker DLL; their OS process names identify the role and dataset. -->
+  <Target Name="CreateNamedMarketDataWorkerAppHosts" AfterTargets="Build;Publish" Condition="'$(UseAppHost)' != 'false'">
+    <PropertyGroup>
+      <IFMNativeExtension Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</IFMNativeExtension>
+      <IFMWorkerHostDirectory>$(TargetDir)</IFMWorkerHostDirectory>
+      <IFMWorkerHostDirectory Condition="'$(PublishDir)' != '' And Exists('$(PublishDir)$(AssemblyName)$(IFMNativeExtension)')">$(PublishDir)</IFMWorkerHostDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <IFMWorkerName Include="Futures-GLBX.MDP3;Futures-XCBF.PITCH;Options-GLBX.MDP3" />
+    </ItemGroup>
+    <Copy SourceFiles="$(IFMWorkerHostDirectory)$(AssemblyName)$(IFMNativeExtension)"
+          DestinationFiles="$(IFMWorkerHostDirectory)$(AssemblyName).%(IFMWorkerName.Identity)$(IFMNativeExtension)" />
+  </Target>
+</Project>

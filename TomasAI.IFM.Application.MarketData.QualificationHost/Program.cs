@@ -96,10 +96,12 @@ try
                 await WriteAsync(DatasetWorkerMessageKind.StartAccepted, command.CorrelationId, true);
                 break;
             case DatasetWorkerMessageKind.HealthSnapshot:
+                await DelayCommandAsync("--health-delay-ms");
                 await WriteAsync(DatasetWorkerMessageKind.HealthSnapshot, command.CorrelationId, true);
                 break;
             case DatasetWorkerMessageKind.CooperativeReset:
             case DatasetWorkerMessageKind.ApplySubscriptionManifest:
+                await DelayCommandAsync("--reset-delay-ms");
                 current = command.Manifest!;
                 generation = Guid.NewGuid();
                 await WriteAsync(command.Kind == DatasetWorkerMessageKind.CooperativeReset
@@ -136,6 +138,16 @@ ValueTask WriteAsync(DatasetWorkerMessageKind kind, Guid correlation, bool healt
         ManifestRevision = current?.Revision ?? 0,
         ManifestFingerprint = current?.Fingerprint ?? string.Empty
     }, 256 * 1024, CancellationToken.None);
+
+async Task DelayCommandAsync(string key)
+{
+    if (!values.TryGetValue(key, out var text)) return;
+    var delay = int.Parse(text);
+    if (delay is < 0 or > 60000) throw new ArgumentOutOfRangeException(nameof(delay));
+    await Task.Delay(delay);
+}
+
+
 
 file static class Native
 {

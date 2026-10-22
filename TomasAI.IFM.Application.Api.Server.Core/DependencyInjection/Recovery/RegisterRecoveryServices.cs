@@ -39,7 +39,7 @@ using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -173,7 +173,7 @@ public static partial class CoreServiceRegistration
         // Explicit Development opt-in requires exact-generation worker admission.
         // Production remains prohibited until supervised live qualification is recorded.
         ApiDatabentoRecoveryHostActivation.Validate(
-        config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"),
+        (!config.GetValue("MarketDataHost:Enabled", true) && config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled")),
         hostEnvironment?.IsDevelopment() == true,
         config.GetValue<bool>("MarketDataRecovery:Stage3:Enabled"),
         generationAdmissionAvailable: true);
@@ -183,7 +183,7 @@ public static partial class CoreServiceRegistration
         .Get<ApiDatabentoHardRuntimePolicy>() ?? new ApiDatabentoHardRuntimePolicy()).Validate());
         services.AddSingleton((config.GetSection("MarketDataRecovery:HardRecovery:CandidateProof")
         .Get<DatabentoCandidateTickStorageProofPolicy>() ?? new DatabentoCandidateTickStorageProofPolicy()).Validate());
-        var recoveryPipelineEnabled = config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled");
+        var recoveryPipelineEnabled = (!config.GetValue("MarketDataHost:Enabled", true) && config.GetValue<bool>("MarketDataRecovery:HardRecovery:Pipeline:Enabled"));
         if (recoveryPipelineEnabled)
         {
             services.AddSingleton<IRecoveryFatalTelemetry, RecoveryFatalOpenTelemetry>();

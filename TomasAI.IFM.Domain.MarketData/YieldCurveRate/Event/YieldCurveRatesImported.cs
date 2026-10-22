@@ -28,14 +28,14 @@ public static class YieldCurveRatesImported
     public static async ValueTask<bool> ExecuteAsync(
         this YieldCurveRatesImportedEvent @event,
         IEventActorContext context,
-        IReferenceDataApi referenceDataApi,
+        IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory,
         ILogger<YieldCurveRateEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(referenceDataApi);
+        ArgumentNullException.ThrowIfNull(marketDataApi);
         IsArgumentNull.Check(logger);
 
         var started = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
@@ -43,7 +43,7 @@ public static class YieldCurveRatesImported
         long? downloaded = null;
         long? persisted = 0;
         var terminalId = Guid.NewGuid();
-        var provider = (referenceDataApi.TreasuryCurve as ITreasuryCurveIdentity)?.DownloadLogProvider ?? "FMP";
+        var provider = TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve.Source;
         YieldCurveRatesImportedCompleteEvent? complete = null;
         YieldCurveRatesImportedFailEvent? failed = null;
         var acceptedStream = "market-data/treasury/accepted/" + @event.CommandId.ToString("N");
@@ -53,8 +53,8 @@ public static class YieldCurveRatesImported
             if (complete is null)
             {
             var importDate = DateOnly.FromDateTime(@event.ImportDate);
-            var snapshots = await referenceDataApi.TreasuryCurve.GetRangeAsync(importDate, importDate).ConfigureAwait(false);
-            downloaded = snapshots.Count;
+            var snapshots = await marketDataApi.ReadTreasuryCurvesAsync(importDate, importDate).ConfigureAwait(false);
+            downloaded = snapshots.Length;
             var records = snapshots.Select(Map).ToArray();
             Validate(records);
                 ValidateDatabaseIdentity(dbFactory);

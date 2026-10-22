@@ -47,8 +47,8 @@ internal static class HostRecoveryVerificationRunner
             root = root.Parent;
         if (root is null) throw new InvalidOperationException("Repository root not found.");
         var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        var workerPath = Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Worker",
-            "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Worker.dll");
+        var workerPath = Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker",
+            "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Host.Worker.dll");
 
         await using var owner = new KestrelWebApplicationFactory<ApiServerEntryPoint>();
         var factory = owner.WithWebHostBuilder(builder => builder

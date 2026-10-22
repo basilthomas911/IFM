@@ -3,7 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 

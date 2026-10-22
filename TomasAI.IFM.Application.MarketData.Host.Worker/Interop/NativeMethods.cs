@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 
 internal static class NativeMethods
 {

@@ -9,15 +9,15 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 /// the serialized watchdog is the only caller allowed to request replacement.
 /// </summary>
 public sealed class DatasetWorkerProcessRecoveryService :
-    IDatabentoDatasetProcessRecovery, IAsyncDisposable, Pricing.ICompositionMarketDataApi
+    IDatabentoDatasetProcessRecovery, IAsyncDisposable, Pricing.ICompositionMarketDataApi, Subscriptions.ICommittedOptionOwnership
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The containing recovery service owns entries and disposes each Lifecycle semaphore after disposing its supervisor.")]
     sealed class Entry(
         DatasetWorkerStartRequest request,
-        DatasetWorkerProcessSupervisor supervisor)
+        IDatasetWorkerProcess supervisor)
     {
         internal DatasetWorkerStartRequest Request = request;
-        internal DatasetWorkerProcessSupervisor Supervisor = supervisor;
+        internal IDatasetWorkerProcess Supervisor = supervisor;
         internal readonly SemaphoreSlim Lifecycle = new(1, 1);
     }
 
@@ -29,7 +29,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     bool hardContainmentUnverified;
     readonly DatabentoStage3Options options;
     readonly DatasetWorkerAdmissionRegistry admissions;
-    readonly Func<DatabentoStage3Options, DatasetWorkerProcessSupervisor> supervisorFactory;
+    readonly Func<DatabentoStage3Options, IDatasetWorkerProcess> supervisorFactory;
     readonly DatabentoTerminalFaultSignal? terminalFaultSignal;
     readonly DatasetWorkerCurrentValues? currentValues;
     readonly IDurableSubscriptionIntentStore? durableIntent;
@@ -40,7 +40,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         DatasetWorkerAdmissionRegistry admissions,
         DatasetPublicationIngress? publicationIngress = null,
         DatabentoTerminalFaultSignal? terminalFaultSignal = null,
-        Func<DatabentoStage3Options, DatasetWorkerProcessSupervisor>? supervisorFactory = null,
+        Func<DatabentoStage3Options, IDatasetWorkerProcess>? supervisorFactory = null,
         DatasetDesiredSubscriptionRegistry? desiredSubscriptions = null,
         DatasetWorkerCurrentValues? currentValues = null,
         IDurableSubscriptionIntentStore? durableIntent = null)
@@ -110,7 +110,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
         return UseGenerationAsync(dataset, request.GenerationId, worker => worker.CaptureCompositionSnapshotAsync(request, cancellationToken), cancellationToken);
     }
 
-    async Task<T> UseGenerationAsync<T>(string dataset, Guid generation, Func<DatasetWorkerProcessSupervisor, Task<T>> operation, CancellationToken cancellationToken)
+    async Task<T> UseGenerationAsync<T>(string dataset, Guid generation, Func<IDatasetWorkerProcess, Task<T>> operation, CancellationToken cancellationToken)
     {
         Entry entry;
         lock (gate)
@@ -579,7 +579,7 @@ public sealed class DatasetWorkerProcessRecoveryService :
     void CloseAdmission(string dataset, Guid generation) =>
         admissions.Close(dataset, generation, () => currentValues?.ClearDataset(dataset));
 
-    void ObserveExit(DatasetWorkerProcessSupervisor supervisor) =>
+    void ObserveExit(IDatasetWorkerProcess supervisor) =>
         supervisor.Exited += snapshot =>
         {
             lock (gate) CloseAdmission(snapshot.Dataset, snapshot.GenerationId);

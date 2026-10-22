@@ -80,7 +80,10 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton<IHistoricalReplayPublisher, NullHistoricalReplayPublisher>();
         services.TryAddSingleton<IHistoricalDailyReplayPublisher, NullHistoricalDailyReplayPublisher>();
         services.TryAddSingleton<IHistoricalAnalyticsSignalReader, NullHistoricalAnalyticsSignalReader>();
-        services.TryAddSingleton<HistoricalDataLoader>();
+        services.TryAddSingleton<HistoricalDataLoader>(provider => new(
+            provider.GetRequiredService<IMarketDataHistoricalApi>(), provider.GetRequiredService<IHistoricalDataLoaderStore>(),
+            provider.GetRequiredService<IHistoricalObservationStore>(), provider.GetRequiredService<IHistoricalReplayPublisher>(),
+            provider.GetRequiredService<IMarketSessionCalendar>(), provider.GetRequiredService<TimeProvider>()));
         services.TryAddSingleton<IFuturesEodAnalyticsAssembler, FuturesEodAnalyticsAssembler>();
         return services;
     }

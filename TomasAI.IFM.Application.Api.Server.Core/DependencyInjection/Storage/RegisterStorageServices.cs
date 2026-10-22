@@ -40,7 +40,7 @@ using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -195,6 +195,8 @@ public static partial class CoreServiceRegistration
         services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
         services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(siContainer, type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
         RegisterReferenceServices.Add(services);
+        if (!config.GetValue("MarketDataHost:Enabled", true))
+        {
         services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>(provider =>
         provider.GetRequiredService<IDbContextFactory>().SecuritiesDb);
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.EuropeanOptionUniverse>();
@@ -202,6 +204,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider,
         TomasAI.IFM.Application.MarketData.Pricing.OptionPricingContextProvider>();
         services.AddTradeStrategySymbolCatalog();
+        }
         services.AddSingleton(provider => new TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets.RsiHistoricalPilotOptions(
         provider.GetRequiredService<IHostEnvironment>().IsDevelopment() && config.GetValue<bool>("ParameterSets:RsiHistoricalPilotEnabled")));
         services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets.IRsiHistoricalPilotStartup, TomasAI.IFM.Application.Api.Server.Core.Startup.ParameterSets.RsiHistoricalPilotStartup>();

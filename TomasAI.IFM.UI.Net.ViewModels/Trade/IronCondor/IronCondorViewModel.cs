@@ -1,3 +1,5 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using System.Collections.Concurrent;
@@ -111,6 +113,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     readonly BrokerEnvironment _brokerEnvironment;
     bool _startingMonitoring;
     readonly bool _historicalReadOnly;
+    readonly SemaphoreSlim _positionHistoryRefreshGate = new(1, 1);
+    DateOnly? _refreshedEndOfDay;
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
     CancellationTokenSource _resetListenerCancellation = new();
     Dictionary<string, OptionTradeLegDataReadModel> _optionLegDataMap;
@@ -135,7 +139,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <summary>Gets one bounded page of persisted plans for the selected trade and session.</summary>
     public IReadOnlyList<StrategyTradePlanSnapshot> IronCondorPlanHistory => _ironCondorPlanHistory;
     StrategyPositionSnapshot? _ironCondorPosition;
-    readonly Guid _monitoringOwnerId = Guid.NewGuid();
+    Guid _monitoringOwnerId = Guid.NewGuid();
+    readonly Guid feedStatusOwnerId = Guid.NewGuid();
+    bool optionBackendTerminated;
     LatestValueAsyncChannel<StrategyPositionSnapshot>? _currentPositionChannel;
     LatestValueAsyncChannel<StrategyTradePlanSnapshot>? _currentPlanChannel;
     bool _currentMonitoringListeners;
@@ -254,16 +260,42 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             throw new InvalidOperationException("The returned Iron Condor does not match the selected trade.");
         EstablishedTrade = result.Value;
         if (_valueDate is { } sessionDate) _realtimeCache = new(result.Value, sessionDate, _timeProvider);
-        var positionId = StrategyPositionId.Create(result.Value.Id, TradeStrategyKind.IronCondor);
-        var history = await _appRoot.Services.StrategyPositions.GetHistoryAsync(positionId,
-            TradeStrategyKind.IronCondor, DateTime.SpecifyKind(DateTime.UnixEpoch, DateTimeKind.Utc),
-            DateTime.UtcNow, cancellationToken);
+        await EnsureFeedStatusListenerAsync();
         _positionHistoryRows.Clear();
-        foreach (var position in history.Where(position => position.Id == positionId && position.StrategyKind == TradeStrategyKind.IronCondor))
-            RememberPositionHistory(position);
-        PublishPositionHistory();
+        await RefreshEstablishedPositionHistoryAsync(cancellationToken: cancellationToken);
         await LoadEstablishedTradeLimitsAsync(result.Value.Id, cancellationToken);
+        await SynchronizeOptionFeedStatusAsync(cancellationToken);
         return result.Value;
+    }
+
+    /// <summary>Reloads committed lifecycle positions independently of quote monitoring.</summary>
+    async Task RefreshEstablishedPositionHistoryAsync(DateOnly? completedDate = null, CancellationToken cancellationToken = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _resetListenerCancellation.Token);
+        await _positionHistoryRefreshGate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            if (EstablishedTrade is not { } trade || completedDate is { } date && _refreshedEndOfDay >= date) return;
+            var positionId = StrategyPositionId.Create(trade.Id, TradeStrategyKind.IronCondor);
+            var history = await _appRoot.Services.StrategyPositions.GetHistoryAsync(positionId,
+                TradeStrategyKind.IronCondor, DateTime.SpecifyKind(DateTime.UnixEpoch, DateTimeKind.Utc),
+                DateTime.UtcNow, linked.Token).ConfigureAwait(false);
+            linked.Token.ThrowIfCancellationRequested();
+            if (EstablishedTrade?.Id != trade.Id) return;
+            foreach (var position in history.Where(position => position.Id == positionId && position.StrategyKind == TradeStrategyKind.IronCondor))
+                RememberPositionHistory(position);
+            PublishPositionHistory();
+            if (completedDate is { } saved && history.Any(position => position.Id == positionId
+                && position.ValueDate == saved && position.Phase == StrategyPositionPhase.EndOfDay)) _refreshedEndOfDay = saved;
+        }
+        finally { _positionHistoryRefreshGate.Release(); }
+    }
+
+    async Task EnsureFeedStatusListenerAsync()
+    {
+        if (_historicalReadOnly || _feedStatusListenerEnabled || _appRoot.Services.FeedCommands is not { } feeds) return;
+        await feeds.StartTradeFeedStatusListenerAsync(feedStatusOwnerId, ApplyMarketDataFeedStatusAsync);
+        _feedStatusListenerEnabled = true;
     }
 
     /// <summary>Loads the selected trade's persisted limits without making their display depend on account-balance availability.</summary>
@@ -379,7 +411,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         var phase = position.Phase is StrategyPositionPhase.MarkToMarket or StrategyPositionPhase.EndOfDay
             ? StrategyPositionPhase.MarkToMarket : position.Phase;
         var key = (date, phase);
+        if (_positionHistoryRows.TryGetValue(key, out var sealedPosition)
+            && sealedPosition.Phase == StrategyPositionPhase.EndOfDay && position.Phase == StrategyPositionPhase.MarkToMarket) return;
         if (!_positionHistoryRows.TryGetValue(key, out var previous)
+            || position.Phase == StrategyPositionPhase.EndOfDay && previous.Phase == StrategyPositionPhase.MarkToMarket
             || position.RouteGeneration > previous.RouteGeneration
             || position.RouteGeneration == previous.RouteGeneration && position.PositionSequence >= previous.PositionSequence)
             _positionHistoryRows[key] = position;
@@ -527,7 +562,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     public bool IsHistoricalReadOnly => _historicalReadOnly;
     /// <summary>Gets whether this established open trade may start monitoring in the configured session.</summary>
-    public bool CanEnableLiveFeed => !_marketDataSessionStopped && !IsHistoricalReadOnly && !IsLoading && !_startingMonitoring
+    bool optionCleanupUnconfirmed;
+    DateTime lastOptionFailureUtc;
+    public bool CanEnableLiveFeed => !optionCleanupUnconfirmed && !_marketDataSessionStopped && !IsHistoricalReadOnly && !IsLoading && !_startingMonitoring
         && EstablishedTrade?.Status == EstablishedTradeStatus.Open
         && TradeMonitoringPolicy.CanStart(_appRoot.AppEnvironment, _brokerEnvironment, _timeProvider.GetUtcNow());
 
@@ -550,21 +587,78 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         ArgumentNullException.ThrowIfNull(feedEvent);
         switch (feedEvent)
         {
+            case ScheduledTaskRunStageRecordedCompleteEvent { ScheduledTaskRun: { } run }
+                when !_historicalReadOnly && !_resetListenerCancellation.IsCancellationRequested && EstablishedTrade is not null
+                    && run.TaskKey == ScheduledTaskKeys.FuturesMarketClose && run.Stage == "PositionsFinalized"
+                    && run.CompletedEndOfDayValueDate is not null:
+                try { await RefreshEstablishedPositionHistoryAsync(run.CompletedEndOfDayValueDate).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (_resetListenerCancellation.IsCancellationRequested) { }
+                catch (ObjectDisposedException) when (_resetListenerCancellation.IsCancellationRequested) { }
+                catch (Exception error) { PublishError(503, error.Message, "Refreshing End-of-Day Position History"); }
+                break;
+            case OptionMarketDataFeedFailedEvent failed:
+                if (failed.ErrorDate <= lastOptionFailureUtc) break;
+                var wasLive = IsLiveFeedEnabled;
+                lastOptionFailureUtc = failed.ErrorDate;
+                Interlocked.Increment(ref _feedSessionRevision);
+                optionCleanupUnconfirmed = !failed.CleanupConfirmed;
+                optionBackendTerminated = failed.CleanupConfirmed;
+                IsLiveFeedEnabled = false;
+                LiveFeedStatusMessage = "Live feed OFF - option feed failed: " + failed.ErrorMessage
+                    + (failed.CleanupConfirmed ? " Enable Live Feed to start a fresh option session." : " Cleanup is unconfirmed; restart is blocked.");
+                PublishError(failed.ErrorCode, LiveFeedStatusMessage, "Option Feed Recovery Failed");
+                OnPropertyChanged(nameof(CanEnableLiveFeed));
+                OnPropertyChanged(nameof(CanChangeLiveFeed));
+                // The UI state changes immediately. Backend cleanup or listener shutdown
+                // must not block delivery of this terminal notification.
+                if (wasLive) _ = StopAfterOptionFailureAsync();
+                break;
             case MarketDataFeedStoppedCompleteEvent:
                 Interlocked.Increment(ref _feedSessionRevision);
                 _marketDataSessionStopped = true;
+                optionBackendTerminated = true;
                 IsLiveFeedEnabled = false;
-                LiveFeedStatusMessage = "Live feed OFF ? market data session closed by the API.";
+                LiveFeedStatusMessage = "Live feed OFF - market data session closed by the API.";
                 OnPropertyChanged(nameof(CanEnableLiveFeed));
                 OnPropertyChanged(nameof(CanChangeLiveFeed));
                 await DisableLiveFeedAsync().ConfigureAwait(false);
                 break;
-            case MarketDataFeedStartedCompleteEvent:
+            case MarketDataFeedStartedCompleteEvent started:
                 _marketDataSessionStopped = false;
-                if (!IsLiveFeedEnabled) LiveFeedStatusMessage = "Live feed OFF ? market data available; enable monitoring to resume.";
+                optionCleanupUnconfirmed = false;
+                optionBackendTerminated = false;
+                if (started.ReceivedOn > lastOptionFailureUtc) lastOptionFailureUtc = started.ReceivedOn;
+                if (!IsLiveFeedEnabled) LiveFeedStatusMessage = "Live feed OFF - market data available; enable monitoring to resume.";
                 OnPropertyChanged(nameof(CanEnableLiveFeed));
                 OnPropertyChanged(nameof(CanChangeLiveFeed));
                 break;
+        }
+    }
+
+    async Task SynchronizeOptionFeedStatusAsync(CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(5));
+        if (_appRoot.Services.FeedQueries is not { } queries) return;
+        var status = await queries.GetRuntimeStatusAsync().WaitAsync(deadline.Token).ConfigureAwait(false);
+        if (status?.OptionFeedError is not { } error || status.OptionFailureUtc is not { } failureUtc || failureUtc <= lastOptionFailureUtc) return;
+        await ApplyMarketDataFeedStatusAsync(new OptionMarketDataFeedFailedEvent
+        {
+            ErrorCode = 503, ErrorDate = failureUtc, ErrorMessage = error, CleanupConfirmed = status.OptionCleanupConfirmed,
+            WorkerInstanceId = status.OptionWorkerInstanceId, GenerationId = status.OptionGenerationId, Dataset = status.OptionDataset ?? "GLBX.MDP3"
+        }).ConfigureAwait(false);
+    }
+
+    async Task StopAfterOptionFailureAsync()
+    {
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await DisableLiveFeedAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            PublishError(503, "Option-feed listener cleanup did not complete: " + error.Message, "Option Feed Cleanup");
         }
     }
 
@@ -1258,12 +1352,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public async ValueTask DisposeAsync()
     {
         if (_realtimeExpiry is { } expiry) await expiry.DisposeAsync();
+        await _resetListenerCancellation.CancelAsync();
         await DisableMarketDataFeedResetListener();
         _resetListenerCancellation.Dispose();
         try { await _liveFeedLifecycle.DisposeAsync(); }
         finally {
             if (_feedStatusListenerEnabled) {
-                await _appRoot.Services.FeedCommands.StopTradeFeedStatusListenerAsync(_monitoringOwnerId);
+                await _appRoot.Services.FeedCommands.StopTradeFeedStatusListenerAsync(feedStatusOwnerId);
                 _feedStatusListenerEnabled = false;
             }
         }
@@ -1274,12 +1369,13 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (_liveFeedEnabled)
             return;
 
-        if (!_feedStatusListenerEnabled) {
-            await _appRoot.Services.FeedCommands.StartTradeFeedStatusListenerAsync(_monitoringOwnerId, ApplyMarketDataFeedStatusAsync);
-            _feedStatusListenerEnabled = true;
-        }
+        await EnsureFeedStatusListenerAsync();
         cancellationToken.ThrowIfCancellationRequested();
         if (_marketDataSessionStopped) throw new InvalidOperationException("The API market-data session is closed.");
+        await SynchronizeOptionFeedStatusAsync(cancellationToken).ConfigureAwait(false);
+        if (optionCleanupUnconfirmed) throw new InvalidOperationException("Option worker cleanup is unconfirmed; Live Feed cannot restart.");
+        _monitoringOwnerId = Guid.NewGuid();
+        optionBackendTerminated = false;
         LiveFeedStatusMessage = "";
         await LoadValueDate();
         cancellationToken.ThrowIfCancellationRequested();
@@ -1537,6 +1633,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <summary>Starts the three current-model listeners before submitting exact leg feed commands.</summary>
     async Task EnableEstablishedMonitoringAsync(CancellationToken cancellationToken)
     {
+        var monitoringOwner = _monitoringOwnerId;
         var trade = EstablishedTrade ?? throw new InvalidOperationException("No Iron Condor trade selected.");
         _receivingRealtimeSnapshots = false;
         _realtimeCache = new(trade, _valueDate!.Value, _timeProvider);
@@ -1566,34 +1663,34 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             // Subscribe before the initial read. AcceptSnapshot rejects a late query reply older than a notification.
             await _appRoot.Services.TradePositionEvents.StartRealtimeListenerAsync(_monitoringOwnerId, changed =>
             {
-                if (changed.EntityId == trade.Id) ApplyRealtimeSnapshot(changed.Snapshot);
+                if (_monitoringOwnerId == monitoringOwner && changed.EntityId == trade.Id) ApplyRealtimeSnapshot(changed.Snapshot);
                 return ValueTask.CompletedTask;
             }, async () =>
             {
                 var refreshed = await _appRoot.Services.EstablishedTrades.GetRealtimeAsync(trade.Id, _valueDate!.Value, cancellationToken);
-                if (refreshed.Success && refreshed.Value is { } current) ApplyRealtimeSnapshot(current);
+                if (_monitoringOwnerId == monitoringOwner && refreshed.Success && refreshed.Value is { } current) ApplyRealtimeSnapshot(current);
             });
             var initialRealtime = await _appRoot.Services.EstablishedTrades.GetRealtimeAsync(trade.Id, _valueDate!.Value, cancellationToken);
-            if (initialRealtime.Success && initialRealtime.Value is { } initial) ApplyRealtimeSnapshot(initial);
+            if (_monitoringOwnerId == monitoringOwner && initialRealtime.Success && initialRealtime.Value is { } initial) ApplyRealtimeSnapshot(initial);
             await _appRoot.Services.TradePositionEvents.StartIronCondorTradePositionListenerAsync(_monitoringOwnerId, changed =>
             {
-                if (changed.EntityId.Trade == trade.Id) _currentPositionChannel?.TryWrite(changed.PositionSnapshot);
+                if (_monitoringOwnerId == monitoringOwner && changed.EntityId.Trade == trade.Id) _currentPositionChannel?.TryWrite(changed.PositionSnapshot);
                 return ValueTask.CompletedTask;
             });
             await _appRoot.Services.TradePlanEvents.StartIronCondorTradePlanListenerAsync(_monitoringOwnerId, updated =>
             {
-                if (updated.Plan.Position.Id.Trade == trade.Id) _currentPlanChannel?.TryWrite(updated.Plan);
+                if (_monitoringOwnerId == monitoringOwner && updated.Plan.Position.Id.Trade == trade.Id) _currentPlanChannel?.TryWrite(updated.Plan);
                 return ValueTask.CompletedTask;
             });
             _futuresOptionTickChannels = new((contractId, updated, token) =>
             {
                 token.ThrowIfCancellationRequested();
-                ApplyIronCondorLegObservation(updated.OptionTickData);
+                if (_monitoringOwnerId == monitoringOwner) ApplyIronCondorLegObservation(updated.OptionTickData);
                 return ValueTask.CompletedTask;
             }, minimumInterval: TimeSpan.FromMilliseconds(50), timeProvider: _timeProvider);
             await _appRoot.Services.FeedCommands.StartEstablishedOptionLegListenerAsync(_monitoringOwnerId, updated =>
             {
-                if (updated.OptionTickData is { } observation && trade.Legs.Any(leg => leg.ContractId == observation.ContractId))
+                if (_monitoringOwnerId == monitoringOwner && updated.OptionTickData is { } observation && trade.Legs.Any(leg => leg.ContractId == observation.ContractId))
                     _futuresOptionTickChannels?.TryWrite(observation.ContractId, updated);
                 return ValueTask.CompletedTask;
             }, started =>
@@ -1628,18 +1725,20 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     /// <summary>Stops current-model listeners and releases only this view's leg ownership.</summary>
-    async Task DisableEstablishedMonitoringAsync()
+    async Task DisableEstablishedMonitoringAsync(CancellationToken cancellationToken = default)
     {
         IsLiveFeedEnabled = false;
         if (!_currentMonitoringListeners) return;
         _currentMonitoringListeners = false;
+        var ownerId = _monitoringOwnerId;
         var failures = new List<Exception>();
-        foreach (var stream in _liveStreamsIds.ToArray())
-            await AttemptAsync(() => _appRoot.Services.FeedCommands.StopStreamingFuturesOptionTickDataAsync(stream.Key, stream.Value));
+        if (!optionBackendTerminated)
+            foreach (var stream in _liveStreamsIds.ToArray())
+                await AttemptAsync(() => _appRoot.Services.FeedCommands.StopStreamingFuturesOptionTickDataAsync(stream.Key, stream.Value));
         _liveStreamsIds.Clear();
-        await AttemptAsync(() => _appRoot.Services.TradePlanEvents.StopMonitoringAsync(_monitoringOwnerId));
-        await AttemptAsync(() => _appRoot.Services.TradePositionEvents.StopMonitoringAsync(_monitoringOwnerId));
-        await AttemptAsync(() => _appRoot.Services.FeedCommands.StopEstablishedOptionLegListenerAsync(_monitoringOwnerId));
+        await AttemptAsync(() => _appRoot.Services.TradePlanEvents.StopMonitoringAsync(ownerId));
+        await AttemptAsync(() => _appRoot.Services.TradePositionEvents.StopMonitoringAsync(ownerId));
+        await AttemptAsync(() => _appRoot.Services.FeedCommands.StopEstablishedOptionLegListenerAsync(ownerId));
         var legChannels = Interlocked.Exchange(ref _futuresOptionTickChannels, null);
         if (legChannels is not null) await AttemptAsync(async () => await legChannels.StopAsync());
         var position = Interlocked.Exchange(ref _currentPositionChannel, null);
@@ -1651,7 +1750,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         async Task AttemptAsync(Func<Task> stop)
         {
-            try { await stop(); }
+            try { await stop().WaitAsync(cancellationToken); }
             catch (Exception failure) { failures.Add(failure); }
         }
     }
@@ -1661,7 +1760,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         cancellationToken.ThrowIfCancellationRequested();
         if (EstablishedTrade is not null)
         {
-            await DisableEstablishedMonitoringAsync();
+            await DisableEstablishedMonitoringAsync(cancellationToken);
             return;
         }
         IsLiveFeedEnabled = false;

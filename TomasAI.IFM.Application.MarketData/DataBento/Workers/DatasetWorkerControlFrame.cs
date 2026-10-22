@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 [MessagePackObject]
 public sealed record DatasetWorkerControlFrame
 {
-    public const int CurrentProtocolMajor = 2;
+    public const int CurrentProtocolMajor = 4;
     [Key(0)] public int ProtocolMajor { get; init; } = CurrentProtocolMajor;
     [Key(1)] public int ProtocolMinor { get; init; }
     [Key(2)] public required DatasetWorkerMessageKind Kind { get; init; }
@@ -31,4 +31,7 @@ public sealed record DatasetWorkerControlFrame
     [Key(19)] public WorkerOptionChainResult? OptionChainResult { get; init; }
     [Key(20)] public CompositionSnapshotRequest? CompositionRequest { get; init; }
     [Key(21)] public CompositionSnapshotResult? CompositionResult { get; init; }
+    [Key(22)] public Remote.MarketDataApiCall? ApiCall { get; init; }
+    [Key(23)] public byte[]? ApiResult { get; init; }
+    [Key(24)] public string? ApiError { get; init; }
 }

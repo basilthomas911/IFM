@@ -25,7 +25,7 @@ public sealed class DatasetWorkerManifestProtocolTests
         stream.Position = 0;
         var decoded = await DatasetWorkerFrameCodec.ReadAsync(stream, MaximumFrameBytes, CancellationToken.None);
 
-        decoded.ProtocolMajor.Should().Be(2);
+        decoded.ProtocolMajor.Should().Be(DatasetWorkerControlFrame.CurrentProtocolMajor);
         decoded.Kind.Should().Be(kind);
         decoded.CorrelationId.Should().Be(frame.CorrelationId);
         decoded.WorkerInstanceId.Should().Be(frame.WorkerInstanceId);

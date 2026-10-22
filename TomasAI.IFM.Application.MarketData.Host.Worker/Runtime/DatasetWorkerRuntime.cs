@@ -3,22 +3,26 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 
 /// <summary>A native/managed dataset generation owned entirely by the worker process.</summary>
 internal sealed class DatasetWorkerRuntime : IAsyncDisposable
 {
     readonly IDatabentoMarketDataEpoch epoch;
     readonly DatasetSubscriptionManifest manifest;
+    readonly DatabentoMarketDataApi api;
 
-    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch, DatasetSubscriptionManifest manifest)
+    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch, DatasetSubscriptionManifest manifest, DatabentoMarketDataApi api)
     {
         this.epoch = epoch;
+        this.api = api;
         this.manifest = manifest;
         GenerationId = epoch.GetHealth().DatasetFeedStatuses?.Single().GenerationId ?? Guid.Empty;
     }
 
     public Guid GenerationId { get; }
+    public Task<byte[]> InvokeMarketDataApiAsync(MarketData.Remote.MarketDataApiCall request, CancellationToken token)
+        => new MarketData.Remote.MarketDataApiDispatcher(api, allowLifecycle: false).InvokeAsync(request, token);
     public Task<MarketData.Pricing.WorkerOptionChainResult> AcquireOptionChainAsync(MarketData.Pricing.WorkerOptionChainRequest request, CancellationToken token)
         => epoch.AcquireOptionChainAsync(request, token);
     public Task<MarketData.Pricing.WorkerOptionChainResult> ReleaseOptionChainAsync(MarketData.Pricing.WorkerOptionChainRelease request, CancellationToken token)
@@ -83,8 +87,9 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         var newEpoch = factory.Create(manifest.ValueDate);
         try
         {
-            await newEpoch.StartAsync(cancellationToken).ConfigureAwait(false);
-            return new(newEpoch, manifest);
+            var api = new DatabentoMarketDataApi(new OwnedEpochFactory(newEpoch), new());
+            await api.StartAsync(manifest.ValueDate, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return new(newEpoch, manifest, api);
         }
         catch
         {
@@ -93,6 +98,8 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync() => await epoch.DisposeAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync() => await api.DisposeAsync().ConfigureAwait(false);
+    sealed class OwnedEpochFactory(IDatabentoMarketDataEpoch epoch) : IDatabentoMarketDataEpochFactory
+    { public IDatabentoMarketDataEpoch Create(DateOnly valueDate) => epoch; }
 
 }

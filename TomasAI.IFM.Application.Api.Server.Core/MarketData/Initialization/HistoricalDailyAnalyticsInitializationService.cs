@@ -18,7 +18,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
     IHostApplicationLifetime lifetime,
     IApplicationBootstrapReadiness bootstrapReadiness,
     IFuturesMarketSessionAuthority marketSessionAuthority,
-    ICurrentFuturesContractCatalog contractCatalog,
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi,
     HistoricalAnalyticsWarmupOptions options,
     HistoricalAnalyticsWarmupService warmup,
     IMarketOutlookOperations marketOutlookOperations,
@@ -111,10 +111,10 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
         DateOnly valueDate,
         CancellationToken cancellationToken)
     {
-        var contracts = await contractCatalog.GetFuturesContractsBySymbolAsync("ES", cancellationToken)
+        var contracts = await marketDataApi.PrepareSessionAsync(valueDate, cancellationToken)
             .ConfigureAwait(false);
         var current = contracts
-            .Where(contract => contract.IsValid
+            .Where(contract => contract.Symbol == "ES" && contract.IsValid
                 && contract.LastTradeDate >= valueDate
                 && contract.LastTradeDate.Month is 3 or 6 or 9 or 12)
             .OrderBy(contract => contract.LastTradeDate)

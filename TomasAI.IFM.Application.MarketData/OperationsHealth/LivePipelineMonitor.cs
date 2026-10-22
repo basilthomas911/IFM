@@ -68,6 +68,13 @@ public sealed class LivePipelineMonitor(ILivePipelineProbe probe, TimeProvider t
                 return;
             }
 
+            if (options.RecoveryOwnedByHost)
+            {
+                Publish(next);
+                LogUnhealthyChecks(next);
+                await ReportStatusAsync(next, token).ConfigureAwait(false);
+                return;
+            }
             var upstream = next.Checks.Where(IsHardResetTrigger).ToArray();
             UpdateUpstreamWindows(upstream, now);
             var recoverable = next.Checks.Where(check => check.Required && !string.Equals(check.Component, "Market Outlook inputs", StringComparison.Ordinal) && DownstreamTarget(check)is not null).GroupBy(check => DownstreamTarget(check)!, StringComparer.Ordinal).Select(group => group.FirstOrDefault(check => !IsHealthy(check)) ?? group.First()).OrderBy(check => DownstreamRank(DownstreamTarget(check)!)).ToArray();

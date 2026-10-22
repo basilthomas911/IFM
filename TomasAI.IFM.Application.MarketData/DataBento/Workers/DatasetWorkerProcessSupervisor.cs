@@ -10,11 +10,16 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
 /// <summary>Owns one exact child process and its duplex local control channel.</summary>
-public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
+public sealed class DatasetWorkerProcessSupervisor : IDatasetWorkerProcess
 {
     readonly DatabentoStage3Options options;
     readonly Func<DatasetPublicationEnvelope, CancellationToken, ValueTask>? publicationIngress;
     readonly SemaphoreSlim commands = new(1, 1);
+    readonly AsyncLocal<CancellationToken?> recoveryDeadline = new();
+    readonly SemaphoreSlim healthGate = new(1, 1);
+    AnonymousPipeServerStream? healthCommandPipe;
+    AnonymousPipeServerStream? healthResponsePipe;
+    long healthSequence;
     AnonymousPipeServerStream? commandPipe;
     AnonymousPipeServerStream? responsePipe;
     AnonymousPipeServerStream? publicationPipe;
@@ -33,10 +38,15 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     bool linuxGroupEstablished;
     bool linuxGroupRetired;
     bool responsive;
+    bool controlStalled;
     bool dataPlaneHealthy = true;
     DatasetWorkerControlFrame? lastFrame;
+    DatasetWorkerControlFrame? healthFrame;
     DatasetWorkerProcessSnapshot? disposedSnapshot;
     int disposed;
+    readonly object processOwnership = new();
+    bool terminationRequested;
+    Task? termination;
 
     public DatasetWorkerProcessSupervisor(
         DatabentoStage3Options options,
@@ -52,6 +62,10 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     public event Action<DatasetWorkerProcessSnapshot>? Exited;
 
     public DatasetWorkerProcessSnapshot Current => Snapshot();
+    /// <summary>Broken control or health framing requires a new process and fresh pipes.</summary>
+    public bool RequiresProcessReplacement => controlStalled || DatasetWorkerFrameCodec.IsFaulted(commandPipe)
+        || DatasetWorkerFrameCodec.IsFaulted(responsePipe) || DatasetWorkerFrameCodec.IsFaulted(healthCommandPipe)
+        || DatasetWorkerFrameCodec.IsFaulted(healthResponsePipe) || process is { HasExited: true };
 
     public async Task<DatasetWorkerProcessSnapshot> StartAsync(
         DatasetWorkerStartRequest request,
@@ -129,6 +143,12 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         start.ArgumentList.Add(publicationPipe.GetClientHandleAsString());
         start.ArgumentList.Add("--retention-ack-in");
         start.ArgumentList.Add(retentionAckPipe.GetClientHandleAsString());
+        healthCommandPipe = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
+        healthResponsePipe = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
+        start.ArgumentList.Add("--health-in");
+        start.ArgumentList.Add(healthCommandPipe.GetClientHandleAsString());
+        start.ArgumentList.Add("--health-out");
+        start.ArgumentList.Add(healthResponsePipe.GetClientHandleAsString());
         start.ArgumentList.Add("--dataset");
         start.ArgumentList.Add(request.Dataset);
         start.ArgumentList.Add("--value-date");
@@ -139,7 +159,11 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         start.ArgumentList.Add(request.GenerationId.ToString("D"));
 
         identity = request with { ExecutablePath = executable };
-        process = Process.Start(start) ?? throw new InvalidOperationException("Dataset worker process did not start.");
+        lock (processOwnership)
+        {
+            if (terminationRequested) throw new OperationCanceledException("Worker startup was retired.");
+            process = Process.Start(start) ?? throw new InvalidOperationException("Dataset worker process did not start.");
+        }
         startedOnUtc = process.StartTime.ToUniversalTime();
         if (OperatingSystem.IsWindows())
         {
@@ -150,13 +174,15 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         responsePipe.DisposeLocalCopyOfClientHandle();
         publicationPipe.DisposeLocalCopyOfClientHandle();
         retentionAckPipe.DisposeLocalCopyOfClientHandle();
+        healthCommandPipe.DisposeLocalCopyOfClientHandle();
+        healthResponsePipe.DisposeLocalCopyOfClientHandle();
         publicationStopping = new CancellationTokenSource();
         publicationReader = ReadPublicationsAsync(publicationStopping.Token);
         process.EnableRaisingEvents = true;
         process.Exited += (_, _) => Exited?.Invoke(Snapshot());
 
         using var handshake = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        handshake.CancelAfter(options.WorkerHandshakeTimeout);
+        if (recoveryDeadline.Value is null) handshake.CancelAfter(options.WorkerHandshakeTimeout);
         var hello = await DatasetWorkerFrameCodec.ReadAsync(responsePipe,
             options.ControlFrameMaximumBytes, handshake.Token).ConfigureAwait(false);
         ValidateResponse(hello, DatasetWorkerMessageKind.WorkerHello);
@@ -176,9 +202,51 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         return Snapshot();
     }
 
+    /// <summary>Runs reset and lease restoration under the caller's single bounded recovery deadline.</summary>
+    /// <remarks>Only commands in this async flow inherit the budget; concurrent normal requests retain their own timeout.</remarks>
+    public async Task<T> RunWithRecoveryDeadlineAsync<T>(CancellationToken deadline, Func<CancellationToken, Task<T>> operation)
+    {
+        if (!deadline.CanBeCanceled) throw new ArgumentException("Recovery requires a bounded caller deadline.", nameof(deadline));
+        ArgumentNullException.ThrowIfNull(operation);
+        deadline.ThrowIfCancellationRequested();
+        var previous = recoveryDeadline.Value;
+        recoveryDeadline.Value = deadline;
+        try { return await operation(deadline).WaitAsync(deadline).ConfigureAwait(false); }
+        finally { recoveryDeadline.Value = previous; }
+    }
+
     public async Task<DatasetWorkerControlFrame> GetHealthAsync(CancellationToken cancellationToken = default)
         => await SendAndReceiveAsync(DatasetWorkerMessageKind.HealthSnapshot,
             DatasetWorkerMessageKind.HealthSnapshot, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Probes the independent health pipe without waiting for pricing or subscription commands.</summary>
+    public async Task<DatasetWorkerControlFrame> ProbeHealthAsync(CancellationToken cancellationToken)
+    {
+        await healthGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var current = identity ?? throw new InvalidOperationException("Worker has not started.");
+            var correlation = Guid.NewGuid();
+            await DatasetWorkerFrameCodec.WriteAsync(healthCommandPipe!, new()
+            {
+                Kind = DatasetWorkerMessageKind.HealthSnapshot, WorkerInstanceId = current.WorkerInstanceId,
+                Dataset = current.Dataset, ValueDate = current.ValueDate, GenerationId = current.GenerationId,
+                CorrelationId = correlation, Sequence = Interlocked.Increment(ref healthSequence), BootstrapToken = bootstrapToken,
+                Detail = "Independent health probe"
+            }, options.ControlFrameMaximumBytes, cancellationToken).ConfigureAwait(false);
+            var response = await DatasetWorkerFrameCodec.ReadAsync(healthResponsePipe!, options.ControlFrameMaximumBytes, cancellationToken).ConfigureAwait(false);
+            if (response.Kind != DatasetWorkerMessageKind.HealthSnapshot || response.CorrelationId != correlation
+                || response.WorkerInstanceId != current.WorkerInstanceId || response.GenerationId != current.GenerationId
+                || response.Dataset != current.Dataset || response.ValueDate != current.ValueDate || response.BootstrapToken != bootstrapToken)
+                throw new InvalidDataException("Independent worker health identity does not match.");
+            controlStalled = response.Detail == "Business control stalled";
+            responsive = !RequiresProcessReplacement;
+            var observed = response with { Healthy = response.Healthy && responsive && dataPlaneHealthy && process is { HasExited: false } };
+            Volatile.Write(ref healthFrame, observed);
+            return observed;
+        }
+        finally { healthGate.Release(); }
+    }
 
     public async Task<DatasetWorkerControlFrame> ResetAsync(CancellationToken cancellationToken = default)
         => await ResetAsync(identity?.Manifest
@@ -230,6 +298,28 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     public async Task HangAsync(CancellationToken cancellationToken = default)
         => await SendAsync(DatasetWorkerMessageKind.Hang, "Injected non-cooperative worker.", cancellationToken)
             .ConfigureAwait(false);
+
+    /// <summary>Terminates this exact owned process without waiting for its control-command semaphore.</summary>
+    public Task TerminateAsync()
+    {
+        lock (processOwnership)
+        {
+            terminationRequested = true;
+            if (termination?.IsFaulted == true) termination = null;
+            return termination ??= TerminateCoreAsync(process);
+        }
+    }
+
+    async Task TerminateCoreAsync(Process? child)
+    {
+        if (child is { HasExited: false })
+        {
+            forced = true;
+            await ForceTerminateAsync(child, CancellationToken.None).ConfigureAwait(false);
+        }
+        if (process is { HasExited: false })
+            throw new InvalidOperationException("The owned dataset worker has not exited.");
+    }
 
     async Task ForceTerminateAsync(Process child, CancellationToken cancellationToken)
     {
@@ -295,6 +385,15 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         => (await SendAndReceiveAsync(DatasetWorkerMessageKind.CaptureCompositionSnapshot, DatasetWorkerMessageKind.CompositionSnapshotResult,
             cancellationToken, composition: request).ConfigureAwait(false)).CompositionResult!;
 
+    /// <summary>Executes declared market-data queries and subscription operations inside the dataset process.</summary>
+    public async Task<byte[]> InvokeMarketDataApiAsync(Remote.MarketDataApiCall request, CancellationToken cancellationToken)
+    {
+        var reply = await SendAndReceiveAsync(DatasetWorkerMessageKind.MarketDataApiCall,
+            DatasetWorkerMessageKind.MarketDataApiResult, cancellationToken, apiCall: request).ConfigureAwait(false);
+        if (reply.ApiError is { } error) throw new InvalidOperationException(error);
+        return reply.ApiResult ?? throw new InvalidDataException("Missing market-data result.");
+    }
+
     async Task<DatasetWorkerControlFrame> SendAndReceiveAsync(
         DatasetWorkerMessageKind request,
         DatasetWorkerMessageKind expected,
@@ -305,12 +404,14 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         Pricing.WorkerOptionChainRequest? optionChain = null,
         Pricing.WorkerOptionChainRelease? optionRelease = null,
         Pricing.CompositionSnapshotRequest? composition = null,
-        bool startupOwnsChannel = false)
+        bool startupOwnsChannel = false, Remote.MarketDataApiCall? apiCall = null)
     {
         manifest?.Validate();
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var recovery = recoveryDeadline.Value;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, recovery ?? CancellationToken.None);
         var commandTimeout = timeout ?? options.WorkerCommandTimeout;
-        deadline.CancelAfter(commandTimeout);
+        // Recovery owns the only timer for all its commands, including command-semaphore waits.
+        if (recovery is null) deadline.CancelAfter(commandTimeout);
         var acquired = false;
         try
         {
@@ -320,7 +421,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
                 acquired = true;
             }
             var correlationId = Guid.NewGuid();
-            await SendCoreAsync(request, request.ToString(), deadline.Token, manifest, correlationId, optionChain, optionRelease, composition)
+            await SendCoreAsync(request, request.ToString(), deadline.Token, manifest, correlationId, optionChain, optionRelease, composition, apiCall)
                 .ConfigureAwait(false);
             var response = await DatasetWorkerFrameCodec.ReadAsync(responsePipe!,
                 options.ControlFrameMaximumBytes, deadline.Token).ConfigureAwait(false);
@@ -340,7 +441,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             responsive = true;
             return response;
         }
-        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        catch (OperationCanceledException error) when (recovery is null && !cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
             responsive = false;
             throw new TimeoutException(
@@ -366,6 +467,9 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The owned background worker records or returns its operation failure while keeping subsequent independent work available.")]
     async Task ReadPublicationsAsync(CancellationToken cancellationToken)
     {
+        var evidence = System.Threading.Channels.Channel.CreateBounded<DatasetPublicationEnvelope>(
+            new System.Threading.Channels.BoundedChannelOptions(64) { SingleReader = true, SingleWriter = true });
+        var retention = RetainEvidenceAsync();
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -374,19 +478,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
                     publicationPipe!, cancellationToken).ConfigureAwait(false);
                 if (publication.Kind == DatasetPublicationKind.OptionTradeEvidence)
                 {
-                    try
-                    {
-                        if (publicationIngress is null) throw new InvalidOperationException("No durable publication ingress.");
-                        await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
-                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
-                            publication.GenerationId, true, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
-                            publication.GenerationId, false, cancellationToken).ConfigureAwait(false);
-                        throw;
-                    }
+                    if (!evidence.Writer.TryWrite(publication))
+                        throw new InvalidDataException("Option evidence retention queue is full.");
                 }
                 else if (publicationIngress is not null)
                     await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
@@ -403,12 +496,43 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         {
             dataPlaneHealthy = false;
         }
+        finally
+        {
+            evidence.Writer.TryComplete();
+            await retention.ConfigureAwait(false);
+        }
+
+        async Task RetainEvidenceAsync()
+        {
+            try
+            {
+                await foreach (var publication in evidence.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    try
+                    {
+                        if (publicationIngress is null) throw new InvalidOperationException("No durable publication ingress.");
+                        await publicationIngress(publication, cancellationToken).ConfigureAwait(false);
+                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
+                            publication.GenerationId, true, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        dataPlaneHealthy = false;
+                        await OptionTradeAcknowledgment.WriteAsync(retentionAckPipe!, publication.PublicationSequence,
+                            publication.GenerationId, false, cancellationToken).ConfigureAwait(false);
+                        throw;
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+            catch { dataPlaneHealthy = false; }
+        }
     }
 
     ValueTask SendCoreAsync(DatasetWorkerMessageKind kind, string detail, CancellationToken cancellationToken,
         DatasetSubscriptionManifest? manifest = null, Guid? correlationId = null,
         Pricing.WorkerOptionChainRequest? optionChain = null, Pricing.WorkerOptionChainRelease? optionRelease = null,
-        Pricing.CompositionSnapshotRequest? composition = null)
+        Pricing.CompositionSnapshotRequest? composition = null, Remote.MarketDataApiCall? apiCall = null)
     {
         var current = identity ?? throw new InvalidOperationException("Dataset worker has not started.");
         return DatasetWorkerFrameCodec.WriteAsync(commandPipe!, new()
@@ -427,6 +551,7 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
             OptionChain = optionChain,
             OptionChainRelease = optionRelease,
             CompositionRequest = composition,
+            ApiCall = apiCall,
             ManifestRevision = manifest?.Revision ?? current.ManifestRevision,
             ManifestFingerprint = manifest?.Fingerprint ?? current.Manifest?.Fingerprint ?? string.Empty
         }, options.ControlFrameMaximumBytes, cancellationToken);
@@ -468,6 +593,10 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         if (disposedSnapshot is { } stopped) return stopped;
         var current = identity;
         var observation = lastFrame;
+        var health = Volatile.Read(ref healthFrame);
+        if (health is not null && health.GenerationId == current?.GenerationId
+            && health.Diagnostics?.ObservedOnUtc >= (observation?.Diagnostics?.ObservedOnUtc ?? DateTime.MinValue))
+            observation = health;
         var observationMatches = current is not null && observation is not null
             && observation.GenerationId == current.GenerationId
             && observation.ManifestRevision == current.ManifestRevision
@@ -545,6 +674,8 @@ public sealed class DatasetWorkerProcessSupervisor : IAsyncDisposable
         finally
         {
             commandPipe?.Dispose();
+            healthCommandPipe?.Dispose();
+            healthResponsePipe?.Dispose();
             responsePipe?.Dispose();
             publicationPipe?.Dispose();
             retentionAckPipe?.Dispose();

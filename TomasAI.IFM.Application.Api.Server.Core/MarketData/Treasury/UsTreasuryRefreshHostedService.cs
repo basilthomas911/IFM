@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.MarketData.Treasury;
 public sealed class UsTreasuryRefreshHostedService(
     IApplicationBootstrapReadiness readiness,
     IFmpMarketDataImportCoordinator imports,
-    TreasuryPricingProvider pricing,
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketData,
     TreasuryPublicationPolicy publication,
     TimeProvider clock,
     ILogger<UsTreasuryRefreshHostedService> logger) : BackgroundService
@@ -31,10 +31,10 @@ public sealed class UsTreasuryRefreshHostedService(
                     var submitted = await imports.ImportAsync(new(required, required, IncludeEconomicCalendar: false),
                         stoppingToken).ConfigureAwait(false);
                     logger.LogInformation("{Component}.{Method} "+"Official Treasury import for {ValueDate}: {Submitted} submitted, {Rejected} rejected. Completion is recorded in DownloadLog under USTreasury.",nameof(UsTreasuryRefreshHostedService),nameof(ExecuteAsync),                        required,submitted.SubmittedCommands,submitted.RejectedSubmissions);
-                    var warmed = await pricing.GetAsync(clock.GetUtcNow(), 0, publication, UsTreasuryCurve.ConversionPolicy, stoppingToken).ConfigureAwait(false);
+                    var warmed = await marketData.WarmTreasuryPricingAsync(stoppingToken).ConfigureAwait(false);
                     // A response first observed after the frozen valuation is usable on the next valuation.
                     if (warmed.Error == "TreasuryStale")
-                        warmed = await pricing.GetAsync(clock.GetUtcNow(), 0, publication, UsTreasuryCurve.ConversionPolicy, stoppingToken).ConfigureAwait(false);
+                        warmed = await marketData.WarmTreasuryPricingAsync(stoppingToken).ConfigureAwait(false);
                     if (!warmed.Succeeded)
                         logger.LogWarning("{Component}.{Method} "+"Official Treasury pricing warm-up is unavailable: {Reason}.",nameof(UsTreasuryRefreshHostedService),nameof(ExecuteAsync),warmed.Error);
                     else if (submitted.RejectedSubmissions == 0)

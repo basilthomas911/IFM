@@ -55,14 +55,13 @@ public sealed class CompositionDiscoveryHandoffTests
                 count == 0 ? DurableAuthorityStatus.Terminal : DurableAuthorityStatus.Active, "CommittedActive", selected.ContractIds.Select(id => new DurableSubscriptionLease(Guid.NewGuid(), 1,
                     SubscriptionLeasePurpose.Strategy, new("Databento", "GLBX.MDP3", id, "mbp-1", SubscriptionAssetKind.FuturesOption, "ES-future", planId))).ToArray())]));
         var preparations = Substitute.For<ICompositionPreparationStore>(); preparations.ReadAsync(key, default).Returns(prepared);
-        var market = Substitute.For<ICompositionMarketDataApi>(); market.ReleaseAsync("GLBX.MDP3", prepared.DiscoveryLease!, default).Returns(new WorkerOptionChainResult(true, null));
-        var runtime = Substitute.For<IDurableCompositionReconciler>();
-        runtime.ReconcileOnceAsync(default).Returns(new DurableRealization(1, replaced ? Guid.NewGuid() : generation, ready));
-        var handoff = new CompositionDiscoveryHandoff(journal, intent, preparations, market, runtime);
+        var market = Substitute.For<IMarketDataApi>(); market.ReleaseCompositionAsync("GLBX.MDP3", prepared.DiscoveryLease!, default).Returns(new WorkerOptionChainResult(true, null));
+        market.ReconcileCommittedSubscriptionsAsync(default).Returns(new DurableRealization(1, replaced ? Guid.NewGuid() : generation, ready));
+        var handoff = new CompositionDiscoveryHandoff(journal, intent, preparations, market);
         await handoff.CompletePendingAsync(default);
         await journal.Received(ready ? 1 : 0).CompleteHandoffAsync(99, default);
-        await market.Received(ready && !replaced ? 1 : 0).ReleaseAsync("GLBX.MDP3", prepared.DiscoveryLease!, default);
-        await market.DidNotReceiveWithAnyArgs().CaptureAsync(default!, default!, default);
+        await market.Received(ready && !replaced ? 1 : 0).ReleaseCompositionAsync("GLBX.MDP3", prepared.DiscoveryLease!, default);
+        await market.DidNotReceiveWithAnyArgs().CaptureCompositionAsync(default!, default!, default);
         await preparations.DidNotReceiveWithAnyArgs().CommitAsync(default!, default);
     }
 }

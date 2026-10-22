@@ -484,14 +484,14 @@ impl TradeWorkspace {
             let mut net=number(&history_row,"netSpread").or_else(||number(&trade,"openingValue"));
             if realtime.is_object(){net=number(&realtime["summary"],"netSpread");}
             else if let Some(marks)=position["legs"].as_array(){let qty=marks.iter().filter_map(|l|number(l,"signedQuantity")).map(f64::abs).reduce(f64::min).unwrap_or_default();if qty>0.{net=Some(marks.iter().map(|l|number(l,"currentPrice").unwrap_or_default()*number(l,"signedQuantity").unwrap_or_default()).sum::<f64>()/qty);}}
-            let daily=number(&detail,"dailyPnl").or_else(||number(&history_row,"tradePnl"));
+            let trade_pnl=number(&detail,"tradePnl");
             let asset=if realtime.is_object(){formatted(&realtime["summary"],"underlyingPrice")}else{formatted(&detail,"underlyingPrice")};
             let summary_y=graph_h+6.;
             let top_fields=[("Value Date:",formatted(&history_row,"valueDate"),BLACK),
                 ("Trade Status:",if let Some(message)=s.result.context.get("monitorStatus").filter(|message| !message.is_empty()){message.clone()}else if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
                 ("DTE:",formatted(&history_row,"daysToExpiry"),BLACK),
                 ("Net Spread:",net.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
-                ("Daily P&L:",daily.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
+                ("Trade P&L:",trade_pnl.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
                 ("Asset Price:",asset,BLACK),
                 ("Fwd Loss:",number(&detail,"forwardLossRatio").map(|n|format!("{:.1}%",n*100.)).unwrap_or_else(||"N/A".into()),severity(&detail))];
             // Full-width proportional header, with the same caption/value weights as tableLayoutPanel1.

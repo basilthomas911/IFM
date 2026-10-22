@@ -4,12 +4,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.MarketData.Pricing;
 
 using Serilog;
 
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 internal static class Program
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Process entry point reports a redacted fatal exception and returns a failure exit code.")]
@@ -100,7 +100,9 @@ async Task<int> RunWorkerAsync()
         SingleWriter = true,
         FullMode = BoundedChannelFullMode.Wait
     });
+    long commandStarted = 0;
     var commandReader = ReadCommandsAsync();
+    var healthReader = ReadHealthAsync();
     try
     {
         while (!stopping.IsCancellationRequested)
@@ -121,8 +123,22 @@ async Task<int> RunWorkerAsync()
                 return 6;
             }
 
+            Volatile.Write(ref commandStarted, Environment.TickCount64);
             switch (command.Kind)
             {
+                case DatasetWorkerMessageKind.MarketDataApiCall:
+                    try
+                    {
+                        var result = await datasetRuntime!.InvokeMarketDataApiAsync(command.ApiCall!, stopping.Token).ConfigureAwait(false);
+                        await WriteAsync(DatasetWorkerMessageKind.MarketDataApiResult, datasetRuntime.IsHealthy,
+                            "Market-data API operation completed.", command.CorrelationId, apiResult: result).ConfigureAwait(false);
+                    }
+                    catch (Exception apiFailure) when (!stopping.IsCancellationRequested)
+                    {
+                        await WriteAsync(DatasetWorkerMessageKind.MarketDataApiResult, datasetRuntime?.IsHealthy == true,
+                            "Market-data API operation failed.", command.CorrelationId, apiError: DatasetWorkerLogging.Redact(apiFailure.Message)).ConfigureAwait(false);
+                    }
+                    break;
                 case DatasetWorkerMessageKind.AcquireOptionChain:
                 case DatasetWorkerMessageKind.ReleaseOptionChain:
                 case DatasetWorkerMessageKind.ApplyOptionChainOwnership:
@@ -218,6 +234,7 @@ async Task<int> RunWorkerAsync()
                         $"Unsupported command {command.Kind}.", command.CorrelationId)).ConfigureAwait(false);
                     return 6;
             }
+            Volatile.Write(ref commandStarted, 0);
         }
     }
     catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Normal worker stop. */ }
@@ -225,11 +242,53 @@ async Task<int> RunWorkerAsync()
     finally
     {
         await (stopping.CancelAsync()).ConfigureAwait(false);
-        try { await (commandReader).ConfigureAwait(false); }
+        try { await Task.WhenAll(commandReader, healthReader).ConfigureAwait(false); }
         finally { await (StopRuntimeAsync()).ConfigureAwait(false); }
     }
 
     return 0;
+
+    async Task ReadHealthAsync()
+    {
+        var healthInIndex = Array.IndexOf(args, "--health-in");
+        var healthOutIndex = Array.IndexOf(args, "--health-out");
+        if (healthInIndex < 0 || healthOutIndex < 0) return; // Older standalone qualification callers.
+        using var healthIn = new AnonymousPipeClientStream(PipeDirection.In, args[healthInIndex + 1]);
+        using var healthOut = new AnonymousPipeClientStream(PipeDirection.Out, args[healthOutIndex + 1]);
+        long received = 0, sent = 0;
+        try
+        {
+            while (!stopping.IsCancellationRequested)
+            {
+                var request = await DatasetWorkerFrameCodec.ReadAsync(healthIn, 4 * 1024 * 1024, stopping.Token).ConfigureAwait(false);
+                if (request.Kind != DatasetWorkerMessageKind.HealthSnapshot || request.WorkerInstanceId != worker.WorkerInstanceId
+                    || request.Dataset != worker.Dataset || request.ValueDate != worker.ValueDate
+                    || request.BootstrapToken != bootstrapToken || request.Sequence <= received)
+                    throw new InvalidDataException("Independent health request identity does not match.");
+                received = request.Sequence;
+                var runtime = datasetRuntime;
+                var diagnostics = runtime?.GetDiagnostics();
+                var currentGeneration = generation;
+                var started = Volatile.Read(ref commandStarted);
+                var stalled = started != 0 && Environment.TickCount64 - started >= 120_000;
+                await DatasetWorkerFrameCodec.WriteAsync(healthOut, new()
+                {
+                    Kind = DatasetWorkerMessageKind.HealthSnapshot, WorkerInstanceId = worker.WorkerInstanceId,
+                    Dataset = worker.Dataset, ValueDate = worker.ValueDate, GenerationId = currentGeneration,
+                    CorrelationId = request.CorrelationId, Sequence = ++sent, BootstrapToken = bootstrapToken,
+                    ProcessId = Environment.ProcessId, Healthy = runtime?.IsHealthy == true && diagnostics?.Operational == true && !stalled,
+                    Detail = stalled ? "Business control stalled" : "Independent dataset health", ManifestRevision = currentManifest?.Revision ?? 0,
+                    ManifestFingerprint = currentManifest?.Fingerprint ?? string.Empty,
+                    Diagnostics = diagnostics?.GenerationId == currentGeneration ? diagnostics : null
+                }, 4 * 1024 * 1024, stopping.Token).ConfigureAwait(false);
+            }
+        }
+        catch (Exception error) when (error is IOException or OperationCanceledException or InvalidDataException)
+        {
+            if (!stopping.IsCancellationRequested)
+                Log.Warning("Independent dataset health channel closed: {Failure}", DatasetWorkerLogging.Redact(error.Message));
+        }
+    }
 
     async Task ReadCommandsAsync()
     {
@@ -316,8 +375,6 @@ async Task<int> RunWorkerAsync()
 
     async Task StopRuntimeAsync()
     {
-        if (pipePublisher is not null)
-            await (pipePublisher.CloseAsync(CancellationToken.None)).ConfigureAwait(false);
         if (datasetRuntime is not null)
         {
             await (datasetRuntime.DisposeAsync()).ConfigureAwait(false);
@@ -325,6 +382,9 @@ async Task<int> RunWorkerAsync()
         }
         if (pipePublisher is not null)
         {
+            // Producers may flush durable option evidence while stopping. Keep the
+            // publication/receipt path alive until producer shutdown has finished.
+            await pipePublisher.CloseAsync(CancellationToken.None).ConfigureAwait(false);
             await (pipePublisher.DisposeAsync()).ConfigureAwait(false);
             pipePublisher = null;
         }
@@ -336,7 +396,7 @@ async Task<int> RunWorkerAsync()
         string detail,
         Guid correlationId,
         WorkerOptionChainResult? chainResult = null,
-        CompositionSnapshotResult? compositionResult = null)
+        CompositionSnapshotResult? compositionResult = null, byte[]? apiResult = null, string? apiError = null)
     {
         // A failed reconstruction may own an unaccepted epoch while the control identity
         // still names its predecessor. Do not attach cross-generation diagnostics.
@@ -359,6 +419,8 @@ async Task<int> RunWorkerAsync()
             Diagnostics = diagnostics,
             OptionChainResult = chainResult,
             CompositionResult = compositionResult,
+            ApiResult = apiResult,
+            ApiError = apiError,
             BootstrapToken = bootstrapToken
         }, 4 * 1024 * 1024, stopping.Token)).ConfigureAwait(false);
     }

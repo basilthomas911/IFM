@@ -117,6 +117,7 @@ public abstract class BaseEventProjector<TActor>(
     async ValueTask<EventProjectorDeliveryResult> ProcessDomainEventWithOutcomeAsync(IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
+        if (ShouldDiscardProjection(domainEvent)) return EventProjectorDeliveryResult.Completed;
         if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
         {
             if (_reliabilityOptions.FencedExecutionEnabled)
@@ -347,6 +348,7 @@ public abstract class BaseEventProjector<TActor>(
         ArgumentNullException.ThrowIfNull(domainEvents);
         foreach (var domainEvent in domainEvents)
         {
+            if (ShouldDiscardProjection(domainEvent)) continue;
             if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
                 throw new InvalidOperationException(
                     $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{ProjectorName}'.");
@@ -413,7 +415,7 @@ public abstract class BaseEventProjector<TActor>(
         if (eventLog is null)
             return false;
         var domainEvent = eventLog.ToDomainEvent();
-        if (domainEvent is UnknownEvent
+        if (ShouldDiscardProjection(domainEvent) || domainEvent is UnknownEvent
             || !GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
             || !descriptor.UseDurableReplay)
             return false;
@@ -434,6 +436,8 @@ public abstract class BaseEventProjector<TActor>(
 
     async Task<EventProjectorDeliveryResult> ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
+        // A retired disposable payload is acknowledged without applying history or publishing live effects.
+        if (ShouldDiscardProjection(domainEvent)) return EventProjectorDeliveryResult.Completed;
         if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
             && !descriptor.UseDurableReplay)
         {
@@ -901,6 +905,7 @@ public abstract class BaseEventProjector<TActor>(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var domainEvent = eventLog.ToDomainEvent();
+            if (ShouldDiscardProjection(domainEvent)) continue;
             if (domainEvent is UnknownEvent)
             {
                 var failedState = CreateInitialState(eventLog.EventVersion) with
@@ -953,7 +958,8 @@ public abstract class BaseEventProjector<TActor>(
             DurableReplayQueue,
             BlackboardService,
             _reliabilityOptions,
-            Logger);
+            Logger,
+            ShouldDiscardProjection);
 
     EventProjectorExecutionEngine ExecutionEngine
     {
@@ -1059,6 +1065,9 @@ public abstract class BaseEventProjector<TActor>(
     /// <param name="domainEvent">The committed event being considered for publication.</param>
     /// <returns>True to publish the event through its existing delivery contract.</returns>
     protected virtual bool ShouldPublishProjectionEvent(IEvent domainEvent) => true;
+
+    /// <summary>Excludes disposable observations from admission, persisted recovery and old queue deliveries.</summary>
+    protected virtual bool ShouldDiscardProjection(IEvent domainEvent) => false;
 
     async ValueTask PublishProjectionEventAsync(IEvent domainEvent, CancellationToken cancellationToken)
     {

@@ -731,6 +731,29 @@ public sealed class TradeFlowStateMachineTests
     }
 
     [Fact]
+    public void Current_quotes_restore_the_same_valuation_without_replaying_dropped_market_marks()
+    {
+        var trade = Fixture.Trade(); var positionId = Guid.NewGuid();
+        var uninterrupted = new StrategyPositionActorStateMachine();
+        var missed = new StrategyPositionActorStateMachine();
+        uninterrupted.Open(trade, positionId, Now); missed.Open(trade, positionId, Now);
+        for (var i = 0; i < 100; i++)
+            foreach (var leg in trade.Legs)
+                uninterrupted.UpdateLeg(leg.TradeLegId, 1m + i / 100m, i + 1, Now.AddSeconds(i + 1), 1).Accepted.Should().BeTrue();
+        for (var i = 0; i < trade.Legs.Length; i++)
+        {
+            var leg = trade.Legs[i]; var price = 2.25m + i * .25m;
+            uninterrupted.UpdateLeg(leg.TradeLegId, price, 101, Now.AddSeconds(101), 1).Accepted.Should().BeTrue();
+            missed.UpdateLeg(leg.TradeLegId, price, 101, Now.AddSeconds(101), 1).Accepted.Should().BeTrue();
+        }
+        missed.Current!.Legs.Should().BeEquivalentTo(uninterrupted.Current!.Legs);
+        missed.Current.MarketValue.Should().Be(uninterrupted.Current.MarketValue);
+        missed.Current.UnrealizedPnl.Should().Be(uninterrupted.Current.UnrealizedPnl);
+        missed.Current.RealizedPnl.Should().Be(uninterrupted.Current.RealizedPnl);
+        missed.Current.DailyPnl.Should().Be(uninterrupted.Current.DailyPnl);
+    }
+
+    [Fact]
     public void Stale_route_and_duplicate_tick_are_expected_rejections_without_exceptions()
     {
         var trade = Fixture.Trade() with { StrategyKind = TradeStrategyKind.FuturesOutright };

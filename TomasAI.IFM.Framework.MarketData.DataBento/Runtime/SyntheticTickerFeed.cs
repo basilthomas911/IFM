@@ -6,6 +6,24 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 {
+    // Native live timestamps already use Unix UTC. Only the synthetic generator uses the monotonic clock.
+    internal static void NormalizeSyntheticTimestamps(ref MarketRecord64 record, FeedDataSourceMode source,
+        bool useUtcTimestamps, long syntheticUtcOffset)
+    {
+        if (source != FeedDataSourceMode.Synthetic || !useUtcTimestamps) return;
+        var header = record.Header;
+        System.Runtime.CompilerServices.Unsafe.As<MarketRecord64, MarketRecordHeader32>(ref record) = new(
+            header.InstrumentId, header.PublisherId, header.RecordKind, header.Flags,
+            checked(header.EventTimestampNanoseconds + syntheticUtcOffset),
+            checked(header.ReceiveTimestampNanoseconds + syntheticUtcOffset), header.Sequence, header.SourceSchema);
+        if (header.RecordKind == MarketRecordKind.Trade && record.Trade.TimestampOutNanoseconds > 0)
+            System.Runtime.CompilerServices.Unsafe.AsRef(in record.Trade.TimestampOutNanoseconds)
+                = checked(record.Trade.TimestampOutNanoseconds + syntheticUtcOffset);
+        if (header.RecordKind == MarketRecordKind.Statistics && record.Statistics.ReferenceTimestampNanoseconds > 0)
+            System.Runtime.CompilerServices.Unsafe.AsRef(in record.Statistics.ReferenceTimestampNanoseconds)
+                = checked(record.Statistics.ReferenceTimestampNanoseconds + syntheticUtcOffset);
+    }
+
     private sealed class ChannelState
     {
         internal required InstrumentKey Instrument { get; init; }
@@ -17,6 +35,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 
     private readonly System.Threading.Lock _lifecycleGate = new();
     private readonly DatabentoFeedOptions _options;
+    private readonly long _syntheticUtcOffset;
     private readonly bool _singleChannel;
     private readonly ManualResetEventSlim _drainAllocated = new(false);
     private readonly ManualResetEventSlim _drainStart = new(false);
@@ -81,6 +100,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     internal SyntheticTickerFeed(DatabentoFeedOptions options, bool singleChannel = false)
     {
         _options = options;
+        _syntheticUtcOffset = checked((DateTimeOffset.UtcNow.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100
+            - (long)((Int128)Stopwatch.GetTimestamp() * 1_000_000_000 / Stopwatch.Frequency));
         _singleChannel = singleChannel;
         _isStopping = IsStopping;
         _managedObservedProcessors = options.ProcessorResidency.EnableTracking
@@ -959,6 +980,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 for (var index = 0u; index < batch.RecordsRead; index++)
                 {
                     var record = _readBuffer[index];
+                    NormalizeSyntheticTimestamps(ref record, _options.DataSource,
+                        _options.Synthetic.UseUtcTimestamps, _syntheticUtcOffset);
                     Volatile.Write(ref _currentNativeReadRecordIndex, checked((int)index));
                     Volatile.Write(ref _currentRecordKind, (int)record.Header.RecordKind);
                     Volatile.Write(ref _currentRecordPublisherId, record.Header.PublisherId);

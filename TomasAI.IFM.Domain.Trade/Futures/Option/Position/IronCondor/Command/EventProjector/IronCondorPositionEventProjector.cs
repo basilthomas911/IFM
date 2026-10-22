@@ -29,6 +29,11 @@ public sealed class IronCondorPositionEventProjector : ConventionalEventProjecto
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
     public override IReadOnlyCollection<Type> ProjectedEventTypes => [typeof(IronCondorPositionChangedEvent), typeof(IronCondorMonitoringInitializedEvent), typeof(IronCondorTradePlanUpdatedEvent)];
 
+    /// <summary>Current marks are delivered directly and their PostgreSQL history is committed with the source event.
+    /// Replaying a stale mark cannot improve the current position; the next quote recomputes it.</summary>
+    protected override bool ShouldDiscardProjection(TomasAI.IFM.Shared.EventSourcing.IEvent domainEvent)
+        => IronCondorPositionProjectionPolicy.IsDisposableMark(domainEvent);
+
     /// <inheritdoc/>
     protected override bool ShouldPublishProjectionEvent(TomasAI.IFM.Shared.EventSourcing.IEvent domainEvent)
         => domainEvent is not IronCondorTradePlanUpdatedEvent plan || plan.Plan.MaterialChange;

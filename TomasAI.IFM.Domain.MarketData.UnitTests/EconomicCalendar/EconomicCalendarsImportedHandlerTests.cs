@@ -129,15 +129,16 @@ public sealed class EconomicCalendarsImportedHandlerTests
             Arg.Any<EconomicCalendarsImportedFailEvent>());
     }
 
-    static (IReferenceDataApi Api, IEconomicCalendar Calendar, IDbContextFactory Factory,
+    static (IMarketDataApi Api, IEconomicCalendar Calendar, IDbContextFactory Factory,
         IMarketDataDbContext Db, IEventActorContext Context) Dependencies()
     {
-        var api = Substitute.For<IReferenceDataApi>();
+        var api = Substitute.For<IMarketDataApi>();
         var calendar = Substitute.For<IEconomicCalendar>();
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         var context = Substitute.For<IEventActorContext>();
-        api.EconomicCalendar.Returns(calendar);
+        api.ReadEconomicCalendarAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<string[]?>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await calendar.GetAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<string[]?>(2)?.ToHashSet(StringComparer.OrdinalIgnoreCase), call.ArgAt<CancellationToken>(3))).ToArray());
         dbFactory.MarketDataDb.Returns(db);
         db.InsertEconomicCalendarsAsync(
                 Arg.Any<EconomicCalendarReadModel[]>(),

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -45,12 +46,16 @@ public sealed class MarketDataFeedStatusUIEventConsumer(
     }
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
+        [new ActorMailboxId(ActorType.Event, ScheduledTaskRunStageRecordedCompleteEvent.Actor)] =
+        [ScheduledTaskRunStageRecordedCompleteEvent.Verb],
         [new ActorMailboxId(ActorType.Event, MarketDataFeedStartedCompleteEvent.Actor)] =
         [
             MarketDataFeedStartedCompleteEvent.Verb,
             MarketDataFeedStartedFailEvent.Verb,
             MarketDataFeedStoppedCompleteEvent.Verb,
-            MarketDataFeedStoppedFailEvent.Verb
+            MarketDataFeedStoppedFailEvent.Verb,
+            MarketDataDatasetRecoveryFailedEvent.Verb,
+            OptionMarketDataFeedFailedEvent.Verb
         ]
     };
 
@@ -65,6 +70,12 @@ public sealed class MarketDataFeedStatusUIEventConsumer(
             {
                 IEvent? @event = verb switch
                 {
+                    ScheduledTaskRunStageRecordedCompleteEvent.Verb
+                        => message.AsEvent<ScheduledTaskRunStageRecordedCompleteEvent>(),
+                    MarketDataDatasetRecoveryFailedEvent.Verb
+                        => message.AsEvent<MarketDataDatasetRecoveryFailedEvent>(),
+                    OptionMarketDataFeedFailedEvent.Verb
+                        => message.AsEvent<OptionMarketDataFeedFailedEvent>(),
                     MarketDataFeedStartedCompleteEvent.Verb
                         => message.AsEvent<MarketDataFeedStartedCompleteEvent>(),
                     MarketDataFeedStartedFailEvent.Verb

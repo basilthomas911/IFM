@@ -157,6 +157,14 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
     /// <summary>Forgets a retired worker lease locally without contacting that worker.</summary>
     public void ForgetLease(Guid leaseId) => registrations.TryRemove(leaseId, out _);
 
+    /// <summary>Transfers existing qualified refresh ownership to leases restored by the same Host lifetime.</summary>
+    public void AdoptRestoredLeases(IReadOnlyList<WorkerOptionChainRequest> restored)
+    {
+        foreach (var lease in restored)
+            if (registrations.TryGetValue(lease.LeaseId, out var previous) && previous.Lease.ScopeId == lease.ScopeId)
+                registrations.TryUpdate(lease.LeaseId, previous with { Lease = lease, CheckedAtUtc = clock.GetUtcNow() }, previous);
+    }
+
     /// <summary>Reports whether automatic maintenance still owns an unexpired lease.</summary>
     public bool IsLeaseCurrent(Guid leaseId) => registrations.TryGetValue(leaseId, out var registration)
         && registration.Lease.LeaseExpiresAtUtc > clock.GetUtcNow();

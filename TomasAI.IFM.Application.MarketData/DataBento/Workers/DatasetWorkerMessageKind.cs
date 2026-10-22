@@ -30,5 +30,7 @@ public enum DatasetWorkerMessageKind : byte
     OptionChainResult = 19,
     CaptureCompositionSnapshot = 20,
     CompositionSnapshotResult = 21,
-    ApplyOptionChainOwnership = 22
+    ApplyOptionChainOwnership = 22,
+    MarketDataApiCall = 23,
+    MarketDataApiResult = 24
 }

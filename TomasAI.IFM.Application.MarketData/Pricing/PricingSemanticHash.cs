@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
 using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -11,9 +13,13 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 public static class PricingSemanticHash
 {
     static readonly JsonSerializerOptions Options = CreateOptions();
+    static readonly ConditionalWeakTable<OptionPricingContext, string> ContextDigests = new();
 
     /// <summary>Streams canonical typed properties into SHA-256 without a JSON document or complete output buffer.</summary>
-    public static string Compute<T>(T value)
+    public static string Compute<T>(T value) => value is OptionPricingContext context
+        ? ContextDigests.GetValue(context, static item => ComputeCore(item)) : ComputeCore(value);
+
+    static string ComputeCore<T>(T value)
     {
         using var output = new HashBufferWriter();
         using (var writer = new Utf8JsonWriter(output))

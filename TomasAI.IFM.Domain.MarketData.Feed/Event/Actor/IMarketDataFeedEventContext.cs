@@ -19,7 +19,7 @@ public interface IMarketDataFeedEventContext : IEventActorContext<MarketDataFeed
     /// <summary>Gets the actor logger.</summary>
     ILogger<MarketDataFeedEventActor> Logger { get; }
     /// <summary>Gets the sole lifecycle-owner request boundary.</summary>
-    IMarketDataLifecycleRequests MarketDataLifecycle { get; }
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
     /// <summary>Gets the OptionTradeLiveFeedMap service.</summary>
     IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; }
     /// <summary>Gets the BlackboardService service.</summary>

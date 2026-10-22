@@ -49,7 +49,7 @@ try {
         if (!$BundleId -or !$env:DATABENTO_API_KEY) { throw 'Live qualification requires an exact published BundleId and DATABENTO_API_KEY.' }
         $env:IFM_OCP_LIVE = '1'; $env:IFM_OCP_BUNDLE_ID = $BundleId
         $env:IFM_OCP_EVIDENCE_DIRECTORY = $resultsDirectory; $env:IFM_OCP_SOAK_SECONDS = "$SoakSeconds"
-        $env:IFM_OCP_WORKER_ASSEMBLY = Join-Path $repositoryRoot "TomasAI.IFM.Application.MarketData.Worker/${output}Debug/net10.0/TomasAI.IFM.Application.MarketData.Worker.dll"
+        $env:IFM_OCP_WORKER_ASSEMBLY = Join-Path $repositoryRoot "TomasAI.IFM.Application.MarketData.Host.Worker/${output}Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll"
         Test-Prerequisite 'TomasAI.IFM.Domain.Trade.IntegratedTests/TomasAI.IFM.Domain.Trade.IntegratedTests.csproj' `
             'FullyQualifiedName~Published_reference_live_worker' 'live-pricing-recovery'
     }

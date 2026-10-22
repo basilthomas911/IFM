@@ -89,7 +89,8 @@ public sealed class DownloadLogBddTests
     [InlineData("notification-failed")]
     public async Task Given_an_import_when_processing_ends_then_counts_and_delivery_failures_have_distinct_meanings(string scenario)
     {
-        var api = Substitute.For<IReferenceDataApi>(); var provider = Substitute.For<ITreasuryCurve>(); api.TreasuryCurve.Returns(provider);
+        var api = Substitute.For<IMarketDataApi>(); var provider = Substitute.For<ITreasuryCurve>(); api.ReadTreasuryCurvesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (await provider.GetRangeAsync(call.ArgAt<DateOnly>(0), call.ArgAt<DateOnly>(1), call.ArgAt<CancellationToken>(2))).ToArray());
         var factory = Substitute.For<IDbContextFactory>(); var db = Substitute.For<IMarketDataDbContext>(); factory.MarketDataDb.Returns(db);
         var context = Substitute.For<IEventActorContext>(); var date = new DateOnly(2026, 9, 5);
         provider.GetRangeAsync(date, date, Arg.Any<CancellationToken>()).Returns(scenario == "provider-failed"

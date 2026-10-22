@@ -100,19 +100,9 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task Databento_queries_return_immutable_readiness_contracts_and_history_without_polling_native()
     {
         var valueDate = new DateOnly(2026, 9, 2);
-        var lifecycle = Substitute.For<IMarketDataLifecycleRequests>();
-        lifecycle.Current.Returns(new DatabentoLifecycleSnapshot
-        {
-            State = DatabentoLifecycleState.Healthy,
-            StateRevision = 3,
-            ValueDate = valueDate,
-            CorrelationId = Guid.NewGuid(),
-            NativeGeneration = Guid.NewGuid(),
-            RecoveryAttempt = 0,
-            Reason = "ready",
-            ChangedOnUtc = DateTime.UtcNow,
-            LastObservation = Observation(valueDate)
-        });
+        var lifecycle = Substitute.For<ApplicationMarketDataApi>();
+        lifecycle.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new TomasAI.IFM.Application.MarketData.Contracts.MarketDataBackendStatus(true, valueDate,
+            [new("Futures", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 1, true, true, "Healthy", null, valueDate)]));
         var store = Substitute.For<IMarketDataServiceStore>();
         store.ListAssignmentsAsync(Arg.Any<CancellationToken>()).Returns([
             Assignment(DatabentoContractRole.EsQuarterly, "ES"),
@@ -121,7 +111,7 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         store.ListObservationsAsync(valueDate, null, 25, Arg.Any<CancellationToken>())
             .Returns([Observation(valueDate)]);
         var context = Substitute.For<IMarketDataFeedQueryContext>();
-        context.MarketDataApi.Returns(Substitute.For<ApplicationMarketDataApi>());
+        context.MarketDataApi.Returns(lifecycle);
         context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
         context.SequenceIdGenerator.Returns(Substitute.For<ISequenceIdGenerator>());
         context.MarketDataLifecycle.Returns(lifecycle);
@@ -150,12 +140,32 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
         await actor.InvokeReceiveAsync(context, history);
 
         await context.Received(1).ReplyAsync(readiness.Subject.ThreadId, GetDatabentoReadinessQuery.Verb,
-            Arg.Is<ServiceResult<DatabentoReadinessReadModel>>(result => result.Success && result.Value!.CoreReady));
+            Arg.Is<ServiceResult<DatabentoReadinessReadModel>>(result => result.Success && result.Value!.CoreReady && result.Value.State == "Healthy" && result.Value.DisplayHealth == "Green"));
         await context.Received(1).ReplyAsync(contracts.Subject.ThreadId, GetDatabentoCurrentContractsQuery.Verb,
             Arg.Is<ServiceResult<DatabentoContractAssignmentReadModel[]>>(result => result.Value!.Length == 3));
         await context.Received(1).ReplyAsync(history.Subject.ThreadId, GetDatabentoWatchdogHistoryQuery.Verb,
             Arg.Is<ServiceResult<DatabentoWatchdogObservationReadModel[]>>(result => result.Value!.Length == 1));
-        await lifecycle.DidNotReceive().ProbeAsync(Arg.Any<CancellationToken>());
+        await lifecycle.Received(1).GetBackendStatusAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("Healthy", true, "Healthy", "Green")]
+    [InlineData("Recovering", true, "Resetting", "Orange")]
+    [InlineData("Starting", false, "Starting", "Orange")]
+    [InlineData("Degraded", true, "Degraded", "Yellow")]
+    [InlineData("StoppedError", false, "Failed", "Red")]
+    [InlineData("Stopped", false, "ScheduledStopped", "Inactive")]
+    public void Host_readiness_preserves_UI_lifecycle_and_health_contract(
+        string lifecycle, bool running, string expectedState, string expectedHealth)
+    {
+        var date = new DateOnly(2026, 10, 21);
+        var backend = new TomasAI.IFM.Application.MarketData.Contracts.MarketDataBackendStatus(true, date,
+            [new("Futures", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 1, running, lifecycle == "Healthy", lifecycle, null, date),
+             new("Options", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 2, false, false, "StoppedError", "Option-only failure", date)]);
+        var result = TomasAI.IFM.Domain.MarketData.Feed.Query.Model.DatabentoQueryModel.MapReadiness(backend);
+        result.State.Should().Be(expectedState);
+        result.DisplayHealth.Should().Be(expectedHealth);
+        result.CoreReady.Should().Be(lifecycle == "Healthy");
     }
 
     static FuturesRolloverContractAssignment Assignment(DatabentoContractRole role, string id) => new()

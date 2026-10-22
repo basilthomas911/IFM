@@ -13,7 +13,8 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
         var symbol = Environment.GetEnvironmentVariable("IFM_DATABENTO_QUALIFICATION_FUTURE")!;
         var options = DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.Development, "GLBX.MDP3")
             with
-        { DataSource = FeedDataSourceMode.DatabentoLive };
+        { DataSource = FeedDataSourceMode.DatabentoLive,
+            Synthetic = new SyntheticFeedOptions { UseUtcTimestamps = true } };
         using var feed = new DatabentoFeedFactory().CreateTickerFeed(options);
         feed.Subscribe([new TickerSubscription(symbol, DatabentoInputSymbology.RawSymbol,
             MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume)],
@@ -31,7 +32,12 @@ public sealed class DatabentoCompositionLiveTests(ITestOutputHelper output)
                 using (batch)
                     for (var index = 0; index < batch!.Count; index++)
                     {
-                        if (batch.Records[index].Header.RecordKind == MarketRecordKind.Quote) quotes++;
+                        if (batch.Records[index].Header.RecordKind == MarketRecordKind.Quote)
+                        {
+                            Fresh(batch.Records[index].Header.EventTimestampNanoseconds);
+                            Fresh(batch.Records[index].Header.ReceiveTimestampNanoseconds);
+                            quotes++;
+                        }
                         if (batch.Records[index].Header.RecordKind == MarketRecordKind.Trade) trades++;
                     }
             }

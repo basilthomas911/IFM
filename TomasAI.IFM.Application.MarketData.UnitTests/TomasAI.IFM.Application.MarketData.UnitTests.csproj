@@ -17,8 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData.Host\TomasAI.IFM.Application.MarketData.Host.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData.Worker\TomasAI.IFM.Application.MarketData.Worker.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData.Host.Worker\TomasAI.IFM.Application.MarketData.Host.Worker.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.MarketData.QualificationHost\TomasAI.IFM.Application.MarketData.QualificationHost.csproj" />
   </ItemGroup>
 

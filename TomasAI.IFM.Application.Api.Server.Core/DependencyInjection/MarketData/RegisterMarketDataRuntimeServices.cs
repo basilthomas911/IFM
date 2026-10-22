@@ -44,7 +44,7 @@ using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -151,6 +151,11 @@ public static partial class CoreServiceRegistration
 {
     static void RegisterMarketDataRuntimeServices(IServiceCollection services, ConfigurationManager config, Microsoft.Extensions.Logging.ILogger logger, IHostEnvironment? hostEnvironment, Container siContainer, bool focusedActorIntegration)
     {
+        if (config.GetValue("MarketDataHost:Enabled", true))
+        {
+            RegisterRemoteMarketDataRuntimeServices(services, config);
+            return;
+        }
         logger.LogInformationEvent("ApiServer","{Component}.{Method} "+"register hosted services...",nameof(CoreServiceRegistration),nameof(RegisterHostedServices));
         services.AddSingleton<IStatusConsoleWriter, StatusConsoleWriter>();
         services.AddSingleton<IAzureStorageOptions>(sp => config.GetSection("AzureStorage").Get<AzureStorageOptions>()!);
@@ -370,6 +375,7 @@ public static partial class CoreServiceRegistration
             provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>());
         services.AddHostedService(provider => provider.GetRequiredService<TomasAI.IFM.Domain.MarketData.Analytics.OptionVolatility.LiveOptionChainIvCollector>());
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>();
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.ICommittedOptionOwnership>(provider => provider.GetRequiredService<DatasetWorkerProcessRecoveryService>());
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Subscriptions.IDurableCompositionReconciler>(provider =>
         provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>());
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model.CompositionDiscoveryHandoff>();

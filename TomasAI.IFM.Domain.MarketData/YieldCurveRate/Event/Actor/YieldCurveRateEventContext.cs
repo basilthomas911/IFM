@@ -11,14 +11,14 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event.Actor;
 public sealed class YieldCurveRateEventContext : EventActorContext, IYieldCurveRateEventContext
 {
     /// <summary>Initializes the context.</summary>
-    public YieldCurveRateEventContext(IActorSupervisor supervisor, IReferenceDataApi referenceDataApi,
+    public YieldCurveRateEventContext(IActorSupervisor supervisor, IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory, ILogger<YieldCurveRateEventActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Event, YieldCurveRateEventActor.Actor))
-    { Supervisor = IsArgumentNull.Set(supervisor); ReferenceDataApi = IsArgumentNull.Set(referenceDataApi); DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
+    { Supervisor = IsArgumentNull.Set(supervisor); MarketDataApi = IsArgumentNull.Set(marketDataApi); DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
     /// <inheritdoc/>
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
-    public IReferenceDataApi ReferenceDataApi { get; }
+    public IMarketDataApi MarketDataApi { get; }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>

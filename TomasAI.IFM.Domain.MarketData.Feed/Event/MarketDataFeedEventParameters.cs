@@ -13,14 +13,14 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
 
 public record MarketDataFeedEventParameters
 {
-    public IMarketDataLifecycleRequests MarketDataLifecycle { get; init; }
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; init; }
     public IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; init; }
     public IBlackboardService BlackboardService { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter { get; init; }
     public ILogger Logger { get; init; }
 
     public MarketDataFeedEventParameters(
-        IMarketDataLifecycleRequests marketDataLifecycle,
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter,

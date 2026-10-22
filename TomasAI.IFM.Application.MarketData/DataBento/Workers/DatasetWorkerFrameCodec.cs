@@ -1,29 +1,48 @@
+using System.Runtime.CompilerServices;
 using System.Buffers;
 using System.Buffers.Binary;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 
 public static class DatasetWorkerFrameCodec
 {
-    public static async ValueTask WriteAsync(
-        Stream stream,
-        DatasetWorkerControlFrame frame,
-        int maximumBytes,
-        CancellationToken cancellationToken)
+    sealed class Connection
+    {
+        public WorkerPricingContextCodec Writer { get; } = new();
+        public WorkerPricingContextCodec Reader { get; } = new();
+    }
+    static readonly ConditionalWeakTable<Stream, Connection> Connections = new();
+
+    /// <summary>Reports a connection whose framing or context dictionary can no longer be reused.</summary>
+    public static bool IsFaulted(Stream? stream) => stream is not null && Connections.TryGetValue(stream, out var state)
+        && (state.Reader.Faulted || state.Writer.Faulted);
+
+    public static ValueTask WriteAsync(Stream stream, DatasetWorkerControlFrame frame,
+        int maximumBytes, CancellationToken cancellationToken)
+        => WriteAsync(stream, frame, maximumBytes, cancellationToken, ArrayPool<byte>.Shared);
+
+    internal static async ValueTask WriteAsync(Stream stream, DatasetWorkerControlFrame frame,
+        int maximumBytes, CancellationToken cancellationToken, ArrayPool<byte> pool)
     {
         ArgumentNullException.ThrowIfNull(stream);
         Validate(frame);
-        var payload = MessagePackSerializer.Serialize(frame, MessagePackBinarySerializer.ContentOptions,cancellationToken:cancellationToken);
-        if (payload.Length > maximumBytes)
-            throw new InvalidDataException($"Worker control frame exceeds {maximumBytes} bytes.");
-        var prefix = new byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(prefix, payload.Length);
-        await stream.WriteAsync(prefix, cancellationToken).ConfigureAwait(false);
-        await stream.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
-        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        var codec = Connections.GetValue(stream, static _ => new()).Writer;
+        await codec.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (codec.Faulted) throw new InvalidDataException("Worker pipe write failed previously; reconnect before sending another frame.");
+            using var buffer = new PooledFrameBuffer(pool);
+            MessagePackSerializer.Serialize(buffer, frame, codec.Options, cancellationToken);
+            if (buffer.PayloadLength > maximumBytes)
+                throw new InvalidDataException($"Worker control frame exceeds {maximumBytes} bytes.");
+            BinaryPrimitives.WriteInt32LittleEndian(buffer.WrittenMemory.Span, buffer.PayloadLength);
+            await stream.WriteAsync(buffer.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch { codec.Faulted = true; throw; }
+        finally { codec.Gate.Release(); }
     }
 
     public static async ValueTask<DatasetWorkerControlFrame> ReadAsync(
@@ -38,26 +57,34 @@ public static class DatasetWorkerFrameCodec
         Stream stream, int maximumBytes, CancellationToken cancellationToken, ArrayPool<byte> pool)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        var prefix = new byte[sizeof(int)];
-        await stream.ReadExactlyAsync(prefix, cancellationToken).ConfigureAwait(false);
-        var length = BinaryPrimitives.ReadInt32LittleEndian(prefix);
-        if (length is < 2 || length > maximumBytes)
-            throw new InvalidDataException($"Worker control frame length {length} is invalid.");
-        var payload = pool.Rent(length);
+        var codec = Connections.GetValue(stream, static _ => new()).Reader;
+        await codec.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await stream.ReadExactlyAsync(payload.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
-            var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload.AsMemory(0, length),
-                MessagePackBinarySerializer.ContentOptions.WithSecurity(MessagePackSecurity.UntrustedData), cancellationToken: cancellationToken)
-                ?? throw new InvalidDataException("Worker control frame is empty.");
-            Validate(frame);
-            return frame;
+            if (codec.Faulted) throw new InvalidDataException("Worker pipe read failed previously; reconnect before reading another frame.");
+            var prefix = new byte[sizeof(int)];
+            await stream.ReadExactlyAsync(prefix, cancellationToken).ConfigureAwait(false);
+            var length = BinaryPrimitives.ReadInt32LittleEndian(prefix);
+            if (length is < 2 || length > maximumBytes)
+                throw new InvalidDataException($"Worker control frame length {length} is invalid.");
+            var payload = pool.Rent(length);
+            try
+            {
+                await stream.ReadExactlyAsync(payload.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+                var frame = MessagePackSerializer.Deserialize<DatasetWorkerControlFrame>(payload.AsMemory(0, length),
+                    codec.Options, cancellationToken: cancellationToken)
+                    ?? throw new InvalidDataException("Worker control frame is empty.");
+                Validate(frame);
+                return frame;
+            }
+            finally
+            {
+                // Frames contain a bootstrap token. Clear rented storage before sharing it with another reader.
+                pool.Return(payload, clearArray: true);
+            }
         }
-        finally
-        {
-            // Frames contain a bootstrap token. Clear rented storage before sharing it with another reader.
-            pool.Return(payload, clearArray: true);
-        }
+        catch { codec.Faulted = true; throw; }
+        finally { codec.Gate.Release(); }
     }
 
     static void Validate(DatasetWorkerControlFrame frame)

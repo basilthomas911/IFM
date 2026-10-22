@@ -19,13 +19,12 @@ public sealed class SessionAnalyticsInitializationTests
     public async Task Each_market_session_activates_its_own_consumers_and_duplicate_starts_reuse_warm_values()
     {
         var commands = Substitute.For<IMarketDataAnalyticsCommandApi>();
-        var authority = Substitute.For<IDatabentoContractAuthority>();
+        var market = Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>();
         var cache = Substitute.For<IMarketOutlookHotCache>();
-        authority.ReconcileAsync(Arg.Any<DateOnly>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<FuturesRolloverContractAssignment>>([
-                Assignment(DatabentoContractRole.EsQuarterly, "ES"),
-                Assignment(DatabentoContractRole.VxFrontMonth, "VX"),
-                Assignment(DatabentoContractRole.VxSecondMonth, "VX")]));
+        market.PrepareSessionAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(new[] {
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel("ES-SESSION-TEST", "ES", "ES", "ES", "FUT", "USD", "CME", "50", new(2026,12,18), true),
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel("VX-FRONT", "VX", "VX", "VX", "FUT", "USD", "CFE", "1000", new(2026,12,18), true),
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel("VX-SECOND", "VX", "VX", "VX", "FUT", "USD", "CFE", "1000", new(2027,1,18), false) }));
         var ready = true;
         cache.TryGetInputs(Arg.Any<MarketOutlookEntityId>(), out Arg.Any<MarketOutlookInputState>()).Returns(call => {
             var id = call.Arg<MarketOutlookEntityId>(); call[1] = Warm(id); return ready;
@@ -42,8 +41,8 @@ public sealed class SessionAnalyticsInitializationTests
         commands.StartFuturesMacdSignalAsync(Arg.Any<FuturesMacdSignalEntityId>()).Returns(call => {
             FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(call.Arg<FuturesMacdSignalEntityId>()); return Accepted();
         });
-        var initializer = new ApiApplicationStartupActivities(null!, authority, null!, null!, null!, null!, commands,
-            null!, null!, null!, null!, null!, cache, new(), new(), new() { ParticipantTimeout = TimeSpan.FromMilliseconds(30) },
+        var initializer = new ApiApplicationStartupActivities(null!, null!, null!, null!, commands,
+            null!, null!, market, null!, null!, cache, new(), new(), new() { ParticipantTimeout = TimeSpan.FromMilliseconds(30) },
             TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
         var first = new DateOnly(2026, 10, 19); var next = first.AddDays(1);
         try

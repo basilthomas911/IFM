@@ -13,7 +13,7 @@ public interface IEconomicCalendarEventContext : IEventActorContext<EconomicCale
     /// <summary>Gets the supervisor.</summary>
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the reference-data API.</summary>
-    IReferenceDataApi ReferenceDataApi { get; }
+    IMarketDataApi MarketDataApi { get; }
     /// <summary>Gets the database factory.</summary>
     IDbContextFactory DbFactory { get; }
     /// <summary>Gets the actor logger.</summary>

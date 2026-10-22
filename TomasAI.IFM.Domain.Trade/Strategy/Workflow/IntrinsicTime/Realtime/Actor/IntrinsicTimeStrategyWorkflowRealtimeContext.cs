@@ -20,7 +20,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext : EventActorCon
     public IPortfolioFundCommandApi PortfolioCommands => Container.Resolve<IPortfolioFundCommandApi>();
     public IPortfolioOrderCompositionApi PortfolioOrderComposition => Container.Resolve<IPortfolioOrderCompositionApi>();
     public Application.MarketData.Pricing.ICompositionPreparationStore CompositionPreparations => Container.Resolve<Application.MarketData.Pricing.ICompositionPreparationStore>();
-    public Application.MarketData.Pricing.CompositionMarketPreparation CompositionMarketPreparation => Container.Resolve<Application.MarketData.Pricing.CompositionMarketPreparation>();
     public Domain.MarketData.Shared.IValueDateProvider ValueDateProvider => Container.Resolve<Domain.MarketData.Shared.IValueDateProvider>();
     public Application.MarketData.Contracts.IMarketDataApi MarketDataApi => Container.Resolve<Application.MarketData.Contracts.IMarketDataApi>();
 

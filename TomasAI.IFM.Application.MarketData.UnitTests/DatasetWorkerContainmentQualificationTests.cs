@@ -5,7 +5,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.QualificationHost;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -20,6 +20,49 @@ public sealed class DatasetContainmentQualificationCollection;
 public sealed class DatasetWorkerContainmentQualificationTests(ITestOutputHelper output)
 {
     static readonly DateOnly ValueDate = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(DateTimeOffset.UtcNow);
+
+    [Fact(Timeout = 20000)]
+    public async Task Recovery_deadline_overrides_start_and_command_timers_then_normal_commands_restore_their_timeout()
+    {
+        var request = Request(helper: true);
+        request = request with { PrefixArguments = [.. request.PrefixArguments, "--reset-delay-ms", "3500", "--health-delay-ms", "350"] };
+        await using var owner = new DatasetWorkerProcessSupervisor(Options() with
+        { WorkerStartTimeout = TimeSpan.FromSeconds(3), WorkerCommandTimeout = TimeSpan.FromMilliseconds(100) });
+        var before = await owner.StartAsync(request);
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var timer = Stopwatch.StartNew();
+        var reset = await owner.RunWithRecoveryDeadlineAsync(budget.Token, async token =>
+        {
+            var response = await owner.ResetAsync(request.Manifest!, token);
+            Assert.True((await owner.GetHealthAsync(token)).Healthy);
+            return response;
+        });
+        Assert.True(reset.Healthy);
+        Assert.NotEqual(before.GenerationId, reset.GenerationId);
+        Assert.True(timer.Elapsed > TimeSpan.FromSeconds(3));
+        // Scope completion must not disable the timeout for the next normal command.
+        await Assert.ThrowsAsync<TimeoutException>(() => owner.GetHealthAsync());
+        await owner.TerminateAsync();
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task Recovery_stages_share_remaining_time_and_cannot_each_start_a_new_budget()
+    {
+        var request = Request(helper: true);
+        request = request with { PrefixArguments = [.. request.PrefixArguments, "--reset-delay-ms", "300", "--health-delay-ms", "400"] };
+        await using var owner = new DatasetWorkerProcessSupervisor(Options());
+        await owner.StartAsync(request);
+        using var budget = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        var timer = Stopwatch.StartNew();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => owner.RunWithRecoveryDeadlineAsync(budget.Token, async token =>
+        {
+            await owner.ResetAsync(request.Manifest!, token);
+            return await owner.GetHealthAsync(token);
+        }));
+        Assert.InRange(timer.Elapsed.TotalMilliseconds, 400, 2500);
+        await owner.TerminateAsync();
+        Assert.False(owner.Current.Running);
+    }
 
     [Fact]
     public void Default_worker_start_deadline_contains_catalog_retries_feed_start_and_protocol_margin()

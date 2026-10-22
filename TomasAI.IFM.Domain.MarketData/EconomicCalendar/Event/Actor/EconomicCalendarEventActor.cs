@@ -23,7 +23,7 @@ public class EconomicCalendarEventActor(
     readonly IReadOnlyDictionary<Type, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>>()
     {
         [typeof(EconomicCalendarsImportedEvent)] = (@event, context) =>
-            ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, context.ReferenceDataApi, context.DbFactory, context.Logger),
+            ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, context.MarketDataApi, context.DbFactory, context.Logger),
         [typeof(EconomicCalendarsImportedCompleteEvent)] = (@event, context) =>
             ((EconomicCalendarsImportedCompleteEvent)@event).ExecuteAsync(context, context.Logger),
         [typeof(EconomicCalendarsImportedFailEvent)] = (@event, context) =>

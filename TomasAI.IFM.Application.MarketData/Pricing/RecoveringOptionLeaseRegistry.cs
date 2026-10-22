@@ -113,6 +113,23 @@ public sealed class RecoveringOptionLeaseRegistry(
         riskReader?.Register(lease);
     }
 
+    /// <summary>Adopts Host-restored leases before new-generation admission, preserving desired monitoring ownership.</summary>
+    public async Task AdoptRestoredLeasesAsync(IReadOnlyList<WorkerOptionChainRequest> restored, CancellationToken token)
+    {
+        await serial.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            foreach (var registration in registrations.Values)
+            {
+                var lease = restored.FirstOrDefault(lease => lease.LeaseId == registration.Request.LeaseId);
+                if (lease is null) continue;
+                registration.Lease = lease;
+                riskReader?.Register(lease);
+            }
+        }
+        finally { serial.Release(); }
+    }
+
     void Forget(WorkerOptionChainRequest lease)
     {
         discovery.ForgetLease(lease.LeaseId);

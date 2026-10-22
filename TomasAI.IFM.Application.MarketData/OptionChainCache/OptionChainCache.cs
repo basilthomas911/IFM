@@ -20,6 +20,11 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
     readonly DatasetWorkerAdmissionRegistry? admissions;
     readonly System.Threading.Lock lifecycle = new();
     Guid admittedGeneration;
+    readonly Dictionary<string, OptionChainPublication> publications = new(StringComparer.Ordinal);
+    public event Action<OptionChainPublication>? Published;
+    public OptionChainPublication[] Export()
+    { lock (lifecycle) return publications.Values.Where(x => x.Snapshot.ValidUntilUtc > clock.GetUtcNow()).ToArray(); }
+
 
     /// <summary>Creates a bounded cache with an injectable clock for deterministic freshness verification.</summary>
     public OptionChainCache(TimeProvider? time = null, int maximumScopes = 128, DatasetWorkerAdmissionRegistry? admissions = null)
@@ -36,7 +41,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         lock (lifecycle)
         {
             if (admissions is not null && (!admissions.TryGet("GLBX.MDP3", out var current) || current.GenerationId != generation)) return;
-            store.Admit(generation); admittedGeneration = generation;
+            store.Admit(generation); if (admittedGeneration != generation) publications.Clear(); admittedGeneration = generation;
         }
     }
 
@@ -46,9 +51,9 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
         {
             if (admissions!.TryGet("GLBX.MDP3", out var current))
             {
-                if (admittedGeneration != current.GenerationId) { store.Admit(current.GenerationId); admittedGeneration = current.GenerationId; }
+                if (admittedGeneration != current.GenerationId) { store.Admit(current.GenerationId); publications.Clear(); admittedGeneration = current.GenerationId; }
             }
-            else { store.Fence(admittedGeneration); admittedGeneration = Guid.Empty; }
+            else { store.Fence(admittedGeneration); publications.Clear(); admittedGeneration = Guid.Empty; }
         }
     }
 
@@ -56,7 +61,7 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
     public void Dispose()
     {
         if (admissions is not null) admissions.Changed -= AdmissionChanged;
-        lock (lifecycle) { store.Fence(admittedGeneration); admittedGeneration = Guid.Empty; }
+        lock (lifecycle) { store.Fence(admittedGeneration); publications.Clear(); admittedGeneration = Guid.Empty; }
     }
 
     /// <inheritdoc />
@@ -71,9 +76,11 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
             snapshot.ValidUntilUtc <= clock.GetUtcNow() ? "SnapshotExpired" : "");
     }
     /// <inheritdoc />
-    public void Retire(Guid generation, string lookupScope) => store.Remove(generation, lookupScope);
+    public void Retire(Guid generation, string lookupScope)
+    { lock (lifecycle) { store.Remove(generation, lookupScope); if (generation == admittedGeneration) publications.Remove(lookupScope); } }
     /// <inheritdoc />
-    public void Fence(Guid generation) => store.Fence(generation);
+    public void Fence(Guid generation)
+    { lock (lifecycle) { store.Fence(generation); if (generation == admittedGeneration) { publications.Clear(); admittedGeneration = Guid.Empty; } } }
 
     /// <inheritdoc />
     public bool Publish(MarketCompositionSnapshot snapshot, DateOnly valueDate, string configurationDigest, long version, string? lookupScope = null)
@@ -102,7 +109,20 @@ public sealed class OptionChainCache : IOptionChainCache, IOptionChainSnapshotPu
             new(version, clock.GetUtcNow(), new(snapshot, valueDate, configurationDigest,
                 snapshot.Instruments.ToFrozenDictionary(x => x.Instrument.ContractId, StringComparer.Ordinal), policy)));
         OptionChainCacheTelemetry.Publications.Add(1, new KeyValuePair<string, object?>("accepted", applied));
-        if (applied) OptionChainCacheTelemetry.PublicationAge.Record((clock.GetUtcNow() - snapshot.EvaluatedAtUtc).TotalMilliseconds);
+        if (applied)
+        {
+            var publication = new OptionChainPublication(snapshot, valueDate, configurationDigest, version, lookupScope ?? snapshot.ScopeId);
+            lock (lifecycle)
+            {
+                if (admittedGeneration == snapshot.GenerationId)
+                {
+                    if (!publications.TryGetValue(publication.LookupScope, out var prior) || prior.Version < version)
+                        publications[publication.LookupScope] = publication;
+                    Published?.Invoke(publication);
+                }
+            }
+            OptionChainCacheTelemetry.PublicationAge.Record((clock.GetUtcNow() - snapshot.EvaluatedAtUtc).TotalMilliseconds);
+        }
         return applied;
     }
 

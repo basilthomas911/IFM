@@ -4,6 +4,28 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 
 public sealed class SyntheticTickerFeedTests
 {
+    [Theory]
+    [InlineData(FeedDataSourceMode.DatabentoLive, true, false)]
+    [InlineData(FeedDataSourceMode.DatabentoLive, false, false)]
+    [InlineData(FeedDataSourceMode.Synthetic, true, true)]
+    [InlineData(FeedDataSourceMode.Synthetic, false, false)]
+    public void Timestamp_normalization_preserves_live_provider_UTC_and_only_translates_synthetic_clock(
+        FeedDataSourceMode source, bool useUtc, bool translated)
+    {
+        const long offset = 1_700_000_000_000_000_000;
+        var timestamp = source == FeedDataSourceMode.DatabentoLive
+            ? (DateTimeOffset.UtcNow.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100 : 123456789L;
+        var record = new MarketRecord64(new QuoteRecord64(
+            new MarketRecordHeader32(10252, 1, MarketRecordKind.Quote, 0, timestamp, timestamp + 100, 42),
+            7794000000000, 7794250000000, 10, 11, 1, 1));
+        SyntheticTickerFeed.NormalizeSyntheticTimestamps(ref record, source, useUtc, offset);
+        Assert.Equal(timestamp + (translated ? offset : 0), record.Header.EventTimestampNanoseconds);
+        Assert.Equal(timestamp + 100 + (translated ? offset : 0), record.Header.ReceiveTimestampNanoseconds);
+        Assert.Equal(42u, record.Header.Sequence);
+        Assert.Equal(7794000000000, record.Quote.BidPrice);
+        Assert.Equal(7794250000000, record.Quote.AskPrice);
+    }
+
     [Fact]
     public void IdenticalSubscriptionsCoalesceAndConflictingSubscriptionsFail()
     {

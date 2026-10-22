@@ -4,7 +4,7 @@ using Serilog.Events;
 using Serilog.Formatting.Json;
 using TomasAI.IFM.Framework.Telemetry.Logging;
 
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 
 /// <summary>Configures bounded worker file and collector logging without logging credentials.</summary>
 internal static class DatasetWorkerLogging
@@ -22,14 +22,14 @@ internal static class DatasetWorkerLogging
             .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
             .MinimumLevel.Override("System", LogEventLevel.Warning)
             .Enrich.FromLogContext().Enrich.WithProperty("ProcessId", Environment.ProcessId)
-            .Enrich.WithProperty("Service", "TomasAI.IFM.Application.MarketData.Worker")
+            .Enrich.WithProperty("Service", "TomasAI.IFM.Application.MarketData.Host.Worker")
             .WriteTo.Console(formatProvider: System.Globalization.CultureInfo.InvariantCulture, standardErrorFromLevel: LogEventLevel.Verbose)
             .WriteTo.Async(sink => sink.File(new JsonFormatter(renderMessage: true, formatProvider: System.Globalization.CultureInfo.InvariantCulture),
                 Path.Combine(AppContext.BaseDirectory, "Logs", "ifm-dataset-worker-.log"),
                 rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7, shared: true),
                 bufferSize: 4096, blockWhenFull: false, monitor: new AsyncLogBufferMonitor());
         if (!string.Equals(configuration["Telemetry:Logs:Enabled"], "false", StringComparison.OrdinalIgnoreCase))
-            logger.WriteTo.Sink(new OtlpStructuredLogSink(configuration, "TomasAI.IFM.Application.MarketData.Worker"));
+            logger.WriteTo.Sink(new OtlpStructuredLogSink(configuration, "TomasAI.IFM.Application.MarketData.Host.Worker"));
         return logger.CreateLogger();
     }
 

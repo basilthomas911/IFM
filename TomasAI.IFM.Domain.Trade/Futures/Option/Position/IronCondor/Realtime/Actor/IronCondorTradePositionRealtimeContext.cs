@@ -12,12 +12,12 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.A
 public sealed class IronCondorTradePositionRealtimeContext : EventActorContext, IIronCondorTradePositionRealtimeContext
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S6672", Justification = "This typed context adapts services for its actor and intentionally retains the actor logger category.")]
-    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, IndividualOptionRiskReader? optionRisk = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
+    public IronCondorTradePositionRealtimeContext(IActorSupervisor supervisor, ILogger<IronCondorTradePositionRealtimeActor> logger, IDbContextFactory? databases = null, IFinancialQueryStore? financialQueries = null, StrategyRiskParameterSetResolver? riskParameterSets = null, TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry? realtimeCache = null, TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? marketData = null) : base(supervisor, new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName))
     {
         Logger = logger;
         this.realtimeCache = realtimeCache;
         this.databases = databases;
-        inputReader = databases is null ? null : new(databases, logger, financialQueries, optionRisk, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
+        inputReader = databases is null ? null : new(databases, logger, financialQueries, stoppingToken: RealtimeGeneration.Token, publishInputChange: async (position, date, inputs, now) =>
         {
             await SendAsync<TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent, StrategyPositionId>(new() { Subject = new(ActorType.Realtime, IronCondorTradePositionRealtimeActor.ActorName, TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent.Verb, position.Id.Format()), Id = Guid.NewGuid(), EntityId = position.Id, PositionSnapshot = position, ValueDate = date, IronCondorTradePlanInputs = inputs, ReceivedOn = now, MonitoringGenerationId = RealtimeGeneration.Id }).ConfigureAwait(false);
         }, riskParameterSets: riskParameterSets, marketData: marketData);

@@ -22,7 +22,7 @@ public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataF
         ApplicationMarketDataApi marketDataApi,
         ISequenceIdGenerator sequenceIdGenerator,
         IMarketDataServiceStore marketDataServiceStore,
-        IMarketDataLifecycleRequests marketDataLifecycle)
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle)
         : base(supervisor, new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
@@ -43,5 +43,5 @@ public sealed class MarketDataFeedQueryContext : QueryActorContext, IMarketDataF
     /// <inheritdoc/>
     public ISequenceIdGenerator SequenceIdGenerator { get; }
     public IMarketDataServiceStore MarketDataServiceStore { get; }
-    public IMarketDataLifecycleRequests MarketDataLifecycle { get; }
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
 }

@@ -1,6 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 

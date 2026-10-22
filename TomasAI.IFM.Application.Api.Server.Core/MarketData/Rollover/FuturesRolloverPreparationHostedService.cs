@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.MarketData.Rollover;
 /// logged and retried without faulting the API host.
 /// </summary>
 public sealed class FuturesRolloverPreparationHostedService(
-    IFuturesContractRolloverStartupCheck rolloverCheck,
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataApi,
     IFuturesExchangeBusinessCalendar calendar,
     IStatusConsoleWriter statusConsoleWriter,
     TimeProvider timeProvider,
@@ -60,7 +60,7 @@ public sealed class FuturesRolloverPreparationHostedService(
             || _completedTarget == target)
             return;
 
-        await rolloverCheck.ExecuteAsync(target, cancellationToken).ConfigureAwait(false);
+        await marketDataApi.PrepareSessionAsync(target, cancellationToken).ConfigureAwait(false);
         _completedTarget = target;
         logger.LogInformation(
             "{Component}.{Method} "+"Futures rollover preparation qualified for effective value date {ValueDate}.",nameof(FuturesRolloverPreparationHostedService),nameof(EvaluateAsync),            target);

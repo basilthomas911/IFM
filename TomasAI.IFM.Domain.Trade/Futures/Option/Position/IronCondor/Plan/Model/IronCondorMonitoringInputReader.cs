@@ -108,7 +108,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                     }
 
                     var owned = trade is not null && (position.Legs.All(leg => leg.OptionTick is not null)
-                        || captureOptionRisk is not null || optionRisk?.HasScopes(trade.Legs.Select(leg => leg.ContractId), date) == true);
+                        || captureOptionRisk is not null || marketData is not null || optionRisk?.HasScopes(trade.Legs.Select(leg => leg.ContractId), date) == true);
                     IronCondorTradePlanInputs? inputs;
                     if (owned)
                         inputs = Capture(position, date, now);
@@ -327,9 +327,10 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
     /// <param name = "token">The refresh deadline.</param><returns>Coherent qualified evidence or an empty unavailable result.</returns>
     async Task<MarketCompositionSnapshot[]> ReadOptionRiskAsync(TradeLegDefinition[] legs, DateOnly valueDate, CancellationToken token)
     {
-        if (optionRisk is null)
-            return[];
-        var snapshots = await Task.WhenAll(legs.Select(leg => optionRisk.CaptureAsync(leg.ContractId, valueDate, token))).ConfigureAwait(false);
+        if (marketData is null && optionRisk is null) return [];
+        var snapshots = await Task.WhenAll(legs.Select(leg => marketData is not null
+            ? marketData.CaptureOptionRiskAsync(leg.ContractId, valueDate, token)
+            : optionRisk!.CaptureAsync(leg.ContractId, valueDate, token))).ConfigureAwait(false);
         if (snapshots.Any(item => item is null))
             return[];
         var values = snapshots.Select(item => item!).ToArray();

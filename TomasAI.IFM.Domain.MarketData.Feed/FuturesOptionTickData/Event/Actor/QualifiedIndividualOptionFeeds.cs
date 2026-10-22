@@ -13,65 +13,14 @@ using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
-/// <summary>Owns individual qualified option leases without using the retired in-process epoch.</summary>
-public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery discovery,
-    DatasetWorkerAdmissionRegistry admissions, IDbContextFactory databases,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null, ILogger? logger = null) : IAsyncDisposable
+/// <summary>Actor adapter for Host-owned monitoring; no pricing or provider ownership runs in this actor.</summary>
+public sealed class QualifiedIndividualOptionFeeds(TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi api) : IAsyncDisposable
 {
-    readonly RecoveringOptionLeaseRegistry recovery = new(discovery, admissions, riskReader, logger);
-    readonly SemaphoreSlim serial = new(1, 1);
-
-    /// <summary>Stops admission-driven recovery when the owning actor shuts down.</summary>
-    public ValueTask DisposeAsync() => recovery.DisposeAsync();
-
-    /// <summary>Attaches one exact reviewed contract on a separate physical connection and requires worker acknowledgement.</summary>
-    /// <param name="owner">The independent actor/view owner.</param>
-    /// <param name="contract">The reviewed option definition.</param>
-    /// <param name="valueDate">The active exchange session.</param>
-    /// <returns>The observed acquisition operation.</returns>
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     public async Task AcquireAsync(TickerStreamOwner owner, FuturesOptionContractReadModel contract, DateOnly valueDate)
-    {
-        ArgumentNullException.ThrowIfNull(contract);
-        await serial.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            var candidate = CreateCandidate(contract);
-            if (contract.ReviewState != ReferenceReviewState.Reviewed)
-                throw new InvalidDataException("OptionMonitoring.REFERENCE.NOT_REVIEWED");
-            var securities = databases.SecuritiesDb;
-            if (await securities.GetReferenceVersionAsync(contract.ContractId, contract.MappingVersion!, CancellationToken.None)
-                .ConfigureAwait(false) is null)
-            {
-                var pending = await securities.StageReferenceVersionAsync(contract, CancellationToken.None).ConfigureAwait(false);
-                await securities.CommitReferenceVersionAsync(pending, CancellationToken.None).ConfigureAwait(false);
-            }
-            var maturity = candidate.Definition.MaturityDate;
-            var dates = await databases.MarketDataDb.GetTradingDatesAsync(valueDate, maturity,
-                MarketType.Futures, CurrencyType.USD, CancellationToken.None).ConfigureAwait(false);
-            var calendar = new OptionPricingCalendar(contract.CalendarVersion ?? "IFM-MarketDates",
-                contract.ExchangeTimeZoneId ?? "America/New_York", valueDate, maturity,
-                new TimeOnly(18, 0), dates.ToImmutableArray());
-            var request = new CompositionDiscoveryRequest(Guid.NewGuid(), Guid.Empty, valueDate,
-                maturity, DateTimeOffset.UtcNow.AddSeconds(60), [candidate], true, calendar, publication, conversion,
-                SeparateContractConnection: true);
-            recovery.Start();
-            await recovery.AcquireAsync(owner, contract.ContractId, request).ConfigureAwait(false);
-        }
-        finally { serial.Release(); }
-    }
-
-    /// <summary>Releases only the specified owner's lease; other owners of the same leg remain attached.</summary>
-    /// <param name="owner">The owner being released.</param>
-    /// <param name="contractId">The exact option contract.</param>
-    /// <returns>The worker release acknowledgement operation.</returns>
+        => _ = await api.AcquireMonitoredOptionAsync(owner, contract, valueDate).ConfigureAwait(false);
     public async Task ReleaseAsync(TickerStreamOwner owner, string contractId)
-    {
-        await recovery.ReleaseAsync(owner, contractId).ConfigureAwait(false);
-    }
-
-    /// <summary>Maps exact reviewed metadata; provider symbols and IDs remain inside pricing/transport boundaries.</summary>
-    /// <param name="value">The persisted security definition.</param>
-    /// <returns>The immutable native definition candidate.</returns>
+        => _ = await api.ReleaseMonitoredOptionAsync(owner, contractId).ConfigureAwait(false);
     internal static OptionDefinitionCandidate CreateCandidate(FuturesOptionContractReadModel value)
     {
         if (value.PublisherId is null || value.InstrumentId is null || value.ExpirationUtc is null

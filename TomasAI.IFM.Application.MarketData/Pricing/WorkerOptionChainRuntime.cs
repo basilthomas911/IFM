@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
@@ -143,7 +144,9 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
                     quote.EventAtUtc > at.AddMilliseconds(o.Pricing.MaximumSourceClockLeadMilliseconds)
                     || (at - quote.EventAtUtc).TotalMilliseconds > o.Pricing.MaximumQuoteAgeMilliseconds
                     || (at - quote.ReceivedAtUtc).TotalMilliseconds > o.Pricing.MaximumQuoteAgeMilliseconds))
-                return Failure("UnderlyingQuoteUnavailable");
+                return new(false, new("UnderlyingQuoteUnavailable", "Underlying", underlying!, quote is null
+                    ? "No current underlying quote is cached."
+                    : $"Underlying quote is invalid or stale; event age={(at - quote.EventAtUtc).TotalMilliseconds:F0}ms; receipt age={(at - quote.ReceivedAtUtc).TotalMilliseconds:F0}ms."));
             var routes = ordered.Select(o => new DatabentoOptionChainRoute
             {
                 FuturesOptionContractId = o.Pricing.Contract.ContractId,
@@ -244,40 +247,45 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
             if (request.GenerationId != generation || continuation is not null || !request.IncludeOptions
                 || !scopes.TryGetValue(request.ScopeId, out var scope)) throw new CompositionMarketSourceException("ChainUnavailable");
             await EnsureSessionAsync(scope, cancellationToken).ConfigureAwait(false);
-            var current = state.GetSession(scope.Key).ToDictionary(x => x.Route.FuturesOptionContractId, StringComparer.Ordinal);
-            if (current.Count != scope.Options.Length) throw new CompositionMarketSourceException("IncompleteChain");
-            var underlying = ReadUnderlying(scope.Key.FuturesContractId);
-            if (underlying is null && !request.AllowMissingOptionQuotes)
-                throw new CompositionMarketSourceException("UnderlyingQuoteUnavailable");
-            var values = ImmutableArray.CreateBuilder<CompositionMarketInstrument>(scope.Options.Length);
-            foreach (var option in scope.Options)
+            var current = ArrayPool<OptionChainContractState>.Shared.Rent(scope.Options.Length);
+            try
             {
-                var id = option.Pricing.Contract.ContractId;
-                if (!current.TryGetValue(id, out var item))
-                    throw new CompositionMarketSourceException("QuoteUnavailable");
-                if (request.SelectionOnly && !request.RiskContractIds.Contains(id, StringComparer.Ordinal))
+                if (!state.TryCopyContracts(scope.Key, scope.ContractIds, current.AsSpan(0, scope.Options.Length)))
+                    throw new CompositionMarketSourceException("IncompleteChain");
+                var underlying = ReadUnderlying(scope.Key.FuturesContractId);
+                if (underlying is null && !request.AllowMissingOptionQuotes)
+                    throw new CompositionMarketSourceException("UnderlyingQuoteUnavailable");
+                var values = ImmutableArray.CreateBuilder<CompositionMarketInstrument>(scope.Options.Length);
+                for (var index = 0; index < scope.Options.Length; index++)
                 {
-                    var selection = pricing.ReadSelection(id);
-                    if (selection is { Failure: null, Delta: not null, Iv: not null })
+                    var option = scope.Options[index];
+                    var id = option.Pricing.Contract.ContractId;
+                    var item = current[index];
+                    if (request.SelectionOnly && !request.RiskContractIds.Contains(id, StringComparer.Ordinal))
                     {
-                        values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
+                        var selection = pricing.ReadSelection(id);
+                        if (selection is { Failure: null, Delta: not null, Iv: not null })
                         {
-                            Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
-                            SessionVolume = item.SessionVolume,
-                            OpenInterest = item.OpenInterest,
-                            StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate
-                        });
-                        continue;
+                            values.Add(new(id, selection.Option, option.Pricing, option.Strike, option.IsCall, selection.Underlying)
+                            {
+                                Selection = OptionSelectionValue.From(selection, refreshPolicy.ImpliedVolatilityMilliseconds),
+                                SessionVolume = item.SessionVolume,
+                                OpenInterest = item.OpenInterest,
+                                StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate
+                            });
+                            continue;
+                        }
+                        if (!request.AllowMissingOptionQuotes)
+                            throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
                     }
-                    if (!request.AllowMissingOptionQuotes)
-                        throw new CompositionMarketSourceException(selection?.Failure?.Code ?? "SelectionCalculationPending");
+                    if (item.Quote is not { } && !request.AllowMissingOptionQuotes)
+                        throw new CompositionMarketSourceException("QuoteUnavailable");
+                    values.Add(new(id, item.Quote is { } quote ? Convert(quote.Tick) : null, option.Pricing, option.Strike, option.IsCall, underlying)
+                    { SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest, StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate });
                 }
-                if (item.Quote is not { } && !request.AllowMissingOptionQuotes)
-                    throw new CompositionMarketSourceException("QuoteUnavailable");
-                values.Add(new(id, item.Quote is { } quote ? Convert(quote.Tick) : null, option.Pricing, option.Strike, option.IsCall, underlying)
-                { SessionVolume = item.SessionVolume, OpenInterest = item.OpenInterest, StatisticsAtUtc = item.StatisticsAtUtc, VolumeValueDate = item.VolumeValueDate, OpenInterestValueDate = item.OpenInterestValueDate });
+                return new(scope.Digest, generation, values.Count, values.MoveToImmutable(), null);
             }
-            return new(scope.Digest, generation, values.Count, values.MoveToImmutable(), null);
+            finally { ArrayPool<OptionChainContractState>.Shared.Return(current, clearArray: true); }
         }
         finally { gate.Release(); }
     }
@@ -337,7 +345,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     // registered scope; do not release business owners or substitute a different contract set.
     async Task EnsureSessionAsync(Scope scope, CancellationToken token)
     {
-        if (state.GetSession(scope.Key).Count == scope.Options.Length) return;
+        if (state.GetCount(scope.Key) == scope.Options.Length) return;
         await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate,
             scope.Key.OptionContractId, scope.Key.ConnectionScopeId).ConfigureAwait(false);
         var routes = scope.Options.Select(option => new DatabentoOptionChainRoute
@@ -436,7 +444,13 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         public OptionChainSessionKey Key { get; } = key;
         public string Digest { get; set; } = digest;
         public ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics { get; init; }
-        public ImmutableArray<WorkerOptionDefinition> Options { get; set; } = options;
+        ImmutableArray<WorkerOptionDefinition> optionsValue = options;
+        public string[] ContractIds { get; private set; } = options.Select(x => x.Pricing.Contract.ContractId).ToArray();
+        public ImmutableArray<WorkerOptionDefinition> Options
+        {
+            get => optionsValue;
+            set { optionsValue = value; ContractIds = value.Select(x => x.Pricing.Contract.ContractId).ToArray(); }
+        }
         public Dictionary<Guid, DateTimeOffset> Leases { get; } = new() { [leaseId] = expires };
         public string? AuthorityScope { get; set; }
         public long OwnershipRevision { get; set; } = -1;

@@ -25,6 +25,24 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public class IFMAppViewModelTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dataset_recovery_failure_is_presented_as_a_visible_shell_error(bool options)
+    {
+        var viewModel = CreateSubject();
+        const string message = "Futures/GLBX.MDP3: Recovery deadline of 120.000s expired during reset/readiness.";
+        IEvent failed = options
+            ? new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.OptionMarketDataFeedFailedEvent { ErrorCode = 503, ErrorMessage = message }
+            : new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent { ErrorCode = 503, ErrorMessage = message };
+        await viewModel.ApplyMarketDataFeedStatusAsync(failed);
+        viewModel.LastError.Should().NotBeNull();
+        viewModel.LastError!.Message.Should().Be(message);
+        var sequence = viewModel.LastError.Sequence;
+        await viewModel.ApplyMarketDataFeedStatusAsync(failed);
+        viewModel.LastError.Sequence.Should().Be(sequence, "repeated status relay must not open duplicate recovery error notices");
+    }
+
+    [Theory]
     [InlineData(false, "Start Market Feeds")]
     [InlineData(true, "Stop Market Feeds")]
     public void MarketDataFeedActionText_ReflectsFeedLifecycle(

@@ -153,6 +153,26 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         }
     }
 
+    /// <inheritdoc />
+    public int GetCount(OptionChainSessionKey session)
+    {
+        lock (_sync) return _sessions.TryGetValue(session, out var contracts) ? contracts.Count : 0;
+    }
+
+    /// <inheritdoc />
+    public bool TryCopyContracts(OptionChainSessionKey session, IReadOnlyList<string> contractIds,
+        Span<OptionChainContractState> destination)
+    {
+        if (destination.Length < contractIds.Count) throw new ArgumentException("Destination is too small.", nameof(destination));
+        lock (_sync)
+        {
+            if (!_sessions.TryGetValue(session, out var contracts) || contracts.Count != contractIds.Count) return false;
+            for (var index = 0; index < contractIds.Count; index++)
+                if (!contracts.TryGetValue(contractIds[index], out destination[index])) return false;
+            return true;
+        }
+    }
+
     /// <summary>Retrieves the option-chain state for the specified session.</summary>
     /// <param name="session">The session.</param>
     /// <returns>The session result.</returns>

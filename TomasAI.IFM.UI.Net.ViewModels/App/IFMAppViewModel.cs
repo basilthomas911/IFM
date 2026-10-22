@@ -1890,26 +1890,47 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             model.OnError((errorCode, errorMessage) =>
                 _ = WriteStatusConsoleAsync(
                     $"Market Data Feed status listener error ({errorCode}): {errorMessage}"));
-            await model.StartMarketDataFeedStatusListenerAsync(@event =>
-            {
-                _marketDataFeedTerminalCorrelation.TryPublish(@event);
-                switch (@event)
-                {
-                    case MarketDataFeedStartedCompleteEvent:
-                        IsMarketDataFeedActive = true;
-                        ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
-                            _baseContracts.Select(contract => contract.ContractId),
-                            _timeProvider.GetUtcNow(),
-                            MarketState));
-                        break;
-                    case MarketDataFeedStoppedCompleteEvent:
-                        IsMarketDataFeedActive = false;
-                        ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Deactivate());
-                        break;
-                }
-                return ValueTask.CompletedTask;
-            });
+            await model.StartMarketDataFeedStatusListenerAsync(ApplyMarketDataFeedStatusAsync);
         });
+
+    readonly Dictionary<string, Guid> notifiedDatasetRecoveries = new(StringComparer.Ordinal);
+
+    bool ShouldNotifyRecovery(string dataset, Guid operationId)
+    {
+        if (notifiedDatasetRecoveries.TryGetValue(dataset, out var previous) && previous == operationId) return false;
+        notifiedDatasetRecoveries[dataset] = operationId;
+        return true;
+    }
+
+    /// <summary>Applies feed lifecycle updates and presents terminal dataset recovery errors to the UI.</summary>
+    public ValueTask ApplyMarketDataFeedStatusAsync(IEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        _marketDataFeedTerminalCorrelation.TryPublish(@event);
+        switch (@event)
+        {
+            case MarketDataDatasetRecoveryFailedEvent failed when ShouldNotifyRecovery(failed.Role + "/" + failed.Dataset, failed.CommandId):
+                PublishError(failed.ErrorCode, failed.ErrorMessage, "Market Data Recovery Failed");
+                _ = WriteStatusConsoleAsync(failed.ErrorMessage);
+                break;
+            case OptionMarketDataFeedFailedEvent failed when ShouldNotifyRecovery("Options/" + failed.Dataset, failed.CommandId):
+                PublishError(failed.ErrorCode, failed.ErrorMessage, "Option Feed Recovery Failed");
+                _ = WriteStatusConsoleAsync(failed.ErrorMessage);
+                break;
+            case MarketDataFeedStartedCompleteEvent:
+                IsMarketDataFeedActive = true;
+                ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
+                    _baseContracts.Select(contract => contract.ContractId),
+                    _timeProvider.GetUtcNow(),
+                    MarketState));
+                break;
+            case MarketDataFeedStoppedCompleteEvent:
+                IsMarketDataFeedActive = false;
+                ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Deactivate());
+                break;
+        }
+        return ValueTask.CompletedTask;
+    }
 
     Task StopMarketDataFeedStatusListener()
         => _appRoot.Services.FeedCommands.ExecuteAsync(

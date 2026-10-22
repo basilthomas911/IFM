@@ -39,8 +39,6 @@ public sealed class ParameterSignalStartupTests
             });
         var activities = new ApiApplicationStartupActivities(
             marketSessionAuthority: null!,
-            contractAuthority: null!,
-            rolloverCheck: null!,
             referenceImportCoordinator: imports,
             marketDataFeedCommandApi: null!,
             marketDataFeedQueryApi: null!,

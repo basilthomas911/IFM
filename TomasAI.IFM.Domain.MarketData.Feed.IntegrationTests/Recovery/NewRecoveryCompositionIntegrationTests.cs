@@ -41,7 +41,7 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Worker.dll")
+                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true"));
 
         var services = factory.Services;
@@ -63,7 +63,7 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Worker.dll")
+                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:OverallTimeout", "00:01:00")
             .UseSetting("MarketDataRecovery:HardRecovery:Runtime:QualificationTimeout", "00:00:12")
@@ -167,7 +167,7 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseSetting("AppSettings:Databento:DataSource", "Synthetic")
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Worker.dll")
+                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .UseSetting("MarketDataRecovery:HardRecovery:SoftGate:MaximumRounds", "1")
             .UseSetting("MarketDataRecovery:HardRecovery:CandidateProof:ProofTimeout", "00:00:12")
@@ -226,7 +226,7 @@ public sealed class NewRecoveryCompositionIntegrationTests
             .UseSetting("MarketDataRecovery:Stage3:Enabled", "true")
             .UseSetting("MarketDataRecovery:Stage3:AllowDevelopmentLiveQualification", "true")
             .UseSetting("MarketDataRecovery:Stage3:WorkerAssemblyPath",
-                "../../../../TomasAI.IFM.Application.MarketData.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Worker.dll")
+                "../../../../TomasAI.IFM.Application.MarketData.Host.Worker/bin/Debug/net10.0/TomasAI.IFM.Application.MarketData.Host.Worker.dll")
             .UseSetting("MarketDataRecovery:HardRecovery:Pipeline:Enabled", "true")
             .ConfigureTestServices(services =>
             {

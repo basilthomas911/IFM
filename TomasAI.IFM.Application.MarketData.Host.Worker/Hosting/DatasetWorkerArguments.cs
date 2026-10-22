@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 
 internal sealed record DatasetWorkerArguments(
     string ControlIn,
@@ -49,6 +49,7 @@ internal sealed record DatasetWorkerArguments(
             TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode.Synthetic);
         var synthetic = new TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions
         {
+            UseUtcTimestamps = dataSource == TomasAI.IFM.Framework.MarketData.DataBento.FeedDataSourceMode.Synthetic,
             RecordCount = ParseInt(map, "--synthetic-record-count", 1_000_000),
             RecordsPerSecond = ParseInt(map, "--synthetic-records-per-second", 100),
             StartSequence = ParseUlong(map, "--synthetic-start-sequence", 1)

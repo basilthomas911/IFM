@@ -139,7 +139,10 @@ public sealed class DevelopmentDatabaseReplacementPlatform(
         // Exact known repository executables only; the independent backup/cutover host is excluded.
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         { "IFMServerManager", "TomasAI.IFM.Application.Api.Server", "TomasAI.IFM.UI.Net",
-          "TomasAI.IFM.Application.ServerManager.SchedulerHost", "TomasAI.IFM.Application.MarketData.Worker" };
+          "TomasAI.IFM.Application.ServerManager.SchedulerHost", "TomasAI.IFM.Application.MarketData.Host",
+          "TomasAI.IFM.Application.MarketData.Host.Worker", "TomasAI.IFM.Application.MarketData.Host.Worker.Futures-GLBX.MDP3",
+          "TomasAI.IFM.Application.MarketData.Host.Worker.Futures-XCBF.PITCH",
+          "TomasAI.IFM.Application.MarketData.Host.Worker.Options-GLBX.MDP3" };
         foreach (var process in Process.GetProcesses())
         {
             using (process)

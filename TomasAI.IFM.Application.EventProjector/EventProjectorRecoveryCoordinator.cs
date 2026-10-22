@@ -17,7 +17,8 @@ public sealed class EventProjectorRecoveryCoordinator(
     IDurableReplayQueue durableQueue,
     IBlackboardService blackboard,
     EventProjectorReliabilityOptions options,
-    ILogger logger)
+    ILogger logger,
+    Func<IEvent, bool>? shouldDiscardProjection = null)
 {
     readonly IEventSourceActorDbContext _eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
     readonly IDurableReplayQueue _durableQueue = durableQueue ?? throw new ArgumentNullException(nameof(durableQueue));
@@ -81,6 +82,7 @@ public sealed class EventProjectorRecoveryCoordinator(
                     {
                         token.ThrowIfCancellationRequested();
                         var domainEvent = item.EventLog.ToDomainEvent();
+                        if (shouldDiscardProjection?.Invoke(domainEvent) == true) continue;
                         if (domainEvent is UnknownEvent)
                         {
                             var executionToken = Guid.NewGuid();

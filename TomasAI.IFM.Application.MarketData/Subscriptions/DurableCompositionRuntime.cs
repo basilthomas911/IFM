@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Application.MarketData.Subscriptions;
 public sealed class DurableCompositionRuntime(IDurableSubscriptionIntentStore store,
     ICompositionRoutePlanStore plans, DurableSubscriptionDelivery delivery,
     DatasetWorkerAdmissionRegistry admissions, DatasetDesiredSubscriptionRegistry desired,
-    DatasetWorkerProcessRecoveryService workers, QualifiedCompositionDiscovery discovery,
+    ICommittedOptionOwnership workers, QualifiedCompositionDiscovery discovery,
     ILogger<DurableCompositionRuntime> logger, TimeProvider? time = null, string authorityScope = "IFM") : BackgroundService, IDurableCompositionReconciler
 {
     readonly string Scope = !string.IsNullOrWhiteSpace(authorityScope) && authorityScope.Length <= 128

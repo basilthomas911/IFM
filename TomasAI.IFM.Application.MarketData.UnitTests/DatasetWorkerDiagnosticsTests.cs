@@ -3,7 +3,7 @@ using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
-using TomasAI.IFM.Application.MarketData.Worker;
+using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -151,7 +151,9 @@ public sealed class DatasetWorkerDiagnosticsTests
         var started = await supervisor.StartAsync(new()
         {
             ExecutablePath = DotNetHost(),
-            PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+            PrefixArguments = [Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY") is { Length: > 0 } testHost
+                ? Path.Combine(testHost, "Workers", "TomasAI.IFM.Application.MarketData.Host.Worker.dll")
+                : typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
             Dataset = "GLBX.MDP3",
             ValueDate = new(2026, 9, 4),
             WorkerInstanceId = Guid.NewGuid(),

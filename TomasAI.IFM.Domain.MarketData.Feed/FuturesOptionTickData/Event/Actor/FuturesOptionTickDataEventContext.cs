@@ -24,17 +24,10 @@ public sealed class FuturesOptionTickDataEventContext : EventActorContext, IFutu
         IActorSupervisor supervisor,
         ILogger<FuturesOptionTickDataEventActor> logger,
         ApplicationMarketDataApi marketDataApi,
-        IStatusConsoleWriter statusConsoleWriter,
-        QualifiedCompositionDiscovery? discovery = null,
-        DatasetWorkerAdmissionRegistry? admissions = null,
-        IDbContextFactory? databases = null,
-        TreasuryPublicationPolicy? publication = null,
-        TreasuryRateConversionPolicy? conversion = null, IndividualOptionRiskReader? riskReader = null)
+        IStatusConsoleWriter statusConsoleWriter)
         : base(supervisor, new ActorMailboxId(ActorType.Event, FuturesOptionTickDataEventActor.Actor))
     {
-        QualifiedFeeds = discovery is not null && admissions is not null && databases is not null
-            && publication is not null && conversion is not null
-            ? new(discovery, admissions, databases, publication, conversion, riskReader, logger) : null;
+        QualifiedFeeds = new(marketDataApi);
         Supervisor = IsArgumentNull.Set(supervisor);
         Logger = IsArgumentNull.Set(logger);
         MarketDataApi = IsArgumentNull.Set(marketDataApi);

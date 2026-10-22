@@ -3,6 +3,8 @@ namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 /// <summary>Controls the end-to-end live-pipeline hard-reset boundary.</summary>
 public sealed record LivePipelineMonitorOptions
 {
+    /// <summary>Backend recovery is owned by the independent Host; the API only reports observations.</summary>
+    public bool RecoveryOwnedByHost { get; init; }
     public TimeSpan HardResetDelay { get; init; } = TimeSpan.FromMinutes(5);
     public TimeSpan RecoveryObservationWindow { get; init; } = TimeSpan.FromMinutes(5);
     public int MaximumHardResetAttempts { get; init; } = 3;

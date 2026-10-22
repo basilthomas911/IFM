@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using MessagePack;
@@ -14,19 +15,19 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Workers;
 public static class DatasetPublicationFrameCodec
 {
     public const int MaximumFrameBytes = 1024 * 1024;
+    static readonly MessagePackSerializerOptions WireOptions = MessagePackSerializer.DefaultOptions.WithSecurity(MessagePackSecurity.UntrustedData);
 
     public static async ValueTask WriteAsync(Stream stream, DatasetPublicationEnvelope envelope,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(stream);
         Validate(envelope);
-        var payload = MessagePackSerializer.Serialize(envelope,cancellationToken:cancellationToken);
-        if (payload.Length > MaximumFrameBytes)
+        using var buffer = new PooledFrameBuffer(ArrayPool<byte>.Shared);
+        MessagePackSerializer.Serialize(buffer, envelope, WireOptions, cancellationToken);
+        if (buffer.PayloadLength > MaximumFrameBytes)
             throw new InvalidDataException("Dataset publication frame is too large.");
-        var prefix = new byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(prefix, payload.Length);
-        await stream.WriteAsync(prefix, cancellationToken).ConfigureAwait(false);
-        await stream.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.WrittenMemory.Span, buffer.PayloadLength);
+        await stream.WriteAsync(buffer.WrittenMemory, cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -39,11 +40,16 @@ public static class DatasetPublicationFrameCodec
         var length = BinaryPrimitives.ReadInt32LittleEndian(prefix);
         if (length is < 2 or > MaximumFrameBytes)
             throw new InvalidDataException($"Dataset publication frame length {length} is invalid.");
-        var payload = GC.AllocateUninitializedArray<byte>(length);
-        await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
-        var envelope = MessagePackSerializer.Deserialize<DatasetPublicationEnvelope>(payload,cancellationToken:cancellationToken);
-        Validate(envelope);
-        return envelope;
+        var payload = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            await stream.ReadExactlyAsync(payload.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+            var envelope = MessagePackSerializer.Deserialize<DatasetPublicationEnvelope>(payload.AsMemory(0, length),
+                WireOptions, cancellationToken);
+            Validate(envelope);
+            return envelope;
+        }
+        finally { ArrayPool<byte>.Shared.Return(payload, clearArray: true); }
     }
 
     static void Validate(DatasetPublicationEnvelope envelope)

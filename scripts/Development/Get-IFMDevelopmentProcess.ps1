@@ -44,6 +44,21 @@ function Get-Ownership {
         [string] $HostPath
     )
 
+    if ($Role -eq "market-data-worker" -and $null -ne $session) {
+        $parentRecord = @($session.Children) | Where-Object ProcessKey -eq 'market-data' | Select-Object -First 1
+        if ($null -ne $parentRecord) {
+            try {
+                $native = Get-CimInstance Win32_Process -Filter "ProcessId=$($Process.Id)" -Property ParentProcessId
+                $parentProcess = Get-Process -Id $parentRecord.ProcessId -ErrorAction Stop
+                $workerDirectory = [IO.Path]::GetFullPath((Join-Path (Split-Path $parentRecord.ExecutablePath) 'Workers')).TrimEnd('\') + '\'
+                if ($native.ParentProcessId -eq $parentRecord.ProcessId -and
+                    (Test-SameStartTime $parentProcess.StartTime ([datetimeoffset]$parentRecord.StartedAtUtc)) -and
+                    [string]::Equals($parentProcess.MainModule.FileName, $parentRecord.ExecutablePath, [StringComparison]::OrdinalIgnoreCase) -and
+                    [IO.Path]::GetFullPath($HostPath).StartsWith($workerDirectory, [StringComparison]::OrdinalIgnoreCase)) { return 'Owned' }
+            } catch { }
+        }
+        return 'Unowned'
+    }
     if ($Role -eq "scheduler") {
         $schedulerSessionPath = Join-Path $RepositoryRoot ".artifacts/scheduled-tasks/development/scheduler-session.json"
         if (Test-Path -LiteralPath $schedulerSessionPath) {
@@ -99,6 +114,8 @@ $results = foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
             "TomasAI.IFM.Application.Api.Server" { $role = "api" }
             "TomasAI.IFM.UI.Net" { $role = "ui" }
             "ifm-ui-rust" { $role = "ui" }
+            "TomasAI.IFM.Application.MarketData.Host" { $role = "market-data" }
+            { $_ -like "TomasAI.IFM.Application.MarketData.Host.Worker.*" } { $role = "market-data-worker" }
             "TomasAI.IFM.Application.ServerManager.SchedulerHost" { $role = "scheduler" }
             "dotnet" {
                 $entryModule = $process.Modules | Where-Object {

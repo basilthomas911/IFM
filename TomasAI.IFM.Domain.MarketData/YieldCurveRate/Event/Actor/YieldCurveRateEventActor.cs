@@ -23,7 +23,7 @@ public class YieldCurveRateEventActor(
     readonly IReadOnlyDictionary<Type, Func<IEvent, IYieldCurveRateEventContext, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IYieldCurveRateEventContext, ValueTask<bool>>>()
     {
         [typeof(YieldCurveRatesImportedEvent)] = (@event, context) =>
-            ((YieldCurveRatesImportedEvent)@event).ExecuteAsync(context, context.ReferenceDataApi, context.DbFactory, context.Logger),
+            ((YieldCurveRatesImportedEvent)@event).ExecuteAsync(context, context.MarketDataApi, context.DbFactory, context.Logger),
         [typeof(YieldCurveRatesImportedCompleteEvent)] = (@event, context) =>
             ((YieldCurveRatesImportedCompleteEvent)@event).ExecuteAsync(context, context.Logger),
         [typeof(YieldCurveRatesImportedFailEvent)] = (@event, context) =>

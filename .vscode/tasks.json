@@ -146,6 +146,7 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "IFM: Build API Server (Debug)",
+        "IFM: Build Market Data Host (Debug)",
         "IFM: Build UI.Net (Debug)",
         "IFM: Build Server Manager (Debug)",
         "IFM: Build Scheduler Host (Debug)"
@@ -249,12 +250,30 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "IFM: Stop API + UI (Development)",
+        "IFM: Build Market Data Host (Debug)",
         "IFM: Build API Server (Debug)",
         "IFM Rust UI: Build",
         "IFM: Build Server Manager (Debug)",
         "IFM: Build Scheduler Host (Debug)"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "IFM: Build Market Data Host (Debug)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/Build/Publish-MarketDataHost.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
     }
   ]
 }

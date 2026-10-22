@@ -198,13 +198,13 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
     public async Task<MarketDataFeedRuntimeStatusReadModel?> GetRuntimeStatusAsync()
     {
         var result = await _marketDataFeedQueryApi.GetRuntimeStatusAsync();
-        return result.Success ? result.Value : null;
+        return result is { Success: true } ? result.Value : null;
     }
 
     public async Task<DatabentoReadinessReadModel?> GetDatabentoReadinessAsync()
     {
         var result = await _marketDataFeedQueryApi.GetDatabentoReadinessAsync();
-        return result.Success ? result.Value : null;
+        return result is { Success: true } ? result.Value : null;
     }
 
     public async Task<DatabentoWatchdogObservationReadModel[]> GetDatabentoWatchdogHistoryAsync(int pageSize = 100)

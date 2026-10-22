@@ -18,6 +18,62 @@ namespace TomasAI.IFM.Domain.Trade.UnitTests.TradeFlow;
 public sealed class IronCondorPositionLivePublicationTests
 {
     [Fact]
+    public async Task Startup_recovery_enqueues_financial_boundary_but_never_a_disposable_mark()
+    {
+        var context = Substitute.For<IIronCondorPositionCommandContext>();
+        var mark = new IronCondorPositionChangedEvent { EventId = 101, IsRealtimeMarketObservation = true,
+            PositionSnapshot = new() { Phase = StrategyPositionPhase.MarkToMarket } };
+        var financial = mark with { EventId = 102, IsRealtimeMarketObservation = false }; // A partial close can share this phase.
+        var now = DateTime.UtcNow;
+        TomasAI.IFM.Shared.EventProjector.ReadModels.EventProjectorRecoveryItemReadModel Row(IronCondorPositionChangedEvent source) => new(
+            new(1, nameof(IronCondorPositionChangedEvent), typeof(IronCondorPositionChangedEvent).AssemblyQualifiedName!,
+                source.EventId, EventLogMessagePackCodec.Shared.Serialize(source), Guid.NewGuid(), now.ToString("o")),
+            new(source.EventId, "actor", "projector", false, 0,
+                TomasAI.IFM.Shared.EventProjector.EventProjectorOutcomeType.Processing,
+                TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.ApplyProjection, "", now, now, 1,
+                nameof(IronCondorPositionChangedEvent), 0, null, null, 0, null, null, "",
+                TomasAI.IFM.Shared.EventProjector.EventProjectorStageType.None, now));
+        context.DbEventSource.GetEventProjectorRecoveryPageAsync("projector", Arg.Any<IReadOnlyCollection<string>>(),
+            0, Arg.Any<DateTime>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns([Row(mark), Row(financial)]);
+        var recovery = new TomasAI.IFM.Application.EventProjector.EventProjectorRecoveryCoordinator(context.DbEventSource,
+            context.DurableReplayQueue, new TomasAI.IFM.Application.Blackboard.BlackboardService(
+                Substitute.For<TomasAI.IFM.Framework.Caching.IRedisCache>(),
+                Substitute.For<TomasAI.IFM.Framework.Serialization.IJsonSerializer>()), new(), NullLogger.Instance,
+            IronCondorPositionProjectionPolicy.IsDisposableMark);
+        var result = await recovery.RecoverAsync("actor", "projector", [typeof(IronCondorPositionChangedEvent)]);
+        Assert.Equal(1, result.Queued);
+        await context.DurableReplayQueue.Received(1).EnqueueAsync("projector",
+            Arg.Is<IEvent>(e => e.EventId == 102), Arg.Any<CancellationToken>());
+        await context.DurableReplayQueue.DidNotReceive().EnqueueAsync("projector",
+            Arg.Is<IEvent>(e => e.EventId == 101), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Disposable_market_mark_never_creates_or_replays_projection_work()
+    {
+        var context = Substitute.For<IIronCondorPositionCommandContext>();
+        var projector = new IronCondorPositionEventProjector(context);
+        var source = new IronCondorPositionChangedEvent { IsRealtimeMarketObservation = true,
+            PositionSnapshot = new() { Phase = StrategyPositionPhase.MarkToMarket } };
+        // Neither entry requires startup/queue admission for this disposable payload.
+        await projector.DomainEventsProjectionAsync(new([source]));
+        await projector.ProcessDomainEventAsync(source);
+        Assert.Empty(context.DurableReplayQueue.ReceivedCalls());
+        Assert.Empty(context.DbEventSource.ReceivedCalls());
+    }
+
+    [Theory]
+    [InlineData(StrategyPositionPhase.Open, true, false)]
+    [InlineData(StrategyPositionPhase.Close, true, false)]
+    [InlineData(StrategyPositionPhase.Correction, true, false)]
+    [InlineData(StrategyPositionPhase.EndOfDay, true, false)]
+    [InlineData(StrategyPositionPhase.MarkToMarket, false, false)] // Partial fills can have this phase.
+    [InlineData(StrategyPositionPhase.MarkToMarket, true, true)]
+    public void Only_explicit_quote_observations_can_be_discarded(StrategyPositionPhase phase, bool observation, bool discard)
+        => Assert.Equal(discard, IronCondorPositionProjectionPolicy.IsDisposableMark(new IronCondorPositionChangedEvent
+        { IsRealtimeMarketObservation = observation, PositionSnapshot = new() { Phase = phase } }));
+
+    [Fact]
     public async Task Committed_market_mark_reaches_ui_and_plan_before_blocked_history_admission()
     {
         var fixture = new Fixture();
@@ -82,7 +138,7 @@ public sealed class IronCondorPositionLivePublicationTests
         var projector = new IronCondorPositionEventProjector(context);
         var descriptor = projector.ProjectionDescriptors.Single(value => value.SourceEventType == typeof(IronCondorPositionChangedEvent));
         Assert.False(descriptor.PublishProcessingEvent);
-        Assert.True(descriptor.UseDurableReplay); // Existing financial/position history recovery is preserved.
+        Assert.True(descriptor.UseDurableReplay); // Financial transitions sharing this event type retain durability.
         var fixture = new Fixture(); var changed = (IronCondorPositionChangedEvent)fixture.Events[0];
         changed = changed with { PositionSnapshot = changed.PositionSnapshot with { Phase = phase } };
         await descriptor.ApplyAsync(changed, default!);
@@ -100,6 +156,7 @@ public sealed class IronCondorPositionLivePublicationTests
         var first = command.CreateIronCondorPositionChangedEvent(snapshot);
         var retry = command.CreateIronCondorPositionChangedEvent(snapshot);
         Assert.NotEqual(Guid.Empty, first.Id); Assert.Equal(command.CommandId, first.CommandId);
+        Assert.True(first.IsRealtimeMarketObservation);
         Assert.Equal(first.Id, retry.Id);
         Assert.NotEqual(first.Id, (command with { CommandId = Guid.NewGuid() }).CreateIronCondorPositionChangedEvent(snapshot).Id);
         var alternate = new UpdateIronCondorPositionLegMarketPriceCommand { CommandId = Guid.NewGuid(), EntityId = id };

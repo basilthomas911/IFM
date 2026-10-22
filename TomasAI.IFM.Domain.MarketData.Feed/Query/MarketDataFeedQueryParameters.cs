@@ -11,14 +11,14 @@ public sealed record MarketDataFeedQueryParameters
     public ISequenceIdGenerator SequenceIdGenerator { get; init; }
     public IDbContextFactory DbFactory { get; init; }
     public IMarketDataServiceStore MarketDataServiceStore { get; init; }
-    public IMarketDataLifecycleRequests MarketDataLifecycle { get; init; }
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; init; }
 
     public MarketDataFeedQueryParameters(
         ApplicationMarketDataApi marketDataApi,
         ISequenceIdGenerator sequenceIdGenerator,
         IDbContextFactory dbFactory,
         IMarketDataServiceStore marketDataServiceStore,
-        IMarketDataLifecycleRequests marketDataLifecycle)
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle)
     {
         MarketDataApi = marketDataApi;
         SequenceIdGenerator = sequenceIdGenerator;

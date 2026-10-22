@@ -16,8 +16,12 @@ public sealed class DatasetPublicationIngress(
     DatasetWorkerAdmissionRegistry admissions,
     ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder,
-    DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null)
+    DatasetWorkerCurrentValues? currentValues = null, Pricing.IOptionTradeEvidenceWriter? optionTrades = null, bool evidencePersistedByHost = false)
 {
+    /// <summary>Creates an independent admission boundary for option-only worker output.</summary>
+    public DatasetPublicationIngress ForOptions(DatasetWorkerAdmissionRegistry optionAdmissions)
+        => new(optionAdmissions, publisher, recorder, optionTrades: optionTrades, evidencePersistedByHost: evidencePersistedByHost);
+
     readonly System.Threading.Lock holdingGate = new();
     readonly Dictionary<string, CandidateHoldingState> candidateHolding = new(StringComparer.Ordinal);
 
@@ -186,8 +190,8 @@ public sealed class DatasetPublicationIngress(
                     if (!string.Equals(evidence.Source.Dataset,envelope.Dataset,StringComparison.Ordinal) || evidence.Source.ValueDate != envelope.ValueDate
                         || evidence.Source.GenerationId != envelope.GenerationId)
                         throw new InvalidDataException("Option trade source and worker envelope disagree.");
-                    if (optionTrades is null) throw new InvalidOperationException("Durable option trade writer is unavailable.");
-                    await optionTrades.WriteAsync(evidence, generationCancellation).ConfigureAwait(false);
+                    if (optionTrades is not null) await optionTrades.WriteAsync(evidence, generationCancellation).ConfigureAwait(false);
+                    else if (!evidencePersistedByHost) throw new InvalidOperationException("Durable option trade writer is unavailable.");
                     generationCancellation.ThrowIfCancellationRequested();
                     await publisher.PublishAsync(evidence.ToRealtimeEvent(), generationCancellation).ConfigureAwait(false);
                     break;

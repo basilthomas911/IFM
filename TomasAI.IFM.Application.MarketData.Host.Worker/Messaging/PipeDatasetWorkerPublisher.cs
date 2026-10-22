@@ -9,7 +9,7 @@ using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 
 [assembly: InternalsVisibleTo("TomasAI.IFM.Application.MarketData.UnitTests")]
 
-namespace TomasAI.IFM.Application.MarketData.Worker;
+namespace TomasAI.IFM.Application.MarketData.Host.Worker;
 
 internal sealed class PipeDatasetWorkerPublisher(
     Stream stream,
@@ -19,6 +19,7 @@ internal sealed class PipeDatasetWorkerPublisher(
     long manifestRevision, Stream? retentionAcknowledgments = null) : ITickAggregationEventPublisher, MarketData.Pricing.IOptionTradeEvidenceWriter
 {
     readonly SemaphoreSlim writer = new(1, 1);
+    readonly SemaphoreSlim retention = new(1, 1);
     Guid generation;
     long sequence;
     int running;
@@ -30,34 +31,36 @@ internal sealed class PipeDatasetWorkerPublisher(
     {
         evidence.Validate();
         if (retentionAcknowledgments is null) throw new InvalidOperationException("No durable retention acknowledgment pipe.");
-        await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await retention.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!IsRunning || Volatile.Read(ref closed) != 0 || generation == Guid.Empty
-                || evidence.Source.GenerationId != generation || !string.Equals(evidence.Source.Dataset,dataset,StringComparison.Ordinal) || evidence.Source.ValueDate != valueDate)
-                throw new InvalidOperationException("Option trade publication is not admitted.");
-            var publication = Interlocked.Increment(ref sequence);
-            await DatasetPublicationFrameCodec.WriteAsync(stream, new()
+            long publication;
+            await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                Dataset = dataset,
-                ValueDate = valueDate,
-                WorkerInstanceId = workerInstanceId,
-                GenerationId = generation,
-                ManifestRevision = manifestRevision,
-                PublicationSequence = publication,
-                Kind = DatasetPublicationKind.OptionTradeEvidence,
-                Payload = MessagePackSerializer.Serialize(evidence,cancellationToken:cancellationToken)
-            }, cancellationToken).ConfigureAwait(false);
+                if (!IsRunning || Volatile.Read(ref closed) != 0 || generation == Guid.Empty
+                    || evidence.Source.GenerationId != generation || !string.Equals(evidence.Source.Dataset,dataset,StringComparison.Ordinal) || evidence.Source.ValueDate != valueDate)
+                    throw new InvalidOperationException("Option trade publication is not admitted.");
+                publication = Interlocked.Increment(ref sequence);
+                await DatasetPublicationFrameCodec.WriteAsync(stream, new()
+                {
+                    Dataset = dataset, ValueDate = valueDate, WorkerInstanceId = workerInstanceId,
+                    GenerationId = generation, ManifestRevision = manifestRevision, PublicationSequence = publication,
+                    Kind = DatasetPublicationKind.OptionTradeEvidence,
+                    Payload = MessagePackSerializer.Serialize(evidence,cancellationToken:cancellationToken)
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            finally { writer.Release(); }
+            // Keep retention serialized, but allow quotes to publish while persistence is acknowledged.
             await OptionTradeAcknowledgment.ReadAsync(retentionAcknowledgments, publication, generation, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
-            // A timeout may leave a late acknowledgment in the pipe. Never reuse that generation's writer.
             Volatile.Write(ref closed, 1);
             Volatile.Write(ref running, 0);
             throw;
         }
-        finally { writer.Release(); }
+        finally { retention.Release(); }
     }
     public ValueTask StartAsync()
     {
@@ -96,6 +99,8 @@ internal sealed class PipeDatasetWorkerPublisher(
         Volatile.Write(ref running, 0);
         await writer.WaitAsync(cancellationToken).ConfigureAwait(false);
         writer.Release();
+        await retention.WaitAsync(cancellationToken).ConfigureAwait(false);
+        retention.Release();
     }
 
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event) =>
@@ -177,5 +182,6 @@ internal sealed class PipeDatasetWorkerPublisher(
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         await CloseAsync(CancellationToken.None).ConfigureAwait(false);
         writer.Dispose();
+        retention.Dispose();
     }
 }

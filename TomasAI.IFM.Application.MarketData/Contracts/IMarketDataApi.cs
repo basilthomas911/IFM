@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 /// controls share this single application boundary; the provider implementation
 /// may use multiple protocol-specific transports internally.
 /// </remarks>
-public interface IMarketDataApi
+public partial interface IMarketDataApi
 {
     /// <summary>Reads prepared strategy option snapshots immediately without acquiring market data.</summary>
     IOptionChainCache OptionChainCache => UnavailableOptionChainCache.Instance;

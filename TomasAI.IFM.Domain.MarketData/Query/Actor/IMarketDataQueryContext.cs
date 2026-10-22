@@ -21,10 +21,5 @@ public interface IMarketDataQueryContext : IQueryActorContext<MarketDataQueryAct
     IFuturesMarketSessionAuthority MarketSessionAuthority { get; }
     /// <summary>Gets provider-backed market metadata.</summary>
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? MarketDataApi { get; }
-    QualifiedCompositionDiscovery? CompositionDiscovery { get; }
-    ICompositionMarketDataApi? CompositionMarketData { get; }
-    DatasetWorkerAdmissionRegistry? WorkerAdmissions { get; }
     TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility.IOptionChainIvCollector? IvCollector => null;
-    TreasuryPublicationPolicy? TreasuryPublication { get; }
-    TreasuryRateConversionPolicy? TreasuryConversion { get; }
 }

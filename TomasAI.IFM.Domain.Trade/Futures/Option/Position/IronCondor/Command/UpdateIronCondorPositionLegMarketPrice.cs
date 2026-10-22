@@ -49,6 +49,7 @@ public static class UpdateIronCondorPositionLegMarketPrice
     {
         Id = TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.TradePlanContractIdentity.DeterministicId($"{command.CommandId:N}|{nameof(IronCondorPositionChangedEvent)}"),
         CommandId = command.CommandId,
+        IsRealtimeMarketObservation = true,
         Subject = new(ActorType.Event, "FuturesIronCondorTradePositionEvent", IronCondorPositionChangedEvent.Verb, command.EntityId.Format()),
         ReceivedOn = DateTime.UtcNow,
         EntityId = command.EntityId,

@@ -301,7 +301,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Portfoli
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Portfolio.VerificationTests", "TomasAI.IFM.Domain.Portfolio.VerificationTests\TomasAI.IFM.Domain.Portfolio.VerificationTests.csproj", "{693DE1EB-045B-4732-AED4-9FDADA7B1925}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.MarketData.Worker", "TomasAI.IFM.Application.MarketData.Worker\TomasAI.IFM.Application.MarketData.Worker.csproj", "{29ABD7F9-D2A3-4C84-B565-FD325B10A1B4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.MarketData.Host.Worker", "TomasAI.IFM.Application.MarketData.Host.Worker\TomasAI.IFM.Application.MarketData.Host.Worker.csproj", "{29ABD7F9-D2A3-4C84-B565-FD325B10A1B4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Strategy.Contracts.Shared", "TomasAI.IFM.Domain.Strategy.Contracts.Shared\TomasAI.IFM.Domain.Strategy.Contracts.Shared.csproj", "{8E89D029-6C35-48A3-8601-A73FCF6B6B3D}"
 EndProject
@@ -356,6 +356,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI.Rust.SystemTests", "TomasAI.IFM.UI.Rust.SystemTests\TomasAI.IFM.UI.Rust.SystemTests.csproj", "{F3C19B17-3274-4AEB-80F5-81FEF9F30D45}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI.Net.Composition", "TomasAI.IFM.UI.Net.Composition\TomasAI.IFM.UI.Net.Composition.csproj", "{343C6A58-04D7-44F8-BB5A-C7A59DCB0DA9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Application", "Application", "{A74F262E-BDE7-D5D2-89E9-785413424D0A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.MarketData.Host", "TomasAI.IFM.Application.MarketData.Host\TomasAI.IFM.Application.MarketData.Host.csproj", "{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -3571,12 +3575,33 @@ Global
 		{343C6A58-04D7-44F8-BB5A-C7A59DCB0DA9}.Release|x64.Build.0 = Release|Any CPU
 		{343C6A58-04D7-44F8-BB5A-C7A59DCB0DA9}.Release|x86.ActiveCfg = Release|Any CPU
 		{343C6A58-04D7-44F8-BB5A-C7A59DCB0DA9}.Release|x86.Build.0 = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|ARM.Build.0 = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|x64.Build.0 = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Debug|x86.Build.0 = Debug|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|ARM.ActiveCfg = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|ARM.Build.0 = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|ARM64.Build.0 = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|x64.ActiveCfg = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|x64.Build.0 = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|x86.ActiveCfg = Release|Any CPU
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{6A97337C-D076-4D02-9507-4822B854CE4D} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{6B9CC4C9-1707-4E39-8BCC-564BB88B86AF} = {A74F262E-BDE7-D5D2-89E9-785413424D0A}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {52576792-F2A1-4895-A6E4-1DFA73E160D6}

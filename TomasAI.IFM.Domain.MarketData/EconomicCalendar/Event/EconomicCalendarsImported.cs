@@ -29,14 +29,14 @@ public static class EconomicCalendarsImported
     public static async ValueTask<bool> ExecuteAsync(
         this EconomicCalendarsImportedEvent @event,
         IEventActorContext context,
-        IReferenceDataApi referenceDataApi,
+        IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory,
         ILogger<EconomicCalendarEventActor> logger)
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(dbFactory);
-        ArgumentNullException.ThrowIfNull(referenceDataApi);
+        ArgumentNullException.ThrowIfNull(marketDataApi);
         IsArgumentNull.Check(logger);
 
         var started = MarketDataDownloadOutcome.MillisecondUtc(DateTime.UtcNow);
@@ -54,8 +54,8 @@ public static class EconomicCalendarsImported
             {
             var importDate = DateOnly.FromDateTime(@event.ImportedDate);
             var countries = NormalizeCountries(@event.CountryCodes);
-            var entries = await referenceDataApi.EconomicCalendar.GetAsync(importDate, importDate, countries).ConfigureAwait(false);
-            downloaded = entries.Count;
+            var entries = await marketDataApi.ReadEconomicCalendarAsync(importDate, importDate, countries?.ToArray()).ConfigureAwait(false);
+            downloaded = entries.Length;
             var records = entries.Select(Map).ToArray();
             Validate(records);
                 ValidateDatabaseIdentity(dbFactory);

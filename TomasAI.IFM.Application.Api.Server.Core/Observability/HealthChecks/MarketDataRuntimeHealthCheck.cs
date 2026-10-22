@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Observability.HealthChecks;
 /// the API readiness response.
 /// </summary>
 public sealed class MarketDataRuntimeHealthCheck(
-    DatabentoMarketDataApi marketDataApi,
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi api,
     IFuturesMarketSessionAuthority marketSessionAuthority,
     IFuturesExchangeBusinessCalendar businessCalendar,
     TimeProvider timeProvider,
@@ -22,6 +22,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        if (api is not DatabentoMarketDataApi marketDataApi) return CheckRemoteAsync(cancellationToken);
         var health = marketDataApi.GetHealth();
         var epoch = health.Epoch;
         var now = timeProvider.GetUtcNow();
@@ -301,4 +302,19 @@ public sealed class MarketDataRuntimeHealthCheck(
                     }));
         }
     }
+    async Task<HealthCheckResult> CheckRemoteAsync(CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+        var status = await api.GetBackendStatusAsync(deadline.Token).ConfigureAwait(false);
+        var futures = status.Datasets.Where(x => x.Role == "Futures").ToArray();
+        var plannedClosed = marketSessionAuthority.Current.ActiveValueDate is null;
+        var healthy = status.Ready && (plannedClosed || futures.Length > 0 && futures.All(x => x.Healthy && x.Lifecycle == "Healthy") && api.IsDatabentoFeedUp());
+        var data = new Dictionary<string, object> { ["owner"] = "MarketData.Host", ["running"] = futures.Any(x => x.Running),
+            ["valueDate"] = status.ValueDate?.ToString("yyyy-MM-dd") ?? "", ["datasets"] = status.Datasets,
+            ["marketState"] = marketSessionAuthority.Current.State.ToString() };
+        return healthy ? HealthCheckResult.Healthy("MarketData Host futures are available.", data)
+            : HealthCheckResult.Degraded("MarketData Host futures are unavailable or recovering.", data: data);
+    }
+
 }

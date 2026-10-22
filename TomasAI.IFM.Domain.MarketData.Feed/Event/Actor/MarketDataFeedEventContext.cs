@@ -19,7 +19,7 @@ public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataF
     public MarketDataFeedEventContext(
         IActorSupervisor supervisor,
         ILogger<MarketDataFeedEventActor> logger,
-        IMarketDataLifecycleRequests marketDataLifecycle,
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi marketDataLifecycle,
         IOptionTradeLiveFeedMap optionTradeLiveFeedMap,
         IBlackboardService blackboardService,
         IStatusConsoleWriter statusConsoleWriter)
@@ -37,7 +37,7 @@ public sealed class MarketDataFeedEventContext : EventActorContext, IMarketDataF
     /// <inheritdoc/>
     public ILogger<MarketDataFeedEventActor> Logger { get; }
     /// <inheritdoc/>
-    public IMarketDataLifecycleRequests MarketDataLifecycle { get; }
+    public TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
     /// <inheritdoc/>
     public IOptionTradeLiveFeedMap OptionTradeLiveFeedMap { get; }
     /// <inheritdoc/>

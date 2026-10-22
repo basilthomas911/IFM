@@ -93,7 +93,7 @@ public static class ExecuteOrderComposition
                     WorkflowId = view.WorkflowId.Value,
                     WorkflowRevision = view.WorkflowRevision
                 };
-                result = await context.CompositionMarketPreparation.PrepareCachedAsync(key, context.MarketDataApi.OptionChainCache, request, default).ConfigureAwait(false);
+                result = await context.MarketDataApi.PrepareCachedCompositionAsync(key, request, default).ConfigureAwait(false);
             }
             else
             {
@@ -114,7 +114,7 @@ public static class ExecuteOrderComposition
                 // Futures retain their existing bounded preparation. Automated option composition never waits on cold acquisition.
                 if (plan.IncludeOptions)
                     throw new CompositionMarketSourceException("OptionChainCachePolicyRequired");
-                result = await context.CompositionMarketPreparation.PrepareAsync(key, plan, view.TriggerEvent.EntityId.TimePeriod.ToString(), new(preparationDeadline), default).ConfigureAwait(false);
+                result = await context.MarketDataApi.PrepareCompositionAsync(key, plan, view.TriggerEvent.EntityId.TimePeriod.ToString(), new(preparationDeadline), default).ConfigureAwait(false);
             }
 
             timing_composer_market_prepare?.Stop();

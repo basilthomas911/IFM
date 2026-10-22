@@ -23,5 +23,5 @@ public interface IMarketDataFeedQueryContext : IQueryActorContext<MarketDataFeed
     /// <summary>Gets the sequence-ID generator.</summary>
     ISequenceIdGenerator SequenceIdGenerator { get; }
     IMarketDataServiceStore MarketDataServiceStore { get; }
-    IMarketDataLifecycleRequests MarketDataLifecycle { get; }
+    TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
 }

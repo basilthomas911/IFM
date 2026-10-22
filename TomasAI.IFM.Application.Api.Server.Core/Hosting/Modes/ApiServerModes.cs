@@ -29,6 +29,13 @@ public static partial class ApiServerModes
     public static async Task<bool> RunBeforeBuildAsync(WebApplicationBuilder builder, string[] args)
     {
         var verifyStartupOnly = args.Contains("--verify-startup-only", StringComparer.OrdinalIgnoreCase);
+        if (args.Contains("--discard-iron-condor-market-mark-recovery", StringComparer.OrdinalIgnoreCase))
+        {
+            if (!builder.Environment.IsDevelopment()) throw new InvalidOperationException("Recovery cleanup requires Development.");
+            using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            await DiscardIronCondorMarketMarkRecovery.RunAsync(builder.Configuration, deadline.Token);
+            return true;
+        }
         if (args.Contains("--repair-es-option-premium-only", StringComparer.OrdinalIgnoreCase) && !verifyStartupOnly)
         {
             if (!builder.Environment.IsDevelopment())

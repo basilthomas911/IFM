@@ -18,6 +18,8 @@ if ($existing.Count -gt 0) {
 }
 
 if (-not $NoBuild) {
+    & (Join-Path $repositoryRoot 'scripts/Build/Publish-MarketDataHost.ps1') -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) { throw 'Market Data Host publish failed.' }
     $projects = @(
         "TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj",
         "TomasAI.IFM.UI.Net\TomasAI.IFM.UI.Net.csproj",

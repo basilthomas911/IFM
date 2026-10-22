@@ -64,13 +64,13 @@ TomasAI.IFM.Application.MarketData/
       WindowsDatasetProcessContainment.cs
       LinuxDatasetProcessContainment.cs
 
-TomasAI.IFM.Application.MarketData.Worker/
+TomasAI.IFM.Application.MarketData.Host.Worker/
   Program.cs
   DatasetWorkerHost.cs
   DatasetWorkerControlService.cs
   DatasetWorkerRuntime.cs
 
-TomasAI.IFM.Application.MarketData.Worker.IntegrationTests/
+TomasAI.IFM.Application.MarketData.Host.Worker.IntegrationTests/
   worker/control/process/containment tests
 ```
 
@@ -281,7 +281,7 @@ Replace Stage 2 scheduled timing only behind the Stage 3 feature flag:
 
 ### Work
 
-- create `TomasAI.IFM.Application.MarketData.Worker` as a console executable;
+- create `TomasAI.IFM.Application.MarketData.Host.Worker` as a console executable;
 - extract/reuse the dataset-generation portion of `DatabentoMarketDataEpoch` behind
   `IDatasetWorkerRuntime`;
 - enforce exactly one dataset/start manifest per worker process;

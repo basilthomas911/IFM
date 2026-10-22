@@ -11,14 +11,14 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 public sealed class EconomicCalendarEventContext : EventActorContext, IEconomicCalendarEventContext
 {
     /// <summary>Initializes the context.</summary>
-    public EconomicCalendarEventContext(IActorSupervisor supervisor, IReferenceDataApi referenceDataApi,
+    public EconomicCalendarEventContext(IActorSupervisor supervisor, IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory, ILogger<EconomicCalendarEventActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Event, EconomicCalendarEventActor.Actor))
-    { Supervisor = IsArgumentNull.Set(supervisor); ReferenceDataApi = IsArgumentNull.Set(referenceDataApi); DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
+    { Supervisor = IsArgumentNull.Set(supervisor); MarketDataApi = IsArgumentNull.Set(marketDataApi); DbFactory = IsArgumentNull.Set(dbFactory); Logger = IsArgumentNull.Set(logger); }
     /// <inheritdoc/>
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
-    public IReferenceDataApi ReferenceDataApi { get; }
+    public IMarketDataApi MarketDataApi { get; }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
