@@ -188,6 +188,13 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<IRealtimeSourceAdmission>(p => p.GetRequiredService<MarketDataRemoteAdmission>());
         services.AddHostedService(p => p.GetRequiredService<MarketDataClientReceiver>());
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionFeedRecoveryNotificationService>();
+        services.AddSingleton<IOptionPipelineRecoveryRuntime, OptionPipelineRecoveryRuntime>();
+        services.AddSingleton<OptionPipelineRecoveryCoordinator>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.ApiRecoveryRestartEscalation>();
+        services.AddSingleton<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService>();
+        services.AddHostedService(p => p.GetRequiredService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService>());
+        services.AddHostedService<OptionRecoveryLiveVerificationService>();
+        services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.OptionPipelineRecoveryHostedService>();
         services.AddSingleton<TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry>();
         services.AddHostedService<TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeRealtimeCacheExpiryService>();
         services.AddSingleton<TomasAI.IFM.Application.MarketData.Pricing.ICompositionPreparationStore>(p => p.GetRequiredService<IMarketDataDbContext>());

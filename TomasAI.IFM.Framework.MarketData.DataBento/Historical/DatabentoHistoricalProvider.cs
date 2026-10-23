@@ -69,7 +69,13 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         var status = NativeMethods.HistoricalEstimate(
             &nativeRequest, input.SymbolsPointer, input.BlobPointer,
             checked((uint)input.Blob.Length), ref estimate);
-        Throw(status, "estimate historical data");
+        if (status != DatabentoFeedStatus.Ok)
+        {
+            var detail = ReadEstimateError();
+            throw new DatabentoFeedException(status,
+                $"Databento historical estimate failed with {status}: {detail}. Dataset={request.Dataset}; Schema={request.Schema}; "
+                + $"StartUtc={request.StartUtc:O}; EndUtc={request.EndUtc:O}; RequestHash={request.RequestHash}");
+        }
         return new HistoricalProviderEstimate(
             (decimal)estimate.EstimatedCostUsd,
             checked((long)estimate.EstimatedBytes),
@@ -300,6 +306,24 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
 
     private static void Throw(DatabentoFeedStatus status, string operation) =>
         NativeStatus.ThrowIfFailed(status, null, operation);
+
+    private static unsafe string ReadEstimateError()
+    {
+        try
+        {
+            var status = NativeMethods.HistoricalGetLastError(null, 0, out var required);
+            if (status != DatabentoFeedStatus.BufferTooSmall || required <= 1) return "Native provider returned no error detail";
+            var buffer = new byte[required];
+            fixed (byte* pointer = buffer)
+                status = NativeMethods.HistoricalGetLastError(pointer, required, out _);
+            return status == DatabentoFeedStatus.Ok
+                ? Encoding.UTF8.GetString(buffer.AsSpan(0, checked((int)required - 1))) : "Native error detail could not be read";
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return "Native library does not expose historical error detail; rebuild the Databento native library";
+        }
+    }
 
     private sealed unsafe class NativeHistoricalInput : IDisposable
     {

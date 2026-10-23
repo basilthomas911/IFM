@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using TomasAI.IFM.Shared.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using System.Collections.Concurrent;
 using NATS.Client.Core;
@@ -9,8 +12,9 @@ namespace TomasAI.IFM.Application.MarketData.Host;
 /// <summary>Runs independent bounded command and emergency-stop subscribers.</summary>
 public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataHostConnection connection,
     IConfiguration configuration, ILogger<MarketDataNatsService> logger, IHostApplicationLifetime? lifetime = null,
-    MarketDataApiBackend? backend = null) : BackgroundService
+    MarketDataApiBackend? backend = null, IHostEnvironment? environment = null) : BackgroundService
 {
+    static readonly ActivitySource TraceSource = new(OptionFeedTrace.SourceName);
     readonly ConcurrentDictionary<Guid, Lazy<Task<MarketDataHostReply>>> operations = new();
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(
         ListenAsync(connection.Scope + ".control", 8, stoppingToken), ListenAsync(connection.Scope + ".stop", 2, stoppingToken),
@@ -26,6 +30,11 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
                 try
                 {
                     var request = message.Data ?? throw new InvalidDataException("Missing market-data request.");
+                    using var remote = TraceSource.StartActivity("marketdata.host.receive", ActivityKind.Server, ActorTrace.Extract(message.Headers));
+                    remote?.SetTag("rpc.method", request.Path);
+                    remote?.SetTag("rpc.operation_id", request.OperationId);
+                    using var requestTrace = request.Path.Contains("Option", StringComparison.Ordinal) || request.Path.Contains("TradeFeedRecovery", StringComparison.Ordinal)
+                        ? new OptionFeedTrace("option.host.request." + request.Path, logger, request.OperationId.ToString()) : null;
                     MarketDataHostReply reply;
                     if (request.Path.EndsWith("/stop", StringComparison.Ordinal))
                     {
@@ -39,6 +48,8 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
                         if (operations.Count > 2048) throw new InvalidOperationException("Market-data control capacity exhausted.");
                         reply = await operations.GetOrAdd(request.OperationId, _ => new Lazy<Task<MarketDataHostReply>>(() => DispatchAsync(request, ct))).Value.ConfigureAwait(false);
                     }
+                    if (reply.Error is null) requestTrace?.Complete();
+                    else requestTrace?.Fail(new InvalidOperationException(reply.Error));
                     await message.ReplyAsync(reply, serializer: NatsMessagePackSerializer<MarketDataHostReply>.Default, cancellationToken: ct).ConfigureAwait(false);
                     if (request.Path == "qualification/shutdown" && reply.Error is null
                         && configuration["MarketDataHost:DataSource"] == "Synthetic")
@@ -82,6 +93,12 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
                     .InvokeAsync(call, deadline.Token).ConfigureAwait(false), null);
             }
             if (request.Path == "api/GetBackendStatusAsync") return Reply(host.GetBackendStatus());
+            if (request.Path == "api/InjectDevelopmentOptionWorkerFaultAsync")
+            {
+                var call = MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Remote.MarketDataApiCall>(request.Payload);
+                return Reply(await host.InjectDevelopmentFaultAsync(MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Contracts.MarketDataDevelopmentFaultRequest>(call.Arguments[0]),
+                    environment ?? throw new InvalidOperationException("Missing Host environment."), deadline.Token).ConfigureAwait(false));
+            }
             if (request.Path == "api/RecoverMarketDataAsync")
             {
                 var call = MarketDataHostConnection.Decode<TomasAI.IFM.Application.MarketData.Remote.MarketDataApiCall>(request.Payload);

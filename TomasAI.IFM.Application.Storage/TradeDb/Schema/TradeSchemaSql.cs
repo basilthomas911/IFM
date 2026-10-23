@@ -3,9 +3,16 @@ namespace TomasAI.IFM.Application.Storage.TradeDb.Schema;
 public static class TradeSchemaSql
 {
     public const string Drop = "DROP SCHEMA IF EXISTS trade CASCADE;";
-    public const string Create = """
+    public const string LiveFeedRecoveryCreate = """
         CREATE SCHEMA IF NOT EXISTS trade;
-        
+        CREATE TABLE IF NOT EXISTS trade.live_feed_recovery (
+            value_date date NOT NULL, trade_id text NOT NULL, contract_id text NOT NULL,
+            updated_at timestamptz NOT NULL,
+            PRIMARY KEY (value_date, trade_id, contract_id)
+        );
+        """;
+    public const string Create = LiveFeedRecoveryCreate + """
+
         CREATE TABLE IF NOT EXISTS trade.broker_account_read_model (
         account_alias text, revision bigint, account_definition bytea, PRIMARY KEY (account_alias, revision)
         );

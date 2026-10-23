@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -109,6 +110,7 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
 
             if (!slot.Warmed)
             {
+                using var first = new OptionFeedTrace("option.position.first_durable_update", Logger, command.CommandId.ToString());
                 try
                 {
                     await PersistResidentEventsAsync(
@@ -117,9 +119,11 @@ public abstract class BaseInMemoryEventSourceCommandActor<TActor, TState>(
                     slot.Warmed = true;
                     ActorRuntimeMetrics.ResidentPersistenceCompleted.Add(1);
                     await message.ReplyAsync(result).ConfigureAwait(false);
+                    first.Complete();
                 }
                 catch (Exception exception)
                 {
+                    first.Fail(exception);
                     ActorRuntimeMetrics.ResidentPersistenceFailed.Add(1);
                     RemoveResident(threadId);
                     await ReplyFailureOrDuplicateAsync(message, threadId, command, exception).ConfigureAwait(false);

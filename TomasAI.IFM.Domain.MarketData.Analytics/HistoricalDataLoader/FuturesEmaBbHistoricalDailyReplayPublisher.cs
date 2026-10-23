@@ -14,15 +14,63 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 
 /// <summary>Replays completed Daily sessions through the event-sourced EMA-to-Bollinger chain.</summary>
 public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
     IActorService actorService,
-    IMarketOutlookUpdateWriter updateWriter)
+    IMarketOutlookUpdateWriter updateWriter,
+    IEventSourceActorDbContext? eventStore = null)
     : IHistoricalDailyReplayPublisher
 {
+    /// <inheritdoc />
+    public async ValueTask<DateOnly?> RestoreAsync(MarketSeriesIdentity series, DateOnly targetValueDate,
+        string targetContractId, DateOnly lastCompletedDate, CancellationToken cancellationToken)
+    {
+        if (eventStore is null || !IsEsSeries(series)) return null;
+        var entity = new FuturesTradeSessionBarEntityId(series, TimeFrameType.Daily);
+        var emaSubject = new ActorSubject(ActorType.Command, GenerateFuturesEmaSignalCommand.Actor,
+            GenerateFuturesEmaSignalCommand.Verb, entity.Format());
+        var bbSubject = new ActorSubject(ActorType.Command, GenerateFuturesBbSignalCommand.Actor,
+            GenerateFuturesBbSignalCommand.Verb, entity.Format());
+        var emaStream = await eventStore.GetEventStreamIdAsync(emaSubject.StreamId, cancellationToken).ConfigureAwait(false);
+        var bbStream = await eventStore.GetEventStreamIdAsync(bbSubject.StreamId, cancellationToken).ConfigureAwait(false);
+        var ema = new FuturesEmaSignalCommandState();
+        var bb = new FuturesBbSignalCommandState();
+        await eventStore.MapReduceActorEventStreamAsync<FuturesEmaSignalCommandState, FuturesEmaSignalGeneratedEvent>(
+            emaStream, 1, ema.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        await eventStore.MapReduceActorEventStreamAsync<FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent>(
+            bbStream, 1, bb.ReplayEvents, cancellationToken).ConfigureAwait(false);
+        if (ema.FuturesEmaSignal is not { IsWarm: true } savedEma
+            || bb.FuturesBbSignal is not { IsWarm: true } savedBb
+            || ema.FuturesEmaCheckpoint is not { } emaCheckpoint || bb.FuturesBbCheckpoint is not { } bbCheckpoint
+            || savedEma.Metadata.ValueDate > lastCompletedDate
+            || savedEma.Metadata.TimeFrame != TimeFrameType.Daily || savedBb.Metadata.TimeFrame != TimeFrameType.Daily
+            || savedEma.Metadata.ObservationId != savedBb.Metadata.ObservationId
+            || emaCheckpoint.LastObservationId != bbCheckpoint.LastObservationId
+            || emaCheckpoint.LastObservationId != savedEma.Metadata.ObservationId
+            || savedEma.Metadata.SchemaVersion != 1 || savedBb.Metadata.SchemaVersion != 1
+            || savedEma.Metadata.CalculationVersion != "ema-sma-seed-v1"
+            || savedBb.Metadata.CalculationVersion != "bb-ema-center-population-v1"
+            || savedEma.Metadata.MarketSeriesIdentity != series || savedBb.Metadata.MarketSeriesIdentity != series
+            || !savedEma.Metadata.IsValid || !savedBb.Metadata.IsValid)
+            return null;
+        // A retry must not replace a newer baseline already built from stored observations.
+        if (RegimeDiscoverySignalCacheAdapter.TryGetLatestEsDailyBaseline(targetContractId, out _, out _, out var current, out _)
+            && current.Metadata.ContractId == targetContractId
+            && current.Metadata.ValueDate > savedEma.Metadata.ValueDate
+            && current.Metadata.ValueDate <= lastCompletedDate)
+            return current.Metadata.ValueDate;
+        PublishDailyBaseline(savedEma, savedBb, emaCheckpoint, bbCheckpoint,
+            savedEma.Metadata.ContractId, targetValueDate, targetContractId);
+        return savedEma.Metadata.ValueDate;
+    }
+
     /// <inheritdoc />
     public async ValueTask PublishAsync(
         IReadOnlyList<FuturesEodObservationReadModel> observations,

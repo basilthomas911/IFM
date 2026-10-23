@@ -17,6 +17,7 @@ public sealed class OptionQuoteRecoveryTests
     public void Only_quote_router_is_allowed_and_replacement_owns_new_routes_and_generation()
     {
         Assert.True(RealtimeActorResetPolicy.CanReplace(typeof(FuturesOptionRealtimeActor),ActorType.Realtime));
+        Assert.True(RealtimeActorResetPolicy.CanReplace(typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor.IronCondorTradePositionRealtimeActor), ActorType.Realtime));
         Assert.False(RealtimeActorResetPolicy.CanReplace(typeof(TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor.OrderExecutionCommandActor),ActorType.Realtime));
         var supervisor = Substitute.For<IActorSupervisor>();
         var db = Substitute.For<IDbContextFactory>();

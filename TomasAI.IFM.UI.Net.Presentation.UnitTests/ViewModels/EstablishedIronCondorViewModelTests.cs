@@ -12,6 +12,64 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public sealed class EstablishedIronCondorViewModelTests
 {
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task Loaded_trade_restores_saved_live_intent_and_only_explicit_off_deletes_it(bool saved, bool historical)
+    {
+        var date = new DateOnly(2026,10,22);
+        var trade = new EstablishedTradeDefinition {
+            Id = new(101,701,1701,1101), StrategyKind = TradeStrategyKind.IronCondor, Status = EstablishedTradeStatus.Open,
+            EstablishedAtUtc = date.ToDateTime(new TimeOnly(12,0),DateTimeKind.Utc),
+            Legs = Enumerable.Range(1,4).Select(i=>new TradeLegDefinition { TradeLegId=Guid.NewGuid(), ContractId="ES-option-"+i, Expiry=date.AddDays(30) }).ToArray()
+        };
+        var recovery = Substitute.For<ITradeFeedRecoveryApi>();
+        recovery.LoadAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(saved);
+        recovery.EnableAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(true);
+        recovery.DisableAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(true);
+        var queries = Substitute.For<IEstablishedTradeQueryApi>();
+        queries.GetAsync(trade.Id,TradeStrategyKind.IronCondor,Arg.Any<CancellationToken>()).Returns(new ServiceOk<EstablishedTradeDefinition>(trade));
+        queries.GetRealtimeAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(new ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot>((TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot)null!));
+        var services = Substitute.For<IUiServiceCatalog>();
+        services.EstablishedTrades.Returns(queries); ConfigureTradeLimits(services);
+        var positions = Substitute.For<IStrategyPositionQueryApi>();
+        positions.GetHistoryAsync(Arg.Any<StrategyPositionId>(),TradeStrategyKind.IronCondor,Arg.Any<DateTime>(),Arg.Any<DateTime>(),Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<StrategyPositionSnapshot[]>([]));
+        services.StrategyPositions.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyPositionService(Substitute.For<IStrategyPositionCommandApi>(),positions));
+        services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
+        var market = Substitute.For<TomasAI.IFM.Domain.MarketData.Shared.ServiceApi.IMarketDataQueryApi>();
+        market.GetValueDateAsync().Returns(new ServiceOk<ScalarReadModel<DateOnly>>(new(date)));
+        services.MarketDataQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketData.MarketDataQueryService(market,Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>()));
+        services.FeedCommands.Returns(new TomasAI.IFM.UI.Net.Services.MarketDataFeed.MarketDataFeedCommandService(
+            Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedCommandApi>(),market,
+            Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IFuturesEodDataUIEventConsumer>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IFuturesTradeSignalUIEventConsumer>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IFuturesOptionTickDataUIEventConsumer>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IMarketDataFeedResetUIEventConsumer>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IMarketDataFeedStatusUIEventConsumer>(),
+            Substitute.For<TomasAI.IFM.UI.EventConsumer.IFuturesBarDataUIEventConsumer>(),recovery));
+        services.TradePositionEvents.Returns(new TomasAI.IFM.UI.Net.Services.Trade.TradePositionFeedEventService(Substitute.For<TomasAI.IFM.UI.EventConsumer.ITradePositionUIEventConsumer>()));
+        services.TradePlanEvents.Returns(new TomasAI.IFM.UI.Net.Services.Trade.TradePlanEventService(Substitute.For<TomasAI.IFM.UI.EventConsumer.ITradePlanUIEventConsumer>()));
+        var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
+        var vm = new IronCondorViewModel(root,new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
+            new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel{OrderId=1701}),new PortfolioFundOrderTradeEditorModel{TradeId=1101},
+            historical ? date.AddDays(-1) : null,[],historicalReadOnly:historical,establishedTrade:trade,brokerEnvironment:BrokerEnvironment.Emulator);
+        await vm.LoadEstablishedTradeAsync();
+        Assert.Equal(saved && !historical,vm.IsLiveFeedEnabled);
+        if (!historical) await recovery.Received(1).LoadAsync(trade.Id,date,Arg.Any<CancellationToken>());
+        else await recovery.DidNotReceive().LoadAsync(Arg.Any<TradeEntityId>(),Arg.Any<DateOnly>(),Arg.Any<CancellationToken>());
+        if (saved && !historical) {
+            await recovery.Received(1).EnableAsync(trade.Id,date,Arg.Any<CancellationToken>());
+            await vm.StopAsync(default); // Internal cleanup, including API disconnection, retains intent.
+            await recovery.DidNotReceive().DisableAsync(Arg.Any<TradeEntityId>(),Arg.Any<DateOnly>(),Arg.Any<CancellationToken>());
+            await vm.DisableLiveFeedAsync();
+            await recovery.Received(1).DisableAsync(trade.Id,date,Arg.Any<CancellationToken>());
+        }
+        await vm.DisposeAsync();
+    }
+
     [Fact]
     public async Task Persisted_EOD_refreshes_open_trade_after_feed_stop_without_reopening_or_restarting_live_feed()
     {

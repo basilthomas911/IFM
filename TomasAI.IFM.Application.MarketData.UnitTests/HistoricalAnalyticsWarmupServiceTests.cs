@@ -14,6 +14,63 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
     [Fact]
+    public async Task ProviderFailureDoesNotPreventStoredBaselineOrRepeatReplayOnRetry()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
+        var dates = fixture.ObservationStore.Raw.Select(value => value.ValueDate).Order().ToArray();
+        fixture.ObservationStore.Raw.RemoveAll(value => value.ValueDate >= dates[^5]);
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.EnsureAsync(fixture.Request, default).AsTask());
+            Assert.Equal(dates[^6], fixture.Service.BaselineValueDate);
+            Assert.True(fixture.Service.BaselineIsStale);
+            Assert.Equal(1, fixture.DailyReplay.PublishCount);
+        }
+    }
+
+    [Fact]
+    public async Task MissingHistoryAndProviderFailureLeavesBaselineUnavailable()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.EnsureAsync(fixture.Request, default).AsTask());
+        Assert.Null(fixture.Service.BaselineValueDate);
+        Assert.Equal(0, fixture.DailyReplay.PublishCount);
+    }
+
+    [Fact]
+    public async Task SavedCheckpointIsRestoredBeforeAcquisitionEvenWithoutRawHistory()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: false);
+        fixture.DailyReplay.RestoredDate = fixture.Request.EndDate.AddDays(-1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.EnsureAsync(fixture.Request, default).AsTask());
+        Assert.Equal(fixture.DailyReplay.RestoredDate, fixture.Service.BaselineValueDate);
+        Assert.Equal(1, fixture.DailyReplay.RestoreCount);
+        Assert.Equal(0, fixture.DailyReplay.PublishCount);
+    }
+
+    [Fact]
+    public async Task FailedCheckpointReadFallsBackToStoredHistory()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
+        fixture.DailyReplay.RestoreError = new IOException("checkpoint unavailable");
+        var result = await fixture.Service.EnsureAsync(fixture.Request, default);
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, result.Outcome);
+        Assert.Equal(fixture.Request.EndDate, fixture.Service.BaselineValueDate);
+        Assert.Equal(1, fixture.DailyReplay.PublishCount);
+    }
+
+    [Fact]
+    public async Task MatchingSavedCheckpointIsNotRebuiltFromAShorterHistoryWindow()
+    {
+        var fixture = new Fixture(enabled: true, seedCoverage: true);
+        fixture.DailyReplay.RestoredDate = fixture.Request.EndDate;
+        var result = await fixture.Service.EnsureAsync(fixture.Request, default);
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.AlreadyCurrent, result.Outcome);
+        Assert.Equal(0, fixture.DailyReplay.PublishCount);
+        Assert.Equal(fixture.Request.EndDate, fixture.Service.BaselineValueDate);
+    }
+
+    [Fact]
     public async Task StaleTrailingHistoryAcquiresMissingDatesEvenWithTwoHundredSessions()
     {
         var calendar = new CmeFuturesMarketSessionCalendar();
@@ -67,7 +124,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         Assert.Equal(0, result.MissingSessionCount);
         Assert.Equal(end, acquisition.EndDate);
         Assert.True(result.ValidSessionCount >= 200);
-        Assert.Equal(1, replay.PublishCount);
+        Assert.Equal(2, replay.PublishCount); // Stored baseline first, then refreshed history.
     }
 
     [Fact]
@@ -371,6 +428,16 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
     sealed class RecordingDailyReplayPublisher : IHistoricalDailyReplayPublisher
     {
+        internal DateOnly? RestoredDate { get; set; }
+        internal Exception? RestoreError { get; set; }
+        internal int RestoreCount { get; private set; }
+        public ValueTask<DateOnly?> RestoreAsync(MarketSeriesIdentity series, DateOnly targetValueDate,
+            string targetContractId, DateOnly lastCompletedDate, CancellationToken token)
+        {
+            RestoreCount++;
+            if (RestoreError is not null) throw RestoreError;
+            return ValueTask.FromResult(RestoredDate);
+        }
         internal int PublishCount { get; private set; }
         internal IReadOnlyList<FuturesEodObservationReadModel> LastObservations { get; private set; } = [];
         internal string LastTargetContractId { get; private set; } = string.Empty;

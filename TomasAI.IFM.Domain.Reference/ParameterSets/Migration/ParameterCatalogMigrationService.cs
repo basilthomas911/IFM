@@ -20,15 +20,22 @@ public sealed class ParameterCatalogMigrationService(IPostgresEventTransaction t
         while(cursor<cut)
         {
             var events=await tx.QueryAsync("""
-                SELECT n.eventtypename,l.eventversion,l.eventpayload FROM public.event_log l JOIN public.event_name_id n USING(eventnameid)
-                WHERE l.eventversion>$1 AND l.eventversion<=$2 AND
-                  (n.eventtypename LIKE '%ParameterSetCreatedEvent%' OR n.eventtypename LIKE '%ParameterDraftSavedEvent%'
-                   OR n.eventtypename LIKE '%ParameterSetRenamedEvent%' OR n.eventtypename LIKE '%ParameterVersionPublishedEvent%'
-                   OR n.eventtypename LIKE '%ParameterVersionRetiredEvent%' OR n.eventtypename LIKE '%ParameterAssignmentChangedEvent%'
-                   OR n.eventtypename LIKE '%ParameterStartupChangedEvent%')
+                WITH names AS MATERIALIZED (
+                    SELECT eventnameid,eventtypename FROM public.event_name_id
+                    WHERE eventtypename LIKE '%ParameterSetCreatedEvent%' OR eventtypename LIKE '%ParameterDraftSavedEvent%'
+                       OR eventtypename LIKE '%ParameterSetRenamedEvent%' OR eventtypename LIKE '%ParameterVersionPublishedEvent%'
+                       OR eventtypename LIKE '%ParameterVersionRetiredEvent%' OR eventtypename LIKE '%ParameterAssignmentChangedEvent%'
+                       OR eventtypename LIKE '%ParameterStartupChangedEvent%'
+                )
+                SELECT n.eventtypename,l.eventversion,l.eventpayload FROM names n
+                CROSS JOIN LATERAL (
+                    SELECT eventversion,eventpayload FROM public.event_log
+                    WHERE eventnameid=n.eventnameid AND eventversion>$1 AND eventversion<=$2
+                    ORDER BY eventversion LIMIT 100
+                ) l
                 ORDER BY l.eventversion LIMIT 100;
                 """,[cursor,cut],reader=>new TomasAI.IFM.Shared.EventSourcing.ViewModels.EventStreamReadModel
-                {EventTypeName=reader.GetString(0),EventVersion=reader.GetInt64(1),EventData=reader.GetFieldValue<byte[]>(2)},cancellationToken).ConfigureAwait(false);
+                {EventTypeName=reader.GetString(0),EventVersion=reader.GetInt64(1),EventData=reader.GetFieldValue<byte[]>(2)},cancellationToken, timeout: new PostgresQueryTimeout(TimeSpan.FromMinutes(5))).ConfigureAwait(false);
             if(events.Count==0)break;
             foreach(var row in events)
             {

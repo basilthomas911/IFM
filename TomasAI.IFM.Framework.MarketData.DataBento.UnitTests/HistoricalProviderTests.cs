@@ -7,6 +7,24 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 public sealed class HistoricalProviderTests
 {
     [Fact]
+    public async Task FailedEstimateIncludesProviderStatusAndEffectiveRequestBounds()
+    {
+        var provider = new DatabentoHistoricalProvider(new() { UseSyntheticProvider = true }, TimeProvider.System);
+        var request = new HistoricalProviderRequest
+        {
+            Dataset = "GLBX.MDP3", Symbols = ["ES.c.0"], Schema = (HistoricalDataSchema)255,
+            Symbology = HistoricalSymbology.Continuous, StartUtc = DateTimeOffset.Parse("2026-01-02T00:00:00Z"),
+            EndUtc = DateTimeOffset.Parse("2026-01-03T00:00:00Z"), RequestHash = "invalid-schema-test"
+        };
+        var error = await Assert.ThrowsAsync<DatabentoFeedException>(() => provider.EstimateAsync(request, default).AsTask());
+        Assert.Contains("InvalidArgument", error.Message);
+        Assert.Contains("Dataset=GLBX.MDP3", error.Message);
+        Assert.Contains("Schema=255", error.Message);
+        Assert.Contains("StartUtc=2026-01-02", error.Message);
+        Assert.Contains("EndUtc=2026-01-03", error.Message);
+        Assert.Contains("invalid-schema-test", error.Message);
+    }
+    [Fact]
     public async Task SyntheticProviderExercisesEstimateBatchDownloadAndRangeWithoutLeakingHandles()
     {
         var baseline = SafeHistoricalResultHandle.ActiveHandleCount;

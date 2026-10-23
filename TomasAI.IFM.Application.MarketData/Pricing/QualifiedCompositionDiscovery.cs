@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using System.Collections.Immutable;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -42,12 +43,15 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             if (request.Definitions.Count > 2048)
                 return Failed("SnapshotLimit");
             var definitions = request.Definitions.ToArray();
+            using var qualification = new OptionFeedTrace("option.discovery.qualify_reference", logger, request.LeaseId.ToString());
             var qualified = await universe.QualifyAsync(definitions, request.ScopeComplete, now, linked.Token).ConfigureAwait(false);
             if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
             {
                 OptionalApplicationDiagnosticLog.Write2(logger, null, definitions.Length, discoveryTimer.ElapsedMilliseconds);
             }
 
+            if (qualified.Failure is null) qualification.Complete();
+            qualification.Dispose();
             if (qualified.Failure is not null)
             {
                 if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
@@ -60,6 +64,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
 
             if (qualified.Definitions.IsEmpty)
                 return new(null, qualified.Exclusions, true, null);
+            using var preparation = new OptionFeedTrace("option.discovery.prepare_pricing_context", logger, request.LeaseId.ToString());
             var options = ImmutableArray.CreateBuilder<WorkerOptionDefinition>(qualified.Definitions.Length);
             foreach (var option in qualified.Definitions)
             {
@@ -72,6 +77,8 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 options.Add(new(context.Context!, option.Strike, option.IsCall));
             }
 
+            preparation.Complete();
+            preparation.Dispose();
             var resolved = options.MoveToImmutable();
             if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
             {
@@ -83,6 +90,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 scopeId = PricingSemanticHash.Compute(new { ScopeId = scopeId, IndependentChainConnection = true });
             if (routePlans is not null)
             {
+                using var routeSave = new OptionFeedTrace("option.discovery.save_route_plan", logger, request.LeaseId.ToString());
                 var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
                 var routes = CompositionRoutePlan.ResolveNative(desired ?? throw new InvalidOperationException("Native route registry is unavailable."), "GLBX.MDP3", request.ValueDate, resolved.Select(x => x.Pricing.Contract.UnderlyingContractId));
                 var plan = new CompositionRoutePlan(1, "", "GLBX.MDP3", request.MaturityDate, definitions.Where(x => ids.Contains(x.ContractId)).OrderBy(x => x.ContractId, StringComparer.Ordinal).ToImmutableArray(), [], routes, request.Calendar, request.Publication, request.Conversion)
@@ -92,6 +100,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 }.Seal();
                 await routePlans.SaveAsync(plan, linked.Token).ConfigureAwait(false);
                 scopeId = plan.PlanId;
+                routeSave.Complete();
             }
 
             var expiry = request.DeadlineUtc < clock.GetUtcNow().AddSeconds(120) ? request.DeadlineUtc : clock.GetUtcNow().AddSeconds(120);
@@ -100,10 +109,12 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             {
                 try
                 {
+                    using var readStatistics = new OptionFeedTrace("option.discovery.read_statistics", logger, request.LeaseId.ToString());
                     var saved = await statistics.ReadOptionChainStatisticsAsync(resolved[0].Pricing.Contract.UnderlyingContractId,
                         request.MaturityDate, request.ValueDate, linked.Token).ConfigureAwait(false);
                     var ids = resolved.Select(x => x.Pricing.Contract.ContractId).ToHashSet(StringComparer.Ordinal);
                     lease = lease with { Statistics = saved.Where(x => ids.Contains(x.ContractId)).ToImmutableArray() };
+                    readStatistics.Complete();
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -111,6 +122,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                         resolved[0].Pricing.Contract.UnderlyingContractId, request.MaturityDate);
                 }
             }
+            using var worker = new OptionFeedTrace("option.discovery.worker_acquire_until_ready", logger, request.LeaseId.ToString());
             var acquired = await market.AcquireAsync("GLBX.MDP3", lease, linked.Token).ConfigureAwait(false);
             if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Information) == true)
             {
@@ -135,6 +147,8 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
 
             if (!acquired.Active)
                 return Failed("ChainUnavailable");
+            worker.Complete();
+            worker.Dispose();
             if (refreshAutomatically)
             {
                 registrations[lease.LeaseId] = new(lease, request.Calendar, request.Publication, request.Conversion, clock.GetUtcNow(), renewAutomatically);

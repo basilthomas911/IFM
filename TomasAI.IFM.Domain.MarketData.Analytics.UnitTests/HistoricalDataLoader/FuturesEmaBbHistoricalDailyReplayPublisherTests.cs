@@ -13,12 +13,63 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.HistoricalDataLoader;
 
 [Collection(TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot.MarketOutlookHotCacheTestCollection.Name)]
 public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
 {
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    public async Task RestartRestoresOnlyMatchingCompletedCheckpointsAndResumesLivePreview(bool mismatched, bool future, bool expected)
+    {
+        var contract = "ES-SAVED-" + Guid.NewGuid().ToString("N");
+        var targetContract = "ES-RESTORED-" + Guid.NewGuid().ToString("N");
+        var baseline = MarketOutlookDailyPreviewCalculatorTests.SeedBaseline(contract);
+        Assert.True(RegimeDiscoverySignalCacheAdapter.TryGetLatestEsDailyBaseline(contract, out var emaCheckpoint,
+            out var bbCheckpoint, out var ema, out var bb));
+        if (mismatched) bb = bb with { Metadata = bb.Metadata with { ObservationId = default } };
+        var db = Substitute.For<IEventSourceActorDbContext>();
+        var emaEvent = new FuturesEmaSignalGeneratedEvent { FuturesEmaSignal = ema, FuturesEmaCheckpoint = emaCheckpoint };
+        var bbEvent = new FuturesBbSignalGeneratedEvent { FuturesBbSignal = bb, FuturesBbCheckpoint = bbCheckpoint };
+        db.MapReduceActorEventStreamAsync<FuturesEmaSignalCommandState, FuturesEmaSignalGeneratedEvent>(Arg.Any<long>(), 1,
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
+            .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(2)([Row(emaEvent)]); return ValueTask.CompletedTask; });
+        db.MapReduceActorEventStreamAsync<FuturesBbSignalCommandState, FuturesBbSignalGeneratedEvent>(Arg.Any<long>(), 1,
+            Arg.Any<Action<IEnumerable<EventStreamReadModel>>>(), Arg.Any<CancellationToken>())
+            .Returns(call => { call.ArgAt<Action<IEnumerable<EventStreamReadModel>>>(2)([Row(bbEvent)]); return ValueTask.CompletedTask; });
+        var writer = Substitute.For<IMarketOutlookUpdateWriter>();
+        var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(Substitute.For<IActorService>(), writer, db);
+        var restored = await publisher.RestoreAsync(MarketSeriesIdentity.ForContract(contract), baseline.ValueDate.AddDays(1),
+            targetContract, future ? baseline.ValueDate.AddDays(-1) : baseline.ValueDate, default);
+        Assert.Equal(expected ? baseline.ValueDate : (DateOnly?)null, restored);
+        if (expected)
+        {
+            var first = MarketOutlookDailyPreviewCalculatorTests.Trade(targetContract, 5300, 1);
+            Assert.True(MarketOutlookDailyPreviewCalculator.TryCalculate(first, out var firstEma, out var firstBb));
+            Assert.True(MarketOutlookDailyPreviewCalculator.TryCalculate(
+                MarketOutlookDailyPreviewCalculatorTests.Trade(targetContract, 5310, 2), out var secondEma, out var secondBb));
+            Assert.NotEqual(firstEma.Ema20, secondEma.Ema20);
+            Assert.NotEqual(firstBb.Upper20, secondBb.Upper20);
+        }
+        else writer.DidNotReceive().Submit(Arg.Any<HistoricalWarmupMarketOutlookUpdate>());
+
+        static EventStreamReadModel Row<T>(T source) where T : IEvent => new()
+        {
+            StreamVersion = 200, EventVersion = 200, EventTypeName = typeof(T).AssemblyQualifiedName!,
+            EventData = EventLogMessagePackCodec.Shared.Serialize(source)
+        };
+    }
+
     [Fact]
     public async Task OneYearReplay_WarmsEmaAndBollingerAndReconcilesTargetValueDate()
     {

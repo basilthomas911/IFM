@@ -61,7 +61,10 @@ public sealed class ActorThreadQueues(
             RecordRejected(threadId, ActorAdmissionReason.Stopping, subject.Verb);
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
         }
-        var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
+        // Complete disposable snapshots use their own fixed slot budget, not the shared durable traffic budget.
+        var charge = default(ActorAdmissionCharge);
+        var admission = LatestOptionSnapshotQueue.IsDisposable(message, subject) ? ActorAdmissionResult.AcceptedResult
+            : _admissionController.TryReserve(message, threadId.ActorType, out charge);
         if (!admission.Accepted)
         {
             RecordRejected(threadId, admission.Reason, subject.Verb);
@@ -153,7 +156,9 @@ public sealed class ActorThreadQueues(
             RecordRejected(threadId, ActorAdmissionReason.Stopping, subject.Verb);
             return ActorAdmissionResult.Rejected(ActorAdmissionReason.Stopping);
         }
-        var admission = _admissionController.TryReserve(message, threadId.ActorType, out var charge);
+        var charge = default(ActorAdmissionCharge);
+        var admission = LatestOptionSnapshotQueue.IsDisposable(message, subject) ? ActorAdmissionResult.AcceptedResult
+            : _admissionController.TryReserve(message, threadId.ActorType, out charge);
         if (!admission.Accepted)
         {
             RecordRejected(threadId, admission.Reason, subject.Verb);
@@ -228,7 +233,8 @@ public sealed class ActorThreadQueues(
                 RemoveRetired(threadId, existing);
             }
 
-            var created = _supervisor.Container.Resolve<IActorThreadQueue>();
+            var created = LatestOptionSnapshotQueue.Applies(threadId)
+                ? new LatestOptionSnapshotQueue(_admissionController) : _supervisor.Container.Resolve<IActorThreadQueue>();
             created.SetId(threadId);
             created.Start();
             Interlocked.Increment(ref _publishedOrPendingQueues);

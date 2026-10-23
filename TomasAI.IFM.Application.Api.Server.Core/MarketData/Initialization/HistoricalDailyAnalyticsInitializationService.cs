@@ -7,6 +7,11 @@ using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.MarketData.Initialization;
 
@@ -23,8 +28,11 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
     HistoricalAnalyticsWarmupService warmup,
     IMarketOutlookOperations marketOutlookOperations,
     TimeProvider timeProvider,
-    ILogger<HistoricalDailyAnalyticsInitializationService> logger) : BackgroundService
+    ILogger<HistoricalDailyAnalyticsInitializationService> logger,
+    IJSActorProducer? producer = null) : BackgroundService
 {
+    string? lastStatusKey;
+    DailyAnalyticsInitializationStatusEvent? status;
     static readonly MarketSeriesIdentity EsContinuation = MarketSeriesIdentity.ForFuturesSeries(
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
@@ -54,6 +62,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
                     var valueDate = marketSessionAuthority.Current.OperationalValueDate;
                     if (initializedValueDate == valueDate)
                     {
+                        await DeliverStatusAsync(stoppingToken).ConfigureAwait(false);
                         await Task.Delay(TimeSpan.FromMinutes(1), timeProvider, stoppingToken)
                             .ConfigureAwait(false);
                         continue;
@@ -88,6 +97,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
                     logger.LogInformation(
                         "{Component}.{Method} "+"Daily EMA and Bollinger initialization completed from historical EOD data. Outcome={Outcome}; ValueDate={ValueDate}; ContractId={ContractId}; ValidSessions={ValidSessions}.",nameof(HistoricalDailyAnalyticsInitializationService),nameof(ExecuteAsync),                        result.Outcome,                        valueDate,                        contractId,                        result.ValidSessionCount);
                     initializedValueDate = valueDate;
+                    await PublishStatusAsync(valueDate, null, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -97,6 +107,7 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
                 {
                     logger.LogError(
                         exception,                        "{Component}.{Method} "+"Daily EMA and Bollinger initialization failed; retrying in one minute.",nameof(HistoricalDailyAnalyticsInitializationService),nameof(ExecuteAsync));
+                    await PublishStatusAsync(marketSessionAuthority.Current.OperationalValueDate, exception, stoppingToken).ConfigureAwait(false);
                     await Task.Delay(TimeSpan.FromMinutes(1), timeProvider, stoppingToken)
                         .ConfigureAwait(false);
                 }
@@ -105,6 +116,43 @@ public sealed class HistoricalDailyAnalyticsInitializationService(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
         }
+    }
+
+    async Task PublishStatusAsync(DateOnly valueDate, Exception? error, CancellationToken token)
+    {
+        var baseline = warmup.BaselineValueDate;
+        var key = $"{valueDate:O}|{baseline:O}|{error is not null}";
+        if (key != lastStatusKey)
+        {
+            var id = new MarketDataFeedId(valueDate);
+            status = new DailyAnalyticsInitializationStatusEvent
+            {
+                Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = id,
+                Subject = new(ActorType.Event, DailyAnalyticsInitializationStatusEvent.Actor, DailyAnalyticsInitializationStatusEvent.Verb, id.Format()),
+                EventSource = nameof(HistoricalDailyAnalyticsInitializationService),
+                ReceivedOn = timeProvider.GetUtcNow().UtcDateTime, ErrorDate = timeProvider.GetUtcNow().UtcDateTime,
+                BaselineValueDate = baseline, BaselineIsStale = warmup.BaselineIsStale,
+                RefreshFailed = error is not null, ErrorCode = error is null ? 0 : 503,
+                ErrorMessage = (baseline is { } date ? $"Daily EMA / Bollinger using {(warmup.BaselineIsStale ? "STALE " : "")}baseline dated {date:yyyy-MM-dd}. "
+                    : "Daily EMA / Bollinger initialization unavailable; live previews have no initialized baseline. ")
+                    + (error is null ? "Historical initialization completed." : "Historical refresh failed and will retry: " + error.Message)
+            };
+            lastStatusKey = key;
+        }
+        await DeliverStatusAsync(token).ConfigureAwait(false);
+    }
+
+    async Task DeliverStatusAsync(CancellationToken token)
+    {
+        if (producer is null || status is null) return;
+        try
+        {
+            if (!producer.IsRunning)
+                await producer.StartAsync(new(ActorType.Event, nameof(HistoricalDailyAnalyticsInitializationService)), token).ConfigureAwait(false);
+            await producer.SendAsync<DailyAnalyticsInitializationStatusEvent, MarketDataFeedId>(status.Subject, status, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception error) { logger.LogWarning(error, "Daily analytics status delivery failed; retained status will be retried."); }
     }
 
     async Task<string> ResolveCurrentEsContractIdAsync(

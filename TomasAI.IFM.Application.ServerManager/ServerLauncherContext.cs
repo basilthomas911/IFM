@@ -1,6 +1,12 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
+using TomasAI.IFM.Application.ServerManager.Contracts;
 using System.Windows;
 using Serilog;
 using Serilog.Events;
@@ -22,6 +28,8 @@ public sealed class ServerLauncherContext : IAsyncDisposable
     private readonly DevelopmentProcessSession? _developmentSession;
     private readonly DevelopmentControlPipe? _developmentControlPipe;
     private int _stopped;
+    private readonly CancellationTokenSource _apiRecoveryCancellation = new();
+    private readonly Task _apiRecovery = Task.CompletedTask;
 
     public ServerLauncherContext(
         App application,
@@ -40,6 +48,14 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         {
             _developmentSession = new DevelopmentProcessSession();
             _developmentSession.MarkDefinitions(options.Processes);
+            if (options.ApiRecoveryRestartEnabled)
+            {
+                var api = options.Processes.Single(process => process.Key == "api");
+                var directory = Path.Combine(Path.GetDirectoryName(DevelopmentProcessSession.SessionFilePath)!, "ApiRecovery", _developmentSession.SessionId);
+                Directory.CreateDirectory(directory);
+                api.EnvironmentVariables[ApiRecoveryRestartProtocol.DirectoryVariable] = directory;
+                api.EnvironmentVariables[ApiRecoveryRestartProtocol.ControllerVariable] = "1";
+            }
         }
 
         _supervisor = new ManagedProcessSupervisor(
@@ -51,6 +67,31 @@ public sealed class ServerLauncherContext : IAsyncDisposable
                 ? null
                 : processes => _developmentSession.Record(processes));
         _notifyIcon = CreateNotifyIcon();
+        if (_developmentSession is not null && options.ApiRecoveryRestartEnabled)
+        {
+            var api = options.Processes.Single(process => process.Key == "api");
+            var environment = api.EnvironmentVariables.GetValueOrDefault("DOTNET_ENVIRONMENT") ?? "Development";
+            var configuration = new ConfigurationBuilder().SetBasePath(api.ResolveWorkingDirectory())
+                .AddJsonFile("appsettings.json", optional:true).AddJsonFile($"appsettings.{environment}.json", optional:true).Build();
+            var url = configuration["Nats:Url"] ?? "nats://localhost:4222";
+            var readiness = new Uri(new Uri(api.ReadinessUri!), "/health/recovery-ready");
+            var controller = new ApiRecoveryRestartController(api.EnvironmentVariables[ApiRecoveryRestartProtocol.DirectoryVariable], _developmentSession.SessionId,
+                (request,token) => _supervisor.RestartApiAsync(request.ProcessId,request.ProcessStartedUtc,token),
+                async (request,pid,token) => {
+                    using var client = new HttpClient { Timeout=Timeout.InfiniteTimeSpan };
+                    while (true) {
+                        token.ThrowIfCancellationRequested();
+                        try {
+                            var state = await client.GetFromJsonAsync<ApiRecoveryReadiness>(readiness,token).ConfigureAwait(false);
+                            if (state is { FeedsRestored:true } && state.ProcessId==pid && state.ValueDate==request.ValueDate
+                                && request.TradeIds.All(id => state.ProvenTradeIds.Contains(id,StringComparer.Ordinal))) return;
+                        } catch (HttpRequestException) { }
+                        await Task.Delay(250,token).ConfigureAwait(false);
+                    }
+                }, (result,token) => ApiRecoveryUiNotifier.SendAsync(url,result,token), message => WriteManagerLog(message));
+            _apiRecovery = controller.RunAsync(_apiRecoveryCancellation.Token);
+            WriteManagerLog("API-only recovery restart controller enabled: one restart per value date; 120-second restart/restore deadline.");
+        }
 
         _viewModel.ConsoleVisibility = Visibility.Hidden;
         _viewModel.ConsoleWindowState = WindowState.Minimized;
@@ -78,6 +119,10 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         {
             await _developmentControlPipe.DisposeAsync().ConfigureAwait(false);
         }
+
+        await _apiRecoveryCancellation.CancelAsync().ConfigureAwait(false);
+        await _apiRecovery.ConfigureAwait(false);
+        _apiRecoveryCancellation.Dispose();
 
         await _schedulerMonitorCancellation.CancelAsync().ConfigureAwait(true);
         try

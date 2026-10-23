@@ -34,7 +34,11 @@ public sealed partial class ApiServerLifecycle
 {
     static async Task RunServerAsync(WebApplication app, string[] args, Microsoft.Extensions.Logging.ILogger logger, IApiFatalRecoveryShutdown? fatalRecoveryShutdown)
     {
-
+        // Normal startup does not run full deployment schema initialization. Recovery readers
+        // must have their additive operational table before any hosted services start.
+        using (var recoverySchemaDeadline = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
+            await app.Services.GetRequiredService<TomasAI.IFM.Application.Storage.TradeDb.Schema.TradeSchemaDb>()
+                .CreateAsync(["live_feed_recovery"], recoverySchemaDeadline.Token);
         if (app.Services.GetService<TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema.ScheduledTaskSchemaDb>() is { } scheduledTaskSchema)
         {
             using var scheduledTaskSchemaDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));

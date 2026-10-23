@@ -191,9 +191,7 @@ public class YieldCurveRateEditorViewModelTests
         var eventConsumer = Substitute.For<IMarketDataUIEventConsumer>();
         var eventSource = new TestMarketDataEventSource(eventConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        var valueDates = Substitute.For<IValueDateProvider>();
-        valueDates.ValueDate.Returns(DateOnly.FromDateTime(DateTime.Today));
-        appRoot.ValueDates.Returns(valueDates);
+        queryApi.GetValueDateAsync().Returns(new ServiceOk<ScalarReadModel<DateOnly>>(new(DateOnly.FromDateTime(DateTime.Today))));
         appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(queryApi, feedQueryApi));
         appRoot.Services.MarketDataCommands.Returns(new MarketDataCommandService(commandApi));
         appRoot.Services.MarketDataEvents.Returns(new MarketDataEventService(eventConsumer));

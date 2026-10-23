@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using MessagePack;
 using MessagePack.Resolvers;
@@ -39,24 +41,32 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
     public static bool IsRecoveryRequest(string path) => path == "api/RecoverMarketDataAsync" || path.EndsWith("/reset", StringComparison.Ordinal);
     public async Task<T> PostAsync<T>(string path, object request, CancellationToken token, Guid? operationId = null)
     {
+        var id = operationId ?? Guid.NewGuid();
+        using var trace = path.Contains("Option", StringComparison.Ordinal) || path.Contains("TradeFeedRecovery", StringComparison.Ordinal)
+            ? new OptionFeedTrace("option.host.rpc." + path, null, id.ToString(), realtime: true) : null;
         var recovery = IsRecoveryRequest(path);
         var budget = recovery ? Timeout.InfiniteTimeSpan : path == "api/RefreshInstrumentDefinitionsAsync" ? TimeSpan.FromMinutes(30)
             : path == "api/LoadHistoricalAsync" ? TimeSpan.FromMinutes(25)
             : path.EndsWith("/start", StringComparison.Ordinal) || path is "api/StartAsync" or "api/ReadFiveMinuteSeedBarsAsync" or "api/RefreshOptionCalendarAsync"
             ? TimeSpan.FromSeconds(180) : path is "api/AcquireOptionScopeAsync" or "api/PrepareCompositionAsync" ? TimeSpan.FromSeconds(90)
+            : path is "api/ReadTradeFeedRecoveryAsync" or "api/LoadTradeFeedRecoveryAsync" or "api/EnableTradeFeedRecoveryAsync"
+                or "api/DisableTradeFeedRecoveryAsync" or "api/CloseTradeFeedRecoveryAsync" ? TimeSpan.FromMinutes(2)
             : TimeSpan.FromSeconds(30);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         if (!recovery) deadline.CancelAfter(budget);
         var client = await GetClientAsync(deadline.Token).ConfigureAwait(false);
         var body = MessagePackSerializer.Serialize(request.GetType(), request, Serialization, deadline.Token);
         var reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
-            new(path, body, operationId ?? Guid.NewGuid(), recovery ? DateTime.MaxValue : DateTime.UtcNow.Add(budget)),
+            new(path, body, id, recovery ? DateTime.MaxValue : DateTime.UtcNow.Add(budget)),
+            headers: ActorTrace.Headers(),
             requestSerializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default,
             replySerializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
             replyOpts: new NatsSubOpts { Timeout = budget }, cancellationToken: deadline.Token).ConfigureAwait(false);
         if (reply.Data is null) throw new InvalidDataException("MarketData Host returned no result.");
         if (reply.Data.Error is { } error) throw new InvalidOperationException(error);
-        return Decode<T>(reply.Data.Payload);
+        var result = Decode<T>(reply.Data.Payload);
+        trace?.Complete();
+        return result;
     }
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

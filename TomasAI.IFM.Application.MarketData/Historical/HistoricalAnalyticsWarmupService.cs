@@ -21,6 +21,12 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
     readonly TimeProvider timeProvider;
     readonly SemaphoreSlim gate = new(1, 1);
     string lastCompletedReplayKey = string.Empty;
+    /// <summary>The last successfully published baseline; retained when acquisition fails.</summary>
+    public DateOnly? BaselineValueDate { get; private set; }
+    DateOnly? expectedBaselineDate;
+    /// <summary>True when more than one completed trading session is missing, matching the acquisition policy.</summary>
+    public bool BaselineIsStale => BaselineValueDate is { } baseline && expectedBaselineDate is { } end
+        && baseline < end && TradingDates(baseline.AddDays(1), end).Length > 1;
     public HistoricalAnalyticsWarmupService(HistoricalAnalyticsWarmupOptions options, HistoricalDataLoader loader, IHistoricalObservationStore observationStore, IHistoricalDailyReplayPublisher dailyReplayPublisher, IMarketSessionCalendar calendar, TimeProvider timeProvider, ILogger<HistoricalAnalyticsWarmupService>? logger = null)
     {
         this.logger = logger ?? NullLogger<HistoricalAnalyticsWarmupService>.Instance;
@@ -65,11 +71,33 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
         try
         {
             var endDate = LastCompletedTradingDate(template.EndDate);
+            expectedBaselineDate = endDate;
+            if (BaselineValueDate > endDate) BaselineValueDate = null;
+            logger.LogInformation("Daily analytics warmup effective range: TargetValueDate={ValueDate}; LastCompletedDate={EndDate}; AttemptId={AttemptId}",
+                template.EndDate, endDate, template.DataLoadAttemptId);
+            foreach (var series in template.Series)
+            {
+                try
+                {
+                    var restored = await dailyReplayPublisher.RestoreAsync(series.SeriesIdentity, template.EndDate,
+                        template.AnalyticsTargetContractId, endDate, cancellationToken).ConfigureAwait(false);
+                    if (restored.HasValue) BaselineValueDate = restored;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception error)
+                {
+                    logger.LogWarning(error, "Daily checkpoint restoration failed; trying stored observations. Series={Series}; AttemptId={AttemptId}",
+                        series.SeriesIdentity, template.DataLoadAttemptId);
+                }
+            }
             var startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
             var expected = TradingDates(startDate, endDate);
             var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken).ConfigureAwait(false);
             var insufficientSeries = template.Series.Select(series => new { Series = series, ValidSessionCount = ValidSessionCount(coverage[series.SeriesIdentity]) }).Where(value => value.ValidSessionCount < options.MinimumValidDailySessions || HasStaleTail(coverage[value.Series.SeriesIdentity], expected)).ToArray();
             HistoricalDataLoaderState? loaded = null;
+            // Make existing durable history usable before any provider request can fail or wait.
+            var replayedBeforeAcquisition = coverage.All(pair => ValidSessionCount(pair.Value) >= options.MinimumValidDailySessions)
+                && await ReplayCoverageAsync(coverage, template, startDate, endDate, cancellationToken).ConfigureAwait(false);
             if (insufficientSeries.Length > 0)
             {
                 foreach (var insufficient in insufficientSeries)
@@ -86,17 +114,11 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
             if (remainingInsufficient.Length > 0)
                 throw new InvalidDataException("Historical coverage remains insufficient after the one-year acquisition: " + string.Join(", ", remainingInsufficient.Select(value => $"{value.SeriesIdentity.Format()} has {value.ValidSessionCount}/{options.MinimumValidDailySessions} valid Daily sessions")) + ".");
             var remainingMissing = template.Series.Sum(series => expected.Count(date => !coverage[series.SeriesIdentity].Any(value => value.ValueDate == date && value.IsComplete && value.IsValid)));
-            var ordered = coverage.OrderBy(static pair => pair.Key.Format(), StringComparer.Ordinal).SelectMany(static pair => pair.Value.Where(static value => value.IsComplete && value.IsValid).GroupBy(static value => value.ValueDate).Select(static group => group.OrderByDescending(value => value.LastMarketEventUtc).First()).OrderBy(static value => value.ValueDate)).ToArray();
             var esCount = coverage.Where(static pair => pair.Key.FuturesSeriesId is { } series && series.RootSymbol.Equals("ES", StringComparison.OrdinalIgnoreCase)).SelectMany(static pair => pair.Value).Where(static value => value.IsComplete && value.IsValid).Select(static value => value.ValueDate).Distinct().Count();
             if (esCount < options.MinimumValidDailySessions)
                 throw new InvalidDataException($"ES historical coverage has {esCount} valid Daily sessions; {options.MinimumValidDailySessions} are required.");
-            var replayKey = ReplayKey(startDate, endDate, ordered);
-            var replayed = !string.Equals(lastCompletedReplayKey, replayKey, StringComparison.Ordinal);
-            if (replayed)
-            {
-                await dailyReplayPublisher.PublishAsync(ordered, template.EndDate, template.AnalyticsTargetContractId, cancellationToken).ConfigureAwait(false);
-                lastCompletedReplayKey = replayKey;
-            }
+            var replayed = await ReplayCoverageAsync(coverage, template, startDate, endDate, cancellationToken).ConfigureAwait(false);
+            replayed |= replayedBeforeAcquisition;
 
             return new((insufficientSeries.Length > 0) switch
             {
@@ -111,6 +133,26 @@ public sealed class HistoricalAnalyticsWarmupService : IDisposable
         {
             gate.Release();
         }
+    }
+
+    async ValueTask<bool> ReplayCoverageAsync(
+        Dictionary<MarketSeriesIdentity, IReadOnlyList<FuturesEodObservationReadModel>> coverage,
+        MarketDataHistoricalRequest template, DateOnly startDate, DateOnly endDate, CancellationToken token)
+    {
+        var ordered = coverage.OrderBy(static pair => pair.Key.Format(), StringComparer.Ordinal)
+            .SelectMany(static pair => pair.Value.Where(static value => value.IsComplete && value.IsValid)
+                .GroupBy(static value => value.ValueDate)
+                .Select(static group => group.OrderByDescending(value => value.LastMarketEventUtc).First())
+                .OrderBy(static value => value.ValueDate)).ToArray();
+        var replayKey = ReplayKey(startDate, endDate, ordered) + "|" + template.EndDate + "|" + template.AnalyticsTargetContractId;
+        if (string.Equals(lastCompletedReplayKey, replayKey, StringComparison.Ordinal)) return false;
+        var latestEsDate = ordered.Where(static value => value.MarketSeriesIdentity.FuturesSeriesId is { RootSymbol: "ES" })
+            .Select(static value => (DateOnly?)value.ValueDate).Max();
+        if (BaselineValueDate.HasValue && latestEsDate <= BaselineValueDate) return false;
+        await dailyReplayPublisher.PublishAsync(ordered, template.EndDate, template.AnalyticsTargetContractId, token).ConfigureAwait(false);
+        lastCompletedReplayKey = replayKey;
+        BaselineValueDate = latestEsDate;
+        return true;
     }
 
     // Permit one not-yet-published completed session, but never treat weeks-old coverage as current.

@@ -53,7 +53,6 @@ public sealed class UiClientServiceRegistration(Container container,IConfigurati
                 throw new InvalidOperationException("AppSettings:NatsServerUri is required.");
 
             _container!.RegisterInstance(TimeProvider.System);
-            _container!.RegisterSingleton<IValueDateProvider, FuturesValueDateProvider>();
             //_container!.RegisterSingleton<IJsonSerializer, SystemTextJsonSerializer>();
             _container!.RegisterSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
             _container!.RegisterInstance<INatsProducerOptions>(new NatsProducerOptions { Url = natsServerUri });
@@ -122,6 +121,12 @@ public sealed class UiClientServiceRegistration(Container container,IConfigurati
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IStrategyPositionCommandApi,
                 StrategyPositionCommandApi>();
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.IEstablishedTradeQueryApi, EstablishedTradeQueryApi>();
+            _container.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeFeedRecoveryApi>(() => new TradeFeedRecoveryApi(
+                new TomasAI.IFM.Application.MarketData.Remote.MarketDataApiClient(
+                    new TomasAI.IFM.Application.MarketData.Databento.Workers.MarketDataHostConnection(
+                        _container.GetInstance<NatsConnectionManager>(), _config["MarketDataHost:NatsUrl"] ?? _container.GetInstance<INatsProducerOptions>().Url,
+                        _config["MarketDataHost:Scope"] ?? "development"),
+                    new TomasAI.IFM.Application.MarketData.Remote.MarketDataReadMirror(new TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache()))));
             _container!.RegisterSingleton<TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeOrderLifecycleApi,
                 TradeOrderLifecycleApi>();
             _container!.RegisterSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();

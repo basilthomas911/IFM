@@ -18,6 +18,68 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 /// <summary>Uses real NATS and actual named child processes on isolated subjects; never touches live feed subjects.</summary>
 public sealed class MarketDataHostNatsRecoveryIntegrationTests
 {
+    [Theory(Timeout = 45000)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    public async Task Development_fault_contract_is_gated_and_targets_only_current_Options_generation(bool enabled, bool development)
+    {
+        await using var fixture = await Fixture.StartAsync(developmentFaults: enabled, developmentEnvironment: development);
+        await using var options = fixture.Worker("Options");
+        await using var futures = fixture.Worker("Futures");
+        var before = await options.StartAsync(Request());
+        var other = await futures.StartAsync(Request("XCBF.PITCH", "VX"));
+        IMarketDataApi api = new MarketDataApiClient(fixture.Connection, Substitute.For<IMarketDataApi>());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var request = new MarketDataDevelopmentFaultRequest(Guid.NewGuid(), before.WorkerInstanceId, before.GenerationId, ValueDate);
+        await Assert.ThrowsAnyAsync<Exception>(() => api.InjectDevelopmentOptionWorkerFaultAsync(request with { GenerationId = Guid.NewGuid() }, deadline.Token));
+        await Assert.ThrowsAnyAsync<Exception>(() => api.InjectDevelopmentOptionWorkerFaultAsync(request with { WorkerInstanceId = other.WorkerInstanceId, GenerationId = other.GenerationId }, deadline.Token));
+        if (!enabled || !development)
+        {
+            var error = await Assert.ThrowsAnyAsync<Exception>(() => api.InjectDevelopmentOptionWorkerFaultAsync(request, deadline.Token));
+            error.Message.Should().Contain("Development verification");
+            (await options.GetHealthAsync(deadline.Token)).Healthy.Should().BeTrue();
+        }
+        else
+        {
+            (await api.InjectDevelopmentOptionWorkerFaultAsync(request, deadline.Token)).Should().BeTrue();
+            var reset = await api.RecoverMarketDataAsync(new(Guid.NewGuid(), "Options", "GLBX.MDP3", before.WorkerInstanceId,
+                before.GenerationId, ValueDate, "Armed Development injection integration test", true, DateTimeOffset.UtcNow.AddSeconds(25)), deadline.Token);
+            reset.Recovered.Should().BeTrue(reset.Error);
+            (await api.GetBackendStatusAsync(deadline.Token)).Datasets.Single(dataset => dataset.Role == "Options").ProcessId.Should().NotBe(before.ProcessId);
+        }
+        (await futures.GetHealthAsync(deadline.Token)).Healthy.Should().BeTrue();
+        futures.Current.ProcessId.Should().Be(other.ProcessId);
+    }
+    [Fact(Timeout = 60000)]
+    public async Task Emergency_options_replacement_discards_hung_control_restores_lease_and_preserves_futures_process()
+    {
+        await using var fixture = await Fixture.StartAsync();
+        await using var futures = fixture.Worker("Futures");
+        await using var options = fixture.Worker("Options");
+        var unchanged = await futures.StartAsync(Request("XCBF.PITCH", "VX"));
+        var before = await options.StartAsync(Request());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+        var lease = OptionLease(before); await AcquireReadyAsync(options, lease, deadline.Token);
+        await fixture.Connection.PostAsync<bool>($"workers/Options/{before.WorkerInstanceId:D}/hang", new { }, deadline.Token);
+        IMarketDataApi api = new MarketDataApiClient(fixture.Connection, Substitute.For<IMarketDataApi>());
+        var timer = Stopwatch.StartNew();
+        var result = await api.RecoverMarketDataAsync(new(Guid.NewGuid(), "Options", "GLBX.MDP3", before.WorkerInstanceId,
+            before.GenerationId, ValueDate, "Emergency latest-state recovery", ReplaceProcessImmediately: true,
+            DeadlineUtc: DateTimeOffset.UtcNow.AddSeconds(30)), deadline.Token);
+        result.Recovered.Should().BeTrue(result.Error);
+        timer.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(30));
+        var replaced = (await api.GetBackendStatusAsync(deadline.Token)).Datasets.Single(dataset => dataset.Role == "Options");
+        replaced.ProcessId.Should().NotBe(before.ProcessId); replaced.GenerationId.Should().NotBe(before.GenerationId);
+        var snapshot = await options.CaptureCompositionSnapshotAsync(new(Guid.NewGuid(), lease.ScopeId, "Daily",
+            result.GenerationId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddSeconds(2), true)
+            { SelectionOnly = true, AllowMissingOptionQuotes = true }, deadline.Token);
+        snapshot.Snapshot.Should().NotBeNull("the desired option lease must survive the process kill: {0}", snapshot.Failure);
+        (await futures.GetHealthAsync(deadline.Token)).Healthy.Should().BeTrue();
+        futures.Current.ProcessId.Should().Be(unchanged.ProcessId);
+        futures.Current.GenerationId.Should().Be(unchanged.GenerationId);
+    }
+
     static readonly DateOnly ValueDate = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.TryGet(DateTimeOffset.UtcNow, out var date)
         ? date : DateOnly.FromDateTime(DateTime.UtcNow);
     [Fact(Timeout = 30000)]
@@ -409,8 +471,10 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         (await api.GetBackendStatusAsync(deadline.Token)).Datasets.Single().ProcessId.Should().NotBe(before.ProcessId);
     }
 
-    [Fact(Timeout = 45000)]
-    public async Task Committed_ownership_survives_recovery_after_the_temporary_lease_is_released()
+    [Theory(Timeout = 45000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Committed_ownership_survives_recovery_after_the_temporary_lease_is_released(bool forceProcessReplacement)
     {
         var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
             ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.artifacts/market-data-host"));
@@ -420,7 +484,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             ["MarketDataHost:DeploymentProfile"] = "SyntheticCi", ["MarketDataHost:DataSource"] = "Synthetic"
         }).Build();
         await using var manager = new NatsConnectionManager();
-        var connection = new MarketDataHostConnection(manager, "nats://127.0.0.1:4222", "ownershiptest" + Guid.NewGuid().ToString("N"));
+        var connection = new MarketDataHostConnection(manager, Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222", "ownershiptest" + Guid.NewGuid().ToString("N"));
         await using var host = new TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost(configuration,
             NullLogger<TomasAI.IFM.Application.MarketData.Host.MarketDataWorkerHost>.Instance, connection);
         await host.StartAsync(default);
@@ -442,11 +506,18 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         await host.ReleaseOptionLeaseAsync("Options", before.WorkerInstanceId,
             new(lease.ScopeId, lease.LeaseId, before.GenerationId), deadline.Token);
         var recovered = await host.RecoverAsync(new(Guid.NewGuid(), "Options", "GLBX.MDP3", before.WorkerInstanceId,
-            before.GenerationId, ValueDate, "Committed ownership recovery"), deadline.Token);
+            before.GenerationId, ValueDate, "Committed ownership recovery", ReplaceProcessImmediately: forceProcessReplacement,
+            DeadlineUtc: DateTimeOffset.UtcNow.AddSeconds(20)), deadline.Token);
         recovered.Recovered.Should().BeTrue(recovered.Error);
-        var captured = await host.RequireWorker("Options", before.WorkerInstanceId).CaptureCompositionSnapshotAsync(
-            new(Guid.NewGuid(), lease.ScopeId, "Daily", recovered.GenerationId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddSeconds(2), true)
-            { SelectionOnly = true, AllowMissingOptionQuotes = true }, deadline.Token);
+        if (forceProcessReplacement) host.GetBackendStatus().Datasets.Single().ProcessId.Should().NotBe(before.ProcessId);
+        TomasAI.IFM.Application.MarketData.Pricing.CompositionSnapshotResult captured;
+        do
+        {
+            captured = await host.RequireWorker("Options", before.WorkerInstanceId).CaptureCompositionSnapshotAsync(
+                new(Guid.NewGuid(), lease.ScopeId, "Daily", recovered.GenerationId, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow.AddSeconds(2), true)
+                { SelectionOnly = true, AllowMissingOptionQuotes = true }, deadline.Token);
+            if (captured.Snapshot is null) await Task.Delay(50, deadline.Token);
+        } while (captured.Snapshot is null);
         captured.Snapshot.Should().NotBeNull("committed ownership must survive without a temporary monitoring lease: {0}", captured.Failure);
     }
 
@@ -500,7 +571,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         bool fullBackend;
         readonly System.Text.StringBuilder diagnostics = new();
         public MarketDataHostConnection Connection { get; private set; } = null!;
-        public static async Task<Fixture> StartAsync(TimeSpan? softTimeout = null, bool fullBackend = false)
+        public static async Task<Fixture> StartAsync(TimeSpan? softTimeout = null, bool fullBackend = false, bool developmentFaults = false, bool developmentEnvironment = true)
         {
             var value = new Fixture { fullBackend = fullBackend };
             var root = new DirectoryInfo(AppContext.BaseDirectory);
@@ -508,16 +579,20 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             var output = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_HOST_DIRECTORY")
                 ?? Path.Combine(root!.FullName, ".artifacts", "market-data-host");
             var scope = "recoverytest" + Guid.NewGuid().ToString("N");
-            value.Connection = new(value.connections, "nats://127.0.0.1:4222", scope);
+            var natsUrl = Environment.GetEnvironmentVariable("IFM_MARKETDATA_TEST_NATS_URL") ?? "nats://127.0.0.1:4222";
+            value.Connection = new(value.connections, natsUrl, scope);
             var start = new ProcessStartInfo(Path.Combine(output, "TomasAI.IFM.Application.MarketData.Host.exe"))
             {
                 UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true
             };
             start.Environment["MarketDataHost__Scope"] = scope;
+            start.Environment["MarketDataHost__NatsUrl"] = natsUrl;
             start.Environment["MarketDataHost__DeploymentProfile"] = "SyntheticCi";
             start.Environment["MarketDataHost__DataSource"] = "Synthetic";
             start.Environment["MarketDataHost__ControlOnly"] = "true";
+            start.Environment["DOTNET_ENVIRONMENT"] = developmentEnvironment ? "Development" : "Production";
+            start.Environment["MarketDataRecovery__DevelopmentVerification__Enabled"] = developmentFaults.ToString();
             if (fullBackend)
             {
                 start.Environment["DOTNET_ENVIRONMENT"] = "Development";

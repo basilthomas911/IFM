@@ -10,6 +10,9 @@ public sealed class MarketDataHostOperationAttribute : Attribute;
 public partial interface IMarketDataApi
 {
     [MarketDataHostOperation]
+    Task<bool> InjectDevelopmentOptionWorkerFaultAsync(MarketDataDevelopmentFaultRequest request, CancellationToken cancellationToken = default)
+        => Task.FromException<bool>(new NotSupportedException("Development fault injection is not configured."));
+    [MarketDataHostOperation]
     Task<Pricing.TreasuryPricingResult> WarmTreasuryPricingAsync(CancellationToken cancellationToken = default)
         => Task.FromException<Pricing.TreasuryPricingResult>(new NotSupportedException("Backend reference operation is not configured."));
 
@@ -113,7 +116,8 @@ public sealed record MarketDataDatasetStatus([property: Key(0)] string Role, [pr
 [MessagePackObject]
 public sealed record MarketDataRecoveryRequest([property: Key(0)] Guid OperationId, [property: Key(1)] string Role,
     [property: Key(2)] string Dataset, [property: Key(3)] Guid ExpectedWorkerInstanceId,
-    [property: Key(4)] Guid ExpectedGenerationId, [property: Key(5)] DateOnly ValueDate, [property: Key(6)] string Reason);
+    [property: Key(4)] Guid ExpectedGenerationId, [property: Key(5)] DateOnly ValueDate, [property: Key(6)] string Reason,
+    [property: Key(7)] bool ReplaceProcessImmediately = false, [property: Key(8)] DateTimeOffset? DeadlineUtc = null);
 [MessagePackObject]
 public sealed record MarketDataRecoveryResult([property: Key(0)] Guid OperationId, [property: Key(1)] string Role,
     [property: Key(2)] string Dataset, [property: Key(3)] bool Recovered,

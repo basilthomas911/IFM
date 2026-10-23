@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Domain.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -23,7 +24,25 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
     public ValueTask<IronCondorPositionCommandState> LoadStateAsync(ICommand command) => LoadStateAsync(command, CancellationToken.None);
     /// <summary>Loads position source state using the supplied cancellation deadline.</summary>
     /// <param name = "command">The position command.</param><param name = "token">The load deadline.</param><returns>The restored state and stream version.</returns>
-    public async ValueTask<IronCondorPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken) => await LoadStateAsync<IronCondorPositionCommandState>(command, cancellationToken).ConfigureAwait(false);
+    public async ValueTask<IronCondorPositionCommandState> LoadStateAsync(ICommand command, CancellationToken cancellationToken)
+    {
+        using var step = new OptionFeedTrace("option.position.load_state", logger, command.CommandId.ToString());
+        try
+        {
+            var state = await LoadStateFromSnapshotAsync<IronCondorPositionCommandState, IronCondorPositionChangedEvent>(command, cancellationToken).ConfigureAwait(false);
+            // Position changes replace the complete position, but monitoring limits live in
+            // a separate event which can precede the latest position snapshot.
+            if (state.TradeLimits is null)
+            {
+                var streamId = await GetStreamId(command.StreamId, cancellationToken).ConfigureAwait(false);
+                await EventSourceDb.MapReduceActorEventStreamAsync<IronCondorPositionCommandState, IronCondorMonitoringInitializedEvent>(
+                    streamId, 1, state.ReplayEvents, cancellationToken).ConfigureAwait(false);
+            }
+            step.Complete();
+            return state;
+        }
+        catch (Exception error) { step.Fail(error); throw; }
+    }
     /// <summary>Commits a financial position transition before admitting its projections.</summary>
     /// <param name = "context">The command publication capability.</param><param name = "state">The command-owned position state.</param>
     /// <param name = "command">The originating financial transition.</param><returns>The source commit and projection admission.</returns>
@@ -56,6 +75,8 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
     public async ValueTask SaveResidentEventsAsync(ICommandActorContext context, DomainEventCollection events, ICommand command, long expectedStreamVersion, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+        using var operation = new OptionFeedTrace("option.position.persist_and_publish", logger, command.CommandId.ToString(), realtime: true);
+        using var commit = new OptionFeedTrace("option.position.commit", logger, command.CommandId.ToString(), realtime: true);
         DomainEventCollection committed;
         if (context is IIronCondorPositionCommandContext typed && string.Equals(typed.DbFactory.TradeDb.ProviderName, "System.Data.Postgres", StringComparison.Ordinal))
         {
@@ -64,8 +85,19 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
         }
         else
             committed = await EventSourceDb.SaveCommandEventsAtomicallyAsync(command, events, expectedStreamVersion, cancellationToken).ConfigureAwait(false);
-        await PublishCurrentMarksAsync(context, committed, cancellationToken).ConfigureAwait(false);
-        await projector.DomainEventsProjectionAsync(committed).ConfigureAwait(false);
+        commit.Complete();
+        commit.Dispose();
+        using (var publication = new OptionFeedTrace("option.position.publish_current_marks", logger, command.CommandId.ToString(), realtime: true))
+        {
+            await PublishCurrentMarksAsync(context, committed, cancellationToken).ConfigureAwait(false);
+            publication.Complete();
+        }
+        using (var projection = new OptionFeedTrace("option.position.admit_projection", logger, command.CommandId.ToString(), realtime: true))
+        {
+            await projector.DomainEventsProjectionAsync(committed).ConfigureAwait(false);
+            projection.Complete();
+        }
+        operation.Complete();
     }
 
     /// <summary>Publishes committed market marks once to the UI event and realtime plan routes, with logged disposable failures.</summary>
@@ -85,12 +117,15 @@ public sealed class IronCondorPositionStateRepository(IEventSourceActorStateFact
 
             )
             {
+                using var delivery = new OptionFeedTrace("option.position.publish." + destination.Name, logger, changed.CommandId.ToString(), realtime: true);
                 try
                 {
                     await context.SendAsync<IronCondorPositionChangedEvent, StrategyPositionId>(changed with { Subject = new(destination.ActorType, destination.Name, IronCondorPositionChangedEvent.Verb, changed.EntityId.Format()) }, token).ConfigureAwait(false);
+                    delivery.Complete();
                 }
                 catch (Exception error)
                 {
+                    delivery.Fail(error);
                     if (logger.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Error))
                         global::TomasAI.IFM.Domain.Trade.TradeBoundaryDiagnosticLog.Write39(logger, error, nameof(PublishCurrentMarksAsync), changed.EntityId.Format(), changed.PositionSnapshot.PositionSequence, changed.EventId, changed.CommandId, destination);
                 }

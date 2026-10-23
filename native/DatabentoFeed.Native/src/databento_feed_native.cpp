@@ -2971,12 +2971,20 @@ dbf_status DBF_CALL dbf_get_latest_price(
     }
 }
 
+static thread_local std::string historical_estimate_error;
+
+dbf_status DBF_CALL dbf_historical_get_last_error(
+    std::uint8_t* buffer, std::uint32_t capacity, std::uint32_t* required_bytes) {
+    return copy_historical_text(historical_estimate_error, buffer, capacity, required_bytes);
+}
+
 dbf_status DBF_CALL dbf_historical_estimate(
     const dbf_historical_request_v1* request,
     const dbf_utf8_slice_v1* symbols,
     const std::uint8_t* utf8_blob,
     std::uint32_t utf8_blob_bytes,
     dbf_historical_estimate_v1* estimate) {
+    historical_estimate_error.clear();
     if (estimate == nullptr
         || !valid_struct(estimate->struct_size, sizeof(*estimate), estimate->abi_version)) {
         return DBF_ABI_MISMATCH;
@@ -3029,7 +3037,8 @@ dbf_status DBF_CALL dbf_historical_estimate(
             dataset, range, requested_symbols, schema,
             historical_stype(request->input_symbology), request->record_limit);
         return DBF_OK;
-    } catch (const databento::Exception&) {
+    } catch (const databento::Exception& error) {
+        historical_estimate_error = error.what();
         return DBF_DATABENTO_ERROR;
     } catch (...) {
         return DBF_INTERNAL_ERROR;

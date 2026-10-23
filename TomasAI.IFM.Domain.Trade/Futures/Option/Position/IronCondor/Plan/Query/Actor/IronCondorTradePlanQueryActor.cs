@@ -16,11 +16,13 @@ public sealed class IronCondorTradePlanQueryActor(IQueryActorContext<IronCondorT
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap = new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
     {
         [GetCurrentIronCondorTradePlanQuery.Verb] = message => message.AsQuery<GetCurrentIronCondorTradePlanQuery, StrategyTradePlanSnapshot?>()!,
+        [GetIronCondorTradePlanChartQuery.Verb] = message => message.AsQuery<GetIronCondorTradePlanChartQuery, StrategyTradePlanChartSeries>()!,
         [GetIronCondorTradePlanHistoryQuery.Verb] = message => message.AsQuery<GetIronCondorTradePlanHistoryQuery, StrategyTradePlanHistoryPage>()!
     }.ToFrozenDictionary(StringComparer.Ordinal);
     static readonly IReadOnlyDictionary<Type, Func<IIronCondorTradePlanQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new Dictionary<Type, Func<IIronCondorTradePlanQueryContext, IQuery, CancellationToken, ValueTask>>
     {
         [typeof(GetCurrentIronCondorTradePlanQuery)] = static (c, q, t) => ((GetCurrentIronCondorTradePlanQuery)q).ExecuteAsync(c, t),
+        [typeof(GetIronCondorTradePlanChartQuery)] = static (c, q, t) => ((GetIronCondorTradePlanChartQuery)q).ExecuteAsync(c, t),
         [typeof(GetIronCondorTradePlanHistoryQuery)] = static (c, q, t) => ((GetIronCondorTradePlanHistoryQuery)q).ExecuteAsync(c, t)
     }.ToFrozenDictionary();
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);

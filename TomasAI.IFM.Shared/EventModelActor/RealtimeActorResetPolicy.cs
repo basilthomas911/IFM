@@ -11,6 +11,7 @@ public static class RealtimeActorResetPolicy
         return actorType == ActorType.Realtime
             && (type.Namespace?.StartsWith("TomasAI.IFM.Domain.MarketData.Feed.", StringComparison.Ordinal) == true
                 || type.Namespace?.StartsWith("TomasAI.IFM.Domain.MarketData.Analytics.", StringComparison.Ordinal) == true
-                || type.FullName == "TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor.FuturesOptionRealtimeActor");
+                || type.FullName == "TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.Actor.FuturesOptionRealtimeActor"
+                || type.FullName == "TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor.IronCondorTradePositionRealtimeActor");
     }
 }

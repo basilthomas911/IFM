@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.Application.MarketData.Host;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -17,6 +18,7 @@ builder.Configuration.AddInMemoryCollection(backendConfiguration.AsEnumerable().
     .AddEnvironmentVariables().AddCommandLine(args);
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) && string.IsNullOrWhiteSpace(builder.Configuration["HTTP_PORTS"]))
     builder.WebHost.UseUrls("http://127.0.0.1:22544");
+builder.Services.AddIfmMetrics(builder.Configuration, "TomasAI.IFM.Application.MarketData.Host");
 builder.Services.AddSingleton<NatsConnectionManager>();
 builder.Services.AddSingleton(provider => new MarketDataHostConnection(provider.GetRequiredService<NatsConnectionManager>(),
     builder.Configuration["MarketDataHost:NatsUrl"] ?? "nats://127.0.0.1:4222",

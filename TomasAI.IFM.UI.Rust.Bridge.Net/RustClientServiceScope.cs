@@ -19,7 +19,7 @@ public sealed class RustClientServiceScope : IAppRoot,IAsyncDisposable
  public string AppEnvironment {get;}
  public Uri? LivePipelineHealthEndpoint {get;}
  public IUiServiceCatalog Services=>Container.GetInstance<IUiServiceCatalog>();
- public IValueDateProvider ValueDates=>Container.GetInstance<IValueDateProvider>();
+ public Task<DateOnly> GetValueDateAsync(CancellationToken token=default)=>Services.MarketDataQueries.GetValueDateAsync(token);
  public ILogger DiagnosticLogger {get;}
  public TomasAI.IFM.UI.Net.Services.Trade.DesktopTradeExecutionContext TradeExecution {get;}
  public RustClientServiceScope(string natsUrl,string? environment=null,ILogger? logger=null)

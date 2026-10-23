@@ -43,7 +43,7 @@ sealed class RustShellViewModelSession : IAsyncDisposable
         viewModel.PropertyChanged += (_, args) => {
             if (args.PropertyName == nameof(IFMAppViewModel.StatusLogs)) publishLogs(viewModel.StatusLogs);
             if (args.PropertyName is nameof(IFMAppViewModel.IsMarketDataFeedActive) or nameof(IFMAppViewModel.CanToggleMarketDataFeed) or nameof(IFMAppViewModel.IsMarketDataFeedOperationInProgress)) publishFeed?.Invoke();
-            if (args.PropertyName == nameof(IFMAppViewModel.LastError) && viewModel.LastError is {} failure) reportError(new InvalidOperationException(failure.Message));
+            if (args.PropertyName == nameof(IFMAppViewModel.LastError) && viewModel.LastError is {} failure) reportError(new InvalidOperationException($"{failure.Caption}: {failure.Message}"));
         };
         initialization = Task.Run(async () =>
         {

@@ -46,7 +46,7 @@ public partial class CreateFundOrderTradeForm : DarkTradingForm, IForm<CreateFun
     public void SetFundOrder(PortfolioFundOrderEditorModel fundOrder)
     {
         _openingTrade = fundOrder.Trades.FirstOrDefault(trade => trade.PrimaryTrade);
-        var effectiveDate = _viewModel?.ValueDate ?? FuturesValueDateProvider.System.ValueDate;
+        var effectiveDate = _viewModel?.ValueDate ?? throw new InvalidOperationException("Load the API value date before creating a trade.");
         dtpEffectiveDate.Value = effectiveDate.ToDateTime(TimeOnly.MinValue);
         dtpEffectiveDate.Enabled = true;
         UpdateTradeReference();

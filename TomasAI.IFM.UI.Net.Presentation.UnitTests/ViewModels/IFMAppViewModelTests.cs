@@ -24,6 +24,65 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public class IFMAppViewModelTests
 {
+    [Fact]
+    public async Task Daily_indicator_failure_is_visible_deduplicated_and_does_not_stop_market_feeds()
+    {
+        var vm = CreateSubject();
+        await vm.ApplyMarketDataFeedStatusAsync(new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedCompleteEvent());
+        var status = new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.DailyAnalyticsInitializationStatusEvent
+        {
+            CommandId = Guid.NewGuid(), RefreshFailed = true, ErrorCode = 503,
+            BaselineValueDate = new(2026, 10, 22),
+            ErrorMessage = "Using baseline dated 2026-10-22. Historical refresh failed: provider range unavailable."
+        };
+        status = MessagePack.MessagePackSerializer.Deserialize<TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.DailyAnalyticsInitializationStatusEvent>(
+            MessagePack.MessagePackSerializer.Serialize(status));
+        status.EventType.Should().Be(EventType.DomainEvent);
+        status.BaselineValueDate.Should().Be(new DateOnly(2026, 10, 22));
+        await vm.ApplyMarketDataFeedStatusAsync(status);
+        vm.IsMarketDataFeedActive.Should().BeTrue();
+        vm.LastError!.Caption.Should().Be("Daily EMA / Bollinger Initialization");
+        vm.DailyAnalyticsStatus.Should().Be(status.ErrorMessage);
+        var sequence = vm.LastError.Sequence;
+        await vm.ApplyMarketDataFeedStatusAsync(status with { Id = Guid.NewGuid() });
+        vm.LastError.Sequence.Should().Be(sequence);
+        await vm.ApplyMarketDataFeedStatusAsync(status with { CommandId = Guid.NewGuid(), RefreshFailed = false,
+            ErrorCode = 0, ErrorMessage = "Historical initialization completed." });
+        vm.DailyAnalyticsStatus.Should().Be("Historical initialization completed.");
+        vm.LastError.Sequence.Should().Be(sequence);
+        vm.IsMarketDataFeedActive.Should().BeTrue();
+    }
+    [Fact]
+    public async Task API_restart_failure_for_same_operation_is_visible_after_initial_error_and_relays_do_not_repeat_it()
+    {
+        var vm=CreateSubject();var operation=Guid.NewGuid();
+        var initial=new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent {
+            CommandId=operation,Role="Options",Dataset="GLBX.MDP3",EventSource="OptionPipelineRecoveryCoordinator",ErrorCode=503,ErrorMessage="Initial recovery expired"};
+        await vm.ApplyMarketDataFeedStatusAsync(initial);var first=vm.LastError!.Sequence;
+        var final=initial with{EventSource="ApiRecoveryUiNotifier",ErrorMessage="API recovery failed: The two-minute API restart/restore deadline expired."};
+        await vm.ApplyMarketDataFeedStatusAsync(final);
+        vm.LastError!.Caption.Should().Be("API Recovery Failed");vm.LastError.Message.Should().Be(final.ErrorMessage);
+        vm.LastError.Sequence.Should().BeGreaterThan(first);var last=vm.LastError.Sequence;
+        await vm.ApplyMarketDataFeedStatusAsync(initial);await vm.ApplyMarketDataFeedStatusAsync(final);
+        vm.LastError.Sequence.Should().Be(last);vm.LastError.Message.Should().Be(final.ErrorMessage);
+    }
+    [Fact]
+    public async Task Api_option_pipeline_deadline_raises_specific_UI_error_and_deduplicates_operation()
+    {
+        var viewModel = CreateSubject();
+        var failed = new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent
+        {
+            CommandId = Guid.NewGuid(), Role = "Options", Dataset = "GLBX.MDP3", ErrorCode = 503,
+            ErrorMessage = "Option pipeline recovery failed after 120 seconds. Notification-only mode: automatic API restart is disabled."
+        };
+        await viewModel.ApplyMarketDataFeedStatusAsync(failed);
+        viewModel.LastError!.Caption.Should().Be("Option Pipeline Recovery Failed");
+        viewModel.LastError.Message.Should().Be(failed.ErrorMessage);
+        var sequence = viewModel.LastError.Sequence;
+        await viewModel.ApplyMarketDataFeedStatusAsync(failed with { Id = Guid.NewGuid(), ReceivedOn = DateTime.UtcNow });
+        viewModel.LastError.Sequence.Should().Be(sequence);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -113,8 +172,8 @@ public class IFMAppViewModelTests
         viewModel.CanToggleMarketDataFeed.Should().BeFalse();
         viewModel.MarketDataFeedActionText.Should().Be("Start Market Feeds");
         viewModel.MarketDataFeedHealthIndicatorText.Should().Be("Feed Health: Stopped");
-        viewModel.ValueDate.Should().Be(new DateOnly(2026, 9, 29));
-        viewModel.MarketDataFeedStateText.Should().Contain("Session Closed");
+        viewModel.ValueDate.Should().BeNull("the UI has not received an API session snapshot yet");
+        viewModel.MarketDataFeedStateText.Should().Contain("Inactive");
         viewModel.IsCloseRequested.Should().BeFalse();
         viewModel.StartupOperation.Should().NotBeNull();
         viewModel.ShutdownOperation.Should().NotBeNull();
@@ -556,9 +615,6 @@ public class IFMAppViewModelTests
         var commandResponseConsumer = Substitute.For<ICommandResponseUIEventConsumer>();
         var eventModel = new CommandResponseEventService(commandResponseConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        var valueDates = Substitute.For<IValueDateProvider>();
-        valueDates.ValueDate.Returns(new DateOnly(2026, 9, 29));
-        appRoot.ValueDates.Returns(valueDates);
         appRoot.Services.CommandResponses.Returns(eventModel);
         return new IFMAppViewModel(
             appRoot,

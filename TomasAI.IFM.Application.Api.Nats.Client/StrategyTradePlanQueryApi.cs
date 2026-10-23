@@ -12,6 +12,15 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public sealed class StrategyTradePlanQueryApi(IActorProducer producer)
     : NatsClientApi(producer), IStrategyTradePlanQueryApi
 {
+    public Task<ServiceResult<StrategyTradePlanChartSeries>> GetIronCondorChartAsync(
+        StrategyPositionId positionId, DateOnly valueDate, CancellationToken cancellationToken = default)
+    {
+        var id = new StrategyIronCondorTradePlanId(positionId, valueDate);
+        var query = new GetIronCondorTradePlanChartQuery { PlanId = id,
+            Subject = Subject(GetIronCondorTradePlanChartQuery.Actor, GetIronCondorTradePlanChartQuery.Verb, id.Format()) };
+        return RequestAsync<GetIronCondorTradePlanChartQuery, StrategyTradePlanChartSeries>(query.Subject, query, cancellationToken).AsTask();
+    }
+
     public Task<ServiceResult<StrategyTradePlanSnapshot?>> GetCurrentIronCondorAsync(
         StrategyPositionId positionId, DateOnly valueDate, CancellationToken cancellationToken = default)
     {

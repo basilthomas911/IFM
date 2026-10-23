@@ -30,12 +30,15 @@ public sealed class MarketCloseOperations : IMarketCloseOperations
     readonly ScheduledTaskEventCompletion completion;
     readonly INatsJetStreamEndOfDayMaintenance maintenance;
     readonly ILogger<MarketCloseOperations> logger;
+    readonly TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? market;
 
     public MarketCloseOperations(IDbContextFactory databases, IHostEnvironment environment,
         IMarketDataFeedCommandApi feeds, IStrategyPositionCommandApi positions, IActorProducer producer,
-        IConfiguration configuration, ILoggerFactory loggers, NatsConnectionManager connections)
+        IConfiguration configuration, ILoggerFactory loggers, NatsConnectionManager connections,
+        TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi? market = null)
     {
         this.databases = databases; this.environment = environment; this.feeds = feeds; this.positions = positions;
+        this.market = market;
         logger = loggers.CreateLogger<MarketCloseOperations>();
         receipts = new(producer); queries = new(producer);
         var url = configuration["Nats:Url"] ?? "nats://localhost:4222";
@@ -81,6 +84,7 @@ public sealed class MarketCloseOperations : IMarketCloseOperations
             MarketDataFeedStoppedCompleteEvent.Actor, MarketDataFeedStoppedCompleteEvent.Verb, MarketDataFeedStoppedFailEvent.Verb,
             () => feeds.StopMarketDataFeedAsync(valueDate), token).ConfigureAwait(false);
         if (stopped.ValueDate != valueDate) throw new InvalidOperationException("Feed stop completed for another value date.");
+        if (market is not null) await market.CloseTradeFeedRecoveryAsync(valueDate, token).ConfigureAwait(false);
     }
 
     public async Task RecordStageAsync(Guid runId, DateOnly valueDate, string stage, string detail, CancellationToken token)

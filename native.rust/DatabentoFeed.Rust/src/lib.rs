@@ -19,6 +19,7 @@ compile_error!("The current DatabentoFeed.Rust implementation targets Windows on
 
 #[cfg(windows)]
 mod exports {
+    use std::cell::RefCell;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::ptr;
     use std::slice;
@@ -29,6 +30,37 @@ mod exports {
     use crate::engine::{Feed, Mapping};
 
     static WATCHDOG_REGISTRY: OnceLock<Mutex<Vec<(u64, usize)>>> = OnceLock::new();
+    thread_local! {
+        static HISTORICAL_ERROR: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Copies the error from the immediately preceding historical estimate on this thread.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_get_last_error(
+        buffer: *mut u8, capacity: u32, required: *mut u32,
+    ) -> Status {
+        ffi_status(|| HISTORICAL_ERROR.with(|error| copy_error(&error.borrow(), buffer, capacity, required)))
+    }
+
+    #[test]
+    fn historical_error_is_thread_local_and_cleared_by_next_estimate() {
+        HISTORICAL_ERROR.with(|error| *error.borrow_mut() = b"provider rejected range: 422".to_vec());
+        unsafe {
+            let mut required = 0;
+            assert_eq!(dbf_historical_get_last_error(ptr::null_mut(), 0, &mut required), BUFFER_TOO_SMALL);
+            let mut buffer = vec![0u8; required as usize];
+            assert_eq!(dbf_historical_get_last_error(buffer.as_mut_ptr(), required, &mut required), OK);
+            assert_eq!(&buffer[..buffer.len() - 1], b"provider rejected range: 422");
+            std::thread::spawn(|| {
+                let mut required = 0;
+                assert_eq!(dbf_historical_get_last_error(ptr::null_mut(), 0, &mut required), BUFFER_TOO_SMALL);
+                assert_eq!(required, 1);
+            }).join().unwrap();
+            assert_eq!(dbf_historical_estimate(ptr::null(), ptr::null(), ptr::null(), 0, ptr::null_mut()), ABI_MISMATCH);
+            assert_eq!(dbf_historical_get_last_error(ptr::null_mut(), 0, &mut required), BUFFER_TOO_SMALL);
+            assert_eq!(required, 1);
+        }
+    }
     static WATCHDOG_IDENTITY: AtomicU64 = AtomicU64::new(1);
     static WATCHDOG_SNAPSHOT_SEQUENCE: AtomicU64 = AtomicU64::new(1);
     fn watchdog_registry() -> &'static Mutex<Vec<(u64, usize)>> {
@@ -1169,6 +1201,7 @@ mod exports {
         estimate: *mut HistoricalEstimateV1,
     ) -> Status {
         ffi_status(|| {
+            HISTORICAL_ERROR.with(|error| error.borrow_mut().clear());
             if estimate.is_null() {
                 return ABI_MISMATCH;
             }
@@ -1198,6 +1231,7 @@ mod exports {
                 let Ok((dataset, requested)) =
                     historical_inputs(request, symbols, utf8_blob, utf8_blob_bytes)
                 else {
+                    HISTORICAL_ERROR.with(|error| *error.borrow_mut() = b"Invalid historical input strings".to_vec());
                     return DATABENTO_ERROR;
                 };
                 match crate::live::historical_estimate(*request, dataset, requested) {
@@ -1205,7 +1239,10 @@ mod exports {
                         *estimate_ref = value;
                         OK
                     }
-                    Err((status, _)) => status,
+                    Err((status, detail)) => {
+                        HISTORICAL_ERROR.with(|error| *error.borrow_mut() = detail.into_bytes());
+                        status
+                    },
                 }
             }
             #[cfg(not(feature = "live"))]

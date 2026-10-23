@@ -12,6 +12,7 @@ namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query
 public interface IIronCondorTradePlanQueryContext : IQueryActorContext<IronCondorTradePlanQueryActor>
 {
     IDbContextFactory DbFactory { get; }
+    TimeProvider Clock => TimeProvider.System;
 
     ILogger<IronCondorTradePlanQueryActor> Logger { get; }
 }

@@ -55,6 +55,7 @@ public sealed class MarketDataFeedStatusUIEventConsumer(
             MarketDataFeedStoppedCompleteEvent.Verb,
             MarketDataFeedStoppedFailEvent.Verb,
             MarketDataDatasetRecoveryFailedEvent.Verb,
+            DailyAnalyticsInitializationStatusEvent.Verb,
             OptionMarketDataFeedFailedEvent.Verb
         ]
     };
@@ -70,6 +71,8 @@ public sealed class MarketDataFeedStatusUIEventConsumer(
             {
                 IEvent? @event = verb switch
                 {
+                    DailyAnalyticsInitializationStatusEvent.Verb
+                        => message.AsEvent<DailyAnalyticsInitializationStatusEvent>(),
                     ScheduledTaskRunStageRecordedCompleteEvent.Verb
                         => message.AsEvent<ScheduledTaskRunStageRecordedCompleteEvent>(),
                     MarketDataDatasetRecoveryFailedEvent.Verb

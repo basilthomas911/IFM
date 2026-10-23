@@ -487,6 +487,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             var replacement = _container.Resolve<IActorFactory>().CreateRealtimeReplacement(oldActor.GetType());
             if (ReferenceEquals(oldActor, replacement) || !IsDisposableRealtimeActor(replacement))
                 throw new InvalidOperationException("Realtime replacement must have a fresh disposable actor context.");
+            cancellationToken.ThrowIfCancellationRequested();
             oldActor.Mailbox.ThreadQueues.PauseAdmission();
             ((IReplaceableRealtimeActor)oldActor).RetireRealtimeGeneration();
             if (oldActor.Mailbox.ThreadQueues is not ActorThreadQueues queues)
@@ -497,6 +498,11 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             if (_threadStateByMailbox.TryRemove(mailboxId, out var states))
                 foreach (var threadId in states.Keys) _threadState.TryRemove(threadId, out _);
             await replacement.StartAsync(this, cancellationToken).ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                ((IReplaceableRealtimeActor)replacement).RetireRealtimeGeneration();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
             if (!_children.TryUpdate(mailboxId, replacement, oldActor))
                 throw new InvalidOperationException("Realtime actor ownership changed during replacement.");
             replacement.Mailbox.ThreadQueues.ResumeAdmission();

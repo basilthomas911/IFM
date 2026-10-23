@@ -43,6 +43,17 @@ impl LegValueChange {
         self.background
     }
 }
+/// Normalize the displayed trade P&L against its corresponding maximum payoff magnitude.
+/// Only the drawn fill is capped; the accompanying percentage can exceed 100%.
+fn trade_pnl_fraction(pnl: Option<f64>, trade_limit: &Value) -> Option<f64> {
+    let pnl = pnl.filter(|value| value.is_finite())?;
+    let maximum = number(trade_limit, if pnl < 0. { "maxLoss" } else { "maxProfit" })?
+        .abs();
+    if !maximum.is_finite() || maximum <= 0. { return None; }
+    let fraction = pnl.abs() / maximum;
+    fraction.is_finite().then_some(fraction)
+}
+
 /// Clone the first decoded trade row in a group, or return null when the group is absent.
 fn one(display: &super::display_cache::TradeDisplayData, kind: &str) -> Value {
     values(display, kind).first().cloned().unwrap_or_default()
@@ -514,12 +525,11 @@ impl TradeWorkspace {
                     });
                 });
             });
-            let cumulative=number(&position,"unrealizedPnl").map(|n|n+number(&position,"realizedPnl").unwrap_or_default());
-            let balance=number(&limit,"fundBalance");let progress=rr(10.,summary_y+45.,w*0.22,14.);
+            let progress=rr(10.,summary_y+45.,w*0.22,14.);
             ui.painter().rect_filled(progress,0.,Color32::from_gray(230));
-            if let (Some(pnl),Some(balance))=(cumulative,balance.filter(|v|*v>0.)){
-                let percent=(pnl.abs()/balance).clamp(0.,1.);let color=if pnl>=0.{LIME}else{Color32::RED};
-                ui.painter().rect_filled(egui::Rect::from_min_size(progress.min,egui::vec2(progress.width()*percent as f32,progress.height())),0.,color);
+            if let (Some(pnl),Some(percent))=(trade_pnl,trade_pnl_fraction(trade_pnl,&limit["tradeLimit"])){
+                let color=if pnl>=0.{LIME}else{Color32::RED};
+                ui.painter().rect_filled(egui::Rect::from_min_size(progress.min,egui::vec2(progress.width()*percent.clamp(0.,1.) as f32,progress.height())),0.,color);
                 field(ui,rr(w*0.225,summary_y+38.,w*0.12,28.),"condor-profit",format!("{pnl:.2} @ {:.2}%",percent*100.),color,WHITE,true);
             }else{label(ui,rr(w*0.225,summary_y+38.,w*0.12,28.),"N/A",WHITE,false,true);}
             field(ui,rr(w*0.35,summary_y+36.,w*0.12,32.),"condor-plan-action",text(&detail,"actionType"),severity(&detail),WHITE,false);
@@ -576,23 +586,23 @@ impl TradeWorkspace {
         let columns = [
             ("spread", "Spread Type", 180.),
             ("shortStrike", "Short\nStrike", 80.),
-            ("shortBid", "Short Bid", 80.),
-            ("shortAsk", "Short Ask", 80.),
-            ("shortDelta", "Short Delta", 90.),
+            ("shortBid", "Short\nBid", 80.),
+            ("shortAsk", "Short\nAsk", 80.),
+            ("shortDelta", "Short\nDelta", 90.),
             ("shortGamma", "Short\nGamma", 90.),
-            ("shortTheta", "Short Theta", 90.),
-            ("shortVega", "Short Vega", 90.),
-            ("shortRho", "Short Rho", 90.),
-            ("shortIV", "Short IVol", 90.),
+            ("shortTheta", "Short\nTheta", 90.),
+            ("shortVega", "Short\nVega", 90.),
+            ("shortRho", "Short\nRho", 90.),
+            ("shortIV", "Short\nIVol", 90.),
             ("longStrike", "Long\nStrike", 80.),
-            ("longBid", "Long Bid", 80.),
-            ("longAsk", "Long Ask", 80.),
-            ("longDelta", "Long Delta", 90.),
+            ("longBid", "Long\nBid", 80.),
+            ("longAsk", "Long\nAsk", 80.),
+            ("longDelta", "Long\nDelta", 90.),
             ("longGamma", "Long\nGamma", 90.),
             ("longTheta", "Long\nTheta", 90.),
-            ("longVega", "Long Vega", 90.),
-            ("longRho", "Long Rho", 90.),
-            ("longIV", "Long IVol", 90.),
+            ("longVega", "Long\nVega", 90.),
+            ("longRho", "Long\nRho", 90.),
+            ("longIV", "Long\nIVol", 90.),
             ("netSpread", "Net\nSpread", 70.),
             ("tradeValue", "Trade\nValue", 70.),
             ("tradePnl", "Trade\nPnl", 70.),
@@ -669,11 +679,12 @@ impl TradeWorkspace {
         let w = bounds.width() * p;
         let h = bounds.height() * p;
         self.controls.insert("condor-chart".into(), bounds);
+        let chart_error = s.result.context.get("chartError").filter(|error| !error.is_empty());
         label(
             ui,
             rect(o, p, 0., 8., w, 35.),
-            "Iron Condor Net / Forward Spread (price points)",
-            WHITE,
+            chart_error.map_or("Iron Condor Net / Forward Spread (price points)", String::as_str),
+            if chart_error.is_some() { Color32::RED } else { WHITE },
             true,
             false,
         );
@@ -938,6 +949,13 @@ mod eastern_chart_time_tests {
 
 #[cfg(test)]
 mod spread_chart_sampling_tests {
+    #[test]
+    fn database_baseline_survives_new_session_live_points_and_boundary_duplicates() {
+        let mut points = vec![[60.,-1.],[120.,-2.],[180.,-3.]];
+        points.extend_from_slice(&[[185.,-3.5],[240.,-4.]]);
+        super::coalesce_chart_minutes(&mut points);
+        assert_eq!(points, vec![[60.,-1.],[120.,-2.],[185.,-3.5],[240.,-4.]]);
+    }
     use super::{SpreadChartClock, coalesce_chart_minutes};
     use std::time::{Duration, Instant};
 
@@ -959,5 +977,31 @@ mod spread_chart_sampling_tests {
         assert!(clock.accept(start + Duration::from_secs(60)));
         assert!(!clock.accept(start + Duration::from_secs(119)));
         assert!(clock.accept(start + Duration::from_secs(120)));
+    }
+}
+
+#[cfg(test)]
+mod trade_pnl_bar_tests {
+    use super::trade_pnl_fraction;
+    use serde_json::json;
+
+    #[test]
+    fn gain_and_loss_use_their_own_trade_maximum_not_fund_or_exit_limits() {
+        let limits = json!({"maxProfit": 2000., "maxLoss": -8000.,
+            "maxProfitLimit": 500., "maxLossLimit": 1000., "fundBalance": 100000.});
+        assert_eq!(trade_pnl_fraction(Some(500.), &limits), Some(0.25));
+        assert_eq!(trade_pnl_fraction(Some(-2000.), &limits), Some(0.25));
+        assert_eq!(trade_pnl_fraction(Some(0.), &limits), Some(0.));
+        assert_eq!(trade_pnl_fraction(Some(-2000.), &json!({"maxLoss":8000.})), Some(0.25));
+    }
+
+    #[test]
+    fn preserves_over_limit_percentage_and_requires_valid_pnl_and_maximum() {
+        assert_eq!(trade_pnl_fraction(Some(-1500.), &json!({"maxLoss":1000.})), Some(1.5));
+        for limits in [json!({}),json!({"maxLoss":0.}),json!({"maxProfit":2000.})] {
+            assert_eq!(trade_pnl_fraction(Some(-500.), &limits), None);
+        }
+        assert_eq!(trade_pnl_fraction(None, &json!({"maxProfit":2000.})), None);
+        assert_eq!(trade_pnl_fraction(Some(f64::NAN), &json!({"maxProfit":2000.})), None);
     }
 }

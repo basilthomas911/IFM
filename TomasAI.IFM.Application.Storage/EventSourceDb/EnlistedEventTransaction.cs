@@ -19,30 +19,36 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     readonly NpgsqlTransaction transaction;
     readonly EventLogMessagePackCodec eventLogCodec;
     readonly EventLogSqlLayout eventLogSqlLayout;
+    readonly PostgresQueryTimeoutScope timeouts;
     int completed;
     internal EnlistedEventTransaction(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         EventLogMessagePackCodec eventLogCodec,
-        EventLogSqlLayout eventLogSqlLayout)
-        => (this.connection, this.transaction, this.eventLogCodec, this.eventLogSqlLayout) =
+        EventLogSqlLayout eventLogSqlLayout, PostgresQueryTimeout? defaultTimeout = null)
+    {
+        (this.connection, this.transaction, this.eventLogCodec, this.eventLogSqlLayout) =
             (connection, transaction, eventLogCodec, eventLogSqlLayout);
+        timeouts = new(connection, transaction, defaultTimeout);
+    }
 
     /// <summary>Executes parameterized SQL on the enlisted connection.</summary>
-    public async Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
+    public async Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         RequireActive();
+        await ConfigureTimeoutAsync(timeout, cancellationToken).ConfigureAwait(false);
         var command = CreateCommand(sql, parameters);
         await using var commandDisposal = command.ConfigureAwait(false);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Reads a scalar on the same transaction; null remains explicit.</summary>
-    public async Task<object?> ScalarAsync(string sql, object?[] parameters, CancellationToken cancellationToken)
+    public async Task<object?> ScalarAsync(string sql, object?[] parameters, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         RequireActive();
+        await ConfigureTimeoutAsync(timeout, cancellationToken).ConfigureAwait(false);
         var command = CreateCommand(sql, parameters);
         await using var commandDisposal = command.ConfigureAwait(false);
         var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -51,11 +57,12 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
 
     /// <summary>Materializes a bounded storage query before disposing its reader.</summary>
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object?[] parameters,
-        Func<NpgsqlDataReader, T> map, CancellationToken cancellationToken)
+        Func<NpgsqlDataReader, T> map, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(parameters);
         RequireActive();
+        await ConfigureTimeoutAsync(timeout, cancellationToken).ConfigureAwait(false);
         var command = CreateCommand(sql, parameters);
         await using var commandDisposal = command.ConfigureAwait(false);
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -70,6 +77,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     public async Task ReserveCommandAsync(ICommand command, CancellationToken cancellationToken = default)
     {
         RequireActive();
+        await ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
         var envelope=CommandAudit.CommandAuditEnvelope.Create(command,new CommandAudit.CommandAuditMessagePackCodec());
         var results=await CommandAudit.CommandAuditPostgres.ReserveAsync(connection,transaction,[envelope],cancellationToken).ConfigureAwait(false);
         if(results[0].PayloadConflict) throw new CommandAudit.CommandAuditPayloadConflictException(command.CommandId);
@@ -138,10 +146,16 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     NpgsqlCommand CreateCommand(string sql, object?[] parameters)
     {
-        var command = new NpgsqlCommand(eventLogSqlLayout.Resolve(sql), connection, transaction) { CommandTimeout = 3 };
+        var command = new NpgsqlCommand(eventLogSqlLayout.Resolve(sql), connection, transaction) { CommandTimeout = 0 };
         foreach (var parameter in parameters)
             command.Parameters.Add(parameter is NpgsqlParameter typed ? typed : new NpgsqlParameter { Value = parameter ?? DBNull.Value });
         return command;
+    }
+
+    internal Task ConfigureTimeoutAsync(PostgresQueryTimeout? timeout, CancellationToken token)
+    {
+        RequireActive();
+        return timeouts.ApplyAsync(timeout, token);
     }
 
     internal void Complete() => Interlocked.Exchange(ref completed, 1);

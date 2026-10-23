@@ -15,9 +15,11 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// <summary>Shared financial Command/Function unit of work. No transaction is stored in a singleton context.</summary>
 public sealed class PostgresEventTransaction(
     IDbConnectionSettings settings,
-    EventLogPersistenceOptions? eventLogPersistenceOptions = null) : IPostgresEventTransaction
+    EventLogPersistenceOptions? eventLogPersistenceOptions = null,
+    PostgresQueryTimeout? defaultQueryTimeout = null) : IPostgresEventTransaction
 {
-    readonly string connectionString = ResolveConnectionString(settings);
+    readonly PostgresQueryTimeout queryTimeout = (defaultQueryTimeout ?? PostgresQueryTimeout.Default).Validate();
+    readonly string connectionString = ResolveConnectionString(settings, defaultQueryTimeout);
     readonly EventLogMessagePackCodec eventLogCodec = new(
         (eventLogPersistenceOptions ?? new EventLogPersistenceOptions()).Validate().UseLz4Compression);
     readonly EventLogSqlLayout eventLogSqlLayout = EventLogSqlLayout.ForProduction(
@@ -30,12 +32,13 @@ public sealed class PostgresEventTransaction(
             EventSourceActorDbContext.EventSourceActorDbConnection,
             PortfolioDb.PortfolioDbContext.PortfolioDbConnection);
 
-    static string ResolveConnectionString(IDbConnectionSettings settings)
+    static string ResolveConnectionString(IDbConnectionSettings settings, PostgresQueryTimeout? timeout)
     {
         ArgumentNullException.ThrowIfNull(settings);
         if (settings[PortfolioDb.PortfolioDbContext.PortfolioDbConnection] is not null)
             ValidatePortfolioDatabaseIdentity(settings);
-        return settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString;
+        return new NpgsqlConnectionStringBuilder(settings[EventSourceActorDbContext.EventSourceActorDbConnection].ConnectionString)
+        { CommandTimeout = (timeout ?? PostgresQueryTimeout.Default).CommandTimeoutSeconds }.ConnectionString;
     }
 
     /// <inheritdoc />
@@ -99,16 +102,17 @@ public sealed class PostgresEventTransaction(
         var transaction = await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
         await using var transactionDisposal = transaction.ConfigureAwait(false);
         beginTrace?.Stop();
-        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout);
+        var enlisted = new EnlistedEventTransaction(connection, transaction, eventLogCodec, eventLogSqlLayout, queryTimeout);
         T result;
         try
         {
             // Limit lock/provider waits; caller cancellation can impose a stricter operation deadline.
             using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.configure"))
-                await enlisted.ExecuteAsync("SET LOCAL lock_timeout = '1000ms'; SET LOCAL statement_timeout = '2000ms';", [], cancellationToken).ConfigureAwait(false);
+                await enlisted.ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
             using (FinancialTelemetry.ActivitySource.StartActivity("financial.transaction.apply"))
                 result = await operation(enlisted, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
+            await enlisted.ConfigureTimeoutAsync(null, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

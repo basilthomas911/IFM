@@ -625,6 +625,10 @@ DBF_API dbf_status DBF_CALL dbf_historical_estimate(
     const uint8_t* utf8_blob,
     uint32_t utf8_blob_bytes,
     dbf_historical_estimate_v1* estimate);
+
+/* Thread-local error from the immediately preceding historical estimate call. */
+DBF_API dbf_status DBF_CALL dbf_historical_get_last_error(
+    uint8_t* utf8_buffer, uint32_t utf8_buffer_capacity, uint32_t* required_bytes);
 DBF_API dbf_status DBF_CALL dbf_historical_batch_submit(
     const dbf_historical_request_v1* request,
     const dbf_utf8_slice_v1* symbols,

@@ -86,12 +86,14 @@ internal sealed record ScheduledTaskHistoryCursor(string Scope, DateTime Fire, G
 /// <summary>Adapter that never owns commit and binds operations to the local projection transaction.</summary>
 internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection, NpgsqlTransaction transaction) : IEnlistedPostgresTransaction
 {
+    readonly PostgresQueryTimeoutScope timeouts = new(connection, transaction);
     /// <inheritdoc/>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<int> ExecuteAsync(string sql, object? [] parameters, CancellationToken token)
+    public async Task<int> ExecuteAsync(string sql, object? [] parameters, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        var command = new NpgsqlCommand(sql, connection, transaction);
+        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);
         return await (command.ExecuteNonQueryAsync(token))
@@ -101,9 +103,10 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     /// <inheritdoc/>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<object?> ScalarAsync(string sql, object? [] parameters, CancellationToken token)
+    public async Task<object?> ScalarAsync(string sql, object? [] parameters, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        var command = new NpgsqlCommand(sql, connection, transaction);
+        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);
         return await (command.ExecuteScalarAsync(token))
@@ -113,9 +116,10 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     /// <inheritdoc/>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? [] parameters, Func<NpgsqlDataReader, T> map, CancellationToken token)
+    public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? [] parameters, Func<NpgsqlDataReader, T> map, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
-        var command = new NpgsqlCommand(sql, connection, transaction);
+        await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
+        var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };
         await using var commandDisposal = command.ConfigureAwait(false);
         command.BindScheduledTaskParameters(parameters);
         var reader = await (command.ExecuteReaderAsync(token))

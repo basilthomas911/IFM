@@ -202,6 +202,16 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     public Task<ServiceResult<ScalarReadModel<DateOnly>>> QueryValueDateAsync() =>
         _queryApi.GetValueDateAsync();
 
+    /// <summary>Requests the API-owned date without a client clock or fallback date.</summary>
+    public async Task<DateOnly> GetValueDateAsync(CancellationToken cancellationToken)
+    {
+        var result = await _queryApi.GetValueDateAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null || result.Value.Value == default)
+            throw new InvalidOperationException(result.ErrorMessage ?? "The API did not return a valid operational value date.");
+        return result.Value.Value;
+    }
+
+
     public Task<ServiceResult<FuturesOptionContractReadModel[]>> QueryDatabentoOptionChainAsync(
         string underlyingSymbol,
         string providerRoot,

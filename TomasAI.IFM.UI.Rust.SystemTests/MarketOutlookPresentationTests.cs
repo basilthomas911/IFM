@@ -3,6 +3,16 @@ using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Rust.Bridge.Net;
 public sealed class MarketOutlookPresentationTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Daily_baseline_availability_is_visible_in_dashboard_status(bool available)
+    {
+        var snapshot = new MarketOutlookReadModel { ContractId = "ES", ValueDate = new(2026, 10, 23), UpdatedAtUtc = DateTime.UtcNow,
+            FuturesEmaSignal = available ? new() { IsWarm = true, BaselineValueDate = new(2026, 10, 22) } : null };
+        var status = MarketOutlookPresentation.Create(snapshot, true, DateTimeOffset.UtcNow).Status;
+        Assert.Contains(available ? "EMA/BB baseline 2026-10-22" : "EMA/BB baseline unavailable", status);
+    }
     [Fact]
     public void Composite_fields_and_color_roles_match_the_WinForms_view_models()
     {

@@ -11,6 +11,47 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Services;
 /// <summary>Verifies Market Data query service mapping and failure behavior.</summary>
 public sealed class MarketDataQueryServiceTests
 {
+    [Fact]
+    public async Task Value_date_comes_from_each_API_response_even_when_backtesting_moves_backwards()
+    {
+        var api = Substitute.For<IMarketDataQueryApi>();
+        var service = new MarketDataQueryService(api, Substitute.For<IMarketDataFeedQueryApi>());
+        var future = new DateOnly(2035, 1, 3);
+        var replay = new DateOnly(2008, 10, 10);
+        api.GetValueDateAsync().Returns(
+            new ServiceOk<ScalarReadModel<DateOnly>>(new(future)),
+            new ServiceOk<ScalarReadModel<DateOnly>>(new(replay)));
+        Assert.Equal(future, await service.GetValueDateAsync(CancellationToken.None));
+        Assert.Equal(replay, await service.GetValueDateAsync(CancellationToken.None));
+        await api.Received(2).GetValueDateAsync();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Missing_or_failed_API_date_never_falls_back_to_the_client_clock(bool failed)
+    {
+        var api = Substitute.For<IMarketDataQueryApi>();
+        api.GetValueDateAsync().Returns(failed
+            ? new ServiceFailed<ScalarReadModel<DateOnly>>(503, "API unavailable")
+            : new ServiceOk<ScalarReadModel<DateOnly>>(new(default(DateOnly))));
+        var service = new MarketDataQueryService(api, Substitute.For<IMarketDataFeedQueryApi>());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetValueDateAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Waiting_for_API_date_honors_caller_cancellation_without_inventing_a_date()
+    {
+        var api = Substitute.For<IMarketDataQueryApi>();
+        var reply = new TaskCompletionSource<ServiceResult<ScalarReadModel<DateOnly>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        api.GetValueDateAsync().Returns(reply.Task);
+        var service = new MarketDataQueryService(api, Substitute.For<IMarketDataFeedQueryApi>());
+        using var cancellation = new CancellationTokenSource();
+        var pending = service.GetValueDateAsync(cancellation.Token);
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

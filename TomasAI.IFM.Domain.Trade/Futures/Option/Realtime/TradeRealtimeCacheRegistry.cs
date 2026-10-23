@@ -13,6 +13,20 @@ public sealed class TradeRealtimeCacheRegistry
     readonly ConcurrentDictionary<string, TradeRealtimeHotCache[]> publishedRoutes = new(StringComparer.Ordinal);
     TradeRealtimeHotCache[]? residentSnapshot;
     readonly Dictionary<string, HashSet<TradeEntityId>> routes = new(StringComparer.Ordinal);
+    readonly ConcurrentDictionary<TradeEntityId, (long RouteGeneration, long PositionSequence)> publications = new();
+    /// <summary>Captures current trade evidence without changing the publication throttle.</summary>
+    public TradeRealtimeSnapshot[] CaptureRecoveryObservations() => trades.Values.Select(cache => cache.Read()).ToArray();
+    /// <summary>Records only completed downstream sends, never attempted publication.</summary>
+    public void RecordPublication(TradeRealtimeSnapshot snapshot)
+    {
+        using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        if (snapshot.Position is not { } position) return;
+        publications.AddOrUpdate(snapshot.TradeId, (position.RouteGeneration, position.PositionSequence), (_, previous) =>
+            position.RouteGeneration > previous.RouteGeneration ? (position.RouteGeneration, position.PositionSequence)
+                : position.RouteGeneration == previous.RouteGeneration ? (previous.RouteGeneration, Math.Max(previous.PositionSequence, position.PositionSequence)) : previous);
+    }
+    public bool HasPublishedPosition(TradeEntityId trade, long generation, long sequence) => publications.TryGetValue(trade, out var published)
+        && published.RouteGeneration == generation && published.PositionSequence >= sequence;
     public TradeRealtimeHotCache Register(EstablishedTradeDefinition trade, DateOnly date)
     {
         using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
@@ -77,6 +91,7 @@ public sealed class TradeRealtimeCacheRegistry
     public void Remove(TradeEntityId id)
     {
         using var mutation = TomasAI.IFM.Shared.EventModelActor.RealtimeActorGeneration.EnterMutation();
+        publications.TryRemove(id, out _);
         lock (gate)
         {
             if (!trades.TryRemove(id, out var cache)) return;

@@ -29,7 +29,9 @@ public sealed class MarketDataDatasetMonitor(MarketDataWorkerHost host, ILogger<
             try
             {
                 var result = await host.RecoverAsync(new(Guid.NewGuid(), dataset.Role, dataset.Dataset,
-                    dataset.WorkerInstanceId, dataset.GenerationId, dataset.ValueDate!.Value, "Dataset health probe failed"), stoppingToken).ConfigureAwait(false);
+                    dataset.WorkerInstanceId, dataset.GenerationId, dataset.ValueDate!.Value, "Dataset health probe failed",
+                    ReplaceProcessImmediately: dataset.Role == "Options",
+                    DeadlineUtc: DateTimeOffset.UtcNow.AddMinutes(2)), stoppingToken).ConfigureAwait(false);
                 if (!result.Recovered) logger.LogError("Dataset stopped after bounded recovery; Role={Role}; Dataset={Dataset}; CleanupConfirmed={CleanupConfirmed}; Error={Error}",
                     dataset.Role, dataset.Dataset, result.CleanupConfirmed, result.Error);
             }

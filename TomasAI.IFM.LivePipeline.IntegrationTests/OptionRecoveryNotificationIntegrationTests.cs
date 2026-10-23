@@ -15,6 +15,104 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class OptionRecoveryNotificationIntegrationTests
 {
     [IsolatedRecoveryBrokerTheory(Timeout = 20000)]
+    [InlineData(true)]
+    public async Task Failed_full_recovery_notifies_UI_even_when_Host_status_never_returns(bool uncooperative)
+    {
+        Assert.True(uncooperative);
+        var url = Environment.GetEnvironmentVariable("IFM_RECOVERY_TEST_NATS_URL")!;
+        var clock = new LivePipelineIntegrationTests.ManualTime();
+        var runtime = new HungRuntime();
+        var recovery = new TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery.OptionPipelineRecoveryCoordinator(runtime,
+            NullLogger<TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery.OptionPipelineRecoveryCoordinator>.Instance, clock);
+        recovery.Observe(CancellationToken.None);
+        await runtime.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        clock.Advance(TimeSpan.FromMinutes(2)); await recovery.Completion!.WaitAsync(TimeSpan.FromSeconds(2));
+        var failure = recovery.Failure!;
+        await using var client = new NatsClient(url); await client.ConnectAsync(); var js = client.CreateJetStreamContext();
+        var name = "OPTION_FAILED_RECOVERY_" + Guid.NewGuid().ToString("N");
+        var stream = await js.CreateStreamAsync(new StreamConfig(name, [failure.Subject.ToString()]));
+        try
+        {
+            var market = Substitute.For<IMarketDataApi>();
+            market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new TaskCompletionSource<MarketDataBackendStatus>().Task);
+            ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
+            await using var producer = new NatsJetStreamActorProducer(new NatsJetStreamProducerOptions { Url = url }, NullLogger<NatsJetStreamActorProducer>.Instance);
+            using var service = new OptionFeedRecoveryNotificationService(market, producer, NullLogger<OptionFeedRecoveryNotificationService>.Instance, recovery: recovery);
+            await service.StartAsync(CancellationToken.None);
+            try
+            {
+                var consumer = await stream.CreateOrUpdateConsumerAsync(new ConsumerConfig("ui")
+                { FilterSubject = failure.Subject.ToString(), AckPolicy = ConsumerConfigAckPolicy.Explicit });
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                var received = false;
+                await foreach (var message in consumer.ConsumeAsync<byte[]>(serializer: new NatsByteArrayMessageSerializer(), cancellationToken: timeout.Token))
+                {
+                    var error = ActorExtensions.DataSerializer.Deserialize<MarketDataDatasetRecoveryFailedEvent>(message.Data!)!;
+                    Assert.Equal(failure.CommandId, error.CommandId); Assert.Contains("deadline expired", error.ErrorMessage);
+                    Assert.Contains("API restart is disabled", error.ErrorMessage);
+                    await message.AckAsync(cancellationToken: timeout.Token); received = true; break;
+                }
+                Assert.True(received);
+            }
+            finally { await service.StopAsync(CancellationToken.None); }
+        }
+        finally { await js.DeleteStreamAsync(name); }
+    }
+
+    sealed class HungRuntime : TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery.IOptionPipelineRecoveryRuntime
+    {
+        public TaskCompletionSource Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery.OptionPipelineInspection Inspect() => new(new(2026, 10, 22), "stalled", ["trade-a"]);
+        public Task RecoverAndVerifyAsync(Guid id, TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery.OptionPipelineInspection inspection, DateTimeOffset deadline, CancellationToken token)
+        { Entered.TrySetResult(); return new TaskCompletionSource().Task; }
+    }
+
+    [IsolatedRecoveryBrokerTheory(Timeout = 20000)]
+    [InlineData(true)]
+    public async Task Api_mailbox_deadline_reaches_durable_UI_channel_without_claiming_worker_cleanup(bool notificationOnly)
+    {
+        Assert.True(notificationOnly);
+        var url = Environment.GetEnvironmentVariable("IFM_RECOVERY_TEST_NATS_URL")!;
+        var clock = new OptionPipelineFailureObserverTests.Clock();
+        var observer = new OptionPipelineFailureObserver(clock);
+        observer.Observe(new(2026, 10, 22), [OptionPipelineFailureObserverTests.Mailbox()]);
+        clock.Advance(119);
+        Assert.Empty(observer.Observe(new(2026, 10, 22), [OptionPipelineFailureObserverTests.Mailbox()]));
+        clock.Advance(1);
+        var failed = Assert.Single(observer.Observe(new(2026, 10, 22), [OptionPipelineFailureObserverTests.Mailbox()]));
+        await using var client = new NatsClient(url); await client.ConnectAsync();
+        var js = client.CreateJetStreamContext();
+        var name = "OPTION_PIPELINE_UI_" + Guid.NewGuid().ToString("N");
+        var stream = await js.CreateStreamAsync(new StreamConfig(name, [failed.Subject.ToString()]));
+        try
+        {
+            ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
+            await using var producer = new NatsJetStreamActorProducer(new NatsJetStreamProducerOptions { Url = url }, NullLogger<NatsJetStreamActorProducer>.Instance);
+            await producer.StartAsync(new(ActorType.Event, nameof(OptionPipelineFailureObserver)), CancellationToken.None);
+            await producer.SendAsync<MarketDataDatasetRecoveryFailedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared.MarketDataFeedId>(failed.Subject, failed);
+            observer.MarkPublished(failed.CommandId);
+            // Consumer attaches AFTER publication, like a UI reconnecting after the deadline.
+            var consumer = await stream.CreateOrUpdateConsumerAsync(new ConsumerConfig("desktop")
+                { FilterSubject = failed.Subject.ToString(), AckPolicy = ConsumerConfigAckPolicy.Explicit });
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var received = false;
+            await foreach (var message in consumer.ConsumeAsync<byte[]>(serializer: new NatsByteArrayMessageSerializer(), cancellationToken: timeout.Token))
+            {
+                var restored = ActorExtensions.DataSerializer.Deserialize<MarketDataDatasetRecoveryFailedEvent>(message.Data!)!;
+                Assert.Equal(failed.CommandId, restored.CommandId);
+                Assert.Equal("Options", restored.Role);
+                Assert.Contains("120 seconds", restored.ErrorMessage);
+                Assert.Contains("restart is disabled", restored.ErrorMessage);
+                Assert.Equal(Guid.Empty, restored.WorkerInstanceId);
+                await message.AckAsync(cancellationToken: timeout.Token); received = true; break;
+            }
+            Assert.True(received);
+            await producer.StopAsync(CancellationToken.None);
+        }
+        finally { await js.DeleteStreamAsync(name); }
+    }
+
+    [IsolatedRecoveryBrokerTheory(Timeout = 20000)]
     [InlineData("Options")]
     [InlineData("Futures")]
     public async Task Terminal_recovery_error_is_persisted_and_delivered_over_JetStream(string role)

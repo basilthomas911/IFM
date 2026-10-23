@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -23,6 +24,9 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
     readonly object generations = new();
     readonly HashSet<string> sessions = new(StringComparer.Ordinal);
     readonly HashSet<string> retiredSessions = new(StringComparer.Ordinal);
+    Guid ownershipGeneration = Guid.NewGuid();
+    /// <summary>Changes when all monitoring owners are retired; durable trade intent can create a fresh owner.</summary>
+    public Guid OwnershipGeneration { get { lock (generations) return ownershipGeneration; } }
 
     static string Session(TickerStreamOwner owner) => Guid.TryParse(owner.WorkflowId.Split('.').Last(), out var id)
         ? id.ToString("N") : owner.WorkflowType + "|" + owner.WorkflowId;
@@ -41,6 +45,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
         {
             foreach (var session in sessions) retiredSessions.Add(session);
             sessions.Clear();
+            ownershipGeneration = Guid.NewGuid();
             previous = recovery;
             recovery = new(discovery, admissions, riskReader, logger);
             serial = new(1, 1);
@@ -68,6 +73,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
     public async Task AcquireAsync(TickerStreamOwner owner, FuturesOptionContractReadModel contract, DateOnly valueDate)
     {
         ArgumentNullException.ThrowIfNull(contract);
+        using var operation = new OptionFeedTrace("option.subscription.acquire", logger, $"{owner.WorkflowId}|{valueDate:yyyy-MM-dd}|{contract.ContractId}");
         ValidateOwner(owner);
         SemaphoreSlim currentSerial;
         RecoveringOptionLeaseRegistry currentRecovery;
@@ -78,31 +84,46 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
             sessions.Add(Session(owner));
             currentSerial = serial; currentRecovery = recovery;
         }
-        await currentSerial.WaitAsync().ConfigureAwait(false);
+        using (var step = new OptionFeedTrace("option.subscription.wait_serial", logger, contract.ContractId))
+        {
+            await currentSerial.WaitAsync().ConfigureAwait(false);
+            step.Complete();
+        }
         try
         {
             var candidate = CreateCandidate(contract);
             if (contract.ReviewState != ReferenceReviewState.Reviewed)
                 throw new InvalidDataException("OptionMonitoring.REFERENCE.NOT_REVIEWED");
             var securities = databases.SecuritiesDb;
-            if (await securities.GetReferenceVersionAsync(contract.ContractId, contract.MappingVersion!, CancellationToken.None)
-                .ConfigureAwait(false) is null)
+            using (var step = new OptionFeedTrace("option.subscription.reference", logger, contract.ContractId))
             {
-                var pending = await securities.StageReferenceVersionAsync(contract, CancellationToken.None).ConfigureAwait(false);
-                await securities.CommitReferenceVersionAsync(pending, CancellationToken.None).ConfigureAwait(false);
+                if (await securities.GetReferenceVersionAsync(contract.ContractId, contract.MappingVersion!, CancellationToken.None)
+                    .ConfigureAwait(false) is null)
+                {
+                    var pending = await securities.StageReferenceVersionAsync(contract, CancellationToken.None).ConfigureAwait(false);
+                    await securities.CommitReferenceVersionAsync(pending, CancellationToken.None).ConfigureAwait(false);
+                }
+                step.Complete();
             }
             var maturity = candidate.Definition.MaturityDate;
+            using var calendarStep = new OptionFeedTrace("option.subscription.calendar", logger, contract.ContractId);
             var dates = await databases.MarketDataDb.GetTradingDatesAsync(valueDate, maturity,
                 MarketType.Futures, CurrencyType.USD, CancellationToken.None).ConfigureAwait(false);
             var calendar = new OptionPricingCalendar(contract.CalendarVersion ?? "IFM-MarketDates",
                 contract.ExchangeTimeZoneId ?? "America/New_York", valueDate, maturity,
                 new TimeOnly(18, 0), dates.ToImmutableArray());
+            calendarStep.Complete();
+            calendarStep.Dispose();
             var request = new CompositionDiscoveryRequest(Guid.NewGuid(), Guid.Empty, valueDate,
                 maturity, DateTimeOffset.UtcNow.AddSeconds(60), [candidate], true, calendar, publication, conversion,
                 SeparateContractConnection: true);
             currentRecovery.Start();
+            using var leaseStep = new OptionFeedTrace("option.subscription.lease", logger, $"{contract.ContractId}|{request.LeaseId}");
             await currentRecovery.AcquireAsync(owner, contract.ContractId, request).ConfigureAwait(false);
+            leaseStep.Complete();
+            operation.Complete();
         }
+        catch (Exception error) { operation.Fail(error); throw; }
         finally { currentSerial.Release(); }
     }
 

@@ -11,6 +11,8 @@ namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 /// </summary>
 public interface ITradePlanDbReadContext
 {
+    Task<StrategyTradePlanChartSeries> GetChartRangeAsync(StrategyPositionId positionId, DateOnly firstValueDate, DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default);
+
     /// <summary>Reads only the requested offset window, anchored to a revision for stable scrolling.</summary>
     Task<StrategyTradePlanHistoryPage> GetOffsetHistoryAsync(StrategyPositionId positionId, TradeStrategyKind strategy, DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default);
 

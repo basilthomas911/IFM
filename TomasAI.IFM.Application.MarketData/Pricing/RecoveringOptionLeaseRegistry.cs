@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -95,6 +96,7 @@ public sealed class RecoveringOptionLeaseRegistry(
             registration.Lease = null;
         }
         if (!admitted) throw new InvalidOperationException("OptionMonitoring.WORKER.NOT_ADMITTED");
+        using var operation = new OptionFeedTrace("option.lease.restore", logger, $"{request.LeaseId}|{current.GenerationId}|{request.ValueDate:yyyy-MM-dd}");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
         // Stable request identity makes an uncertain acknowledgement retry idempotent in this generation.
@@ -111,6 +113,7 @@ public sealed class RecoveringOptionLeaseRegistry(
         }
         registration.Lease = lease;
         riskReader?.Register(lease);
+        operation.Complete();
     }
 
     /// <summary>Adopts Host-restored leases before new-generation admission, preserving desired monitoring ownership.</summary>

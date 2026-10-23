@@ -60,6 +60,7 @@ public static class BackendServices
         services.AddSingleton<IDatabentoMarketDataEpochFactory, WorkerOnlyEpochFactory>();
         services.AddSingleton<DatasetWorkerAdmissionRegistry>();
         services.AddSingleton<DatasetDesiredSubscriptionRegistry>();
+        services.AddSingleton<TomasAI.IFM.Domain.Trade.Shared.Recovery.ITradeFeedRecoveryStore, TomasAI.IFM.Application.Storage.TradeDb.TradeFeedRecoveryStore>();
         services.AddSingleton(provider => new MarketDataHostState(provider.GetRequiredService<DatasetWorkerCurrentValues>(),
             provider.GetRequiredService<DatasetWorkerAdmissionRegistry>())
         {
@@ -93,6 +94,7 @@ public static class BackendServices
         services.AddSingleton<MarketDataDbContext>();
         services.AddSingleton<IMarketDataDbContext>(p => p.GetRequiredService<MarketDataDbContext>());
         services.AddSingleton<SecuritiesDbContext>();
+        services.AddSingleton<TomasAI.IFM.Application.Storage.TradeDb.TradeDbContext>();
         services.AddSingleton<ISecuritiesDbContext>(p => p.GetRequiredService<SecuritiesDbContext>());
         services.AddSingleton<ReferenceDbContext>();
         services.AddSingleton<IReferenceDbContext>(p => p.GetRequiredService<ReferenceDbContext>());

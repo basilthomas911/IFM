@@ -235,10 +235,6 @@ namespace TomasAI.IFM.UI.Net
         public IUiServiceCatalog Services
             => _container!.GetInstance<IUiServiceCatalog>();
 
-        /// <inheritdoc />
-        public IValueDateProvider ValueDates
-            => _container!.GetInstance<IValueDateProvider>();
-
         /// <summary>
         /// return status console api
         /// </summary>

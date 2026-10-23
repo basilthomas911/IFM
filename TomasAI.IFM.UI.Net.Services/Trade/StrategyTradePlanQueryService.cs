@@ -83,6 +83,14 @@ public sealed class StrategyTradePlanQueryService(IStrategyTradePlanQueryApi que
     /// <param name="onCompleted">Receives the loaded history page.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>A task that completes after the callback receives the result.</returns>
+    public async Task<StrategyTradePlanChartSeries> GetIronCondorChartAsync(StrategyPositionId position, DateOnly date, CancellationToken token = default)
+    {
+        var result = await _queryApi.GetIronCondorChartAsync(position, date, token).ConfigureAwait(false);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException($"Iron Condor chart history failed ({result.ErrorCode}): {result.ErrorMessage}");
+        return result.Value;
+    }
+
     public Task GetIronCondorHistoryPageAsync(StrategyPositionId position, DateOnly date, int offset, int size,
         long? maximumRevision, Action<StrategyTradePlanHistoryPage> completed, CancellationToken cancellationToken = default)
         => ExecuteAsync(() => _queryApi.GetIronCondorHistoryPageAsync(position, date, offset, size, maximumRevision, cancellationToken), completed);

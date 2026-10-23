@@ -16,6 +16,14 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public sealed class TradeOrderEditorViewModelTests
 {
+    static void ConfigureApiValueDate(IUiServiceCatalog services)
+    {
+        var market = Substitute.For<TomasAI.IFM.Domain.MarketData.Shared.ServiceApi.IMarketDataQueryApi>();
+        market.GetValueDateAsync().Returns(new ServiceOk<ScalarReadModel<DateOnly>>(new(new DateOnly(2026, 9, 18))));
+        services.MarketDataQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketData.MarketDataQueryService(market,
+            Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>()));
+    }
+
     [Fact]
     public async Task Fund_dropdown_uses_latest_mandates_before_filtering_active_and_preserves_selection()
     {
@@ -35,6 +43,7 @@ public sealed class TradeOrderEditorViewModelTests
         queries.GetOrdersAsync(101, Arg.Any<int>(), Arg.Any<DateOnly>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()));
         var services = Substitute.For<IUiServiceCatalog>(); services.PortfolioQueries.Returns(queries);
+        ConfigureApiValueDate(services);
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services);
         await using var model = new TradeOrderEditorViewModel(root, new DateOnly(2026, 10, 14), [], Substitute.For<IReferenceDataService>());
         await model.LoadOperation.ExecuteAsync();
@@ -167,6 +176,7 @@ public sealed class TradeOrderEditorViewModelTests
         var services = Substitute.For<IUiServiceCatalog>();
         services.PortfolioFundCommands.Returns(commands);
         services.PortfolioQueries.Returns(queries);
+        ConfigureApiValueDate(services);
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.Services.Returns(services);
         var viewModel = new TradeOrderEditorViewModel(
@@ -273,6 +283,7 @@ public sealed class TradeOrderEditorViewModelTests
             }));
         var services = Substitute.For<IUiServiceCatalog>();
         services.PortfolioQueries.Returns(queries);
+        ConfigureApiValueDate(services);
         services.PortfolioFundCommands.Returns(Substitute.For<IPortfolioFundCommandApi>());
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.Services.Returns(services);
@@ -379,6 +390,7 @@ public sealed class TradeOrderEditorViewModelTests
             }));
         var services = Substitute.For<IUiServiceCatalog>();
         services.PortfolioQueries.Returns(queries);
+        ConfigureApiValueDate(services);
         services.PortfolioFundCommands.Returns(Substitute.For<IPortfolioFundCommandApi>());
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.Services.Returns(services);
@@ -490,6 +502,7 @@ public sealed class TradeOrderEditorViewModelTests
         var services = Substitute.For<IUiServiceCatalog>();
         services.PortfolioFundCommands.Returns(commands);
         services.PortfolioQueries.Returns(queries);
+        ConfigureApiValueDate(services);
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.Services.Returns(services);
         var viewModel = new TradeOrderEditorViewModel(

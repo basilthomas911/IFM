@@ -165,6 +165,11 @@ public static partial class CoreServiceRegistration
             app.UseHttpsRedirection();
         }
         app.UseOutputCache();
+        app.MapGet("/health/recovery-ready", (TomasAI.IFM.Application.Api.Server.Core.HostedServices.TradeFeedRecoveryStartupService startup,
+            TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority sessions,
+            TomasAI.IFM.Shared.EventModelActor.Contracts.IActorSupervisor supervisor,
+            TomasAI.IFM.Domain.Trade.Futures.Option.Realtime.TradeRealtimeCacheRegistry caches) =>
+                Results.Ok(TomasAI.IFM.Application.Api.Server.Core.HostedServices.ApiRecoveryReadinessProbe.Capture(startup.Current, sessions, supervisor, caches)));
         app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("live"),

@@ -220,9 +220,14 @@ public partial class YieldCurveRateEditorControl
     {
         if (_isBinding || ddlTimePeriod.SelectedIndex < 0)
             return;
-        _viewModel.SelectTimePeriod(
-            ddlTimePeriod.SelectedIndex,
-            _viewModel.AppRoot.ValueDates.ValueDate);
-        UiExceptionReporter.Observe(ReloadRatesAsync(), nameof(ReloadRatesAsync), this);
+        var selectedIndex = ddlTimePeriod.SelectedIndex;
+        UiExceptionReporter.Observe(SelectPeriodAsync(selectedIndex), nameof(SelectPeriodAsync), this);
+    }
+
+    async Task SelectPeriodAsync(int index)
+    {
+        var date = await _viewModel.AppRoot.Services.MarketDataQueries.GetValueDateAsync(CancellationToken.None);
+        _viewModel.SelectTimePeriod(index, date);
+        await ReloadRatesAsync();
     }
 }

@@ -57,7 +57,7 @@ public static class IfmMetricsServiceCollectionExtensions
         if (configuration.GetValue("Telemetry:Traces:Enabled", false))
             telemetry.WithTracing(tracing =>
             {
-                tracing.AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
+                tracing.AddSource("TomasAI.IFM.OptionFeed").AddSource("TomasAI.IFM.ActorTracing").AddSource("TomasAI.IFM.StrategyWorkflow").AddSource(MarketConditionInstrumentationName)
                     .AddSource(PortfolioInstrumentationName)
                     .AddSource(PortfolioFinancialInstrumentationName)
 .AddOtlpExporter(options => ConfigureExporter(options, endpointText, protocolText));

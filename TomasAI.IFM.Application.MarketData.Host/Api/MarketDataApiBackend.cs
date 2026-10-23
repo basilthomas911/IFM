@@ -10,7 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Application.MarketData.Host;
 
 /// <summary>Host implementation of the public contract; child ownership never crosses into API callers.</summary>
-public sealed class MarketDataApiBackend(MarketDataHostConnection connection, DatabentoMarketDataApi reads,
+public sealed partial class MarketDataApiBackend(MarketDataHostConnection connection, DatabentoMarketDataApi reads,
     MarketDataWorkerHost host, IServiceProvider services) : MarketDataApiClient(connection, reads)
 {
     readonly SemaphoreSlim lifecycle = new(1, 1);
@@ -21,6 +21,18 @@ public sealed class MarketDataApiBackend(MarketDataHostConnection connection, Da
         object? result;
         switch (operation)
         {
+            case nameof(CloseTradeFeedRecoveryAsync):
+                await TradeRecovery.CloseAsync((DateOnly)args[0]!, token).ConfigureAwait(false); result = true; break;
+            case nameof(ReadTradeFeedRecoveryAsync):
+                result = await TradeRecovery.ReadAsync((DateOnly)args[0]!, token).ConfigureAwait(false); break;
+            case nameof(LoadTradeFeedRecoveryAsync):
+                result = await TradeRecovery.LoadAsync((string)args[0]!, (DateOnly)args[1]!, false, token).ConfigureAwait(false); break;
+            case nameof(EnableTradeFeedRecoveryAsync):
+                result = await TradeRecovery.LoadAsync((string)args[0]!, (DateOnly)args[1]!, true, token).ConfigureAwait(false); break;
+            case nameof(DisableTradeFeedRecoveryAsync):
+                await TradeRecovery.DisableAsync((string)args[0]!, (DateOnly)args[1]!, token).ConfigureAwait(false); result = true; break;
+            case nameof(InjectDevelopmentOptionWorkerFaultAsync):
+                result = await host.InjectDevelopmentFaultAsync((MarketDataDevelopmentFaultRequest)args[0]!, services.GetRequiredService<IHostEnvironment>(), token).ConfigureAwait(false); break;
             case nameof(WarmTreasuryPricingAsync):
                 result = await services.GetRequiredService<TreasuryPricingProvider>().GetAsync(DateTimeOffset.UtcNow, 0,
                     services.GetRequiredService<TreasuryPublicationPolicy>(), services.GetRequiredService<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy>(), token).ConfigureAwait(false); break;
@@ -185,16 +197,32 @@ public sealed class MarketDataApiBackend(MarketDataHostConnection connection, Da
 
     async Task EnsureOptionsAsync(DateOnly date, CancellationToken token)
     {
-        await lifecycle.WaitAsync(token).ConfigureAwait(false);
-        try
+        await TomasAI.IFM.Application.MarketData.Recovery.OptionWorkerReadiness.EnsureAsync(ObserveAsync, RestartStoppedAsync, token).ConfigureAwait(false);
+
+        async Task<MarketDataDatasetStatus?> ObserveAsync(CancellationToken cancellation)
         {
-            if (activeDate != date) throw new InvalidOperationException("The market-data session is not active for this value date.");
-            var previous = host.GetBackendStatus().Datasets.SingleOrDefault(state => state.Role == "Options" && state.Dataset == "GLBX.MDP3");
-            if (previous?.Lifecycle == "Healthy") return;
-            if (previous?.Lifecycle != "StoppedError") throw new InvalidOperationException("Option cleanup is not confirmed or recovery is still running.");
-            var manifest = host.CaptureReadSnapshot().Manifests.Single(manifest => manifest.Dataset == "GLBX.MDP3");
-            await host.StartWorkerAsync("Options", new(manifest, Guid.NewGuid(), Guid.NewGuid()), token).ConfigureAwait(false);
+            await lifecycle.WaitAsync(cancellation).ConfigureAwait(false);
+            try
+            {
+                if (activeDate != date) throw new InvalidOperationException("The market-data session is not active for this value date.");
+                return host.GetBackendStatus().Datasets.SingleOrDefault(state => state.Role == "Options" && state.Dataset == "GLBX.MDP3");
+            }
+            finally { lifecycle.Release(); }
         }
-        finally { lifecycle.Release(); }
+
+        async Task RestartStoppedAsync(CancellationToken cancellation)
+        {
+            await lifecycle.WaitAsync(cancellation).ConfigureAwait(false);
+            try
+            {
+                if (activeDate != date) throw new InvalidOperationException("The market-data session is not active for this value date.");
+                // Another caller may have joined/restored the worker since inspection.
+                var current = host.GetBackendStatus().Datasets.SingleOrDefault(state => state.Role == "Options" && state.Dataset == "GLBX.MDP3");
+                if (current?.Lifecycle != "StoppedError") return;
+                var manifest = host.CaptureReadSnapshot().Manifests.Single(manifest => manifest.Dataset == "GLBX.MDP3");
+                await host.StartWorkerAsync("Options", new(manifest, Guid.NewGuid(), Guid.NewGuid()), cancellation).ConfigureAwait(false);
+            }
+            finally { lifecycle.Release(); }
+        }
     }
 }

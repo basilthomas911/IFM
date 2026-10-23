@@ -42,10 +42,9 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 {
     readonly IAppRoot _appRoot;
     readonly TimeProvider _timeProvider;
-    readonly IValueDateProvider _valueDateProvider;
     readonly BrokerEnvironment _brokerEnvironment;
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly DateOnly? _valueDate;
+    DateOnly? _valueDate;
     readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts; readonly IReferenceDataService _referenceDataService; IReadOnlyList<PortfolioFundEditorModel> _funds = [];
     IReadOnlyList<PortfolioFundOrderEditorModel> _fundOrders = [];
     IReadOnlyList<PortfolioFundOrderTradeEditorModel> _fundOrderTrades = [];
@@ -73,8 +72,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         ICollection<FuturesContractV3ReadModel> baseContracts,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null,
-        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live,
-        IValueDateProvider? valueDateProvider = null)
+        BrokerEnvironment brokerEnvironment = BrokerEnvironment.Live)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
@@ -82,9 +80,6 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             ?? throw new ArgumentNullException(nameof(referenceDataService));
         _appRoot = appRoot;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _valueDateProvider = valueDateProvider
-            ?? appRoot.ValueDates
-            ?? FuturesValueDateProvider.System;
         _brokerEnvironment = brokerEnvironment;
         _valueDate = valueDate;
         _baseContracts = baseContracts.ToArray();
@@ -296,11 +291,14 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         var portfolioId = SelectedPortfolio.PortfolioId;
         var fundId = SelectedFund.FundId;
         var rows = new List<FundOrderProjectionReadModel>();
+        var apiDate = await _appRoot.Services.MarketDataQueries.GetValueDateAsync(cancellationToken);
+        _valueDate = apiDate;
+        OnPropertyChanged(nameof(ValueDate));
         var month = _fromDate == DateTime.MinValue
-            ? _valueDateProvider.ValueDate
+            ? apiDate
             : DateOnly.FromDateTime(_fromDate);
         var end = _toDate == DateTime.MaxValue
-            ? _valueDateProvider.ValueDate
+            ? apiDate
             : DateOnly.FromDateTime(_toDate);
         month = new DateOnly(month.Year, month.Month, 1); end = new DateOnly(end.Year, end.Month, 1);
         for (var current = month; current <= end; current = current.AddMonths(1))

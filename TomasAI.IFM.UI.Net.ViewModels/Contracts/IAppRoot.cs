@@ -18,9 +18,6 @@ public interface IAppRoot
     /// <summary>Gets the typed UI domain-service catalog.</summary>
     IUiServiceCatalog Services { get; }
 
-    /// <summary>Gets the authoritative, non-null futures value-date provider.</summary>
-    IValueDateProvider ValueDates => FuturesValueDateProvider.System;
-
     /// <summary>Gets the application status-console writer.</summary>
     IStatusConsoleWriter GetStatusConsoleWriter();
 

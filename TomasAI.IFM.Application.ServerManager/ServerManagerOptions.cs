@@ -14,6 +14,7 @@ public sealed class ServerManagerOptions
     public int ShutdownTimeoutSeconds { get; set; } = 10;
 
     public bool DevelopmentProcessOwnershipEnabled { get; set; }
+    public bool ApiRecoveryRestartEnabled { get; set; }
 
     public SchedulerClientOptions Scheduler { get; set; } = new();
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA2227",Justification="Preserve the existing mutable configuration or test fixture contract.")]

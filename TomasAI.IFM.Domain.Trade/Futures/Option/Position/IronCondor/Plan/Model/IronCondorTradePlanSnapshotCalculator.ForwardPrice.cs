@@ -67,6 +67,7 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
             Currency = risk?.IronCondorForwardPrice.Currency ?? daily.Currency, ContractMultiplier = multiplierForCurrent,
             ForwardPrice = risk?.IronCondorForwardPrice.ForwardPrice ?? 0m, CombinedForwardPrice = risk?.IronCondorForwardPrice.ForwardPrice ?? 0m,
             ForwardLossRatio = risk?.ForwardLossRatio,
+            ForwardDelta = CalculateForwardDelta(observations),
             NetDelta = quantity is { } deltaQuantity ? CalculateExposure(observations, deltaQuantity, leg => leg.Delta) : null,
             NetGamma = quantity is { } gammaQuantity ? CalculateExposure(observations, gammaQuantity, leg => leg.Gamma) : null,
             NetVega = quantity is { } vegaQuantity ? CalculateExposure(observations, vegaQuantity, leg => leg.Vega) : null,
@@ -81,5 +82,27 @@ public sealed partial class IronCondorTradePlanSnapshotCalculator
             ActionType = risk?.ExitRecommended == true ? "Exit" : "Monitor",
             ActionState = risk is null ? "Unavailable" : risk.ExitRecommended ? "ExitRequired" : "Normal"
         };
+    }
+
+    /// <summary>Calculates per-strategy-unit forward delta from the current priced leg deltas.
+    /// Each vertical contributes its signed long and short deltas; no loss amplification,
+    /// adverse scenario, contract multiplier or position quantity scaling is applied.</summary>
+    public static double? CalculateForwardDelta(IronCondorTradePlanLegObservation[] legs)
+    {
+        ArgumentNullException.ThrowIfNull(legs);
+        if (legs.Length != 4 || legs.Any(leg => leg.SignedQuantity is null or 0 or int.MinValue
+                || leg.Delta is not { } delta || !double.IsFinite(delta) || Math.Abs(delta) > 1)
+            || legs.Select(leg => Math.Abs(leg.SignedQuantity!.Value)).Distinct().Count() != 1)
+            return null;
+        var put = legs.Where(leg => leg.PutCall == 2).ToArray();
+        var call = legs.Where(leg => leg.PutCall == 1).ToArray();
+        if (put.Length != 2 || call.Length != 2
+            || !put.Any(leg => leg.SignedQuantity > 0) || !put.Any(leg => leg.SignedQuantity < 0)
+            || !call.Any(leg => leg.SignedQuantity > 0) || !call.Any(leg => leg.SignedQuantity < 0))
+            return null;
+        var quantity = Math.Abs(legs[0].SignedQuantity!.Value);
+        double VerticalDelta(IronCondorTradePlanLegObservation[] spread)
+            => spread.Sum(leg => leg.Delta!.Value * leg.SignedQuantity!.Value) / quantity;
+        return VerticalDelta(put) + VerticalDelta(call);
     }
 }

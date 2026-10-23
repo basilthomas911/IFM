@@ -3,6 +3,24 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 
+if (args.Length == 4 && args[0] == "observe-recovery-error")
+{
+    await OptionRecoveryFailureInspection.RunAsync(args[1], Guid.Parse(args[2]), args[3]);
+    return;
+}
+
+if (args.Length == 4 && args[0] == "inspect-option-baseline")
+{
+    await OptionBaselineInspection.RunAsync(args[1], DateOnly.ParseExact(args[2], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), args[3]);
+    return;
+}
+
+if (args.Length == 4 && args[0] == "observe-option-notification")
+{
+    await OptionNotificationVerification.RunAsync(args[1], args[2], DateOnly.ParseExact(args[3], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+    return;
+}
+
 if (args.Length == 2 && args[0] == "host-action-failure")
 {
     await HostRecoveryVerificationRunner.RunAsync(args[0], args[1]);

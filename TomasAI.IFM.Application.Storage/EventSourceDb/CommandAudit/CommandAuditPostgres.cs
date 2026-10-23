@@ -16,7 +16,7 @@ internal static class CommandAuditPostgres
     {
         var command = new NpgsqlCommand(
             EventSourceDbSql.InsertCommandLogMessagePackWindow, connection, transaction)
-        { CommandTimeout = 3 };
+        { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
         await using var commandDisposal = command.ConfigureAwait(false);
         Add(command, envelopes.Select(static item => item.CommandId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Uuid);
         Add(command, envelopes.Select(static item => item.StreamId).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text);
@@ -70,7 +70,7 @@ internal static class CommandAuditPostgres
     static async Task<bool> MatchesStoredRetryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
         CommandAuditEnvelope candidate, CancellationToken token)
     {
-        var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = 3 };
+        var read = new NpgsqlCommand("SELECT commandpayload,commandpayloadformat,commandpayloadversion,commandpayloadsha256 FROM command_log WHERE commandid=$1", connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
         await using var readDisposal = read.ConfigureAwait(false);
         read.Parameters.AddWithValue(candidate.CommandId);
         var reader = await read.ExecuteReaderAsync(token).ConfigureAwait(false);

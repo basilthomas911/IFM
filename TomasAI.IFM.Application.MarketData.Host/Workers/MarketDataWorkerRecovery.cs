@@ -68,6 +68,12 @@ public sealed partial class MarketDataWorkerHost
             var softTimeout = configuration.GetValue("MarketDataHost:SoftRecoveryTimeout", TimeSpan.FromMinutes(2));
             if (softTimeout <= TimeSpan.Zero || softTimeout > TimeSpan.FromMinutes(2))
                 throw new InvalidOperationException("Soft recovery timeout must be positive and at most two minutes.");
+            if (request.DeadlineUtc is { } outerDeadline)
+            {
+                var remaining = outerDeadline - DateTimeOffset.UtcNow;
+                if (remaining <= TimeSpan.Zero) throw new TimeoutException("Option pipeline recovery deadline already expired.");
+                if (remaining < softTimeout) softTimeout = remaining;
+            }
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(softTimeout);
             var stage = "reset";
@@ -77,7 +83,7 @@ public sealed partial class MarketDataWorkerHost
             {
                 try
                 {
-                    if (worker.RequiresProcessReplacement)
+                    if (request.ReplaceProcessImmediately || worker.RequiresProcessReplacement)
                         throw new InvalidDataException("Worker connection is unusable; replacing its process and pipes.");
                     var reset = await worker.RunWithRecoveryDeadlineAsync(deadline.Token, async budget =>
                     {

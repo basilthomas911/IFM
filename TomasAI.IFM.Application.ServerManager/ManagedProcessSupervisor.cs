@@ -23,6 +23,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
     private readonly WindowsKillOnCloseJob? _developmentJob;
     private readonly Dictionary<string, OwnedProcess> _running = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task> _lastCompletions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ManagedProcessIdentity> _lastIdentities = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
     public ManagedProcessSupervisor(
@@ -120,6 +121,47 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         {
             _lifecycle.Release();
         }
+    }
+
+    /// <summary>Emergency API replacement. No graceful drain and no process-tree termination.</summary>
+    public async Task<int> RestartApiAsync(int expectedProcessId, DateTime expectedStartedUtc, CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            OwnedProcess? owned;
+            ManagedProcessDefinition definition;
+            lock (_sync)
+            {
+                _running.TryGetValue("api", out owned);
+                var identity = owned?.Identity ?? _lastIdentities.GetValueOrDefault("api");
+                if (identity is null || identity.ProcessId != expectedProcessId || identity.StartedAtUtc.UtcDateTime != expectedStartedUtc)
+                    throw new InvalidOperationException("API recovery request does not identify the currently owned API process.");
+                definition = owned?.Definition ?? _definitions.Single(item => item.Key.Equals("api",StringComparison.OrdinalIgnoreCase));
+            }
+            Process? target;
+            try { target = Process.GetProcessById(expectedProcessId); }
+            catch (ArgumentException) { target = null; }
+            if (target is not null)
+            {
+                using (target)
+                {
+                    if (target.StartTime.ToUniversalTime() != expectedStartedUtc) throw new InvalidOperationException("API PID was reused; no process was stopped.");
+                    if (!HasExited(target)) target.Kill(entireProcessTree: false);
+                    await target.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+            // Output pipes may be inherited or stuck. Physical process exit is sufficient;
+            // MonitorAsync owns their eventual cleanup and cannot remove the replacement.
+            lock (_sync)
+                if (_running.TryGetValue("api", out var current) && ReferenceEquals(current, owned)) _running.Remove("api");
+            cancellationToken.ThrowIfCancellationRequested();
+            await StartCoreAsync(definition).ConfigureAwait(false);
+            await WaitForReadinessAsync(definition, cancellationToken, inheritDeadline: true).ConfigureAwait(false);
+            lock (_sync) return _running["api"].Identity.ProcessId;
+        }
+        finally { _lifecycle.Release(); }
     }
 
     public async Task StopAllAsync(CancellationToken cancellationToken = default)
@@ -222,6 +264,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
             lock (_sync)
             {
                 _running.Add(definition.Key, owned);
+                _lastIdentities[definition.Key] = owned.Identity;
                 owned.Completion = MonitorAsync(owned);
                 _lastCompletions[definition.Key] = owned.Completion;
             }
@@ -336,12 +379,12 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
 
     private async Task WaitForReadinessAsync(
         ManagedProcessDefinition definition,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool inheritDeadline = false)
     {
         if (!string.IsNullOrWhiteSpace(definition.ReadinessPipeName))
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            deadline.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
+            if (!inheritDeadline) deadline.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
             var dashboardClient = new SchedulerPipeClient(new SchedulerClientOptions { PipeName = definition.ReadinessPipeName, ConnectTimeoutMilliseconds = 1000 });
             try
             {
@@ -375,7 +418,7 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
 
         WriteLifecycle(definition, $"Waiting for readiness at {definition.ReadinessUri}.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
+        if (!inheritDeadline) timeout.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
         using var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         HttpStatusCode? lastStatus = null;
         Exception? lastException = null;

@@ -27,6 +27,9 @@ public sealed class TradePlanDbContext(
         DateOnly valueDate, int offset, int pageSize, long? maximumRevision = null, CancellationToken cancellationToken = default)
         => this.ReadOffsetHistoryAsync(positionId, strategy, valueDate, offset, pageSize, maximumRevision, cancellationToken);
 
+    public Task<StrategyTradePlanChartSeries> GetChartRangeAsync(StrategyPositionId positionId, DateOnly firstValueDate, DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken cancellationToken = default)
+        => this.ReadChartRangeAsync(positionId, firstValueDate, lastValueDate, startUtc, endUtc, cancellationToken);
+
     internal readonly ILogger<DbProvider> tradePlanLogger = logger;
 
     /// <inheritdoc />

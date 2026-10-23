@@ -278,7 +278,7 @@ impl SidebarView {
         }
         if let Some(message) = self.error_dialog.clone() {
             egui::Modal::new(egui::Id::new("calendar-error-dialog")).show(ui.ctx(), |ui| {
-                ui.heading(crate::presentation::dialog_title("Economic Calendar Error"));
+                ui.heading(crate::presentation::dialog_title("Application Error"));
                 ui.trading_label(message);
                 if ui.button("OK").clicked() {
                     self.error_dialog = None;

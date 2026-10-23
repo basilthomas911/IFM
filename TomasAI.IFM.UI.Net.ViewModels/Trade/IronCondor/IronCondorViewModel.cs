@@ -265,6 +265,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         await RefreshEstablishedPositionHistoryAsync(cancellationToken: cancellationToken);
         await LoadEstablishedTradeLimitsAsync(result.Value.Id, cancellationToken);
         await SynchronizeOptionFeedStatusAsync(cancellationToken);
+        if (EstablishedTrade.Status == EstablishedTradeStatus.Open && CanEnableLiveFeed
+            && _appRoot.Services.FeedCommands is { SupportsTradeFeedRecovery: true } recoveryFeeds)
+        {
+            DateOnly? activeDate = null;
+            await _appRoot.Services.MarketDataQueries.GetValueDateAsync(value => activeDate = value).WaitAsync(cancellationToken);
+            if (activeDate is { } recoveryDate && await recoveryFeeds.LoadTradeFeedRecoveryAsync(EstablishedTrade.Id, recoveryDate, cancellationToken))
+                await EnableLiveFeedAsync(cancellationToken);
+        }
         return result.Value;
     }
 
@@ -621,7 +629,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 LiveFeedStatusMessage = "Live feed OFF - market data session closed by the API.";
                 OnPropertyChanged(nameof(CanEnableLiveFeed));
                 OnPropertyChanged(nameof(CanChangeLiveFeed));
-                await DisableLiveFeedAsync().ConfigureAwait(false);
+                await StopAsync(CancellationToken.None).ConfigureAwait(false);
                 break;
             case MarketDataFeedStartedCompleteEvent started:
                 _marketDataSessionStopped = false;
@@ -654,7 +662,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await DisableLiveFeedAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+            await StopAsync(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
         }
         catch (Exception error)
         {
@@ -817,7 +825,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 if (_liveFeedEnabled)
                 {
                     var sessionRevision = Volatile.Read(ref _feedSessionRevision);
-                    await DisableLiveFeedAsync();
+                    await StopAsync(cancellationToken);
                     try
                     {
                         await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, cancellationToken);
@@ -942,12 +950,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             });
 
         // load option trade spread bar data by position value date
-        Task LoadOptionTradeSpreadBarDataByPositionValueDate()
+        async Task LoadOptionTradeSpreadBarDataByPositionValueDate()
         {
             var positionValueDate = (_optionTrade?.TradePositions?.LastOrDefault()?.ValueDate ??
-                (_valueDate ?? _appRoot.ValueDates.ValueDate)).ToDateTime(TimeOnly.MinValue);
+                (_valueDate ?? await _appRoot.Services.MarketDataQueries.GetValueDateAsync(CancellationToken.None))).ToDateTime(TimeOnly.MinValue);
             var startDate = positionValueDate.AddHours(10);
-            return LoadOptionTradeSpreadBarData(
+            await LoadOptionTradeSpreadBarData(
                        orderId,
                        tradeId,
                        tradeType: _fundOrderTrade.TradeType,
@@ -963,7 +971,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         var request = Interlocked.Increment(ref _planHistoryRequest);
         _ironCondorPlanHistory = [];
         OnPropertyChanged(nameof(IronCondorPlanHistory));
-        var valueDate = selectedValueDate ?? (IsLiveFeedEnabled ? _valueDate : _selectedPlanValueDate ?? TradeHistory.LastOrDefault()?.ValueDate) ?? _appRoot.ValueDates.ValueDate;
+        var valueDate = selectedValueDate ?? (IsLiveFeedEnabled ? _valueDate : _selectedPlanValueDate ?? TradeHistory.LastOrDefault()?.ValueDate) ?? await _appRoot.Services.MarketDataQueries.GetValueDateAsync(CancellationToken.None);
         if (EstablishedTrade is not null || !_historicalReadOnly && PortfolioId > 0)
         {
             var tradeId = EstablishedTrade?.Id ?? new TradeEntityId(PortfolioId, _fund.FundId, OrderId, TradeId);
@@ -1163,7 +1171,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         await _appRoot.Services.FeedQueries.ExecuteAsync(async marketDataFeedQueryModel =>
         {
             var valueDate = _optionTrade?.TradePositions?.LastOrDefault()?.ValueDate
-                ?? (_valueDate ?? _appRoot.ValueDates.ValueDate);
+                ?? (_valueDate ?? await _appRoot.Services.MarketDataQueries.GetValueDateAsync(CancellationToken.None));
             await marketDataFeedQueryModel.GetFuturesEodDataAsync(
                 _futuresContract.ContractId,
                 valueDate.AddMonths(-2),
@@ -1627,8 +1635,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <summary>
     /// disable live market data feeds
     /// </summary>
-    public Task DisableLiveFeedAsync(CancellationToken cancellationToken = default)
-        => StopAsync(cancellationToken);
+    public async Task DisableLiveFeedAsync(CancellationToken cancellationToken = default)
+    {
+        if (EstablishedTrade is { } trade && _valueDate is { } date && _appRoot.Services.FeedCommands is { } feeds)
+            await feeds.DisableTradeFeedRecoveryAsync(trade.Id, date, cancellationToken);
+        await StopAsync(cancellationToken);
+    }
 
     /// <summary>Starts the three current-model listeners before submitting exact leg feed commands.</summary>
     async Task EnableEstablishedMonitoringAsync(CancellationToken cancellationToken)
@@ -1708,8 +1720,16 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 return ValueTask.CompletedTask;
             });
             cancellationToken.ThrowIfCancellationRequested();
-            await _appRoot.Services.FeedCommands.StartEstablishedOptionLegsAsync(_liveStreamsIds, _baseContracts, _valueDate!.Value);
-            await readiness.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            if (_appRoot.Services.FeedCommands.SupportsTradeFeedRecovery)
+            {
+                if (!await _appRoot.Services.FeedCommands.EnableTradeFeedRecoveryAsync(trade.Id, _valueDate!.Value, cancellationToken))
+                    throw new InvalidOperationException("The current trade/value date could not enable recoverable live monitoring.");
+            }
+            else
+            {
+                await _appRoot.Services.FeedCommands.StartEstablishedOptionLegsAsync(_liveStreamsIds, _baseContracts, _valueDate!.Value);
+                await readiness.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            }
             IsLiveFeedEnabled = true;
         }
         catch (Exception subscriptionFailure)
@@ -1732,7 +1752,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _currentMonitoringListeners = false;
         var ownerId = _monitoringOwnerId;
         var failures = new List<Exception>();
-        if (!optionBackendTerminated)
+        if (!optionBackendTerminated && !_appRoot.Services.FeedCommands.SupportsTradeFeedRecovery)
             foreach (var stream in _liveStreamsIds.ToArray())
                 await AttemptAsync(() => _appRoot.Services.FeedCommands.StopStreamingFuturesOptionTickDataAsync(stream.Key, stream.Value));
         _liveStreamsIds.Clear();
@@ -1863,7 +1883,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 orderId: _optionTrade.OrderId,
                 tradeId: _optionTrade.TradeId,
                 tradeType: _optionTrade.TradeType,
-                valueDate: _valueDate ?? _appRoot.ValueDates.ValueDate,
+                valueDate: _valueDate ?? throw new InvalidOperationException("Load the API value date before building spread data."),
                 lossLimit: _tradeLimits.MaxLossLimit,
                 winLimit: _tradeLimits.MaxProfitLimit,
                 forwardSpread: netForwardPrice,

@@ -9,8 +9,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Query.Actor;
-public sealed class IronCondorTradePlanQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IronCondorTradePlanQueryActor> logger) : QueryActorContext(supervisor, new(ActorType.Query, IronCondorTradePlanQueryActor.ActorName)), IIronCondorTradePlanQueryContext
+public sealed class IronCondorTradePlanQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<IronCondorTradePlanQueryActor> logger, TimeProvider? clock = null) : QueryActorContext(supervisor, new(ActorType.Query, IronCondorTradePlanQueryActor.ActorName)), IIronCondorTradePlanQueryContext
 {
+    public TimeProvider Clock { get; } = clock ?? TimeProvider.System;
     public IDbContextFactory DbFactory { get; } = dbFactory;
     public ILogger<IronCondorTradePlanQueryActor> Logger { get; } = logger;
 }

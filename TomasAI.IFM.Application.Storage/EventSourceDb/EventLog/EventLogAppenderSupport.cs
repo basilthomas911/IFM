@@ -54,7 +54,7 @@ internal static class EventLogAppenderSupport
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     internal static NpgsqlCommand Command(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql)
-        => new(sql, connection, transaction) { CommandTimeout = 3 };
+        => new(sql, connection, transaction) { CommandTimeout = PostgresQueryTimeout.Default.CommandTimeoutSeconds };
 
     internal static void Add(NpgsqlCommand command, object value, NpgsqlDbType type)
         => command.Parameters.Add(new NpgsqlParameter { Value = value, NpgsqlDbType = type });

@@ -70,6 +70,35 @@ internal static class TradePlanDbContextExtensions
         return page.Items.FirstOrDefault();
     }
 
+    internal async Task<StrategyTradePlanChartSeries> ReadChartRangeAsync(StrategyPositionId position, DateOnly firstValueDate,
+        DateOnly lastValueDate, DateTime startUtc, DateTime endUtc, CancellationToken token)
+    {
+        position.RequireTradePlanScope(TradeStrategyKind.IronCondor, firstValueDate);
+        if (lastValueDate < firstValueDate || startUtc.Kind != DateTimeKind.Utc || endUtc.Kind != DateTimeKind.Utc
+            || endUtc < startUtc || endUtc - startUtc > TimeSpan.FromHours(6))
+            throw new ArgumentException("Chart history requires ordered trading dates and a UTC range of at most six hours.");
+        await using var connection = new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(context.ConnectionString);
+        await connection.OpenAsync(token).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand("""
+            SELECT DISTINCT ON (date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'))
+                calculatedAtUtc,combinedSpreadPrice,
+                CASE WHEN calculationVersion = 'IronCondor/EntryCreditForwardPnl/v2' THEN -combinedForwardPrice ELSE combinedForwardPrice END
+            FROM trade_plan.iron_condor_trade_plan
+            WHERE portfolioId=$1 AND fundId=$2 AND orderId=$3 AND tradeId=$4 AND positionId=$5
+                AND valueDate >= $6 AND valueDate <= $7 AND calculatedAtUtc >= $8 AND calculatedAtUtc <= $9
+                AND combinedSpreadPrice IS NOT NULL
+            ORDER BY date_bin(interval '1 minute',calculatedAtUtc,timestamptz '2000-01-01'),calculatedAtUtc DESC,planRevision DESC
+            """, connection);
+        foreach (var value in new object[] { position.Trade.PortfolioId,position.Trade.FundId,position.Trade.OrderId,
+            position.Trade.TradeId,position.PositionId,firstValueDate,lastValueDate,startUtc,endUtc })
+            command.Parameters.Add(new NpgsqlParameter { Value = value });
+        var points = new List<StrategyTradePlanChartPoint>();
+        await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+        while (await reader.ReadAsync(token).ConfigureAwait(false))
+            points.Add(new(reader.GetDateTime(0),reader.GetDecimal(1)) { ForwardSpread = reader.IsDBNull(2) ? null : reader.GetDecimal(2) });
+        return new(startUtc,endUtc,points.ToArray());
+    }
+
     internal async Task<StrategyTradePlanHistoryPage> ReadOffsetHistoryAsync(StrategyPositionId position, TradeStrategyKind strategy,
         DateOnly date, int offset, int size, long? maximumRevision, CancellationToken token)
     {
@@ -104,9 +133,10 @@ internal static class TradePlanDbContextExtensions
         StrategyTradePlanChartPoint[] points = [];
         if (offset == 0 && chartEnd is { } end)
         {
-            // Cache the independent chart for one minute; grid rows retain their own revision boundary.
+            // Cache for one minute at the resolved revision. A fresh live-start read must see new
+            // persisted plans immediately; pages pinned to an older revision retain that baseline.
             var series = await TradePlanChartCache.ReadAsync(
-                (context.ConnectionString, position, strategy, date, maximumRevision), async () =>
+                (context.ConnectionString, position, strategy, date, anchor), async () =>
             {
                 var samples = new List<StrategyTradePlanChartPoint>();
                 // Latest price-only sample per UTC minute (at most 361 buckets across six hours).

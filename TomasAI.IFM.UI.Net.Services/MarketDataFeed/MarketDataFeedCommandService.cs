@@ -28,8 +28,16 @@ public class MarketDataFeedCommandService(
     IFuturesOptionTickDataUIEventConsumer futuresOptionTickDataEventConsumer,
     IMarketDataFeedResetUIEventConsumer marketDataFeedResetEventConsumer,
     IMarketDataFeedStatusUIEventConsumer marketDataFeedStatusEventConsumer,
-    IFuturesBarDataUIEventConsumer futuresBarDataEventConsumer) : UiServiceBase<MarketDataFeedCommandService>
+    IFuturesBarDataUIEventConsumer futuresBarDataEventConsumer,
+    TomasAI.IFM.Domain.Trade.Shared.ServiceApi.ITradeFeedRecoveryApi? recovery = null) : UiServiceBase<MarketDataFeedCommandService>
 {
+    public bool SupportsTradeFeedRecovery => recovery is not null;
+    public Task<bool> LoadTradeFeedRecoveryAsync(TradeEntityId trade, DateOnly date, CancellationToken token = default)
+        => recovery?.LoadAsync(trade, date, token) ?? Task.FromResult(false);
+    public Task<bool> EnableTradeFeedRecoveryAsync(TradeEntityId trade, DateOnly date, CancellationToken token = default)
+        => recovery?.EnableAsync(trade, date, token) ?? throw new NotSupportedException("Trade feed recovery is not registered.");
+    public Task<bool> DisableTradeFeedRecoveryAsync(TradeEntityId trade, DateOnly date, CancellationToken token = default)
+        => recovery?.DisableAsync(trade, date, token) ?? Task.FromResult(false);
     readonly IMarketDataFeedCommandApi _marketDataFeedCommandApi = marketDataFeedCommandApi;
     readonly IMarketDataQueryApi _marketDataQueryApi = marketDataQueryApi;
     readonly IMarketDataFeedQueryApi _marketDataFeedQueryApi = marketDataFeedQueryApi;

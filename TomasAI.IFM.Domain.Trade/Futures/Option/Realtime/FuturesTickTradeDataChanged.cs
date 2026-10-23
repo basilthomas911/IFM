@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.VerticalSpread.Command.Actor;
@@ -65,7 +66,9 @@ public static class FuturesTickTradeDataChanged
             OptionTick = changed.OptionMarketPriceObservation?.OptionTickData,
             TradeType = route.TradeType
         };
+        using var step = new OptionFeedTrace("option.quote.await_position_command", context.Logger, $"{command.CommandId}|{positionId.Format()}|{tick.ContractId}", realtime: true);
         var result = await context.ActorService.SendAsync<ChangeTradeLegDataCommand, StrategyPositionId>(command, positionId).ConfigureAwait(false);
+        if (result.Success) step.Complete();
         context.RoutingProgress?.Record(tick.ContractId, result.Success, DateTime.UtcNow);
         if (!result.Success)
             FuturesTickTradeDataChangedLogging.RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);

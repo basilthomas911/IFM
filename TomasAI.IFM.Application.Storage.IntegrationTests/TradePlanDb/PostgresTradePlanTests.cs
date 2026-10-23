@@ -65,6 +65,48 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task Range_chart_includes_both_trading_dates_without_payload_reads_and_excludes_outside_bounds(bool rawClosingCost)
+    {
+        var position=Plan().Position.Id;
+        var start=new DateTime(2026,10,22,16,30,0,DateTimeKind.Utc);
+        var end=start.AddHours(6);
+        await using var connection=new PostgresObjectDataRepositoryConnection().As<NpgsqlConnection>(fixture.Connection);
+        await connection.OpenAsync();
+        long revision=0;
+        async Task Insert(DateOnly date,DateTime at,decimal price,Guid? differentPosition=null)
+        {
+            await using var command=new NpgsqlCommand("""
+                INSERT INTO trade_plan.iron_condor_trade_plan
+                (portfolioId,fundId,orderId,tradeId,positionId,valueDate,planRevision,calculatedAtUtc,combinedSpreadPrice,combinedForwardPrice,calculationVersion)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                """,connection);
+            foreach(var value in new object[]{position.Trade.PortfolioId,position.Trade.FundId,position.Trade.OrderId,
+                position.Trade.TradeId,differentPosition??position.PositionId,date,++revision,at,price,
+                rawClosingCost?-price+0.5m:price-0.5m,rawClosingCost?"IronCondor/EntryCreditForwardPnl/v2":"LegacyScenario/v1"})
+                command.Parameters.Add(new NpgsqlParameter{Value=value});
+            await command.ExecuteNonQueryAsync();
+        }
+        var first=new DateOnly(2026,10,22);var last=first.AddDays(1);
+        await Insert(first,start.AddSeconds(-1),-99m);
+        await Insert(first,start,-1m);
+        await Insert(first,start.AddHours(4),-2m);
+        await Insert(last,end.AddMinutes(-30),-3m);
+        await Insert(last,end.AddMinutes(-30).AddSeconds(45),-4m);
+        await Insert(last,end,-5m);
+        await Insert(last,end.AddSeconds(1),-99m);
+        await Insert(first.AddDays(-1),start.AddHours(2),-99m);
+        await Insert(last,end,-99m,Guid.NewGuid());
+        var series=await fixture.Plans.GetChartRangeAsync(position,first,last,start,end);
+        series.StartUtc.Should().Be(start);series.EndUtc.Should().Be(end);
+        series.Points.Select(p=>p.NetSpread).Should().Equal(-1m,-2m,-4m,-5m);
+        series.Points.Select(p=>p.ForwardSpread).Should().Equal(-1.5m,-2.5m,-4.5m,-5.5m);
+        var empty=await fixture.Plans.GetChartRangeAsync(position,first,last,start.AddHours(-6),start.AddSeconds(-2));
+        empty.Points.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task Chart_reads_six_hours_of_price_only_samples_separately_from_the_grid_page(bool rawClosingCost)
     {
         var original = Plan();
@@ -88,6 +130,21 @@ public sealed class PostgresTradePlanTests(PostgresTradePlanFixture fixture)
         first.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m,-13.5m);
         var older = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 1, 1, first.MaximumRevision);
         older.ChartPoints.Should().BeEmpty();
+        // A new live cycle must see newly persisted samples even within the chart cache's one-minute lifetime.
+        var next = original with { PlanRevision = 5, CalculatedAtUtc = at.AddHours(7).AddMinutes(1),
+            IronCondorTradePlanSnapshot = new() { Position = original.Position, CombinedSpreadPrice = -14m,
+                CalculationVersion = rawClosingCost ? "IronCondor/EntryCreditForwardPnl/v2" : "LegacyScenario/v1",
+                CombinedForwardPrice = rawClosingCost ? 14.5m : -14.5m } };
+        next = next with { ContentHash = TradePlanContractIdentity.PlanHash(next) };
+        await fixture.Transactions.ExecuteOnceAsync(async (transaction, token) =>
+        { await fixture.Plans.ProjectMaterialAsync(transaction, next, token); return true; });
+        var refreshed = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1);
+        refreshed.ChartEndUtc.Should().Be(next.CalculatedAtUtc);
+        refreshed.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m, -14m);
+        refreshed.ChartPoints.Select(point => point.ForwardSpread).Should().Equal(-11.5m, -13.5m, -14.5m);
+        // Paging against an older revision still retains the original baseline.
+        var anchored = await fixture.Plans.GetOffsetHistoryAsync(original.Position.Id, original.Position.StrategyKind, original.ValueDate, 0, 1, first.MaximumRevision);
+        anchored.ChartPoints.Select(point => point.NetSpread).Should().Equal(-11m, -13m);
     }
 
     [Fact]

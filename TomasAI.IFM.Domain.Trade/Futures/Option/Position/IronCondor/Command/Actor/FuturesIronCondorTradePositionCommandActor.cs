@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command;
@@ -90,7 +91,13 @@ public sealed class FuturesIronCondorTradePositionCommandActor(ICommandActorCont
         return ValueTask.CompletedTask;
     }
 
-    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorState state, ICommand command) => ValueTask.FromResult(ResolveMappedCommandHandler(command, _receiveMap)(command, (IronCondorPositionCommandState)state));
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, IActorState state, ICommand command)
+    {
+        using var step = new OptionFeedTrace("option.position.compute_transition", services.Logger, command.CommandId.ToString(), realtime: true);
+        var result = ResolveMappedCommandHandler(command, _receiveMap)(command, (IronCondorPositionCommandState)state);
+        if (result.Success) step.Complete();
+        return ValueTask.FromResult(result);
+    }
     protected override ValueTask<IronCondorPositionCommandState> LoadStateFromStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, ICommand command, CancellationToken cancellationToken) => services.StateRepository.LoadStateAsync(command, cancellationToken);
     protected override ValueTask SaveStateToStoreAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ActorThreadId threadId, IronCondorPositionCommandState state, ICommand command, CancellationToken cancellationToken) => services.StateRepository.SaveStateAsync(context, state, command, cancellationToken);
     protected override ValueTask PersistResidentEventsAsync(ICommandActorContext<FuturesIronCondorTradePositionCommandActor> context, ICommand command, DomainEventCollection events, long expectedStreamVersion, CancellationToken cancellationToken) => services.StateRepository.SaveResidentEventsAsync(context, events, command, expectedStreamVersion, cancellationToken);

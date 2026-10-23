@@ -21,6 +21,8 @@ internal static class ActorRuntimeMetrics
     internal const string DenormalizationStage = "denormalization";
 
     static readonly Meter Meter = new(MeterName, "1.0.0");
+    internal static readonly Counter<long> Coalesced = Meter.CreateCounter<long>(
+        "ifm.actor.messages.coalesced", description: "Obsolete complete option snapshots replaced by fresher pending state.");
 
     internal static readonly Counter<long> Accepted = Meter.CreateCounter<long>(
         "ifm.actor.messages.accepted",

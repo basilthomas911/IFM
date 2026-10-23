@@ -230,6 +230,11 @@ internal static partial class NativeMethods
         ref NativeHistoricalEstimate estimate);
 
     [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_get_last_error")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalGetLastError(byte* buffer, uint capacity, out uint required);
+
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
 
     [LibraryImport(LibraryName, EntryPoint = "dbf_historical_batch_submit")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

@@ -15,7 +15,7 @@ public sealed class TradeWorkspaceLiveFlaUiTests
         using var dpi=new DpiScope();
         using var host=new DesktopViewTestHost(scope=>{
             var reference=scope.Container.GetInstance<IReferenceDataService>();
-            var model=new TradeOrderEditorViewModel(scope,scope.ValueDates.ValueDate,[],reference,brokerEnvironment:BrokerEnvironment.Emulator);
+            var model=new TradeOrderEditorViewModel(scope,scope.GetValueDateAsync().GetAwaiter().GetResult(),[],reference,brokerEnvironment:BrokerEnvironment.Emulator);
             var form=new TradeOrderEditorForm(scope,reference);form.LoadViewModel(model);form.Width=1150;form.Height=850;form.TopMost=true;
             return(form,()=>model.DisposeAsync().AsTask());
         });

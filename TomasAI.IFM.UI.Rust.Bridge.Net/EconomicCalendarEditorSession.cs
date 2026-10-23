@@ -17,7 +17,7 @@ sealed class EconomicCalendarEditorSession:IDisposable
  static string Key(EconomicCalendarUiModel row)=>Convert.ToBase64String(BridgeDocument.Encode(new{row.EventDate,row.CountryCode,row.EventName}));
  public async Task<ContractEditorResult> ExecuteAsync(ContractEditorIntent input)
  {
-  await ready;if(Field(input,"filterDate") is {Length:>0} filter && !DateOnly.TryParseExact(filter,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _))throw new ArgumentException("Enter the filter date as yyyy-MM-dd");filterDate=DateOnly.TryParseExact(Field(input,"filterDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date:scope.ValueDates.ValueDate;
+  await ready;if(Field(input,"filterDate") is {Length:>0} filter && !DateOnly.TryParseExact(filter,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _))throw new ArgumentException("Enter the filter date as yyyy-MM-dd");filterDate=DateOnly.TryParseExact(Field(input,"filterDate"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)?date:await scope.GetValueDateAsync(stopping.Token);
   if(input.Intent=="load"){
    await Observe(model.LoadCountryCodes());
    if(model.CountryCodes.Count==0)throw new InvalidOperationException("No economic-calendar countries are published");

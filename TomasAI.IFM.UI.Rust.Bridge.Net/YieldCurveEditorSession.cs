@@ -9,6 +9,7 @@ sealed class YieldCurveEditorSession:IDisposable
  readonly RustClientServiceScope scope=new(Environment.GetEnvironmentVariable("IFM_UI_NATS_URL")??"nats://localhost:4222");
  readonly YieldCurveRateEditorViewModel model;
  readonly YieldCurveRateEditViewModel validation;
+ DateOnly apiValueDate;
  readonly Task ready;
  readonly CancellationTokenSource stopping=new();
  public YieldCurveEditorSession(){model=new(scope);validation=new(scope);ready=scope.StartAsync(stopping.Token).AsTask();}
@@ -18,12 +19,13 @@ sealed class YieldCurveEditorSession:IDisposable
  public async Task<ContractEditorResult> ExecuteAsync(ContractEditorIntent input)
  {
   await ready;
+  apiValueDate = await scope.GetValueDateAsync(stopping.Token);
   switch(input.Intent)
   {
    case "load":await Run(model.LoadOperation);break;
    case "range":
     var index=model.TimePeriods.ToList().FindIndex(x=>x==Field(input,"timePeriod"));if(index<0)throw new ArgumentException("Select a published time period");
-    model.SelectTimePeriod(index,scope.ValueDates.ValueDate);await Run(model.LoadRatesOperation);break;
+    model.SelectTimePeriod(index,apiValueDate);await Run(model.LoadRatesOperation);break;
    case "import":model.PrepareImport(Date(input,"importDate").ToDateTime(TimeOnly.MinValue));await Run(model.ImportOperation);break;
    case "remove":model.PrepareRemove(model.YieldCurveRates.Single(x=>x.ValueDate.ToString("yyyy-MM-dd")==input.OriginalId));await Run(model.RemoveOperation);break;
    default:
@@ -38,7 +40,7 @@ sealed class YieldCurveEditorSession:IDisposable
   }
   return new(input.View,model.YieldCurveRates.Select(row=>new ContractEditorRow(row.ValueDate.ToString("yyyy-MM-dd"),new(){
    ["valueDate"]=row.ValueDate.ToString("yyyy-MM-dd"),["oneMonth"]=Format(row.OneMonth),["twoMonth"]=Format(row.TwoMonth),["threeMonth"]=Format(row.ThreeMonth),["sixMonth"]=Format(row.SixMonth),["oneYear"]=Format(row.OneYear),["twoYear"]=Format(row.TwoYear),["threeYear"]=Format(row.ThreeYear),["fiveYear"]=Format(row.FiveYear),["sevenYear"]=Format(row.SevenYear),["tenYear"]=Format(row.TenYear),["twentyYear"]=Format(row.TwentyYear),["thirtyYear"]=Format(row.ThirtyYear)})).ToArray(),
-   new(){["timePeriod"]=model.TimePeriods.ToArray()},Context:new(){["timePeriod"]=model.SelectedTimePeriod,["valueDate"]=scope.ValueDates.ValueDate.ToString("yyyy-MM-dd"),["rangeStart"]=model.RangeStart.ToString("yyyy-MM-dd"),["rangeEnd"]=model.RangeEnd.ToString("yyyy-MM-dd")});
+   new(){["timePeriod"]=model.TimePeriods.ToArray()},Context:new(){["timePeriod"]=model.SelectedTimePeriod,["valueDate"]=apiValueDate.ToString("yyyy-MM-dd"),["rangeStart"]=model.RangeStart.ToString("yyyy-MM-dd"),["rangeEnd"]=model.RangeEnd.ToString("yyyy-MM-dd")});
  }
  static string Format(double value)=>value.ToString("R",CultureInfo.InvariantCulture);
  async Task Run(IAsyncOperation operation)

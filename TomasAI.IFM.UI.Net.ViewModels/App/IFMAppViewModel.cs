@@ -199,7 +199,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _liveViewAdapter = liveViewAdapter ?? throw new ArgumentNullException(nameof(liveViewAdapter));
         _economicCalendarService = economicCalendarService
             ?? throw new ArgumentNullException(nameof(economicCalendarService));
-        _valueDate = _appRoot.ValueDates.ValueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _startupReferenceDataImportTimeout = startupReferenceDataImportTimeout
             ?? DefaultStartupReferenceDataImportTimeout;
@@ -1909,8 +1908,19 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _marketDataFeedTerminalCorrelation.TryPublish(@event);
         switch (@event)
         {
-            case MarketDataDatasetRecoveryFailedEvent failed when ShouldNotifyRecovery(failed.Role + "/" + failed.Dataset, failed.CommandId):
-                PublishError(failed.ErrorCode, failed.ErrorMessage, "Market Data Recovery Failed");
+            case DailyAnalyticsInitializationStatusEvent status:
+                DailyAnalyticsStatus = status.ErrorMessage;
+                OnPropertyChanged(nameof(DailyAnalyticsStatus));
+                if (ShouldNotifyRecovery("DailyAnalytics", status.CommandId))
+                {
+                    if (status.RefreshFailed)
+                        PublishError(status.ErrorCode, status.ErrorMessage, "Daily EMA / Bollinger Initialization");
+                    _ = WriteStatusConsoleAsync(status.ErrorMessage);
+                }
+                break;
+            case MarketDataDatasetRecoveryFailedEvent failed when ShouldNotifyRecovery(failed.Role + "/" + failed.Dataset + "/" + failed.EventSource, failed.CommandId):
+                PublishError(failed.ErrorCode, failed.ErrorMessage, failed.EventSource == "ApiRecoveryUiNotifier" ? "API Recovery Failed"
+                    : failed.Role == "Options" ? "Option Pipeline Recovery Failed" : "Market Data Recovery Failed");
                 _ = WriteStatusConsoleAsync(failed.ErrorMessage);
                 break;
             case OptionMarketDataFeedFailedEvent failed when ShouldNotifyRecovery("Options/" + failed.Dataset, failed.CommandId):
@@ -1931,6 +1941,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
         return ValueTask.CompletedTask;
     }
+
+    /// <summary>Last server-reported daily indicator baseline and refresh status.</summary>
+    public string DailyAnalyticsStatus { get; private set; } = "Daily EMA / Bollinger initialization status pending";
 
     Task StopMarketDataFeedStatusListener()
         => _appRoot.Services.FeedCommands.ExecuteAsync(

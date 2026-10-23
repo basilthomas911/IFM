@@ -55,6 +55,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.Contracts\TomasAI.IFM.Application.ServerManager.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

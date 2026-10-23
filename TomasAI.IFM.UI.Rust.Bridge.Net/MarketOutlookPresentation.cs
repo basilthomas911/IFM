@@ -21,7 +21,10 @@ public sealed record MarketOutlookPresentation([property: MessagePack.Key("cells
         var updated = new DateTimeOffset(DateTime.SpecifyKind(snapshot.UpdatedAtUtc, DateTimeKind.Utc));
         var freshness = live && now - updated > TimeSpan.FromMinutes(5) ? "STALE" : live ? "live" : "current";
         var completeness = string.IsNullOrWhiteSpace(snapshot.MissingInputs) ? "complete" : $"warming/degraded: {snapshot.MissingInputs}";
-        return new(cells, $"Market Outlook {snapshot.RefreshTrigger} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}");
+        var baseline = snapshot.FuturesEmaSignal?.BaselineValueDate ?? snapshot.FuturesBbSignal?.BaselineValueDate
+            ?? (snapshot.FuturesEmaSignal is { IsWarm: true } ema ? ema.Metadata.ValueDate : (DateOnly?)null);
+        var baselineStatus = baseline is { } date ? $" | EMA/BB baseline {date:yyyy-MM-dd}" : " | EMA/BB baseline unavailable";
+        return new(cells, $"Market Outlook {snapshot.RefreshTrigger} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}" + baselineStatus);
 
         void Add(object model)
         {
