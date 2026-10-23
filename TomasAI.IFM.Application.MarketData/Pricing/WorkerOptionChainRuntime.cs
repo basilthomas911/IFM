@@ -336,7 +336,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
         catch (Exception exception)
         {
-            terminalFault?.Invoke($"Option-chain lease drain failed: {exception.GetType().Name}");
+            terminalFault?.Invoke($"Option-chain lease drain failed: {exception}");
             throw;
         }
     }
@@ -389,7 +389,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         try { await sessions.StopAsync(scope.Key.FuturesContractId, scope.Key.MaturityDate, scope.Key.OptionContractId, scope.Key.ConnectionScopeId).ConfigureAwait(false); }
         catch (Exception exception)
         {
-            terminalFault?.Invoke($"Option-chain shutdown failed: {exception.GetType().Name}");
+            terminalFault?.Invoke($"Option-chain shutdown failed: {exception}");
             throw;
         }
         finally { foreach (var option in scope.Options) RemoveUnownedPricing(option.Pricing.Contract.ContractId); }

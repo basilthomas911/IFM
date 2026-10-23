@@ -67,6 +67,13 @@ public sealed class TradeWorkspaceBridgeTests
             Assert.Equal(last.ToString("0.00",System.Globalization.CultureInfo.InvariantCulture),prices.RootElement.GetProperty("Last").GetString());
             var legs=current.Result.Rows.Where(r=>r.Fields.GetValueOrDefault("kind")=="leg")
                 .Select(r=>System.Text.Json.JsonSerializer.Deserialize<TomasAI.IFM.UI.Net.ViewModels.Trade.BrokerTradeLegData>(MessagePack.MessagePackSerializer.ConvertToJson(r.Data!),new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web){NumberHandling=System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString})!).ToArray();
+            // The user's default selection can be an established trade with no retained broker-order draft.
+            // That path must remain read-only; it is not a four-leg NewTrade composer acceptance case.
+            if(current.Result.Context["tradeState"]!="NewTrade" && legs.Length==0) {
+                Assert.Equal("False",current.Result.Context["editable"]);
+                Assert.Equal("False",current.Result.Context["canPlaceOrder"]);
+                return;
+            }
             Assert.Equal(4,legs.Length);Assert.All(legs,x=>Assert.True(x.Frozen));
             foreach(var call in new[]{true,false}){
                 var shortLeg=legs.Single(x=>x.Role==(call?"-SC":"-SP"));var wing=legs.Single(x=>x.Role==(call?"+LC":"+LP"));

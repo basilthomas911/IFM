@@ -12,8 +12,9 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
     readonly DatasetSubscriptionManifest manifest;
     readonly DatabentoMarketDataApi api;
 
-    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch, DatasetSubscriptionManifest manifest, DatabentoMarketDataApi api)
+    DatasetWorkerRuntime(IDatabentoMarketDataEpoch epoch, DatasetSubscriptionManifest manifest, DatabentoMarketDataApi api, long diagnosticBaseline)
     {
+        this.diagnosticBaseline = diagnosticBaseline;
         this.epoch = epoch;
         this.api = api;
         this.manifest = manifest;
@@ -29,7 +30,23 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         => epoch.ReleaseOptionChainAsync(request, token);
     public Task<MarketData.Pricing.CompositionSnapshotResult> CaptureCompositionSnapshotAsync(MarketData.Pricing.CompositionSnapshotRequest request, CancellationToken token)
         => epoch.CaptureCompositionSnapshotAsync(request, token);
-    public bool IsHealthy => epoch.IsFeedUp(TimeSpan.FromSeconds(1));
+    string? processingFailure;
+    readonly long diagnosticBaseline;
+    public void MarkFailed(Exception error)
+    {
+        if (Interlocked.CompareExchange(ref processingFailure, DatasetWorkerLogging.Redact(error.ToString()), null) is null)
+            Serilog.Log.Error("Dataset processing exception; Dataset={Dataset}; GenerationId={GenerationId}; Detail={Detail}",
+                manifest.Dataset, GenerationId, DatasetWorkerLogging.Redact(error.ToString()));
+    }
+    public bool IsHealthy
+    {
+        get
+        {
+            try { return processingFailure is null && DatabentoDiagnostics.ErrorCount == diagnosticBaseline
+                && epoch.GetHealth() is { ProcessingFailures: 0, PublicationFailures: 0 } && epoch.IsFeedUp(TimeSpan.FromSeconds(1)); }
+            catch (Exception error) { MarkFailed(error); return false; }
+        }
+    }
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Optional runtime diagnostic capture returns unhealthy diagnostics when sampling fails.")]
     public DatasetWorkerDiagnostics GetDiagnostics()
     {
@@ -47,6 +64,7 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         }
         catch (Exception exception)
         {
+            MarkFailed(exception);
             return DatasetWorkerDiagnostics.Unavailable(manifest.Dataset, GenerationId,
                 $"Dataset diagnostics failed: {exception.Message}", observedOnUtc);
         }
@@ -56,7 +74,7 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         get
         {
             var health = epoch.GetHealth();
-            return $"running={health.Running}; aggregation={health.AggregationRunning}; "
+            return $"failure={processingFailure ?? DatabentoDiagnostics.LastFailure}; running={health.Running}; aggregation={health.AggregationRunning}; "
                 + $"contracts={health.ConfiguredContracts}; trades={health.SourceTradeRecords}; "
                 + $"quotes={health.SourceQuoteRecords}; failures={health.ProcessingFailures + health.PublicationFailures}";
         }
@@ -84,12 +102,13 @@ internal sealed class DatasetWorkerRuntime : IAsyncDisposable
         };
         var factory = new DatabentoMarketDataEpochFactory(
             new DatabentoFeedFactory(), publisher, options, loggerFactory: loggerFactory, tradeEvidence: publisher as Pricing.IOptionTradeEvidenceWriter);
+        var diagnosticBaseline = DatabentoDiagnostics.ErrorCount;
         var newEpoch = factory.Create(manifest.ValueDate);
         try
         {
             var api = new DatabentoMarketDataApi(new OwnedEpochFactory(newEpoch), new());
             await api.StartAsync(manifest.ValueDate, cancellationToken: cancellationToken).ConfigureAwait(false);
-            return new(newEpoch, manifest, api);
+            return new(newEpoch, manifest, api, diagnosticBaseline);
         }
         catch
         {

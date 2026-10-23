@@ -53,7 +53,7 @@ public static class GetEvaluatedOptionChain
                 Microsoft.Extensions.Logging.LoggerExtensions.LogError(c.Logger, e, "IV metric lookup failed for {ContractId}", q.UnderlyingContractId);
                 model = model with { IvRankStatus = "IV metric lookup failed" };
             }
-            result = new ServiceOk<EvaluatedOptionChainReadModel>(model);
+            result = new ServiceOk<EvaluatedOptionChainReadModel>(EvaluatedOptionChainSummary.Apply(model, date));
         }
         await c.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb, result).ConfigureAwait(false);
     }

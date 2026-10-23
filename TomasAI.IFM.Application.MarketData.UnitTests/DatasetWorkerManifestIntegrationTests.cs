@@ -68,7 +68,7 @@ public sealed class DatasetWorkerManifestIntegrationTests
     }
 
     [Fact]
-    public async Task Composition_api_rejects_synthetic_clock_quotes_and_replaced_worker_generation()
+    public async Task Composition_api_accepts_current_synthetic_quotes_and_rejects_replaced_worker_generation()
     {
         var desired = new DatasetDesiredSubscriptionRegistry();
         var admissions = new DatasetWorkerAdmissionRegistry();
@@ -86,10 +86,13 @@ public sealed class DatasetWorkerManifestIntegrationTests
             result = await api.CaptureAsync("GLBX.MDP3", capture, default);
             if (result.Failure?.Code == "QuoteUnavailable") await Task.Delay(20);
         } while (result.Failure?.Code == "QuoteUnavailable" && DateTimeOffset.UtcNow < capture.DeadlineUtc);
-        // Native SyntheticCi records deliberately use its performance clock, not Unix market event time.
-        // The actual process/API path must reject these for composition; do not relabel receipt time as event time.
-        Assert.Null(result.Snapshot);
-        Assert.Equal("StaleData", result.Failure!.Code);
+        // SyntheticTickerFeed explicitly converts the synthetic performance clock to UTC.
+        // Verify that qualified current observations work through the real child/API path.
+        Assert.Null(result.Failure);
+        Assert.NotNull(result.Snapshot);
+        Assert.Equal(started.GenerationId, result.Snapshot.GenerationId);
+        Assert.Single(result.Snapshot.Instruments);
+        Assert.True(result.Snapshot.ValidUntilUtc > result.Snapshot.EvaluatedAtUtc);
         var reset = await recovery.ResetOwnedAsync(Reset(started), default);
         Assert.True(reset.Succeeded, reset.Detail);
         await Assert.ThrowsAsync<TomasAI.IFM.Application.MarketData.Pricing.CompositionMarketSourceException>(() => api.CaptureAsync("GLBX.MDP3", capture, default));
@@ -336,7 +339,7 @@ public sealed class DatasetWorkerManifestIntegrationTests
     static DatasetWorkerStartRequest Request(DatasetSubscriptionManifest manifest) => new()
     {
         ExecutablePath = DotNetHost(),
-        PrefixArguments = [typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
+        PrefixArguments = ["exec", "--runtimeconfig", Path.ChangeExtension(typeof(DatasetWorkerManifestIntegrationTests).Assembly.Location, "runtimeconfig.json"), typeof(DatasetWorkerAssemblyMarker).Assembly.Location],
         Dataset = manifest.Dataset,
         ValueDate = manifest.ValueDate,
         GenerationId = Guid.NewGuid(),

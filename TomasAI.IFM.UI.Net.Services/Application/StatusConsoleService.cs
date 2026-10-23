@@ -31,11 +31,7 @@ public class StatusConsoleService : UiServiceBase<StatusConsoleService>
         Func<StatusConsoleLoggedEvent, ValueTask> listenerAction,
         Guid siteId)
     {
-        try
-        {
-            await _statusConsoleEventConsumer.StartAsync(listenerAction);
-        }
-        catch { }
+        await _statusConsoleEventConsumer.StartAsync(listenerAction);
     }
 
     /// <summary>
@@ -44,11 +40,7 @@ public class StatusConsoleService : UiServiceBase<StatusConsoleService>
     /// <param name="siteId"></param>
     public async Task StopStatusConsoleLogListener(Guid siteId)
     {
-        try
-        {
-            await _statusConsoleEventConsumer.StopAsync();
-        }
-        catch { }
+        await _statusConsoleEventConsumer.StopAsync();
     }
 
     /// <summary>
@@ -58,11 +50,7 @@ public class StatusConsoleService : UiServiceBase<StatusConsoleService>
     /// <param name="statusMsg"></param>
     public async Task WriteConsoleAsync(LogSourceType statusSourceType, string statusMsg)
     {
-        try
-        {
-            await _statusConsole.WriteConsoleAsync(statusSourceType, statusMsg);
-        }
-        catch { }
+        await _statusConsole.WriteConsoleAsync(statusSourceType, statusMsg);
     }
 
     /// <summary>
@@ -73,10 +61,6 @@ public class StatusConsoleService : UiServiceBase<StatusConsoleService>
     /// <param name="errorMsg"></param>
     public async Task WriteConsoleAsync(LogSourceType statusSourceType, int errorCode, string errorMsg)
     {
-        try
-        {
-            await _statusConsole.WriteConsoleAsync(statusSourceType, errorCode, errorMsg);
-        }
-        catch { }
+        await _statusConsole.WriteConsoleAsync(statusSourceType, errorCode, errorMsg);
     }
 }

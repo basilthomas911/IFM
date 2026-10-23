@@ -5,7 +5,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 
 /// <summary>Reads qualified valuation evidence from already-owned exact option scopes; it never opens a subscription.</summary>
-public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, ILogger<IndividualOptionRiskReader>? logger = null)
+public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, ILogger<IndividualOptionRiskReader>? logger = null, Recovery.OptionFeedProcessingHealth? processingHealth = null)
 {
     readonly ConcurrentDictionary<Guid, WorkerOptionChainRequest> scopes = new();
     readonly ConcurrentDictionary<string, DateTimeOffset> unavailableReportedAt = new(StringComparer.Ordinal);
@@ -54,15 +54,23 @@ public sealed class IndividualOptionRiskReader(ICompositionMarketDataApi market,
         var now = DateTimeOffset.UtcNow;
         // The worker freezes observations before selecting its valuation instant. A host timestamp
         // chosen before the pipe round trip incorrectly rejects newly received live quotes.
-        var result = await market.CaptureAsync("GLBX.MDP3", new CompositionSnapshotRequest(Guid.NewGuid(), lease.ScopeId,
+        CompositionSnapshotResult result;
+        try { result = await market.CaptureAsync("GLBX.MDP3", new CompositionSnapshotRequest(Guid.NewGuid(), lease.ScopeId,
             "Daily", admitted.GenerationId, default, now.AddSeconds(3), true, MaximumContracts: 1,
-            MaximumQuoteAgeMilliseconds: 5000, MaximumQuoteSkewMilliseconds: 1000), token).ConfigureAwait(false);
+            MaximumQuoteAgeMilliseconds: 5000, MaximumQuoteSkewMilliseconds: 1000), token).ConfigureAwait(false); }
+        catch (Exception error)
+        {
+            processingHealth?.Report(valueDate, admitted.GenerationId, "OptionRisk/" + contractId, error, token);
+            throw;
+        }
         if (result.Failure is null && result.Snapshot is { } snapshot && snapshot.GenerationId == admitted.GenerationId
             && snapshot.ValidUntilUtc > DateTimeOffset.UtcNow && snapshot.Instruments.Length == 1
             && string.Equals(snapshot.Instruments[0].Instrument.ContractId,contractId,StringComparison.Ordinal) && snapshot.Instruments[0].Valuation is not null)
         {
             return snapshot;
         }
+        if (result.Failure?.Code is "WorkerOperationFailed" or "LeaseEnded" or "Recovering")
+            processingHealth?.Report(valueDate, admitted.GenerationId, "OptionRisk/" + contractId, new Recovery.OptionFeedProcessingException(result.Failure.Code, result.Failure.Detail));
         // At most one warning per contract per minute; no per-quote log or payload serialization.
         if (logger?.IsEnabled(LogLevel.Warning) == true
             && (!unavailableReportedAt.TryGetValue(contractId, out var last) || now - last >= TimeSpan.FromMinutes(1)))

@@ -34,7 +34,7 @@ sealed partial class PortfolioSession : IDisposable
     readonly List<PortfolioDialog> dialogs = [];
     PortfolioOperatingState filter = PortfolioOperatingState.Active;
     FundOperatingState? fundFilter = FundOperatingState.Active;
-    DateOnly from = new(Eastern(DateTime.UtcNow).Year, 1, 1), through = DateOnly.FromDateTime(Eastern(DateTime.UtcNow));
+    DateOnly from, through;
     string message = "";
     string refreshParent = "";
     string? inlineFundView;
@@ -87,6 +87,10 @@ sealed partial class PortfolioSession : IDisposable
         try {
             switch(input.Intent) {
                 case "load": case "portfolio-refresh":
+                    if (through == default) {
+                        through = await services.MarketDataQueries.GetValueDateAsync(stopping.Token);
+                        from = new DateOnly(through.Year, 1, 1);
+                    }
                     if(editingPolicy is not null)throw new InvalidOperationException("Save or cancel the edited policy before changing Portfolios.");
                     if(input.Fields.TryGetValue("filter", out var state)) filter = Enum.Parse<PortfolioOperatingState>(state);
                     await Refresh(); break;
@@ -217,6 +221,7 @@ sealed partial class PortfolioSession : IDisposable
         };
         var context = new Dictionary<string,string> { ["status"] = dialogs.LastOrDefault(d=>d.Key=="posting")?.Status??message, ["portfolioName"]=p?.Name??"", ["fundName"]=f?.Name??"", ["filter"] = filter.ToString(), ["fundFilter"]=fundFilter?.ToString()??"All", ["from"] = from.ToString("yyyy-MM-dd"), ["through"] = through.ToString("yyyy-MM-dd"), ["refreshParent"]=refreshParent,["policyDirty"]=policyDirty.ToString() };
         if(metrics.Report is { HasHistory: true } m) {
+            context["metricsBasis"] = m.CalculationBasis;
             string[] values = [m.WinRate.ToString("P2"),m.AverageProfit.ToString("N2"),m.LossRate.ToString("P2"),m.AverageLoss.ToString("N2"),m.WinLossRatio.ToString("F2"),m.ActualSharpeRatio.ToString("F2"),m.PnlAmount.ToString("N2"),m.PnlPercent.ToString("P2"),m.TradeCommission.ToString("N2"),m.MaximumDrawdownPercent?.ToString("P2")??"N/A"];
             for(int i=0;i<values.Length;i++) context[$"metric{i}"]=values[i];
         }

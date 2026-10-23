@@ -86,6 +86,8 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
         ArgumentNullException.ThrowIfNull(scope);
         return Read<GetTrialBalanceRequest, FinancialTrialBalance>(scope, request, "GeneralLedgerQuery", "GetTrialBalance", token);
     }
+    public Task<ServiceResult<FinancialRead<FundPerformanceMetrics>>> GetFundPerformanceMetricsAsync(FinancialReadScope scope, GetFundPerformanceMetricsRequest request, CancellationToken token = default)
+        => Read<GetFundPerformanceMetricsRequest, FundPerformanceMetrics>(scope, request, GetFundPerformanceMetricsQuery.Actor, GetFundPerformanceMetricsQuery.Verb, token);
     public Task<ServiceResult<FinancialRead<FinancialPage<FinancialTransactionRow>>>> GetFundTransactionsPageAsync(FinancialReadScope scope, GetFundTransactionsPageRequest request, CancellationToken token = default)
         
     {
@@ -177,6 +179,7 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
             GetJournalRequest value => new GetJournalQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetAccountBalancesRequest value => new GetAccountBalancesQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetTrialBalanceRequest value => new GetTrialBalanceQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
+            GetFundPerformanceMetricsRequest value => new GetFundPerformanceMetricsQuery { Parameters = value, Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetFundTransactionsPageRequest value => new GetFundTransactionsPageQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetReconciliationRequest value => new GetReconciliationQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
             GetCapacityReservationRequest value => new GetCapacityReservationQuery(value) { Subject = subject, EntityId = entity, Scope = scope, CorrelationId = correlationId, RequestedAtUtc = requestedAtUtc },
@@ -196,6 +199,7 @@ public sealed class PortfolioFinancialApi(IActorProducer producer) : NatsClientA
             GetJournalQuery value => (object)await RequestAsync<GetJournalQuery, FinancialRead<FinancialJournal>>(subject, value, token).ConfigureAwait(false),
             GetAccountBalancesQuery value => (object)await RequestAsync<GetAccountBalancesQuery, FinancialRead<FinancialBalanceSnapshot>>(subject, value, token).ConfigureAwait(false),
             GetTrialBalanceQuery value => (object)await RequestAsync<GetTrialBalanceQuery, FinancialRead<FinancialTrialBalance>>(subject, value, token).ConfigureAwait(false),
+            GetFundPerformanceMetricsQuery value => (object)await RequestAsync<GetFundPerformanceMetricsQuery, FinancialRead<FundPerformanceMetrics>>(subject, value, token).ConfigureAwait(false),
             GetFundTransactionsPageQuery value => (object)await RequestAsync<GetFundTransactionsPageQuery, FinancialRead<FinancialPage<FinancialTransactionRow>>>(subject, value, token).ConfigureAwait(false),
             GetReconciliationQuery value => (object)await RequestAsync<GetReconciliationQuery, FinancialRead<FinancialReconciliationView>>(subject, value, token).ConfigureAwait(false),
             GetCapacityReservationQuery value => (object)await RequestAsync<GetCapacityReservationQuery, FinancialRead<FinancialReservationView>>(subject, value, token).ConfigureAwait(false),

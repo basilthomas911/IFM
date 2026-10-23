@@ -11,6 +11,7 @@ public sealed class TradeRealtimeHotCache
     readonly HashSet<Guid> retiredMonitorGenerations = [];
     readonly Queue<Guid> retiredMonitorOrder = new();
     readonly TimeProvider clock;
+    readonly EstablishedTradeDefinition definition;
     TradeRealtimeSnapshot current;
     TradeRealtimeSnapshot? remote;
     StrategyTradePlanSnapshot? publishedPlan;
@@ -22,6 +23,7 @@ public sealed class TradeRealtimeHotCache
     {
         ArgumentNullException.ThrowIfNull(trade);
         clock = time ?? TimeProvider.System;
+        definition = trade;
         current = new()
         {
             TradeId = trade.Id, PositionId = StrategyPositionId.Create(trade.Id, trade.StrategyKind),
@@ -174,9 +176,9 @@ public sealed class TradeRealtimeHotCache
         && position.Legs.All(mark => current.Legs.Any(leg => leg.Definition.TradeLegId == mark.TradeLegId
             && leg.Definition.ContractId == mark.ContractId));
 
-    static TradeRealtimeSnapshot WithPosition(TradeRealtimeSnapshot snapshot, StrategyPositionSnapshot position) => snapshot with
+    TradeRealtimeSnapshot WithPosition(TradeRealtimeSnapshot snapshot, StrategyPositionSnapshot position) => snapshot with
     {
-        Position = position,
+        Position = StrategyPositionHistoryProjection.EnrichPosition(position, definition),
         Legs = snapshot.Legs.Select(leg =>
         {
             var mark = position.Legs.Single(item => item.TradeLegId == leg.Definition.TradeLegId);

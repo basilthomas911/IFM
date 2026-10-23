@@ -21,6 +21,8 @@ public interface IFinancialQueryStore
     Task<FinancialRead<FinancialTrialBalance>> ReadAsync(FinancialReadScope scope, GetTrialBalanceRequest request, CancellationToken token = default);
     Task<FinancialRead<FinancialReservationView>> ReadAsync(FinancialReadScope scope, GetCapacityReservationRequest request, CancellationToken token = default);
     Task<FinancialRead<FinancialCapacityUsage>> ReadAsync(FinancialReadScope scope, GetCapacityUsageRequest request, CancellationToken token = default);
+    Task<FinancialRead<FundPerformanceMetrics>> ReadAsync(FinancialReadScope scope, GetFundPerformanceMetricsRequest request, CancellationToken token = default)
+        => throw new NotSupportedException("Fund metrics queries are unavailable.");
     Task<FinancialRead<FinancialPage<FinancialTransactionRow>>> ReadAsync(FinancialReadScope scope, GetFundTransactionsPageRequest request, CancellationToken token = default);
     Task<FinancialRead<FinancialPage<FinancialReservationView>>> ReadAsync(FinancialReadScope scope, GetFundReservationsPageRequest request, CancellationToken token = default);
     Task<FinancialRead<FinancialReconciliationView>> ReadAsync(FinancialReadScope scope, GetReconciliationRequest request, CancellationToken token = default);

@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 /// <summary>Maintains independent strategy leases and prepared valuations. Consumers never call this service.</summary>
 public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes, QualifiedCompositionDiscovery discovery,
     ICompositionMarketDataApi market, DatasetWorkerAdmissionRegistry admissions, IOptionChainSnapshotPublisher publisher,
-    ILogger<OptionChainBackgroundUpdater> logger, TimeProvider? time = null, OptionChainCoverageObservations? coverage = null) : BackgroundService
+    ILogger<OptionChainBackgroundUpdater> logger, TimeProvider? time = null, OptionChainCoverageObservations? coverage = null, Recovery.OptionFeedProcessingHealth? processingHealth = null) : BackgroundService
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly Dictionary<string, ActiveScope> scopes = new(StringComparer.Ordinal);
@@ -230,6 +230,7 @@ public sealed class OptionChainBackgroundUpdater(IOptionUniverseSource universes
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception ex)
                 {
+                    if (admissions.TryGet("GLBX.MDP3", out var active)) processingHealth?.Report(active.ValueDate, active.GenerationId, "OptionChainMaintenance", ex, stoppingToken);
                     ApplicationDiagnosticLog.Write16(logger, ex, generation);
                     await Task.Delay(TimeSpan.FromSeconds(5), clock, stoppingToken).ConfigureAwait(false);
                 }

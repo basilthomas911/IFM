@@ -13,6 +13,20 @@ public sealed class MarketOutlookCombinationVerificationTests
 {
     static readonly MarketOutlookEntityId Id = new("ESZ26", new DateOnly(2026, 9, 1));
 
+    [Theory]
+    [InlineData(-0.1, 0, FuturesMDITrendType.DownTrending)]
+    [InlineData(.2999, 29.99, FuturesMDITrendType.DownTrending)]
+    [InlineData(.30, 30, FuturesMDITrendType.RangeBound)]
+    [InlineData(.5999, 59.99, FuturesMDITrendType.RangeBound)]
+    [InlineData(.60, 60, FuturesMDITrendType.UpTrending)]
+    [InlineData(1.1, 100, FuturesMDITrendType.UpTrending)]
+    public void Server_composer_returns_clamped_MDI_and_threshold_classification(double position, decimal expected, FuturesMDITrendType classification)
+    {
+        var state = State(64) with { FuturesBbSignal = new() { Position20 = (decimal)position } };
+        var snapshot = MarketOutlookComposer.Compose(state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow);
+        snapshot.MdiPercent.Should().Be(expected); snapshot.MdiClassification.Should().Be(classification);
+    }
+
     [Fact]
     public void All127NonEmptyAvailabilityMasks_ProduceDeterministicPartialOrCompleteOutput()
     {

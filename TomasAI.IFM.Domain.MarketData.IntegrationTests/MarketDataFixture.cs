@@ -33,8 +33,8 @@ public class MarketDataFixture : IDisposable
     public MarketDataFixture()
     {
         SetSeqIdDatabase();
-        SetDbFactory();
         SetEventSourceDatabase();
+        SetDbFactory();
     }
 
     void SetEventSourceDatabase()
@@ -56,7 +56,7 @@ public class MarketDataFixture : IDisposable
     {
         var dbConn = new DbConnectionSettings()
              .Add("MarketDataDbConnection", RequiredEnvironment("IFM_TEST_MARKET_DATA_CONNECTION"),
-                 "System.Data.ScyllaDb");
+                 "System.Data.Postgres");
         var diContainer = new Dictionary<Type, IObjectRepository>();
         var dbResolver = new DbContextResolver(repoType => diContainer[repoType]);
         var dbFactory = new DbContextFactory(dbResolver);
@@ -67,19 +67,10 @@ public class MarketDataFixture : IDisposable
         var blackboardService = new BlackboardService(redisCahe, new SystemTextJsonSerializer());
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        new MarketDataSchemaDb(dbConn, logger)
-            .CreateAsync([
-                "market_data_import_ownership",
-                "market_data_download_log",
-                "yield_curve_rates",
-                "yield_curve_rate_by_date",
-                "yield_curve_rate_year",
-                "economic_calendar",
-                "economic_calendar_country_code"
-            ])
-            .GetAwaiter().GetResult();
+        new MarketDataSchemaDb(dbConn, logger).CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<MarketDataDbContext>), new MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
-        diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SeqIdDatabase);
+        diContainer.Add(typeof(IObjectRepository<SequenceIdDbContext>), SeqIdDatabase);
+        diContainer.Add(typeof(IObjectRepository<EventSourceActorDbContext>), ActorEventSourceDb);
         DbFactory = dbFactory;
         MarketDataDb = dbFactory.MarketDataDb as IMarketDataDbContext;
     }

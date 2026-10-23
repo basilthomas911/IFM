@@ -25,6 +25,7 @@ public sealed class GeneralLedgerQueryActor(IQueryActorContext<GeneralLedgerQuer
             ["GetJournal"] = message => message.AsQuery<GetJournalQuery, FinancialRead<FinancialJournal>>()!,
             ["GetAccountBalances"] = message => message.AsQuery<GetAccountBalancesQuery, FinancialRead<FinancialBalanceSnapshot>>()!,
             ["GetTrialBalance"] = message => message.AsQuery<GetTrialBalanceQuery, FinancialRead<FinancialTrialBalance>>()!,
+            [GetFundPerformanceMetricsQuery.Verb] = message => message.AsQuery<GetFundPerformanceMetricsQuery, FinancialRead<FundPerformanceMetrics>>()!,
             ["GetFundTransactionsPage"] = message => message.AsQuery<GetFundTransactionsPageQuery, FinancialRead<FinancialPage<FinancialTransactionRow>>>()!,
             ["GetReconciliation"] = message => message.AsQuery<GetReconciliationQuery, FinancialRead<FinancialReconciliationView>>()!,
         }.ToFrozenDictionary(StringComparer.Ordinal);
@@ -40,6 +41,7 @@ public sealed class GeneralLedgerQueryActor(IQueryActorContext<GeneralLedgerQuer
             [typeof(GetJournalQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetJournalQuery)query).ExecuteAsync(database, owner, token),
             [typeof(GetAccountBalancesQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetAccountBalancesQuery)query).ExecuteAsync(database, owner, token),
             [typeof(GetTrialBalanceQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetTrialBalanceQuery)query).ExecuteAsync(database, owner, token),
+            [typeof(GetFundPerformanceMetricsQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetFundPerformanceMetricsQuery)query).ExecuteAsync(database, owner, token),
             [typeof(GetFundTransactionsPageQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetFundTransactionsPageQuery)query).ExecuteAsync(database, owner, token),
             [typeof(GetReconciliationQuery)] = (query, database, preparer, authorityPreparer, owner, token) => ((GetReconciliationQuery)query).ExecuteAsync(database, owner, token),
         }.ToFrozenDictionary();

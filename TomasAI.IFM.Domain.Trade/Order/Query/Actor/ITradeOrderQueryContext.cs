@@ -12,6 +12,10 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Domain.Trade.Order.Query.Actor;
 public interface ITradeOrderQueryContext : IQueryActorContext<TradeOrderQueryActor>
 {
+    TimeProvider PreparationClock => TimeProvider.System;
+    Microsoft.Extensions.Configuration.IConfiguration? PreparationConfiguration => null;
+    TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority? MarketSessionAuthority => null;
+
     IDbContextFactory DbFactory { get; }
 
     ILogger<TradeOrderQueryActor> Logger { get; }

@@ -53,6 +53,13 @@
 #include <unistd.h>
 #endif
 
+static std::atomic<dbf_diagnostic_callback> diagnostic_callback{nullptr};
+void DBF_CALL dbf_set_diagnostic_callback(dbf_diagnostic_callback callback) { diagnostic_callback.store(callback); }
+[[maybe_unused]] static void report_diagnostic(int kind, int code, bool fatal, bool is_last, const std::string& message) {
+    if (auto callback = diagnostic_callback.load()) callback(kind, code, fatal ? 1 : 0, is_last ? 1 : 0,
+        reinterpret_cast<const std::uint8_t*>(message.data()), static_cast<std::uint32_t>(message.size()));
+}
+
 namespace {
 
 using monotonic_clock = std::chrono::steady_clock;
@@ -900,6 +907,8 @@ void set_error(dbf_feed* feed, dbf_status status, const char* message) noexcept 
         feed->last_error = message == nullptr ? "" : message;
     } catch (...) {
     }
+    try { report_diagnostic(3, static_cast<int>(status), true, true, "FeedInstance=" + std::to_string(reinterpret_cast<std::uintptr_t>(feed)) + "; Dataset=" + feed->dataset + "; " + (message == nullptr ? "" : message)); }
+    catch (...) { /* No exception crosses the C ABI. The terminal status remains unhealthy. */ }
 }
 
 void notify_signal(dbf_feed* feed) noexcept {
@@ -1437,9 +1446,13 @@ bool process_live_record(dbf_feed* feed,
     feed->last_message_monotonic_ns.store(
         monotonic_nanoseconds(), std::memory_order_relaxed);
     if (const auto* error = source.GetIf<databento::ErrorMsg>()) {
-        return fail_live(feed, classify_gateway_error(error->code), error->Err());
+        const auto code = static_cast<int>(error->code);
+        report_diagnostic(1, code, code != 4 && code != 7, error->is_last != 0, "FeedInstance=" + std::to_string(reinterpret_cast<std::uintptr_t>(feed)) + "; " + error->Err());
+        return fail_live(feed, classify_gateway_error(error->code), "Databento ErrorMsg code=" + std::to_string(static_cast<int>(error->code)) + ": " + error->Err());
     }
     if (const auto* system = source.GetIf<databento::SystemMsg>()) {
+        const auto code = static_cast<int>(system->code);
+        if (code != 0 && code != 4) report_diagnostic(2, code, false, true, "FeedInstance=" + std::to_string(reinterpret_cast<std::uintptr_t>(feed)) + "; " + system->Msg());
         switch (system->code) {
         case databento::SystemCode::Heartbeat:
             feed->heartbeat_messages.fetch_add(1, std::memory_order_relaxed);
@@ -1792,9 +1805,13 @@ dbf_status get_latest_price_live(
             return DBF_TIMEOUT;
         }
         if (const auto* error = record->GetIf<databento::ErrorMsg>()) {
+            const auto code = static_cast<int>(error->code);
+            report_diagnostic(1, code, code != 4 && code != 7, error->is_last != 0, error->Err());
             return classify_gateway_error(error->code);
         }
         if (const auto* system = record->GetIf<databento::SystemMsg>()) {
+            const auto code = static_cast<int>(system->code);
+            if (code != 0 && code != 4) report_diagnostic(2, code, false, true, system->Msg());
             if (system->code == databento::SystemCode::SlowReaderWarning) {
                 return DBF_DATABENTO_ERROR;
             }

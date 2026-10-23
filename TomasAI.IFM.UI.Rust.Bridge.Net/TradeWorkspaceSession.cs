@@ -84,6 +84,11 @@ sealed class TradeWorkspaceSession : IDisposable
             await model.InitializeAsync(stopping.Token);
         }
         var m=model;
+        if(input.Intent is "compose" or "submit-order" or "live-on" or "chain") {
+            var session=await scope.Services.MarketDataQueries.QueryMarketSessionAsync(stopping.Token);
+            m.ApplyMarketSessionSnapshot(session);
+            foreach(var opened in openTrades.Values) opened.Monitor?.ApplyMarketSessionSnapshot(session);
+        }
         if(input.Intent is "portfolio" or "fund" or "order" or "trade" or "load"){
             if(composer is not null)await composer.CloseAsync();composer=null;cachedWorkspace=null;composerPublication=null;
             preparedTradeId=null;

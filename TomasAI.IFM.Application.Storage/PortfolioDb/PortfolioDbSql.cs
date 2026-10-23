@@ -231,6 +231,14 @@ public static class PortfolioDbSql
             WHERE portfolio_id=$1 AND ($2::text IS NULL OR (scope_kind=3 AND scope_key=$2))
             ORDER BY scope_kind,scope_key,measure,unit LIMIT 4097;
             """;
+            public const string SelectFundPerformance = """
+            SELECT t.transaction_id,t.operation_id,o.financial_revision,t.item_ordinal,t.payload::text
+            FROM portfolio_financial.ledger_transaction t JOIN portfolio_financial.financial_operation_receipt o
+              ON o.portfolio_id=t.portfolio_id AND o.operation_id=t.operation_id
+            WHERE t.portfolio_id=$1 AND t.fund_id=$2 AND o.financial_revision<=$3
+              AND t.accounting_date >= $4 AND t.accounting_date <= $5
+            ORDER BY o.financial_revision,t.item_ordinal;
+            """;
             public const string Select17 = """
             SELECT t.transaction_id,t.operation_id,o.financial_revision,t.item_ordinal,t.payload::text,j.journal_id
             FROM portfolio_financial.ledger_transaction t JOIN portfolio_financial.financial_operation_receipt o

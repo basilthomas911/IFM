@@ -20,6 +20,7 @@ public static class GetIronCondorOptionTrade
         var trade = await context.DbFactory.TradeDb.GetEstablishedTradeAsync(query.TradeId, cancellationToken).ConfigureAwait(false);
         if (trade?.StrategyKind != TradeStrategyKind.IronCondor)
             trade = null;
+        if (trade is not null) trade = StrategyPositionHistoryProjection.EnrichTrade(trade);
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<EstablishedTradeDefinition?>(trade)).ConfigureAwait(false);
     }
 }

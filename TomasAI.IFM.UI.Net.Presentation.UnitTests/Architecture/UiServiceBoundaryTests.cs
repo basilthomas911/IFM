@@ -30,7 +30,9 @@ public sealed class UiServiceBoundaryTests
         "Portfolio/PortfolioAdministrationViewModel.cs",
         "Trade/BrokerManualTradeOrderViewModel.cs",
         // Aggregates backend reads for the New Trade draft; selection and quantity edits remain local.
-        "Trade/BrokerTradeInitializationQuery.cs", "Trade/EndOfDayProcessViewModel.cs",
+        "Trade/BrokerTradeInitializationQuery.cs",
+        // Retains API quote fields for display only; never authorizes selection or computes economics.
+        "Trade/OptionChainDisplaySnapshot.cs", "Trade/EndOfDayProcessViewModel.cs",
         "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
         "Trade/IronCondor/IronCondorViewModel.cs", "Trade/TradeOrderConfirmationViewModel.cs",

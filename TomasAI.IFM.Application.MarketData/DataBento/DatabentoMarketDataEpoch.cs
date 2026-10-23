@@ -680,7 +680,14 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             if (!_qualifiedChains.TryGetValue(dataset, out var runtime))
             {
                 runtime = new(aggregation.GenerationId, ValueDate, _feeds, _options.FeedOptions with { Dataset = dataset }, aggregation, _lastPrices!, _timeProvider,
-                    detail => { Volatile.Write(ref _optionChainFault, 1); _terminalFaultHandler?.Invoke(detail); }, _options.OptionPricingRefresh, _tradeEvidence, _optionObservations);
+                    detail =>
+                    {
+                        Volatile.Write(ref _optionChainFault, 1);
+                        _loggerFactory?.CreateLogger<DatabentoMarketDataEpoch>().LogError(
+                            "Option processing terminal failure; Dataset={Dataset}; GenerationId={GenerationId}; Detail={Detail}",
+                            dataset, aggregation.GenerationId, TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth.Redact(detail));
+                        _terminalFaultHandler?.Invoke(detail);
+                    }, _options.OptionPricingRefresh, _tradeEvidence, _optionObservations);
                 _qualifiedChains.Add(dataset, runtime);
             }
             return await runtime.AcquireAsync(request, cancellationToken).ConfigureAwait(false);

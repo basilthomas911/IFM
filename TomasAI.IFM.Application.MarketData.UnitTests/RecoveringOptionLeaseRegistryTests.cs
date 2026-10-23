@@ -83,7 +83,7 @@ public sealed class RecoveringOptionLeaseRegistryTests
         var admissions = new DatasetWorkerAdmissionRegistry(); Admit(admissions); var discovery = new Discovery();
         await using var registry = new RecoveringOptionLeaseRegistry(discovery, admissions);
         discovery.OnAcquire = () => { discovery.OnAcquire = null; Admit(admissions); };
-        await Assert.ThrowsAsync<InvalidOperationException>(() => registry.AcquireAsync(Owner, "put", Request()));
+        await Assert.ThrowsAsync<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingException>(() => registry.AcquireAsync(Owner, "put", Request()));
         Assert.Single(discovery.Forgotten); await registry.ReconcileAsync(default); Assert.Equal(2, discovery.Acquired.Count);
     }
 
@@ -103,7 +103,7 @@ public sealed class RecoveringOptionLeaseRegistryTests
     {
         var admissions = new DatasetWorkerAdmissionRegistry(); var discovery = new Discovery();
         await using var registry = new RecoveringOptionLeaseRegistry(discovery, admissions);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => registry.AcquireAsync(Owner, "put", Request()));
+        await Assert.ThrowsAsync<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingException>(() => registry.AcquireAsync(Owner, "put", Request()));
         Assert.Empty(discovery.Acquired); Admit(admissions); await registry.ReconcileAsync(default);
         Assert.Single(discovery.Acquired); await registry.ReconcileAsync(default); Assert.Single(discovery.Acquired);
     }
@@ -122,6 +122,29 @@ public sealed class RecoveringOptionLeaseRegistryTests
         complete.TrySetResult(); await restoring; await releasing;
         Admit(admissions); await registry.ReconcileAsync(default);
         Assert.Equal(2, discovery.Acquired.Count); Assert.Single(discovery.Released);
+    }
+
+    [Fact]
+    public async Task Temporary_fencing_preserves_renewal_registration_for_Host_adoption()
+    {
+        var admissions = new DatasetWorkerAdmissionRegistry(); var generation = Admit(admissions); var discovery = new Discovery();
+        await using var registry = new RecoveringOptionLeaseRegistry(discovery, admissions);
+        await registry.AcquireAsync(Owner, "put", Request());
+        admissions.Close("GLBX.MDP3", generation);
+        await registry.ReconcileAsync(default);
+        Assert.Empty(discovery.Forgotten);
+        Assert.Single(discovery.Current);
+    }
+
+    [Fact]
+    public async Task Expired_same_generation_lease_gets_a_new_identity_instead_of_endless_tombstone_retry()
+    {
+        var admissions = new DatasetWorkerAdmissionRegistry(); Admit(admissions); var discovery = new Discovery();
+        await using var registry = new RecoveringOptionLeaseRegistry(discovery, admissions);
+        await registry.AcquireAsync(Owner, "put", Request());
+        var ended = discovery.Acquired.Single().LeaseId; discovery.Current.Clear();
+        await registry.ReconcileAsync(default);
+        Assert.NotEqual(ended, discovery.Acquired.Last().LeaseId);
     }
 
     sealed class Discovery : IRecoverableOptionDiscovery

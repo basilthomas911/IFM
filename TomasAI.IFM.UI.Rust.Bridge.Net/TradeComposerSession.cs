@@ -22,8 +22,9 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
     readonly BrokerManualTradeOrderViewModel model;
     readonly CancellationToken token;
     readonly int portfolioId;
-    readonly bool editable;
-    readonly bool canLive;
+    readonly TradeOrderEditorViewModel editor;
+    bool editable => editor.CanSubmitOrder;
+    bool canLive => editor.CanUseLiveFeed;
     bool defaultsLoaded;
     BrokerTradeInitializationResult? initialization;
     int quantity=1;
@@ -163,7 +164,7 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
     string status="";
     decimal putDelta=16,callDelta=16,putWidth=50,callWidth=50;
     public TradeComposerSession(RustClientServiceScope root,TradeOrderEditorViewModel editor,CancellationToken cancellation){
-        portfolioId=editor.SelectedPortfolio!.PortfolioId;editable=editor.CanSubmitOrder;canLive=editor.CanUseLiveFeed;
+        portfolioId=editor.SelectedPortfolio!.PortfolioId;this.editor=editor;
         previewQuery=new(root.Services.TradeQueries);
         scope=root;token=cancellation;trade=editor.SelectedFundOrderTrade??throw new InvalidOperationException("Select a trade");
         underlying=editor.BaseContracts.Single(x=>x.ContractId==trade.BaseContractId);
@@ -281,12 +282,12 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
     readonly BrokerTradePreviewQuery previewQuery;
     public async Task<(ContractEditorRow[] Rows,Dictionary<string,string[]> Choices,Dictionary<string,string> Context)> SnapshotAsync(){
         var rows=new List<ContractEditorRow>();if(displayChain is not null)rows.Add(Row("market","0",displayChain));rows.AddRange(legs.OrderByDescending(x=>x.Strike).ThenByDescending(x=>x.IsCall).Select((x,n)=>Row("leg",n.ToString(),x)));rows.AddRange(EvidenceRows());
-        if(chain is not null)rows.Add(Row("market-metrics","0",MarketMetrics()));
         var previewRequest = new TradeOrderPreviewRequest(0,
             legs.Select(x => new TradeOrderPreviewLeg(x.ContractId, x.Sign, quantity, x.Strike, x.IsCall, x.IsFuture, x.Bid, x.Ask, x.Delta, x.Vega, x.Multiplier)).ToArray(),
-            quantity, editedPrice, model.StrategyKind == TradeStrategyKind.FuturesOutright ? 0.25m : 0.05m,
+            quantity, editedPrice, 1m, // Legacy wire field; the backend resolves the actual entry tick.
             initialization?.UnderlyingPrice is { ClosePrice: > 0 } reference ? (decimal)reference.ClosePrice : null);
         var totals = await previewQuery.ExecuteAsync(previewRequest, token);
+        if(chain is not null)rows.Add(Row("market-metrics","0",MarketMetrics(totals.ResolvedTickIncrement)));
         var preview=BrokerTradePreviewPresentation.FromBackend(legs,totals,initialization);rows.Add(Row("broker-preview","0",preview));
         rows.Add(Row("qualification-report","0",new{path=reportPath,hash=reportHash,preview=reportPreview}));
         var account=await model.GetAccountAsync(token);if(!account.Success)scope.DiagnosticLogger.LogWarning("OrderSubmission AccountRefreshFailed SubmissionId={SubmissionId} ErrorCode={ErrorCode} ErrorMessage={ErrorMessage}",model.SubmissionId,account.ErrorCode,account.ErrorMessage);if(account.Value is {} a){rows.Add(Row("account","0",a));var displayFields=new Dictionary<string,string>(preview.Fields){["Route check"]=a.DevelopmentQualificationsExempt?"Development emulator - qualification exempt":$"{a.QualificationStatus} / {a.Gate}"};rows.RemoveAll(x=>x.Id=="broker-preview:0");rows.Add(Row("broker-preview","0",new{Fields=displayFields,preview.OrderPrice}));}
@@ -315,11 +316,10 @@ sealed class TradeComposerSession : ITradeOrderSubmissionConfirmationService
         var calls=component.Legs.Where(x=>x.PutCall==1).OrderByDescending(x=>x.SignedQuantity).Select(Leg);var puts=component.Legs.Where(x=>x.PutCall==2).OrderBy(x=>x.SignedQuantity).Select(Leg);var groups=new[]{string.Join("-",calls),string.Join("-",puts)}.Where(x=>x.Length>0);var legs=component.Legs.All(x=>x.AssetFamily==TradeAssetFamily.FuturesOption)?string.Join(":",groups):string.Join("-",component.Legs.Select(Leg));
         var type=component.StrategyKind switch{TradeStrategyKind.IronCondor=>component.Legs.Any(x=>x.PutCall==1&&x.SignedQuantity>0&&x.Strike==component.Legs.Where(y=>y.PutCall==1).Max(y=>y.Strike))?"ShortIronCondor":"LongIronCondor",TradeStrategyKind.VerticalSpread=>"Vertical Spread",TradeStrategyKind.FuturesOutright=>"Futures",_=>component.StrategyKind.ToString()};return $"{type} = {legs} @ {order.CurrentSignedNetDebitLimit.ToString("0.########",CultureInfo.InvariantCulture)}";
     }
-    Dictionary<string,string> MarketMetrics(){
-        var c=chain!;var nearest=c.UnderlyingPrice is {} price?c.Contracts.Where(x=>x.ImpliedVolatility is >0&&double.IsFinite(x.ImpliedVolatility.Value)).OrderBy(x=>Math.Abs(x.Strike-price)).ThenBy(x=>x.Strike).FirstOrDefault()?.Strike:null;
-        var iv=nearest.HasValue?c.Contracts.Where(x=>x.Strike==nearest&&x.ImpliedVolatility is >0&&double.IsFinite(x.ImpliedVolatility.Value)).Average(x=>x.ImpliedVolatility):null;
+    Dictionary<string,string> MarketMetrics(decimal? tick){
+        var c=chain!;var iv=c.AtmImpliedVolatility;
         var latest=c.Contracts.Where(x=>x.QuoteAtUtc.HasValue).Select(x=>x.QuoteAtUtc).Max();
-        return new(){["DTE"]=(expiry.DayNumber-apiValueDate.DayNumber).ToString(CultureInfo.InvariantCulture),["Underlying"]=underlying.ContractId,["Multiplier"]=underlying.Multiplier,["Tick"]=model.StrategyKind==TradeStrategyKind.FuturesOutright?"0.25":"0.05",["Settlement"]="Unavailable",["Daily Std Dev"]=c.BollingerStandardDeviation20?.ToString("0.00")??"N/A",["Last"]=c.LastUnderlyingPrice?.ToString("0.00")??"N/A",["Daily Price Change"]=c.LastUnderlyingPrice.HasValue&&c.PreviousSessionClose is >0?$"{c.LastUnderlyingPrice.Value-c.PreviousSessionClose.Value:+0.00;-0.00;0.00} ({(c.LastUnderlyingPrice.Value/c.PreviousSessionClose.Value-1):+0.00%;-0.00%;0.00%})":"N/A",["IV"]=iv?.ToString("P1",CultureInfo.InvariantCulture)??"N/A",["IV Rank"]=c.IvRank?.ToString("0.0")??(c.IvRankStatus.StartsWith("InsufficientHistory",StringComparison.Ordinal)?"History needed":"N/A"),["Quote Age"]=latest.HasValue?$"{Math.Max(0,(c.AsOfUtc-latest.Value).TotalMilliseconds):0} ms":!live?"Frozen preview":"N/A"};
+        return new(){["DTE"]=c.DaysToExpiry?.ToString(CultureInfo.InvariantCulture)??"N/A",["Underlying"]=underlying.ContractId,["Multiplier"]=underlying.Multiplier,["Tick"]=tick?.ToString(CultureInfo.InvariantCulture)??"N/A",["Settlement"]="Unavailable",["Daily Std Dev"]=c.BollingerStandardDeviation20?.ToString("0.00")??"N/A",["Last"]=c.LastUnderlyingPrice?.ToString("0.00")??"N/A",["Daily Price Change"]=c.DailyPriceChange.HasValue&&c.DailyPriceChangeFraction.HasValue?$"{c.DailyPriceChange.Value:+0.00;-0.00;0.00} ({c.DailyPriceChangeFraction.Value:+0.00%;-0.00%;0.00%})":"N/A",["IV"]=iv?.ToString("P1",CultureInfo.InvariantCulture)??"N/A",["IV Rank"]=c.IvRank?.ToString("0.0")??(c.IvRankStatus.StartsWith("InsufficientHistory",StringComparison.Ordinal)?"History needed":"N/A"),["Quote Age"]=latest.HasValue?$"{Math.Max(0,(c.AsOfUtc-latest.Value).TotalMilliseconds):0} ms":!live?"Frozen preview":"N/A"};
     }
     static ContractEditorRow Row(string kind,string id,object v)=>new(kind+":"+id,new(){["kind"]=kind}){Data=v switch {
         EvaluatedOptionChainReadModel market=>BridgeWire.Serialize(OptionChainDisplay.From(market)),

@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Application.MarketData.Remote;
 public sealed class MarketDataClientReceiver(MarketDataHostConnection connection, IMarketDataApi api,
     MarketDataReadMirror mirror, MarketDataRemoteAdmission admissions, ITickAggregationEventPublisher publisher,
     IMarketDataOperationsRecorder recorder, IActorSupervisor supervisor,
-    ILogger<MarketDataClientReceiver> logger) : BackgroundService
+    ILogger<MarketDataClientReceiver> logger, Recovery.OptionFeedProcessingHealth? processingHealth = null) : BackgroundService
 {
     readonly DatasetWorkerAdmissionRegistry futures = admissions.Futures;
     readonly DatasetWorkerAdmissionRegistry options = admissions.Options;
@@ -46,15 +46,18 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                 serializer: NatsMessagePackSerializer<DatasetPublicationEnvelope>.Default, cancellationToken: stoppingToken).ConfigureAwait(false))
             {
                 if (message.Data is not { } frame) continue;
+                var isOption = message.Subject.StartsWith(connection.Scope + ".publications.Options.", StringComparison.Ordinal);
                 try
                 {
-                    var isOption = message.Subject.StartsWith(connection.Scope + ".publications.Options.", StringComparison.Ordinal);
                     if (!isOption && !mirror.Accept(frame)) continue;
                     await (isOption ? optionIngress : futureIngress).AcceptAsync(frame, stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) { }
                 catch (Exception error) when (!stoppingToken.IsCancellationRequested)
-                { logger.LogWarning(error, "MarketData Host publication could not be admitted; Dataset={Dataset}", frame.Dataset); }
+                {
+                    if (isOption) processingHealth?.Report(frame.ValueDate, frame.GenerationId, "ApiOptionIngress", error, stoppingToken);
+                    logger.LogWarning(error, "MarketData Host publication could not be admitted; Dataset={Dataset}", frame.Dataset);
+                }
             }
         }
 
@@ -67,7 +70,11 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
             {
                 if (message.Data is not { } frame || !mirror.NeedsOption(frame.GenerationId, frame.Scope, frame.Version)) continue;
                 try { if (assembler.Accept(frame) is { } publication) mirror.AcceptOption(publication); }
-                catch (Exception error) when (!stoppingToken.IsCancellationRequested) { logger.LogWarning(error, "Invalid option-cache publication ignored."); }
+                catch (Exception error) when (!stoppingToken.IsCancellationRequested)
+                {
+                    if (mirror.GetRuntimeStatus().ActiveValueDate is { } date) processingHealth?.Report(date, frame.GenerationId, "OptionCacheIngress", error, stoppingToken);
+                    logger.LogWarning(error, "Invalid option-cache publication ignored.");
+                }
             }
         }
 
@@ -88,6 +95,7 @@ public sealed class MarketDataClientReceiver(MarketDataHostConnection connection
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 catch (Exception error)
                 {
+                    foreach (var active in activeOptions.Values) processingHealth?.Report(active.ValueDate, active.GenerationId, "HostSynchronization", error, stoppingToken);
                     mirror.Disconnect();
                     foreach (var entry in activeFutures.Values) futures.Close(entry.Dataset, entry.GenerationId);
                     foreach (var entry in activeOptions.Values) options.Close(entry.Dataset, entry.GenerationId);

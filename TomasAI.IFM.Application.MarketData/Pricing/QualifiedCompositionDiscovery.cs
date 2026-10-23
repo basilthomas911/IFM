@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// Application entry point from a complete definition scope to a worker-owned qualified chain.
 /// Reference lookup and Treasury I/O run here, never inside a worker quote callback.
 /// </summary>
-public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null) : IAsyncDisposable, IRecoverableOptionDiscovery
+public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse universe, IOptionPricingContextProvider contexts, ICompositionMarketDataApi market, TimeProvider? time = null, ILogger<QualifiedCompositionDiscovery>? logger = null, ICompositionRoutePlanStore? routePlans = null, DatasetDesiredSubscriptionRegistry? desired = null, Contracts.IOptionChainStatisticsStore? statistics = null, Recovery.OptionFeedProcessingHealth? health = null) : IAsyncDisposable, IRecoverableOptionDiscovery
 {
     readonly TimeProvider clock = time ?? TimeProvider.System;
     readonly ConcurrentDictionary<Guid, RefreshRegistration> registrations = new();
@@ -201,7 +201,13 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
         };
         var result = await market.AcquireAsync("GLBX.MDP3", renewed, cancellationToken).ConfigureAwait(false);
         if (!result.Active || result.Failure is not null)
+        {
+            health?.Report(lease.ValueDate, lease.GenerationId, "Renew/" + lease.LeaseId,
+                new Recovery.OptionFeedProcessingException(result.Failure?.Code ?? "LeaseRenewalFailed", result.Failure?.Detail));
+            logger?.LogWarning("Option lease renewal rejected; LeaseId={LeaseId}; GenerationId={GenerationId}; Code={Code}; Detail={Detail}",
+                lease.LeaseId, lease.GenerationId, result.Failure?.Code ?? "LeaseRenewalFailed", Recovery.OptionFeedProcessingHealth.Redact(result.Failure?.Detail ?? "No active lease acknowledgement."));
             return null;
+        }
         registrations.TryUpdate(lease.LeaseId, registration with { Lease = renewed }, registration);
         return renewed;
     }
@@ -263,13 +269,14 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
                 {
                     using var renewalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     renewalTimeout.CancelAfter(TimeSpan.FromSeconds(3));
-                    if ((await RenewAsync(registration.Lease, now.AddSeconds(60), renewalTimeout.Token).ConfigureAwait(false)is null) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true))
+                    if (await RenewAsync(registration.Lease, now.AddSeconds(60), renewalTimeout.Token).ConfigureAwait(false) is null)
                     {
-                        OptionalApplicationDiagnosticLog.Write7(logger, null, nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
+                        if (logger is not null) OptionalApplicationDiagnosticLog.Write7(logger, null, nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
                     }
                 }
                 catch (Exception error)when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
+                    health?.Report(registration.Lease.ValueDate, registration.Lease.GenerationId, "Renew/" + id, error, cancellationToken);
                     if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
                     {
                         OptionalApplicationDiagnosticLog.Write8(logger, error, nameof(RefreshRegisteredAsync), registration.Lease.ScopeId, id, registration.Lease.GenerationId);
@@ -292,6 +299,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             {
                 var refreshed = await RefreshAsync(registration.Lease, registration.Calendar, registration.Publication, registration.Conversion, cancellationToken).ConfigureAwait(false);
                 registrations.TryUpdate(id, registration with { Lease = refreshed.Lease ?? registration.Lease, CheckedAtUtc = now }, registration);
+                if (refreshed.Result.Failure is { } contextFailure) health?.Report(registration.Lease.ValueDate, registration.Lease.GenerationId, "Refresh/" + id, new Recovery.OptionFeedProcessingException(contextFailure.Code, contextFailure.Detail));
                 if ((refreshed.Result.Failure is { } failure) && (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true))
                 {
                     OptionalApplicationDiagnosticLog.Write9(logger, null, registration.Lease.ScopeId, failure.Code);
@@ -299,6 +307,7 @@ public sealed class QualifiedCompositionDiscovery(EuropeanOptionUniverse univers
             }
             catch (Exception error)when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
+                health?.Report(registration.Lease.ValueDate, registration.Lease.GenerationId, "Refresh/" + id, error, cancellationToken);
                 registrations.TryUpdate(id, registration with { CheckedAtUtc = now }, registration);
                 if (logger?.IsEnabled(global::Microsoft.Extensions.Logging.LogLevel.Warning) == true)
                 {

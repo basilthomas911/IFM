@@ -96,6 +96,13 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
     /// <summary>
     /// Return futures bar data for a contract/symbol between start and end times on a value date.
     /// </summary>
+    public Task<ServiceResult<FuturesBarDataReadModel[]>> GetFuturesBarWindowAsync(string contractId, string symbol, DateOnly valueDate, DateTime startUtc, DateTime endUtc)
+    {
+        var query = new GetFuturesBarDataQuery(contractId, symbol, valueDate, startUtc, endUtc) { AcrossValueDates = true };
+        query.Subject = new ActorSubject(ActorType.Query, GetFuturesBarDataQuery.Actor, GetFuturesBarDataQuery.Verb, query.EntityId.Format());
+        return RequestAsync<GetFuturesBarDataQuery, FuturesBarDataReadModel[]>(query.Subject, query).AsTask();
+    }
+
     public async Task<ServiceResult<FuturesBarDataReadModel[]>> GetFuturesBarDataAsync(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate)
     {
         var entityId = new GetFuturesBarDataParameter(contractId, symbol, valueDate, startDate, endDate);

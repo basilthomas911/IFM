@@ -39,6 +39,7 @@ public static class BackendServices
     public static void AddMarketDataBackend(this IServiceCollection services, IConfiguration config)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>();
         var profile = Enum.Parse<FeedDeploymentProfile>(config["MarketDataHost:DeploymentProfile"]
             ?? config["AppSettings:Databento:DeploymentProfile"] ?? "Development", true);
         var feed = DatabentoFeedOptions.ForProfile(profile, config["AppSettings:Databento:Dataset"] ?? "GLBX.MDP3") with
@@ -64,6 +65,8 @@ public static class BackendServices
         services.AddSingleton(provider => new MarketDataHostState(provider.GetRequiredService<DatasetWorkerCurrentValues>(),
             provider.GetRequiredService<DatasetWorkerAdmissionRegistry>())
         {
+            EnabledTrades = date => provider.GetRequiredService<MarketDataApiBackend>().EnabledTrades(date),
+            ProcessingHealth = provider.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>(),
             RetireOptions = async token =>
             {
                 await provider.GetRequiredService<QualifiedIndividualOptionFeeds>().RetireSessionAsync(token).ConfigureAwait(false);
@@ -143,7 +146,11 @@ public static class BackendServices
         services.AddSingleton<CompositionPreparationService>();
         services.AddSingleton<CompositionMarketPreparation>();
         services.AddSingleton<IndividualOptionRiskReader>();
-        services.AddSingleton<QualifiedIndividualOptionFeeds>();
+        services.AddSingleton(p => new QualifiedIndividualOptionFeeds(
+            p.GetRequiredService<QualifiedCompositionDiscovery>(), p.GetRequiredService<DatasetWorkerAdmissionRegistry>(),
+            p.GetRequiredService<IDbContextFactory>(), p.GetRequiredService<TreasuryPublicationPolicy>(), p.GetRequiredService<TreasuryRateConversionPolicy>(),
+            p.GetRequiredService<IndividualOptionRiskReader>(), p.GetRequiredService<Microsoft.Extensions.Logging.ILogger<QualifiedIndividualOptionFeeds>>(),
+            p.GetRequiredService<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>()));
         services.AddDatabentoHistoricalMarketDataServices(new() { UseSyntheticProvider = feed.DataSource == FeedDataSourceMode.Synthetic });
         services.AddApplicationMarketDataHistoricalApi(new()
         {

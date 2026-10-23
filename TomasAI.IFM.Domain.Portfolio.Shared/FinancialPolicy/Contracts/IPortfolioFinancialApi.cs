@@ -19,6 +19,8 @@ public interface IPortfolioFinancialApi
     Task<ServiceResult<FinancialRead<FinancialJournal>>> GetJournalAsync(FinancialReadScope scope, GetJournalRequest request, CancellationToken token = default);
     Task<ServiceResult<FinancialRead<FinancialBalanceSnapshot>>> GetAccountBalancesAsync(FinancialReadScope scope, GetAccountBalancesRequest request, CancellationToken token = default);
     Task<ServiceResult<FinancialRead<FinancialTrialBalance>>> GetTrialBalanceAsync(FinancialReadScope scope, GetTrialBalanceRequest request, CancellationToken token = default);
+    Task<ServiceResult<FinancialRead<FundPerformanceMetrics>>> GetFundPerformanceMetricsAsync(FinancialReadScope scope, GetFundPerformanceMetricsRequest request, CancellationToken token = default)
+        => throw new NotSupportedException("Fund metrics queries are unavailable.");
     Task<ServiceResult<FinancialRead<FinancialPage<FinancialTransactionRow>>>> GetFundTransactionsPageAsync(FinancialReadScope scope, GetFundTransactionsPageRequest request, CancellationToken token = default);
     Task<ServiceResult<FinancialRead<FinancialReconciliationView>>> GetReconciliationAsync(FinancialReadScope scope, GetReconciliationRequest request, CancellationToken token = default);
     Task<ServiceResult<FinancialRead<FinancialReservationView>>> GetCapacityReservationAsync(FinancialReadScope scope, GetCapacityReservationRequest request, CancellationToken token = default);

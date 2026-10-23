@@ -108,35 +108,8 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
     public async Task GetFuturesBarWindowAsync(string contractId, string symbol, DateOnly valueDate,
         DateTime startDate, DateTime endDate, Action<FuturesBarDataReadModel[]> onCompleted)
     {
-        var startUtc = EasternTime.ToUtc(startDate);
-        var endUtc = EasternTime.ToUtc(endDate);
-        if (endUtc < startUtc) throw new ArgumentOutOfRangeException(nameof(endDate));
-        var zone = TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.MarketTimeZone;
-        var firstDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(startUtc, zone));
-        var lastDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(endUtc, zone));
-        var valueDates = new SortedSet<DateOnly> { valueDate };
-        for (var date = firstDate; date <= lastDate; date = date.AddDays(1))
-        {
-            valueDates.Add(date);
-            var opensUtc = TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(new TimeOnly(18, 0)), zone);
-            if (opensUtc <= endUtc && date.DayOfWeek is >= DayOfWeek.Sunday and <= DayOfWeek.Thursday)
-                valueDates.Add(date.AddDays(1));
-        }
-
-        var bars = new List<FuturesBarDataReadModel>();
-        foreach (var partitionDate in valueDates)
-        {
-            var completed = false;
-            await GetFuturesBarDataAsync(contractId, symbol, partitionDate, startUtc, endUtc, values =>
-            {
-                bars.AddRange(values);
-                completed = true;
-            });
-            if (!completed) return;
-        }
-        onCompleted([.. bars.Where(bar => bar.BarDate >= startUtc && bar.BarDate <= endUtc)
-            .DistinctBy(bar => (bar.ContractId, bar.Symbol, bar.BarDate, bar.BarRateType))
-            .OrderBy(bar => bar.BarDate)]);
+        await ExecuteAsync(() => _marketDataFeedQueryApi.GetFuturesBarWindowAsync(contractId, symbol, valueDate,
+            EasternTime.ToUtc(startDate), EasternTime.ToUtc(endDate)), onCompleted);
     }
 
     /// <summary>

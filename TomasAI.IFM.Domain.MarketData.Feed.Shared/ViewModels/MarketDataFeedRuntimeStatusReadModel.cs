@@ -19,6 +19,12 @@ public sealed record MarketDataFeedRuntimeStatusReadModel
     [Key(7)] public string? OptionDataset { get; init; }
     [Key(8)] public DateTime? OptionFailureUtc { get; init; }
 
+    [Key(9)] public string? OptionProcessingError { get; init; }
+    [Key(10)] public DateTimeOffset? OptionProcessingFailureUtc { get; init; }
+    [Key(11)] public string[]? EnabledOptionTrades { get; init; }
+
+    [Key(12)] public DateTimeOffset? OptionRecoveryDeadlineUtc { get; init; }
+
     [IgnoreMember]
     public bool IsValid => ObservedAtUtc != default
         && (IsRunning ? ActiveValueDate.HasValue : !ActiveValueDate.HasValue);

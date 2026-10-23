@@ -19,7 +19,7 @@ public sealed class PortfolioQueryService(
     IPortfolioDbReadContext db,
     PortfolioFundStrategyResolver resolver,
     IPortfolioBusinessIdHighWatermark identityHighWatermark,
-    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? catalogQueries = null) : IPortfolioQueryApi
+    TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi? catalogQueries = null, TimeProvider? clock = null) : IPortfolioQueryApi
 {
     readonly IPortfolioDbReadContext _db = db ?? throw new ArgumentNullException(nameof(db));
     readonly PortfolioFundStrategyResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
@@ -99,6 +99,7 @@ public sealed class PortfolioQueryService(
 
     public async Task<ServiceResult<FundRiskEnvelopeReadModel>> GetFundRiskEnvelopeAsync(int portfolioId, int fundId, DateTime asOfUtc, CancellationToken cancellationToken = default)
     {
+        if (asOfUtc == default) asOfUtc = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         Utc(asOfUtc);
         var value = await _db.GetCurrentRiskEnvelopeAsync(Positive(portfolioId), Positive(fundId), cancellationToken).ConfigureAwait(false);
         return value is null || !(value.EffectiveFromUtc <= asOfUtc && asOfUtc < value.ExpiresAtUtc) ? NotFound<FundRiskEnvelopeReadModel>("A current Fund risk envelope was not found.") : new ServiceOk<FundRiskEnvelopeReadModel>(value);

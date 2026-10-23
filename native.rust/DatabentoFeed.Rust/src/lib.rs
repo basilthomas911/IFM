@@ -4,6 +4,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 mod abi;
+mod diagnostics;
 #[cfg(windows)]
 #[doc(hidden)]
 pub mod engine;

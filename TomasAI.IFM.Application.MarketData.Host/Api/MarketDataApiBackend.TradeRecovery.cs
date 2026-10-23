@@ -9,6 +9,7 @@ namespace TomasAI.IFM.Application.MarketData.Host;
 public sealed partial class MarketDataApiBackend
 {
     TradeFeedRecoveryService? tradeRecovery;
+    public string[] EnabledTrades(DateOnly date) => tradeRecovery?.EnabledTrades(date) ?? [];
     IServiceProvider RecoveryServices => services;
     TradeFeedRecoveryService TradeRecovery => LazyInitializer.EnsureInitialized(ref tradeRecovery,
         () => new(services.GetRequiredService<ITradeFeedRecoveryStore>(), new RecoveryRuntime(this), services.GetService<Microsoft.Extensions.Logging.ILogger<TradeFeedRecoveryService>>()))!;

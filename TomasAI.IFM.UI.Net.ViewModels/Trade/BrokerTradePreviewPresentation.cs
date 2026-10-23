@@ -37,9 +37,7 @@ public sealed record BrokerTradePreviewPresentation(IReadOnlyDictionary<string,s
             b.SetField("Buying power", "Broker margin assessment required");
             b.SetField("Est. fees", "Fee schedule unavailable");
             b.SetField("Worst approved limit", "Not approved for this selection");
-            var usage = data?.CapacityUsage?.Value?.Scopes.Where(x => x.ScopeKind == CapacityScopeKind.Fund && x.ScopeKey == FinancialScopeKeys.Fund(data!.FundId) && x.Unit == CapacityUnit.Usd && x.Measure == CapacityMeasure.LossCharge).ToArray();
-            if (usage is { Length: > 0 }) b.SetField("Reserved capital", usage.Sum(x => x.Held + x.Working));
-            else b.SetField("Reserved capital", "Unavailable");
+            b.SetField("Reserved capital", data?.CapacityUsage?.Value?.ReservedFundLossCapital);
             if (legs.Count == 1 && legs[0].IsFuture)
             {
                 b.SetField("Value source", "Stored EOD reference - no bid/ask");

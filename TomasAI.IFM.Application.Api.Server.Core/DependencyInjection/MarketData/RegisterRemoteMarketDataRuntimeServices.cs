@@ -178,6 +178,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.ITreasuryCurve>(p => p.GetRequiredService<RemoteReferenceDataApi>());
         services.AddSingleton<TomasAI.IFM.Framework.MarketData.Contracts.IEconomicCalendar>(p => p.GetRequiredService<RemoteReferenceDataApi>());
         services.AddSingleton<MarketDataReadMirror>();
+        services.AddSingleton<TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth>();
         services.AddSingleton(p => new MarketDataHostConnection(p.GetRequiredService<NatsConnectionManager>(),
             config["MarketDataHost:NatsUrl"] ?? p.GetService<INatsProducerOptions>()?.Url ?? "nats://localhost:4222", config["MarketDataHost:Scope"] ?? "development"));
         services.AddSingleton<IMarketDataApi>(p => new MarketDataApiClient(p.GetRequiredService<MarketDataHostConnection>(), p.GetRequiredService<MarketDataReadMirror>()));

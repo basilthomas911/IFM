@@ -1,4 +1,126 @@
-# IFM WinForms to Rust UI migration roadmap
+# IFM Windows Rust UI full migration plan
+
+Updated: **2026-10-23**. Target project directory: **`TomasAI.IFM.UI.Rust.eGui`**. Target desktop artifact: **`TomasAI.IFM.UI.Rust.eGui.exe`**.
+
+Status: revised implementation plan and source inventory. This update does not implement or qualify the standalone application.
+
+## Current target and authority (2026-10-23)
+
+This revision plans a complete standalone Windows frontend: **one Rust UI executable and one UI process**, with egui rendering, Rust presentation models, Rust view-state controllers, Rust API clients and Rust event consumers. The shipped UI must run without hostfxr, a CLR, managed UI/bridge assemblies, a local pricing DLL, or a helper UI process. Backend API, MarketData Host/workers, NATS, databases and broker services remain separate existing services.
+
+The existing `TomasAI.IFM.UI.Rust` is a hybrid implementation: `src/app/hosting.rs` loads hostfxr, and `TomasAI.IFM.UI.Rust.Bridge.Net` supplies managed sessions and view-model lifetimes. Its rendered screens are reusable reference implementations; its managed ownership is **not** the final architecture. Creating or renaming an executable alone does not complete this migration.
+
+The new folder will contain the Rust Cargo package, application state, transport, controllers, tests and embedded resources. Use a Rust-compatible package/library name such as `ifm-ui-egui` / `ifm_ui_egui`; Windows packaging assigns the requested executable filename. Assets and localized strings should be embedded where practical. External configuration, credentials, logs and user journals remain data files. OS-provided graphics/accessibility libraries are normal Windows dependencies. No application-specific .NET or pricing runtime is part of the final frontend package.
+
+This section and the refreshed inventory supersede the older hybrid ownership, source counts and migration estimates below. The older entries remain a historical record of WinForms/native control work, not evidence that the standalone migration is complete. The [standalone migration design](IFM-Standalone-Rust-UI-Migration-Plan-v1.0.md) remains the detailed protocol reference; the executable/project naming and inventory in this revision take precedence.
+
+### Refreshed inventory and evidence
+
+- [Complete model/view-model inventory and source counts](IFM-Windows-Rust-UI-Model-Inventory-2026-10-23.md).
+- [Machine-readable references and target disposition for every model/view-model source file](IFM-Windows-Rust-UI-Model-Inventory-2026-10-23.csv).
+- [Supporting services, consumers, API clients and bridge model/controller inventory](IFM-Windows-Rust-UI-Dependency-Inventory-2026-10-23.csv).
+- [Backend boundary audit: all 148 view-model, model and service source files](IFM-Rust-UI-Backend-Boundary-Audit-2026-10-23.md), with the [per-file backend/client decisions](IFM-Rust-UI-Backend-Boundary-Inventory-2026-10-23.csv). This audit supersedes earlier narrow claims about local financial calculations.
+- Reproduce with `python scripts/UI/Rust/Update-RustUiModelInventory.py --date 2026-10-23`.
+
+The inventory scans tracked source rather than leftover build directories. It separates direct Rust bridge references, WinForms references, indirect dependencies, registration-only references, and rows with no production caller found. These are conservative source-reference classifications, not runtime execution counts. Reflection, same-name types, dependency injection and method-level reachability need explicit review; a missing direct bridge reference is not permission to delete a model. Every row needs a final disposition and verification evidence.
+
+The standalone behavior baseline is the current Rust UI. WinForms-only source rows are reachability/exclusion evidence; unused WinForms calculations do not require new backend equivalents. Preserve the current hybrid while building its standalone replacement.
+
+| Refreshed model/view-model scope | Files |
+| --- | ---: |
+| `UI.Net.ViewModels` | 81 |
+| `UI.Net.Models` | 15 |
+| **Total model/view-model source files** | **96** |
+| Direct Rust bridge reference | 58 |
+| WinForms reference without a direct bridge reference | 18 |
+| Indirect production reference requiring entry-path review | 16 |
+| Test references only | 2 |
+| No external type/method identifier reference found | 1 |
+| C# global import infrastructure | 1 |
+
+The test-only files are `PortfolioConcurrencyRefreshModel.cs` and `PortfolioNavigationModel.cs`. `Trade/IronCondor/IronCondorTradeInfoViewModel.cs` declares `IronCondorTradeInfoReadModel` and has no external identifier reference in this scan. `GlobalUsings.cs` is import infrastructure. These classifications identify review work; this plan does not authorize their deletion. Extension-method call identifiers are included so helpers such as `ObservableUiServiceExtensions` are not mistaken for unused classes.
+
+The supplemental checklist covers **199 files**: 52 UI service files, 39 UI event-consumer files, 1 composition file, 53 NATS API client files and 54 managed bridge files. It includes publication and session models outside the primary model projects. The visual baseline contains 134 WinForms view-project source files and 49 Rust source files. These counts include helpers and partial/designer files and are not counts of distinct screens or wire operations.
+
+### Ownership rules
+
+| Responsibility | Final owner |
+| --- | --- |
+| Rendering, focus, tabs, selection, window geometry, colors, formatting and editable drafts | Rust egui thread and typed view state |
+| Queries, commands, function requests, subscriptions, reconnect, correlation and client journals | Rust background runtime and scoped controllers |
+| Authoritative valuation, Greeks, payoff/maximum loss, trade plans, risk decisions, financial posting validation and persistence | Existing backend actors/services; add backend operations for uncovered client calculations |
+| ValueDate and market-session dates | API server exclusively; no local value-date provider or machine-date fallback |
+| UTC instants, display-zone conversion and monotonic client durations | Preserve wire timestamps; convert for display; use monotonic time for client timing. Do not substitute UI time for server business dates |
+| Option feed ownership, lease reconciliation, two-minute recovery and one-time API restart | Existing backend/ServerManager workflow; Rust presents state and errors and reconciles after reconnect |
+
+All financial and identity values retain exact representations. Floats are permitted for plot coordinates and geometry, not authoritative currency, quantities, strike prices or canonical hashes. UI enable/disable rules can mirror server state for usability; backend authorization and business validation remain mandatory.
+
+### Feature and behavior migration matrix
+
+Supported current-Rust feature rows are **planned standalone Rust work**, even where the hybrid already renders the screen. Explicitly excluded WinForms-only rows are scope evidence.
+
+| Area | Managed behavior to account for | Rust target / required gate |
+| --- | --- | --- |
+| Shell, navigation and startup | `IFMAppViewModel`, `IAppRoot`, navigator/dispatcher/interaction contracts, `RustShellViewModelSession`, dashboard/sidebar sessions | `app` and `state/shell`; API-owned ValueDate, confirmed feed state, recovery/initialization error dialogs, settings and shutdown |
+| Market outlook, ITI and charts | EOD/trade-signal display models, `MarketDataFeedHealthMonitor`, `MarketChartSession`, `MarketOutlookPresentation`, graph-window models | `state/market`; preserve source timestamps, provisional indicators, baseline/stale status, graph gaps and colors |
+| Economic calendar | Both calendar view models, editor/readonly views and calendar session | `state/reference/calendar`; same filters, CRUD, timestamp identity and cancellation |
+| Contracts, provider mapping and yield curves | Contract editor/view models, instrument selector, convention editor, provider mappings and draft review | `state/market/reference`; qualified selections, paging, explicit Draft import confirmation and server dates |
+| Reference manager | `ReferenceViewModel`, lookup editor, parameter-set editors and comparisons, strategy catalog session | `state/reference`; preserve Reference as the WinForms manager flow, without adding menu items underneath the Reference menu |
+| Strategy/workflow details and Risk History | Strategy operations/details/presentation, assessment/risk presenters, inspection backend and sessions | `state/strategy`; stable identities, cached trees, exact server decisions and current evaluation-date flow |
+| Portfolio/fund administration | Administration and metrics view models, navigation/identity/allocation/fund editor models, portfolio session partials | `state/portfolio`; all create/edit/allocation/risk-envelope/template-assignment paths and approved dialog layouts |
+| Financial ledger and posting | Financial view models, drafts, control preparation, operation state and both pending-operation stores | `state/portfolio/financial` plus journal adapters; exact request identity/hash, concurrency revisions, uncertain outcomes and restart reconciliation |
+| Order browser and fund orders | `TradeOrderEditorViewModel`, `FundOrderEditorViewModel`, order editor models and workspace session | `state/trading/orders`; server paging, selection, date filters, lifecycle and acknowledged actions |
+| Broker/manual composition | `BrokerManualTradeOrderViewModel`, initialization/preview/leg-selection/mutation helpers, confirmation, `TradeComposerSession` | `state/trading/composer`; complete preview, account qualification, component identity, backend-calculated risk, broker acknowledgement and outcome reconciliation |
+| WinForms-only Iron Condor entry (excluded) | `IronCondorTradeOrderViewModel`, legacy entry view, trade-info models and local Greeks calls | Current Rust uses `BrokerManualTradeOrderViewModel`; no backend clone or standalone port of the unused WinForms entry model is required |
+| Established trades, positions and plans | `IronCondorViewModel`, trade-info/spread-bar models, monitor row/cache/update helpers and `TradeWorkspaceSession` | `state/trading/monitor`; API ValueDate, saved live-feed intent, P&L bars using maximum gain/loss, valid-value preservation, EOD refresh and error presentation |
+| Spread history | Range query/client service and chart merge in the workspace | Seed six hours across trading-value-date boundaries using API time, preserve baseline on failure, merge buffered live updates, retain once-per-minute history sampling |
+| Actor and market-data operations health | Actor control/health snapshots, operations-health view model/session and HTTP health adapters | `state/operations/health`; preserve permissions, generation checks, lifecycle actions and visible failures |
+| Scheduled tasks, backups and System | Scheduled-task and backup view models/models/sessions, `SystemAdminViewModel` | `state/operations`; complete setup, scheduling, preview, execution confirmation, logs/history paging, progress and cancellation |
+| Status console and notifications | Status-console model/services, terminal correlation, all UI event consumers and initialization/recovery notices | `services/notifications`; deduplicate per operation/outcome and scope, retain visible terminal failures, do not confuse indicator failure with feed shutdown |
+| Shared lifecycle/presentation helpers | Observable/base-editor/async-operation classes, presentation errors/colors, lookup extensions, field editors and time conversions | Rust ownership, enums, state transitions and formatting; retire C# infrastructure only after each dependent feature is qualified |
+
+### Concrete gaps found in the refreshed review
+
+Execute the [current Rust UI backend processing implementation plan](IFM-Current-Rust-UI-Backend-Processing-Implementation-Plan.md) before standalone client cutover. It maps B1-B7 to existing actors and requires current API/managed-client/desktop verification.
+
+1. **Close the seven reviewed backend boundary groups.** The full audit identifies B1 order candidate risk/deployment/tick preparation, B2 confirmation amounts/fees, B3 fund performance metrics, B4 realtime cache financial summaries, B5 saved-position/history valuations, B6 composer financial summaries, and B7 server-owned business clock/session/range policy. `SelectedOrderPriceRisk.MaximumOptionLoss` is one part of B1, not the complete list. Reuse existing backend preview and realtime calculations. The WinForms-only `OptionPricingService.CalculateGreeks` path does not require a new backend equivalent for this migration.
+2. **Port financial request helpers to Rust.** `FinancialControlPreparation` and `FinancialPostingPreparation` assemble requests, prechecks, expected versions and canonical hashes; these can remain client-side. Existing backend ledger validation and persistence remain authoritative. Preserve accepted contracts, exact decimals and hashes; no new financial preparation endpoint is needed solely to replace these helpers.
+3. **Pending journals require compatibility.** `PendingFinancialOperationStore` and `PendingFinancialConfigurationStore` retain exact requests and uncertain operation IDs under the user profile. Port loading, serialization, atomic replacement, locks, size bounds and reconciliation. Never generate a replacement operation ID because the UI restarted or transport timed out.
+4. **Managed orchestration exists outside view models.** Bridge sessions directly access APIs, format publications, cache rows, apply update generations and dispatch commands. `UiServiceCatalog`, client composition, API clients and UI event consumers are part of the migration boundary. Porting only the model projects would leave a managed dependency.
+5. **Preserve recent runtime fixes.** Include API-only ValueDate, durable live-feed restoration, two-minute option/API recovery messages, EOD updates, six-hour chart range/merge, latest-value queue behavior and daily indicator baseline/stale/error reporting in the acceptance registry.
+6. **An old rendering port is not standalone qualification.** Most native views consume managed MessagePack publications today. Reuse their geometry/styles/widgets while replacing their provider and action owner. Fixture rendering does not verify broker actions, field validation, backend queries or subscription cleanup.
+
+### Implementation phases
+
+| Phase | Deliverable | Completion gate |
+| --- | --- | --- |
+| 0 — Freeze scope and contracts | Reconcile every inventory row against menu routes, construction/registration and bridge dispatch; record each command/query/function/event, endpoint, payload, identity, hash and owner | No unclassified active model, helper, bridge action or event path; ambiguous/dead-code candidates documented separately |
+| 1 — Create the single Rust application | Create `TomasAI.IFM.UI.Rust.eGui`; one UI binary/event loop, embedded assets/catalog, typed feature modules, background task supervision and configuration | Starts and closes on Windows without loading hostfxr, CLR or any managed UI assembly; old hybrid stays available for comparison |
+| 2 — Implement direct backend compatibility | Rust request/reply and subscriptions over existing NATS, MessagePack-CSharp/LZ4 compatibility, exact IDs/decimals/dates/enums and existing HTTP health adapters | Cross-language golden payloads and actual isolated NATS round trips, compression boundaries, cancellation, errors, tracing headers and reconnect |
+| 3 — Close backend preparation gaps | Complete B1-B7 in the backend boundary audit; reuse existing preview/realtime engines and exclude unused WinForms pricing paths | UI consumes server-prepared financial values and business context; integrated tests cover risk/fees, metrics, saved/live projections and server-controlled dates; financial request helpers remain portable client code |
+| 4 — Port shared client state and persistence | Scoped view lifetimes, operation correlation, unknown-outcome reconciliation, compatible journals, caches and queue policies | Deterministic restart/reconnect tests; latest market snapshots can coalesce while commands, financial outcomes and terminal errors remain reliable |
+| 5 — Port feature groups | Shell/market/reference; strategy/inspection; operations; portfolio/financial; order composition; established monitoring, following the matrix | Each inventory row has a Rust owner or an approved replacement, and each supported view/action has source-linked parity evidence |
+| 6 — Full integration and desktop qualification | Real API query/event workflows, isolated/emulator order and ledger tests, both recovery branches, startup/close/open/reconnect and all supported forms/dialogs | Existing API + Rust client integration passes; FlaUI/AccessKit UIA checks and Rust widget/visual checks cover geometry, controls, actions, accessibility and failures |
+| 7 — Package and cut over | Produce `TomasAI.IFM.UI.Rust.eGui.exe`; update VS Code tasks, build/package scripts, ServerManager process paths and diagnostics | Package starts without .NET installed and has no managed/helper UI process; secrets remain external; full acceptance evidence recorded before legacy retirement approval |
+
+Phases are dependency ordered. Feature groups can be implemented incrementally, but the final executable cannot call back into the old managed bridge. Move or reuse tested Rust view code without requiring the old hybrid executable as a production dependency. Do not remove WinForms or the hybrid as part of this planning update.
+
+### Testing, acceptance and inventory closure
+
+- **Protocol:** both directions for each reachable wire contract, MessagePack numeric/map keys, extension values, LZ4 framing, null/default fields, UTC/DateOnly/time spans, enum/union values, decimals and canonical hashes. Offline C# fixture generators may remain test tools; they are not runtime dependencies.
+- **State:** pending/loading/success/failure/cancelled/unknown outcomes; request identity across retry; late results after closing/reopening a view; stable selections; subscriptions detached exactly once; completed requests removed from bounded history.
+- **Market/monitor integration:** API-provided ValueDate at rollover and historical dates; six-hour database history before/alongside buffered live updates; no clearing a valid baseline on failed refresh; valid values survive N/A updates; independent dataset recovery; indicator baseline and error notices.
+- **Trading/financial:** account/environment qualification, emulator isolation, immutable component IDs, broker acknowledgements, no blind retry after an uncertain submission, both journal formats and server rejection handling. Do not use real orders or financial writes merely to establish UI parity.
+- **Desktop:** inventory all reachable forms and runtime-generated controls; preserve approved Rust color conventions, layout/dimensions, labels, selection, keyboard/focus, enabled states, scrolling and border containment. FlaUI is an external Windows acceptance runner; Rust widget tests and screenshots supplement controls that UIA cannot individually address. Missing accessibility evidence remains an open gate.
+- **Packaging:** inspect imports and loaded modules; test on a clean Windows environment without .NET; verify exactly one UI process and no hostfxr/bridge load, no local pricing engine and no connection from the UI to a database. Configuration/journal/log files do not count as extra executable processes.
+- **Performance:** keep I/O and expensive projection off the egui thread; measure allocation rate, resident memory, queue depth, frame time and end-to-end update latency. Bound grids by viewport and server paging. Use latest-value replacement only for disposable market display updates, with per-entity identity; never evict financial commands or terminal notifications as if they were quotes.
+- **Closure:** every CSV row needs a final Rust module/backend owner or a justified inactive/merged disposition, its operation mapping and test evidence. Repeat the inventory before cutover to detect newly added models or routes. Static counts alone cannot certify full migration.
+
+### Feasibility conclusion
+
+**A complete migration to one Rust executable is feasible.** Existing native egui views provide a substantial rendering base, and the backend already supplies command/query/event boundaries. The work is a client orchestration, contract and state-lifetime migration as well as a rendering migration. The remaining local financial helpers and request/journal compatibility are concrete implementation dependencies, not evidence that a second UI process or a CLR must remain. Full standalone parity is not yet verified; closure requires the per-row and per-feature gates above.
+
+## Historical WinForms/hybrid migration record
 
 Date: 2026-10-13. Windows first; WinForms remains supported. Full migration implementation and testing authorized by the user on 2026-10-13. WinForms remains available during migration.
 

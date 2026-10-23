@@ -29,9 +29,10 @@ public sealed class EstablishedIronCondorViewModelTests
         recovery.EnableAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(true);
         recovery.DisableAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(true);
         var queries = Substitute.For<IEstablishedTradeQueryApi>();
-        queries.GetAsync(trade.Id,TradeStrategyKind.IronCondor,Arg.Any<CancellationToken>()).Returns(new ServiceOk<EstablishedTradeDefinition>(trade));
+        queries.GetAsync(trade.Id,TradeStrategyKind.IronCondor,Arg.Any<CancellationToken>()).Returns(new ServiceOk<EstablishedTradeDefinition>(StrategyPositionHistoryProjection.EnrichTrade(trade)));
         queries.GetRealtimeAsync(trade.Id,date,Arg.Any<CancellationToken>()).Returns(new ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot>((TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshot)null!));
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.EstablishedTrades.Returns(queries); ConfigureTradeLimits(services);
         var positions = Substitute.For<IStrategyPositionQueryApi>();
         positions.GetHistoryAsync(Arg.Any<StrategyPositionId>(),TradeStrategyKind.IronCondor,Arg.Any<DateTime>(),Arg.Any<DateTime>(),Arg.Any<CancellationToken>())
@@ -39,6 +40,7 @@ public sealed class EstablishedIronCondorViewModelTests
         services.StrategyPositions.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyPositionService(Substitute.For<IStrategyPositionCommandApi>(),positions));
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
         var market = Substitute.For<TomasAI.IFM.Domain.MarketData.Shared.ServiceApi.IMarketDataQueryApi>();
+        market.GetMarketSessionAsync().Returns(new ServiceOk<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel>(ServerSession()));
         market.GetValueDateAsync().Returns(new ServiceOk<ScalarReadModel<DateOnly>>(new(date)));
         services.MarketDataQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketData.MarketDataQueryService(market,Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>()));
         services.FeedCommands.Returns(new TomasAI.IFM.UI.Net.Services.MarketDataFeed.MarketDataFeedCommandService(
@@ -55,7 +57,8 @@ public sealed class EstablishedIronCondorViewModelTests
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
         var vm = new IronCondorViewModel(root,new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel{OrderId=1701}),new PortfolioFundOrderTradeEditorModel{TradeId=1101},
-            historical ? date.AddDays(-1) : null,[],historicalReadOnly:historical,establishedTrade:trade,brokerEnvironment:BrokerEnvironment.Emulator);
+            historical ? date.AddDays(-1) : null,[],historicalReadOnly:historical,establishedTrade:StrategyPositionHistoryProjection.EnrichTrade(trade),brokerEnvironment:BrokerEnvironment.Emulator);
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         await vm.LoadEstablishedTradeAsync();
         Assert.Equal(saved && !historical,vm.IsLiveFeedEnabled);
         if (!historical) await recovery.Received(1).LoadAsync(trade.Id,date,Arg.Any<CancellationToken>());
@@ -88,10 +91,11 @@ public sealed class EstablishedIronCondorViewModelTests
         StrategyPositionSnapshot[] persisted = [intraday];
         var positions = Substitute.For<IStrategyPositionQueryApi>();
         positions.GetHistoryAsync(id, TradeStrategyKind.IronCondor, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
-            .Returns(_ => new ServiceOk<StrategyPositionSnapshot[]>(persisted));
+            .Returns(_ => new ServiceOk<StrategyPositionSnapshot[]>(persisted.Select(p => StrategyPositionHistoryProjection.EnrichPosition(p, trade)).ToArray()));
         var trades = Substitute.For<IEstablishedTradeQueryApi>();
-        trades.GetAsync(trade.Id, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>()).Returns(new ServiceOk<EstablishedTradeDefinition>(trade));
+        trades.GetAsync(trade.Id, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>()).Returns(new ServiceOk<EstablishedTradeDefinition>(StrategyPositionHistoryProjection.EnrichTrade(trade)));
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         ConfigureTradeLimits(services);
         services.EstablishedTrades.Returns(trades);
         services.StrategyPositions.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyPositionService(Substitute.For<IStrategyPositionCommandApi>(), positions));
@@ -113,7 +117,8 @@ public sealed class EstablishedIronCondorViewModelTests
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services);
         var vm = new IronCondorViewModel(root, new PortfolioFundEditorModel(701, "Fund", "", 0, false, DateTime.UtcNow, "test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: StrategyPositionHistoryProjection.EnrichTrade(trade));
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         await vm.LoadEstablishedTradeAsync();
         onStatus.Should().NotBeNull("a loaded trade listens even without live quote monitoring");
         vm.TradeHistory.Last().TradeStatus.Should().Be(TradeStatus.IntraDay);
@@ -151,6 +156,7 @@ public sealed class EstablishedIronCondorViewModelTests
     public async Task Terminal_option_failure_turns_live_off_reports_error_and_only_allows_confirmed_restart(bool cleanupConfirmed)
     {
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
             Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
@@ -158,7 +164,8 @@ public sealed class EstablishedIronCondorViewModelTests
             Status = EstablishedTradeStatus.Open };
         var vm = new IronCondorViewModel(root, new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade, brokerEnvironment: BrokerEnvironment.Emulator);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: StrategyPositionHistoryProjection.EnrichTrade(trade), brokerEnvironment: BrokerEnvironment.Emulator);
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         typeof(IronCondorViewModel).GetProperty(nameof(vm.IsLiveFeedEnabled))!.SetValue(vm, true);
         var failed = new TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.OptionMarketDataFeedFailedEvent
         {
@@ -179,6 +186,7 @@ public sealed class EstablishedIronCondorViewModelTests
     public async Task Feed_stop_notification_turns_monitoring_off_and_feed_restart_requires_manual_reactivation()
     {
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
             Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
@@ -187,7 +195,8 @@ public sealed class EstablishedIronCondorViewModelTests
         var vm = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade, brokerEnvironment: BrokerEnvironment.Emulator);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: StrategyPositionHistoryProjection.EnrichTrade(trade), brokerEnvironment: BrokerEnvironment.Emulator);
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         typeof(IronCondorViewModel).GetProperty(nameof(vm.IsLiveFeedEnabled))!.SetValue(vm,true);
         var changed = new List<string?>();
         vm.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
@@ -215,10 +224,12 @@ public sealed class EstablishedIronCondorViewModelTests
             OpeningValue = -13.05m, OpeningCommission = 2.6m,
             Legs = [new TradeLegDefinition { Expiry = new DateOnly(2026,11,20) }]
         };
+        actual = StrategyPositionHistoryProjection.EnrichTrade(actual);
         var queries = Substitute.For<IEstablishedTradeQueryApi>();
         queries.GetAsync(actual.Id, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<EstablishedTradeDefinition>(mismatch ? actual with { Id = new(101,701,1601,1001) } : actual));
-        var services = Substitute.For<IUiServiceCatalog>(); services.EstablishedTrades.Returns(queries);
+        var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services); services.EstablishedTrades.Returns(queries);
         ConfigureTradeLimits(services);
         var positionQueries = Substitute.For<IStrategyPositionQueryApi>();
         positionQueries.GetHistoryAsync(Arg.Any<StrategyPositionId>(), TradeStrategyKind.IronCondor,
@@ -233,6 +244,7 @@ public sealed class EstablishedIronCondorViewModelTests
         var viewModel = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"), order,
             new PortfolioFundOrderTradeEditorModel { TradeId = 101 }, null, [], establishedTrade: actual);
+        viewModel.ApplyMarketSessionSnapshot(ServerSession());
         if (mismatch)
             await FluentActions.Awaiting(() => viewModel.LoadEstablishedTradeAsync()).Should().ThrowAsync<InvalidOperationException>();
         else
@@ -241,8 +253,8 @@ public sealed class EstablishedIronCondorViewModelTests
             var opening = viewModel.TradeHistory.Should().ContainSingle().Subject;
             opening.OrderId.Should().Be(1701); opening.TradeId.Should().Be(1101);
             opening.TradeStatus.Should().Be(TradeStatus.Open);
-            opening.ValueDate.Should().Be(new DateOnly(2026,10,6));
-            opening.DaysToExpiry.Should().Be(45);
+            opening.ValueDate.Should().Be(new DateOnly(2026,10,7));
+            opening.DaysToExpiry.Should().Be(44);
             opening.NetSpread.Should().Be(-13.05m); opening.Commission.Should().Be(2.6m);
         }
         await queries.Received(1).GetAsync(actual.Id, TradeStrategyKind.IronCondor, Arg.Any<CancellationToken>());
@@ -264,13 +276,15 @@ public sealed class EstablishedIronCondorViewModelTests
             StrategyKind = TradeStrategyKind.IronCondor,
             Legs = ids.Select((id, i) => new TradeLegDefinition { TradeLegId = id, ContractId = $"option-{i}" }).ToArray() };
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
             Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services);
         var viewModel = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: StrategyPositionHistoryProjection.EnrichTrade(trade));
+        viewModel.ApplyMarketSessionSnapshot(ServerSession());
         var position = new StrategyPositionSnapshot { Id = new(trade.Id, Guid.NewGuid()),
             StrategyKind = TradeStrategyKind.IronCondor, PositionSequence = 10, RouteGeneration = 2,
             AsOfUtc = DateTime.UtcNow, Legs = trade.Legs.Select(leg => new StrategyPositionLeg {
@@ -306,6 +320,7 @@ public sealed class EstablishedIronCondorViewModelTests
         api.GetIronCondorHistoryAsync(positionId, date, 200, Arg.Is<byte[]>(state => state.Length == 1), Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.StrategyTradePlanHistoryPage>(new([latest with { PlanRevision = 1 }], null)));
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.StrategyTradePlanQueries.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyTradePlanQueryService(api));
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
             Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
@@ -313,9 +328,10 @@ public sealed class EstablishedIronCondorViewModelTests
         var vm = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: trade);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade: StrategyPositionHistoryProjection.EnrichTrade(trade));
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         typeof(IronCondorViewModel).GetProperty(nameof(vm.TradeHistory))!.SetValue(vm,
-            new[] { IronCondorViewModel.CreateOpeningPosition(trade, TradeType.ShortIronCondor) });
+            new[] { IronCondorViewModel.CreateOpeningPosition(StrategyPositionHistoryProjection.EnrichTrade(trade), TradeType.ShortIronCondor) });
         var displayedCounts = new List<int>();
         vm.PropertyChanged += (_,e) => {
             if (e.PropertyName == nameof(vm.IronCondorPlanHistory)) displayedCounts.Add(vm.IronCondorPlanHistory.Count);
@@ -341,14 +357,14 @@ public sealed class EstablishedIronCondorViewModelTests
             }).ToArray()
         };
         var id = StrategyPositionId.Create(trade.Id,TradeStrategyKind.IronCondor);
-        StrategyPositionSnapshot Position(int day,long sequence,StrategyPositionPhase phase) => new() {
+        StrategyPositionSnapshot Position(int day,long sequence,StrategyPositionPhase phase) => StrategyPositionHistoryProjection.EnrichPosition(new() {
             Id = id, StrategyKind = TradeStrategyKind.IronCondor, ValueDate = date.AddDays(day),
             PositionSequence = sequence, Phase = phase, RouteGeneration = 1,
             AsOfUtc = date.AddDays(day).ToDateTime(new TimeOnly(20,0),DateTimeKind.Utc), DailyPnl = sequence
-        };
+        }, trade);
         var queries = Substitute.For<IEstablishedTradeQueryApi>();
         queries.GetAsync(trade.Id,TradeStrategyKind.IronCondor,Arg.Any<CancellationToken>())
-            .Returns(new ServiceOk<EstablishedTradeDefinition>(trade));
+            .Returns(new ServiceOk<EstablishedTradeDefinition>(StrategyPositionHistoryProjection.EnrichTrade(trade)));
         var positions = Substitute.For<IStrategyPositionQueryApi>();
         positions.GetHistoryAsync(id,TradeStrategyKind.IronCondor,Arg.Any<DateTime>(),Arg.Any<DateTime>(),Arg.Any<CancellationToken>())
             .Returns(new ServiceOk<StrategyPositionSnapshot[]>([
@@ -356,7 +372,8 @@ public sealed class EstablishedIronCondorViewModelTests
                 Position(0,10,StrategyPositionPhase.MarkToMarket), Position(1,19,StrategyPositionPhase.MarkToMarket),
                 Position(0,1,StrategyPositionPhase.Open)
             ]));
-        var services = Substitute.For<IUiServiceCatalog>(); services.EstablishedTrades.Returns(queries);
+        var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services); services.EstablishedTrades.Returns(queries);
         ConfigureTradeLimits(services);
         services.StrategyPositions.Returns(new TomasAI.IFM.UI.Net.Services.Trade.StrategyPositionService(
             Substitute.For<IStrategyPositionCommandApi>(),positions));
@@ -379,7 +396,8 @@ public sealed class EstablishedIronCondorViewModelTests
         var vm = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null,[],establishedTrade:trade);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null,[],establishedTrade:StrategyPositionHistoryProjection.EnrichTrade(trade));
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         await vm.LoadEstablishedTradeAsync();
         vm.TradeHistory.Select(row => row.ValueDate).Should().Equal(date,date,date.AddDays(1),date.AddDays(2));
         vm.TradeHistory.Select(row => row.TradeStatus).Should().Equal(TradeStatus.Open,TradeStatus.IntraDay,TradeStatus.EndOfDay,TradeStatus.Close);
@@ -407,16 +425,18 @@ public sealed class EstablishedIronCondorViewModelTests
     public async Task Closed_trades_cannot_start_monitoring_and_active_monitoring_locks_history(EstablishedTradeStatus status, bool allowed)
     {
         var services = Substitute.For<IUiServiceCatalog>();
+        ConfigureSession(services);
         services.CommandResponses.Returns(new TomasAI.IFM.UI.Net.Services.Application.CommandResponseEventService(
             Substitute.For<TomasAI.IFM.UI.EventConsumer.ICommandResponseUIEventConsumer>()));
         var root = Substitute.For<IAppRoot>(); root.Services.Returns(services); root.AppEnvironment.Returns("Development");
         var trade = new EstablishedTradeDefinition { Id = new(101,701,1701,1101), StrategyKind = TradeStrategyKind.IronCondor,
-            Status = status, Legs = Enumerable.Range(0,4).Select(i => new TradeLegDefinition {
+            EstablishedAtUtc = new DateTime(2026,10,22,12,0,0,DateTimeKind.Utc), Status = status, Legs = Enumerable.Range(0,4).Select(i => new TradeLegDefinition {
                 TradeLegId = Guid.NewGuid(), ContractId = $"option-{i}", Expiry = new DateOnly(2026,12,18), SignedQuantity = 1 }).ToArray() };
         var vm = new IronCondorViewModel(root,
             new PortfolioFundEditorModel(701,"Fund","",0,false,DateTime.UtcNow,"test"),
             new PortfolioFundOrderEditorModel(new FundOrderProjectionReadModel { OrderId = 1701 }),
-            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade:trade, brokerEnvironment:BrokerEnvironment.Emulator);
+            new PortfolioFundOrderTradeEditorModel { TradeId = 1101 }, null, [], establishedTrade:StrategyPositionHistoryProjection.EnrichTrade(trade), brokerEnvironment:BrokerEnvironment.Emulator);
+        vm.ApplyMarketSessionSnapshot(ServerSession());
         vm.CanEnableLiveFeed.Should().Be(allowed);
         vm.CanSelectPositionHistory.Should().BeTrue();
         if (!allowed)
@@ -434,6 +454,7 @@ public sealed class EstablishedIronCondorViewModelTests
             StrategyKind = TradeStrategyKind.IronCondor, Phase = StrategyPositionPhase.MarkToMarket,
             ValueDate = new DateOnly(2026,10,9), AsOfUtc = DateTime.UtcNow, PositionSequence = 1, DailyPnl = -25m,
             Legs = trade.Legs.Select(leg => new StrategyPositionLeg { TradeLegId = leg.TradeLegId, ContractId = leg.ContractId }).ToArray() };
+        position = StrategyPositionHistoryProjection.EnrichPosition(position, trade);
         vm.ApplyIronCondorPosition(position).Should().BeTrue();
         vm.ApplyIronCondorPosition(position with { PositionSequence = 2, DailyPnl = -35m }).Should().BeTrue();
         vm.IronCondorPosition!.DailyPnl.Should().Be(-35m);
@@ -453,7 +474,7 @@ public sealed class EstablishedIronCondorViewModelTests
         trade.MaturityDate.Should().Be(new DateOnly(2026,11,20));
         trade.TradeDate.Should().Be(new DateOnly(2026,10,9));
         (trade with { EstablishedAtUtc = default }).TradeDate.Should().BeNull();
-        IronCondorViewModel.CreateOpeningPosition(trade,TradeType.ShortIronCondor).DaysToExpiry.Should().Be(42);
+        IronCondorViewModel.CreateOpeningPosition(StrategyPositionHistoryProjection.EnrichTrade(trade),TradeType.ShortIronCondor).DaysToExpiry.Should().Be(42);
         (trade with { Legs = [new TradeLegDefinition()] }).MaturityDate.Should().BeNull();
     }
 
@@ -470,6 +491,18 @@ public sealed class EstablishedIronCondorViewModelTests
             TradeId = 1101, TradeType = TradeType.ShortIronCondor, MaxProfit = 652.50m, RiskMargin = 1847.50m
         }));
         services.TradeQueries.Returns(new TomasAI.IFM.UI.Net.Services.Trade.TradeQueryService(queries));
+    }
+
+    static TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel ServerSession() => new() {
+        OperationalValueDate = new(2026,10,22), ActiveValueDate = new(2026,10,22),
+        State = TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.LiveTrading, AllowDevelopmentEmulator = true,
+        SessionStartUtc = new(2026,10,21,22,0,0,DateTimeKind.Utc), SessionEndUtc = new(2026,10,22,21,0,0,DateTimeKind.Utc),
+        NextTransitionUtc = new(2026,10,22,21,0,0,DateTimeKind.Utc), AsOfUtc = new(2026,10,22,12,0,0,DateTimeKind.Utc), Revision = 1 };
+    static void ConfigureSession(IUiServiceCatalog services) {
+        var market = Substitute.For<TomasAI.IFM.Domain.MarketData.Shared.ServiceApi.IMarketDataQueryApi>();
+        market.GetMarketSessionAsync().Returns(new ServiceOk<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel>(ServerSession()));
+        services.MarketDataQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketData.MarketDataQueryService(market,
+            Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>()));
     }
 
 }

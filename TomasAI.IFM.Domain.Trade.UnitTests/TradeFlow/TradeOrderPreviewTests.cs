@@ -115,16 +115,22 @@ public sealed class TradeOrderPreviewTests
     }
 
     [Fact]
-    public async Task Query_replies_with_totals_and_structured_failures_without_reading_or_mutating_state()
+    public async Task Query_resolves_tick_reference_and_replies_without_mutating_state()
     {
         var context = Substitute.For<ITradeOrderQueryContext>();
-        var query = new GetTradeOrderPreviewQuery { Subject = new(ActorType.Query, GetTradeOrderPreviewQuery.Actor, GetTradeOrderPreviewQuery.Verb, "Preview"), TradeOrderPreviewRequest = Condor() };
+        var db = Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>();
+        var securities = Substitute.For<TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext>();
+        db.SecuritiesDb.Returns(securities); context.DbFactory.Returns(db);
+        securities.GetFuturesContractAsync("ES", Arg.Any<CancellationToken>()).Returns(
+            new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel("ES","ESZ6","ES","ESZ6","FUT","USD","XCME","50",new(2026,12,18),true,true) { TickSize=.25m });
+        var future = Condor() with { SelectedLegs=[new("ES",1,1,null,false,true,10m,10.25m,null,null,50m)] };
+        var query = new GetTradeOrderPreviewQuery { Subject = new(ActorType.Query, GetTradeOrderPreviewQuery.Actor, GetTradeOrderPreviewQuery.Verb, "Preview"), TradeOrderPreviewRequest = future };
         await query.ExecuteAsync(context, CancellationToken.None);
-        context.Received().ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Is<ServiceResult<TradeOrderPreview>>(x => x.Success && x.Value!.MaximumLoss == 340));
-        var invalid = query with { TradeOrderPreviewRequest = Condor() with { StrategyQuantity = 0 } };
+        context.Received().ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Is<ServiceResult<TradeOrderPreview>>(x => x.Success && x.Value!.ResolvedTickIncrement == .25m));
+        var invalid = query with { TradeOrderPreviewRequest = future with { StrategyQuantity = 0 } };
         await invalid.ExecuteAsync(context, CancellationToken.None);
         context.Received().ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Is<ServiceResult<TradeOrderPreview>>(x => !x.Success && x.ErrorCode == 400));
-        Assert.DoesNotContain(context.ReceivedCalls(), x => x.GetMethodInfo().Name == "get_DbFactory");
+        await securities.Received(2).GetFuturesContractAsync("ES", Arg.Any<CancellationToken>());
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ExecuteAsync(context, cancelled.Token).AsTask());
     }

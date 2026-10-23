@@ -27,6 +27,9 @@ public sealed record EstablishedTradeDefinition
     [Key(14)] public DateTime? ClosedAtUtc { get; init; }
     /// <summary>Portfolio-approved risk amounts finalized using actual opening fills; absent on historical events.</summary>
     [Key(15)] public EstablishedTradeMonitoringLimits? MonitoringLimits { get; init; }
+    /// <summary>Query-enriched execution-backed opening snapshot, never synthesized in the frontend.</summary>
+    [Key(16)] public StrategyPositionSnapshot? OpeningPositionSnapshot { get; init; }
+    [Key(17)] public StrategyPositionHistoryValuation? OpeningHistoryValuation { get; init; }
     /// <summary>The execution-derived futures session date; no date is assigned before accepted fills establish the trade.</summary>
     [IgnoreMember] public DateOnly? TradeDate => EstablishedAtUtc == default ? null
         : TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate.GetOperational(new DateTimeOffset(EstablishedAtUtc));

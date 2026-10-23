@@ -39,5 +39,13 @@ public sealed record StrategyPositionSnapshot
     [Key(19)] public DateTime HistoryAsOfUtc { get; init; }
     /// <summary>Gets the stable history-row sequence; current-position sequence advances independently.</summary>
     [Key(20)] public long HistoryPositionSequence { get; init; }
+    /// <summary>Backend-valued history display; absent on old stored events until query enrichment.</summary>
+    [Key(21)] public StrategyPositionHistoryValuation? HistoryValuation { get; init; }
 
 }
+
+[MessagePackObject]
+public sealed record StrategyPositionHistoryValuation(
+    [property: Key(0)] DateOnly ValueDate, [property: Key(1)] int DaysToExpiry,
+    [property: Key(2)] int Quantity, [property: Key(3)] decimal NetPrice,
+    [property: Key(4)] decimal Commission);

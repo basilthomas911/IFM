@@ -10,8 +10,11 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Order.Query.Actor;
-public sealed class TradeOrderQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<TradeOrderQueryActor> logger) : QueryActorContext(supervisor, new ActorMailboxId(ActorType.Query, TradeOrderQueryActor.ActorName)), ITradeOrderQueryContext
+public sealed class TradeOrderQueryContext(IActorSupervisor supervisor, IDbContextFactory dbFactory, ILogger<TradeOrderQueryActor> logger, TimeProvider? preparationClock = null, Microsoft.Extensions.Configuration.IConfiguration? preparationConfiguration = null, TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority? marketSessionAuthority = null) : QueryActorContext(supervisor, new ActorMailboxId(ActorType.Query, TradeOrderQueryActor.ActorName)), ITradeOrderQueryContext
 {
+    public TimeProvider PreparationClock { get; } = preparationClock ?? TimeProvider.System;
+    public Microsoft.Extensions.Configuration.IConfiguration? PreparationConfiguration { get; } = preparationConfiguration;
+    public TomasAI.IFM.Domain.MarketData.Shared.IFuturesMarketSessionAuthority? MarketSessionAuthority { get; } = marketSessionAuthority;
     public IDbContextFactory DbFactory { get; } = dbFactory;
     public ILogger<TradeOrderQueryActor> Logger { get; } = logger;
 }

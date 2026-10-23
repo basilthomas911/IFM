@@ -69,6 +69,13 @@ async Task<int> RunWorkerAsync()
     var generation = worker.GenerationId;
     DatasetSubscriptionManifest? currentManifest = null;
     DatasetWorkerRuntime? datasetRuntime = null;
+    TomasAI.IFM.Framework.MarketData.DataBento.DatabentoDiagnostics.Install(diagnostic =>
+    {
+        var level = diagnostic.Kind != 2 ? Serilog.Events.LogEventLevel.Error
+            : diagnostic.Code == 2 || diagnostic.Code == 255 ? Serilog.Events.LogEventLevel.Warning : Serilog.Events.LogEventLevel.Information;
+        Log.Write(level, "Databento provider diagnostic; Dataset={Dataset}; WorkerInstanceId={WorkerInstanceId}; GenerationId={GenerationId}; Kind={Kind}; Code={Code}; CodeName={CodeName}; SessionFatal={SessionFatal}; IsLast={IsLast}; Detail={Detail}",
+            worker.Dataset, worker.WorkerInstanceId, generation, diagnostic.Kind, diagnostic.Code, diagnostic.CodeName, diagnostic.SessionFatal, diagnostic.IsLast, diagnostic.Message);
+    });
     PipeDatasetWorkerPublisher? pipePublisher = null;
     using var stopping = new CancellationTokenSource();
 
@@ -135,6 +142,8 @@ async Task<int> RunWorkerAsync()
                     }
                     catch (Exception apiFailure) when (!stopping.IsCancellationRequested)
                     {
+                        datasetRuntime?.MarkFailed(apiFailure);
+                        Log.Error("Worker API processing failed; CorrelationId={CorrelationId}; Failure={Failure}", command.CorrelationId, DatasetWorkerLogging.Redact(apiFailure.ToString()));
                         await WriteAsync(DatasetWorkerMessageKind.MarketDataApiResult, datasetRuntime?.IsHealthy == true,
                             "Market-data API operation failed.", command.CorrelationId, apiError: DatasetWorkerLogging.Redact(apiFailure.Message)).ConfigureAwait(false);
                     }
@@ -162,6 +171,7 @@ async Task<int> RunWorkerAsync()
                     }
                     catch (Exception exception) when (!stopping.IsCancellationRequested)
                     {
+                        datasetRuntime?.MarkFailed(exception);
                         Log.Error("{Component}.{Method} control {CommandKind} failed for {CorrelationId}: {Failure}",
                             "DatasetWorker", "RunWorkerAsync", command.Kind, command.CorrelationId, DatasetWorkerLogging.Redact(exception.ToString()));
                         var detail = exception.GetType().Name + ": " + exception.Message;

@@ -484,7 +484,8 @@ impl PortfolioManager {
                         .iter()
                         .enumerate()
                         {
-                            columns[i].add(presentation::caption_widget(*title));
+                            columns[i].add(presentation::caption_widget(*title))
+                                .on_hover_text(document.context.get("metricsBasis").map(String::as_str).unwrap_or(""));
                             let mut value = document
                                 .context
                                 .get(&format!("metric{i}"))

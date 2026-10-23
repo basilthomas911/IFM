@@ -19,6 +19,10 @@
 extern "C" {
 #endif
 
+// Process-lifetime callback; message memory is borrowed only for the call. kind: 1 provider error, 2 system, 3 native terminal error.
+typedef void (DBF_CALL *dbf_diagnostic_callback)(int32_t kind, int32_t code, int32_t fatal, int32_t is_last, const uint8_t* message, uint32_t length);
+DBF_API void DBF_CALL dbf_set_diagnostic_callback(dbf_diagnostic_callback callback);
+
 enum { DBF_ABI_VERSION = 3u, DBF_WAIT_INFINITE = 0xffffffffu };
 
 typedef enum dbf_status {

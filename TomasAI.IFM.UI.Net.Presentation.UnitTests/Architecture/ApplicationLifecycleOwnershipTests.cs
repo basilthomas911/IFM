@@ -30,25 +30,27 @@ public sealed class ApplicationLifecycleOwnershipTests
     [Fact]
     public void API_registers_actor_dispatch_and_not_the_legacy_rollover_host()
     {
-        var source = File.ReadAllText(Path.Combine(
-            root,
-            "TomasAI.IFM.Application.Api.Server",
-            "Startup.cs"));
-        Assert.Contains("AddHostedService<ApplicationStartupCommandDispatcher>()", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("AddHostedService<FuturesContractRolloverStartupService>()", source, StringComparison.Ordinal);
-        Assert.Contains("tags: [\"bootstrap\", \"launch\", \"ready\"]", source, StringComparison.Ordinal);
-        Assert.Contains("AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])", source, StringComparison.Ordinal);
-        Assert.Contains("/health/bootstrap", source, StringComparison.Ordinal);
-        Assert.Contains("/health/actors", source, StringComparison.Ordinal);
+        var facade = File.ReadAllText(Path.Combine(root, "TomasAI.IFM.Application.Api.Server", "Startup.cs"));
+        Assert.Contains("CoreServiceRegistration.RegisterServices", facade, StringComparison.Ordinal);
+        var local = Core("DependencyInjection/MarketData/RegisterMarketDataRuntimeServices.cs");
+        var remote = Core("DependencyInjection/MarketData/RegisterRemoteMarketDataRuntimeServices.cs");
+        foreach (var registration in new[] { local, remote })
+            Assert.Contains("AddHostedService<ApplicationStartupCommandDispatcher>()", registration, StringComparison.Ordinal);
+        var registrations = string.Join("\n", Directory.EnumerateFiles(Path.Combine(root,
+            "TomasAI.IFM.Application.Api.Server.Core", "DependencyInjection"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
+        Assert.DoesNotContain("AddHostedService<FuturesContractRolloverStartupService>()", registrations, StringComparison.Ordinal);
+        var health = Core("DependencyInjection/Observability/RegisterHostOptionsAndHealth.cs");
+        Assert.Contains("tags: [\"bootstrap\", \"launch\", \"ready\"]", health, StringComparison.Ordinal);
+        Assert.Contains("AddCheck<ActorRuntimeHealthCheck>(\"actor_runtime\", tags: [\"actor\", \"bootstrap\", \"launch\", \"ready\"])", health, StringComparison.Ordinal);
+        var pipeline = Core("Http/Middleware/ApiRequestPipeline.cs");
+        Assert.Contains("/health/bootstrap", pipeline, StringComparison.Ordinal);
+        Assert.Contains("/health/actors", pipeline, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Market_data_health_is_operational_readiness_not_ui_launch_readiness()
     {
-        var source = File.ReadAllText(Path.Combine(
-            root,
-            "TomasAI.IFM.Application.Api.Server",
-            "Startup.cs"));
+        var source = Core("DependencyInjection/Observability/RegisterHostOptionsAndHealth.cs");
 
         Assert.Contains(
             """AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])""",
@@ -69,14 +71,8 @@ public sealed class ApplicationLifecycleOwnershipTests
             "Service",
             "Lifecycle",
             "SupervisorManagedActorLifecycle.cs"));
-        var apiStartup = File.ReadAllText(Path.Combine(
-            root,
-            "TomasAI.IFM.Application.Api.Server",
-            "Startup.cs"));
-        var actorMaps = File.ReadAllText(Path.Combine(
-            root,
-            "TomasAI.IFM.Application.Api.Server",
-            "ActorMaps.cs"));
+        var apiStartup = Core("DependencyInjection/Observability/RegisterHostOptionsAndHealth.cs");
+        var actorMaps = Core("Actors/Registration/ActorMaps.cs");
 
         Assert.Contains("Parallel.ForEachAsync(", actorStartup, StringComparison.Ordinal);
         Assert.Contains("options.MaximumConcurrency", actorStartup, StringComparison.Ordinal);
@@ -91,7 +87,7 @@ public sealed class ApplicationLifecycleOwnershipTests
     }
 
     [Fact]
-    public void Lifecycle_paths_report_to_console_without_presentation_errors()
+    public void Lifecycle_listener_setup_reports_to_console_and_terminal_failures_remain_visible()
     {
         var source = File.ReadAllText(Path.Combine(
             root,
@@ -99,12 +95,20 @@ public sealed class ApplicationLifecycleOwnershipTests
             "App",
             "IFMAppViewModel.cs"));
         var applicationListener = Slice(source, "Task StartApplicationEventsListener", "void StartupOpenTrades");
-        var feedListener = Slice(source, "Task StartMarketDataFeedStatusListener", "Task StopMarketDataFeedStatusListener");
+        var feedListener = Slice(source, "Task StartMarketDataFeedStatusListener", "readonly Dictionary<string, Guid> notifiedDatasetRecoveries");
         Assert.DoesNotContain("PublishError", applicationListener, StringComparison.Ordinal);
         Assert.DoesNotContain("PublishError", feedListener, StringComparison.Ordinal);
         Assert.Contains("WriteStatusConsoleAsync", applicationListener, StringComparison.Ordinal);
         Assert.Contains("WriteStatusConsoleAsync", feedListener, StringComparison.Ordinal);
+        var terminal = Slice(source, "public ValueTask ApplyMarketDataFeedStatusAsync", "Task StopMarketDataFeedStatusListener");
+        Assert.Contains("case MarketDataDatasetRecoveryFailedEvent", terminal, StringComparison.Ordinal);
+        Assert.Contains("case OptionMarketDataFeedFailedEvent", terminal, StringComparison.Ordinal);
+        Assert.Contains("PublishError", terminal, StringComparison.Ordinal);
+        Assert.Contains("ShouldNotifyRecovery", terminal, StringComparison.Ordinal);
     }
+
+    string Core(string relativePath) => File.ReadAllText(Path.Combine(root,
+        "TomasAI.IFM.Application.Api.Server.Core", relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
     static string Slice(string source, string start, string end)
     {

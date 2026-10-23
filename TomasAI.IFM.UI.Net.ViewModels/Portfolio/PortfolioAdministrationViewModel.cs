@@ -112,7 +112,7 @@ public sealed class PortfolioAdministrationViewModel(
         var allocation = await _queries.GetFundAllocationAsync(fund.PortfolioId, fund.FundId, cancellationToken);
         if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (allocation.Success) Allocation = allocation.Value;
-        var envelope = await _queries.GetFundRiskEnvelopeAsync(fund.PortfolioId, fund.FundId, DateTime.UtcNow, cancellationToken);
+        var envelope = await _queries.GetFundRiskEnvelopeAsync(fund.PortfolioId, fund.FundId, default, cancellationToken);
         if (generation != Volatile.Read(ref _fundSelectionGeneration)) return;
         if (envelope.Success) RiskEnvelope = envelope.Value;
         var assignments = await _queries.GetAssignmentsAsync(fund.PortfolioId, fund.FundId, fund.FundMandateVersion, cancellationToken);

@@ -17,9 +17,9 @@ namespace TomasAI.IFM.Application.MarketData.Host;
 /// <summary>Owns individual qualified option leases without using the retired in-process epoch.</summary>
 public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery discovery,
     DatasetWorkerAdmissionRegistry admissions, IDbContextFactory databases,
-    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null, ILogger? logger = null) : IAsyncDisposable
+    TreasuryPublicationPolicy publication, TreasuryRateConversionPolicy conversion, IndividualOptionRiskReader? riskReader = null, ILogger? logger = null, TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? health = null) : IAsyncDisposable
 {
-    RecoveringOptionLeaseRegistry recovery = new(discovery, admissions, riskReader, logger);
+    RecoveringOptionLeaseRegistry recovery = new(discovery, admissions, riskReader, logger, health);
     SemaphoreSlim serial = new(1, 1);
     readonly object generations = new();
     readonly HashSet<string> sessions = new(StringComparer.Ordinal);
@@ -47,7 +47,7 @@ public sealed class QualifiedIndividualOptionFeeds(QualifiedCompositionDiscovery
             sessions.Clear();
             ownershipGeneration = Guid.NewGuid();
             previous = recovery;
-            recovery = new(discovery, admissions, riskReader, logger);
+            recovery = new(discovery, admissions, riskReader, logger, health);
             serial = new(1, 1);
         }
         var retiring = previous.DisposeAsync().AsTask();

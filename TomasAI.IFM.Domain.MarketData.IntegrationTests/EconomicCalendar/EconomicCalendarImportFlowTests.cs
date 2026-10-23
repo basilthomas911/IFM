@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Shared.Storage;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -35,17 +37,16 @@ public sealed class EconomicCalendarImportFlowTests(MarketDataFixture fixture)
             "3.8",
             retrievedAt,
             "integration-provider");
-        var provider = Substitute.For<IEconomicCalendar>();
-        provider.GetAsync(
-                importDate,
-                importDate,
-                Arg.Is<IReadOnlySet<string>?>(countries =>
-                    countries != null && countries.Count == 1 && countries.Contains("QY")),
+        var marketData = Substitute.For<IMarketDataApi>();
+        marketData.ReadEconomicCalendarAsync(importDate, importDate,
+                Arg.Is<string[]?>(countries => countries != null && countries.Length == 1 && countries.Contains("QY")),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<EconomicCalendarEntry>>([entry]));
-        var referenceData = Substitute.For<IReferenceDataApi>();
-        referenceData.EconomicCalendar.Returns(provider);
+            .Returns(Task.FromResult<EconomicCalendarEntry[]>([entry]));
         var context = Substitute.For<IEventActorContext>();
+        var settings = new DbConnectionSettings().Add(EventSourceActorDbContext.EventSourceActorDbConnection,
+            Environment.GetEnvironmentVariable("IFM_TEST_POSTGRES_CONNECTION")
+                ?? throw new InvalidOperationException("Isolated PostgreSQL is required."), "System.Data.Postgres");
+        context.Container.Resolve<IPostgresEventTransaction>().Returns(new PostgresEventTransaction(settings));
         EconomicCalendarsImportedCompleteEvent? completed = null;
         context.SendAsync<EconomicCalendarsImportedCompleteEvent, EconomicCalendarId>(
                 Arg.Do<EconomicCalendarsImportedCompleteEvent>(value => completed = value))
@@ -73,7 +74,7 @@ public sealed class EconomicCalendarImportFlowTests(MarketDataFixture fixture)
         {
             var result = await request.ExecuteAsync(
                 context,
-                referenceData,
+                marketData,
                 fixture.DbFactory,
                 NullLogger<EconomicCalendarEventActor>.Instance);
 

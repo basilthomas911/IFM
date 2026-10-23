@@ -27,7 +27,7 @@ internal static class NativeStatus
         throw new DatabentoFeedException(status, message);
     }
 
-    private static unsafe string? ReadLastError(SafeDbFeedHandle feed)
+    internal static unsafe string? ReadLastError(SafeDbFeedHandle feed)
     {
         var status = NativeMethods.FeedGetLastError(feed, null, 0, out var required);
         if (status != DatabentoFeedStatus.BufferTooSmall || required <= 1)
@@ -40,7 +40,7 @@ internal static class NativeStatus
             status = NativeMethods.FeedGetLastError(feed, pointer, required, out _);
         }
         return status == DatabentoFeedStatus.Ok
-            ? Encoding.UTF8.GetString(buffer.AsSpan(0, checked((int)required - 1)))
+            ? DatabentoDiagnostics.Redact(Encoding.UTF8.GetString(buffer.AsSpan(0, checked((int)required - 1))))
             : null;
     }
 }

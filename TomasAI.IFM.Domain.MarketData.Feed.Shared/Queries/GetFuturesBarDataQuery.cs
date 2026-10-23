@@ -44,6 +44,8 @@ public class GetFuturesBarDataQuery : IQuery<FuturesBarDataReadModel[]>
     [Key(6)]
     public DateTime EndDate { get; set; }
 
+    [Key(7)] public bool AcrossValueDates { get; set; }
+
     public GetFuturesBarDataQuery() { }
 
     public GetFuturesBarDataQuery(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate)
@@ -68,8 +70,10 @@ public class GetFuturesBarDataQuery : IQuery<FuturesBarDataReadModel[]>
         string symbol,            // Key(3)
         DateOnly valueDate,       // Key(4)
         DateTime startDate,       // Key(5)
-        DateTime endDate)         // Key(6)
+        DateTime endDate,         // Key(6)
+        bool acrossValueDates = false)
     {
+        AcrossValueDates = acrossValueDates;
         Subject = subject;
         EntityId = new GetFuturesBarDataParameter(contractId, symbol, valueDate, startDate, endDate);
         ContractId = contractId ?? string.Empty;

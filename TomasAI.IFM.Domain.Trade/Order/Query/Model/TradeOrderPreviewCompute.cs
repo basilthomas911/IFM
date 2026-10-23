@@ -22,7 +22,7 @@ public static class TradeOrderPreviewCompute
             || legs.Select(x => x.ContractId).Distinct(StringComparer.Ordinal).Count() != legs.Length)
             throw new ArgumentException("TradeOrder.Preview.INVALID_INPUT: valid distinct legs, quantities, quotes, Greeks and tick increment are required.", nameof(request));
 
-        var preview = new TradeOrderPreview { InputRevision = request.InputRevision,
+        var preview = new TradeOrderPreview { InputRevision = request.InputRevision, ResolvedTickIncrement = request.TickIncrement,
             HasBalancedQuantities = legs.Select(x => x.Quantity).Distinct().Count() <= 1 };
         if (legs is [{ IsFuture: true } future])
             return preview with { OrderPrice = request.EnteredOrderPrice ?? (request.UnderlyingReferencePrice is > 0 ? future.Side * request.UnderlyingReferencePrice : null),
@@ -46,13 +46,9 @@ public static class TradeOrderPreviewCompute
         var cost = preview.HasBalancedQuantities && legs.Select(x => x.CashMultiplier).Distinct().Count() == 1
             ? preview.OrderPrice!.Value * request.StrategyQuantity * legs[0].CashMultiplier!.Value
             : legs.Sum(x => x.Side * (x.Bid!.Value + x.Ask!.Value) / 2 * x.Quantity * x.CashMultiplier!.Value);
-        var profits = legs.Select(x => x.Strike!.Value).Append(0m).Distinct().Select(spot =>
-            legs.Sum(x => x.Side * x.Quantity * x.CashMultiplier!.Value * Math.Max(x.IsCall ? spot - x.Strike!.Value : x.Strike!.Value - spot, 0m)) - cost).ToArray();
-        var slope = legs.Where(x => x.IsCall).Sum(x => x.Side * x.Quantity * x.CashMultiplier!.Value);
-        decimal? maximumProfit = slope > 0 ? null : profits.Max();
-        decimal? maximumLoss = slope < 0 ? null : Math.Max(0, -profits.Min());
+        var (maximumProfit, maximumLoss) = TradeOrderPayoffCompute.Calculate(legs, cost);
         return preview with { HasPayoffEstimate = true, EstimatedCredit = -cost, MaximumProfit = maximumProfit, MaximumLoss = maximumLoss,
-            HasUnlimitedProfit = slope > 0, HasUnlimitedLoss = slope < 0,
+            HasUnlimitedProfit = !maximumProfit.HasValue, HasUnlimitedLoss = !maximumLoss.HasValue,
             MaximumReturn = maximumLoss is > 0 && maximumProfit.HasValue ? maximumProfit.Value / maximumLoss.Value : null };
     }
 

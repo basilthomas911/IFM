@@ -117,8 +117,7 @@ public sealed partial class ScheduledTasksView
             _logTree.Nodes.Clear();
             foreach (var definition in _viewModel.State.Schedules.OrderBy(d => d.Schedule.Name))
             {
-                var zone = TimeZoneInfo.FindSystemTimeZoneById(definition.Schedule.TimeZoneId);
-                string Date(DateTimeOffset? value) => value is { } date && date != default ? TimeZoneInfo.ConvertTime(date, zone).ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture) : "--";
+                string Date(DateTimeOffset? value) => value is { } date && date != default ? ScheduleTime.FromUtc(date, definition.Schedule.TimeZoneId).ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture) : "--";
                 var page = _logHistory.GetValueOrDefault(definition.Id);
                 var latest = page?.Runs.OrderByDescending(r => r.IntendedFireTimeUtc).FirstOrDefault();
                 var lastActual = page?.Runs.Where(r => r.StartedAtUtc.HasValue).OrderByDescending(r => r.StartedAtUtc).FirstOrDefault();
@@ -128,7 +127,7 @@ public sealed partial class ScheduledTasksView
                 _logTree.Nodes.Add(taskRoot);
                 foreach (var run in page?.Runs ?? [])
                 {
-                    var date = TimeZoneInfo.ConvertTime(run.IntendedFireTimeUtc, zone);
+                    var date = ScheduleTime.FromUtc(run.IntendedFireTimeUtc, definition.Schedule.TimeZoneId);
                     TreeNode Group(TreeNode parent, string key, string caption)
                     {
                         var found = parent.Nodes[key]; if (found is not null) return found;

@@ -71,7 +71,10 @@ public static class FuturesTickTradeDataChanged
         if (result.Success) step.Complete();
         context.RoutingProgress?.Record(tick.ContractId, result.Success, DateTime.UtcNow);
         if (!result.Success)
+        {
             FuturesTickTradeDataChangedLogging.RouteSendFailed(context.Logger, tick.ContractId, positionId.Format(), route.TradeLegId, result.ErrorCode, result.ErrorMessage ?? string.Empty);
+            throw new InvalidOperationException($"Option position dispatch failed for {tick.ContractId}, position {positionId.Format()}: {result.ErrorCode}: {result.ErrorMessage}");
+        }
     }
 
     static void LogIgnoredTick(IFuturesOptionRealtimeContext context, string contractId, MarketRouteLookupOutcome outcome)

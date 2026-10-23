@@ -71,6 +71,79 @@ public sealed class OptionPipelineRecoveryRuntimeTests
         Assert.Contains("matching updated Host", failure.Message);
     }
 
+    [Fact]
+    public void Explicit_processing_failure_is_detected_even_when_every_quote_is_old()
+    {
+        var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cache = new TradeRealtimeCacheRegistry(); var trade = Trade();
+        cache.Register(trade, date).Apply(Position(trade, date, 1, DateTimeOffset.UtcNow.AddHours(-1)));
+        var market = Substitute.For<IMarketDataApi>();
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel
+        { ActiveValueDate = date, EnabledOptionTrades = [trade.Id.Format()], OptionProcessingError = "LeaseEnded",
+            OptionProcessingFailureUtc = DateTimeOffset.UtcNow });
+        var session = Substitute.For<IFuturesMarketSessionAuthority>(); session.Current.Returns(new MarketSessionReadModel { ActiveValueDate = date });
+        var supervisor = Substitute.For<IActorSupervisor>(); supervisor.IsReady.Returns(true); supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+        var runtime = new OptionPipelineRecoveryRuntime(supervisor, market, session, cache);
+        var inspection = runtime.Inspect();
+        Assert.Equal("LeaseEnded", inspection.Failure); Assert.Single(inspection.Positions);
+    }
+
+    [Fact]
+    public void Disabled_live_intent_does_not_trigger_stale_quote_recovery()
+    {
+        var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cache = new TradeRealtimeCacheRegistry(); var trade = Trade();
+        cache.Register(trade, date).Apply(Position(trade, date, 1, DateTimeOffset.UtcNow.AddHours(-1)));
+        var market = Substitute.For<IMarketDataApi>();
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel { EnabledOptionTrades = [] });
+        var session = Substitute.For<IFuturesMarketSessionAuthority>(); session.Current.Returns(new MarketSessionReadModel { ActiveValueDate = date });
+        var supervisor = Substitute.For<IActorSupervisor>(); supervisor.IsReady.Returns(true); supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+        var runtime = new OptionPipelineRecoveryRuntime(supervisor, market, session, cache);
+        Assert.Null(runtime.Inspect().Failure); Assert.Empty(runtime.Inspect().Positions);
+    }
+
+    [Fact]
+    public void Enabled_trade_with_all_quotes_stale_remains_monitored_and_starts_recovery()
+    {
+        var clock = new LivePipelineIntegrationTests.ManualTime(); var date = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        var cache = new TradeRealtimeCacheRegistry(); var trade = Trade();
+        cache.Register(trade, date).Apply(Position(trade, date, 1, clock.GetUtcNow().AddHours(-1)));
+        var market = Substitute.For<IMarketDataApi>();
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel { EnabledOptionTrades = [trade.Id.Format()] });
+        var session = Substitute.For<IFuturesMarketSessionAuthority>(); session.Current.Returns(new MarketSessionReadModel { ActiveValueDate = date });
+        var supervisor = Substitute.For<IActorSupervisor>(); supervisor.IsReady.Returns(true); supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+        var runtime = new OptionPipelineRecoveryRuntime(supervisor, market, session, cache, clock);
+        Assert.Null(runtime.Inspect().Failure);
+        clock.Advance(TimeSpan.FromSeconds(31));
+        var inspection = runtime.Inspect(); Assert.Single(inspection.Positions); Assert.Contains("no current quote progress", inspection.Failure);
+    }
+
+    [Fact]
+    public async Task Processing_failure_from_stale_trade_reaches_deadline_UI_event_without_hanging()
+    {
+        var clock = new LivePipelineIntegrationTests.ManualTime(); var date = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        var cache = new TradeRealtimeCacheRegistry(); var trade = Trade();
+        cache.Register(trade, date).Apply(Position(trade, date, 1, clock.GetUtcNow().AddHours(-1)));
+        var market = Substitute.For<IMarketDataApi>();
+        market.GetRuntimeStatus().Returns(new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel
+        { EnabledOptionTrades = [trade.Id.Format()], OptionProcessingError = "LeaseEnded", OptionProcessingFailureUtc = clock.GetUtcNow() });
+        var status = new MarketDataDatasetStatus("Options", "GLBX.MDP3", Guid.NewGuid(), Guid.NewGuid(), 100, true, false, "Healthy", "LeaseEnded", date);
+        market.GetBackendStatusAsync(Arg.Any<CancellationToken>()).Returns(new MarketDataBackendStatus(true, date, [status]));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stalled = new TaskCompletionSource<MarketDataRecoveryResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        market.RecoverMarketDataAsync(Arg.Any<MarketDataRecoveryRequest>(), Arg.Any<CancellationToken>()).Returns(_ => { entered.TrySetResult(); return stalled.Task; });
+        var session = Substitute.For<IFuturesMarketSessionAuthority>(); session.Current.Returns(new MarketSessionReadModel { ActiveValueDate = date });
+        var supervisor = Substitute.For<IActorSupervisor>(); supervisor.IsReady.Returns(true); supervisor.RuntimeContext.Returns(new SupervisorRuntimeContext());
+        var runtime = new OptionPipelineRecoveryRuntime(supervisor, market, session, cache, clock);
+        var coordinator = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance, clock);
+        coordinator.Observe(default); await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        clock.Advance(TimeSpan.FromSeconds(119)); Assert.Null(coordinator.Failure);
+        clock.Advance(TimeSpan.FromSeconds(1)); await coordinator.Completion!.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal("Failed", coordinator.State); Assert.Contains("deadline expired", coordinator.Failure!.ErrorMessage);
+        Assert.Contains(trade.Id.Format(), coordinator.Failure.ErrorMessage);
+        Assert.Equal(date, coordinator.Failure.EntityId.ValueDate);
+    }
+
     static EstablishedTradeDefinition Trade() => new() { Id = new(101, 701, 1901, 1501), StrategyKind = TradeStrategyKind.IronCondor,
         Legs = Enumerable.Range(0, 4).Select(index => new TradeLegDefinition { TradeLegId = Guid.NewGuid(), ContractId = $"ES-option-{index}",
             SignedQuantity = index % 2 == 0 ? -1 : 1, PutCall = index < 2 ? (byte)2 : (byte)1 }).ToArray() };

@@ -254,6 +254,14 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
         => ExecuteAsync(_queryApi.GetValueDateAsync, vm => onCompleted(vm?.Value));
 
     /// <summary>Gets operational and live-session dates from the authoritative market-session policy.</summary>
+    public async Task<MarketSessionReadModel> QueryMarketSessionAsync(CancellationToken token = default)
+    {
+        var result = await _queryApi.GetMarketSessionAsync().WaitAsync(token).ConfigureAwait(false);
+        if (!result.Success || result.Value is not { IsValid: true } session)
+            throw new InvalidOperationException(result.ErrorMessage ?? "The API market session is unavailable.");
+        return session;
+    }
+
     public Task GetMarketSessionAsync(Func<MarketSessionReadModel, Task> onCompleted)
         => ExecuteAsync(_queryApi.GetMarketSessionAsync, onCompleted);
 

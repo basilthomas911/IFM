@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Telemetry.Metrics;
+using Serilog;
 using TomasAI.IFM.Application.MarketData.Host;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -14,8 +15,11 @@ builder.Configuration.AddInMemoryCollection(backendConfiguration.AsEnumerable().
     pair.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
     || pair.Key.StartsWith("Storage:", StringComparison.OrdinalIgnoreCase)
     || pair.Key.StartsWith("AppSettings:", StringComparison.OrdinalIgnoreCase)
-    || pair.Key.StartsWith("MarketDataRecovery:", StringComparison.OrdinalIgnoreCase)))
+    || pair.Key.StartsWith("MarketDataRecovery:", StringComparison.OrdinalIgnoreCase)
+    || pair.Key.StartsWith("Telemetry:", StringComparison.OrdinalIgnoreCase)))
     .AddEnvironmentVariables().AddCommandLine(args);
+builder.Configuration["Telemetry:Logs:ServiceName"] = "TomasAI.IFM.Application.MarketData.Host";
+builder.Logging.ClearProviders().AddSerilog(MarketDataHostLogging.Create(builder.Configuration), dispose: true);
 if (string.IsNullOrWhiteSpace(builder.Configuration["urls"]) && string.IsNullOrWhiteSpace(builder.Configuration["HTTP_PORTS"]))
     builder.WebHost.UseUrls("http://127.0.0.1:22544");
 builder.Services.AddIfmMetrics(builder.Configuration, "TomasAI.IFM.Application.MarketData.Host");

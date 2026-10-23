@@ -2,14 +2,23 @@ using TomasAI.IFM.Application.Api.Server.Core.MarketData.Treasury;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Readiness;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
+using System.Reflection;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 
 namespace TomasAI.IFM.Domain.Application.UnitTests;
 
 public sealed class UsTreasuryRefreshHostedServiceTests
 {
+    // Neither scenario may reach pricing: the import is pending or bootstrap is unhealthy.
+    public class UnexpectedMarketDataCall : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+            => throw new InvalidOperationException($"Unexpected backend call before import completion: {method?.Name}");
+    }
+    static IMarketDataApi MarketData() => DispatchProxy.Create<IMarketDataApi, UnexpectedMarketDataCall>();
+
     sealed class Clock : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(2026, 9, 8, 12, 0, 0, TimeSpan.Zero);
@@ -33,9 +42,8 @@ public sealed class UsTreasuryRefreshHostedServiceTests
     public async Task Startup_does_not_wait_for_import_and_shutdown_cancels_pending_submission()
     {
         var clock = new Clock(); var imports = new Imports();
-        using var client = new HttpClient(); using var source = new UsTreasuryCurve(client, clock);
         using var service = new UsTreasuryRefreshHostedService(new Readiness(true), imports,
-            new TreasuryPricingProvider(source, clock), UsTreasuryPublicationCalendar.Default2026,
+            MarketData(), UsTreasuryPublicationCalendar.Default2026,
             clock, NullLogger<UsTreasuryRefreshHostedService>.Instance);
         await service.StartAsync(default).WaitAsync(TimeSpan.FromSeconds(5));
         var request = await imports.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -48,9 +56,8 @@ public sealed class UsTreasuryRefreshHostedServiceTests
     public async Task No_import_is_submitted_before_actor_bootstrap_is_healthy()
     {
         var clock = new Clock(); var imports = new Imports(); var readiness = new Readiness(false);
-        using var client = new HttpClient(); using var source = new UsTreasuryCurve(client, clock);
         using var service = new UsTreasuryRefreshHostedService(readiness, imports,
-            new TreasuryPricingProvider(source, clock), UsTreasuryPublicationCalendar.Default2026,
+            MarketData(), UsTreasuryPublicationCalendar.Default2026,
             clock, NullLogger<UsTreasuryRefreshHostedService>.Instance);
         await service.StartAsync(default);
         await readiness.Checked.Task.WaitAsync(TimeSpan.FromSeconds(5));

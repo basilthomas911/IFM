@@ -7,6 +7,20 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 public sealed class OptionPipelineRecoveryCoordinatorTests
 {
     [Fact]
+    public async Task Joining_Host_recovery_preserves_its_original_deadline_instead_of_starting_another_two_minutes()
+    {
+        var clock = new LivePipelineIntegrationTests.ManualTime();
+        var owned = clock.GetUtcNow().AddSeconds(20);
+        var runtime = new Runtime { Inspection = new(new(2026, 10, 23), "Host recovery", [], owned) };
+        var recovery = new OptionPipelineRecoveryCoordinator(runtime, NullLogger<OptionPipelineRecoveryCoordinator>.Instance, clock);
+        recovery.Observe(default); await runtime.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(owned, runtime.Deadline);
+        clock.Advance(TimeSpan.FromSeconds(19)); Assert.Null(recovery.Failure);
+        clock.Advance(TimeSpan.FromSeconds(1)); await recovery.Completion!.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal("Failed", recovery.State);
+    }
+
+    [Fact]
     public async Task Full_default_deadline_is_119_seconds_quiet_and_120_seconds_terminal()
     {
         var clock = new LivePipelineIntegrationTests.ManualTime();

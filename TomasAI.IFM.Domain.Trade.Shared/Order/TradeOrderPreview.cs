@@ -51,4 +51,5 @@ public sealed record TradeOrderPreview
     [Key(17)] public bool HasPayoffEstimate { get; init; }
     [Key(18)] public bool HasUnlimitedProfit { get; init; }
     [Key(19)] public bool HasUnlimitedLoss { get; init; }
+    [Key(20)] public decimal? ResolvedTickIncrement { get; init; }
 }

@@ -8,11 +8,11 @@ namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// <summary>Retains requested option ownership independently of replaceable worker leases.</summary>
 public sealed class RecoveringOptionLeaseRegistry(
     IRecoverableOptionDiscovery discovery, DatasetWorkerAdmissionRegistry admissions,
-    IndividualOptionRiskReader? riskReader = null, ILogger? logger = null) : IAsyncDisposable
+    IndividualOptionRiskReader? riskReader = null, ILogger? logger = null, Recovery.OptionFeedProcessingHealth? health = null) : IAsyncDisposable
 {
     sealed class Registration(CompositionDiscoveryRequest request)
     {
-        public CompositionDiscoveryRequest Request { get; } = request;
+        public CompositionDiscoveryRequest Request { get; set; } = request;
         public WorkerOptionChainRequest? Lease { get; set; }
         public string? LastFailure { get; set; }
     }
@@ -55,7 +55,8 @@ public sealed class RecoveringOptionLeaseRegistry(
                 if (registrations.Count >= 4096) throw new InvalidOperationException("OptionMonitoring.CAPACITY.EXCEEDED");
                 registrations.Add(key, registration = new(request));
             }
-            await RestoreAsync(registration, stopping.Token).ConfigureAwait(false);
+            try { await RestoreAsync(registration, stopping.Token).ConfigureAwait(false); }
+            catch (Exception error) { Report(registration, error, stopping.Token); throw; }
         }
         finally { serial.Release(); }
     }
@@ -72,9 +73,11 @@ public sealed class RecoveringOptionLeaseRegistry(
                 {
                     await RestoreAsync(registration, cancellationToken).ConfigureAwait(false);
                     registration.LastFailure = null;
+                    if (registration.Lease is { } active) health?.Succeeded(active.ValueDate, active.GenerationId, "Lease/" + active.LeaseId);
                 }
                 catch (Exception error) when (!cancellationToken.IsCancellationRequested)
                 {
+                    Report(registration, error, cancellationToken);
                     if (registration.LastFailure != error.Message)
                         logger?.LogWarning(error, "Option lease recovery failed; Method={Method}; LeaseId={LeaseId}; ValueDate={ValueDate}",
                             nameof(ReconcileAsync), registration.Request.LeaseId, registration.Request.ValueDate);
@@ -89,13 +92,17 @@ public sealed class RecoveringOptionLeaseRegistry(
     {
         var request = registration.Request;
         var admitted = admissions.TryGet("GLBX.MDP3", out var current) && current.ValueDate == request.ValueDate;
+        // Temporary fencing must not delete the renewal registration that Host is about to adopt.
+        if (!admitted) throw new Recovery.OptionFeedProcessingException("OptionMonitoring.WORKER.NOT_ADMITTED");
         if (registration.Lease is { } old)
         {
             if (admitted && old.GenerationId == current.GenerationId && discovery.IsLeaseCurrent(old.LeaseId)) return;
             Forget(old);
             registration.Lease = null;
+            if (old.GenerationId == current.GenerationId)
+                registration.Request = request = request with { LeaseId = Guid.NewGuid() };
         }
-        if (!admitted) throw new InvalidOperationException("OptionMonitoring.WORKER.NOT_ADMITTED");
+
         using var operation = new OptionFeedTrace("option.lease.restore", logger, $"{request.LeaseId}|{current.GenerationId}|{request.ValueDate:yyyy-MM-dd}");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
@@ -105,11 +112,14 @@ public sealed class RecoveringOptionLeaseRegistry(
             GenerationId = current.GenerationId, DeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(60)
         }, deadline.Token, renewAutomatically: true).WaitAsync(deadline.Token).ConfigureAwait(false);
         if (acquired.Lease is not { } lease || acquired.Failure is not null)
-            throw new InvalidOperationException($"OptionMonitoring.ACQUIRE.FAILED: {acquired.Failure?.Code}");
+        {
+            if (acquired.Failure?.Code == "LeaseEnded") registration.Request = request with { LeaseId = Guid.NewGuid() };
+            throw new Recovery.OptionFeedProcessingException(acquired.Failure?.Code ?? "OptionMonitoring.ACQUIRE.FAILED", acquired.Failure?.Detail);
+        }
         if (!admissions.TryGet("GLBX.MDP3", out var after) || after != current)
         {
             Forget(lease);
-            throw new InvalidOperationException("OptionMonitoring.SESSION.CHANGED");
+            throw new Recovery.OptionFeedProcessingException("OptionMonitoring.SESSION.CHANGED");
         }
         registration.Lease = lease;
         riskReader?.Register(lease);
@@ -131,6 +141,12 @@ public sealed class RecoveringOptionLeaseRegistry(
             }
         }
         finally { serial.Release(); }
+    }
+
+    void Report(Registration registration, Exception error, CancellationToken token)
+    {
+        admissions.TryGet("GLBX.MDP3", out var current);
+        health?.Report(registration.Request.ValueDate, current.GenerationId != Guid.Empty ? current.GenerationId : registration.Lease?.GenerationId ?? Guid.Empty, "Lease/" + registration.Request.LeaseId, error, token);
     }
 
     void Forget(WorkerOptionChainRequest lease)

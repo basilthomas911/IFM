@@ -188,19 +188,13 @@ public class FuturesTradeSignalUIViewModel
             RSIBackColor = PresentationColorRole.Default;
         }
 
-        if (snapshot.FuturesBbSignal?.Position20 is { } position)
+        if (snapshot.MdiClassification is { } classification)
         {
-            var mdi = Math.Clamp(position * 100m, 0m, 100m);
-            MDITrend = mdi switch
+            MDITrend = classification.ToString();
+            MDITrendBackColor = classification switch
             {
-                >= 60m => $"{FuturesMDITrendType.UpTrending}",
-                < 30m => $"{FuturesMDITrendType.DownTrending}",
-                _ => $"{FuturesMDITrendType.RangeBound}"
-            };
-            MDITrendBackColor = mdi switch
-            {
-                >= 60m => PresentationColorRole.Positive,
-                < 30m => PresentationColorRole.Negative,
+                FuturesMDITrendType.UpTrending => PresentationColorRole.Positive,
+                FuturesMDITrendType.DownTrending => PresentationColorRole.Negative,
                 _ => PresentationColorRole.Caution
             };
             MDIUpLimit = "60.00";

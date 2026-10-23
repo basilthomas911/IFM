@@ -250,30 +250,26 @@ public sealed class BrokerManualTradeOrderViewModel
             throw new ArgumentOutOfRangeException(nameof(quantity), "Order quantity must be positive.");
         if (_screenLegs is not null && _screenLegs.Any(x => Math.Abs(x.SignedQuantity) != quantity))
             throw new InvalidOperationException("Order quantity must match every selected leg quantity.");
-        var cashMultiplier = _screenLegs?.FirstOrDefault()?.CashMultiplier
-            ?? decimal.Parse(_baseContract.Multiplier, CultureInfo.InvariantCulture);
-        var cashAmount = signedNetDebitLimit * quantity * cashMultiplier;
-        // This editor submits to IFM-EMULATOR-PAPER, whose fee is USD 0.65 per leg contract.
-        var confirmationLegs = CreateLegs(ContractIds, quantity, cashMultiplier)
-            .Select((leg, index) => new TradeOrderConfirmationLeg(
-                leg.SignedQuantity > 0 ? "Buy" : "Sell",
-                _screenLegRoles?[index] ?? (leg.AssetFamily == TradeAssetFamily.Futures ? "Futures"
-                    : $"{(leg.SignedQuantity > 0 ? "Long" : "Short")} {(leg.PutCall == 1 ? "Call" : "Put")}"),
-                leg.ContractId, 0.65m * Math.Abs(leg.SignedQuantity))).ToArray();
-        var totalCommission = confirmationLegs.Sum(leg => leg.LegCommission);
-        var now = DateTime.UtcNow;
+        var prepared = await CreatePreparationAsync(quantity, signedNetDebitLimit, cancellationToken).ConfigureAwait(false);
+        var candidate = prepared.Candidate;
+        var preparedLegs = candidate.Components.Single().ToTradeComponent().Legs;
+        var confirmationLegs = preparedLegs.Select((leg, index) => new TradeOrderConfirmationLeg(
+            leg.SignedQuantity > 0 ? "Buy" : "Sell",
+            _screenLegRoles?[index] ?? (leg.AssetFamily == TradeAssetFamily.Futures ? "Futures"
+                : $"{(leg.SignedQuantity > 0 ? "Long" : "Short")} {(leg.PutCall == 1 ? "Call" : "Put")}"),
+            leg.ContractId, prepared.LegCommissions[index])).ToArray();
+        var now = prepared.PreparedAtUtc;
         var summary = new TradeOrderReadModel(
-            _trade.FundId, _trade.OrderId, _trade.TradeId, _trade.RequestedTradeDate,
-            _trade.TradeType, TradeSubType.Primary, _trade.RequestedTradeDate,
-            SelectedOptionExpiry ?? _trade.RequestedMaturityDate ?? _trade.RequestedTradeDate,
+            _trade.FundId, _trade.OrderId, _trade.TradeId, candidate.ValueDate,
+            _trade.TradeType, TradeSubType.Primary, candidate.ValueDate,
+            SelectedOptionExpiry ?? _trade.RequestedMaturityDate ?? candidate.ValueDate,
             global::TomasAI.IFM.Domain.Trade.Shared.TradeOrder.TradeOrderState.OrderPlaced,
             _baseContract.ContractId, AssetType.Futures, string.Join(" / ", ContractIds),
             _trade.TradeAction == TradeAction.Sell ? OrderAction.Sell : OrderAction.Buy,
             OrderActionType.Open, quantity, 0, _brokerOrderType == BrokerOrderType.Market ? OrderType.Market : OrderType.Limit, signedNetDebitLimit,
-            cashAmount, totalCommission, cashAmount + totalCommission, 0m,
+            prepared.CashAmount, prepared.TotalCommission, prepared.TotalAmount, 0m,
             TradeFillType.Broker, now, Environment.UserName, now, Environment.UserName);
         _appRoot.DiagnosticLogger.LogInformation("OrderSubmission ConfirmationRequested SubmissionId={SubmissionId}", SubmissionId);
-        var candidate = await CreateCandidateAsync(quantity, signedNetDebitLimit, cancellationToken).ConfigureAwait(false);
         var confirmation = confirmationService is ITradeOrderLegConfirmationService legConfirmation
             ? await legConfirmation.ConfirmAsync(summary, confirmationLegs, cancellationToken).ConfigureAwait(false)
             : await confirmationService.ConfirmAsync(summary, cancellationToken).ConfigureAwait(false);
@@ -354,115 +350,33 @@ public sealed class BrokerManualTradeOrderViewModel
         _appRoot.DiagnosticLogger.LogInformation("OrderSubmission PortfolioAcceptedPublished SubmissionId={SubmissionId} PortfolioEventId={PortfolioEventId} OrderIds={OrderIds}",SubmissionId,result.PortfolioEventId,string.Join(",",result.TradeOrders.Select(x=>x.Id.Format())));
     }
 
-    async Task<PortfolioOrderCandidate> CreateCandidateAsync(int quantity, decimal limit, CancellationToken cancellationToken)
+    async Task<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparation> CreatePreparationAsync(int quantity, decimal limit, CancellationToken token)
     {
-        _appRoot.DiagnosticLogger.LogInformation("OrderSubmission CandidateValidationStarted SubmissionId={SubmissionId} PortfolioId={PortfolioId} FundId={FundId}", SubmissionId, _portfolioId, _trade.FundId);
         var contractIds = ContractIds;
-        var requiredLegs = StrategyKind == TradeStrategyKind.FuturesOutright ? 1 : StrategyKind == TradeStrategyKind.IronCondor ? 4 : 2;
-        if (contractIds.Length != requiredLegs || contractIds.Any(string.IsNullOrWhiteSpace))
-            throw new InvalidOperationException(
-                $"{StrategyKind} requires exactly {requiredLegs} broker-neutral contract identifier(s). " +
-                "Use the reference format P4500:4490 or C4500:4510 for a Vertical Spread.");
-
-        var now = DateTime.UtcNow;
-        TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey deployment = default;
-        var horizon = "Manual";
-        if (!DevelopmentManual)
-        {
-            var fund = await _appRoot.Services.PortfolioQueries
-                .GetFundAsync(_portfolioId, _trade.FundId, cancellationToken: cancellationToken).ConfigureAwait(false);
-            if (!fund.Success || fund.Value is null)
-                throw new InvalidOperationException(
-                    $"Portfolio Fund {_portfolioId}.{_trade.FundId} is unavailable ({fund.ErrorCode}): {fund.ErrorMessage}");
-            var assignments = await _appRoot.Services.PortfolioQueries.GetAssignmentsAsync(
-                _portfolioId, _trade.FundId, fund.Value.FundMandateVersion, cancellationToken).ConfigureAwait(false);
-            if (!assignments.Success || assignments.Value is null)
-                throw new InvalidOperationException(
-                    $"Portfolio assignments are unavailable ({assignments.ErrorCode}): {assignments.ErrorMessage}");
-            var familyName = StrategyKind == TradeStrategyKind.FuturesOutright ? "Futures" : StrategyKind == TradeStrategyKind.IronCondor ? "IronCondor" : "VerticalSpread";
-            var assignment = assignments.Value
-                .Where(value => value.IsEffectiveAt(now) && value.TradeStrategyFamily?.CatalogDeployment is not null
-                    && (value.UnderlyingUniverse.Contains(_baseContract.Symbol, StringComparer.OrdinalIgnoreCase)
-                        || value.UnderlyingUniverse.Contains(_baseContract.ContractId, StringComparer.OrdinalIgnoreCase))
-                    && value.TradeFamily.Contains(familyName, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(value => value.Priority)
-                .ThenByDescending(value => value.AssignmentVersion)
-                .FirstOrDefault()
-                ?? throw new InvalidOperationException(
-                    $"No effective {familyName} deployment is assigned to Portfolio Fund " +
-                    $"{_portfolioId}.{_trade.FundId} for {_baseContract.Symbol}.");
-
-            deployment = assignment.TradeStrategyFamily!.CatalogDeployment!;
-            horizon = assignment.DecisionHorizon;
-        }
-        if (!decimal.TryParse(_baseContract.Multiplier, NumberStyles.Number,
-                CultureInfo.InvariantCulture, out var multiplier) || multiplier <= 0)
-            throw new InvalidOperationException(
-                $"A numeric cash multiplier is required for {_baseContract.ContractId}.");
-
+        var multiplier = decimal.TryParse(_baseContract.Multiplier, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0m;
         var legs = CreateLegs(contractIds, quantity, multiplier);
-        var componentId = Guid.NewGuid();
-        var compositionId = SubmissionId;
-        var evidence = string.Join('|', _portfolioId, _trade.FundId, compositionId, componentId,
-            StrategyKind, limit, quantity, _brokerOrderType, _brokerAlgorithm, _timeInForce, _algorithmPace,
-            string.Join(';', legs.Select(leg => $"{leg.TradeLegId:N}:{leg.ContractId}:{leg.SignedQuantity}")));
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(evidence))).ToLowerInvariant();
-        var approvalReference = string.Empty;
-        var notional = Math.Abs(limit * quantity * multiplier);
-        var maximumLoss = StrategyKind != TradeStrategyKind.FuturesOutright
-            ? Math.Max(notional, SelectedOrderPriceRisk.MaximumOptionLoss(legs, limit, quantity)) : notional;
-        return new PortfolioOrderCandidate
-        {
-            CompositionId = compositionId,
-            WorkflowId = Guid.NewGuid(),
-            DecisionHorizon = horizon,
-            StrategyKind = (PortfolioExecutionStrategyKind)StrategyKind,
-            ValueDate = _trade.RequestedTradeDate,
-            ValidUntilUtc = now.AddMinutes(5),
-            Origin = "DesktopTradeOrder",
-            SetupTrade = new() { OrderId = _trade.OrderId, TradeId = _trade.TradeId, FundId = _trade.FundId },
-            Components =
-            [
-                new TradeOrderComponentDefinition
-                {
-                    ComponentId = componentId,
-                    StrategyKind = StrategyKind,
-                    Legs = legs,
-                    SignedNetDebitLimit = limit,
-                    MinimumSignedNetDebitLimit = limit - 10m * (StrategyKind == TradeStrategyKind.FuturesOutright ? 0.25m : 0.05m),
-                    MaximumSignedNetDebitLimit = limit,
-                    TickIncrement = StrategyKind == TradeStrategyKind.FuturesOutright ? 0.25m : 0.05m
-                }.ToPortfolioComponent()
-            ],
-            RequiredCapital = maximumLoss,
-            DecisionEvidence = TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketDecisionEvidence.CaptureJson("BrokerTradeScreen/v1", new
-            {
-                UnderlyingContract = _baseContract, TradeType = _trade.TradeType, SelectedLegs = legs,
-                SelectedQuoteInputsJson = _selectedQuoteInputs, Quantity = quantity, OrderPrice = limit,
-                RequiredCapital = maximumLoss, MaximumLoss = maximumLoss, Notional = notional,
-                Deployment = deployment, BrokerOrderType = _brokerOrderType,
-                BrokerAlgorithm = _brokerAlgorithm, TimeInForce = _timeInForce, AlgorithmPace = _algorithmPace
-            }, now),
-            EvidenceHash = hash,
-            DeploymentKey = deployment!,
-            MaximumLoss = maximumLoss,
-            StressLoss = maximumLoss,
-            Notional = notional,
-            ProductSymbol = _baseContract.Symbol,
-            ProductExchange = _baseContract.Exchange,
-            ProductCurrency = _baseContract.Currency,
-            PositionType = PortfolioExecutionPositionType.Opening,
-            BrokerAccountAlias = _appRoot.TradeExecution.AccountAlias,
-            BrokerEnvironment = (PortfolioBrokerEnvironment)_appRoot.TradeExecution.Environment,
-            MicroExecutionProfileId = "ManualPriceImprovement",
-            MicroExecutionProfileVersion = 1,
-            MicroExecutionProfileHash = hash,
-            AccountPromotionApprovalReference = approvalReference,
-            BrokerOrderType = (PortfolioBrokerOrderType)_brokerOrderType,
-            BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm,
-            TimeInForce = _timeInForce,
-            AlgorithmPace = _algorithmPace
-        };
+        var request = new TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest(_portfolioId, _baseContract.ContractId, quantity,
+            new PortfolioOrderCandidate {
+                CompositionId = SubmissionId, WorkflowId = Guid.NewGuid(), StrategyKind = (PortfolioExecutionStrategyKind)StrategyKind,
+                Origin = "DesktopTradeOrder", SetupTrade = new() { OrderId = _trade.OrderId, TradeId = _trade.TradeId, FundId = _trade.FundId },
+                Components = [new TradeOrderComponentDefinition { ComponentId = Guid.NewGuid(), StrategyKind = StrategyKind,
+                    Legs = legs, SignedNetDebitLimit = limit }.ToPortfolioComponent()],
+                PositionType = PortfolioExecutionPositionType.Opening,
+                BrokerAccountAlias = _appRoot.TradeExecution.AccountAlias,
+                BrokerEnvironment = (PortfolioBrokerEnvironment)_appRoot.TradeExecution.Environment,
+                BrokerOrderType = (PortfolioBrokerOrderType)_brokerOrderType, BrokerAlgorithm = (PortfolioBrokerAlgorithm)_brokerAlgorithm,
+                TimeInForce = _timeInForce, AlgorithmPace = _algorithmPace }, _selectedQuoteInputs ?? "");
+        var result = await _appRoot.Services.TradeQueries.PrepareTradeOrderAsync(request, token).ConfigureAwait(false);
+        if (!result.Success || result.Value is not { } prepared)
+            throw new InvalidOperationException(result.ErrorMessage ?? "Backend order preparation is unavailable.");
+        if (prepared.Candidate.CompositionId != SubmissionId || prepared.Candidate.SetupTrade?.FundId != _trade.FundId
+            || prepared.Candidate.Components.Length != 1 || prepared.LegCommissions.Length != legs.Length
+            || prepared.Candidate.Components[0].ComponentId != request.Draft.Components[0].ComponentId
+            || prepared.Candidate.Components[0].SignedNetDebitLimit != limit
+            || !prepared.Candidate.Components[0].Legs.Select(l => (l.ContractId, l.SignedQuantity))
+                .SequenceEqual(request.Draft.Components[0].Legs.Select(l => (l.ContractId, l.SignedQuantity))))
+            throw new InvalidOperationException("Backend preparation does not match the selected order.");
+        return prepared;
     }
 
     TradeLegDefinition[] CreateLegs(string[] contractIds, int quantity, decimal multiplier)

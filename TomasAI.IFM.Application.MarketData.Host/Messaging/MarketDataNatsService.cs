@@ -128,7 +128,13 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
             };
             return Reply(result);
         }
-        catch (Exception error) when (!token.IsCancellationRequested) { return new([], error.Message); }
+        catch (Exception error) when (!token.IsCancellationRequested)
+        {
+            if (request.Path is "api/AcquireMonitoredOptionAsync" or "api/ReleaseMonitoredOptionAsync" or "api/EnableTradeFeedRecoveryAsync" or "api/LoadTradeFeedRecoveryAsync")
+                host.ReportOptionProcessingFailure("Host/" + request.Path, error);
+            logger.LogError("Market-data operation failed; Method={Method}; OperationId={OperationId}; Detail={Detail}", request.Path, request.OperationId, TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth.Redact(error.ToString()));
+            return new([], error.Message);
+        }
     }
     static MarketDataHostReply Reply<T>(T result) => new(MarketDataHostConnection.Encode(result), null);
     static async Task<bool> HangAsync(DatasetWorkerProcessSupervisor worker, CancellationToken token)

@@ -29,6 +29,16 @@ public sealed class BrokerTradePreviewQueryTests
                 var query = MessagePackSerializer.Deserialize<GetTradeOrderPreviewQuery>(MessagePackSerializer.Serialize(call.Arg<GetTradeOrderPreviewQuery>()));
                 seen.Add(query);
                 var context = Substitute.For<ITradeOrderQueryContext>();
+                var configuration = Substitute.For<Microsoft.Extensions.Configuration.IConfiguration>();
+                configuration["TradeBroker:ManualEntry:ES:OptionComboTick"].Returns("0.05");
+                context.PreparationConfiguration.Returns(configuration);
+                var db = Substitute.For<TomasAI.IFM.Application.Storage.IDbContextFactory>();
+                var securities = Substitute.For<TomasAI.IFM.Application.Storage.SecuritiesDb.ISecuritiesDbContext>();
+                db.SecuritiesDb.Returns(securities); context.DbFactory.Returns(db);
+                securities.GetFuturesOptionContractAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(
+                    new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel { UnderlyingContractId="ES" });
+                securities.GetFuturesContractAsync("ES", Arg.Any<CancellationToken>()).Returns(
+                    new TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel { ContractId="ES",Symbol="ES",TickSize=.25m });
                 ServiceResult<TradeOrderPreview>? reply = null;
                 context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, Arg.Do<ServiceResult<TradeOrderPreview>>(value => reply = value));
                 await query.ExecuteAsync(context, call.Arg<CancellationToken>());

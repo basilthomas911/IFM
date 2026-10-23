@@ -105,14 +105,17 @@ public partial interface IMarketDataApi
 public sealed record MarketDataBackendStatus([property: Key(0)] bool Ready, [property: Key(1)] DateOnly? ValueDate,
     [property: Key(2)] IReadOnlyList<MarketDataDatasetStatus> Datasets,
     [property: Key(3)] Guid HostInstanceId = default, [property: Key(4)] long Revision = 0,
-    [property: Key(5)] byte[][]? WorkerObservations = null);
+    [property: Key(5)] byte[][]? WorkerObservations = null,
+    [property: Key(6)] Recovery.OptionFeedProcessingFailure? OptionProcessingFailure = null,
+    [property: Key(7)] string[]? EnabledOptionTrades = null);
 [MessagePackObject]
 public sealed record MarketDataDatasetStatus([property: Key(0)] string Role, [property: Key(1)] string Dataset,
     [property: Key(2)] Guid WorkerInstanceId, [property: Key(3)] Guid GenerationId,
     [property: Key(4)] int ProcessId, [property: Key(5)] bool Running, [property: Key(6)] bool Healthy,
     [property: Key(7)] string Lifecycle, [property: Key(8)] string? Error,
     [property: Key(9)] DateOnly? ValueDate = null, [property: Key(10)] Guid OperationId = default,
-    [property: Key(11)] long ManifestRevision = 1, [property: Key(12)] DateTimeOffset ChangedAtUtc = default);
+    [property: Key(11)] long ManifestRevision = 1, [property: Key(12)] DateTimeOffset ChangedAtUtc = default,
+    [property: Key(13)] DateTimeOffset? RecoveryDeadlineUtc = null);
 [MessagePackObject]
 public sealed record MarketDataRecoveryRequest([property: Key(0)] Guid OperationId, [property: Key(1)] string Role,
     [property: Key(2)] string Dataset, [property: Key(3)] Guid ExpectedWorkerInstanceId,

@@ -8,21 +8,43 @@ namespace TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery;
 
 /// <summary>Restores only option market/monitoring processing; financial actors and API lifetime are untouched.</summary>
 public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, IMarketDataApi market,
-    IFuturesMarketSessionAuthority sessions, TradeRealtimeCacheRegistry caches, TimeProvider? timeProvider = null) : IOptionPipelineRecoveryRuntime
+    IFuturesMarketSessionAuthority sessions, TradeRealtimeCacheRegistry caches, TimeProvider? timeProvider = null,
+    TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? processingHealth = null) : IOptionPipelineRecoveryRuntime
 {
     readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     readonly Dictionary<string, DateTimeOffset> missingPlanSince = new(StringComparer.Ordinal);
     DateOnly? observedDate;
+    DateTimeOffset verifiedThrough;
+    readonly Dictionary<string, DateTimeOffset> monitoringSince = new(StringComparer.Ordinal);
     public OptionPipelineInspection Inspect()
     {
-        var date = sessions.Current.ActiveValueDate;
-        if (observedDate != date) { missingPlanSince.Clear(); observedDate = date; }
+        try { return InspectCore(); }
+        catch (Exception error)
+        {
+            var date = observedDate ?? sessions.Current.ActiveValueDate;
+            return new(date, "Option recovery inspection failed: " + error, caches.CaptureRecoveryObservations()
+                .Where(t => t.ValueDate == date && t.Position?.IsOpen == true).Select(t => t.PositionId.Format()).ToArray());
+        }
+    }
+
+    OptionPipelineInspection InspectCore()
+    {
+        var session = sessions.Current;
+        var date = session.ActiveValueDate;
+        if (observedDate != date) { missingPlanSince.Clear(); monitoringSince.Clear(); verifiedThrough = default; observedDate = date; }
         if (date is null || !supervisor.IsReady) return new(null, null, []);
         var now = clock.GetUtcNow();
+        var backend = market.GetRuntimeStatus() ?? new TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.MarketDataFeedRuntimeStatusReadModel();
         var trades = caches.CaptureRecoveryObservations().Where(trade => trade.ValueDate == date
-            && trade.Position?.IsOpen == true && trade.Legs.Any(leg => leg.Observation is { } observation
-                && now - observation.ObservedAtUtc < TimeSpan.FromMinutes(2))).ToArray();
+            && trade.Position?.IsOpen == true && (backend.EnabledOptionTrades is null
+                || backend.EnabledOptionTrades.Contains(trade.TradeId.Format(), StringComparer.Ordinal))).ToArray();
         var positions = trades.Select(trade => trade.PositionId.Format()).ToArray();
+        foreach (var inactive in monitoringSince.Keys.Where(key => !positions.Contains(key, StringComparer.Ordinal)).ToArray())
+        { monitoringSince.Remove(inactive); missingPlanSince.Remove(inactive); }
+        if (backend.OptionProcessingError is { } failure && backend.OptionProcessingFailureUtc > verifiedThrough)
+            return new(date, failure, positions, backend.OptionRecoveryDeadlineUtc);
+        if (processingHealth?.Read(date.Value, backend.OptionGenerationId) is { } local && local.ObservedAtUtc > verifiedThrough)
+            return new(date, local.Component + ": " + local.Detail, positions);
         foreach (var mailbox in Mailboxes())
         {
             if (mailbox.LifecycleState == ActorMailboxLifecycleState.Quarantined
@@ -32,10 +54,23 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
                 && now.UtcDateTime - started >= TimeSpan.FromSeconds(10))
                 return new(date, $"{mailbox.ThreadId}: handler is not making timely progress", positions);
         }
+        foreach (var actor in supervisor.RuntimeContext.CaptureActorMetricsSources().Where(source =>
+            source.ActorId.Name is "FuturesOptionRealtime" or "IronCondorTradePositionRealtime" or "IronCondorForwardPriceFunction" or "IronCondorTradePlanFunction"))
+            foreach (var mailbox in actor.CaptureSnapshot().Mailboxes)
+                if (positions.Length > 0 && mailbox.LastFailedUtc is { } failed && failed > verifiedThrough.UtcDateTime && failed >= session.SessionStartUtc)
+                    return new(date, $"{mailbox.ThreadId}: {mailbox.LastExceptionType}: {mailbox.LastError}", positions);
         foreach (var trade in trades)
         {
             var newest = trade.Legs.Select(leg => leg.Observation?.ObservedAtUtc).Where(at => at.HasValue).Max();
             var key = trade.PositionId.Format();
+            monitoringSince.TryAdd(key, now);
+            // Missing data stays in inspection; it is not evidence that monitoring was disabled.
+            if (now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
+                leg.Observation is null || now - leg.Observation.ObservedAtUtc > TimeSpan.FromSeconds(30)))
+                return new(date, $"{key}: a required option leg has no current quote progress", positions);
+            if (now - monitoringSince[key] > TimeSpan.FromSeconds(30) && trade.Legs.Any(leg =>
+                leg.LastValidRisk is null || now - leg.LastValidRisk.CalculatedAtUtc > TimeSpan.FromSeconds(30)))
+                return new(date, $"{key}: a required option leg has no current qualified pricing progress", positions);
             if (trade.Plan is null && newest is { } recent && now - recent < TimeSpan.FromSeconds(15))
                 missingPlanSince.TryAdd(key, now);
             else missingPlanSince.Remove(key);
@@ -113,7 +148,16 @@ public sealed class OptionPipelineRecoveryRuntime(IActorSupervisor supervisor, I
                 && trade.Legs.Length == 4 && trade.Legs.All(leg => leg.Observation?.ObservedAtUtc >= started
                     && leg.LastValidRisk?.CalculatedAtUtc >= started)
                 && caches.HasPublishedPosition(trade.TradeId, plan.Position.RouteGeneration, plan.Position.PositionSequence)));
-            if (proven && Mailboxes().All(mailbox => mailbox.IsAdmissionOpen)) return;
+            if (proven && Mailboxes().All(mailbox => mailbox.IsAdmissionOpen))
+            {
+                var runtime = market.GetRuntimeStatus();
+                if (runtime?.OptionProcessingFailureUtc > started) throw new InvalidOperationException(runtime.OptionProcessingError);
+                if (processingHealth?.Read(inspection.ValueDate!.Value, runtime?.OptionGenerationId ?? Guid.Empty) is { } pending && pending.ObservedAtUtc > started)
+                    throw new InvalidOperationException(pending.Detail);
+                verifiedThrough = clock.GetUtcNow();
+                processingHealth?.Recovered(inspection.ValueDate!.Value, runtime?.OptionGenerationId ?? Guid.Empty, started);
+                return;
+            }
             await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);
         }
     }

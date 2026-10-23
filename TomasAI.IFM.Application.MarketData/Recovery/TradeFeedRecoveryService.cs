@@ -19,8 +19,21 @@ public interface ITradeFeedRecoveryRuntime
 public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITradeFeedRecoveryRuntime runtime, ILogger<TradeFeedRecoveryService>? logger = null)
 {
     readonly SemaphoreSlim serial = new(1, 1);
+    readonly System.Collections.Concurrent.ConcurrentDictionary<(string Trade, DateOnly Date), byte> enabledTrades = new();
+    public string[] EnabledTrades(DateOnly date) => enabledTrades.Keys.Where(k => k.Date == date).Select(k => k.Trade).ToArray();
     public static string Owner(string trade, DateOnly date) => "TradeFeedRecovery." + new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"{trade}:{date:yyyy-MM-dd}")).AsSpan(0,16)).ToString("N");
-    public Task<TradeFeedRecoveryRegistration[]> ReadAsync(DateOnly date, CancellationToken token) => store.ReadAsync(date, token);
+    public async Task<TradeFeedRecoveryRegistration[]> ReadAsync(DateOnly date, CancellationToken token)
+    {
+        await serial.WaitAsync(token);
+        try
+        {
+            var rows = await store.ReadAsync(date, token);
+            foreach (var key in enabledTrades.Keys.Where(k => k.Date == date && !rows.Any(r => r.TradeId == k.Trade))) enabledTrades.TryRemove(key, out _);
+            foreach (var row in rows) enabledTrades[(row.TradeId, date)] = 0;
+            return rows;
+        }
+        finally { serial.Release(); }
+    }
     public async Task<bool> LoadAsync(string trade, DateOnly date, bool enable, CancellationToken token)
     {
         using var operation = new OptionFeedTrace("option.trade.enable_or_restore", logger, $"{trade}|{date:yyyy-MM-dd}");
@@ -45,6 +58,7 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
             if (definition?.Status != EstablishedTradeStatus.Open)
             {
                 await store.RemoveAsync(trade, date, token);
+                enabledTrades.TryRemove((trade, date), out _);
                 if (previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
                 operation.Complete();
                 return false;
@@ -55,6 +69,7 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
             using (var save = new OptionFeedTrace("option.trade.save_intent", logger, trade))
             {
                 await store.SaveAsync(new(trade, date, contracts, DateTimeOffset.UtcNow), token);
+                enabledTrades[(trade, date)] = 0;
                 save.Complete();
             }
             List<Exception> failures = [];
@@ -88,6 +103,7 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
         {
             var previous = (await store.ReadAsync(date, token)).SingleOrDefault(row => row.TradeId == trade);
             await store.RemoveAsync(trade, date, token);
+            enabledTrades.TryRemove((trade, date), out _);
             if (previous is not null) await StopAllAsync(previous.OptionContracts.Select(contract => (Owner(trade,date), contract)), token);
         }
         finally { serial.Release(); }
@@ -99,6 +115,7 @@ public sealed class TradeFeedRecoveryService(ITradeFeedRecoveryStore store, ITra
         {
             var previous = await store.ReadAsync(date, token);
             await store.CloseAsync(date, token);
+            foreach (var key in enabledTrades.Keys.Where(k => k.Date == date)) enabledTrades.TryRemove(key, out _);
             await StopAllAsync(previous.SelectMany(row => row.OptionContracts.Select(contract => (Owner(row.TradeId,date), contract))), token);
         }
         finally { serial.Release(); }

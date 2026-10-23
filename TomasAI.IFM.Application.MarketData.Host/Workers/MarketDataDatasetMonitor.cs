@@ -28,6 +28,7 @@ public sealed class MarketDataDatasetMonitor(MarketDataWorkerHost host, ILogger<
             catch (Exception error) { logger.LogWarning(error, "Dataset probe failed; Role={Role}; Dataset={Dataset}", dataset.Role, dataset.Dataset); }
             try
             {
+                if (dataset.Role == "Options") host.ReportOptionProcessingFailure("DatasetProbe", new InvalidOperationException("Option worker health probe failed: " + dataset.Dataset));
                 var result = await host.RecoverAsync(new(Guid.NewGuid(), dataset.Role, dataset.Dataset,
                     dataset.WorkerInstanceId, dataset.GenerationId, dataset.ValueDate!.Value, "Dataset health probe failed",
                     ReplaceProcessImmediately: dataset.Role == "Options",

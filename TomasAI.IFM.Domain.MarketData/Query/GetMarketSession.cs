@@ -16,7 +16,8 @@ public static class GetMarketSession
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(authority);
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(authority.Current);
+        return ValueTask.FromResult(authority.Current with { AllowDevelopmentEmulator =
+            string.Equals(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"), "Development", StringComparison.Ordinal) });
     }
 
     /// <summary>Reads and replies with the requested market-data result.</summary>

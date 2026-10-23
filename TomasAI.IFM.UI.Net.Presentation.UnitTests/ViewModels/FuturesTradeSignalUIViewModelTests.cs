@@ -108,6 +108,7 @@ public sealed class FuturesTradeSignalUIViewModelTests
                 Ema200 = 4987.654m,
                 IsWarm = true
             },
+            MdiPercent = 75m, MdiClassification = FuturesMDITrendType.UpTrending,
             FuturesBbSignal = new FuturesBbSignalReadModel
             {
                 Metadata = metadata,
@@ -170,7 +171,7 @@ public sealed class FuturesTradeSignalUIViewModelTests
     [InlineData(0.60, "60.00", "UpTrending")]
     [InlineData(1.00, "100.00", "UpTrending")]
     [InlineData(1.10, "100.00", "UpTrending")]
-    public void Mdi_ClampsBollingerPositionAndUsesExactThirtySixtyBoundaries(
+    public void Mdi_DisplaysBackendValueAndClassification(
         double position,
         string expectedValue,
         string expectedTrend)
@@ -181,6 +182,8 @@ public sealed class FuturesTradeSignalUIViewModelTests
             ContractId = metadata.ContractId,
             ValueDate = metadata.ValueDate,
             UpdatedAtUtc = DateTime.UtcNow,
+            MdiPercent = decimal.Parse(expectedValue, System.Globalization.CultureInfo.InvariantCulture),
+            MdiClassification = Enum.Parse<FuturesMDITrendType>(expectedTrend),
             FuturesBbSignal = new FuturesBbSignalReadModel
             {
                 Metadata = metadata,

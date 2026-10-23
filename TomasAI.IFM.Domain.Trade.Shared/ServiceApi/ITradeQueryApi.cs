@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 public interface ITradeQueryApi
 {
+    Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparation>> PrepareTradeOrderAsync(TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest request, CancellationToken token = default)
+        => throw new NotSupportedException("Backend order preparation is unavailable.");
     /// <summary>Computes provisional strategy totals for the exact selected draft snapshot.</summary>
     Task<ServiceResult<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreview>> GetTradeOrderPreviewAsync(TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreviewRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult<TradeHistoryReadModel[]>> GetTradeHistoryAsync(int orderId);

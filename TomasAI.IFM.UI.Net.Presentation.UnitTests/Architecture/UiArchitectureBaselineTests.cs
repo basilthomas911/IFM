@@ -121,11 +121,12 @@ public class UiArchitectureBaselineTests
             "App",
             "StatusConsoleView.cs"));
 
+        // Current shell intentionally has no repeated title/separator strip in its right pane.
         designer.Should().NotContain("TabControl");
-        designer.Should().Contain("lblTitle.Text = \"Status Console\"");
-        designer.Should().Contain("lblTitle.Font = new Font(\"Microsoft Sans Serif\", 11.25F, FontStyle.Bold");
-        designer.Should().Contain("pnlTitle.BackColor = Color.Black");
-        designer.Should().Contain("lblTitle.ForeColor = Color.White");
+        designer.Should().NotContain("Controls.Add(pnlTitle)");
+        designer.Should().Contain("Controls.Add(lstStatusConsole)");
+        designer.Should().Contain("lstStatusConsole.BackColor = Color.Black");
+        designer.Should().Contain("lstStatusConsole.ForeColor = Color.White");
         designer.Should().Contain("lstStatusConsole.Dock = DockStyle.Fill");
         designer.Should().Contain("colStatusTime.Width = 170");
         view.Should().Contain("ToString(\"hh:mm:ss.fff tt\", CultureInfo.InvariantCulture)");
@@ -176,7 +177,6 @@ public class UiArchitectureBaselineTests
     [InlineData(@"_appRoot\.Execute\s*\(\s*async\b", 0, "Action-based async application-root executions")]
     [InlineData(@"GetForm\s*<", 0, "application-root form service-locator calls")]
     [InlineData(@"catch(?:\s*\([^)]*\))?\s*\{\s*\}", 15, "empty catch blocks")]
-    [InlineData(@"Task\.Run\s*\(", 0, "Task.Run calls")]
     [InlineData(@"System\.Threading\.Timer|new\s+System\.Timers\.Timer", 0, "unowned background timers")]
     [InlineData(@"Process\.(?:GetCurrentProcess\(\)\.)?Kill\s*\(|GetCurrentProcess\(\)\.Kill\s*\(", 0, "forced process termination calls")]
     [InlineData(@"\.(?:Post|BeginInvoke)\s*\(", 144, "fire-and-forget UI dispatch calls")]
@@ -192,6 +192,27 @@ public class UiArchitectureBaselineTests
         count.Should().BeLessThanOrEqualTo(
             maximumCount,
             $"new {finding} must not be introduced while Stage 1 removes the existing baseline");
+    }
+
+    [Fact]
+    public void Background_cpu_work_is_restricted_to_owned_bounded_workflow_display_preparation()
+    {
+        var files = SolutionSource.GetSourceFiles(UiProjects);
+        const string pattern = @"Task\.Run\s*\(";
+        SolutionSource.FindFilesWithMatches(files, pattern).Should().BeEquivalentTo(
+            ["TomasAI.IFM.UI.Net.Views/Strategy/StrategyWorkflowDetailsAccordion.cs"]);
+        SolutionSource.CountMatches(files, pattern).Should().Be(1);
+        var source = File.ReadAllText(Path.Combine(SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.Views/Strategy/StrategyWorkflowDetailsAccordion.cs"));
+        source.Should().Contain("Task.Run(() => PrepareRoots(details, token), token)");
+        source.Should().Contain("token.ThrowIfCancellationRequested()");
+        source.Should().Contain("generation != Interlocked.Read(ref _generation)");
+        source.Should().Contain("var budget = 10000");
+        source.Should().Contain("depth < 16");
+        source.Should().Contain("index == 200");
+        var dispose = source[source.IndexOf("protected override void Dispose", StringComparison.Ordinal)..];
+        dispose.Should().Contain("_preparation?.Cancel()");
+        dispose.Should().Contain("_preparation?.Dispose()");
     }
 
     [Fact]
@@ -220,8 +241,9 @@ public class UiArchitectureBaselineTests
             @"\bTimeZoneInfo\b");
         timeZoneImplementations.Should().BeEquivalentTo(
         [
-            "TomasAI.IFM.UI.Net.Models/EasternTime.cs"
-        ], "the Toronto/New York conversion rules must have one authoritative implementation");
+            "TomasAI.IFM.UI.Net.Models/EasternTime.cs",
+            "TomasAI.IFM.UI.Net.Models/SystemAdmin/ScheduleTime.cs"
+        ], "market display uses Eastern time; schedule editing alone uses its explicitly configured zone, both centralized in Models");
 
         var navigator = File.ReadAllText(Path.Combine(
             SolutionSource.RootPath,
@@ -369,10 +391,13 @@ public class UiArchitectureBaselineTests
         modelsProject.Should().NotContain("TomasAI.IFM.Framework.Messaging.RestApi");
 
         startup.Should().Contain("using TomasAI.IFM.Application.Api.Nats.Client;");
-        startup.Should().Contain("RegisterSingleton<IActorProducer>");
-        startup.Should().Contain("RegisterSingleton<NatsConnectionManager>");
+        startup.Should().Contain("new TomasAI.IFM.UI.Net.Composition.UiClientServiceRegistration(_container,config).Register()");
+        var composition = File.ReadAllText(Path.Combine(SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.Composition", "UiClientServiceRegistration.cs"));
+        composition.Should().Contain("RegisterSingleton<IActorProducer>");
+        composition.Should().Contain("RegisterSingleton<NatsConnectionManager>");
         startup.Should().Contain("RegisterSingleton<YieldCurveRateEditViewModel>");
-        startup.Should().Contain("RegisterInstance(TimeProvider.System)");
+        composition.Should().Contain("RegisterInstance(TimeProvider.System)");
         startup.Should().NotContain("CommandServiceApiClient");
         startup.Should().NotContain("QueryServiceApiClient");
         startup.Should().NotContain("IHttpClientFactory");

@@ -29,6 +29,13 @@ public sealed class ManualOrderAcknowledgementLifecycleTests
         var portfolio=Substitute.For<IPortfolioOrderCompositionApi>(); var lifecycle=Substitute.For<ITradeOrderLifecycleApi>();
         var queries=Substitute.For<IBrokerOrderQueryApi>(); services.BrokerOrders.Returns(queries);
         services.PortfolioTradeOrders.Returns(new PortfolioTradeOrderService(portfolio,lifecycle));
+        var tradeQueries=Substitute.For<ITradeQueryApi>();
+        tradeQueries.PrepareTradeOrderAsync(Arg.Any<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest>(),Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceOk<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparation>(
+                TomasAI.IFM.Domain.Trade.Order.Query.Model.TradeOrderPreparationCompute.Calculate(
+                    call.Arg<TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderPreparationRequest>(),
+                    new() { Symbol="ES",Currency="USD",Exchange="XCME" },new(2026,10,15),DateTime.UtcNow,.25m,.65m,default!,"Manual","test")));
+        services.TradeQueries.Returns(new TradeQueryService(tradeQueries));
         Guid component=default; var observed=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int responded=0;
         portfolio.EvaluateAsync(Arg.Any<EvaluatePortfolioOrderCompositionCommand>(),Arg.Any<CancellationToken>()).Returns(call=>{

@@ -17,6 +17,8 @@ public interface IMarketDataFeedQueryApi
     Task<ServiceResult<FuturesEodDataMovingAveragesReadModel>> GetFuturesEodMovingAveragesAsync(string contractId, string symbol, DateOnly valueDate);
     Task<ServiceResult<VixFuturesEodDataReadModel[]>> GetVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
     Task<ServiceResult<VixFuturesEodDataReadModel>> GetLastVixFuturesEodDataAsync(string contractId, DateOnly valueDate);
+    Task<ServiceResult<FuturesBarDataReadModel[]>> GetFuturesBarWindowAsync(string contractId, string symbol, DateOnly valueDate, DateTime startUtc, DateTime endUtc)
+        => throw new NotSupportedException("Server range history is unavailable.");
     Task<ServiceResult<FuturesBarDataReadModel[]>> GetFuturesBarDataAsync(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate);
     Task<ServiceResult<IronCondorMarketDataFeedReadModel>> GetIronCondorMarketDataFeedAsync(
            string underlyingContractId,

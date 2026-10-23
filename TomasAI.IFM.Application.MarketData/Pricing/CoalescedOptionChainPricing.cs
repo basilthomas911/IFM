@@ -138,6 +138,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
         }
         catch (Exception error) when (error is ArgumentException or ArithmeticException)
         {
+            fault?.Invoke("Option trade pricing exception for " + route.FuturesOptionContractId + ": " + error);
             result = Pending(route, "TradePricingFailed") with { PriceSource = OptionGreeksPriceSource.Trade };
         }
         var evidence = new OptionTradeEvidence(new(route.Definition.Dataset, route.Definition.Instrument.PublisherId,
@@ -189,7 +190,7 @@ public sealed class CoalescedOptionChainPricing : IOptionChainGreeksEnricher, IR
                 await ProcessSweepAsync(risk).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { /* Cancellation or optional observation must not abort the enclosing shutdown/recovery boundary. */ }
-        catch (Exception e) { fault?.Invoke("Option pricing scheduler failed: " + e.GetType().Name); throw; }
+        catch (Exception e) { fault?.Invoke("Option pricing scheduler failed: " + e); throw; }
     }
     /// <summary>Deterministic pass for synthetic-clock verification; production is driven by the owned background loops.</summary>
     public void ProcessPass(bool risk = false)

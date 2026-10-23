@@ -279,7 +279,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
             new DatabentoSupervisedWorkerOptions
             {
                 DotNetHostPath = DotNetHost(),
-                WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location,
+                WorkerAssemblyPath = OriginalWorkerAssembly(),
                 Synthetic = new TomasAI.IFM.Framework.MarketData.DataBento.SyntheticFeedOptions
                 {
                     RecordCount = 1_000_000,
@@ -313,7 +313,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
         cleanup.CloseSessionAsync(Arg.Any<CancellationToken>()).Returns(Task.FromException(new InvalidOperationException("Cleanup failed")));
         await using var workers = new DatasetWorkerProcessRecoveryService(Options(), new DatasetWorkerAdmissionRegistry());
         var runtime = new SupervisedDatabentoLifecycleRuntime(Substitute.For<IDatabentoContractAuthority>(),
-            Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = typeof(DatasetWorkerAssemblyMarker).Assembly.Location }, TimeProvider.System,
+            Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = OriginalWorkerAssembly() }, TimeProvider.System,
             Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
         var stop = () => runtime.StopAsync(CancellationToken.None);
         await stop.Should().ThrowAsync<AggregateException>().WithMessage("*cleanup*");
@@ -337,8 +337,19 @@ public sealed class DatasetWorkerProcessSupervisorTests
         }])
     };
 
+    // A referenced executable copied into a web test output loses package assemblies supplied
+    // by the test shared framework. Lifecycle tests must use its complete own build output.
+    static string OriginalWorkerAssembly()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker"))) root = root.Parent;
+        Assert.NotNull(root);
+        var configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
+        return Path.Combine(root!.FullName, "TomasAI.IFM.Application.MarketData.Host.Worker", "bin", configuration, "net10.0", "TomasAI.IFM.Application.MarketData.Host.Worker.dll");
+    }
+
     static string[] WorkerArguments() =>
-        [typeof(DatasetWorkerAssemblyMarker).Assembly.Location];
+        ["exec", "--runtimeconfig", Path.ChangeExtension(typeof(DatasetWorkerProcessSupervisorTests).Assembly.Location, "runtimeconfig.json"), typeof(DatasetWorkerAssemblyMarker).Assembly.Location];
 
     static string DotNetHost()
     {

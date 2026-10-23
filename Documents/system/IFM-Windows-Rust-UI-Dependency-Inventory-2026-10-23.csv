@@ -1,0 +1,200 @@
+Source,DeclaredTypes,TargetDisposition
+TomasAI.IFM.Application.Api.Nats.Client/ApplicationCommandApi.cs,ApplicationCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ApplicationQueryApi.cs,ApplicationQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/BrokerAccountCommandApi.cs,BrokerAccountCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/BrokerAccountQueryApi.cs,BrokerAccountQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/BrokerOrderCommandApi.cs,BrokerOrderCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/BrokerOrderQueryApi.cs,BrokerOrderQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupApiServiceCollectionExtensions.cs,DatabaseBackupApiServiceCollectionExtensions,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupCommandApi.cs,DatabaseBackupCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/DatabaseBackupQueryApi.cs,DatabaseBackupQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/DownloadLogCommandApi.cs,DownloadLogCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/DownloadLogQueryApi.cs,DownloadLogQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/EstablishedTradeQueryApi.cs,EstablishedTradeQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/IdempotentCommandId.cs,IdempotentCommandId,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/IntrinsicTimePipelineDecisionReferenceQueryApi.cs,IntrinsicTimePipelineDecisionReferenceQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/IntrinsicTimeStrategyWorkflowQueryApi.cs,IntrinsicTimeStrategyWorkflowQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketConditionAssessmentQueryApi.cs,MarketConditionAssessmentQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataAnalyticsCommandApi.cs,MarketDataAnalyticsCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataAnalyticsQueryApi.cs,MarketDataAnalyticsQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.EconomicCalendar.cs,MarketDataCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataCommandApi.cs,MarketDataCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedCommandApi.cs,MarketDataFeedCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataFeedQueryApi.cs,MarketDataFeedQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.EconomicCalendar.cs,MarketDataQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.OptionChainCache.cs,MarketDataQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/MarketDataQueryApi.cs,MarketDataQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/NatsClientApi.cs,NatsClientApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/OptionTradeQueryApi.cs,OptionTradeQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/OrderCompositionQueryApi.cs,OrderCompositionQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/OrderExecutionQueryApi.cs,OrderExecutionQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ParameterSetsApi.cs,ParameterSetsApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioCommandApi.cs,PortfolioCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialApi.cs,PortfolioFinancialApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioFinancialPolicyCommandApi.cs,PortfolioFinancialPolicyCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioFundCommandApi.cs,PortfolioFundCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioIdentityApi.cs,PortfolioIdentityApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioQueryApi.cs,PortfolioQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/PortfolioRequestCorrelation.cs,PortfolioRequestCorrelation,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ReferenceCommandApi.cs,ReferenceCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ReferenceQueryApi.cs,ReferenceQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/RiskQueryApi.cs,RiskQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskApiServiceCollectionExtensions.cs,ScheduledTaskApiServiceCollectionExtensions,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskCommandApi.cs,ScheduledTaskCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/ScheduledTaskQueryApi.cs,ScheduledTaskQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/StrategyPositionCommandApi.cs,StrategyPositionCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/StrategyPositionQueryApi.cs,StrategyPositionQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/StrategyTradePlanQueryApi.cs,StrategyTradePlanQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/SupervisorCommandApi.cs,SupervisorCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradeFeedRecoveryApi.cs,TradeFeedRecoveryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradeOrderLifecycleApi.cs,TradeOrderLifecycleApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradePlacementCommandApi.cs,TradePlacementCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradePlanCommandApi.cs,TradePlanCommandApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradePlanQueryApi.cs,TradePlanQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.Application.Api.Nats.Client/TradeSelectionQueryApi.cs,TradeSelectionQueryApi,"Rust typed API adapter; preserve subjects, wire contracts, IDs and acknowledgement semantics"
+TomasAI.IFM.UI.EventConsumer/ApplicationUIEventConsumer.cs,ApplicationUIEventConsumer; IApplicationUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/CommandResponseUIEventConsumer.cs,CommandResponseDescriptor; CommandResponseUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/EconomicCalendarUIEventConsumer.cs,EconomicCalendarUIEventConsumer; IEconomicCalendarUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesBarDataUIEventConsumer.cs,FuturesBarDataUIEventConsumer; IFuturesBarDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesEodDataUIEventConsumer.cs,FuturesEodDataUIEventConsumer; IFuturesEodDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesItiSignalUIEventConsumer.cs,FuturesItiSignalUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesOptionContractUIEventConsumer.cs,FuturesOptionContractUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesOptionTickDataStreamingStartedEventConsumer.cs,FuturesOptionTickDataStreamingStartedEventConsumer; IFuturesOptionTickDataStreamingStartedEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesOptionTickDataUIEventConsumer.cs,FuturesOptionTickDataUIEventConsumer; IFuturesOptionTickDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesRsiSignalUIEventConsumer.cs,FuturesRsiSignalUIEventConsumer; IFuturesRsiSignalUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/FuturesTradeSignalUIEventConsumer.cs,FuturesTradeSignalUIEventConsumer; IFuturesTradeSignalUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ICommandResponseUIEventConsumer.cs,ICommandResponseUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IFuturesItiSignalUIEventConsumer.cs,IFuturesItiSignalUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IFuturesOptionContractUIEventConsumer.cs,IFuturesOptionContractUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IIntrinsicTimeStrategyWorkflowUIEventConsumer.cs,IIntrinsicTimeStrategyWorkflowUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IMarketDataFeedResetUIEventConsumer.cs,IMarketDataFeedResetUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IMarketDataFeedStatusUIEventConsumer.cs,IMarketDataFeedStatusUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IMarketDataUIEventConsumer.cs,IMarketDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IOptionTradeSpreadBarDataUIEventConsumer.cs,IOptionTradeSpreadBarDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ISystemAdminUIEventConsumer.cs,ISystemAdminUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ITradePlacementUIEventConsumer.cs,ITradePlacementUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ITradePlanActionUIEventConsumer.cs,ITradePlanActionUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ITradePlanUIEventConsumer.cs,ITradePlanUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ITradePositionUIEventConsumer.cs,ITradePositionUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IYieldCurveRateUIEventConsumer.cs,IYieldCurveRateUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/IntrinsicTimeStrategyWorkflowUIEventConsumer.cs,IntrinsicTimeStrategyWorkflowUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/LookupTypeUIEventConsumer.cs,ILookupTypeUIEventConsumer; LookupTypeUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/MarketDataFeedResetUIEventConsumer.cs,MarketDataFeedResetUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/MarketDataFeedStatusUIEventConsumer.cs,MarketDataFeedStatusUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/MarketDataUIEventConsumer.cs,MarketDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/MarketOutlookUIEventConsumer.cs,IMarketOutlookUIEventConsumer; MarketOutlookUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/OptionTradeSpreadBarDataUIEventConsumer.cs,OptionTradeSpreadBarDataUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/ScheduledTaskUIEventConsumer.cs,IScheduledTaskUIEventConsumer; ScheduledTaskUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/SystemAdminUIEventConsumer.cs,SystemAdminUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/TradePlacementUIEventConsumer.cs,TradePlacementUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/TradePlanActionUIEventConsumer.cs,TradePlanActionUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/TradePlanUIEventConsumer.cs,TradePlanUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/TradePositionUIEventConsumer.cs,TradePositionUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.EventConsumer/YieldCurveRateUIEventConsumer.cs,YieldCurveRateUIEventConsumer,"Rust scoped subscription/fan-out; preserve filters, deduplication, error delivery and cleanup"
+TomasAI.IFM.UI.Net.Composition/UiClientServiceRegistration.cs,UiClientServiceRegistration,Replace managed registration with explicit Rust application composition
+TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsCommandService.cs,IntradaySignalLifecycleResult; IntradaySignalLifecycleStatus; IntradaySignalType; MarketDataAnalyticsCommandService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsEventService.cs,MarketDataAnalyticsEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsQueryService.cs,MarketDataAnalyticsQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Analytics/StrategyOperationsComposition.cs,StrategyOperationsComposition,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Analytics/StrategyOperationsService.cs,StrategyOperationsService; StrategyWorkflowPage,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Application/ApplicationEventService.cs,ApplicationEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Application/ApplicationQueryService.cs,ApplicationQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Application/CommandResponseEventService.cs,CommandResponseEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Application/StatusConsoleService.cs,StatusConsoleService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Execution/IUiService.cs,IUiService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Execution/UiServiceBase.cs,UiServiceBase; UiServiceExecution,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/GlobalUsings.cs,,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/IUiServiceCatalog.cs,IUiServiceCatalog,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketData/MarketDataCommandService.cs,MarketDataCommandService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketData/MarketDataEventService.cs,MarketDataEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketData/MarketDataOperationsHealthQueryService.cs,IMarketDataOperationsHealthQueryService; MarketDataOperationsHealthQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketData/MarketDataQueryService.cs,MarketDataQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketData/OptionTradeSpreadBarDataEventService.cs,OptionTradeSpreadBarDataEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedCommandService.cs,MarketDataFeedCommandService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/MarketDataFeed/MarketDataFeedQueryService.cs,MarketDataFeedQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/ActorHealthQueryService.cs,ActorHealthQueryService; IActorHealthQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/ServiceResultMapping.cs,ServiceResultMapping,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/SupervisorControlOptions.cs,SupervisorControlOptions,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/UiOperationError.cs,UiOperationError,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/UiOperationException.cs,UiOperationException; UiOperationResultExtensions,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Operations/UiOperationResult.cs,UiOperationResult,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/OptionPricing/IOptionPricingService.cs,IOptionPricingService,Exclude WinForms-only local pricing method from current Rust baseline; no new backend clone required
+TomasAI.IFM.UI.Net.Services/OptionPricing/OptionPricingService.cs,OptionPricingService,Exclude WinForms-only local pricing method from current Rust baseline; no new backend clone required
+TomasAI.IFM.UI.Net.Services/Reference/EconomicCalendarService.cs,EconomicCalendarService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Reference/IEconomicCalendarService.cs,IEconomicCalendarService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Reference/IReferenceDataService.cs,IReferenceDataService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Reference/ReferenceDataService.cs,ReferenceDataService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Subscriptions/IUiEventSubscription.cs,IUiEventSubscription,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Subscriptions/OwnedUiEventSubscription.cs,OwnedUiEventSubscription,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/SystemAdmin/DatabaseBackupService.cs,DatabaseBackupService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/SystemAdmin/IDatabaseBackupService.cs,IDatabaseBackupService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/SystemAdmin/IScheduledTaskService.cs,IScheduledTaskService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/SystemAdmin/ScheduledTaskService.cs,ScheduledTaskService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/BrokerSubmissionAcknowledgement.cs,BrokerOrderRejectedException; BrokerSubmissionAcknowledgement,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/DesktopTradeExecutionContext.cs,DesktopTradeExecutionContext,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/OrderExecutionNotificationService.cs,IOrderExecutionNotificationService; OrderExecutionNotificationService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/PortfolioTradeOrderService.cs,PortfolioTradeOrderService; PortfolioTradeOrderSubmissionResult,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/StrategyPositionService.cs,StrategyPositionService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/StrategyTradePlanQueryService.cs,StrategyTradePlanQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePlacementCommandService.cs,TradePlacementCommandService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePlacementEventService.cs,TradePlacementEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePlanActionEventService.cs,TradePlanActionEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePlanEventService.cs,TradePlanEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePlanQueryService.cs,TradePlanQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradePositionFeedEventService.cs,TradePositionFeedEventService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/Trade/TradeQueryService.cs,TradeQueryService,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Net.Services/UiServiceCatalog.cs,UiServiceCatalog,Port client orchestration; separate backend-owned business transformations
+TomasAI.IFM.UI.Rust.Bridge.Net/ActorHealthSession.cs,ActorHealthSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/AsyncSessionOwner.cs,AsyncSessionOwner; Work,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/BridgeBootstrap.cs,ApiV1; ApiV4; ApiV5; BridgeBootstrap; Session,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/BridgeCatalogData.cs,BridgeCatalogData,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/BridgeDocument.cs,BridgeDocument,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/BridgeInput.cs,BridgeInput,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/BridgeWire.cs,BridgeGeneratedResolver; BridgeIntentHeader; BridgeStringCatalog; BridgeWire; KnownFormatter; LookupWireFormatter,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/CoalescedDisplayPublisher.cs,CoalescedDisplayPublisher,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ContractDraftMapping.cs,ContractDraftMapping,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ContractEditorGateway.cs,ContractEditorGateway; ContractEditorIntent; ContractEditorPublication; ContractEditorResult; ContractEditorRow,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ContractEditorSession.cs,ContractEditorSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ContractPublicationFormatter.cs,ContractPublicationFormatter,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/DashboardSession.cs,DashboardSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/DatabaseBackupSession.cs,DatabaseBackupSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/DisplayDescriptors.cs,DisplayDescriptors; DisplayProperty,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/EconomicCalendarEditorSession.cs,EconomicCalendarEditorSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/EditorActionGateway.cs,EditorActionGateway; EditorIntent; EditorOutcome; EditorOutcomeUnknownException; EditorPublication,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/FixtureViewModelSession.cs,FixtureProxy; FixtureViewModelSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/InspectionActionGateway.cs,InspectionActionGateway; InspectionPublication,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/LiveStrategySession.cs,LiveStrategySession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/LookupEditorSession.cs,LookupEditorSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/MarketChartSession.cs,MarketChartProjection; MarketChartSeries; MarketChartSession; MarketChartSnapshot,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/MarketDisplayContracts.cs,OptionChainDisplay; OptionContractDisplay; SelectedLegDisplay,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/MarketOutlookPresentation.cs,MarketOutlookCell; MarketOutlookPresentation,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/OperationsHealthSession.cs,OperationsHealthSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ParameterSetSession.cs,ParameterSetSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PooledBridgeBuffer.cs,PooledBridgeBuffer,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Editors.cs,PortfolioSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Financial.cs,PortfolioSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.Policy.cs,PortfolioSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PortfolioSession.cs,PortfolioChoice; PortfolioDialog; PortfolioDocument; PortfolioField; PortfolioGrid; PortfolioSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ProviderDefinitionSession.cs,ProviderDefinitionSession; ProviderDraft,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ProviderReferenceMapping.cs,ProviderReferenceMapping,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PublicationCache.cs,PublicationCache,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/PublicationTransfer.cs,Node; PublicationTransfer; TransferOperation; TransferPatch; TransferPath; WireTree,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/ReferenceReviewMapping.cs,ReferenceReviewMapping,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/RustClientServiceScope.cs,RustClientServiceScope,Retire managed ABI/hosting/composition after equivalent Rust state/transport is qualified; review nested models
+TomasAI.IFM.UI.Rust.Bridge.Net/RustDiagnosticLogger.cs,RustDiagnosticLogger,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/RustShellViewModelSession.cs,NativeShellAdapter; RustShellViewModelSession; ShellFeedControl,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/ScheduledTaskSession.cs,ScheduledTaskSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/SidebarSession.cs,CalendarDisplayRow; SidebarPublication; SidebarSession; StatusDisplayRow,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/StrategyCatalogSession.cs,StrategyCatalogSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/StrategyDetailsAdapter.cs,DetailSnapshot; ObjectNode; PropertyRow; StrategyDetailsAdapter; StrategyGraphPoint; StrategySummarySection; WorkflowActor; WorkflowChoice; WorkflowDisplayRow,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/StrategyInspectionBackend.cs,InspectionIntent; InspectionResult; InspectionRow; StrategyInspectionBackend,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/StringIds.cs,StringIds,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradeComposerSession.cs,SubmissionState; TradeComposerSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradeMonitorRowSections.cs,Section; TradeMonitorRowSections; TradeMonitorSection,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradeMonitorUpdates.cs,Identity; TradeMonitorRevisions; TradeMonitorUpdates,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradePlanDisplay.cs,HistoryShape; TradePlanDisplay,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradePlanRowCache.cs,Entry; Identity; TradePlanHistoryScope; TradePlanRowCache,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/TradeWorkspaceSession.cs,OpenTrade; TradeWorkspaceSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/UiRequestHistory.cs,Completed; UiRequestHistory,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/VirtualGridDataset.cs,GridRow; VirtualGridDataset,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"
+TomasAI.IFM.UI.Rust.Bridge.Net/YieldCurveEditorSession.cs,YieldCurveEditorSession,"Port bridge-owned controller, publication/model, cache or action behavior to Rust; review embedded business rules"

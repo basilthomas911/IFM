@@ -22,4 +22,8 @@ public sealed record EvaluatedOptionChainReadModel(
     /// <summary>The latest accepted underlying trade from the hot cache, independent of pricing fallbacks.</summary>
     [Key(13)] public decimal? LastUnderlyingPrice { get; init; }
     [Key(14)] public DateTimeOffset? LastUnderlyingTradeAtUtc { get; init; }
+    [Key(15)] public decimal? AtmImpliedVolatility { get; init; }
+    [Key(16)] public decimal? DailyPriceChange { get; init; }
+    [Key(17)] public decimal? DailyPriceChangeFraction { get; init; }
+    [Key(18)] public int? DaysToExpiry { get; init; }
 }

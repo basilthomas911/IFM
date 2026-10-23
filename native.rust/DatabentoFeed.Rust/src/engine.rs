@@ -207,9 +207,12 @@ impl Feed {
 
     pub fn set_error(&self, status: Status, message: &[u8]) {
         self.terminal_status.store(status, Ordering::Release);
-        let mut error = lock(&self.error);
-        error.clear();
-        error.extend_from_slice(message);
+        {
+            let mut error = lock(&self.error);
+            error.clear();
+            error.extend_from_slice(message);
+        }
+        crate::diagnostics::report(3, status, true, true, &format!("FeedInstance={:p}; Dataset={}; {}", self, String::from_utf8_lossy(&self.dataset), String::from_utf8_lossy(message)));
     }
     pub fn notify_control(&self) {
         self.control_cv.notify_all();

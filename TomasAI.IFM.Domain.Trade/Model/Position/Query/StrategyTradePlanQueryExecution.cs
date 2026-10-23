@@ -25,6 +25,10 @@ public static class StrategyTradePlanQueryExecution
         ArgumentNullException.ThrowIfNull(dbFactory);
         ArgumentNullException.ThrowIfNull(query);
         var result = await dbFactory.TradePlanDb.DbReader.GetCurrentAsync(positionId, strategy, valueDate, cancellationToken).ConfigureAwait(false);
+        if (result is not null && strategy == TradeStrategyKind.IronCondor) {
+            var trade = await dbFactory.TradeDb.GetEstablishedTradeAsync(positionId.Trade, cancellationToken).ConfigureAwait(false);
+            if (trade is not null) result = result with { Position = StrategyPositionHistoryProjection.EnrichPosition(result.Position, trade) };
+        }
         await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyTradePlanSnapshot?>(result)).ConfigureAwait(false);
     }
 

@@ -39,7 +39,8 @@ public sealed partial class ScheduledTasksView : DarkTradingView, IAsyncFormCont
         Name = "ScheduledTasksView"; Dock = DockStyle.Fill; BackColor = Color.Black;
         _environment.Text = viewModel.Environment; _host.Text = viewModel.HostId;
         _zone.Text = "America/New_York"; _cron.Text = "0 1 17 ? * MON-FRI";
-        _time.Value = DateTime.Today.AddHours(17).AddMinutes(1);
+        // Only TimeOfDay is used for the cron editor; its hidden date must not depend on the workstation.
+        _time.Value = new DateTime(2000, 1, 1, 17, 1, 0);
         _days.Items.AddRange(["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]);
         for (var day = 1; day <= 5; day++) _days.SetItemChecked(day, true);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = Color.Black, ColumnCount = 1, RowCount = 5, Padding = new Padding(6) };
@@ -115,14 +116,12 @@ public sealed partial class ScheduledTasksView : DarkTradingView, IAsyncFormCont
     {
         var preview = await _viewModel.PreviewAsync(ReadSchedule());
         if (preview is null) return;
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(_zone.Text);
-        _preview.Text = preview.Valid ? string.Join(Environment.NewLine, preview.NextFireTimesUtc.Select(t => $"{TimeZoneInfo.ConvertTime(t, zone):yyyy-MM-dd HH:mm:ss zzz} / {t:HH:mm:ss} UTC")) : string.Join(Environment.NewLine, preview.Errors);
+        _preview.Text = preview.Valid ? string.Join(Environment.NewLine, preview.NextFireTimesUtc.Select(t => $"{ScheduleTime.FromUtc(t, _zone.Text):yyyy-MM-dd HH:mm:ss zzz} / {t:HH:mm:ss} UTC")) : string.Join(Environment.NewLine, preview.Errors);
     }
     /// <summary>Converts explicit-zone date pickers into UTC configuration bounds.</summary>
     private ScheduledTaskScheduleUiModel ReadSchedule()
     {
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(_zone.Text);
-        DateTimeOffset? Bound(DateTimePicker picker) => picker.Checked ? new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(picker.Value, DateTimeKind.Unspecified), zone)) : null;
+        DateTimeOffset? Bound(DateTimePicker picker) => picker.Checked ? ScheduleTime.ToUtc(picker.Value, _zone.Text) : null;
         return new(_task.SelectedValue as string ?? _task.Text, _name.Text, _environment.Text, _host.Text, _oneTime.Checked,
             _cron.Text, _zone.Text, Bound(_start), Bound(_end), (int)_runtime.Value, (int)_tolerance.Value, "");
     }
@@ -132,9 +131,8 @@ public sealed partial class ScheduledTasksView : DarkTradingView, IAsyncFormCont
         var schedule = definition.Schedule; _task.SelectedValue = schedule.TaskKey; _task.Enabled = false;
         _name.Text = schedule.Name; _cron.Text = schedule.Expression; _zone.Text = schedule.TimeZoneId; _environment.Text = schedule.Environment; _host.Text = schedule.HostId;
         _oneTime.Checked = schedule.OneTime; _runtime.Value = Math.Clamp(schedule.MaximumRuntimeSeconds, 1, 86400); _tolerance.Value = Math.Clamp(schedule.DispatchToleranceSeconds, 1, 3600);
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId);
-        _start.Checked = schedule.StartsAtUtc is not null; if (schedule.StartsAtUtc is { } start) _start.Value = TimeZoneInfo.ConvertTime(start, zone).DateTime;
-        _end.Checked = schedule.EndsAtUtc is not null; if (schedule.EndsAtUtc is { } end) _end.Value = TimeZoneInfo.ConvertTime(end, zone).DateTime;
+        _start.Checked = schedule.StartsAtUtc is not null; if (schedule.StartsAtUtc is { } start) _start.Value = ScheduleTime.FromUtc(start, schedule.TimeZoneId).DateTime;
+        _end.Checked = schedule.EndsAtUtc is not null; if (schedule.EndsAtUtc is { } end) _end.Value = ScheduleTime.FromUtc(end, schedule.TimeZoneId).DateTime;
     }
     /// <summary>Rebinds immutable projected rows while retaining the selected actor identity.</summary>
     private void BindState()

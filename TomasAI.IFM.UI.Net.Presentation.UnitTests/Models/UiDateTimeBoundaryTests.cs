@@ -79,19 +79,16 @@ public class UiDateTimeBoundaryTests
             "contract", symbol, date, timestamp, BarRateType.FifteenSeconds, price, 0, 0);
         var previous = Bar(endedDate, end.AddHours(-5), 100m);
         var current = Bar(activeDate, end.AddMinutes(-1), 101m);
-        api.GetFuturesBarDataAsync("contract", symbol, endedDate, start, end)
-            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([previous, Bar(endedDate, start.AddSeconds(-1), 99m)]));
-        api.GetFuturesBarDataAsync("contract", symbol, activeDate, start, end)
-            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([current]));
+        api.GetFuturesBarWindowAsync("contract", symbol, activeDate, start, end)
+            .Returns(new ServiceOk<FuturesBarDataReadModel[]>([previous, current]));
         FuturesBarDataReadModel[] result = [];
 
         await new MarketDataFeedQueryService(api).GetFuturesBarWindowAsync(
             "contract", symbol, activeDate, start, end, values => result = values);
 
         Assert.Equal(new[] { previous, current }, result);
-        await api.Received(1).GetFuturesBarDataAsync("contract", symbol, endedDate, start, end);
-        await api.Received(1).GetFuturesBarDataAsync("contract", symbol, activeDate, start, end);
-        Assert.Equal(2, api.ReceivedCalls().Count());
+        await api.Received(1).GetFuturesBarWindowAsync("contract", symbol, activeDate, start, end);
+        Assert.Single(api.ReceivedCalls());
     }
 
     [Fact]
@@ -101,15 +98,14 @@ public class UiDateTimeBoundaryTests
         var end = new DateTime(2026, 10, 8, 5, 0, 0, DateTimeKind.Utc);
         var start = end.AddHours(-6);
         var date = new DateOnly(2026, 10, 8);
-        api.GetFuturesBarDataAsync("contract", "ES", Arg.Any<DateOnly>(), start, end)
+        api.GetFuturesBarWindowAsync("contract", "ES", date, start, end)
             .Returns(new ServiceOk<FuturesBarDataReadModel[]>([]));
 
         await new MarketDataFeedQueryService(api).GetFuturesBarWindowAsync(
             "contract", "ES", date, start, end, _ => { });
 
-        await api.Received(1).GetFuturesBarDataAsync("contract", "ES", date.AddDays(-1), start, end);
-        await api.Received(1).GetFuturesBarDataAsync("contract", "ES", date, start, end);
-        Assert.Equal(2, api.ReceivedCalls().Count());
+        await api.Received(1).GetFuturesBarWindowAsync("contract", "ES", date, start, end);
+        Assert.Single(api.ReceivedCalls());
     }
 
     [Fact]

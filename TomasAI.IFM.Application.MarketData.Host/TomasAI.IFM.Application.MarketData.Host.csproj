@@ -6,6 +6,9 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Telemetry\TomasAI.IFM.Framework.Telemetry.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />

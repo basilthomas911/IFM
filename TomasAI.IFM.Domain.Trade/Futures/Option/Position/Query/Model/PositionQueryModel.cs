@@ -28,6 +28,9 @@ internal static class PositionQueryModel
             pagingState = page.PagingState;
         }
         while (query.LoadAll && pagingState is { Length: > 0 });
+        var trade = await context.DbFactory.TradeDb.GetEstablishedTradeAsync(query.PositionId.Trade, cancellationToken).ConfigureAwait(false);
+        if (trade is not null && trade.StrategyKind == strategyKind)
+            positions = positions.Select(p => StrategyPositionHistoryProjection.EnrichPosition(p, trade)).ToList();
         await (context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb, new ServiceResult<StrategyPositionSnapshot[]>(positions.ToArray()))).ConfigureAwait(false);
     }
 }

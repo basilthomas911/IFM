@@ -1043,7 +1043,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 Exception? error = stats.State == FeedState.Faulted
                     ? new DatabentoFeedException(
                         stats.TerminalStatus,
-                        $"Native Databento feed faulted with {stats.TerminalStatus}.")
+                        $"Native Databento feed faulted with {stats.TerminalStatus}: {NativeStatus.ReadLastError(_handle!)}")
                     : null;
                 foreach (var state in _channelStates)
                 {

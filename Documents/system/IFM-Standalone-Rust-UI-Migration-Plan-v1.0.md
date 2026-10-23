@@ -4,6 +4,8 @@ Date: 2026-10-18
 Status: Implementation design  
 Scope: Desktop views, view models, client models, services, subscriptions, configuration, and packaging
 
+**2026-10-23 update:** the target project and sole desktop executable are now `TomasAI.IFM.UI.Rust.eGui` and `TomasAI.IFM.UI.Rust.eGui.exe`. See the revised [Windows full migration plan](IFM-Windows-Rust-UI-Full-Migration-Plan-v0.1.md) and [refreshed model/view-model inventory](IFM-Windows-Rust-UI-Model-Inventory-2026-10-23.md). The source counts below record the 2026-10-18 baseline; the refreshed inventory takes precedence. Protocol compatibility requirements in this document remain applicable.
+
 The target is a standalone Rust desktop application that communicates with the existing C# backend through its actor command, query, function, and event contracts over NATS. The desktop release must run without hostfxr, managed bridge assemblies, or an installed .NET runtime. C# remains the authority for trading, portfolio decisions, valuation, persistence, and recovery.
 
 Existing C# data structures, MessagePack keys, serializer settings, compression, actor subjects, and business semantics remain unchanged. Rust implements the compatibility adapters. This is a client migration; moving the backend to Rust is outside scope.

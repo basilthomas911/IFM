@@ -45,6 +45,16 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     readonly BrokerEnvironment _brokerEnvironment;
     readonly AsyncLifecycleCoordinator _lifecycle;
     DateOnly? _valueDate;
+    MarketSessionReadModel? _serverMarketSession;
+    /// <summary>Applies the API's eligibility snapshot; never derives a business date locally.</summary>
+    public void ApplyMarketSessionSnapshot(MarketSessionReadModel session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!session.IsValid) throw new ArgumentException("A valid API market session is required.", nameof(session));
+        _serverMarketSession = session;
+        OnPropertyChanged(string.Empty);
+    }
+
     readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts; readonly IReferenceDataService _referenceDataService; IReadOnlyList<PortfolioFundEditorModel> _funds = [];
     IReadOnlyList<PortfolioFundOrderEditorModel> _fundOrders = [];
     IReadOnlyList<PortfolioFundOrderTradeEditorModel> _fundOrderTrades = [];
@@ -207,8 +217,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// </summary>
     public bool CanSubmitOrderAction(OrderActionType orderActionType)
         => orderActionType == OrderActionType.Close
-            || _brokerEnvironment == BrokerEnvironment.Emulator
-            || PositionEntryWindow.IsOpen(_timeProvider.GetUtcNow());
+            || _serverMarketSession is { IsValid: true } session
+                && (session.IsLiveTrading || session.AllowDevelopmentEmulator && _brokerEnvironment == BrokerEnvironment.Emulator);
 
     /// <summary>Validates the time-sensitive entry policy without using exceptions for normal control flow.</summary>
     public bool ValidateOrderSubmission(OrderActionType orderActionType)
@@ -764,6 +774,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         try
         {
 
+            _serverMarketSession = await _appRoot.Services.MarketDataQueries.QueryMarketSessionAsync(cancellationToken);
             var generation = Interlocked.Increment(ref _scopeGeneration);
             var selectedPortfolioId = SelectedPortfolio?.PortfolioId;
             var portfolioResult = await _appRoot.Services.PortfolioQueries.GetPortfoliosAsync(PortfolioOperatingState.Active, 200, cancellationToken: cancellationToken);

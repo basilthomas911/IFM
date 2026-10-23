@@ -93,10 +93,14 @@ public sealed partial class MarketDataReadMirror
         {
             var current = values.GetStatus();
             var failure = status.Datasets.FirstOrDefault(x => x.Role == "Options" && x.Lifecycle is "StoppedError" or "CleanupUnconfirmed");
+            var recovery = status.Datasets.FirstOrDefault(x => x.Role == "Options" && x.Lifecycle == "Recovering" && x.OperationId != Guid.Empty);
             return new() { IsRunning = current.IsRunning, ActiveValueDate = current.ActiveValueDate, ObservedAtUtc = DateTimeOffset.UtcNow,
                 OptionFeedError = failure?.Error, OptionCleanupConfirmed = failure?.Lifecycle == "StoppedError",
-                OptionWorkerInstanceId = failure?.WorkerInstanceId ?? Guid.Empty, OptionGenerationId = failure?.GenerationId ?? Guid.Empty,
-                OptionDataset = failure?.Dataset, OptionFailureUtc = optionFailureUtc };
+                OptionWorkerInstanceId = failure?.WorkerInstanceId ?? Guid.Empty, OptionGenerationId = failure?.GenerationId ?? status.Datasets.FirstOrDefault(x => x.Role == "Options")?.GenerationId ?? Guid.Empty,
+                OptionDataset = failure?.Dataset, OptionFailureUtc = optionFailureUtc,
+                OptionProcessingError = status.OptionProcessingFailure is { } processing ? processing.Component + ": " + processing.Code + ": " + processing.Detail : recovery is null ? null : "Option worker recovery: " + recovery.Error,
+                OptionProcessingFailureUtc = status.OptionProcessingFailure?.ObservedAtUtc ?? recovery?.ChangedAtUtc, EnabledOptionTrades = status.EnabledOptionTrades,
+                OptionRecoveryDeadlineUtc = recovery?.RecoveryDeadlineUtc };
         }
     }
 }

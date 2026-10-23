@@ -1,5 +1,6 @@
 LIBRARY databento_feed_native
 EXPORTS
+    dbf_set_diagnostic_callback
     dbf_get_abi_version
     dbf_feed_create
     dbf_feed_subscribe_tickers

@@ -47,6 +47,8 @@ public sealed record MarketOutlookReadModel
     [Key(31)] public MarketOutlookInputAvailability AtrAvailability { get; init; }
     [Key(32)] public FuturesMacdSignalReadModel? FuturesMacdSignal { get; init; }
     [Key(33)] public MarketOutlookInputAvailability MacdAvailability { get; init; }
+    [Key(34)] public decimal? MdiPercent { get; init; }
+    [Key(35)] public FuturesMDITrendType? MdiClassification { get; init; }
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid

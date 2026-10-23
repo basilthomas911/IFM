@@ -22,7 +22,7 @@ public static class BrokerTradeInitializationQuery
             Access = new(Environment.UserName, ["LedgerRead"], [portfolioId]) };
         var balances = Read("Fund balances", () => root.Services.PortfolioFinancial.GetAccountBalancesAsync(scope, new(), token));
         var usage = Read("Fund capacity usage", () => root.Services.PortfolioFinancial.GetCapacityUsageAsync(scope, new(), token));
-        var risk = Read("Fund risk envelope", () => root.Services.PortfolioQueries.GetFundRiskEnvelopeAsync(portfolioId, fundId, DateTime.UtcNow, token));
+        var risk = Read("Fund risk envelope", () => root.Services.PortfolioQueries.GetFundRiskEnvelopeAsync(portfolioId, fundId, default, token));
         var account = Read("Broker account", () => root.Services.BrokerAccounts.GetAsync(new(capabilities.AccountAlias), token).AsTask());
         var order = Read("Order", () => root.Services.PortfolioQueries.GetOrderAsync(orderId, token));
 

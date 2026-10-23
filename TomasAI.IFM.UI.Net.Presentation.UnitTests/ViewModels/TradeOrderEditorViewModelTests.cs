@@ -19,6 +19,7 @@ public sealed class TradeOrderEditorViewModelTests
     static void ConfigureApiValueDate(IUiServiceCatalog services)
     {
         var market = Substitute.For<TomasAI.IFM.Domain.MarketData.Shared.ServiceApi.IMarketDataQueryApi>();
+        market.GetMarketSessionAsync().Returns(new ServiceOk<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel>(ServerSession()));
         market.GetValueDateAsync().Returns(new ServiceOk<ScalarReadModel<DateOnly>>(new(new DateOnly(2026, 9, 18))));
         services.MarketDataQueries.Returns(new TomasAI.IFM.UI.Net.Services.MarketData.MarketDataQueryService(market,
             Substitute.For<TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi.IMarketDataFeedQueryApi>()));
@@ -66,6 +67,7 @@ public sealed class TradeOrderEditorViewModelTests
             new ManualTimeProvider(new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero)),
             BrokerEnvironment.Emulator);
 
+        viewModel.ApplyMarketSessionSnapshot(ServerSession());
         viewModel.CanSubmitOrderAction(OrderActionType.Open).Should().BeTrue();
     }
 
@@ -662,5 +664,11 @@ public sealed class TradeOrderEditorViewModelTests
         }
         vm.SelectFundOrder(-1);vm.CanAddTrade.Should().BeFalse();vm.CanCreateOrder.Should().BeTrue();
     }
+
+    static TomasAI.IFM.Domain.MarketData.Shared.ViewModels.MarketSessionReadModel ServerSession() => new() {
+        OperationalValueDate = new(2026,9,18), State = TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.Closed,
+        AllowDevelopmentEmulator = true, SessionStartUtc = new(2026,9,17,22,0,0,DateTimeKind.Utc),
+        SessionEndUtc = new(2026,9,18,21,0,0,DateTimeKind.Utc), NextTransitionUtc = new(2026,9,20,22,0,0,DateTimeKind.Utc),
+        AsOfUtc = new(2026,9,18,22,0,0,DateTimeKind.Utc), Revision = 1 };
 
 }

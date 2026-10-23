@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Application.MarketData.Host;
 /// <summary>Host-owned admitted generations and current futures values; options have their own admission lane.</summary>
 public sealed class MarketDataHostState(DatasetWorkerCurrentValues futures, DatasetWorkerAdmissionRegistry options)
 {
+    public Func<DateOnly, string[]>? EnabledTrades { get; init; }
+    public TomasAI.IFM.Application.MarketData.Recovery.OptionFeedProcessingHealth? ProcessingHealth { get; init; }
     public Func<CancellationToken, Task>? RetireOptions { get; init; }
     public Func<IReadOnlyList<TomasAI.IFM.Application.MarketData.Pricing.WorkerOptionChainRequest>, CancellationToken, Task>? AdoptOptions { get; init; }
     readonly object gate = new();
@@ -33,7 +35,11 @@ public sealed class MarketDataHostState(DatasetWorkerCurrentValues futures, Data
         var admission = new DatasetWorkerAdmission(manifest.Dataset, manifest.ValueDate, process.WorkerInstanceId,
             process.GenerationId, process.ManifestRevision);
         if (role == "Futures") { Futures.ActivateDataset(admission, manifest.GetRegistrations()); Futures.SetDatasetHealth(admission, true); }
-        else Options.Admit(admission);
+        else
+        {
+            ProcessingHealth?.Recovered(manifest.ValueDate, Guid.Empty, DateTimeOffset.UtcNow);
+            Options.Admit(admission);
+        }
     }
     public void Fence(string role, string dataset, Guid generation)
     {

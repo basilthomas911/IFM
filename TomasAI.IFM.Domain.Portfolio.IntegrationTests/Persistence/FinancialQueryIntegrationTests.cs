@@ -13,6 +13,51 @@ public sealed class FinancialQueryIntegrationTests(PortfolioEventStoreFixture fi
     static FinancialReadScope Scope(FinancialBookConfiguration book) => new() { PortfolioId = book.PortfolioId, FundId = book.Funds[0].FundId, Access = new("integration", ["PortfolioAdministrator"]) };
 
     [Fact]
+    public async Task Metrics_query_uses_scoped_accounting_range_and_committed_revision()
+    {
+        var book = await CreateBook(); var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        await Post(Request(book, LedgerTransactionKind.DepositConfirmed, 1000, 0));
+        var read = await Store().ReadAsync(Scope(book), new GetFundPerformanceMetricsRequest(date, date));
+        read.Status.Should().Be(FinancialReadStatus.Found);
+        read.FinancialRevision.Should().Be(1);
+        read.Value!.HasHistory.Should().BeTrue(); read.Value.Currency.Should().Be("USD");
+        read.Value.PnlAmount.Should().Be(0); read.Value.MaximumDrawdownAmount.Should().Be(0);
+        read.Value.CalculationBasis.Should().Contain("LegacyLedgerPostings/v1");
+        var outside = await Store().ReadAsync(Scope(book), new GetFundPerformanceMetricsRequest(date.AddDays(1), date.AddDays(2)));
+        outside.Value!.HasHistory.Should().BeFalse();
+        var invalid = () => Store().ReadAsync(Scope(book), new GetFundPerformanceMetricsRequest(date.AddDays(1), date));
+        await FluentActions.Awaiting(invalid).Should().ThrowAsync<FinancialOperationException>();
+        var denied = Scope(book) with { Access = new("outsider", ["LedgerRead"], [book.PortfolioId + 1]) };
+        await FluentActions.Awaiting(() => Store().ReadAsync(denied, new GetFundPerformanceMetricsRequest(date, date)))
+            .Should().ThrowAsync<FinancialOperationException>();
+    }
+
+    [Fact]
+    public async Task Current_UI_metrics_model_reads_report_over_real_NATS_from_running_ledger_actor()
+    {
+        var book = await CreateBook(); var date = DateOnly.FromDateTime(DateTime.UtcNow);
+        await Post(Request(book, LedgerTransactionKind.DepositConfirmed, 1000, 0));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        var producer = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorProducer(
+            new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsProducerOptions { Url = DomainActorIntegrationInfrastructureFixture.NatsUrl }, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        await producer.StartAsync(new(TomasAI.IFM.Shared.EventModelActor.ActorType.Query, "MetricsClient" + Guid.NewGuid().ToString("N")), deadline.Token);
+        try
+        {
+            var api = new TomasAI.IFM.Application.Api.Nats.Client.PortfolioFinancialApi(producer);
+            var report = await api.GetFundPerformanceMetricsAsync(Scope(book), new(date,date), deadline.Token);
+            report.Success.Should().BeTrue(report.ErrorMessage);
+            report.Value!.FinancialRevision.Should().Be(1);
+            using var model = new TomasAI.IFM.UI.Net.ViewModels.Portfolio.FundMetricsViewModel(api);
+            await model.LoadAsync(book.PortfolioId, book.Funds[0].FundId, date, date).WaitAsync(deadline.Token);
+            model.Report.Should().Be(report.Value.Value);
+            model.Message.Should().Contain("not daily returns");
+            var invalid = await api.GetFundPerformanceMetricsAsync(Scope(book), new(date.AddDays(1),date), deadline.Token);
+            invalid.Success.Should().BeFalse();
+        }
+        finally { await producer.StopAsync(deadline.Token); }
+    }
+
+    [Fact]
     public async Task Posting_choices_are_effective_configured_rules_and_period_state_from_one_financial_cut()
     {
         var book = await CreateBook(); var scope = Scope(book); var date = DateOnly.FromDateTime(DateTime.UtcNow);

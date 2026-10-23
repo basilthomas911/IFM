@@ -35,11 +35,27 @@ public sealed partial class MarketDataWorkerHost
         if (!result.Recovered) throw new InvalidOperationException(result.Error);
         return (await RequireWorker(role, workerId).GetHealthAsync(token).ConfigureAwait(false)) with { BootstrapToken = "" };
     }
+    public void ReportOptionProcessingFailure(string component, Exception error)
+    {
+        lock (gate)
+            if (roleStates.Values.FirstOrDefault(s => s.Role == "Options" && s.ValueDate.HasValue) is { } option)
+                backendState?.ProcessingHealth?.Report(option.ValueDate!.Value, option.GenerationId, component, error);
+    }
+
     public MarketDataBackendStatus GetBackendStatus()
     {
-        lock (gate) return new(ready, workers.Values.Select(worker => (DateOnly?)manifests.Values.First(
-            request => request.WorkerInstanceId == worker.Current.WorkerInstanceId).Manifest.ValueDate).FirstOrDefault(),
-            roleStates.Values.ToArray(), hostInstanceId, statusRevision, workers.Values.Select(worker => MarketDataHostConnection.Encode(worker.Current)).ToArray());
+        lock (gate)
+        {
+            var states = roleStates.Values.ToArray();
+            var option = states.FirstOrDefault(state => state.Role == "Options" && state.ValueDate.HasValue);
+            var failure = option is null ? null : backendState?.ProcessingHealth?.Read(option.ValueDate!.Value, option.GenerationId);
+            if (failure is not null) states = states.Select(state => state.Role == "Options"
+                ? state with { Healthy = false, Error = failure.Component + ": " + failure.Code + ": " + failure.Detail } : state).ToArray();
+            return new(ready, workers.Values.Select(worker => (DateOnly?)manifests.Values.First(
+                request => request.WorkerInstanceId == worker.Current.WorkerInstanceId).Manifest.ValueDate).FirstOrDefault(),
+                states, hostInstanceId, statusRevision, workers.Values.Select(worker => MarketDataHostConnection.Encode(worker.Current)).ToArray(),
+                failure, option is null ? [] : backendState?.EnabledTrades?.Invoke(option.ValueDate!.Value));
+        }
     }
     public async Task<MarketDataRecoveryResult> RecoverAsync(MarketDataRecoveryRequest request, CancellationToken token)
     {
@@ -77,7 +93,7 @@ public sealed partial class MarketDataWorkerHost
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
             deadline.CancelAfter(softTimeout);
             var stage = "reset";
-            await PublishStateAsync(role, request.Dataset, "Recovering", request.Reason, worker.Current, token, request.OperationId).ConfigureAwait(false);
+            await PublishStateAsync(role, request.Dataset, "Recovering", request.Reason, worker.Current, token, request.OperationId, DateTimeOffset.UtcNow + softTimeout).ConfigureAwait(false);
             backendState?.Fence(role, request.Dataset, request.ExpectedGenerationId);
             for (var attempt = 0; attempt < 3; attempt++)
             {
@@ -157,12 +173,12 @@ public sealed partial class MarketDataWorkerHost
         finally { serial.Release(); }
     }
     async Task PublishStateAsync(string role, string dataset, string lifecycle, string? error,
-        DatasetWorkerProcessSnapshot process, CancellationToken token, Guid operationId = default)
+        DatasetWorkerProcessSnapshot process, CancellationToken token, Guid operationId = default, DateTimeOffset? recoveryDeadlineUtc = null)
     {
         DateOnly? valueDate;
         lock (gate) valueDate = manifests.GetValueOrDefault(role + "|" + dataset)?.Manifest.ValueDate;
         var state = new MarketDataDatasetStatus(role, dataset, process.WorkerInstanceId, process.GenerationId,
-            process.ProcessId, process.Running, process.Healthy, lifecycle, error, valueDate, operationId, process.ManifestRevision, DateTimeOffset.UtcNow);
+            process.ProcessId, process.Running, process.Healthy, lifecycle, error, valueDate, operationId, process.ManifestRevision, DateTimeOffset.UtcNow, recoveryDeadlineUtc);
         lock (gate)
         {
             var key = role + "|" + dataset;

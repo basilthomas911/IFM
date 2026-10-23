@@ -95,7 +95,7 @@ public partial class BackupDatabasesView
     /// <summary>Refreshes bounded history without overlapping requests or discarding older pages.</summary>
     async Task RefreshLogsAsync()
     {
-        if (!_refreshLogs.Wait(0)) return;
+        if (!await _refreshLogs.WaitAsync(0)) return;
         try
         {
             foreach (var source in new[] { BackupSource.AwsCloud, BackupSource.LocalWorkstation })
@@ -148,7 +148,7 @@ public partial class BackupDatabasesView
                 if (latest is not null) root.ImageKey = root.SelectedImageKey = Status(latest);
                 foreach (var run in operations.Values.OrderByDescending(item => item.CreatedUtc).GroupBy(item => item.BackupSetId ?? item.OperationId))
                 {
-                    var first = run.First(); var time = first.CreatedUtc.ToLocalTime();
+                    var first = run.First(); var time = TomasAI.IFM.UI.Net.Models.EasternTime.FromUtc(first.CreatedUtc);
                     var year = Group(root, time.Year.ToString()); var month = Group(year, time.ToString("MM MMMM")); var day = Group(month, time.ToString("dd dddd"));
                     var node = new TreeNode($"{first.ProtectionSet} | {first.Kind} {first.RequestedMode}/{first.ResolvedMode} | {run.Key:N} | ran {time:yyyy-MM-dd HH:mm:ss zzz} | scheduled: unavailable") { ImageKey = Status(first), SelectedImageKey = Status(first) }; day.Nodes.Add(node);
                     foreach (var engine in new[] { DatabaseEngine.ScyllaDb, DatabaseEngine.PostgreSql })
@@ -181,7 +181,7 @@ public partial class BackupDatabasesView
     /// <summary>Reads one bounded output/phase page and fences results by selection cancellation.</summary>
     async Task ReadLogAsync(CancellationToken cancellationToken)
     {
-        if (!_readLog.Wait(0)) return;
+        if (!await _readLog.WaitAsync(0)) return;
         if (_tree.SelectedNode?.Tag is not DatabaseLeaf { Operation: { } operation } leaf) { _readLog.Release(); return; }
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _logsCancellation.Token); deadline.CancelAfter(TimeSpan.FromSeconds(15));
         try

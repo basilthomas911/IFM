@@ -195,8 +195,25 @@ public sealed class FinancialQueryStore(IPostgresEventTransaction transactions, 
         var rows = await (db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.Select16, [scope.PortfolioId, scope.FundId?.ToString(System.Globalization.CultureInfo.InvariantCulture)], r => new CapacityUsed(
                 (CapacityScopeKind)r.GetInt32(0), r.GetString(1), (CapacityMeasure)r.GetInt32(2), (CapacityUnit)r.GetInt32(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6)), ct)).ConfigureAwait(false);
         Require(rows.Count <= 4096, FinancialReasons.InvalidContract, "Usage exceeds the bounded supported scope count.");
-        return new FinancialCapacityUsage(rows.ToArray());
+        return new FinancialCapacityUsage(rows.ToArray()) { ReservedFundLossCapital = scope.FundId is { } fund
+            ? rows.Where(x => x.ScopeKind == CapacityScopeKind.Fund && x.ScopeKey == FinancialScopeKeys.Fund(fund)
+                && x.Unit == CapacityUnit.Usd && x.Measure == CapacityMeasure.LossCharge).Sum(x => x.Held + x.Working) : null };
     }, token);
+    }
+
+    public Task<FinancialRead<FundPerformanceMetrics>> ReadAsync(FinancialReadScope scope, GetFundPerformanceMetricsRequest request, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        ArgumentNullException.ThrowIfNull(request);
+        Require(scope.FundId is > 0 && request.From != default && request.Through >= request.From,
+            FinancialReasons.InvalidContract, "Fund and inclusive accounting date range are required.");
+        return Read(scope, async (db, book, revision, ct) =>
+        {
+            var rows = await db.QueryAsync(PortfolioDbSql.Financial.FinancialQueryStore.SelectFundPerformance,
+                [scope.PortfolioId, scope.FundId, revision, request.From, request.Through], r => new FinancialTransactionRow(
+                    r.GetInt64(0), r.GetGuid(1), r.GetInt64(2), r.GetInt32(3), Decode<LedgerPostingRequest>(r.GetString(4)), null), ct).ConfigureAwait(false);
+            return GeneralLedger.Query.Model.FundPerformanceMetricsCalculator.Calculate(rows.ToArray(), request) with { Currency = book.Currency };
+        }, token);
     }
 
     public Task<FinancialRead<FinancialPage<FinancialTransactionRow>>> ReadAsync(FinancialReadScope scope, GetFundTransactionsPageRequest request, CancellationToken token = default)

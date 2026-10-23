@@ -62,6 +62,11 @@ public static class MarketOutlookComposer
             FuturesAdxSignal = state.FuturesAdxSignal,
             FuturesAtrSignal = state.FuturesAtrSignal,
             FuturesMacdSignal = state.FuturesMacdSignal,
+            MdiPercent = bb?.Position20 is { } position ? Math.Clamp(position * 100m, 0m, 100m) : null,
+            MdiClassification = bb?.Position20 is { } mdiPosition ? Math.Clamp(mdiPosition * 100m, 0m, 100m) switch {
+                >= 60m => FuturesMDITrendType.UpTrending,
+                < 30m => FuturesMDITrendType.DownTrending,
+                _ => FuturesMDITrendType.RangeBound } : null,
         };
         return ApplyTechnicalAvailability(ApplyPrimaryAvailability(snapshot, state, ema, bb, updatedAtUtc), state, updatedAtUtc);
     }

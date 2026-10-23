@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.Actors.Recovery;
 
-public sealed record OptionPipelineInspection(DateOnly? ValueDate, string? Failure, string[] Positions);
+public sealed record OptionPipelineInspection(DateOnly? ValueDate, string? Failure, string[] Positions, DateTimeOffset? RecoveryDeadlineUtc = null);
 public interface IOptionPipelineRecoveryRuntime
 {
     OptionPipelineInspection Inspect();
@@ -55,7 +55,7 @@ public sealed class OptionPipelineRecoveryCoordinator(IOptionPipelineRecoveryRun
             if (inspection.ValueDate is null) return null;
             if (current is null && inspection.Failure is not null)
             {
-                var episode = new Episode(inspection, Guid.NewGuid(), clock.GetUtcNow() + budget,
+                var episode = new Episode(inspection, Guid.NewGuid(), inspection.RecoveryDeadlineUtc is { } owned && owned < clock.GetUtcNow() + budget ? owned : clock.GetUtcNow() + budget,
                     CancellationTokenSource.CreateLinkedTokenSource(stoppingToken));
                 current = episode;
                 episode.Work = Task.Run(() => RunAsync(episode), CancellationToken.None);

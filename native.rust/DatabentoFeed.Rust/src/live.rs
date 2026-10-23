@@ -343,12 +343,14 @@ fn process_record(
 ) -> Result<(), LiveFailure> {
     feed.record_transport_message();
     if let Some(error) = source.get::<ErrorMsg>() {
+        report_gateway_error(error, Some(feed));
         return Err(failure(
             classify_gateway_error(error.code().unwrap_or(ErrorCode::Unset)),
-            error.err().unwrap_or("Databento gateway error"),
+            format!("Databento ErrorMsg code={} is_last={}: {}", error.code, error.is_last, error.err().unwrap_or("Invalid UTF-8")),
         ));
     }
     if let Some(system) = source.get::<SystemMsg>() {
+        report_system(system, Some(feed));
         match system.code().unwrap_or(SystemCode::Unset) {
             SystemCode::SubscriptionAck => {
                 *acknowledgements = acknowledgements.saturating_add(1);
@@ -488,6 +490,17 @@ fn publish_trade_replay_complete(
     Ok(())
 }
 
+fn report_gateway_error(error: &ErrorMsg, feed: Option<&Feed>) {
+    let fatal = !matches!(error.code, 4 | 7);
+    crate::diagnostics::report(1, error.code as i32, fatal, error.is_last != 0,
+        &format!("FeedInstance={:p}; publisher={} instrument={}: {}", feed.map_or(std::ptr::null(), |f| f as *const Feed), error.hd.publisher_id, error.hd.instrument_id, error.err().unwrap_or("Invalid UTF-8 in Databento error record")));
+}
+fn report_system(system: &SystemMsg, feed: Option<&Feed>) {
+    if system.code != 0 && system.code != 4 {
+        crate::diagnostics::report(2, system.code as i32, false, true,
+            &format!("FeedInstance={:p}; {}", feed.map_or(std::ptr::null(), |f| f as *const Feed), system.msg().unwrap_or("Invalid UTF-8 in Databento system record")));
+    }
+}
 fn classify_gateway_error(code: ErrorCode) -> Status {
     match code {
         ErrorCode::ConnectionLimitExceeded => CONNECTION_LIMIT,
@@ -974,12 +987,14 @@ async fn latest_price_async(
             ));
         };
         if let Some(error) = record.get::<ErrorMsg>() {
+            report_gateway_error(error, None);
             return Err(failure(
                 classify_gateway_error(error.code().unwrap_or(ErrorCode::Unset)),
-                error.err().unwrap_or("Databento gateway error"),
+                format!("Databento ErrorMsg code={} is_last={}: {}", error.code, error.is_last, error.err().unwrap_or("Invalid UTF-8")),
             ));
         }
         if let Some(system) = record.get::<SystemMsg>() {
+            report_system(system, None);
             match system.code().unwrap_or(SystemCode::Unset) {
                 SystemCode::SlowReaderWarning => {
                     return Err(failure(
