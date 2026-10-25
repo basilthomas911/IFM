@@ -10,7 +10,27 @@
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        "${workspaceFolder}/scripts/UI/Rust/Build-StandaloneRust.ps1"
+        "${workspaceFolder}/scripts/UI/Rust/Build-StandaloneRust.ps1",
+        "-Profile",
+        "Development"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM Standalone Rust UI: Build Release",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/UI/Rust/Build-StandaloneRust.ps1",
+        "-Profile",
+        "Release"
       ],
       "options": {
         "cwd": "${workspaceFolder}"

@@ -78,7 +78,7 @@ impl Hub{
       "StoppedComplete"=>{state.live=false;state.starting=false;state.collecting=false;state.market_stopped=true;state.status="Live feed OFF - market data session closed by the API".into();},
       "StartedComplete"=>{state.market_stopped=false;state.cleanup_unconfirmed=false;if !state.live{state.status="Live feed OFF - market data available; enable monitoring to resume".into();}},_=>{},
      }
-     if !state.live{let count=state.history.rows().len();if count>0{state.selected=state.history.saved(count-1);}}Ok(true)
+     if !state.live{let count=state.history.rows().len();if count>0{state.detail_generation+=1;state.observations_loading=false;state.selected=state.history.saved(count-1);}}Ok(true)
     })();
     match result{Ok(changed)=>{
      dirty|=changed;

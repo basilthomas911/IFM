@@ -33,3 +33,17 @@ egui_kittest = { version = "=0.32.3", features = ["wgpu", "snapshot"] }
 name = "ifm-ui-egui"
 path = "src/main.rs"
 required-features = ["desktop"]
+
+# Everyday UI iteration: retain optimized dependencies/rendering while reducing
+# optimization work for this application and enabling incremental compilation.
+# Separate Cargo output keeps the release/acceptance profile intact.
+[profile.development]
+inherits = "release"
+opt-level = 1
+debug = 1
+incremental = true
+lto = false
+codegen-units = 256
+
+[profile.development.package."*"]
+opt-level = 3

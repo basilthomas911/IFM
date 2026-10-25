@@ -602,7 +602,7 @@ impl TradeWorkspace {
             let asset=if realtime.is_object(){formatted(&realtime["summary"],"underlyingPrice")}else{formatted(&detail,"underlyingPrice")};
             let summary_y=graph_h+6.;
             let top_fields=[("Value Date:",formatted(&history_row,"valueDate"),BLACK),
-                ("Trade Status:",if let Some(message)=s.result.context.get("monitorStatus").filter(|message| !message.is_empty()){message.clone()}else if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
+                ("Trade Status:",if let Some(message)=s.result.context.get("monitorStatus").filter(|message| !message.is_empty()){message.clone()}else if monitor_flag(s,"observationsLoading"){"Loading saved position observations...".into()}else if let Some(error)=s.result.context.get("observationsError").filter(|e|!e.is_empty()){format!("Saved observations: {error}")}else if plan.is_null(){text(&trade,"status")}else{format!("{}: {}",text(&plan,"state"),text(&plan,"explanation"))},BLACK),
                 ("DTE:",formatted(&history_row,"daysToExpiry"),BLACK),
                 ("Net Spread:",net.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
                 ("Trade P&L:",trade_pnl.map(|n|format!("{n:.2}")).unwrap_or_else(||"N/A".into()),BLACK),
@@ -810,7 +810,7 @@ impl TradeWorkspace {
             ui,
             rect(o, p, 0., 8., w, 35.),
             chart_error.map_or(
-                "Iron Condor Net / Forward Spread (price points)",
+                if monitor_flag(s,"chartLoading"){ "Loading six-hour chart history..." }else{"Iron Condor Net / Forward Spread (price points)"},
                 String::as_str,
             ),
             if chart_error.is_some() {

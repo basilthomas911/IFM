@@ -281,7 +281,7 @@ if (args.Length == 3 && args[1] is "--serve" or "--desktop-serve")
             response=await MonitorPublicationResponder.Handle(connection,request.Data!,timeout.Token);
         }
         else if(MonitorResponder.Handles(request.Subject)){
-            response=MonitorResponder.Handle(request.Subject,request.Data!);
+            response=await MonitorResponder.HandleAsync(connection,request.Subject,request.Data!,request.ReplyTo!,timeout.Token);
         }
         else if(TradeLifecycleResponder.Handles(request.Subject)){
             response=TradeLifecycleResponder.Handle(request.Subject,request.Data!);

@@ -101,7 +101,13 @@ impl TradeController {
         if let Some(composer)=self.composer.as_mut(){composer.close(backend,registry,deadline).await?;}
         self.composer=None;Ok(())
     }
-    async fn apply(
+    async fn apply(&mut self,backend:&Backend,registry:&Registry,intent:&Json,deadline:tokio::time::Instant)->Result<String,String> {
+        if intent["intent"]=="load-trade" {
+            let selection=json!({"portfolio":self.data.portfolio,"fund":self.data.fund,"order":self.data.order,"trade":self.data.trade});
+            crate::diagnostics::trade_load::run(selection,self.apply_inner(backend,registry,intent,deadline)).await
+        } else { self.apply_inner(backend,registry,intent,deadline).await }
+    }
+    async fn apply_inner(
         &mut self,
         backend: &Backend,
         registry: &Registry,
@@ -114,7 +120,7 @@ impl TradeController {
         }
         if matches!(action,"eod-open"|"eod-load"|"eod-run"){let result=self.eod_action(backend,registry,intent,deadline).await;if result.is_ok(){self.message.clear();}return result;}
         if matches!(action,"load-trade"|"activate-trade"|"close-trade"|"position"|"plans-page"|"live-on"|"live-off"){
-            let context=BusinessContext::load(backend).await?;self.data.context=Some(context.clone());
+            let context=crate::diagnostics::trade_load::measure("business_context",BusinessContext::load(backend)).await?;self.data.context=Some(context.clone());
             let result=if action=="load-trade"{
                 if intent["originalId"].as_str()!=self.data.order.map(|id|id.to_string()).as_deref(){return Err("Order selection changed".into())}
                 let trade=selected(registry,"FundOrderTradeProjectionReadModel",&self.data.trades,"TradeId",self.data.trade)?.ok_or("Select an established trade")?;
@@ -123,8 +129,8 @@ impl TradeController {
                 let scope=crate::services::trade_monitor_queries::Scope{portfolio:self.data.portfolio.and_then(|n|i32::try_from(n).ok()).ok_or("Missing Portfolio")?,fund:self.data.fund.and_then(|n|i32::try_from(n).ok()).ok_or("Missing Fund")?,order:number("ExecutionOrderId")?,trade:number("ExecutionTradeId")?};
                 let trade_type=text(&trade["TradeType"]);let strategy=if trade_type.ends_with("IronCondor"){"IronCondor"}else if trade_type=="FuturesOutright"{"FuturesOutright"}else{"VerticalSpread"};
                 let fund=selected(registry,"FundMandateReadModel",&self.data.funds,"FundId",self.data.fund)?.ok_or("Missing Fund")?;
-                if let Some(composer)=self.composer.as_mut(){composer.close(backend,registry,deadline).await?;}self.composer=None;
-                self.monitors.open(backend,std::sync::Arc::new(Registry::compiled()?),crate::state::trade_monitors::OpenRequest{scope,strategy:strategy.into(),trade_type,trade_action:text(&trade["TradeAction"]),fund_name:text(&fund["Name"])},context,deadline).await
+                if let Some(composer)=self.composer.as_mut(){crate::diagnostics::trade_load::measure("close_composer",composer.close(backend,registry,deadline)).await?;}self.composer=None;
+                self.monitors.open(backend,std::sync::Arc::new(crate::diagnostics::trade_load::measure_sync("compile_contract_registry",Registry::compiled)?),crate::state::trade_monitors::OpenRequest{scope,strategy:strategy.into(),trade_type,trade_action:text(&trade["TradeAction"]),fund_name:text(&fund["Name"])},context,deadline).await
             }else{self.monitors.execute(backend,registry,intent,&context,deadline).await};
             if result.is_ok(){self.message.clear();}return result;
         }

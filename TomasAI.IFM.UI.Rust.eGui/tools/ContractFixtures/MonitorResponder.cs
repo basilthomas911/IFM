@@ -14,6 +14,22 @@ internal static class MonitorResponder{
  static bool Populated=>DesktopFixtureMode.Enabled&&mode=="Populated";
  static TradeRealtimeSnapshot Current=>Populated?PopulatedMonitorFixture.Create():MonitorFixtures.Realtime;
  public static bool Handles(string subject)=>subject.StartsWith("Query.NativeCompatibility.Monitor",StringComparison.Ordinal)||mode=="ClosedSession"&&subject=="Query.MarketDataQuery.GetMarketSession.marketSession"||subject=="ifm.nativecompat.marketdata.v1.control"||mode!="Disabled"&&(subject.StartsWith("Query.FuturesOptionTradeQuery.GetIronCondorOptionTrade.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradePositionQuery.GetIronCondorOptionTradePositionHistory.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeRealtimeSnapshot.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTradeQuery.GetTradeLimit.",StringComparison.Ordinal)||subject.StartsWith("Query.IronCondorTradePlanQuery.",StringComparison.Ordinal)||subject.StartsWith("Query.FuturesOptionTickDataQuery.GetLastFuturesOptionTickData.",StringComparison.Ordinal));
+ // Deterministic optional-read barrier: core trade queries continue while the
+ // test explicitly releases or fails queued chart/leg responses.
+ static readonly List<(string Subject,byte[] Payload,string Reply)> pending=[];
+ public static async Task<byte[]?> HandleAsync(NATS.Client.Core.NatsConnection connection,string subject,byte[] payload,string reply,CancellationToken token){
+  var options=MessagePackBinarySerializer.Options;
+  if(subject=="Query.NativeCompatibility.MonitorPending.none")return MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<int>>{Success=true,Value=new(pending.Count)},options);
+  if(subject is "Query.NativeCompatibility.MonitorRelease.none" or "Query.NativeCompatibility.MonitorReleaseFailed.none"){
+   foreach(var item in pending){var response=subject.EndsWith("MonitorReleaseFailed.none",StringComparison.Ordinal)
+    ?MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=false,ErrorMessage="Synthetic optional history failure"},options)
+    :Handle(item.Subject,item.Payload);
+    if(response is not null)await connection.PublishAsync(item.Reply,response,cancellationToken:token);
+   }pending.Clear();return MessagePackSerializer.Serialize(new ServiceResult<ScalarReadModel<bool>>{Success=true,Value=new(true)},options);
+  }
+  if(mode=="HoldOptional"&&(subject.Contains(".GetIronCondorTradePlanChart.",StringComparison.Ordinal)||subject.Contains(".GetLastFuturesOptionTickData.",StringComparison.Ordinal))){pending.Add((subject,payload,reply));return null;}
+  return Handle(subject,payload);
+ }
  public static byte[]? Handle(string subject,byte[] payload){
   var options=MessagePackBinarySerializer.Options;byte[] Result<T>(T value)=>MessagePackSerializer.Serialize(new ServiceResult<T>{Success=true,Value=value,ErrorMessage=""},options);
   if(subject=="Query.MarketDataQuery.GetMarketSession.marketSession")return Result(Session with{State=TomasAI.IFM.Domain.MarketData.Shared.FuturesMarketState.Closed,ActiveValueDate=null,AllowDevelopmentEmulator=false});

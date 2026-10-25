@@ -2,3 +2,6 @@
 
 /// Opt-in bounded publication-to-render timing.
 pub mod latency;
+
+/// Correlated first-load and already-open trade timings.
+pub mod trade_load;

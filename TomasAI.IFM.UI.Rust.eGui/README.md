@@ -155,3 +155,62 @@ UI; Server Manager then starts and owns the services and selected UI using the
 existing API readiness and shutdown workflow. This explicitly selected launcher
 does not change the default UI or the hybrid Rust launcher. Starting it replaces
 the current managed Development session, just like the other combined launches.
+
+### Trade-load measurements
+
+Every standalone `load-trade` operation records total elapsed time and correlated
+stage timings automatically. Records are written to stderr (captured by Server
+Manager) and `%LOCALAPPDATA%/TomasAI/IFM/UI.Rust.eGui/Logs/trade-load-<pid>.jsonl`.
+The file rotates at 5 MiB with one previous file per process. Each record includes
+load ID, process ID, per-process load number, selected setup IDs, outcome, and
+stage start/duration in ms;
+it does not log prices, account balances, credentials or exception contents.
+
+Run `python scripts/UI/Rust/Summarize-TradeLoadTimings.py` to see mean/median/max
+totals and the slowest stages. Compare the first full load after startup with
+close/reopen full loads and already-open tab activation. A full load can still
+use backend caches; the diagnostic does not label that as a cold database.
+Stages include API business context, contract registry decoding, established
+trade, event subscriptions, parallel position history/risk limits, fund balance,
+selected plan/leg quotes/chart, saved feed intent and any live restoration.
+Isolated-test records are labelled and excluded from the summary.
+Nested/parallel durations overlap and must not be summed. Error and interrupted
+loads are retained; an optional balance/chart failure may coexist with a
+successful overall load. Total covers the controller load through monitor
+publication, not time waiting in the UI command queue or the next painted frame.
+The clock is operational only and never supplies business dates. Rebuild/restart
+the standalone UI to collect measurements; the hybrid is unchanged.
+
+### Optimized Development builds
+
+The combined VS Code eGui launcher uses `-Profile Development`: application
+optimization level 1, incremental compilation, line-level debug information,
+256 code-generation units and no LTO. Dependencies retain optimization level 3
+for responsive rendering. Cargo uses up to four parallel compiler jobs (override
+with `-Jobs`). The first build warms this separate profile cache; subsequent
+source edits can reuse incremental compiler work.
+
+Use the `IFM Standalone Rust UI: Build Release` task, or
+`powershell -File scripts/UI/Rust/Build-StandaloneRust.ps1 -Profile Release`, for
+full optimization level 3 and release qualification. Direct script calls still
+default to Release; existing packaging/acceptance commands keep that behavior.
+The legacy `-DebugBuild` switch remains available for unoptimized debugging.
+All profiles retain static CRT linking, executable packaging and dependency
+audits. Launch preparation prints the selected profile to the task terminal.
+
+### Progressive trade loading
+
+Core trade details, saved position history, risk limits and balances load first.
+The selected position is published immediately; chart history and saved-position
+plan/leg observations hydrate concurrently in the background. Their loading or
+error messages stay within the relevant section and never remove the loaded tab.
+Live-feed activation does not wait for historical chart reads. Each optional read
+uses the backend's normal bounded request budget independently of the completed
+open command. Selecting another position, changing live mode or closing/reopening
+a tab fences late results; replacement jobs are cancelled. Live chart samples
+remain separate from loaded history and are merged by the existing renderer.
+
+Foreground timings now measure core readiness. Optional reads emit separate
+`trade_load_background_timing` records with `parent_load_id` correlation when
+started by the load command; the summary reports those separately. Do not compare
+this core-ready total to the older all-sections-ready total as identical metrics.

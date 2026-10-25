@@ -6,10 +6,11 @@ use std::{collections::BTreeMap,sync::{Arc,Mutex}};
 mod data;
 mod events;
 mod commands;
+mod background;
 #[derive(Clone)]pub struct OpenRequest{pub scope:Scope,pub strategy:String,pub trade_type:String,pub trade_action:String,pub fund_name:String}
 #[derive(Clone,Default)]pub struct Publication{pub revision:u64,pub result:ContractResult}
-struct Owner{feed:Client,data:Arc<Mutex<data::Monitor>>,jobs:Vec<tokio::task::JoinHandle<()>>}
-impl Drop for Owner{fn drop(&mut self){for job in &self.jobs{job.abort();}}}
+struct Owner{feed:Client,data:Arc<Mutex<data::Monitor>>,registry:Arc<Registry>,background:BTreeMap<&'static str,tokio::task::JoinHandle<Result<(),()>>>,jobs:Vec<tokio::task::JoinHandle<()>>}
+impl Drop for Owner{fn drop(&mut self){for job in &self.jobs{job.abort();}for job in self.background.values(){job.abort();}}}
 #[derive(Default)]struct State{owners:BTreeMap<String,Owner>,order:Vec<String>,active:Option<String>,revision:u64}
 #[derive(Clone)]pub struct Hub{host_scope:Arc<str>,state:Arc<Mutex<State>>,updates:tokio::sync::watch::Sender<Arc<Publication>>}
 impl Default for Hub{fn default()->Self{
