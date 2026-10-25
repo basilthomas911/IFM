@@ -5,6 +5,7 @@ using Npgsql;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;

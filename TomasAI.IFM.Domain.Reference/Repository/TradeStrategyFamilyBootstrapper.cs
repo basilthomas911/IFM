@@ -1,12 +1,12 @@
 
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 
 namespace TomasAI.IFM.Domain.Reference.Repository;
 
 /// <summary>Idempotently installs the authoritative typed trade-strategy-family definitions.</summary>
-public sealed class TradeStrategyFamilyBootstrapper(IReferenceDbContext db, ISequenceIdGenerator sequenceIds)
+public sealed class TradeStrategyFamilyBootstrapper(IReferenceDbContext db, ISequenceIdApi sequenceIds)
 {
     static readonly SemaphoreSlim BootstrapLock = new(1, 1);
 

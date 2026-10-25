@@ -1,7 +1,7 @@
 # Domain / Application / Framework layering implementation plan
 
 Date: 2026-10-25
-Status: Planned; initial event-reader compatibility step implemented and qualified separately.
+Status: Implemented and qualified offline on 2026-10-25. See [verification report](Domain-Application-Framework-Layering-Verification-v0.1.md) for evidence, deployment requirements and remaining live acceptance.
 
 ## 1. Objective and boundaries
 

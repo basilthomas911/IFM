@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Net;
 using System.Text;
 using Xunit;

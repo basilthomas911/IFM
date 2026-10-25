@@ -1,9 +1,10 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Query;

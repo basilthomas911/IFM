@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
@@ -21,12 +21,12 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio.Shared\TomasAI.IFM.Domain.Portfolio.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Portfolio\TomasAI.IFM.Application.Contracts.Portfolio.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Models\TomasAI.IFM.UI.Net.Models.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Views\TomasAI.IFM.UI.Net.Views.csproj" />
@@ -44,4 +44,5 @@
     <ProjectReference Include="../TomasAI.IFM.IntegrationTesting/TomasAI.IFM.IntegrationTesting.csproj" />
     <Compile Include="../DomainActorIntegrationInfrastructureFixture.cs" Link="Infrastructure/BrokerInfrastructureFixture.cs" />
   </ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup></Project>

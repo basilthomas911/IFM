@@ -31,7 +31,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
         : FuturesOptionTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesOptionTickDataCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesOptionTickDataCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesOptionTickDataCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
@@ -1213,7 +1213,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
 
         var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
 
-        // Act â€” ActorThreadId is a readonly record struct; default is a valid (non-null) value
+        // Act — ActorThreadId is a readonly record struct; default is a valid (non-null) value
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, default, command);
 
         // Assert
@@ -1409,7 +1409,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
 
         await ((ICommandActor<FuturesOptionTickDataCommandActor>)actor).OnStartup(context);
 
-        // Act â€” ActorThreadId is a readonly record struct; default is a valid (non-null) value
+        // Act — ActorThreadId is a readonly record struct; default is a valid (non-null) value
         Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, default, cmd);
 
         // Assert
@@ -1631,7 +1631,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
 
         await ((ICommandActor<FuturesOptionTickDataCommandActor>)actor).OnStartup(context);
 
-        // Act â€” ActorThreadId is a readonly record struct; default is a valid (non-null) value
+        // Act — ActorThreadId is a readonly record struct; default is a valid (non-null) value
         Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, default, state, cmd);
 
         // Assert

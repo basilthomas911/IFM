@@ -1,0 +1,13 @@
+{
+  "projects": 92,
+  "edges": 402,
+  "compositionRoots": [
+    "TomasAI.IFM.Application.Api.Server",
+    "TomasAI.IFM.Application.Api.Server.Core",
+    "TomasAI.IFM.Application.DatabaseBackup.Console",
+    "TomasAI.IFM.Application.MarketData.Host",
+    "TomasAI.IFM.Application.MarketData.Host.Worker",
+    "TomasAI.IFM.Application.ServerManager"
+  ],
+  "violations": []
+}

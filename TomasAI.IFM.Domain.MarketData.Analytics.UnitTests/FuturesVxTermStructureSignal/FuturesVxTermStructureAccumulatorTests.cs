@@ -12,7 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesVxTermStructureSignal;
 

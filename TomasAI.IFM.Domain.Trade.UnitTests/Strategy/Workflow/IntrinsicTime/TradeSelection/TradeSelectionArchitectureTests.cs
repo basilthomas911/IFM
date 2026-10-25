@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Collections;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -27,8 +27,8 @@ public sealed class TradeSelectionArchitectureTests
     public void Foundation_has_no_domain_contract_dependency_cycle()
     {
         var assembly = typeof(TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog.CatalogKey).Assembly;
-        assembly.GetName().Name.Should().Be("TomasAI.IFM.Domain.Strategy.Contracts.Shared");
-        assembly.GetReferencedAssemblies().Should().NotContain(x => x.Name == "TomasAI.IFM.Domain.Trade.Shared" || x.Name == "TomasAI.IFM.Domain.Portfolio.Shared" || x.Name == "TomasAI.IFM.Domain.Reference.Shared");
+        assembly.GetName().Name.Should().Be("TomasAI.IFM.Application.Contracts.Strategy");
+        assembly.GetReferencedAssemblies().Should().NotContain(x => x.Name == "TomasAI.IFM.Application.Contracts.Trade" || x.Name == "TomasAI.IFM.Application.Contracts.Portfolio" || x.Name == "TomasAI.IFM.Application.Contracts.Reference");
         var portfolio = typeof(TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi.IPortfolioQueryApi).Assembly;
         ReferenceEquals(typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot).Assembly, portfolio).Should().BeTrue();
         portfolio.GetForwardedTypes().Should().NotContain(typeof(TomasAI.IFM.Domain.Portfolio.Shared.Contracts.PortfolioFundStrategySnapshot));

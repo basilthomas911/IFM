@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Microsoft.Extensions.Hosting;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
 using TomasAI.IFM.Domain.MarketData.Query;
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.OptionChainCache;
 public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.IDbContextFactory databases,
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi api,
     TomasAI.IFM.Application.MarketData.Pricing.TreasuryPublicationPolicy publication,
-    TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy conversion,
+    TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConversionPolicy conversion,
     IHostEnvironment environment, IOptionUniversePlanner planner, OptionChainCoverageObservations coverage,
     Microsoft.Extensions.Logging.ILogger<StoredOptionUniverseSource> logger) : IOptionUniverseSource
 {
@@ -41,7 +41,7 @@ public sealed class StoredOptionUniverseSource(TomasAI.IFM.Application.Storage.I
             if (definitions.Count == 0) continue;
             var first = definitions.Values.First();
             var tradingDates = await databases.MarketDataDb.GetTradingDatesAsync(valueDate, through, MarketType.Futures, CurrencyType.USD, cancellationToken).ConfigureAwait(false);
-            var calendar = new TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar(
+            var calendar = new TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingCalendar(
                 first.CalendarVersion ?? "IFM-MarketDates", first.ExchangeTimeZoneId ?? "America/New_York", valueDate, through,
                 new TimeOnly(18, 0), tradingDates.ToImmutableArray());
             var underlyingPrices = new Dictionary<string, decimal>(StringComparer.Ordinal);

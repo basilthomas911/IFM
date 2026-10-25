@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Domain.Reference.Repository;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -20,6 +21,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.T
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Storage;
@@ -50,7 +52,7 @@ internal sealed record IsolatedWorkflowCatalogFixture(CatalogKey Deployment, str
         repositories.Add(typeof(IObjectRepository<ReferenceDbContext>), reference);
         var configuration = new ConfigurationDbContext(settings, factory, logger);
         repositories.Add(typeof(IObjectRepository<ConfigurationDbContext>), configuration);
-        var instruments = new InstrumentDefinitionStore(reference, new TradeStrategySymbolStore(factory, sequence));
+        var instruments = new InstrumentDefinitionStore(reference, new TradeStrategySymbolStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(sequence)));
         var snapshot = await instruments.GetSnapshotAsync(token);
         if (snapshot is null)
         {

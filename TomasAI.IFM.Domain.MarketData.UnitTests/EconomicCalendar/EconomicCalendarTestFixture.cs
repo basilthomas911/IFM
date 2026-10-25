@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -16,7 +16,7 @@ public sealed class EconomicCalendarTestFixture : IDisposable
     public EconomicCalendarTestFixture()
     {
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     public TestableEconomicCalendarCommandActor CreateActor(

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 

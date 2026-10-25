@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
@@ -92,7 +93,7 @@ public sealed class ReferenceDbContextConventionTests
         var storage = typeof(ReferenceDbContext).Assembly;
         var shared = typeof(ReferenceProjectionBackfillResult).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.Reference.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.Reference", shared.GetName().Name);
         Assert.NotEqual(storage, shared);
         Assert.Equal(shared, typeof(ReferenceProjectionReconciliationResult).Assembly);
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.ReferenceDb.ReferenceProjectionBackfillResult"));

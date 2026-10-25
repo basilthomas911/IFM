@@ -1,5 +1,5 @@
-using TomasAI.IFM.Domain.BrokerAccount.Contracts;
-using TomasAI.IFM.Shared.Domain;
+﻿using TomasAI.IFM.Domain.BrokerAccount.Contracts;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
 

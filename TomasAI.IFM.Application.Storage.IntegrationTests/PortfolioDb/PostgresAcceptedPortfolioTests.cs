@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using Xunit;

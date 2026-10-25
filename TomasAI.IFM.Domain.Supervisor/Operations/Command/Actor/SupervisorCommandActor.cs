@@ -1,7 +1,7 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Supervisor.Operations.Command.Validation;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Domain.Supervisor.Operations.Command.State;
 using TomasAI.IFM.Domain.Supervisor.Shared.Operations.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -252,7 +252,7 @@ public sealed class SupervisorCommandActor(ICommandActorContext<SupervisorComman
         ICommandActorContext<SupervisorCommandActor> context, ActorThreadId threadId,
         ICommand command, Exception ex)
     {
-        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor command", threadId);
+        global::TomasAI.IFM.Application.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor command", threadId);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? 9701,
                 "Supervisor command processing failed."));

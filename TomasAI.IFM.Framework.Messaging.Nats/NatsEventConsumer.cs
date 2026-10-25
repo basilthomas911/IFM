@@ -25,10 +25,10 @@ public abstract class NatsEventConsumer : NatsActorEventListener, IEventConsumer
     private static readonly ConcurrentQueue<Guid> _duplicateEventOrder = new();
     private static readonly ConcurrentDictionary<Type, Func<NatsMsg<byte[]>, IEvent?>> _eventDeserializers = [];
     private static int _duplicateEventCount;
-    private static readonly MethodInfo _asEventMethod = typeof(ActorExtensions)
+    private static readonly MethodInfo _asEventMethod = typeof(NatsActorExtensions)
         .GetMethods(BindingFlags.Public | BindingFlags.Static)
         .Single(method =>
-            string.Equals(method.Name,nameof(ActorExtensions.AsEvent),StringComparison.Ordinal) &&
+            string.Equals(method.Name,nameof(NatsActorExtensions.AsEvent),StringComparison.Ordinal) &&
             method.IsGenericMethodDefinition &&
             method.GetGenericArguments().Length == 1 &&
             method.GetParameters().Length == 1 &&

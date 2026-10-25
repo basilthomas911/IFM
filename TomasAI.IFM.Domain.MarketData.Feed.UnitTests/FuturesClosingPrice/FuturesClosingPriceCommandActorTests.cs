@@ -34,7 +34,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         : FuturesClosingPriceCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesClosingPriceCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

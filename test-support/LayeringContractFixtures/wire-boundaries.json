@@ -1,0 +1,386 @@
+[
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlKs4AC0pJKs4AC0pJ",
+    "sha256": "1B80A400C0D5F4192B8C261A801DB36E19CE170944C56B32C11F44B7E8AA510E"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlKs4AC0pJKs4AC0pJ",
+    "sha256": "1B80A400C0D5F4192B8C261A801DB36E19CE170944C56B32C11F44B7E8AA510E"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "lqdmaXh0dXJlp2ZpeHR1cmXOAAtKSc4AC0pJzwAAAGSVNOAAkc4AC0pJ",
+    "sha256": "4E35110E2A7265E5C434B9CD2621D5E915190432A6B387B06C45CFA86D9F52A2"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "lqdmaXh0dXJlp2ZpeHR1cmXOAAtKSc4AC0pJzwAAAGSVNOAAkc4AC0pJ",
+    "sha256": "4E35110E2A7265E5C434B9CD2621D5E915190432A6B387B06C45CFA86D9F52A2"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "mtwAHSqnZml4dHVyZadmaXh0dXJlKiqnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlAACS1v9q3e9AAJLW/2rd70AAAKdmaXh0dXJlojQyojQyp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWS1v9q3e9AAJLW/2rd70AAAAAAojQyAJanZml4dHVyZadmaXh0dXJlzgALSknOAAtKSc8AAABklTTgAJHOAAtKSZgBojQyy0BFAAAAAAAAzgALSkmS1v9q3e9AAKdmaXh0dXJlladmaXh0dXJlp2ZpeHR1cmUAp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlktb/at3vQADZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NadmaXh0dXJlKiqnZml4dHVyZSo=",
+    "sha256": "100214EFDAFE7AF2011809BB62E6014420CA3C72CB2EE377684CF49CDB320141"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0BT8YAAACs1JrcAB0qp2ZpeHR1cmUIAB0qEgAEGgAMCACVAACS1v9q3e9ACAAUACMAZKI0MqI0Mg4ADwgABQ0/AHwAAKI0MgCWMABRzgALSkkFAKHPAAAAZJU04ACRDwCAmAGiNDLLQEU6ACEAABMABFQABEQAFJUJAAQIAAWkAAQRAAQIAAQ6ADPZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBAAQ2ALAqKqdmaXh0dXJlKg==",
+    "sha256": "61CABF23BD6A40633152E55F0FD81EFCFEF95099E1E8AAB608BBE052DD09FFE1"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "3AAdKqdmaXh0dXJlp2ZpeHR1cmUqKqdmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmUAAJLW/2rd70AAktb/at3vQAAAp2ZpeHR1cmWiNDKiNDKnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZZLW/2rd70AAktb/at3vQAAAAACiNDIA",
+    "sha256": "CD869246A31ED64ACA0CB220BF0FCF3147DD5DA760B65ACC42A75DDEE09E8517"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizJbGAAAAQMTcAB0qp2ZpeHR1cmUIAB0qEgAEGgAMCACVAACS1v9q3e9ACAAUACMAZKI0MqI0Mg4ADwgABQ0/AGAAAKI0MgA=",
+    "sha256": "028874EA9297AE9CA5710305A330225EA4F25179FB437327AD98C6FAA9DA5EA1"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlww==",
+    "sha256": "1D0167C9059211478C7359C68AE1E6DB722E5EC7E59E49054F205221FAD5099A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlww==",
+    "sha256": "1D0167C9059211478C7359C68AE1E6DB722E5EC7E59E49054F205221FAD5099A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "madmaXh0dXJlojQyojQyojQyojQyktb/at3vQACS1v9q3e9AACrZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NQ==",
+    "sha256": "52D92DA4130B97AAC7566D399966664260D673F9CAE4F636F1F65E72EC1871A9"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRiTMYAAAA/xZmnZml4dHVyZaI0MgMAhJLW/2rd70AACABDKtkkMQEA8A0tMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1",
+    "sha256": "36A969ED17BCD03343316216FDB8F64F5E4BE39CA5DCFAF33FB732A42EB6B414"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "mAGiNDLLQEUAAAAAAADOAAtKSZLW/2rd70AAp2ZpeHR1cmWVp2ZpeHR1cmWnZml4dHVyZQCnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmU=",
+    "sha256": "136894AC1124695BCCFC884A7FCFAB96AD2E2FC080536E30AB5241AFFE4DFA8C"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRiTcYAAAA4kZgBojQyy0BFAAEA9AfOAAtKSZLW/2rd70AAp2ZpeHR1cmWVCQAECAAFGgAEEQCAp2ZpeHR1cmU=",
+    "sha256": "3183B734126C0AE31F10EEC11C0622B20B533EE692AE9D6119A9D2D4D7C93629"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlp2ZpeHR1cmUAp2ZpeHR1cmWnZml4dHVyZQ==",
+    "sha256": "BC65882033C525F1740DB788423DFC2EFE0FF57A0772CC9216575795F197FF7F"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy",
+    "legacyIdentity": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy, TomasAI.IFM.Framework.MarketData, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlp2ZpeHR1cmUAp2ZpeHR1cmWnZml4dHVyZQ==",
+    "sha256": "BC65882033C525F1740DB788423DFC2EFE0FF57A0772CC9216575795F197FF7F"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.CashDividend",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.CashDividend, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "gqRUaW1ly0BFAAAAAAAApkFtb3VudMtARQAAAAAAAA==",
+    "sha256": "24709DD68BB7F45CBAD1EB71362EFD7D4BF96E31DE30638DD6253A0689008D03"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.CashDividend",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.CashDividend, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "gqRUaW1ly0BFAAAAAAAApkFtb3VudMtARQAAAAAAAA==",
+    "sha256": "24709DD68BB7F45CBAD1EB71362EFD7D4BF96E31DE30638DD6253A0689008D03"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.DividendKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.DividendKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.DividendKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.DividendKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ExerciseKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ExerciseKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ExerciseKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ExerciseKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "hqVWYWx1ZYSqVm9sYXRpbGl0ectARQAAAAAAAK1SZXByaWNlZFByaWNly0BFAAAAAAAAqFJlc2lkdWFsy0BFAAAAAAAAqkl0ZXJhdGlvbnMqp0ZhaWx1cmUArUVuZ2luZVZlcnNpb26nZml4dHVyZaVTdGVwcyqnUmVxdWVzdIuqVW5kZXJseWluZwCoRXhlcmNpc2UAp1ByZW1pdW0ApFNpZGUAr1VuZGVybHlpbmdQcmljZctARQAAAAAAAKZTdHJpa2XLQEUAAAAAAACsVGltZVRvRXhwaXJ5y0BFAAAAAAAApFJhdGXLQEUAAAAAAACpRGl2aWRlbmRzAK1EaXZpZGVuZFlpZWxky0BFAAAAAAAArUNhc2hEaXZpZGVuZHORgqRUaW1ly0BFAAAAAAAApkFtb3VudMtARQAAAAAAAK9OdW1lcmljYWxQb2xpY3mHpVN0ZXBzKrFNYXhpbXVtSXRlcmF0aW9ucyqxTWF4aW11bVZvbGF0aWxpdHnLQEUAAAAAAACuUHJpY2VUb2xlcmFuY2XLQEUAAAAAAACsU3BhdGlhbFN0ZXBzKrRNYXhpbXVtU29ySXRlcmF0aW9ucyqsU29yVG9sZXJhbmNly0BFAAAAAAAA",
+    "sha256": "5C9CB12E575668D7B817F7C42EF82A0392CAE9D81585F5DB57FF5F38E0EBCAF0"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0B2sYAAAFJ8QiGpVZhbHVlhKpWb2xhdGlsaXR5y0BFAAEAoK1SZXByaWNlZFAGAAUXAJWoUmVzaWR1YWwSAPZSqkl0ZXJhdGlvbnMqp0ZhaWx1cmUArUVuZ2luZVZlcnNpb26nZml4dHVyZaVTdGVwcyqnUmVxdWVzdIuqVW5kZXJseWluZwCoRXhlcmNpc2UAp1ByZW1pdW0ApFNpZGUAryUACosAdaZTdHJpa2WJAMasVGltZVRvRXhwaXLIAEakUmF0JADEqURpdmlkZW5kcwCtCwBVWWllbGRGAFStQ2FzaBsAQHORgqRWAAUeAHWmQW1vdW50EADzAq9OdW1lcmljYWxQb2xpY3mH4wCHsU1heGltdW0cAQQTAA9sAQARrtkAd1RvbGVyYW5tAYKsU3BhdGlhbDcBE7RUADdTb3JXAEmsU29yOgBQAAAAAAA=",
+    "sha256": "542FB2A452DA1DA7A106E94DC265B030A67934738D6E9AD56E17906578B3BFBE"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "hKpWb2xhdGlsaXR5y0BFAAAAAAAArVJlcHJpY2VkUHJpY2XLQEUAAAAAAACoUmVzaWR1YWzLQEUAAAAAAACqSXRlcmF0aW9ucyo=",
+    "sha256": "0032487D3D3CFD0FADDD07499FCD2F2F817B3467D4FAD9FC3B363604129E76F7"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRiSsYAAAA98QGEqlZvbGF0aWxpdHnLQEUAAQCgrVJlcHJpY2VkUAYABRcAlahSZXNpZHVhbBIAwKpJdGVyYXRpb25zKg==",
+    "sha256": "5755F5C62DA36500606605D5DCF480DFBF2D6DA1809460B257CC6AD662477110"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceDeltaValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceDeltaValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "g6VQcmljZctARQAAAAAAAKpWb2xhdGlsaXR5y0BFAAAAAAAApURlbHRhy0BFAAAAAAAA",
+    "sha256": "F31D86C4D9A39ECD16A236589BB7EB312D306D5892F87A4B5996D5BFF686911B"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceDeltaValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceDeltaValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "g6VQcmljZctARQAAAAAAAKpWb2xhdGlsaXR5y0BFAAAAAAAApURlbHRhy0BFAAAAAAAA",
+    "sha256": "F31D86C4D9A39ECD16A236589BB7EB312D306D5892F87A4B5996D5BFF686911B"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "g6VQcmljZctARQAAAAAAAKdGYWlsdXJlAK1FbmdpbmVWZXJzaW9up2ZpeHR1cmU=",
+    "sha256": "F1235A841A302C0F0E67FBADA1A7FD8475D6A6E0A4947BE54908F14A34A18BB2"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "g6VQcmljZctARQAAAAAAAKdGYWlsdXJlAK1FbmdpbmVWZXJzaW9up2ZpeHR1cmU=",
+    "sha256": "F1235A841A302C0F0E67FBADA1A7FD8475D6A6E0A4947BE54908F14A34A18BB2"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPricingRequest",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPricingRequest, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "i6pVbmRlcmx5aW5nAKhFeGVyY2lzZQCnUHJlbWl1bQCkU2lkZQCvVW5kZXJseWluZ1ByaWNly0BFAAAAAAAAplN0cmlrZctARQAAAAAAAKxUaW1lVG9FeHBpcnnLQEUAAAAAAACkUmF0ZctARQAAAAAAAKlEaXZpZGVuZHMArURpdmlkZW5kWWllbGTLQEUAAAAAAACtQ2FzaERpdmlkZW5kc5GCpFRpbWXLQEUAAAAAAACmQW1vdW50y0BFAAAAAAAA",
+    "sha256": "182410353F22AF12CE96FF2CD406B9762560B6881BE03502DD2D84569C357639"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPricingRequest",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPricingRequest, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizMPGAAAAkvYYi6pVbmRlcmx5aW5nAKhFeGVyY2lzZQCnUHJlbWl1bQCkU2lkZQCvJQCRUHJpY2XLQEUAAQBmplN0cmlrEADVrFRpbWVUb0V4cGlyeRYARqRSYXQkAMSpRGl2aWRlbmRzAK0LAFVZaWVsZDAAVK1DYXNoGwBAc5GCpFYABR4A8AGmQW1vdW50y0BFAAAAAAAA",
+    "sha256": "ECCD76BC585C527C221C93C0EBACB8E8A74475D27431A8EC05A4D70258AF7554"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionSide",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionSide, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionSide",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionSide, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "h6VQcmljZctARQAAAAAAAKpWb2xhdGlsaXR5y0BFAAAAAAAApURlbHRhy0BFAAAAAAAApUdhbW1hy0BFAAAAAAAApFZlZ2HLQEUAAAAAAAClVGhldGHLQEUAAAAAAACjUmhvy0BFAAAAAAAA",
+    "sha256": "F9A1D62A706D2E1CF5A91D8468EF027DC5BF2FB7F7C8A69734ED9E6203115735"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionValues",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionValues, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRibMYAAABIsYelUHJpY2XLQEUAAQC1qlZvbGF0aWxpdHkUAGalRGVsdGEPAEZHYW1tDwBGpFZlZw4AR6VUaGUsANCjUmhvy0BFAAAAAAAA",
+    "sha256": "D884944AA66E9B1AAD8A55BDA55E6EFE6E7A243969075AE6288BC0645BB597A6"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PremiumKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PremiumKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PremiumKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PremiumKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PriceDeltaResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PriceDeltaResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "hqVWYWx1ZYOlUHJpY2XLQEUAAAAAAACqVm9sYXRpbGl0ectARQAAAAAAAKVEZWx0YctARQAAAAAAAKdGYWlsdXJlAK1FbmdpbmVWZXJzaW9up2ZpeHR1cmWlU3RlcHMqp1JlcXVlc3SLqlVuZGVybHlpbmcAqEV4ZXJjaXNlAKdQcmVtaXVtAKRTaWRlAK9VbmRlcmx5aW5nUHJpY2XLQEUAAAAAAACmU3RyaWtly0BFAAAAAAAArFRpbWVUb0V4cGlyectARQAAAAAAAKRSYXRly0BFAAAAAAAAqURpdmlkZW5kcwCtRGl2aWRlbmRZaWVsZMtARQAAAAAAAK1DYXNoRGl2aWRlbmRzkYKkVGltZctARQAAAAAAAKZBbW91bnTLQEUAAAAAAACvTnVtZXJpY2FsUG9saWN5h6VTdGVwcyqxTWF4aW11bUl0ZXJhdGlvbnMqsU1heGltdW1Wb2xhdGlsaXR5y0BFAAAAAAAArlByaWNlVG9sZXJhbmNly0BFAAAAAAAArFNwYXRpYWxTdGVwcyq0TWF4aW11bVNvckl0ZXJhdGlvbnMqrFNvclRvbGVyYW5jZctARQAAAAAAAA==",
+    "sha256": "B6307B70B7C0952903435169050940909BA86CDFF398A5B375320489899590D8"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PriceDeltaResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PriceDeltaResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0Bw8YAAAE68QOGpVZhbHVlg6VQcmljZctARQABALWqVm9sYXRpbGl0eRQAZaVEZWx0YQ8A9kanRmFpbHVyZQCtRW5naW5lVmVyc2lvbqdmaXh0dXJlpVN0ZXBzKqdSZXF1ZXN0i6pVbmRlcmx5aW5nAKhFeGVyY2lzZQCnUHJlbWl1bQCkU2lkZQCvJQAKkAB1plN0cmlrZX0AxqxUaW1lVG9FeHBpcqIARqRSYXQkAMSpRGl2aWRlbmRzAK0LAFVZaWVsZEYAVK1DYXNoGwBAc5GCpFYABR4AdaZBbW91bnQQAPMCr051bWVyaWNhbFBvbGljeYfjAPYCsU1heGltdW1JdGVyYXRpb24TAA9GAQARrtkAd1RvbGVyYW5yAYKsU3BhdGlhbDcBE7RUADdTb3JXAEmsU29yOgBQAAAAAAA=",
+    "sha256": "E9D2AFD65F195EE18B536894C62515544BC00CF2FB9B823EBBE33AC232884439"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingFailure",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingFailure, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingFailure",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingFailure, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "hqVWYWx1ZYelUHJpY2XLQEUAAAAAAACqVm9sYXRpbGl0ectARQAAAAAAAKVEZWx0YctARQAAAAAAAKVHYW1tYctARQAAAAAAAKRWZWdhy0BFAAAAAAAApVRoZXRhy0BFAAAAAAAAo1Job8tARQAAAAAAAKdGYWlsdXJlAK1FbmdpbmVWZXJzaW9up2ZpeHR1cmWlU3RlcHMqp1JlcXVlc3SLqlVuZGVybHlpbmcAqEV4ZXJjaXNlAKdQcmVtaXVtAKRTaWRlAK9VbmRlcmx5aW5nUHJpY2XLQEUAAAAAAACmU3RyaWtly0BFAAAAAAAArFRpbWVUb0V4cGlyectARQAAAAAAAKRSYXRly0BFAAAAAAAAqURpdmlkZW5kcwCtRGl2aWRlbmRZaWVsZMtARQAAAAAAAK1DYXNoRGl2aWRlbmRzkYKkVGltZctARQAAAAAAAKZBbW91bnTLQEUAAAAAAACvTnVtZXJpY2FsUG9saWN5h6VTdGVwcyqxTWF4aW11bUl0ZXJhdGlvbnMqsU1heGltdW1Wb2xhdGlsaXR5y0BFAAAAAAAArlByaWNlVG9sZXJhbmNly0BFAAAAAAAArFNwYXRpYWxTdGVwcyq0TWF4aW11bVNvckl0ZXJhdGlvbnMqrFNvclRvbGVyYW5jZctARQAAAAAAAA==",
+    "sha256": "F5B1CD03FAE69CA6C3F7DC462EC60998187B1D3A64349E50FC5A0C8580AFE464"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingResult",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingResult, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0B/MYAAAFW8QOGpVZhbHVlh6VQcmljZctARQABALWqVm9sYXRpbGl0eRQAZqVEZWx0YQ8ARkdhbW0PAEakVmVnDgBHpVRoZSwARaNSaG85APZGp0ZhaWx1cmUArUVuZ2luZVZlcnNpb26nZml4dHVyZaVTdGVwcyqnUmVxdWVzdIuqVW5kZXJseWluZwCoRXhlcmNpc2UAp1ByZW1pdW0ApFNpZGUAryUACskAdaZTdHJpa2V9AMasVGltZVRvRXhwaXLbAEakUmF0JADEqURpdmlkZW5kcwCtCwBVWWllbGRGAFStQ2FzaBsAQHORgqRWAAUeAHWmQW1vdW50EADzAq9OdW1lcmljYWxQb2xpY3mH4wD2ArFNYXhpbXVtSXRlcmF0aW9uEwAPfwEAEa7ZAHdUb2xlcmFuqwGCrFNwYXRpYWw3ARO0VAA3U29yVwBJrFNvcjoAUAAAAAAA",
+    "sha256": "5D491EB1C0C71A1484D2304183730F3BA067AE16B1552725AF3BB62872CA5784"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingSettings",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingSettings, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "h6VTdGVwcyqxTWF4aW11bUl0ZXJhdGlvbnMqsU1heGltdW1Wb2xhdGlsaXR5y0BFAAAAAAAArlByaWNlVG9sZXJhbmNly0BFAAAAAAAArFNwYXRpYWxTdGVwcyq0TWF4aW11bVNvckl0ZXJhdGlvbnMqrFNvclRvbGVyYW5jZctARQAAAAAAAA==",
+    "sha256": "81E60AA4D0D57339934DE15D5C4EFBB44B37F43B7B6246BB954363CC37EDE0AE"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingSettings",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingSettings, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizIjGAAAAY/YKh6VTdGVwcyqxTWF4aW11bUl0ZXJhdGlvbhMA4VZvbGF0aWxpdHnLQEUAAQD1AK5QcmljZVRvbGVyYW5jZRgAgqxTcGF0aWFsVAATtFQAN1NvclcASaxTb3I6AFAAAAAAAA==",
+    "sha256": "842AD3C97DFDCC6B3AB714C52BBC75CE99B04E623DFD31F88306A63F2A3A5ABF"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.UnderlyingKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.UnderlyingKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Framework.OptionPricer.Pricing.UnderlyingKind",
+    "legacyIdentity": "TomasAI.IFM.Framework.OptionPricer.Pricing.UnderlyingKind, TomasAI.IFM.Framework.OptionPricer, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  }
+]

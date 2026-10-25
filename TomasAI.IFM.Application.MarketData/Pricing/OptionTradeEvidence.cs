@@ -1,6 +1,6 @@
-using MessagePack;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+﻿using MessagePack;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 

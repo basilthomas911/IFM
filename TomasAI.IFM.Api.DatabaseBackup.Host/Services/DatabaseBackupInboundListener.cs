@@ -1,6 +1,7 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,7 +31,7 @@ public sealed class DatabaseBackupInboundListener(
             {
                 [Mailbox] = options.CutoverWorkerOnly ? ["CutoverExecutionRequested"] : [.. Verbs]
             },
-            AdmitAsync).ConfigureAwait(false);
+            AdmitMessageAsync).ConfigureAwait(false);
         health.MarkReady();
     }
 
@@ -41,6 +42,12 @@ public sealed class DatabaseBackupInboundListener(
     }
 
     public async ValueTask AdmitAsync(string verb, NatsMsg<byte[]> message)
+    {
+        using var adapter = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message);
+        await AdmitMessageAsync(verb, adapter).ConfigureAwait(false);
+    }
+
+    async ValueTask AdmitMessageAsync(string verb, IActorMessage message)
     {
         var executionEvent = Deserialize(verb, message)
             ?? throw new InvalidOperationException($"Unable to deserialize DatabaseBackup execution event '{verb}'.");
@@ -54,7 +61,7 @@ public sealed class DatabaseBackupInboundListener(
             CancellationToken.None).ConfigureAwait(false);
     }
 
-    static DatabaseBackupEventContract? Deserialize(string verb, NatsMsg<byte[]> message)
+    static DatabaseBackupEventContract? Deserialize(string verb, IActorMessage message)
         => verb switch
         {
             "BackupExecutionRequested" => message.AsEvent<DatabaseBackupExecutionRequestedEvent>(),

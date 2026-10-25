@@ -52,7 +52,7 @@ public sealed class PortfolioBusinessIdAllocatorTests
             .Should().Be("Portfolio_PortfolioId");
     }
 
-    sealed class RecordingSequenceIdGenerator : ISequenceIdGenerator
+    sealed class RecordingSequenceIdGenerator : global::TomasAI.IFM.Application.Identity.ISequenceIdApi
     {
         long _next;
         public List<SequenceName> Requested { get; } = [];
@@ -65,7 +65,7 @@ public sealed class PortfolioBusinessIdAllocatorTests
             ValueTask.FromResult(_next);
     }
 
-    sealed class FixedSequenceIdGenerator(long value) : ISequenceIdGenerator
+    sealed class FixedSequenceIdGenerator(long value) : global::TomasAI.IFM.Application.Identity.ISequenceIdApi
     {
         public ValueTask<long> GetSequenceIdAsync(SequenceName name, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(value);

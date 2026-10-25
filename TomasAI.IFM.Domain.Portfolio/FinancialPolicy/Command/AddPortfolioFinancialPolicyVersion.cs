@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Model;
+﻿using TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 
 namespace TomasAI.IFM.Domain.Portfolio.FinancialPolicy.Command;
 

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Application\TomasAI.IFM.Application.Contracts.Application.csproj" />
   </ItemGroup>
 
 </Project>

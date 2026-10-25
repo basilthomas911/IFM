@@ -1,0 +1,1079 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
+using System.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Shared.EventModelActor;
+
+namespace TomasAI.IFM.Application.EventModelActor;
+
+/// <summary>
+/// Supervises actors and manages actor lifecycle related components such as thread pool,
+/// producers, consumers and thread state registry.
+/// </summary>
+public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
+{
+    readonly IActorThreadPool _threadPool;
+    readonly ConcurrentDictionary<ActorMailboxId, IActorProducer> _producers;
+    readonly ConcurrentDictionary<ActorMailboxId, IJSActorProducer> _jsProducers;
+    readonly ConcurrentDictionary<ActorMailboxId, IJSActorProducer> _externalJsProducers;
+    readonly ConcurrentDictionary<ActorType, IActorConsumer> _consumers;
+    readonly ConcurrentDictionary<ActorType, IJSActorConsumer> _jsConsumers;
+    readonly ConcurrentDictionary<ActorThreadId, IActorState> _threadState;
+    readonly ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>> _threadStateByMailbox;
+    readonly ConcurrentDictionary<ActorMailboxId, IActor> _children;
+    readonly EventRouteRegistry _eventRouters;
+    readonly RealtimeRouteRegistry _realtimeRouters;
+    readonly ILogger<ActorSupervisor> _logger;
+    readonly IContainerInstance _container;
+    readonly ActorAdmissionOptions _admissionOptions;
+    readonly ActorAdmissionController _admissionController;
+    const string _serviceId = "ActorSupervisor";
+    static readonly TimeSpan ShutdownQuietPeriod = TimeSpan.FromMilliseconds(100);
+    static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(10);
+    readonly System.Threading.Lock _shutdownGate = new();
+    readonly System.Threading.Lock _externalProducerGate = new();
+    Task? _shutdownTask;
+    int _disposed;
+    int _isReady;
+    readonly ConcurrentDictionary<ActorMailboxId, long> realtimeMailboxGenerations = new();
+
+    public SupervisorRuntimeContext RuntimeContext { get; } = new();
+    ISupervisorRuntimeContext IActorSupervisor.RuntimeContext => RuntimeContext;
+
+    /// <inheritdoc />
+    public bool IsReady => Volatile.Read(ref _isReady) != 0;
+
+    /// <inheritdoc />
+    public void SetReadiness(bool isReady)
+        => Volatile.Write(ref _isReady, isReady ? 1 : 0);
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="ActorSupervisor"/>.
+    /// </summary>
+    public ActorSupervisor(IContainerInstance container, ILogger<ActorSupervisor> logger)
+        : this(
+            container,
+            logger,
+            new ActorAdmissionOptions(),
+            ActorAdmissionController.Disabled,
+            ActorInformationLoggingPolicy.Default)
+    {
+    }
+
+    public ActorSupervisor(
+        IContainerInstance container,
+        ILogger<ActorSupervisor> logger,
+        ActorAdmissionOptions admissionOptions,
+        ActorAdmissionController admissionController,
+        ActorInformationLoggingPolicy? informationLoggingPolicy = null,
+        IRealtimeSourceAdmission? realtimeSourceAdmission = null)
+    {
+        _container = IsArgumentNull.Set(container);
+        _logger = logger ?? NullLogger<ActorSupervisor>.Instance;
+        _admissionOptions = admissionOptions ?? throw new ArgumentNullException(nameof(admissionOptions));
+        _admissionOptions.Validate();
+        _admissionController = admissionController ?? throw new ArgumentNullException(nameof(admissionController));
+        _producers = new ConcurrentDictionary<ActorMailboxId, IActorProducer>();
+        _jsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
+        _externalJsProducers = new ConcurrentDictionary<ActorMailboxId, IJSActorProducer>();
+        _consumers = new ConcurrentDictionary<ActorType, IActorConsumer>();
+        _jsConsumers = new ConcurrentDictionary<ActorType, IJSActorConsumer>();
+        _threadState = new ConcurrentDictionary<ActorThreadId, IActorState>();
+        _threadStateByMailbox = new ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>();
+        _children = new ConcurrentDictionary<ActorMailboxId, IActor>();
+        _eventRouters = new EventRouteRegistry();
+        _realtimeRouters = new RealtimeRouteRegistry();
+
+        // Initialize thread pool with one thread per logical processor.
+        var pool = new ActorThreadPoolV2(this, _logger, informationLoggingPolicy, realtimeSourceAdmission);
+        pool.Initialize(Environment.ProcessorCount * 2);
+        _threadPool = pool;
+    }
+
+    /// <summary>
+    /// Adds an actor to supervision.
+    /// </summary>
+    /// <param name="actor">Actor to add. Must not be null.</param>
+    public void AddActor(IActor actor)
+    {
+        IsArgumentNull.Check(actor);
+        lock (_externalProducerGate)
+        {
+            if (_externalJsProducers.ContainsKey(actor.Id))
+                throw new InvalidOperationException($"Actor identifier '{actor.Id}' is reserved by an external event producer.");
+            if (_children.TryAdd(actor.Id, actor))
+                RuntimeContext.Register(actor);
+        }
+    }
+
+    /// <summary>
+    /// Removes an actor from supervision.
+    /// </summary>
+    /// <param name="actor">Actor to remove. Must not be null.</param>
+    public void RemoveActor(IActor actor)
+    {
+        IsArgumentNull.Check(actor);
+        if (((ICollection<KeyValuePair<ActorMailboxId, IActor>>)_children)
+            .Remove(new(actor.Id, actor)))
+            RuntimeContext.Remove(actor);
+    }
+
+    /// <summary>
+    /// Determines whether an actor with the specified mailbox id exists.
+    /// </summary>
+    /// <param name="mailboxId">The mailbox id to check.</param>
+    /// <returns>True if the actor exists; otherwise false.</returns>
+    public bool ActorExists(ActorMailboxId mailboxId)
+        => _children.ContainsKey(mailboxId);
+
+    /// <summary>
+    /// Registers or updates the state for an actor thread.
+    /// </summary>
+    /// <remarks>
+    /// If an entry for the given thread already exists, it will be replaced with the provided state.
+    /// </remarks>
+    /// <param name="state">The actor thread state to add or update. Cannot be null.</param>
+    public void AddThreadState(IActorState state)
+    {
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(state.Id);
+        _threadState[state.Id] = state;
+        var mailboxStates = _threadStateByMailbox.GetOrAdd(
+            state.Id.MailboxId,
+            static _ => new ConcurrentDictionary<ActorThreadId, IActorState>());
+        mailboxStates[state.Id] = state;
+    }
+
+    /// <summary>
+    /// Removes the specified thread state from the collection.
+    /// </summary>
+    /// <remarks>This method removes the thread state identified by its unique <see cref="IActorState.Id"/>
+    /// from the internal collection. If the specified state does not exist in the collection, no action is
+    /// taken.</remarks>
+    /// <param name="state">The thread state to remove. The <see cref="IActorState.Id"/> property must not be <see langword="null"/>.</param>
+    public void RemoveThreadState(IActorState state)
+    {
+        IsArgumentNull.Check(state);
+        IsArgumentNull.Check(state.Id);
+        _threadState.TryRemove(state.Id, out _);
+        if (_threadStateByMailbox.TryGetValue(state.Id.MailboxId, out var mailboxStates))
+        {
+            mailboxStates.TryRemove(state.Id, out _);
+            if (mailboxStates.IsEmpty)
+            {
+                ((ICollection<KeyValuePair<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>>)
+                    _threadStateByMailbox).Remove(
+                    new KeyValuePair<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>(
+                        state.Id.MailboxId,
+                        mailboxStates));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Determines whether a thread state entry exists for the specified thread identifier.
+    /// </summary>
+    /// <param name="threadId">The actor thread identifier to check. Cannot be null.</param>
+    /// <returns><see langword="true"/> if a state exists for the specified thread; otherwise, <see langword="false"/>.</returns>
+    public bool ThreadStateExists(ActorThreadId threadId)
+    {
+        IsArgumentNull.Check(threadId);
+        return _threadState.ContainsKey(threadId);
+    }
+
+    /// <summary>
+    /// Gets all thread state entries for the specified actor mailbox.
+    /// </summary>
+    /// <param name="actorId">The actor mailbox identifier. Cannot be null.</param>
+    /// <returns>
+    /// An array of <see cref="IActorState"/> associated with the actor's mailbox. Returns an empty array when none exist.
+    /// </returns>
+    public IActorState[] GetThreadStates(ActorMailboxId actorId)
+    {
+        IsArgumentNull.Check(actorId);
+        return _threadStateByMailbox.TryGetValue(actorId, out var states)
+            ? [.. states.Values]
+            : [];
+    }
+
+    /// <summary>
+    /// Creates a new mailbox for the specified actor.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the actor for which the mailbox is being created.</param>
+    /// <returns>An instance of <see cref="IActorMailbox"/> representing the newly created mailbox.</returns>
+    public IActorMailbox CreateMailbox(ActorMailboxId mailboxId)
+        => new ActorMailbox(
+            this,
+            mailboxId,
+            _admissionOptions.RetainedIdleMailboxesPerActor,
+            _admissionController, realtimeMailboxGenerations.GetOrAdd(mailboxId, 1));
+
+    /// <summary>
+    /// Retrieves an actor thread for the specified thread id from the internal thread pool.
+    /// </summary>
+    /// <param name="threadId">The thread identifier.</param>
+    /// <returns>An <see cref="IActorThread"/> instance.</returns>
+    public IActorThread GetThread(ActorThreadId threadId)
+        => _threadPool.GetThread(threadId);
+
+    /// <summary>
+    /// Asynchronously retrieves an actor thread for the specified thread id from the internal thread pool.
+    /// </summary>
+    /// <param name="threadId">The thread identifier.</param>
+    /// <param name="ct">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A <see cref="ValueTask{IActorThread}"/> representing the asynchronous operation.</returns>
+    public ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct)
+        => _threadPool.GetThreadAsync(threadId, ct);
+
+
+    /// <summary>
+    /// Starts all registered consumers asynchronously.
+    /// </summary>
+    /// <remarks>This method iterates through all registered consumers and invokes their asynchronous start
+    /// operation. Each consumer is provided with the current instance and its associated key.</remarks>
+    /// <returns></returns>
+    public async ValueTask StartConsumersAsync()
+        => await StartConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StartConsumersAsync(CancellationToken cancellationToken)
+    {
+        var starts = new List<Task>(_consumers.Count + _jsConsumers.Count);
+        foreach (var consumer in _consumers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            starts.Add(consumer.Value
+                .StartAsync(this, consumer.Key, default!, cancellationToken)
+                .AsTask());
+        }
+        foreach (var jsConsumer in _jsConsumers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            starts.Add(jsConsumer.Value
+                .StartAsync(this, jsConsumer.Key, default!, cancellationToken)
+                .AsTask());
+        }
+        await Task.WhenAll(starts).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Stops all active consumers asynchronously.
+    /// </summary>
+    /// <remarks>This method iterates through all registered consumers and invokes their asynchronous stop
+    /// operation.  Each consumer is stopped in sequence, and the method awaits the completion of each stop operation 
+    /// before proceeding to the next.</remarks>
+    /// <returns></returns>
+    public async ValueTask StopConsumersAsync()
+        => await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
+    public async ValueTask StopConsumersAsync(CancellationToken cancellationToken)
+    {
+        List<Exception>? failures = null;
+        foreach (var consumer in _consumers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await consumer.Value.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+        foreach (var jsConsumer in _jsConsumers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await jsConsumer.Value.StopAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null)
+            throw new AggregateException("One or more actor consumers failed to stop.", failures);
+    }
+
+    /// <summary>
+    /// Starts the actor associated with the specified mailbox ID.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the actor's mailbox.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no actor is found for the specified <paramref name="mailboxId"/>.</exception>
+    public ValueTask StartAsync(ActorMailboxId mailboxId)
+        => StartAsync(mailboxId, CancellationToken.None);
+
+    public ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_children.TryGetValue(mailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
+        return RuntimeContext.StartAsync(
+            actor,
+            async () =>
+            {
+                actor = _children[mailboxId];
+                await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
+                actor.Mailbox.ThreadQueues.ResumeAdmission();
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Stops the actor associated with the specified mailbox identifier.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the actor's mailbox to stop. Cannot be <see langword="null"/>.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if no actor is found with the specified <paramref name="mailboxId"/>.</exception>
+    public ValueTask StopAsync(ActorMailboxId mailboxId)
+        => StopAsync(mailboxId, CancellationToken.None);
+
+    public ValueTask StopAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_children.TryGetValue(mailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
+        return RuntimeContext.StopAsync(
+            actor,
+            async () =>
+            {
+                actor = _children[mailboxId];
+                actor.Mailbox.ThreadQueues.PauseAdmission();
+                SharedActorDiagnosticLog.Write18(_logger, null, mailboxId, nameof(StopAsync));
+                if (!await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
+                    .ConfigureAwait(false))
+                    throw new TimeoutException($"Actor '{actor.Id}' did not drain before shutdown.");
+                await actor.StopAsync(cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public ValueTask RestartAsync(
+        ActorMailboxId mailboxId,
+        CancellationToken cancellationToken = default)
+    {
+        IsArgumentNull.Check(mailboxId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_children.TryGetValue(mailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{mailboxId}' not found.");
+        if (IsDisposableRealtimeActor(actor))
+            return ReplaceRealtimeAsync(mailboxId, cancellationToken);
+        return RuntimeContext.RestartAsync(
+            actor,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission();
+                SharedActorDiagnosticLog.Write14(_logger, null, mailboxId, nameof(RestartAsync));
+                if (!await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(ShutdownDrainTimeout, cancellationToken)
+                    .ConfigureAwait(false))
+                {
+                    // No stop has occurred; realtime processing can continue the accepted backlog.
+                    // Command/event actors retain their closed-admission failure policy.
+                    if (mailboxId.ActorType == ActorType.Realtime && actor.IsRunning)
+                    {
+                        actor.Mailbox.ThreadQueues.ResumeAdmission();
+                        SharedActorDiagnosticLog.Write13(_logger, null, nameof(RestartAsync), mailboxId, ShutdownDrainTimeout);
+                    }
+                    throw new TimeoutException($"Actor '{actor.Id}' did not drain before restart.");
+                }
+                await actor.StopAsync(cancellationToken).ConfigureAwait(false);
+            },
+            async () =>
+            {
+                await actor.StartAsync(this, cancellationToken).ConfigureAwait(false);
+                actor.Mailbox.ThreadQueues.ResumeAdmission();
+            },
+            cancellationToken);
+    }
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+        => RestartAsync(threadId, -1, timeout, cancellationToken);
+
+    public ValueTask<bool> RestartAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        if (IsDisposableRealtimeActor(actor))
+            return TryReplaceRealtimeAsync(threadId.MailboxId, threadId, expectedGeneration, cancellationToken);
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                if (expectedGeneration >= 0
+                    && actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration)
+                    return false;
+                var operationId = Guid.NewGuid();
+                var started = Stopwatch.GetTimestamp();
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                SharedActorDiagnosticLog.Write11(_logger, null, nameof(RestartAsync), threadId, operationId, expectedGeneration, timeout);
+                try
+                {
+                    if (!await actor.Mailbox.ThreadQueues
+                        .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                        .ConfigureAwait(false))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        SharedActorDiagnosticLog.Write23(_logger, null, nameof(RestartAsync), threadId, operationId, timeout);
+                        return false;
+                    }
+                    if (!actor.Mailbox.ThreadQueues.Retire(threadId))
+                    {
+                        actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                        SharedActorDiagnosticLog.Write15(_logger, null, nameof(RestartAsync), threadId, operationId);
+                        return false;
+                    }
+                    if (_threadState.TryGetValue(threadId, out var state))
+                        RemoveThreadState(state);
+                    actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                    SharedActorDiagnosticLog.Write16(_logger, null, threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    actor.Mailbox.ThreadQueues.QuarantineAdmission(threadId);
+                    SharedActorDiagnosticLog.Write19(_logger, exception, nameof(RestartAsync), threadId, operationId);
+                    throw;
+                }
+                finally
+                {
+                    SharedActorDiagnosticLog.Write12(_logger, null, nameof(RestartAsync), threadId, operationId, actor.Mailbox.ThreadQueues.IsAdmissionOpen(threadId), actor.Mailbox.ThreadQueues.GetGeneration(threadId), Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                }
+            },
+            cancellationToken);
+    }
+
+    static bool IsDisposableRealtimeActor(IActor actor)
+        => actor is IReplaceableRealtimeActor && RealtimeActorResetPolicy.CanReplace(actor.GetType(), actor.Id.ActorType);
+
+    async ValueTask ReplaceRealtimeAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
+        => _ = await TryReplaceRealtimeAsync(mailboxId, null, -1, cancellationToken).ConfigureAwait(false);
+
+    async ValueTask<bool> TryReplaceRealtimeAsync(ActorMailboxId mailboxId, ActorThreadId? expectedThread,
+        long expectedGeneration, CancellationToken cancellationToken)
+    {
+        var replaced = false;
+        await RuntimeContext.ReplaceRealtimeAsync(mailboxId, async oldActor =>
+        {
+            if (expectedThread is not null && expectedGeneration >= 0
+                && oldActor.Mailbox.ThreadQueues.GetGeneration(expectedThread.Value) != expectedGeneration)
+                return oldActor;
+            // Construct first: a factory failure must not retire a healthy actor.
+            var replacement = _container.Resolve<IActorFactory>().CreateRealtimeReplacement(oldActor.GetType());
+            if (ReferenceEquals(oldActor, replacement) || !IsDisposableRealtimeActor(replacement))
+                throw new InvalidOperationException("Realtime replacement must have a fresh disposable actor context.");
+            cancellationToken.ThrowIfCancellationRequested();
+            oldActor.Mailbox.ThreadQueues.PauseAdmission();
+            ((IReplaceableRealtimeActor)oldActor).RetireRealtimeGeneration();
+            if (oldActor.Mailbox.ThreadQueues is not ActorThreadQueues queues)
+                throw new InvalidOperationException("Realtime replacement requires supervised actor queues.");
+            var nextGeneration = checked(queues.MaximumGeneration + 1);
+            realtimeMailboxGenerations.AddOrUpdate(mailboxId, nextGeneration, (_, previous) => Math.Max(nextGeneration, checked(previous + 1)));
+            queues.DiscardRealtimeWork();
+            if (_threadStateByMailbox.TryRemove(mailboxId, out var states))
+                foreach (var threadId in states.Keys) _threadState.TryRemove(threadId, out _);
+            await replacement.StartAsync(this, cancellationToken).ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                ((IReplaceableRealtimeActor)replacement).RetireRealtimeGeneration();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (!_children.TryUpdate(mailboxId, replacement, oldActor))
+                throw new InvalidOperationException("Realtime actor ownership changed during replacement.");
+            replacement.Mailbox.ThreadQueues.ResumeAdmission();
+            SharedActorDiagnosticLog.Write10(_logger, null, nameof(ReplaceRealtimeAsync), mailboxId, ((IReplaceableRealtimeActor)replacement).RealtimeGeneration.Id);
+            replaced = true;
+            return replacement;
+        }, cancellationToken).ConfigureAwait(false);
+        return replaced;
+    }
+
+    public ValueTask<bool> PauseAsync(
+        ActorThreadId threadId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                SharedActorDiagnosticLog.Write22(_logger, null, threadId, timeout);
+                return await actor.Mailbox.ThreadQueues
+                    .WaitForIdleAsync(threadId, timeout, cancellationToken)
+                    .ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public async ValueTask ResumeAsync(
+        ActorThreadId threadId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        await RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            () =>
+            {
+                actor.Mailbox.ThreadQueues.ResumeAdmission(threadId);
+                SharedActorDiagnosticLog.Write20(_logger, null, threadId, actor.Mailbox.ThreadQueues.GetGeneration(threadId));
+                return ValueTask.FromResult(true);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask<bool> RetireAsync(
+        ActorThreadId threadId,
+        long expectedGeneration,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_children.TryGetValue(threadId.MailboxId, out var actor))
+            throw new InvalidOperationException($"Actor with mailbox id '{threadId.MailboxId}' not found.");
+        return RuntimeContext.RunMailboxOperationAsync(
+            threadId,
+            async () =>
+            {
+                if (actor.Mailbox.ThreadQueues.GetGeneration(threadId) != expectedGeneration) return false;
+                actor.Mailbox.ThreadQueues.PauseAdmission(threadId);
+                SharedActorDiagnosticLog.Write21(_logger, null, threadId, timeout);
+                if (!await actor.Mailbox.ThreadQueues.WaitForIdleAsync(threadId, timeout, cancellationToken).ConfigureAwait(false))
+                    return false;
+                if (!actor.Mailbox.ThreadQueues.Retire(threadId)) return false;
+                if (_threadState.TryGetValue(threadId, out var state)) RemoveThreadState(state);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds a producer to the specified mailbox.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the mailbox to associate with the producer.</param>
+    /// <param name="producer">The producer to be added to the mailbox.</param>
+    /// <exception cref="InvalidOperationException">Thrown if a producer for the specified <paramref name="mailboxId"/> already exists.</exception>
+    public void AddProducer(ActorMailboxId mailboxId, IActorProducer producer)
+    {
+        IsArgumentNull.Check(mailboxId);
+        if (!_producers.TryAdd(mailboxId, producer))
+            throw new InvalidOperationException($"Producer for mailbox '{mailboxId}' already exists.");
+    }
+
+    /// <summary>
+    /// Removes the producer associated with the specified mailbox identifier.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the mailbox whose producer is to be removed.</param>
+    /// <exception cref="InvalidOperationException">Thrown if no producer is found for the specified <paramref name="mailboxId"/>.</exception>
+    public void RemoveProducer(ActorMailboxId mailboxId)
+    {
+        IsArgumentNull.Check(mailboxId);
+        if (!_producers.TryRemove(mailboxId, out _))
+            throw new InvalidOperationException($"Producer for mailbox '{mailboxId}' not found.");
+    }
+
+    /// <summary>
+    /// Gets the producer associated with the given mailbox id.
+    /// </summary>
+    /// <param name="mailboxId">The mailbox id of the producer to retrieve.</param>
+    /// <returns>An <see cref="IActorProducer"/> instance.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if no producer is registered for the mailbox id.</exception>
+    public IActorProducer GetProducer(ActorMailboxId mailboxId)
+    {
+        if (!_producers.TryGetValue(mailboxId, out var producer))
+            throw new KeyNotFoundException($"Producer for mailbox '{mailboxId}' not found.");
+        return producer;
+    }
+
+    /// <summary>
+    /// Associates a JetStream actor producer with the specified mailbox.
+    /// </summary>
+    /// <remarks>Each mailbox can have only one associated JetStream actor producer. Attempting to add a
+    /// producer to a mailbox that already has one will result in an exception.</remarks>
+    /// <param name="mailboxId">The identifier of the mailbox to which the JetStream actor producer will be associated. This parameter cannot
+    /// be null.</param>
+    /// <param name="producer">The JetStream actor producer to add. This parameter cannot be null.</param>
+    /// <exception cref="InvalidOperationException">Thrown if a JetStream actor producer is already associated with the specified mailbox.</exception>
+    public void AddJSProducer(ActorMailboxId mailboxId, IJSActorProducer producer)
+    {
+        IsArgumentNull.Check(mailboxId);
+        if (!_jsProducers.TryAdd(mailboxId, producer))
+            throw new InvalidOperationException($"JetStreamProducer for mailbox '{mailboxId}' already exists.");
+    }
+
+    /// <summary>
+    /// Removes the JetStream actor producer associated with the specified mailbox identifier.
+    /// </summary>
+    /// <param name="mailboxId">The unique identifier of the mailbox whose JetStream actor producer is to be removed.</param>
+    /// <exception cref="InvalidOperationException">Thrown if no JetStream actor producer is found for the specified <paramref name="mailboxId"/>.</exception>
+    public void RemoveJSProducer(ActorMailboxId mailboxId)
+    {
+        IsArgumentNull.Check(mailboxId);
+        if (_externalJsProducers.ContainsKey(mailboxId))
+            throw new InvalidOperationException(
+                $"JetStreamProducer for synthetic identifier '{mailboxId}' is supervisor-owned and cannot be removed directly.");
+        if (!_jsProducers.TryRemove(mailboxId, out _))
+            throw new InvalidOperationException($"JetStreamProducer for mailbox '{mailboxId}' not found.");
+    }
+
+    /// <summary>
+    /// Retrieves the JetStream actor producer associated with the specified mailbox identifier.
+    /// </summary>
+    /// <remarks>This method is useful for obtaining the producer needed to send messages to the specified
+    /// actor mailbox.</remarks>
+    /// <param name="mailboxId">The identifier of the actor mailbox for which the JetStream producer is requested.</param>
+    /// <returns>An instance of <see cref="IJSActorProducer"/> that corresponds to the specified mailbox identifier.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown if no JetStream producer is found for the specified <paramref name="mailboxId"/>.</exception>
+    public IJSActorProducer GetJSProducer(ActorMailboxId mailboxId)
+    {
+        if (!_jsProducers.TryGetValue(mailboxId, out var producer))
+            throw new KeyNotFoundException($"JetStreamProducer for mailbox '{mailboxId}' not found.");
+        return producer;
+    }
+
+    /// <summary>
+    /// Gets or creates a supervisor-owned JetStream producer for a non-actor
+    /// service. The identifier is synthetic and must never collide with an actor.
+    /// </summary>
+    public IJSActorProducer GetJSEventProducer(ActorMailboxId syntheticProducerId)
+    {
+        if (syntheticProducerId.ActorType != ActorType.Event)
+            throw new ArgumentException("A service event producer requires an Event identifier.", nameof(syntheticProducerId));
+        if (string.IsNullOrWhiteSpace(syntheticProducerId.Name))
+            throw new ArgumentException("A synthetic producer identifier requires a name.", nameof(syntheticProducerId));
+
+        lock (_externalProducerGate)
+        {
+            if (_children.ContainsKey(syntheticProducerId))
+                throw new InvalidOperationException($"Synthetic producer identifier '{syntheticProducerId}' belongs to an actor.");
+            if (_externalJsProducers.TryGetValue(syntheticProducerId, out var existing))
+                return existing;
+            if (_jsProducers.ContainsKey(syntheticProducerId))
+                throw new InvalidOperationException($"JetStream producer identifier '{syntheticProducerId}' is already registered.");
+
+            var producer = IsArgumentNull.Set(_container.Resolve<IJSActorProducer>());
+            if (!_jsProducers.TryAdd(syntheticProducerId, producer) ||
+                !_externalJsProducers.TryAdd(syntheticProducerId, producer))
+            {
+                _jsProducers.TryRemove(syntheticProducerId, out _);
+                throw new InvalidOperationException($"Unable to register synthetic producer '{syntheticProducerId}'.");
+            }
+            return producer;
+        }
+    }
+
+    /// <summary>
+    /// Registers a consumer for the specified actor type.
+    /// </summary>
+    /// <param name="actorType">The type of actor for which the consumer is being registered.</param>
+    /// <param name="consumer">The consumer instance to associate with the specified actor type.</param>
+    /// <exception cref="InvalidOperationException">Thrown if a consumer for the specified <paramref name="actorType"/> has already been registered.</exception>
+    public void AddConsumer(ActorType actorType, IActorConsumer consumer)
+    {
+        if (!_consumers.TryAdd(actorType, consumer))
+            throw new InvalidOperationException($"Consumer for actor type '{actorType}' already exists.");
+        _consumers.TryAdd(actorType, consumer);
+    }
+
+    /// <summary>
+    /// Adds a JetStream consumer for the specified actor type.
+    /// </summary>
+    /// <remarks>This method ensures that only one consumer can be registered per actor type. Attempting to
+    /// add a second consumer for the same actor type will result in an exception.</remarks>
+    /// <param name="actorType">The actor type for which the consumer is being registered. Each actor type can have only one associated
+    /// consumer.</param>
+    /// <param name="consumer">The consumer instance that will handle messages for the specified actor type. Cannot be null.</param>
+    /// <exception cref="InvalidOperationException">Thrown if a consumer for the specified actor type has already been added.</exception>
+    public void AddConsumer(ActorType actorType, IJSActorConsumer consumer)
+    {
+        if (!_jsConsumers.TryAdd(actorType, consumer))
+            throw new InvalidOperationException($"JetStream Consumer for actor type '{actorType}' already exists.");
+        _jsConsumers.TryAdd(actorType, consumer);
+    }
+
+    /// <summary>
+    /// Removes the consumer associated with the specified actor type from the internal collections.
+    /// </summary>
+    /// <remarks>If the specified actor type does not exist in the collections, no action is taken.</remarks>
+    /// <param name="actorType">The type of actor whose consumer is to be removed. This parameter cannot be null.</param>
+    public void RemoveConsumer(ActorType actorType)
+    {
+        IsArgumentNull.Check(actorType);
+        _consumers.TryRemove(actorType, out _);
+        _jsConsumers.TryRemove(actorType, out _);
+    }
+
+    /// <summary>
+    /// Registers an event route from one actor type to a specific actor mailbox.
+    /// </summary>
+    /// <param name="fromActorTypeId">The source actor type identifier whose events should be routed. Cannot be <see langword="null"/>.</param>
+    /// <param name="toMailboxId">The destination mailbox identifier to receive the routed events. Cannot be <see langword="null"/>.</param>
+    public void AddEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        IsArgumentNull.Check(fromActorTypeId);
+        IsArgumentNull.Check(toMailboxId);
+        _eventRouters.Add(fromActorTypeId, toMailboxId);
+    }
+
+    /// <summary>
+    /// Removes a specific event route from one actor type to a specific actor mailbox.
+    /// </summary>
+    /// <remarks>If the destination is the last route for the source actor type, the entire entry is removed.</remarks>
+    /// <param name="fromActorTypeId">The source actor type identifier. Cannot be <see langword="null"/>.</param>
+    /// <param name="toMailboxId">The destination mailbox identifier to remove. Cannot be <see langword="null"/>.</param>
+    public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        IsArgumentNull.Check(fromActorTypeId);
+        IsArgumentNull.Check(toMailboxId);
+        _eventRouters.Remove(fromActorTypeId, toMailboxId);
+    }
+
+    /// <summary>
+    /// Returns a stable, deduplicated route snapshot for one source event type.
+    /// Route changes made after this call affect only later events.
+    /// </summary>
+    public ImmutableHashSet<ActorMailboxId> GetEventRoutes(ActorTypeId fromActorTypeId)
+        => _eventRouters.GetSnapshot(fromActorTypeId);
+
+    /// <summary>
+    /// Registers an additional realtime actor mailbox for one realtime source event.
+    /// The source event must still identify an existing primary actor when delivered.
+    /// </summary>
+    public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        _realtimeRouters.Add(fromActorTypeId, new RealtimeActorRoute(toMailboxId));
+    }
+
+    /// <summary>
+    /// Registers an additional realtime actor mailbox with a destination-only scheduling entity projection.
+    /// The serialized source event retains its original typed entity identity and payload.
+    /// </summary>
+    public void AddRealtimeRouter(
+        ActorTypeId fromActorTypeId,
+        ActorMailboxId toMailboxId,
+        Func<ActorSubject, string> entityIdProjection)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        ArgumentNullException.ThrowIfNull(entityIdProjection);
+        _realtimeRouters.Add(
+            fromActorTypeId,
+            new RealtimeActorRoute(toMailboxId, entityIdProjection));
+    }
+
+    /// <summary>
+    /// Removes an additional realtime actor mailbox from one realtime source event.
+    /// </summary>
+    public void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        _realtimeRouters.Remove(fromActorTypeId, toMailboxId);
+    }
+
+    /// <summary>
+    /// Returns a stable, deduplicated route snapshot for one realtime source event.
+    /// </summary>
+    public ImmutableArray<RealtimeActorRoute> GetRealtimeRoutes(ActorTypeId fromActorTypeId)
+    {
+        if (fromActorTypeId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} source; received '{fromActorTypeId}'.");
+        }
+
+        return _realtimeRouters.GetSnapshot(fromActorTypeId);
+    }
+
+    static void EnsureRealtimeRoute(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
+    {
+        if (fromActorTypeId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} source; received '{fromActorTypeId}'.");
+        }
+        if (toMailboxId.ActorType != ActorType.Realtime)
+        {
+            throw new InvalidOperationException(
+                $"Realtime routes require a {ActorType.Realtime} destination; received '{toMailboxId}'.");
+        }
+    }
+
+
+
+    /// <summary>
+    /// Returns the supervised child actors dictionary.
+    /// </summary>
+    public IReadOnlyDictionary<ActorMailboxId, IActor> Children
+        => _children;
+
+    /// <summary>
+    /// Gets the dictionary representing the state of all actor threads.
+    /// </summary>
+    public IReadOnlyDictionary<ActorThreadId, IActorState> ThreadState
+        => _threadState;
+
+    /// <summary>
+    /// Gets the container instance associated with the current context.
+    /// </summary>
+    public IContainerInstance Container => _container;
+
+    /// <summary>
+    /// Gets the actor thread pool managed by this supervisor.
+    /// </summary>
+    public IActorThreadPool ThreadPool => _threadPool;
+
+    /// <summary>
+    /// Stops external intake first, drains all accepted mailbox work, then stops actors and their producers.
+    /// Cancellation bounds the caller's wait without cancelling the shared shutdown operation once it has begun.
+    /// </summary>
+    public async ValueTask ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        Task shutdownTask;
+        lock (_shutdownGate)
+        {
+            if (_shutdownTask is null)
+            {
+                _shutdownTask = ShutdownCoreAsync();
+            }
+            shutdownTask = _shutdownTask;
+        }
+
+        try
+        {
+            await shutdownTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            ActorLifecycleMetrics.RecordShutdownWaitCancellation();
+            throw;
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
+    async Task ShutdownCoreAsync()
+    {
+        SetReadiness(false);
+        var startedTimestamp = Stopwatch.GetTimestamp();
+        List<Exception>? failures = null;
+        var completed = false;
+        try
+        {
+            _threadPool.BeginDrainMeasurement();
+            try
+            {
+                await StopIngressConsumersAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("consumers");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor ingress consumers during shutdown.");
+            }
+
+            var drained = false;
+            try
+            {
+                drained = await _threadPool.WaitForIdleAsync(
+                    ShutdownQuietPeriod,
+                    ShutdownDrainTimeout,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while waiting for actor mailboxes to become idle.");
+            }
+
+            try
+            {
+                await StopRemainingConsumersAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("consumers");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping request/reply consumers during shutdown.");
+            }
+
+            if (!drained)
+            {
+                var timeout = new TimeoutException(
+                    $"Actor mailboxes did not become idle within {ShutdownDrainTimeout}.");
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain_timeout");
+                SharedActorDiagnosticLog.Write17(_logger, timeout, _serviceId);
+                try
+                {
+                    await StopAllProducersAsync().ConfigureAwait(false);
+                    await _threadPool.StopAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("mailbox_force_stop");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while force-stopping actor mailbox work.");
+                }
+            }
+
+            try
+            {
+                if (_threadPool is IAsyncDisposable asyncDisposable)
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while disposing the actor thread pool during shutdown.");
+            }
+
+            foreach (var actor in _children.Values)
+            {
+                try
+                {
+                    await actor.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("actors");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor {ActorId}.", actor.Id);
+                }
+            }
+
+            foreach (var producer in new HashSet<IJSActorProducer>(
+                         _externalJsProducers.Values,
+                         ReferenceEqualityComparer.Instance))
+            {
+                try
+                {
+                    await producer.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("external_js_producers");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping an external JetStream producer.");
+                }
+            }
+
+            if (failures is not null)
+                throw new AggregateException("One or more actor shutdown stages failed.", failures);
+
+            completed = true;
+        }
+        finally
+        {
+            ActorLifecycleMetrics.ShutdownDrainedMessages.Add(_threadPool.DrainedMessageCount);
+            ActorLifecycleMetrics.ShutdownDuration.Record(
+                Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
+            if (completed)
+                ActorLifecycleMetrics.ShutdownCompleted.Add(1);
+            else
+                ActorLifecycleMetrics.ShutdownFailures.Add(1);
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1508", Justification = "The condition observes concurrently changing queue state or variables assigned through cleanup delegates; it is not constant at runtime.")]
+    async ValueTask StopIngressConsumersAsync()
+    {
+        List<Exception>? failures = null;
+        if (_consumers.TryGetValue(ActorType.Realtime, out var realtimeConsumer))
+            await CaptureStopFailureAsync(realtimeConsumer, failures ??= []).ConfigureAwait(false);
+        foreach (var consumer in _jsConsumers.Values)
+            await CaptureStopFailureAsync(consumer, failures ??= []).ConfigureAwait(false);
+        if (failures is { Count: > 0 })
+            throw new AggregateException("One or more actor ingress consumers failed to stop.", failures);
+    }
+
+    async ValueTask StopRemainingConsumersAsync()
+    {
+        List<Exception>? failures = null;
+        foreach (var consumer in _consumers)
+        {
+            if (consumer.Key == ActorType.Realtime)
+                continue;
+            await CaptureStopFailureAsync(consumer.Value, failures ??= []).ConfigureAwait(false);
+        }
+        if (failures is { Count: > 0 })
+            throw new AggregateException("One or more actor request/reply consumers failed to stop.", failures);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
+    static async ValueTask CaptureStopFailureAsync(IActorConsumer consumer, List<Exception> failures)
+    {
+        try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
+    static async ValueTask CaptureStopFailureAsync(IJSActorConsumer consumer, List<Exception> failures)
+    {
+        try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "Shutdown/recovery must isolate arbitrary dependency failures so remaining actors and resources are still stopped.")]
+    async ValueTask StopAllProducersAsync()
+    {
+        List<Exception>? failures = null;
+        foreach (var producer in new HashSet<IActorProducer>(
+                     _producers.Values,
+                     ReferenceEqualityComparer.Instance))
+        {
+            try { await producer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        foreach (var producer in new HashSet<IJSActorProducer>(
+                     _jsProducers.Values.Concat(_externalJsProducers.Values),
+                     ReferenceEqualityComparer.Instance))
+        {
+            try { await producer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        if (failures is not null)
+            throw new AggregateException("One or more actor producers failed to stop.", failures);
+    }
+
+    /// <summary>Stops intake, drains workers, and releases supervised actor resources.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        await ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+
+        GC.SuppressFinalize(this);
+    }
+}

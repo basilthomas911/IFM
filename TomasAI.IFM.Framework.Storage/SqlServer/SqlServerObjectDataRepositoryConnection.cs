@@ -5,6 +5,7 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Framework.Storage.SqlServer
 {

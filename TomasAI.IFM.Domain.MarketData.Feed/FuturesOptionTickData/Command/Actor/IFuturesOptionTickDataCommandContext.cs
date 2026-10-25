@@ -3,7 +3,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -32,6 +32,6 @@ public interface IFuturesOptionTickDataCommandContext : ICommandActorContext<Fut
     /// <summary>Gets the event projector.</summary>
     IEventProjector<FuturesOptionTickDataCommandActor> EventProjector { get; }
     /// <summary>Gets the sequence generator.</summary>
-    ISequenceIdGenerator SequenceIdGenerator { get; }
+    ISequenceIdApi SequenceIdGenerator { get; }
 }
 

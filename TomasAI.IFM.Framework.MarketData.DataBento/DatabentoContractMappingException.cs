@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1032", Justification = "The classified provider exception requires its native status or recovery context; generic constructors would lose the failure classification.")]

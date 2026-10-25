@@ -37,7 +37,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             : this(TypedActorContextFactory.Event(supervisor, blackboardService, statusConsoleWriter, logger)) { }
         TestableFuturesEodDataEventActor(IFuturesEodDataEventContext context) : base(context) => Context = context;
         public IEvent InvokeParseMessage(IEventActorContext<FuturesEodDataEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesEodDataEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);

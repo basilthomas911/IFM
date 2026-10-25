@@ -35,7 +35,7 @@ public class FuturesTdiSignalCommandTests
     public FuturesTdiSignalCommandTests()
     {
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     sealed class TestableFuturesTdiSignalCommandActor(
@@ -45,7 +45,7 @@ public class FuturesTdiSignalCommandTests
         : FuturesTdiSignalCommandActor(new FuturesTdiSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, eventProjector, logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesTdiSignalCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
             ICommandActorContext<FuturesTdiSignalCommandActor> context,

@@ -49,7 +49,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         public IMarketDataQueryContext Context { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext<MarketDataQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<MarketDataQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

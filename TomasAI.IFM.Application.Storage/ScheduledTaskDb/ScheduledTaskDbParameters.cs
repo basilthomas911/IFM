@@ -1,5 +1,6 @@
 using Npgsql;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 /// <summary>Ordered PostgreSQL bindings for scheduled-task queries.</summary>

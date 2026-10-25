@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;

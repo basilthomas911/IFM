@@ -33,7 +33,7 @@ public class FuturesMacdSignalEventActorTests : IClassFixture<MarketDataAnalytic
         }
 
         public IEvent InvokeParseMessage(IEventActorContext<FuturesMacdSignalEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IEventActorContext<FuturesMacdSignalEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);

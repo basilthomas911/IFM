@@ -3,6 +3,7 @@ using Npgsql;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Domain.BrokerAccount.Query.Model;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;

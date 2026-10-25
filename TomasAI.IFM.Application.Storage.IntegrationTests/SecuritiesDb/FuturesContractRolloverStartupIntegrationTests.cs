@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;

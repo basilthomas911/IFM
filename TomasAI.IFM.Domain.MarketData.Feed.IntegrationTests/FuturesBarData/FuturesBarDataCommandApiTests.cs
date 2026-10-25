@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;

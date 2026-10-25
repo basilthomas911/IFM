@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Architecture;
 
@@ -68,7 +68,7 @@ public sealed class G3EventCatalogContractTests
             commandModel.Should().Contain(signal);
 
         var activationProfile = Read(
-            "TomasAI.IFM.Domain.MarketData.Analytics.Shared/FuturesIntradaySignalActivationProfile.cs");
+            "TomasAI.IFM.Application.Contracts.MarketData.Analytics/FuturesIntradaySignalActivationProfile.cs");
         foreach (var timeframe in new[] { "FifteenSeconds", "OneMinute", "FiveMinutes", "FifteenMinutes", "OneHour", "FourHours" })
             activationProfile.Should().Contain(timeframe);
 

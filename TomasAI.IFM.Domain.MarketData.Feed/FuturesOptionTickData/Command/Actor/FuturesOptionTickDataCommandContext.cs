@@ -3,7 +3,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -20,7 +20,7 @@ IFuturesOptionTickDataCommandContext
     readonly Lazy<IEventSourceActorStateFactory> _stateFactory;
     readonly Lazy<IActorService> _actorService;
     readonly Lazy<IEventProjector<FuturesOptionTickDataCommandActor>> _eventProjector;
-    readonly Lazy<ISequenceIdGenerator> _sequenceIdGenerator;
+    readonly Lazy<ISequenceIdApi> _sequenceIdGenerator;
 
     /// <summary>Initializes the typed command context.</summary>
     public FuturesOptionTickDataCommandContext(IActorSupervisor supervisor, IDbContextFactory dbFactory,
@@ -35,7 +35,7 @@ IFuturesOptionTickDataCommandContext
         _stateFactory = ResolveOnce<IEventSourceActorStateFactory>();
         _actorService = ResolveOnce<IActorService>();
         _eventProjector = ResolveOnce<IEventProjector<FuturesOptionTickDataCommandActor>>();
-        _sequenceIdGenerator = ResolveOnce<ISequenceIdGenerator>();
+        _sequenceIdGenerator = ResolveOnce<ISequenceIdApi>();
     }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
@@ -56,7 +56,7 @@ IFuturesOptionTickDataCommandContext
     /// <inheritdoc/>
     public IEventProjector<FuturesOptionTickDataCommandActor> EventProjector => _eventProjector.Value;
     /// <inheritdoc/>
-    public ISequenceIdGenerator SequenceIdGenerator => _sequenceIdGenerator.Value;
+    public ISequenceIdApi SequenceIdGenerator => _sequenceIdGenerator.Value;
     Lazy<T> ResolveOnce<T>() where T : class => new(() => IsArgumentNull.Set(Container.Resolve<T>())!);
 }
 

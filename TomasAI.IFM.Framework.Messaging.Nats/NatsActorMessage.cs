@@ -1,4 +1,4 @@
-using NATS.Client.Core;
+﻿using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -21,7 +21,7 @@ public sealed class NatsActorMessage : IActorMessage
     public NatsActorMessage(NatsMsg<byte[]> natsMessage)
     {
         NatsMessage = natsMessage;
-        TraceContext = ActorTrace.Extract(natsMessage.Headers);
+        TraceContext = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(natsMessage.Headers);
     }
 
     public NatsMsg<byte[]> NatsMessage { get; }

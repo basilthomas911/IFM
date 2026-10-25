@@ -1,8 +1,8 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.ReferenceData;
 

@@ -28,7 +28,7 @@ public sealed class FuturesOptionTradeEventActorTests : IClassFixture<TradeFixtu
         public IEvent Parse(
             IEventActorContext<FuturesOptionTradeEventActor> context,
             NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask Receive(
             IEventActorContext<FuturesOptionTradeEventActor> context,

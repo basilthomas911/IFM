@@ -112,7 +112,7 @@ public sealed class DatabaseBackupContractTests
     public void Every_concrete_actor_contract_has_a_working_messagepack_formatter()
     {
         var assembly = typeof(DatabaseRecoveryOperationId).Assembly;
-        var actorContracts = assembly.GetTypes()
+        var actorContracts = ContractTypes()
             .Where(type => !type.IsAbstract && type.Namespace?.Contains(".DatabaseBackup.", StringComparison.Ordinal) == true)
             .Where(type => typeof(IDatabaseBackupCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type)
@@ -136,7 +136,7 @@ public sealed class DatabaseBackupContractTests
     public void Public_contract_shapes_do_not_expose_native_or_secret_fields()
     {
         string[] forbiddenTokens = ["ConnectionString", "Credential", "Password", "NativeArgument", "Executable", "Sql", "Cql", "BucketName", "FileSystemPath"];
-        var exposed = typeof(DatabaseRecoveryOperationId).Assembly.GetTypes()
+        var exposed = ContractTypes()
             .Where(type => type.Namespace?.Contains(".DatabaseBackup.", StringComparison.Ordinal) == true)
             .SelectMany(type => type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Select(property => $"{type.Name}.{property.Name}"))
@@ -145,6 +145,11 @@ public sealed class DatabaseBackupContractTests
 
         exposed.Should().BeEmpty();
     }
+
+    // Public wire contracts span Application and neutral Shared after the ownership split.
+    static IEnumerable<Type> ContractTypes() => new[] { typeof(DatabaseRecoveryOperationId).Assembly, typeof(RequestDatabaseBackupCommand).Assembly }
+        .Distinct().SelectMany(assembly => assembly.GetTypes())
+        .Where(type => type.Namespace?.StartsWith("TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.", StringComparison.Ordinal) == true);
 
     static void PopulateCommonContract(object instance)
     {

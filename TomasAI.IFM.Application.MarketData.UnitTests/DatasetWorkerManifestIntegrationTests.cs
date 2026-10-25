@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
@@ -36,7 +36,7 @@ public sealed class DatasetWorkerManifestIntegrationTests
         var manifest = desired.Set("GLBX.MDP3", Date, [original]);
         var started = await recovery.StartOwnedAsync(Request(manifest));
         await using var discovery = new TomasAI.IFM.Application.MarketData.Pricing.QualifiedCompositionDiscovery(
-            new(Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.Pricing.IOptionPricingConventionStore>()),
+            new(Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.Pricing.IOptionPricingConventionStore>()),
             Substitute.For<TomasAI.IFM.Application.MarketData.Pricing.IOptionPricingContextProvider>(), recovery);
         using var runtime = new TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime(store, plans, new(store), admissions,
             desired, recovery, discovery, Substitute.For<Microsoft.Extensions.Logging.ILogger<TomasAI.IFM.Application.MarketData.Subscriptions.DurableCompositionRuntime>>());

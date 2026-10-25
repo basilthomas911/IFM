@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ConfigurationDb;

@@ -15,6 +15,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapsho
 public sealed class LatestMarketOutlookSnapshotPublisherTests
 {
     [Fact]
+    public async Task Startup_rollback_can_stop_and_dispose_an_already_disposed_publisher()
+    {
+        var scenario = CreateScenario();
+        scenario.Publisher.Dispose();
+        await scenario.Publisher.StopAsync(CancellationToken.None);
+        scenario.Publisher.Dispose();
+        await scenario.Db.DidNotReceiveWithAnyArgs().UpsertMarketOutlookSnapshotAsync(default!, default, default);
+    }
+
+    [Fact]
     public async Task Publish_sends_realtime_immediately_without_waiting_for_persistence()
     {
         var scenario = CreateScenario();

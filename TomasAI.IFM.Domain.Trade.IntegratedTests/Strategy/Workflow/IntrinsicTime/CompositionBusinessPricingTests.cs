@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Subscriptions;
@@ -9,8 +9,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;

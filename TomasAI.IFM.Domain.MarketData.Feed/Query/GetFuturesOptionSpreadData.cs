@@ -1,6 +1,6 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query;

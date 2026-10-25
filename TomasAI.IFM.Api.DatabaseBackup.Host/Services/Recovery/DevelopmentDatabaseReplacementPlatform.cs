@@ -1,9 +1,11 @@
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Journal;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Processing;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal;

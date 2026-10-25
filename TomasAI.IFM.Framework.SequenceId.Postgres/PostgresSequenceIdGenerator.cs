@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using System.Collections.Concurrent;
 
 namespace TomasAI.IFM.Framework.SequenceId.Postgres;

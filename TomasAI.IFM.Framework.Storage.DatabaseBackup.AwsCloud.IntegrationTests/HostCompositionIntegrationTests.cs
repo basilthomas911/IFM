@@ -1,9 +1,9 @@
-using Amazon.S3;
+﻿using Amazon.S3;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Api.DatabaseBackup.Host;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Processing;
 

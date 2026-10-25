@@ -1,10 +1,10 @@
-using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
+﻿using TomasAI.IFM.Domain.Trade.Futures.Command.Validation;
 using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

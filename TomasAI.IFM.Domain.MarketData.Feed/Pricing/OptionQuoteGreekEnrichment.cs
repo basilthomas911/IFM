@@ -1,5 +1,6 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Pricing;
 

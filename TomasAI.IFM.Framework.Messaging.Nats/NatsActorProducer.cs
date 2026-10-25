@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -301,7 +301,7 @@ public class NatsActorProducer(
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
                 subject.ToString(),
                  query,
-                 headers: ActorTrace.Headers(),
+                 headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
                  requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
                  replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
                  cancellationToken: operationCancellation.Token)
@@ -408,7 +408,7 @@ public class NatsActorProducer(
             await _nc!.PublishAsync(
                 subject,
                 message,
-                headers: RealtimeSourceGenerationHeaders.Add(ActorTrace.Headers(), message!),
+                headers: RealtimeSourceGenerationHeaders.Add(global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(), message!),
                 serializer: NatsMessagePackSerializer<T>.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             NatsMessagingMetrics.Published.Add(1);
@@ -437,7 +437,7 @@ public class NatsActorProducer(
             var reply = await _nc!.RequestAsync<TRequest, ServiceResult<TResult>>(
                 subject,
                 message,
-                headers: ActorTrace.Headers(),
+                headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
                 requestSerializer: NatsMessagePackSerializer<TRequest>.Default,
                 replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);

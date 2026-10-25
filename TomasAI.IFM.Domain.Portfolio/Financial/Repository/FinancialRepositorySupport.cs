@@ -1,8 +1,8 @@
 using TomasAI.IFM.Application.Storage.EventSourceDb.Diagnostics;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using Newtonsoft.Json;
-using Npgsql;
-using NpgsqlTypes;
+
+
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
@@ -91,7 +91,7 @@ internal static class FinancialRepositorySupport
         return eventVersion;
     }
 
-    internal static NpgsqlParameter Json<T>(T value) => new() { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = JsonConvert.SerializeObject(value) };
+    internal static System.Data.Common.DbParameter Json<T>(T value) => PostgresValues.Jsonb(JsonConvert.SerializeObject(value));
     internal static T Decode<T>(string value) => JsonConvert.DeserializeObject<T>(value) ?? throw new InvalidDataException($"Invalid stored {typeof(T).Name}.");
     internal static void Require(bool condition, int code, string message)
     { if (!condition) throw new FinancialOperationException(code, message); }

@@ -1,9 +1,9 @@
-using NSubstitute;
+﻿using NSubstitute;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;

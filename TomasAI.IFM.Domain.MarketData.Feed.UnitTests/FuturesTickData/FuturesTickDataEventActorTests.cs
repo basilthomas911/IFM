@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+using TomasAI.IFM.Framework.Messaging.Nats;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
@@ -122,7 +123,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             Arg.Any<FuturesTickDataStreamingStartedCompleteEvent>());
         _ = api.DidNotReceiveWithAnyArgs().StartStreamingFuturesTickDataAsync(
             Arg.Any<string>(),
-            Arg.Any<TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner?>());
+            Arg.Any<TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner?>());
     }
 
     [Fact]
@@ -158,7 +159,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             Arg.Any<FuturesTickDataStreamingStartedFailEvent>());
         _ = api.DidNotReceiveWithAnyArgs().StartStreamingFuturesTickDataAsync(
             Arg.Any<string>(),
-            Arg.Any<TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner?>());
+            Arg.Any<TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner?>());
     }
 
     [Fact]

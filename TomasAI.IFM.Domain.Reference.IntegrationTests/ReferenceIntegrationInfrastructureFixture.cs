@@ -12,6 +12,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

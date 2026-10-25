@@ -1,7 +1,8 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 

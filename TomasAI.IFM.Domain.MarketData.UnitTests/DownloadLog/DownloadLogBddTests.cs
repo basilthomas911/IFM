@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.EventSourceDb;
+﻿using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.EventLog;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -12,7 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.DownloadLog;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

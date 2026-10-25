@@ -16,6 +16,7 @@ public sealed class OptionQuoteRecoveryTests
     [Fact]
     public void Only_quote_router_is_allowed_and_replacement_owns_new_routes_and_generation()
     {
+        TomasAI.IFM.Application.Api.Server.Core.DependencyInjection.RealtimeActorCapabilities.RegisterProductionActors();
         Assert.True(RealtimeActorResetPolicy.CanReplace(typeof(FuturesOptionRealtimeActor),ActorType.Realtime));
         Assert.True(RealtimeActorResetPolicy.CanReplace(typeof(TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Realtime.Actor.IronCondorTradePositionRealtimeActor), ActorType.Realtime));
         Assert.False(RealtimeActorResetPolicy.CanReplace(typeof(TomasAI.IFM.Domain.Trade.Order.Execution.Command.Actor.OrderExecutionCommandActor),ActorType.Realtime));

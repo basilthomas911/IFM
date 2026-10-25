@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Application.Contracts.Portfolio;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -17,7 +17,7 @@ public interface IRiskQueryContext : IQueryActorContext<RiskQueryActor>
 
     RiskHistoryJournal Journal { get; }
 
-    IPortfolioEventStore Funds { get; }
+    IPortfolioFundOrderReader Funds { get; }
 
     IFinancialQueryStore Financial { get; }
 

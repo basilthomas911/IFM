@@ -5,6 +5,7 @@ using FluentAssertions;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;

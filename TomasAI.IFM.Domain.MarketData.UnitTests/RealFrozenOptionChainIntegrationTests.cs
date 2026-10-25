@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Storage;
 

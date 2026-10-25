@@ -1,8 +1,8 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 using TomasAI.IFM.Framework.Serialization;
@@ -136,16 +136,16 @@ public sealed class OrderCompositionPricingPrerequisiteTests
     [Fact]
     public void Explicit_fractional_expiry_preserves_date_only_year_fraction()
     {
-        var request = new Unified.OptionPricingRequest(Unified.UnderlyingKind.Futures, Unified.ExerciseKind.European,
-            Unified.PremiumKind.PaidUpfront, Unified.OptionSide.Call, 5000, 5000, 24d / 365, .05);
+        var request = new global::TomasAI.IFM.Shared.OptionPricing.OptionPricingRequest(global::TomasAI.IFM.Shared.OptionPricing.UnderlyingKind.Futures, global::TomasAI.IFM.Shared.OptionPricing.ExerciseKind.European,
+            global::TomasAI.IFM.Shared.OptionPricing.PremiumKind.PaidUpfront, global::TomasAI.IFM.Shared.OptionPricing.OptionSide.Call, 5000, 5000, 24d / 365, .05);
         var calculator = new Unified.OptionCalculator();
         var a = calculator.ImpliedVolatility(request, 100);
         var b = calculator.ImpliedVolatility(request with
         { TimeToExpiry = (new DateOnly(2026, 10, 2).DayNumber - new DateOnly(2026, 9, 8).DayNumber) / 365d }, 100);
         Assert.Equal(a, b);
-        Assert.Equal(Unified.PricingFailure.ImpliedVolatilityNotIdentifiable,
+        Assert.Equal(global::TomasAI.IFM.Shared.OptionPricing.PricingFailure.ImpliedVolatilityNotIdentifiable,
             calculator.ImpliedVolatility(request with { TimeToExpiry = 0 }, 100).Failure);
-        Assert.Equal(Unified.PricingFailure.InvalidInput,
+        Assert.Equal(global::TomasAI.IFM.Shared.OptionPricing.PricingFailure.InvalidInput,
             calculator.ImpliedVolatility(request with { TimeToExpiry = double.NaN }, 100).Failure);
     }
 

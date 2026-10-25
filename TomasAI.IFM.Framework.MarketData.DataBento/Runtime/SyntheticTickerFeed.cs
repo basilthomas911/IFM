@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Diagnostics;
 using System.Text;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;

@@ -1,5 +1,5 @@
-using FluentAssertions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using FluentAssertions;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Publication;

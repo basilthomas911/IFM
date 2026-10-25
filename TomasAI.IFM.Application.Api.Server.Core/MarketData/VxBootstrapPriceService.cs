@@ -1,10 +1,10 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.MarketData;
 

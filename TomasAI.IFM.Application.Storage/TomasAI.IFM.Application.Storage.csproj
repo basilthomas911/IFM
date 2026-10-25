@@ -30,15 +30,16 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin.Shared\TomasAI.IFM.Domain.SystemAdmin.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Reference\TomasAI.IFM.Application.Contracts.Reference.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.SystemAdmin\TomasAI.IFM.Application.Contracts.SystemAdmin.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.OptionPricer\TomasAI.IFM.Framework.OptionPricer.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio.Shared\TomasAI.IFM.Domain.Portfolio.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Portfolio\TomasAI.IFM.Application.Contracts.Portfolio.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Contracts.BrokerAccount/TomasAI.IFM.Application.Contracts.BrokerAccount.csproj" /></ItemGroup></Project>

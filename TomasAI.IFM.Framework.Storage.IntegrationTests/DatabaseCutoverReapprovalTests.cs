@@ -1,5 +1,6 @@
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 

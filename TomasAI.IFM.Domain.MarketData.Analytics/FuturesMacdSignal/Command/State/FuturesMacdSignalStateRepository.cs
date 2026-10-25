@@ -1,5 +1,5 @@
-using TomasAI.IFM.Domain.EventSourcing.MarketData;
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;

@@ -212,5 +212,5 @@ public sealed partial class TradeSelectionRuntimeTests(TomasAI.IFM.IntegrationTe
             }
             container.RegisterInstance<IStrategyCatalogCapabilities>(registry); configure?.Invoke(services);
         }));
-    readonly record struct Values(object[] Items) : TomasAI.IFM.Framework.Storage.IBindValue { public object Bind() => Items; }
+    readonly record struct Values(object[] Items) : TomasAI.IFM.Shared.Storage.IBindValue { public object Bind() => Items; }
 }

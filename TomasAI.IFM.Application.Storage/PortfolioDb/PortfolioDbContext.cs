@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 

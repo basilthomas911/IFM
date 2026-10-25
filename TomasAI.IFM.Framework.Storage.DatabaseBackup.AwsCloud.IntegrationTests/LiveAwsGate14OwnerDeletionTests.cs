@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Amazon;
@@ -8,8 +8,8 @@ using Amazon.S3.Model;
 using Amazon.SecurityToken;
 using Amazon.SecurityToken.Model;
 using FluentAssertions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Publication;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Signing;

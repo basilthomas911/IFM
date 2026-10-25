@@ -1,12 +1,12 @@
-using System.Text;
+﻿using System.Text;
 using System.Security.Cryptography;
 using System.Reflection;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using FluentAssertions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.UnitTests;
@@ -16,7 +16,8 @@ public sealed class SharedPolicyTests
     [Fact]
     public void Aws_used_actor_contract_messagepack_shape_matches_the_golden_fingerprint()
     {
-        var contracts = typeof(DatabaseRecoveryOperationId).Assembly.GetTypes()
+        var contracts = new[] { typeof(DatabaseRecoveryOperationId).Assembly, typeof(RequestDatabaseBackupCommand).Assembly }
+            .Distinct().SelectMany(assembly => assembly.GetTypes())
             .Where(type => !type.IsAbstract && type.Namespace?.Contains(".DatabaseBackup.", StringComparison.Ordinal) == true)
             .Where(type => typeof(IDatabaseBackupCommand).IsAssignableFrom(type)
                 || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type)
@@ -38,7 +39,7 @@ public sealed class SharedPolicyTests
                 .Select(value => new
                 {
                     value.Property.Name,
-                    Type = value.Property.PropertyType.FullName,
+                    Type = HistoricalTypeName(value.Property.PropertyType),
                     Key = value.Key!.GetType().GetProperty("IntKey")?.GetValue(value.Key)
                 })
                 .OrderBy(static value => value.Key)
@@ -46,6 +47,13 @@ public sealed class SharedPolicyTests
         var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(shape)));
         fingerprint.Should().Be("a91e64c69448802ae2e453c597798f30587cb252ddaac33acb7fa84fa9001d87");
     }
+
+    // CLR generic argument spellings include their assemblies; normalize ownership only.
+    // The pre-migration golden hash still verifies every key, member name and actual contract type.
+    static string? HistoricalTypeName(Type type) => System.Text.RegularExpressions.Regex.Replace(
+        type.FullName ?? type.Name,
+        @"(TomasAI\.IFM\.Domain\.SystemAdmin\.Shared\.DatabaseBackup\.[^,\]\[]+), TomasAI\.IFM\.(?:Shared|Application\.Contracts\.SystemAdmin),",
+        "$1, TomasAI.IFM.Domain.SystemAdmin.Shared,");
 
     [Theory]
     [InlineData(1)]

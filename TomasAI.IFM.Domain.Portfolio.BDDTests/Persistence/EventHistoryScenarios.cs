@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Newtonsoft.Json;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -34,7 +34,7 @@ public sealed class EventHistoryScenarios
             EventVersion = index + 1,
             StreamVersion = index + 1,
             EventTypeName = item.GetType().AssemblyQualifiedName!,
-            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(item)
+            EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(item)
         });
         var reloaded = new PortfolioAggregate();
 

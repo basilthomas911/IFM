@@ -13,4 +13,5 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj" />
   </ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

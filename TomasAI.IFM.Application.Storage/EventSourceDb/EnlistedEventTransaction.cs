@@ -57,7 +57,7 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
 
     /// <summary>Materializes a bounded storage query before disposing its reader.</summary>
     public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object?[] parameters,
-        Func<NpgsqlDataReader, T> map, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
+        Func<System.Data.Common.DbDataReader, T> map, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(parameters);
@@ -111,11 +111,12 @@ public sealed class EnlistedEventTransaction : IEnlistedPostgresTransaction
         var streamId = Convert.ToInt64(await ScalarAsync("SELECT eventstreamid FROM event_stream_id WHERE eventstream=$1;", [stream], cancellationToken).ConfigureAwait(false)
             ?? await ScalarAsync(EventSourceDbSql.InsertEventStreamId, [stream], cancellationToken).ConfigureAwait(false),System.Globalization.CultureInfo.InvariantCulture);
         var type = domainEvent.GetType();
+        var identity = EventWriteIdentityRegistry.Default.GetIdentity(type);
         // The existing upsert takes an UPDATE lock even when the registry row is unchanged.
         // Reading pre-registered metadata avoids serializing unrelated Portfolio transactions on an event name.
         var nameId = (int)(await ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
-            [type.Name, type.AssemblyQualifiedName!], cancellationToken).ConfigureAwait(false)
-            ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [type.Name, type.AssemblyQualifiedName!], cancellationToken).ConfigureAwait(false))!;
+            [identity.EventName, identity.EventTypeName], cancellationToken).ConfigureAwait(false)
+            ?? await ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], cancellationToken).ConfigureAwait(false))!;
         using var serializeTrace = FinancialTelemetry.ActivitySource.StartActivity("financial.event.serialize");
         var payloadBytes = eventLogCodec.Serialize(domainEvent);
         var payload = new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Bytea, Value = payloadBytes };

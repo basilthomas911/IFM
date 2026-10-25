@@ -1,5 +1,5 @@
-using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Domain.MarketData.Shared;
 

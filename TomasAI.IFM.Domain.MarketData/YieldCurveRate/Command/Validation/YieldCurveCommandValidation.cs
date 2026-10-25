@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Validation;

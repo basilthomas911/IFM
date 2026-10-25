@@ -35,7 +35,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         }
 
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesItiSignalQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesItiSignalQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

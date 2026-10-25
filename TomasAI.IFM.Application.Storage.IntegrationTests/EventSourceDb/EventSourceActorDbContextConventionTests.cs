@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
 using Xunit;
 
@@ -121,10 +122,10 @@ public sealed class EventSourceActorDbContextConventionTests
         Assert.DoesNotContain(dependencies, assembly => assembly.Name!.StartsWith("TomasAI.IFM.Domain.", StringComparison.Ordinal)
             && !assembly.Name.EndsWith(".Shared", StringComparison.Ordinal));
         Assert.DoesNotContain(dependencies, assembly => assembly.Name == "TomasAI.IFM.Framework.Storage.Benchmarks");
-        Assert.Equal("TomasAI.IFM.Domain.EventSourcing",
-            typeof(TomasAI.IFM.Domain.EventSourcing.Repository.BaseEventSourceActorRepository).Assembly.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.EventSourcing",
+            typeof(TomasAI.IFM.Application.EventSourcing.Repository.BaseEventSourceActorRepository).Assembly.GetName().Name);
         Assert.True(typeof(ICommandAuditLogger).IsAssignableFrom(
-            typeof(TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator)));
+            typeof(TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator)));
         var folder = Path.Combine(FindRepositoryRoot(), "TomasAI.IFM.Application.Storage", "EventSourceDb");
         foreach (var retired in new[] { "CommandDeduplication", "CommandLogBenchmark", "HistoricalDataLoader", "Persistence" })
             Assert.False(Directory.Exists(Path.Combine(folder, retired)), retired);

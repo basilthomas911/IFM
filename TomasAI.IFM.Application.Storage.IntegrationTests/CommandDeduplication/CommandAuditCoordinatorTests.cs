@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit;
 using TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
-using TomasAI.IFM.Domain.EventSourcing.Command;
+using TomasAI.IFM.Application.EventSourcing.Command;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.CommandDeduplication;

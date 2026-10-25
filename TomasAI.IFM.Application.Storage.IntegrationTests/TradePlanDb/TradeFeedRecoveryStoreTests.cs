@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared.Recovery;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;

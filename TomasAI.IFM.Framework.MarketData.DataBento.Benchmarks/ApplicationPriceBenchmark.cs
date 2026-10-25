@@ -5,7 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 
 internal static class ApplicationPriceBenchmark
 {

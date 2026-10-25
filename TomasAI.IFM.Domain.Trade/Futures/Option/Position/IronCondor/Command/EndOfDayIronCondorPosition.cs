@@ -1,8 +1,8 @@
-using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
+﻿using TomasAI.IFM.Domain.Trade.Futures.Position.Command.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.Model;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Command.State;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Shared;

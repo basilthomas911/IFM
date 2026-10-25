@@ -28,7 +28,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
         TestableFuturesEodDataQueryActor(IFuturesEodDataQueryContext context) : base(context) => Context = context;
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesEodDataQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);

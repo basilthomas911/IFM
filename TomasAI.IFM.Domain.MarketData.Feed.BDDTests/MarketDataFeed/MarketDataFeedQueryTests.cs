@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 using FluentAssertions;
 using NATS.Client.Core;
@@ -7,8 +7,8 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
-using TomasAI.IFM.Framework.SequenceId;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.Identity;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -185,7 +185,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     [InlineData("StreamingRequestId", 702)]
     public async Task Given_AnAtomicSequence_When_AnIdentifierIsQueried_Then_TheNextIdIsReturned(string kind, long nextId)
     {
-        var sequenceIdGenerator = Substitute.For<ISequenceIdGenerator>();
+        var sequenceIdGenerator = Substitute.For<ISequenceIdApi>();
         sequenceIdGenerator
             .GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
             .Returns(new ValueTask<long>(nextId));

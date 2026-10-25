@@ -1,6 +1,6 @@
 using System.Diagnostics.Metrics;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Serialization;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function;
 /// <summary>Bounded operational measurements; identities and arbitrary provider reasons never become metric labels.</summary>

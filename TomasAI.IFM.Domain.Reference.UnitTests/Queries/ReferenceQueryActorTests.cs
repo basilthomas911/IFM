@@ -52,7 +52,7 @@ public class ReferenceQueryActorTests : IClassFixture<ReferenceTestFixture>
         public IReferenceQueryContext ReferenceContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext<ReferenceQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<ReferenceQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

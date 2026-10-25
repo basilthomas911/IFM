@@ -1,0 +1,98 @@
+[
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.MarketData",
+    "type": "TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.CashDividend"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.DividendKind"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.ExerciseKind"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityResult"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.ImpliedVolatilityValues"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceDeltaValues"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPriceResult"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionPricingRequest"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionSide"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.OptionValues"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.PremiumKind"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.PriceDeltaResult"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingFailure"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingResult"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.PricingSettings"
+  },
+  {
+    "owner": "TomasAI.IFM.Framework.OptionPricer",
+    "type": "TomasAI.IFM.Framework.OptionPricer.Pricing.UnderlyingKind"
+  }
+]

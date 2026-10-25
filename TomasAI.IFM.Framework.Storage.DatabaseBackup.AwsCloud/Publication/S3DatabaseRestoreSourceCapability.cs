@@ -1,7 +1,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using System.Security.Cryptography;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.PostgreSql;

@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.PortfolioDb;
@@ -100,7 +101,7 @@ public sealed class PortfolioDbContextConventionTests
         var shared = typeof(PortfolioProjectionRevision).Assembly;
 
         Assert.NotEqual(storage, shared);
-        Assert.Equal("TomasAI.IFM.Domain.Portfolio.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.Portfolio", shared.GetName().Name);
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioDb.PortfolioProjectionRevision"));
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioDb.DraftPortfolioProjectionDeletion"));
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.PortfolioDb.DraftPolicyProjectionDeletion"));

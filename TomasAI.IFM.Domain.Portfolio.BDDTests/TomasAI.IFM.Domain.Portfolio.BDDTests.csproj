@@ -14,4 +14,5 @@
   </ItemGroup>
   <ItemGroup><ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" /></ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup></Project>

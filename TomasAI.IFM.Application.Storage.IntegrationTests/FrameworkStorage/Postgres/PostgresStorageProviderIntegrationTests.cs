@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using Xunit;
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;

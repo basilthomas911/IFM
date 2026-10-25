@@ -1,9 +1,9 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 

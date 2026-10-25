@@ -10,4 +10,4 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup></Project>

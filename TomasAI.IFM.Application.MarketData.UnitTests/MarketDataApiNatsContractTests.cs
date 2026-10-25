@@ -1,11 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.Remote;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventSourcing;

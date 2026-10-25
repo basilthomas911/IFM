@@ -1,8 +1,8 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;
 

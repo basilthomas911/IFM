@@ -1,10 +1,10 @@
-using TomasAI.IFM.Domain.Reference.Shared.Commands;
+﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

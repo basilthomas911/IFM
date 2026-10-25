@@ -1,9 +1,9 @@
-using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 

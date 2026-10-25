@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Validation;
+﻿using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -8,7 +8,7 @@ using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -276,7 +276,7 @@ public class FuturesContractCommandActor(
         }
         catch (Exception innerEx)
         {
-            global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.HandlingFailed(Logger, innerEx, ActorName, threadId, ex.Message);
+            global::TomasAI.IFM.Application.EventModelActor.ActorBoundaryFailureLog.HandlingFailed(Logger, innerEx, ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await (ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context)).ConfigureAwait(false);

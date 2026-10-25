@@ -18,16 +18,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Caching\TomasAI.IFM.Framework.Caching.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
-      <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-      <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Reference\TomasAI.IFM.Application.Contracts.Reference.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="TestData\*.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Framework.Messaging.Nats/TomasAI.IFM.Framework.Messaging.Nats.csproj" /><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Identity/TomasAI.IFM.Application.Identity.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.OptionPricing/TomasAI.IFM.Application.OptionPricing.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Serialization/TomasAI.IFM.Application.Serialization.csproj" /></ItemGroup></Project>

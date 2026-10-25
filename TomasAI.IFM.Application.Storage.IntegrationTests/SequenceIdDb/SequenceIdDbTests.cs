@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,7 @@ using NSubstitute;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Shared.Storage;
@@ -93,7 +95,7 @@ public class SequenceIdDbTests : IClassFixture<SequenceIdFixture>
     [Trait("Category", "Portfolio")]
     public async Task PortfolioBusinessIdsUseTheirAuthoritativePostgresSequences()
     {
-        var allocator = new PortfolioBusinessIdAllocator(_testFixture.SequenceIdGenerator);
+        var allocator = new PortfolioBusinessIdAllocator(new global::TomasAI.IFM.Application.Identity.SequenceIdApi(_testFixture.SequenceIdGenerator));
 
         var portfolioId = await allocator.AllocatePortfolioIdAsync();
         var fundId = await allocator.AllocateFundIdAsync();

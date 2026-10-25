@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 

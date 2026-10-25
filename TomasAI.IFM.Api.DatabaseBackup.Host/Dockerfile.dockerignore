@@ -4,39 +4,46 @@
 !Directory.Packages.props
 !global.json
 
+# Full transitive project closure; keep Framework providers below Application adapters.
 !TomasAI.IFM.Api.DatabaseBackup.Host/
 !TomasAI.IFM.Api.DatabaseBackup.Host/**
+!TomasAI.IFM.Application.Contracts.MarketData/
+!TomasAI.IFM.Application.Contracts.MarketData/**
+!TomasAI.IFM.Application.Contracts.MarketData.Analytics/
+!TomasAI.IFM.Application.Contracts.MarketData.Analytics/**
+!TomasAI.IFM.Application.Contracts.Portfolio/
+!TomasAI.IFM.Application.Contracts.Portfolio/**
+!TomasAI.IFM.Application.Contracts.Strategy/
+!TomasAI.IFM.Application.Contracts.Strategy/**
+!TomasAI.IFM.Application.Contracts.SystemAdmin/
+!TomasAI.IFM.Application.Contracts.SystemAdmin/**
+!TomasAI.IFM.Application.Contracts.Trade/
+!TomasAI.IFM.Application.Contracts.Trade/**
 !TomasAI.IFM.Application.DatabaseBackup/
 !TomasAI.IFM.Application.DatabaseBackup/**
-!TomasAI.IFM.Domain.SystemAdmin.Shared/
-!TomasAI.IFM.Domain.SystemAdmin.Shared/**
+!TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud/
+!TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud/**
+!TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation/
+!TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation/**
 !TomasAI.IFM.Framework.Messaging.Nats/
 !TomasAI.IFM.Framework.Messaging.Nats/**
 !TomasAI.IFM.Framework.Serialization/
 !TomasAI.IFM.Framework.Serialization/**
-!TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/
-!TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/**
 !TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud/
 !TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud/**
-!TomasAI.IFM.Shared/
-!TomasAI.IFM.Shared/**
+!TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/
+!TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/**
+!TomasAI.IFM.Shared.Contracts/
+!TomasAI.IFM.Shared.Contracts/**
 
-
-# Shared contract dependencies used by scheduled market tasks.
-!TomasAI.IFM.Domain.MarketData.Analytics.Shared/
-!TomasAI.IFM.Domain.MarketData.Analytics.Shared/**
-!TomasAI.IFM.Domain.MarketData.Shared/
-!TomasAI.IFM.Domain.MarketData.Shared/**
-!TomasAI.IFM.Domain.Portfolio.Shared/
-!TomasAI.IFM.Domain.Portfolio.Shared/**
-!TomasAI.IFM.Domain.Strategy.Contracts.Shared/
-!TomasAI.IFM.Domain.Strategy.Contracts.Shared/**
-!TomasAI.IFM.Domain.Trade.Shared/
-!TomasAI.IFM.Domain.Trade.Shared/**
+# Embedded identity catalogs are required in every host, including backup workers.
+!Documents/
+!Documents/system/
+!Documents/system/Persisted-Event-Write-Identity-Baseline-v0.1.json
+!Documents/system/Persisted-Event-Read-Targets-v0.1.json
 
 **/bin/
 **/obj/
 **/.git/
-
 **/.artifacts/
 **/TestResults/

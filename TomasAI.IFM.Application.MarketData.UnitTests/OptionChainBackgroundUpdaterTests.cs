@@ -1,13 +1,14 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 using Cache = TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache;

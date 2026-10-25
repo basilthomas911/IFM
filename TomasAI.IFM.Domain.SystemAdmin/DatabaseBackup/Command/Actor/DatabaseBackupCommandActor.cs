@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Validation;
+﻿using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;

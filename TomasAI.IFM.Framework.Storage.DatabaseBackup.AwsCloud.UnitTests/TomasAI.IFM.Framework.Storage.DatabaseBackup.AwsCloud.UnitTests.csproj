@@ -21,4 +21,4 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud/TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.csproj" /><Using Include="TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Journal" /><Using Include="TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Processing" /><Using Include="TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Startup" /></ItemGroup></Project>

@@ -102,7 +102,7 @@ public sealed class ApplicationStartupWorkflowTests
     }
 
     [Fact]
-    public async Task Realtime_analytics_failure_prevents_market_data_from_starting()
+    public async Task Realtime_analytics_failure_keeps_ingestion_running_but_prevents_operational_readiness()
     {
         var activities = new RecordingActivities
         {
@@ -112,14 +112,29 @@ public sealed class ApplicationStartupWorkflowTests
 
         await Event().ExecuteAsync(context, context.Logger, CancellationToken.None);
 
-        Assert.DoesNotContain(ApplicationStartupActivity.StartMarketData, activities.Executed);
+        Assert.Contains(ApplicationStartupActivity.StartMarketData, activities.Executed);
         Assert.DoesNotContain(ApplicationStartupActivity.QualifyOperationalState, activities.Executed);
         Assert.Equal(
-            ApplicationStartupActivityOutcome.SkippedDependency,
+            ApplicationStartupActivityOutcome.AlreadySatisfied,
             context.StartupStatusStore.Current.Activities
                 .Single(value => value.Activity == ApplicationStartupActivity.StartMarketData)
                 .Outcome);
         Assert.Equal(ApplicationLifecycleState.Failed, context.StartupStatusStore.Current.State);
+    }
+
+    [Fact]
+    public async Task Indicator_warmup_can_wait_for_observations_without_blocking_feed_start()
+    {
+        var activities = new RecordingActivities { Block = ApplicationStartupActivity.StartRealtimeAnalytics };
+        var context = new TestContext(activities);
+        var startup = Event().ExecuteAsync(context, context.Logger, CancellationToken.None).AsTask();
+        await activities.BlockStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Contains(ApplicationStartupActivity.StartMarketData, activities.Executed);
+        Assert.DoesNotContain(ApplicationStartupActivity.QualifyOperationalState, activities.Executed);
+        Assert.False(startup.IsCompleted);
+        activities.BlockRelease.TrySetResult();
+        await startup;
+        Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
     }
 
     [Theory]

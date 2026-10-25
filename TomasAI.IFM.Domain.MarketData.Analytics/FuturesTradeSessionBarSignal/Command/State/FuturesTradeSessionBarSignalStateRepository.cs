@@ -1,5 +1,5 @@
-using TomasAI.IFM.Domain.EventSourcing.MarketData;
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using TomasAI.IFM.Shared.EventModelActor.Persistence;
+using TomasAI.IFM.Application.EventModelActor.Persistence;
 using Xunit;
 
 namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;

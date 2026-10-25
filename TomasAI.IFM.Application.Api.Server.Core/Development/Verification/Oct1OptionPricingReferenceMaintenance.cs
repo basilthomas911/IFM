@@ -4,9 +4,10 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.Development.Verification;

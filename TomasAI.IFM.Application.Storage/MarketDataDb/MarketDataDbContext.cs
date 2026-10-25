@@ -11,6 +11,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 
 using TomasAI.IFM.Shared.Extensions;
@@ -876,12 +877,12 @@ public class MarketDataDbContext(IDbConnectionSettings connectionSettings, IDbCo
     /// <param name="valueDate">The latest admissible observation/reference date.</param>
     /// <param name="cancellationToken">Cancels the storage query.</param>
     /// <returns>Dated, nullable statistics suitable for seeding a live chain.</returns>
-    public async Task<ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot>> ReadOptionChainStatisticsAsync(
+    public async Task<ImmutableArray<TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot>> ReadOptionChainStatisticsAsync(
         string underlyingContractId, DateOnly expiryDate, DateOnly valueDate, CancellationToken cancellationToken)
     {
         var rows = await _dbFactory.MarketDataDb.Use(nameof(MarketDataDbSql.GetOptionChainStatistics), MarketDataDbSql.GetOptionChainStatistics)
             .SetParameters(new GetFuturesOptionChainQuoteData(underlyingContractId, expiryDate, valueDate) { PostgreSql = true })
-            .ExecuteQueryAsync(row => new TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot(
+            .ExecuteQueryAsync(row => new TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot(
                 row.GetString(0), row.IsNull(1) ? null : row.GetLong(1), row.IsNull(2) ? null : row.GetDateOnly(2),
                 row.IsNull(3) ? null : row.GetLong(3), row.IsNull(4) ? null : row.GetDateOnly(4)), cancellationToken).ConfigureAwait(false);
         return rows.ToImmutableArray();

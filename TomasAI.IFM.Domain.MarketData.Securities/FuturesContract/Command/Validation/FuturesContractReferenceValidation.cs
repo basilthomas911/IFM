@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -7,7 +7,7 @@ using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

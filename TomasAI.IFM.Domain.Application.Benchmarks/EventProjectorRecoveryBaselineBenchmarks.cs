@@ -1,4 +1,4 @@
-using BenchmarkDotNet.Attributes;
+﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.Extensions;
@@ -41,7 +41,7 @@ public class EventProjectorRecoveryBaselineBenchmarks
             CreatedBy = "benchmark"
         };
         var eventType = typeof(ApplicationStartupEvent).AssemblyQualifiedName!;
-        var eventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent);
+        var eventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(sourceEvent);
         _eventLogs = new EventLogReadModel[PendingEvents];
         _recoveryItems = new EventProjectorRecoveryItemReadModel[PendingEvents];
         _states = new Dictionary<long, EventProjectorStateReadModel>(PendingEvents);

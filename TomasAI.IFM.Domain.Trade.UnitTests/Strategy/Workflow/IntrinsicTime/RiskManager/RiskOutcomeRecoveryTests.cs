@@ -34,7 +34,9 @@ public sealed class RiskOutcomeRecoveryTests
         var order = new FundOrderProjectionReadModel { OrderId = evidence.OrderId, PortfolioId = evidence.PortfolioId, FundId = evidence.FundId, IdempotencyKey = Guid.NewGuid(), Status = "RiskPending", AggregateVersion = 3, WorkflowId = evidence.WorkflowId, CompositionResultHash = evidence.CompositionHash };
         var aggregate = new PortfolioFundAggregate();
         aggregate.Replay([new FundCompositionReservedEvent(Guid.NewGuid(), Guid.NewGuid(), 1, DateTime.UtcNow, "fixture", new() { Order = order, Trades = [new() { OrderId = order.OrderId }] })]);
-        var funds = Substitute.For<IPortfolioEventStore>(); funds.LoadFundAsync(Arg.Any<PortfolioFundId>(), Arg.Any<CancellationToken>()).Returns(aggregate);
+        var funds = Substitute.For<TomasAI.IFM.Application.Contracts.Portfolio.IPortfolioFundOrderReader>();
+        funds.ReadOrderAsync(Arg.Any<PortfolioFundId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult(aggregate.Composition(call.ArgAt<int>(1)).Order));
         var actors = Substitute.For<IActorService>(); var calls = 0;
         actors.RequestAsync<SynchronizeFundRiskOutcomeCommand, PortfolioFundId>(Arg.Any<SynchronizeFundRiskOutcomeCommand>(), Arg.Any<CancellationToken>()).Returns(call =>
         {

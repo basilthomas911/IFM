@@ -49,7 +49,7 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
             : base(context) => Context = context;
 
         public IEvent InvokeParseMessage(IEventActorContext<MarketDataFeedEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IEventActorContext<MarketDataFeedEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);

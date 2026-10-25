@@ -1,5 +1,5 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
   <ItemGroup><ProjectReference Include="../../../TomasAI.IFM.Application.Storage/TomasAI.IFM.Application.Storage.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
 </Project>

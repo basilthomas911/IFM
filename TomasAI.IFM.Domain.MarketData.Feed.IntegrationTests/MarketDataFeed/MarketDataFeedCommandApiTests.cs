@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+﻿using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
@@ -8,7 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Shared.EventSourcing;
 

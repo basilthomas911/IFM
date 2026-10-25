@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 

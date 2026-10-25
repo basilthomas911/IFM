@@ -1,8 +1,8 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Startup;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal;
@@ -22,7 +22,7 @@ public sealed class AwsCloudRetentionCapability(
     IAwsDocumentSignatureService signatures,
     AwsRecoveryEvidenceStore evidence,
     AwsRetentionPlanAuthorizationService authorization,
-    DynamoDbDatabaseBackupExecutionJournal journal,
+    IAwsDatabaseBackupExecutionJournal journal,
     AwsCloudDatabaseBackupOptions options,
     TimeProvider clock) : IDatabaseRetentionCapability
 {

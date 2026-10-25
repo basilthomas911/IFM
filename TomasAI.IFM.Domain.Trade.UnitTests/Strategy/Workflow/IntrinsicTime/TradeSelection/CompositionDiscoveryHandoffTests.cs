@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Newtonsoft.Json;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -47,7 +47,7 @@ public sealed class CompositionDiscoveryHandoffTests
                 CompositionDispatch = new() { MarketEvidence = CompositionPreparationAcceptance.Reference(prepared) }
             }
         };
-        var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(workflow), Guid.NewGuid(), at.ToString("O"), 6);
+        var row = new EventLogReadModel(1, workflow.EventName, workflow.GetType().AssemblyQualifiedName!, 99, TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(workflow), Guid.NewGuid(), at.ToString("O"), 6);
         var journal = Substitute.For<ICommittedBusinessEventJournal>(); journal.ReadPendingHandoffsAsync(default).Returns([row]);
         var intent = Substitute.For<IDurableSubscriptionIntentStore>();
         intent.ReadAsync("IFM", "GLBX.MDP3", default).Returns(new DurableSubscriptionSnapshot(1, "IFM", "GLBX.MDP3", 1,

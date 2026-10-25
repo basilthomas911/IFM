@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,7 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,5 +17,7 @@
     <InternalsVisibleTo Include="TomasAI.IFM.LivePipeline.IntegrationTests" />
   </ItemGroup>
 
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Projections/TomasAI.IFM.Application.EventSourcing.Projections.csproj" /></ItemGroup></Project>

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 

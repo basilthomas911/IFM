@@ -6,7 +6,7 @@ public sealed class ApplicationStartupScenarios
 {
     [Fact]
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
-    public void Given_a_healthy_boot_when_startup_is_planned_then_the_feed_starts_after_analytics()
+    public void Given_a_healthy_boot_when_startup_is_planned_then_ingestion_starts_before_indicator_readiness()
     {
         Assert.Equal(
             [
@@ -15,17 +15,19 @@ public sealed class ApplicationStartupScenarios
                 ApplicationStartupActivity.ReconcileReferenceData,
                 ApplicationStartupActivity.ReconcileCurrentContracts,
                 ApplicationStartupActivity.WarmHistoricalAnalytics,
-                ApplicationStartupActivity.StartRealtimeAnalytics,
                 ApplicationStartupActivity.StartMarketData,
+                ApplicationStartupActivity.StartRealtimeAnalytics,
                 ApplicationStartupActivity.QualifyOperationalState
             ],
             ApplicationStartupPlan.Activities.Select(value => value.Activity));
         Assert.Contains(
             ApplicationStartupActivity.ReconcileCurrentContracts,
             Definition(ApplicationStartupActivity.StartMarketData).Dependencies);
-        Assert.Contains(
+        Assert.DoesNotContain(
             ApplicationStartupActivity.StartRealtimeAnalytics,
             Definition(ApplicationStartupActivity.StartMarketData).Dependencies);
+        Assert.Contains(ApplicationStartupActivity.StartMarketData,
+            Definition(ApplicationStartupActivity.StartRealtimeAnalytics).Dependencies);
         Assert.Contains(
             ApplicationStartupActivity.StartMarketData,
             Definition(ApplicationStartupActivity.QualifyOperationalState).Dependencies);

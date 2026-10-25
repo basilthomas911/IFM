@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Api.Server.Core.Hosting;
+﻿using TomasAI.IFM.Application.Api.Server.Core.Hosting;
 using TomasAI.IFM.Application.Api.Server.Core.Startup.Readiness;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -1,10 +1,11 @@
-using TomasAI.IFM.Domain.EventSourcing.TradePlan;
+using TomasAI.IFM.Application.EventSourcing.Projections.TradePlan;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 if (args is not ["--capture-writers-stopped"] and not ["--verify-existing"])

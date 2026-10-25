@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventSourcing;

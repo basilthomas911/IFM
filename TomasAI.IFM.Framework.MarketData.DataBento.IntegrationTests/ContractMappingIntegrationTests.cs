@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 namespace TomasAI.IFM.Framework.MarketData.DataBento.IntegrationTests;
 
 public sealed class ContractMappingIntegrationTests

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Model;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;

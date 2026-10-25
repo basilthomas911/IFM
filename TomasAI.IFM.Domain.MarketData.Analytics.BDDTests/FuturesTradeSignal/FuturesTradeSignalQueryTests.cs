@@ -32,7 +32,7 @@ public class FuturesTradeSignalQueryTests
     public FuturesTradeSignalQueryTests()
     {
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     sealed class TestableFuturesTradeSignalQueryActor(
@@ -41,7 +41,7 @@ public class FuturesTradeSignalQueryTests
         : FuturesTradeSignalQueryActor(new FuturesTradeSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesTradeSignalQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesTradeSignalQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);

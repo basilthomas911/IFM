@@ -1,9 +1,10 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Risk;
-using TomasAI.IFM.Framework.MarketData.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 

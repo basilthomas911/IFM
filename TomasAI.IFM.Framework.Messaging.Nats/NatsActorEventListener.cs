@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 using NATS.Client.Core;
 using NATS.Net;
@@ -43,6 +43,14 @@ public class NatsActorEventListener(
     /// <summary>Optional catch-up after transport reconnection. The initial read remains the subscriber's responsibility.</summary>
     public Func<ValueTask>? Reconnected { get; set; }
     int _messageCount;
+
+    ValueTask IActorEventListener.StartAsync(string id, Dictionary<ActorMailboxId, List<string>> routes,
+        Func<string, IActorMessage, ValueTask> handler)
+        => StartAsync(id, routes, async (subject, message) =>
+        {
+            using var adapter = new NatsActorMessage(message);
+            await handler(subject, adapter).ConfigureAwait(false);
+        });
 
     public async ValueTask StartAsync(
         string eventListenerId,
@@ -102,7 +110,7 @@ public class NatsActorEventListener(
             if (eventMap.Count == 0)
                 throw new ArgumentException("Event map cannot be empty.", nameof(eventMap));
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-            ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+            global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             if (_nc is not null)
             {
                 global::TomasAI.IFM.Framework.Messaging.NatsJetStream.PersistenceDiagnosticLog.Write17(_logger, null, nameof(NatsActorEventListener), nameof(StartCoreAsync), eventListenerId);

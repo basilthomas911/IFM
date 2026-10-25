@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Diagnostics;

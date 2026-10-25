@@ -276,7 +276,7 @@ public sealed class IronCondorMonitoringInputReader(IDbContextFactory databases,
                 return StrategyPositionLegOptionData.Observe(leg) with {
                     TheoreticalPrice = checked((decimal)prices.OptionLegPrices.Single(price => price.ContractId == leg.ContractId).TheoreticalPrice),
                     Delta = item.Valuation!.Delta, Gamma = item.Valuation.Gamma,
-                    Vega = item.Valuation.Vega / 100, Theta = item.Valuation.Theta / (item.Instrument.Pricing!.Contract.DayCount == TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365) };
+                    Vega = item.Valuation.Vega / 100, Theta = item.Valuation.Theta / (item.Instrument.Pricing!.Contract.DayCount == TomasAI.IFM.Shared.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365) };
             }).ToArray();
             inputs = inputs with { DailyRiskInputs = IronCondorTradePlanSnapshotCalculator.CaptureUnavailableInputs(position, inputs) with {
                 ContractMultiplier = contracts[0].Multiplier, Currency = contracts[0].Currency,

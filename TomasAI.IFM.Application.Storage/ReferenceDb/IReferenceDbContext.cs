@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 /// <summary>Combines the Reference repository with its read and write capabilities.</summary>

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
+﻿using TomasAI.IFM.Domain.Reference.ParameterSets.Command.Validation;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Reference.Shared.ParameterSets;
 using TomasAI.IFM.Domain.Reference.ParameterSets.Command.State;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 namespace TomasAI.IFM.Domain.Reference.ParameterSets.Command.Actor;
 
 public sealed class ParameterAssignmentCommandActor(ICommandActorContext<ParameterAssignmentCommandActor> context)

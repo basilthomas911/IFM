@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -31,7 +31,7 @@ public class FuturesAtrSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         : FuturesAtrSignalCommandActor(new FuturesAtrSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, Substitute.For<IEventProjector<FuturesAtrSignalCommandActor>>(), logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesAtrSignalCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesAtrSignalCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

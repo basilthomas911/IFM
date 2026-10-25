@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeTickQuoteDb;
@@ -134,7 +135,7 @@ public sealed class TradeTickQuoteDbContextConventionTests
         var storage = typeof(TradeTickQuoteDbContext).Assembly;
         var shared = typeof(FuturesTickTradeDataInsertedEvent).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.MarketData.Feed.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData.Feed", shared.GetName().Name);
         Assert.Equal(shared, typeof(FuturesTickQuoteDataInsertedEvent).Assembly);
         Assert.NotEqual(storage, shared);
     }

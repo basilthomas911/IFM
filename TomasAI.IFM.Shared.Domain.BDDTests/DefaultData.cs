@@ -1,11 +1,11 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
-namespace TomasAI.IFM.Shared.Domain.BDDTests;
+namespace TomasAI.IFM.Application.CommandPipeline.BDDTests;
 
 public static class DefaultData
 {

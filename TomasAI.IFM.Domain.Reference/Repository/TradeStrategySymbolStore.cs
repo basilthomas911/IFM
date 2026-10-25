@@ -6,12 +6,12 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 
 
 namespace TomasAI.IFM.Domain.Reference.Repository;
 
-public sealed class TradeStrategySymbolStore(IDbContextFactory db, ISequenceIdGenerator sequenceIds) : ITradeStrategySymbolStore
+public sealed class TradeStrategySymbolStore(IDbContextFactory db, ISequenceIdApi sequenceIds) : ITradeStrategySymbolStore
 {
     public async Task<TradeStrategySymbolReadModel> GetOrCreateAsync(TradeStrategyProduct product, CancellationToken cancellationToken)
     {

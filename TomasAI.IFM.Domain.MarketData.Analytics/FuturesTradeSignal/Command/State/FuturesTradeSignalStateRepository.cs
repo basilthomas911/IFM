@@ -1,5 +1,5 @@
-using TomasAI.IFM.Domain.EventSourcing.MarketData;
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Actor;
 
@@ -19,7 +19,7 @@ public class FuturesTradeSignalStateRepository(
     IEventSourceActorDbContext dbEventSource,
     IActorService actorService,
     IDbContextFactory dbFactory,
-    ISequenceIdGenerator sequenceIdGenerator,
+    ISequenceIdApi sequenceIdGenerator,
     IEventProjector<FuturesTradeSignalCommandActor> eventProjector,
     ILogger<FuturesTradeSignalStateRepository> logger)
     : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesTradeSignalCommandState>

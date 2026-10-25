@@ -1,7 +1,12 @@
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.Publication;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.Journal;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.Processing;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Journal;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Processing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Api.DatabaseBackup.Host.Services;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
@@ -14,6 +19,7 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Scylla;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Startup;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Startup;
 
 namespace TomasAI.IFM.Api.DatabaseBackup.Host;

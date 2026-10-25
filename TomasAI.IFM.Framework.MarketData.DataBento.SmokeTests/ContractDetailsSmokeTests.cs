@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using Xunit.Abstractions;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;

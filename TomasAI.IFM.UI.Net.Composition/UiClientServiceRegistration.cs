@@ -1,4 +1,4 @@
-using SimpleInjector.Diagnostics;
+﻿using SimpleInjector.Diagnostics;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -13,7 +13,7 @@ using TomasAI.IFM.Service.StatusConsole;
 using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventProducers;
+using TomasAI.IFM.Application.EventServices;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;

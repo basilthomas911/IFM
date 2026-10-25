@@ -1,4 +1,4 @@
-using BenchmarkDotNet.Attributes;
+﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -27,20 +27,20 @@ public class SnapshotRangeReplayBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var snapshotPayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
+        var snapshotPayload = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
         {
             EntityId = EntityId,
             StartedOn = DateTime.UtcNow,
             StartedBy = "benchmark"
         });
-        var generatedPayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalGeneratedEvent
+        var generatedPayload = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalGeneratedEvent
         {
             EntityId = EntityId,
             FuturesRsiSignal = Signal,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = "benchmark"
         });
-        var noisePayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
+        var noisePayload = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
         {
             EntityId = EntityId,
             StoppedOn = DateTime.UtcNow,

@@ -1,5 +1,5 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 namespace TomasAI.IFM.Application.MarketData.Remote;
 /// <summary>Compatibility facade; all external reference acquisition uses the single backend API.</summary>
 public sealed class RemoteReferenceDataApi(IMarketDataApi api) : IReferenceDataApi, ITreasuryCurve, IEconomicCalendar, ITreasuryCurveIdentity

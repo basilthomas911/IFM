@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.O
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.TradeSelection;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1716", Justification = "Keep the published context interface and named argument contract; inherited capability members intentionally describe the same database operation.")]

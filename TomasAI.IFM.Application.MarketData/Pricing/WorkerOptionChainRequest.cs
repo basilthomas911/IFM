@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using MessagePack;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
@@ -16,5 +16,5 @@ public sealed record WorkerOptionChainRequest(
     [property: Key(7)] string? ExpectedContextDigest = null,
     [property: Key(8)] bool SeparateContractConnection = false,
     [property: Key(9), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool IndependentChainConnection = false,
-    [property: Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics = default,
+    [property: Key(10), System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] ImmutableArray<TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics = default,
     [property: Key(11)] bool ReconnectExactContract = false);

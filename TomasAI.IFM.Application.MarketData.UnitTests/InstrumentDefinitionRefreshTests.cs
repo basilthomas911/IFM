@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;

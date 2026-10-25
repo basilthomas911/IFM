@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Query;
@@ -19,7 +19,7 @@ public class MarketDataTestFixture : IDisposable
     public MarketDataTestFixture()
     {
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     public IDataSerializer DataSerializer => ActorExtensions.DataSerializer!;

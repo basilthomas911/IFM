@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Preserve the neutral contract assembly identity without a forwarding facade. -->
+    <AssemblyName>TomasAI.IFM.Shared</AssemblyName>
+    <RootNamespace>TomasAI.IFM.Shared</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.Shared.UnitTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Application.EventModelActor" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Framework.Messaging.Nats.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="EventModelActor\Supervisor\**" />
+    <EmbeddedResource Remove="EventModelActor\Supervisor\**" />
+    <None Remove="EventModelActor\Supervisor\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Extensions\DomainEventExtension.cs" />
+    <Compile Remove="MarketData\Validation\FuturesContractValidationRules.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="MessagePack" Version="3.1.9" />
+    <PackageReference Include="MessagePack.Annotations" Version="3.1.9" />
+    <PackageReference Include="MessagePackAnalyzer" Version="3.1.9">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.3" />
+    <PackageReference Include="System.Runtime.Caching" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="AlgoTrader\Commands\" />
+    <Folder Include="AlgoTrader\Model\" />
+    <Folder Include="EventModelActor\Templates\" />
+    <Folder Include="Fund\" />
+    <Folder Include="Reference\Exceptions\" />
+    <Folder Include="StatusConsole\Events\" />
+    <Folder Include="TradeAlgorithm\ViewModels\" />
+    <Folder Include="Trade\CommandParameters\" />
+    <Folder Include="ViewModels\" />
+  </ItemGroup>
+
+<ItemGroup>
+<EmbeddedResource Include="../Documents/system/Persisted-Event-Write-Identity-Baseline-v0.1.json" LogicalName="PersistedEventWriteBaseline.json" />
+<EmbeddedResource Include="../Documents/system/Persisted-Event-Read-Targets-v0.1.json" LogicalName="PersistedEventReadTargets.json" />
+</ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup><ItemGroup><InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage" /><InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.UnitTests" /></ItemGroup><ItemGroup><InternalsVisibleTo Include="TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation" /></ItemGroup></Project>

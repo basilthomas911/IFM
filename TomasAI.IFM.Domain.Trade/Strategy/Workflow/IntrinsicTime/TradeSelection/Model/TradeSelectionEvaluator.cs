@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Serialization;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;

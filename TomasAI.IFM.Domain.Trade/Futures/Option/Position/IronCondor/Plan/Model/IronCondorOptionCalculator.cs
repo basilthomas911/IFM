@@ -1,8 +1,9 @@
-using TomasAI.IFM.Application.MarketData.Pricing;
+﻿using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
-using TomasAI.IFM.Framework.MarketData.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
 
 namespace TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 /// <summary>Prices the four established option legs with the unified calculator, without provider access or state mutation.</summary>

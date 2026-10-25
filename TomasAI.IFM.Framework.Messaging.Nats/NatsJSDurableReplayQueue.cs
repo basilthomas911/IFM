@@ -762,8 +762,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
         var envelope = new DurableEventEnvelope(
             2,
             eventProjectorName,
-            eventType.AssemblyQualifiedName
-                ?? throw new InvalidOperationException($"Could not resolve the assembly-qualified name for '{eventType}'."),
+            EventWriteIdentityRegistry.Default.GetIdentity(eventType).EventTypeName,
             MessagePackSerializer.Serialize(eventType, domainEvent, MessagePackOptions),
             DurablePayloadFormat.MessagePack,
             DateTimeOffset.UtcNow,

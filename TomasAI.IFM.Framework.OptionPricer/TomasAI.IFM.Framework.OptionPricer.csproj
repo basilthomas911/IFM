@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,8 +9,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Framework.OptionPricer.UnitTests" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-      <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('..\native.rust\OptionPricer.Rust\out\build\$(Configuration)\ifm_option_pricer_native.dll')">
@@ -20,4 +19,4 @@
           CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

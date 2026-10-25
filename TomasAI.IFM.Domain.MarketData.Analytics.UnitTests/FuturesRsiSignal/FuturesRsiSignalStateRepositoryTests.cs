@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using NSubstitute;
@@ -75,7 +75,7 @@ public class FuturesRsiSignalStateRepositoryTests
                     {
                         EventVersion = 10,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
-                        EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
+                        EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     }
                 ]);
                 return ValueTask.CompletedTask;
@@ -227,7 +227,7 @@ public class FuturesRsiSignalStateRepositoryTests
                     {
                         EventVersion = index + 1,
                         EventTypeName = typeof(FuturesRsiSignalGeneratedEvent).AssemblyQualifiedName!,
-                        EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
+                        EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(generatedEvent)
                     })
                     .ToArray();
                 call.Arg<Action<IEnumerable<EventStreamReadModel>>>()(rows);

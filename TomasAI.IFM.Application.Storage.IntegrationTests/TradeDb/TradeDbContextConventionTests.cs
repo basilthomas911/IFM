@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage.TradeDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RiskManagement;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradeDb;
@@ -90,7 +91,7 @@ public sealed class TradeDbContextConventionTests
         var storage = typeof(TradeDbContext).Assembly;
         var shared = typeof(OpenPositionRouteReadModel).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.Trade.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.Trade", shared.GetName().Name);
         Assert.Equal(shared, typeof(OpenPositionRouteKeyReadModel).Assembly);
         Assert.Equal(shared, typeof(RiskHistoryProjectionResult).Assembly);
         Assert.NotEqual(storage, shared);

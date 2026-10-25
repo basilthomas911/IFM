@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.InstrumentDefinitions;
 using TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionPricing;
@@ -7,7 +8,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.Application.UnitTests;

@@ -71,7 +71,7 @@ public class EconomicCalendarCommandActorTests : IClassFixture<EconomicCalendarT
             return context;
         }
         public ICommand InvokeParseMessage(ICommandActorContext<EconomicCalendarCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<EconomicCalendarCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

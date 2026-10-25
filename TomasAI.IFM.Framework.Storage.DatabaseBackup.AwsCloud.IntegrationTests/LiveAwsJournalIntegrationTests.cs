@@ -1,8 +1,8 @@
-using Amazon;
+﻿using Amazon;
 using Amazon.DynamoDBv2;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;

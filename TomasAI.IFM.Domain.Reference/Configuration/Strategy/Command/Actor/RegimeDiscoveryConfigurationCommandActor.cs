@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Validation;
+﻿using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Validation;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command;
 using TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.State;
 using TomasAI.IFM.Domain.Reference.Shared.Configuration.Strategy;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;

@@ -1,4 +1,4 @@
-using NATS.Client.Core;
+﻿using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
@@ -195,7 +195,7 @@ internal sealed class NatsJSDurableQueueTransport(
 
     static NatsHeaders CreateMessageHeaders(string messageId)
     {
-        var headers = ActorTrace.Headers() ?? new NatsHeaders();
+        var headers = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers() ?? new NatsHeaders();
         headers["Nats-Msg-Id"] = messageId;
         return headers;
     }
@@ -231,7 +231,7 @@ internal sealed class NatsJSDurableQueueTransport(
     sealed class NatsJSDurableMessage(INatsJSMsg<byte[]> message) : INatsJSDurableMessage
     {
         public byte[] Data => message.Data ?? [];
-        public ActivityContext TraceContext => ActorTrace.Extract(message.Headers);
+        public ActivityContext TraceContext => global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(message.Headers);
         public ulong DeliveryCount => message.Metadata?.NumDelivered ?? 1;
         public ValueTask AckAsync(CancellationToken cancellationToken) =>
             message.AckAsync(cancellationToken: cancellationToken);

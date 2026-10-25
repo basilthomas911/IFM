@@ -1,11 +1,11 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function;
 using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Model.Position.Workflow.Function.State;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Workflow.OrderComposer.Function;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

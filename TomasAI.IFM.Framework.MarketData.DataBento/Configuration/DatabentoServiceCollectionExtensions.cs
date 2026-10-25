@@ -1,7 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.Historical;
 

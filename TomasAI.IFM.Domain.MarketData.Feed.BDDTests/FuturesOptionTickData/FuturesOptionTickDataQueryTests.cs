@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -6,7 +6,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

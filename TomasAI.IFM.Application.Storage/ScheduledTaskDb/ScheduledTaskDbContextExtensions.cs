@@ -116,7 +116,7 @@ internal sealed class ScheduledTaskLocalTransaction(NpgsqlConnection connection,
     /// <inheritdoc/>
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2100", Justification = "This storage executor accepts application SQL from reviewed schema/query contracts; runtime values are sent as bound parameters rather than interpolated into SQL.")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S927", Justification = "Preserve the established storage context contract, including public named arguments and default values used by callers.")]
-    public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? [] parameters, Func<NpgsqlDataReader, T> map, CancellationToken token, PostgresQueryTimeout? timeout = null)
+    public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? [] parameters, Func<System.Data.Common.DbDataReader, T> map, CancellationToken token, PostgresQueryTimeout? timeout = null)
     {
         await timeouts.ApplyAsync(timeout, token).ConfigureAwait(false);
         var command = new NpgsqlCommand(sql, connection, transaction) { CommandTimeout = 0 };

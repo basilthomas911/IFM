@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Shared.Contracts/TomasAI.IFM.Shared.Contracts.csproj" /></ItemGroup></Project>

@@ -5,9 +5,10 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Storage;
@@ -1026,11 +1027,11 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
     internal sealed record NativeOptionCursor(string Symbol, int PageSize, DateOnly Month, string OptionType, double Strike, string ContractId);
 
     internal static OptionExpiryCalendarState MapToOptionExpiryCalendarState<TDataRecord>(TDataRecord row)
-        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord => new(
+        where TDataRecord : TomasAI.IFM.Shared.Storage.IObjectDataRecord => new(
             row.GetGuid(0), row.GetDateOnly(1), row.GetDateOnly(2), row.GetDateTime(3));
 
     internal static OptionContractExpiryReadModel MapToOptionContractExpiry<TDataRecord>(TDataRecord row)
-        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord => new()
+        where TDataRecord : TomasAI.IFM.Shared.Storage.IObjectDataRecord => new()
         {
             Symbol = row.GetString(0),
             ContractId = row.IsNull(1) ? string.Empty : row.GetString(1),
@@ -1041,7 +1042,7 @@ public sealed class SecuritiesDbContext(IDbConnectionSettings connectionSettings
         };
 
     internal static CachedOptionContractDefinitionReadModel? MapToCachedOptionContractDefinition<TDataRecord>(TDataRecord row)
-        where TDataRecord : TomasAI.IFM.Framework.Storage.IObjectDataRecord
+        where TDataRecord : TomasAI.IFM.Shared.Storage.IObjectDataRecord
     {
         if (row.IsNull(1) || row.IsNull(5)) return null;
         return new()

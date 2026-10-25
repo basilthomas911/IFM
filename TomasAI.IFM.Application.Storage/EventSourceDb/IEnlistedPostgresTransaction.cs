@@ -8,5 +8,5 @@ public interface IEnlistedPostgresTransaction
     Task<int> ExecuteAsync(string sql, object?[] parameters, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null);
     Task<object?> ScalarAsync(string sql, object?[] parameters, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null);
     Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object?[] parameters,
-        Func<NpgsqlDataReader, T> map, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null);
+        Func<System.Data.Common.DbDataReader, T> map, CancellationToken cancellationToken, PostgresQueryTimeout? timeout = null);
 }

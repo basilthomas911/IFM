@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui_kittest::{Harness, kittest::Queryable};
+use egui_kittest::{Harness, kittest::{Queryable, NodeT}};
 use ifm_ui_egui::sidebar::{CalendarRow, SidebarPublication, SidebarView, StatusRow};
 #[test]
 fn status_list_virtualizes_large_snapshots_and_status_bar_uses_the_newest_message() {
@@ -13,7 +13,7 @@ fn status_list_virtualizes_large_snapshots_and_status_bar_uses_the_newest_messag
             .collect(),
         ..Default::default()
     };
-    assert_eq!(snapshot.latest_status(), Some("Status 0"));
+    assert_eq!(snapshot.latest_status(), Some("Status 99999"));
     let mut harness = Harness::builder()
         .with_size(egui::vec2(750.0, 350.0))
         .build_state(
@@ -28,14 +28,63 @@ fn status_list_virtualizes_large_snapshots_and_status_bar_uses_the_newest_messag
         assert!(harness.query_by_label(header).is_some());
     }
     assert!(harness.query_by_label("Status Console").is_none());
-    assert!(harness.query_by_label("Status 0").is_some());
-    assert!(harness.query_by_label("Status 99999").is_none());
-    harness.get_by_label("Status 0").click();
+    assert!(harness.query_by_label("Status 0").is_none());
+    assert!(harness.query_by_label("Status 99999").is_some());
+    harness.get_by_label("Status 99999").click();
     harness.run();
-    assert_eq!(harness.state().selected_status_id, "0");
+    assert_eq!(harness.state().selected_status_id, "99999");
     harness.key_press(egui::Key::ArrowDown);
     harness.run();
-    assert_eq!(harness.state().selected_status_id, "1");
+    assert_eq!(harness.state().selected_status_id, "99998");
+}
+
+#[test]
+fn console_follows_live_arrivals_but_preserves_manual_history_scrolling() {
+    fn append(snapshot: &mut SidebarPublication) {
+        let index = snapshot.status_rows.len();
+        snapshot.status_rows.push(StatusRow {
+            id: index.to_string(), time: "06:30:00 PM".into(), message: format!("Status {index}"),
+        });
+    }
+    let mut snapshot = SidebarPublication::default();
+    for _ in 0..100 { append(&mut snapshot); }
+    let mut harness = Harness::builder().with_size(egui::vec2(750., 350.)).build_state(
+        |ctx, state: &mut (SidebarView, SidebarPublication)| {
+            egui::CentralPanel::default().show(ctx, |ui| state.0.status(ui, &state.1));
+        },
+        (SidebarView::default(), snapshot),
+    );
+    harness.run();
+    assert!(harness.query_by_label("Status 99").is_some());
+    append(&mut harness.state_mut().1);
+    harness.run();
+    assert!(harness.query_by_label("Status 100").is_some(), "New live row must be visible");
+    let newest = harness.get_by_label("Status 100").accesskit_node().bounding_box().unwrap();
+    let older = harness.get_by_label("Status 99").accesskit_node().bounding_box().unwrap();
+    assert!(newest.y0 < older.y0, "Newest message must appear above the preceding message");
+    assert_eq!(harness.state().1.latest_status(), Some("Status 100"));
+
+    // Scrolling down into older messages must not jump back to the newest row.
+    harness.input_mut().events.extend([
+        egui::Event::PointerMoved(egui::pos2(300., 150.)),
+        egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0., -350.), modifiers: egui::Modifiers::NONE },
+    ]);
+    harness.run_steps(8);
+    assert!(harness.query_by_label("Status 100").is_none());
+    append(&mut harness.state_mut().1);
+    harness.run();
+    assert!(harness.query_by_label("Status 101").is_none(), "History inspection must not jump to live");
+    assert_eq!(harness.state().1.latest_status(), Some("Status 101"));
+
+    // Returning to the top resumes following subsequent arrivals.
+    harness.input_mut().events.push(egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point,
+        delta: egui::vec2(0., 100_000.), modifiers: egui::Modifiers::NONE });
+    harness.run_steps(8);
+    assert!(harness.query_by_label("Status 101").is_some());
+    append(&mut harness.state_mut().1);
+    harness.run();
+    assert!(harness.query_by_label("Status 102").is_some());
 }
 #[test]
 fn calendar_preserves_period_actions_and_selected_event_details() {

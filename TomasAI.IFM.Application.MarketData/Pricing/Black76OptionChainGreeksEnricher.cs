@@ -1,6 +1,7 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Concurrent;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 

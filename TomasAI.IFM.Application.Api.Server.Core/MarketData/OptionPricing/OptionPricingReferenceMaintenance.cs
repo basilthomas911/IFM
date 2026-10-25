@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
 using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Pricing;
@@ -10,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Api.Server.Core.MarketData.OptionPricing;
@@ -62,7 +64,7 @@ internal static class OptionPricingReferenceMaintenance
         Console.WriteLine($"Published and read back {mapped.Length} exact {root} mappings for {expiry:yyyy-MM-dd}; bundle={bundle.BundleId}; underlying={future.RawSymbol}/{future.Instrument.InstrumentId}; profile={bundle.ProfileVersion}.");
     }
     static FuturesOptionContractReadModel CreateDefinition(ContractDetail source, ContractDetail future,
-        OptionDefinitionCandidate candidate, TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention convention)
+        OptionDefinitionCandidate candidate, TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingConvention convention)
     {
         var right = source.ContractKind == ContractKind.CallOption ? ReferenceOptionRight.Call : ReferenceOptionRight.Put;
         var definition = new FuturesOptionContractReadModel(candidate.ContractId, source.RawSymbol, source.Ticker,

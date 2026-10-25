@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradePlanDb;
 
@@ -66,7 +67,7 @@ public sealed class TradePlanDbContext(
     /// <summary>Gets the Trade Plan write capability.</summary>
     public ITradePlanDbWriteContext DbWriter => this;
 
-    internal static (T Item, string[] Keys) MapToPageItem<T>(Npgsql.NpgsqlDataReader reader, int count) =>
+    internal static (T Item, string[] Keys) MapToPageItem<T>(System.Data.Common.DbDataReader reader, int count) =>
         (MessagePackBinarySerializer.Shared.Deserialize<T>(reader.GetFieldValue<byte[]>(0)),
          Enumerable.Range(1, count).Select(i => reader.GetValue(i) switch
          {
@@ -130,6 +131,6 @@ public sealed class TradePlanDbContext(
     public Task<IReadOnlyList<ExitPositionWorkflowProjection>> ReadExitWorkflowBaselineAsync(IEnlistedPostgresTransaction transaction, CancellationToken cancellationToken = default)
         => this.ReadExitWorkflowBaselineCoreAsync(transaction, cancellationToken);
 
-    internal static ExitPositionWorkflowProjection MapToExitWorkflow(Npgsql.NpgsqlDataReader reader) =>
+    internal static ExitPositionWorkflowProjection MapToExitWorkflow(System.Data.Common.DbDataReader reader) =>
         MessagePackBinarySerializer.Shared.Deserialize<ExitPositionWorkflowProjection>(reader.GetFieldValue<byte[]>(0));
 }

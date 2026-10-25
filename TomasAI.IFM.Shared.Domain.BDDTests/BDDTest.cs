@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using Xunit;
 
-namespace TomasAI.IFM.Shared.Domain.BDDTests
+namespace TomasAI.IFM.Application.CommandPipeline.BDDTests
 {
     public class BDDTest<TBoundedContext, TboundedContextState, TEntity>(Func<IEvent[], IEventRepository<TboundedContextState>> getRepository, Func<IEvent[]> getDenormalizerEvents, object? commandDecorator = null, object? exceptionDecorator = null)
         where TBoundedContext : IBoundedContext

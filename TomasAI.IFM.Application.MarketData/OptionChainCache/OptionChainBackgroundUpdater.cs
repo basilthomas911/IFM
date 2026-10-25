@@ -1,10 +1,10 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 

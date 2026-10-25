@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using System;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
@@ -11,7 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;

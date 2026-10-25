@@ -10,6 +10,17 @@ pub struct HealthClient {
 /// API operational time is independent of market-session observation time.
 pub struct HealthObservation { pub value:Value, pub server_utc:Option<chrono::DateTime<chrono::Utc>> }
 impl HealthClient {
+    /// One bounded acknowledgement request per rendered console batch. No backend I/O runs in paint.
+    pub async fn post_json(&self, endpoint: &str, body: &Value, deadline: tokio::time::Instant) -> Result<(), String> {
+        tokio::time::timeout_at(deadline, async {
+            let response = self.client.post(endpoint).json(body).send().await
+                .map_err(|_| "Console acknowledgement endpoint could not be reached")?;
+            if !response.status().is_success() {
+                return Err(format!("Console acknowledgement failed (HTTP {})", response.status().as_u16()));
+            }
+            Ok(())
+        }).await.map_err(|_| "Console acknowledgement deadline expired".to_string())?
+    }
     pub fn new() -> Result<Self, String> {
         if rustls::crypto::CryptoProvider::get_default().is_none() {
             let _ = rustls::crypto::ring::default_provider().install_default();

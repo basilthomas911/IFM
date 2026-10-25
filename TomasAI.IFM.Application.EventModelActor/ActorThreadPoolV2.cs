@@ -1,0 +1,167 @@
+using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Shared.EventModelActor;
+
+namespace TomasAI.IFM.Application.EventModelActor;
+
+/// <summary>
+/// Fixed asynchronous worker pool backed by a shared ready-mailbox queue.
+/// </summary>
+public sealed class ActorThreadPoolV2(
+    IActorSupervisor supervisor,
+    ILogger logger,
+    ActorInformationLoggingPolicy? informationLoggingPolicy = null,
+    IRealtimeSourceAdmission? realtimeSourceAdmission = null,
+    RealtimeActorCompletionEvidence? realtimeCompletionEvidence = null) : IActorThreadPool, IAsyncDisposable
+{
+    readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
+    readonly ILogger _logger = IsArgumentNull.Set(logger);
+    readonly ActorInformationLoggingPolicy _informationLoggingPolicy = informationLoggingPolicy ?? ActorInformationLoggingPolicy.Default;
+    readonly IRealtimeSourceAdmission? _realtimeSourceAdmission = realtimeSourceAdmission;
+    readonly RealtimeActorCompletionEvidence? _realtimeCompletionEvidence = realtimeCompletionEvidence;
+    readonly ActorReadyQueue _readyQueue = new();
+    readonly ActorThreadPoolMetricsState _metricsState = new();
+    ActorThreadV2[] _workers = [];
+    // Every worker publishes to the same ready queue. Retain a stable signal target so an
+    // admission already in flight cannot index an array cleared by DisposeAsync.
+    ActorThreadV2? _signalWorker;
+    int _initialized;
+    int _disposed;
+
+    public IActorThreadPool Initialize(int threadCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threadCount);
+        if (Interlocked.CompareExchange(ref _initialized, 1, 0) != 0)
+            throw new InvalidOperationException("The actor thread pool has already been initialized.");
+
+        var workers = new ActorThreadV2[threadCount];
+        for (var index = 0; index < workers.Length; index++)
+        {
+            var worker = new ActorThreadV2(_supervisor, _logger, _readyQueue, _metricsState,
+                index + 1, _informationLoggingPolicy, _realtimeSourceAdmission, _realtimeCompletionEvidence);
+            _supervisor.RuntimeContext?.RegisterWorker(worker);
+            worker.Start();
+            workers[index] = worker;
+        }
+        _signalWorker = workers[0];
+        Volatile.Write(ref _workers, workers);
+        ActorRuntimeMetrics.RegisterWorkerPool(workers.Length);
+        return this;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IActorThread GetThread(ActorThreadId threadId)
+    {
+        IsArgumentNull.Check(threadId);
+        ThrowIfUnavailable();
+        if (!_supervisor.Children.ContainsKey(threadId.MailboxId))
+            throw new KeyNotFoundException($"Actor with mailbox id '{threadId.MailboxId}' not found in context.");
+
+        var workers = Volatile.Read(ref _workers);
+        var hash = (uint)threadId.GetHashCode();
+        return workers[hash % (uint)workers.Length];
+    }
+
+    internal void ValidateAdmission(ActorThreadId threadId, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        IsArgumentNull.Check(threadId);
+        ThrowIfUnavailable();
+        if (!_supervisor.Children.ContainsKey(threadId.MailboxId))
+            throw new KeyNotFoundException($"Actor with mailbox id '{threadId.MailboxId}' not found in context.");
+    }
+
+    internal void SignalMailbox(ActorThreadId threadId)
+        => _signalWorker!.SignalMessageAvailable(threadId);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ValueTask<IActorThread> GetThreadAsync(ActorThreadId threadId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(GetThread(threadId));
+    }
+
+    // Mailbox execution is released by its atomic scheduling state; workers themselves are never leased.
+    public void ReleaseThread(ActorThreadId threadId) => IsArgumentNull.Check(threadId);
+
+    public int Count => Volatile.Read(ref _workers).Length;
+
+    public void BeginDrainMeasurement() => _metricsState.BeginDrainMeasurement();
+
+    public long DrainedMessageCount => _metricsState.DrainedMessageCount;
+
+    /// <summary>
+    /// Waits until no mailbox is scheduled or executing for a continuous quiet period.
+    /// The timeout is definitive so shutdown cannot wait forever for derivative actor work.
+    /// </summary>
+    public async ValueTask<bool> WaitForIdleAsync(
+        TimeSpan quietPeriod,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(quietPeriod, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        long? idleStarted = null;
+        while (System.Diagnostics.Stopwatch.GetElapsedTime(started) < timeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_readyQueue.ScheduledCount == 0 && _metricsState.ActiveMailboxCount == 0)
+            {
+                idleStarted ??= System.Diagnostics.Stopwatch.GetTimestamp();
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(idleStarted.Value) >= quietPeriod)
+                    return true;
+            }
+            else
+            {
+                idleStarted = null;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    /// <summary>Immediately cancels workers after a bounded graceful-drain attempt has expired.</summary>
+    public async ValueTask StopAsync()
+    {
+        _readyQueue.Complete();
+        var workers = Volatile.Read(ref _workers);
+        foreach (var worker in workers)
+            worker.Stop();
+        foreach (var worker in workers)
+            await worker.Completion.ConfigureAwait(false);
+    }
+
+    void ThrowIfUnavailable()
+    {
+        if (Volatile.Read(ref _initialized) == 0)
+            throw new InvalidOperationException("The actor thread pool has not been initialized.");
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, typeof(ActorThreadPoolV2));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        _readyQueue.Complete();
+        var workers = Volatile.Read(ref _workers);
+        foreach (var worker in workers)
+            await worker.Completion.ConfigureAwait(false);
+        foreach (var worker in workers)
+            await worker.DisposeAsync().ConfigureAwait(false);
+        foreach (var worker in workers)
+            _supervisor.RuntimeContext?.RemoveWorker(worker);
+
+        if (workers.Length != 0)
+            ActorRuntimeMetrics.UnregisterWorkerPool(workers.Length);
+        Volatile.Write(ref _workers, []);
+        GC.SuppressFinalize(this);
+    }
+}

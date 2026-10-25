@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -108,7 +108,7 @@ public class PeriodRangeStateRepositoryTests
             {
                 EventVersion = 1,
                 EventTypeName = typeof(FuturesMacdDailySignalGeneratedEvent).AssemblyQualifiedName!,
-                EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(dailyEvent)
+                EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(dailyEvent)
             }
         ]);
 

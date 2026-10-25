@@ -61,7 +61,8 @@ public sealed class ApprovedTradeMonitoringLimitsTests
         var bytes = MessagePack.MessagePackSerializer.Serialize(trade);
         MessagePack.MessagePackSerializer.Deserialize<EstablishedTradeDefinition>(bytes).Should().BeEquivalentTo(trade);
         var reader = new MessagePack.MessagePackReader(new System.Buffers.ReadOnlySequence<byte>(bytes));
-        reader.ReadArrayHeader().Should().Be(16);
+        // Keys 16 and 17 were already added by schema v4 before this assembly migration.
+        reader.ReadArrayHeader().Should().Be(18);
         var output = new System.Buffers.ArrayBufferWriter<byte>();
         var writer = new MessagePack.MessagePackWriter(output);
         writer.WriteArrayHeader(15);

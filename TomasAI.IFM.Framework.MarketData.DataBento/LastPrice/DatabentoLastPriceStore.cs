@@ -1,6 +1,6 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 

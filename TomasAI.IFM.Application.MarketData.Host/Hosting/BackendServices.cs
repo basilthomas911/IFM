@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.OptionChainCache;
@@ -16,8 +17,8 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using TomasAI.IFM.Framework.SequenceId;
@@ -28,7 +29,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Subscriptions;
 using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 

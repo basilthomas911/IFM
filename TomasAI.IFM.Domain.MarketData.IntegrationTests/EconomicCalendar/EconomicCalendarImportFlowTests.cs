@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage.EventSourceDb;
+﻿using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.Storage;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+﻿using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 

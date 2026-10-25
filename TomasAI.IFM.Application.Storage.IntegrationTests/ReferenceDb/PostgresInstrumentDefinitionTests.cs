@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
 using TomasAI.IFM.Domain.Reference.Repository;
 using System;
@@ -14,6 +15,7 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using Xunit;
@@ -47,7 +49,7 @@ public sealed class PostgresInstrumentDefinitionTests(PostgresTradePlanFixture f
                 return context;
             }
             var db = Context();
-            InstrumentDefinitionStore Store() => new(Context(),new TradeStrategySymbolStore(new DbContextFactory(new DbContextResolver(_=>Context())),ids));
+            InstrumentDefinitionStore Store() => new(Context(),new TradeStrategySymbolStore(new DbContextFactory(new DbContextResolver(_=>Context())),new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)));
             var store = Store();
             var row = ExactInstrumentDefinition.Parse("GLBX.MDP3", """
                 {"hd":{"rtype":19,"publisher_id":1,"instrument_id":42002230,"ts_event":"1788089407203111341"},"ts_recv":"1788480000000000000","raw_symbol":"OZRU7 P2020","asset":"OZR","instrument_class":"P","underlying_id":42000681,"currency":"USD","exchange":"XCBT","expiration":"1819390800000000000","activation":"1784928600000000000","strike_price":"2020000000000","high_limit_price":"9223372036854775807","unknown_future_field":{"x":"keep exactly"}}

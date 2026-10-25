@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.Strategy.Contracts.Shared.StrategyCatalog.Contracts;
 using TomasAI.IFM.Application.Strategy.StrategyCatalog;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 using static TomasAI.IFM.Application.Storage.IntegrationTests.ConfigurationDb.StrategyCatalogContractTests;
 

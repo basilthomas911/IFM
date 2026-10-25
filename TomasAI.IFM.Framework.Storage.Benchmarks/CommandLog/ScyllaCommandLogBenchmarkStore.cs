@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Framework.Storage.Benchmarks.CommandLog;
 

@@ -9,7 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
@@ -110,7 +111,7 @@ public sealed class SecuritiesDbContextConventionTests
         var storage = typeof(SecuritiesDbContext).Assembly;
         var shared = typeof(SecuritiesProjectionBackfillResult).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.MarketData.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData", shared.GetName().Name);
         Assert.NotEqual(storage, shared);
         Assert.Equal(shared, typeof(SecuritiesProjectionReconciliationResult).Assembly);
         Assert.Equal(shared, typeof(ReferencePayloadCodec).Assembly);
@@ -124,7 +125,7 @@ public sealed class SecuritiesDbContextConventionTests
         var storage = typeof(SecuritiesDbContext).Assembly;
         var shared = typeof(ReferenceContractVersion).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.Reference.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.Reference", shared.GetName().Name);
         Assert.Equal(shared, typeof(PendingReferenceVersion).Assembly);
         Assert.Equal(shared, typeof(ReferenceContractVersionSummaryReadModel).Assembly);
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.SecuritiesDb.ReferenceVersionStore"));

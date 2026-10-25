@@ -8,6 +8,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.CommandLogBenchmark;

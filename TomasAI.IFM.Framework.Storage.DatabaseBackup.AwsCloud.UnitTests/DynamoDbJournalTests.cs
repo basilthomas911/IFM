@@ -1,10 +1,11 @@
+using TomasAI.IFM.Application.DatabaseBackup.Policies;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
 using System.Net;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;

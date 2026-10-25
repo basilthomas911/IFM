@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Net;
@@ -138,7 +138,7 @@ public class NatsActorConsumer(
         try
         {
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-            ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+            global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             _supervisor = IsArgumentNull.Set(supervisor);
             ValidateEnforcedTrafficClass(actorType);
             _subscriptionSubject = string.Concat(_actorType.ToStringFast(), ".>");
@@ -442,7 +442,7 @@ public class NatsActorConsumer(
                     continue;
 
                 var source = msg.Subject.ToSubject();
-                payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers), source, msg.Headers);
+                payload = new NatsSharedEventPayload(msg.Data, global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(msg.Headers), source, msg.Headers);
                 ownerTransferred = true;
                 var destinations = BuildPubSubDestinations(_supervisor, _actorType, source);
                 if (destinations.Count == 0)

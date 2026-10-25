@@ -1,4 +1,4 @@
-using System.IO.Pipes;
+﻿using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -177,7 +177,7 @@ async Task<int> RunWorkerAsync()
                         var detail = exception.GetType().Name + ": " + exception.Message;
                         var apiKey = Environment.GetEnvironmentVariable("DATABENTO_API_KEY");
                         if (!string.IsNullOrEmpty(apiKey)) detail = detail.Replace(apiKey, "[redacted]", StringComparison.Ordinal);
-                        var failure = new TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingFailure(
+                        var failure = new TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingFailure(
                             "WorkerOperationFailed", "Chain", "", detail[..Math.Min(detail.Length, 512)]);
                         await (WriteAsync(command.Kind == DatasetWorkerMessageKind.CaptureCompositionSnapshot
                             ? DatasetWorkerMessageKind.CompositionSnapshotResult : DatasetWorkerMessageKind.OptionChainResult,

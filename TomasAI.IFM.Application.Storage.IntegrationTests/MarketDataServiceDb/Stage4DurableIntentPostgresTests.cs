@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -14,6 +15,7 @@ using TomasAI.IFM.Application.MarketData.Subscriptions.Persistence;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb;
 using TomasAI.IFM.Application.Storage.MarketDataServiceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;

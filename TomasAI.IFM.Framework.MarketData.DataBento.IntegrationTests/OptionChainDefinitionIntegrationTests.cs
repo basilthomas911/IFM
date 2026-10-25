@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 namespace TomasAI.IFM.Framework.MarketData.DataBento.IntegrationTests;
 
 public sealed class OptionChainDefinitionIntegrationTests

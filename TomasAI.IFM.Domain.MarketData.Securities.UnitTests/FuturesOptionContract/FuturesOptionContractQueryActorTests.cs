@@ -52,7 +52,7 @@ public class FuturesOptionContractQueryActorTests : IClassFixture<SecuritiesFixt
         public IFuturesOptionContractQueryContext FuturesOptionContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesOptionContractQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

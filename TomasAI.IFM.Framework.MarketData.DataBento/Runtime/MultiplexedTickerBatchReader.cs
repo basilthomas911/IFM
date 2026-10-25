@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Diagnostics;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento;

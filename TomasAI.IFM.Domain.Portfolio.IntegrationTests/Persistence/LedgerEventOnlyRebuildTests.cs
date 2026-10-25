@@ -6,6 +6,7 @@ using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Extensions;

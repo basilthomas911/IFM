@@ -1,3 +1,4 @@
+
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;

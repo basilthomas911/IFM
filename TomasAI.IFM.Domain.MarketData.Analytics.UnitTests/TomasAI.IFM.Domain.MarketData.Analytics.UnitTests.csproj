@@ -24,12 +24,14 @@
   <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
   <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
   <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
-  <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-  <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
+  <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+  <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
 </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
 </Project>

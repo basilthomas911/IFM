@@ -1,7 +1,8 @@
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
+﻿using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
-using TomasAI.IFM.Framework.OptionPricer.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
+using TomasAI.IFM.Application.OptionPricing;
+using TomasAI.IFM.Shared.OptionPricing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 public sealed class Black76ComposerPricer : IFuturesOptionComposerPricer

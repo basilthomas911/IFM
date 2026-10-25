@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -33,13 +34,13 @@ public class SecuritiesFixture : IDisposable
     {
         // Ensure runtime serializers are configured for tests
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
 
         SetDbFactory();
     }
 
     public IDataSerializer DataSerializer => ActorExtensions.DataSerializer!;
-    public INatsSerializer<byte[]> MsgSerializer => ActorExtensions.MsgSerializer!;
+    public INatsSerializer<byte[]> MsgSerializer => global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer!;
 
     void SetDbFactory()
     {

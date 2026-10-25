@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 /// <summary>Exports resolved schema metadata without opening a database or running migrations.</summary>
 internal static class SchemaInventory

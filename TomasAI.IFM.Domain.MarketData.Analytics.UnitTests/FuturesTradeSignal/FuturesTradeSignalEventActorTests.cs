@@ -37,7 +37,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
         : FuturesTradeSignalEventActor(new FuturesTradeSignalEventContext(supervisor, statusConsoleWriter, logger))
     {
         public IEvent InvokeParseMessage(IEventActorContext<FuturesTradeSignalEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesTradeSignalEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);

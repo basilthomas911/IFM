@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 

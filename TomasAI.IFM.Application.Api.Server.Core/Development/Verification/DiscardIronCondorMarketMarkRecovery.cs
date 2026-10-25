@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventSourcing;
 

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 
 namespace TomasAI.IFM.Application.DatabaseBackup.Processing;
 

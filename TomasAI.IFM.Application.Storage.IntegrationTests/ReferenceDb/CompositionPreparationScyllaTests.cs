@@ -10,6 +10,7 @@ using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
 

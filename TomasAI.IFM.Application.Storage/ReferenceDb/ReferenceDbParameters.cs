@@ -1,6 +1,7 @@
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 using Npgsql;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 internal readonly record struct ReferenceParameters(NpgsqlParameter[] Values) : IBindValue

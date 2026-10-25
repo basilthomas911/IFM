@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Buffers;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;

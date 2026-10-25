@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.ScyllaDb;

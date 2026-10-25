@@ -1,4 +1,4 @@
-using TomasAI.IFM.Shared.EventModelActor;
+﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using MessagePack;
@@ -59,7 +59,7 @@ public sealed class MarketDataHostConnection : IAsyncDisposable
         var body = MessagePackSerializer.Serialize(request.GetType(), request, Serialization, deadline.Token);
         var reply = await client.RequestAsync<MarketDataHostRequest, MarketDataHostReply>(ControlSubject(path),
             new(path, body, id, recovery ? DateTime.MaxValue : DateTime.UtcNow.Add(budget)),
-            headers: ActorTrace.Headers(),
+            headers: global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers(),
             requestSerializer: NatsMessagePackSerializer<MarketDataHostRequest>.Default,
             replySerializer: NatsMessagePackSerializer<MarketDataHostReply>.Default,
             replyOpts: new NatsSubOpts { Timeout = budget }, cancellationToken: deadline.Token).ConfigureAwait(false);

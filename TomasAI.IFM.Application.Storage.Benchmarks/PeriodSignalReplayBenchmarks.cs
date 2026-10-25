@@ -1,4 +1,4 @@
-using BenchmarkDotNet.Attributes;
+﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command.State;
@@ -49,7 +49,7 @@ public class PeriodSignalReplayBenchmarks
         if (descriptor.SnapshotRow is not null)
             _unboundedRows[0] = descriptor.SnapshotRow;
 
-        var noisePayload = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
+        var noisePayload = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStoppedEvent
         {
             EntityId = RsiEntityId,
             StoppedOn = DateTime.UtcNow,
@@ -95,7 +95,7 @@ public class PeriodSignalReplayBenchmarks
                     CreatedBy = "benchmark"
                 },
                 ReplayRsi,
-                Row<FuturesRsiSignalStartedEvent>(0, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
+                Row<FuturesRsiSignalStartedEvent>(0, TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(new FuturesRsiSignalStartedEvent
                 {
                     EntityId = RsiEntityId,
                     StartedOn = DateTime.UtcNow,
@@ -173,7 +173,7 @@ public class PeriodSignalReplayBenchmarks
         EventStreamReadModel? snapshotRow = null)
         where TEvent : TomasAI.IFM.Shared.EventSourcing.IEvent
         => new(
-            version => Row<TEvent>(version, TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(@event)),
+            version => Row<TEvent>(version, TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(@event)),
             replay,
             snapshotRow);
 

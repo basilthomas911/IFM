@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.SchemaDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 

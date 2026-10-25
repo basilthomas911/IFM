@@ -30,13 +30,13 @@ public sealed class PortfolioAllocationScenarios
         (await allocator.AllocatePortfolioIdAsync()).Id.Should().Be(1101);
     }
 
-    sealed class StubGenerator(long id) : ISequenceIdGenerator
+    sealed class StubGenerator(long id) : global::TomasAI.IFM.Application.Identity.ISequenceIdApi
     {
         public ValueTask<long> GetSequenceIdAsync(SequenceName name, CancellationToken cancellationToken = default) => ValueTask.FromResult(id);
         public ValueTask<long> GetHighWatermarkAsync(SequenceName name, CancellationToken cancellationToken = default) => ValueTask.FromResult(id);
     }
 
-    sealed class QueueGenerator(params long[] ids) : ISequenceIdGenerator
+    sealed class QueueGenerator(params long[] ids) : global::TomasAI.IFM.Application.Identity.ISequenceIdApi
     {
         readonly Queue<long> _ids = new(ids);
         public ValueTask<long> GetSequenceIdAsync(SequenceName name, CancellationToken cancellationToken = default) => ValueTask.FromResult(_ids.Dequeue());

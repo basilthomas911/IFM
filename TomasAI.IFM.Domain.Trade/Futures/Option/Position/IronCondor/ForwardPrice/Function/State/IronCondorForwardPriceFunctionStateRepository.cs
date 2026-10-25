@@ -1,7 +1,7 @@
 ﻿using ForwardPriceSessionId = TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanId;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

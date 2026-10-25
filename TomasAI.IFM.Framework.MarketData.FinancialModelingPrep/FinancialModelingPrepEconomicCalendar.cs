@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.MarketData.Contracts;
+﻿using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 

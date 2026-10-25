@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
+﻿using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using System.Collections.ObjectModel;
 using Microsoft.Extensions.Hosting;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 

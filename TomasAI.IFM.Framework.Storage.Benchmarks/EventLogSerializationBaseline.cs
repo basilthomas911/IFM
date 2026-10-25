@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 using TomasAI.IFM.Framework.Storage.Benchmarks.CommandLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 using TomasAI.IFM.Shared.Extensions;

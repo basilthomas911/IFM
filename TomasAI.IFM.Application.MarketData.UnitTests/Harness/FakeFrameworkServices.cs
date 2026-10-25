@@ -1,7 +1,7 @@
 ﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;

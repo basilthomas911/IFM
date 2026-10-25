@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using System.Collections.Immutable;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -169,7 +169,7 @@ internal static class CompositionFixture
                     {
                         // Every option in this fixture shares this expiry/calendar. The exchange value-date
                         // count can differ from UTC calendar DTE when expiry crosses a DST change.
-                        var tradingDays = TomasAI.IFM.Framework.MarketData.Pricing.OptionPricingQualification.CountTradingDays(
+                        var tradingDays = TomasAI.IFM.Shared.MarketData.Pricing.OptionPricingQualification.CountTradingDays(
                             CompositionSnapshotAdapter.To(calendar), CompositionSnapshotAdapter.To(contract), at);
                         var tenor = TomasAI.IFM.Framework.MarketData.ReferenceData.TreasuryRateConversion.SelectTenor(tradingDays)
                             ?? throw new InvalidOperationException("Fixture expiry has no qualified Treasury tenor.");

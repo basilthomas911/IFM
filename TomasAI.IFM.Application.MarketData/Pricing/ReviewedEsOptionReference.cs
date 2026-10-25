@@ -1,9 +1,10 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 

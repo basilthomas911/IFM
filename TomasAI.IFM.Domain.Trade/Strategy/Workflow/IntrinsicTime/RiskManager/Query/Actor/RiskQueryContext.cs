@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Application.Contracts.Portfolio;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Portfolio.Financial.Repository;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -23,7 +23,7 @@ public sealed class RiskQueryContext : QueryActorContext, IRiskQueryContext
     public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> WorkflowRepository => Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
     public IPortfolioQueryApi PortfolioQueries => Container.Resolve<IPortfolioQueryApi>();
     public RiskHistoryJournal Journal => Container.Resolve<RiskHistoryJournal>();
-    public IPortfolioEventStore Funds => Container.Resolve<IPortfolioEventStore>();
+    public IPortfolioFundOrderReader Funds => Container.Resolve<IPortfolioFundOrderReader>();
     public IFinancialQueryStore Financial => Container.Resolve<IFinancialQueryStore>();
     public IDbContextFactory DbFactory { get; }
     public ILogger<RiskQueryActor> Logger { get; }

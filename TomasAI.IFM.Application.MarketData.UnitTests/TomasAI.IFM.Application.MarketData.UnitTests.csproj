@@ -27,4 +27,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

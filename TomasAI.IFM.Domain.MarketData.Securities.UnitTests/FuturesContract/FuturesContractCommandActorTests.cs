@@ -46,7 +46,7 @@ public class FuturesContractCommandActorTests : IClassFixture<SecuritiesFixture>
             return context;
         }
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesContractCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesContractCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

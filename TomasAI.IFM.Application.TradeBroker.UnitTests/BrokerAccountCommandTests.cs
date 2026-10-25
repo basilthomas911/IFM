@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.BrokerAccount.Command;
+﻿using TomasAI.IFM.Domain.BrokerAccount.Command;
 using TomasAI.IFM.Domain.BrokerAccount.Command.State;
 using TomasAI.IFM.Domain.BrokerAccount.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -117,7 +117,7 @@ public sealed class BrokerAccountCommandTests
     [Fact]
     public void Moved_contract_resolves_from_its_original_assembly_qualified_name()
     {
-        Assert.Equal("TomasAI.IFM.Domain.BrokerAccount.Shared", typeof(BrokerAccountChangedEvent).Assembly.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.BrokerAccount", typeof(BrokerAccountChangedEvent).Assembly.GetName().Name);
         Assert.Equal(typeof(BrokerAccountChangedEvent), Type.GetType(
             "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountChangedEvent, TomasAI.IFM.Domain.BrokerAccount", throwOnError: true));
     }

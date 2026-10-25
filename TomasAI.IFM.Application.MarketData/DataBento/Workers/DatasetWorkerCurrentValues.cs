@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;

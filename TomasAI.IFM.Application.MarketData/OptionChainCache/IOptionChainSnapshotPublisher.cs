@@ -1,10 +1,10 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using TomasAI.IFM.Domain.MarketData.Shared.OptionChainCache;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.OptionChainCache;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.OptionChainCache;
 

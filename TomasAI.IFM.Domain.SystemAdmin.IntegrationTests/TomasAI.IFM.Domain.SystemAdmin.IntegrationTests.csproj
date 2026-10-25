@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -27,4 +27,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud/TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation/TomasAI.IFM.Application.DatabaseBackup.Adapters.LocalWorkstation.csproj" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup></Project>

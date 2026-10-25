@@ -16,6 +16,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb;
@@ -48,11 +49,11 @@ public sealed class TradeStrategyCatalogPostgresIntegrationTests(PostgresTradePl
             }
             var product = new TradeStrategyProduct(TradeStrategyFamilyType.FuturesOption, "ES", "USD", "XCME");
             var workers = Enumerable.Range(0, 6).Select(_ => Factory()).ToArray();
-            var results = await Task.WhenAll(workers.Select(factory => new TradeStrategySymbolStore(factory, ids).GetOrCreateAsync(product, ct)));
+            var results = await Task.WhenAll(workers.Select(factory => new TradeStrategySymbolStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).GetOrCreateAsync(product, ct)));
             results.Select(x => x.Id).Distinct().Should().ContainSingle();
-            var persisted = await new TradeStrategySymbolStore(Factory(), ids).GetOrCreateAsync(product, ct);
+            var persisted = await new TradeStrategySymbolStore(Factory(), new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).GetOrCreateAsync(product, ct);
             persisted.Should().Be(results[0]);
-            var otherExchange = await new TradeStrategySymbolStore(Factory(), ids).GetOrCreateAsync(product with { Exchange = "XTEST" }, ct);
+            var otherExchange = await new TradeStrategySymbolStore(Factory(), new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).GetOrCreateAsync(product with { Exchange = "XTEST" }, ct);
             otherExchange.Id.Should().NotBe(persisted.Id);
             var request = new CreateTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Family = product.Family, Strategy = TradeStrategyType.VerticalSpread, TimeFrame = TimeFrameType.Weekly, TradeStrategySymbolId = persisted.Id, Description = "Weekly ES spread" };
             TradeStrategyFamilyReadModel Candidate(CreateTradeStrategyFamilyRequest r) => new()
@@ -69,10 +70,10 @@ public sealed class TradeStrategyCatalogPostgresIntegrationTests(PostgresTradePl
                 CreatedOnUtc = DateTime.UtcNow,
                 CreatedBy = "integration-test"
             };
-            var created = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, ids).CreateAsync(request, Candidate(request), ct)));
+            var created = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).CreateAsync(request, Candidate(request), ct)));
             created.Select(x => x.TradeStrategyFamilyId).Distinct().Should().ContainSingle();
             created.Should().OnlyContain(x => x.DefinitionVersion == 1 && x.TradeStrategySymbolId == persisted.Id && x.Exchange == "XCME");
-            var restarted = new TradeStrategyFamilyCatalogStore(Factory(), ids);
+            var restarted = new TradeStrategyFamilyCatalogStore(Factory(), new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids));
             (await restarted.CreateAsync(request, Candidate(request), ct)).Should().Be(created[0]);
             var conflict = request with { Description = "changed payload" };
             await ((Func<Task>)(async () => await restarted.CreateAsync(conflict, Candidate(conflict), ct))).Should().ThrowAsync<InvalidOperationException>().WithMessage("*OperationId*");
@@ -85,7 +86,7 @@ public sealed class TradeStrategyCatalogPostgresIntegrationTests(PostgresTradePl
             rows.Should().HaveCount(2).And.Contain(created[0]).And.Contain(second);
             var definition = request with { OperationId = Guid.NewGuid(), Description = "Updated weekly ES spread" };
             var change = new ChangeTradeStrategyFamilyRequest { OperationId = definition.OperationId, Target = TradeStrategyFamilyReference.From(created[0]), Definition = definition };
-            var changes = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, ids).ChangeAsync(change, Candidate(definition), ct)));
+            var changes = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).ChangeAsync(change, Candidate(definition), ct)));
             changes.Distinct().Should().ContainSingle(); var changed = changes[0];
             changed.TradeStrategyFamilyId.Should().Be(created[0].TradeStrategyFamilyId); changed.DefinitionVersion.Should().Be(2);
             changed.Description.Should().Be("Updated weekly ES spread");
@@ -98,10 +99,10 @@ public sealed class TradeStrategyCatalogPostgresIntegrationTests(PostgresTradePl
             var conflictingChange = change with { OperationId = conflictingDefinition.OperationId, Target = TradeStrategyFamilyReference.From(changed), Definition = conflictingDefinition };
             await ((Func<Task>)(async () => await restarted.ChangeAsync(conflictingChange, Candidate(conflictingDefinition), ct))).Should().ThrowAsync<InvalidOperationException>().WithMessage("*already exists*");
             var remove = new RemoveTradeStrategyFamilyRequest { OperationId = Guid.NewGuid(), Target = TradeStrategyFamilyReference.From(changed) };
-            var removals = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, ids).RemoveAsync(remove, DateTime.UtcNow, "remover", ct)));
+            var removals = await Task.WhenAll(workers.Select(factory => new TradeStrategyFamilyCatalogStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).RemoveAsync(remove, DateTime.UtcNow, "remover", ct)));
             removals.Distinct().Should().ContainSingle(); var retired = removals[0];
             retired.DefinitionVersion.Should().Be(3); retired.State.Should().Be(TradeStrategyFamilyState.Retired); retired.CreatedBy.Should().Be("remover");
-            (await new TradeStrategyFamilyCatalogStore(Factory(), ids).RemoveAsync(remove, DateTime.UtcNow, "remover", ct)).Should().Be(retired);
+            (await new TradeStrategyFamilyCatalogStore(Factory(), new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).RemoveAsync(remove, DateTime.UtcNow, "remover", ct)).Should().Be(retired);
             await ((Func<Task>)(async () => await restarted.RemoveAsync(remove with { Target = TradeStrategyFamilyReference.From(second) }, DateTime.UtcNow, "remover", ct)))
                 .Should().ThrowAsync<InvalidOperationException>().WithMessage("*OperationId*");
             var recreated = await restarted.CreateAsync(duplicate, Candidate(duplicate), ct);
@@ -113,7 +114,7 @@ public sealed class TradeStrategyCatalogPostgresIntegrationTests(PostgresTradePl
             {
                 var edit = daily with { OperationId = Guid.NewGuid(), Description = "Racing change " + index };
                 var racing = new ChangeTradeStrategyFamilyRequest { OperationId = edit.OperationId, Target = TradeStrategyFamilyReference.From(second), Definition = edit };
-                try { return await new TradeStrategyFamilyCatalogStore(factory, ids).ChangeAsync(racing, Candidate(edit), ct); }
+                try { return await new TradeStrategyFamilyCatalogStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids)).ChangeAsync(racing, Candidate(edit), ct); }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("changed or was removed")) { return null; }
             }));
             races.Count(x => x is not null).Should().Be(1, "only one edit of the same expected version may commit");

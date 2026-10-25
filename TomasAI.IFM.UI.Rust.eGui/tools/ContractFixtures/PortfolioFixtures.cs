@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using System.Reflection;
 using System.Text.Json;
 using TomasAI.IFM.Framework.Serialization;
@@ -12,7 +12,7 @@ internal static class PortfolioFixtures {
  public static readonly FundMandateReadModel Fund=new(){PortfolioId=1,FundId=2,FundCode="native-fixture",Name="Native fixture fund",FundMandateVersion=1,OperatingState=FundOperatingState.Active,TradingYear=2026,EffectiveFromUtc=StrategyFixtures.At,CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",DecisionHorizon="Daily",Objective="Native parity fixture",UnderlyingUniverse=["ES"],EligibleAssetTypes=["FuturesOption"],PermittedDirections=["Long","Short"],PermittedConditions=["Normal"],PermittedTradeFamilies=["IronCondor"]};
  public static readonly PortfolioFinancialPolicyReadModel Policy=new(){PortfolioId=1,PolicyId=11,PolicyVersion=1,Name="Fixture risk policy",OperatingState=PortfolioFinancialPolicyState.Active,CapitalBase=50000m,ProtectedReserve=5000m,MaximumDeployableCapital=45000m,MaximumRiskPerTrade=1000m,MaximumAggregateRisk=5000m,MaximumMargin=10000m,MaximumGrossNotional=1000000m,MaximumOpenPositions=5,MaximumDrawdownAmount=10000m,EffectiveFromUtc=StrategyFixtures.At,CreatedOnUtc=StrategyFixtures.At,CreatedBy="Fixture",AggregateRevision=5,TradeFamilyLimits=[new(){TradeStrategyFamilyId=99,DefinitionVersion=2,Enabled=true,MaximumRiskPerTrade=1000m,MaximumAggregateRisk=5000m,MaximumMargin=10000m,MaximumGrossNotional=1000000m,MaximumOpenPositions=5}]};
  public static void Export(string output){
-  var templates=typeof(PortfolioReadModel).Assembly.GetTypes().Where(t=>!t.IsAbstract&&!t.ContainsGenericParameters&&t.Namespace?.StartsWith("TomasAI.IFM.Domain.Portfolio.Shared",StringComparison.Ordinal)==true&&t.GetConstructor(Type.EmptyTypes) is not null&&t.GetField("Actor",BindingFlags.Public|BindingFlags.Static) is not null&&t.GetCustomAttribute<MessagePackObjectAttribute>() is not null)
+  var templates=typeof(PortfolioReadModel).Assembly.GetTypes().Where(t=>!t.IsAbstract&&!t.ContainsGenericParameters&&t.Namespace?.StartsWith("TomasAI.IFM.Application.Contracts.Portfolio",StringComparison.Ordinal)==true&&t.GetConstructor(Type.EmptyTypes) is not null&&t.GetField("Actor",BindingFlags.Public|BindingFlags.Static) is not null&&t.GetCustomAttribute<MessagePackObjectAttribute>() is not null)
    .ToDictionary(t=>t.FullName!,t=>MessagePackSerializer.Serialize(t,Activator.CreateInstance(t),MessagePackBinarySerializer.ContentOptions).Select(v=>(int)v).ToArray());
   FixtureFiles.WriteAllText(Path.Combine(output,"portfolio-request-defaults.json"),JsonSerializer.Serialize(templates));
   // DTO initializers are part of editor behavior (currency, schema and empty

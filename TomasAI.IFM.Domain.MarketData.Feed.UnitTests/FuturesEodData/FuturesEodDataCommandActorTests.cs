@@ -5,7 +5,7 @@ using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Exceptions;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -33,7 +33,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         : FuturesEodDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesEodDataCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesEodDataCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesEodDataCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

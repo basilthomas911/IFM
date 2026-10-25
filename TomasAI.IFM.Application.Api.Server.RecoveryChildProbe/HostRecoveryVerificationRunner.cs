@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Api.Server.Core.Observability.Logging;
+﻿using TomasAI.IFM.Application.Api.Server.Core.Observability.Logging;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Composition;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.Contracts;
 using TomasAI.IFM.Application.Api.Server.Core.Recovery.Databento.HardRecovery;
@@ -16,7 +16,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.StatusConsole;

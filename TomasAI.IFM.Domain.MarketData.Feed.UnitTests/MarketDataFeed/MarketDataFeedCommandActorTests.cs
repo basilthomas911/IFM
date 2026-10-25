@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Command;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -32,7 +32,7 @@ public class MarketDataFeedCommandActorTests : IClassFixture<MarketDataFeedTestF
         : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<MarketDataFeedCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

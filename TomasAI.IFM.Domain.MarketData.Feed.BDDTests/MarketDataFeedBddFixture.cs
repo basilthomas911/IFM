@@ -22,7 +22,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -38,7 +38,7 @@ public sealed class MarketDataFeedBddFixture
     public MarketDataFeedBddFixture()
     {
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     public TestableFuturesBarDataCommandActor CreateCommandActor(
@@ -125,12 +125,12 @@ public sealed class MarketDataFeedBddFixture
 
     public TestableMarketDataFeedQueryActor CreateMarketDataFeedQueryActor(
         ApplicationMarketDataApi? marketDataApi = null,
-        ISequenceIdGenerator? sequenceIdGenerator = null,
+        ISequenceIdApi? sequenceIdGenerator = null,
         IDbContextFactory? dbFactory = null,
         ILogger<MarketDataFeedQueryActor>? logger = null)
         => new(
             marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
-            sequenceIdGenerator ?? Substitute.For<ISequenceIdGenerator>(),
+            sequenceIdGenerator ?? Substitute.For<ISequenceIdApi>(),
             dbFactory ?? Substitute.For<IDbContextFactory>(),
             logger ?? Substitute.For<ILogger<MarketDataFeedQueryActor>>());
 }
@@ -142,7 +142,7 @@ public sealed class TestableMarketDataFeedCommandActor(
     : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext<MarketDataFeedCommandActor> context) => OnStartup(context);
-    public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message) => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
     public ValueTask InvokeOnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
@@ -162,7 +162,7 @@ public sealed class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
 
     public TestableMarketDataFeedQueryActor(
         ApplicationMarketDataApi marketDataApi,
-        ISequenceIdGenerator sequenceIdGenerator,
+        ISequenceIdApi sequenceIdGenerator,
         IDbContextFactory dbFactory,
         ILogger<MarketDataFeedQueryActor> logger)
         : this(TypedActorContextFactory.Query(marketDataApi, sequenceIdGenerator, dbFactory, logger)) { }
@@ -170,7 +170,7 @@ public sealed class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
     TestableMarketDataFeedQueryActor(IMarketDataFeedQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext<MarketDataFeedQueryActor> context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public IQuery InvokeParseMessage(IQueryActorContext<MarketDataFeedQueryActor> context, NatsMsg<byte[]> message) => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
     public ValueTask InvokeReceiveAsync(IQueryActorContext<MarketDataFeedQueryActor> context, IQuery query) => ReceiveAsync(context, query);
     public ValueTask InvokeOnExceptionAsync(
         IQueryActorContext<MarketDataFeedQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
@@ -186,7 +186,7 @@ public sealed class TestableFuturesBarDataCommandActor(
     public ValueTask InvokeOnStartup(ICommandActorContext<FuturesBarDataCommandActor> context) => OnStartup(context);
 
     public ICommand InvokeParseMessage(ICommandActorContext<FuturesBarDataCommandActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
         ICommandActorContext<FuturesBarDataCommandActor> context, IActorState state, ICommand command)
@@ -222,7 +222,7 @@ public sealed class TestableFuturesBarDataQueryActor : FuturesBarDataQueryActor
         : base(context) => Context = context;
 
     public IQuery InvokeParseMessage(IQueryActorContext<FuturesBarDataQueryActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesBarDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
@@ -241,7 +241,7 @@ public sealed class TestableFuturesClosingPriceCommandActor(
     public ValueTask InvokeOnStartup(ICommandActorContext<FuturesClosingPriceCommandActor> context) => OnStartup(context);
 
     public ICommand InvokeParseMessage(ICommandActorContext<FuturesClosingPriceCommandActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
         ICommandActorContext<FuturesClosingPriceCommandActor> context, IActorState state, ICommand command)
@@ -273,7 +273,7 @@ public sealed class TestableFuturesEodDataCommandActor(
     public ValueTask InvokeOnStartup(ICommandActorContext<FuturesEodDataCommandActor> context) => OnStartup(context);
 
     public ICommand InvokeParseMessage(ICommandActorContext<FuturesEodDataCommandActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
         ICommandActorContext<FuturesEodDataCommandActor> context, IActorState state, ICommand command)
@@ -309,7 +309,7 @@ public sealed class TestableFuturesEodDataQueryActor : FuturesEodDataQueryActor
         : base(context) => Context = context;
 
     public IQuery InvokeParseMessage(IQueryActorContext<FuturesEodDataQueryActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
@@ -328,7 +328,7 @@ public sealed class TestableFuturesOptionTickDataCommandActor(
     public ValueTask InvokeOnStartup(ICommandActorContext<FuturesOptionTickDataCommandActor> context) => OnStartup(context);
 
     public ICommand InvokeParseMessage(ICommandActorContext<FuturesOptionTickDataCommandActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
         ICommandActorContext<FuturesOptionTickDataCommandActor> context, IActorState state, ICommand command)
@@ -364,7 +364,7 @@ public sealed class TestableFuturesOptionTickDataQueryActor : FuturesOptionTickD
         : base(context) => Context = context;
 
     public IQuery InvokeParseMessage(IQueryActorContext<FuturesOptionTickDataQueryActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesOptionTickDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
@@ -383,7 +383,7 @@ public sealed class TestableFuturesTickDataCommandActor(
     public ValueTask InvokeOnStartup(ICommandActorContext<FuturesTickDataCommandActor> context) => OnStartup(context);
 
     public ICommand InvokeParseMessage(ICommandActorContext<FuturesTickDataCommandActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
         ICommandActorContext<FuturesTickDataCommandActor> context, IActorState state, ICommand command)
@@ -419,7 +419,7 @@ public sealed class TestableFuturesTickDataQueryActor : FuturesTickDataQueryActo
         : base(context) => Context = context;
 
     public IQuery InvokeParseMessage(IQueryActorContext<FuturesTickDataQueryActor> context, NatsMsg<byte[]> message)
-        => ParseMessage(context, message);
+        => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
     public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesTickDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);

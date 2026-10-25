@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.Storage.ScheduledTaskDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb;
 using TomasAI.IFM.Application.Storage.TradeTickQuoteDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Model;

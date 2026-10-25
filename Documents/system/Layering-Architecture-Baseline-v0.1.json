@@ -1,0 +1,259 @@
+{
+  "projects": 85,
+  "edges": 358,
+  "compositionRoots": [
+    "TomasAI.IFM.Application.Api.Server",
+    "TomasAI.IFM.Application.Api.Server.Core",
+    "TomasAI.IFM.Application.DatabaseBackup.Console",
+    "TomasAI.IFM.Application.MarketData.Host",
+    "TomasAI.IFM.Application.MarketData.Host.Worker",
+    "TomasAI.IFM.Application.ServerManager"
+  ],
+  "violations": [
+    {
+      "source": "TomasAI.IFM.Application.Actor.Client",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.Application.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.BrokerAccount.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.Portfolio.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.Reference.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.Supervisor.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Api.Nats.Client",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.BlackBoard",
+      "target": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.BlackBoard",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.BlackBoard",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.BlackBoard",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.DatabaseBackup",
+      "target": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.EventProjector",
+      "target": "TomasAI.IFM.Domain.EventSourcing",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.MarketData",
+      "target": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.MarketData",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.MarketData",
+      "target": "TomasAI.IFM.Domain.Reference.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.Portfolio.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.Reference.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Storage",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Application.Strategy",
+      "target": "TomasAI.IFM.Domain.Strategy.Contracts.Shared",
+      "reason": "Reusable Application -> Domain"
+    },
+    {
+      "source": "TomasAI.IFM.Domain.MarketData.Feed",
+      "target": "TomasAI.IFM.Framework.OptionPricer",
+      "reason": "Domain -> Framework"
+    },
+    {
+      "source": "TomasAI.IFM.Domain.Portfolio",
+      "target": "TomasAI.IFM.Framework.SequenceId",
+      "reason": "Domain -> Framework"
+    },
+    {
+      "source": "TomasAI.IFM.Domain.Reference.Shared",
+      "target": "TomasAI.IFM.Framework.MarketData",
+      "reason": "Domain -> Framework"
+    },
+    {
+      "source": "TomasAI.IFM.Domain.Trade.Shared",
+      "target": "TomasAI.IFM.Framework.Serialization",
+      "reason": "Domain -> Framework"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.MarketData",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.MarketData",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.MarketData.DataBento",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.MarketData.FinancialModelingPrep",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.OptionPricer",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.Storage",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.Storage.Azure",
+      "target": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud",
+      "target": "TomasAI.IFM.Application.DatabaseBackup",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation",
+      "target": "TomasAI.IFM.Application.DatabaseBackup",
+      "reason": "Framework -> higher layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.Domain",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.Domain",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.Domain",
+      "target": "TomasAI.IFM.Framework.Storage",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.EventProducers",
+      "target": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.EventProducers",
+      "target": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.EventProducers",
+      "target": "TomasAI.IFM.Domain.MarketData.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.EventProducers",
+      "target": "TomasAI.IFM.Domain.Trade.Shared",
+      "reason": "Shared -> implementation layer"
+    },
+    {
+      "source": "TomasAI.IFM.Shared.EventProducers",
+      "target": "TomasAI.IFM.Framework.Messaging.Nats",
+      "reason": "Shared -> implementation layer"
+    }
+  ]
+}

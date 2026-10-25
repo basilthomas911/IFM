@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using System.Text.Json;
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
@@ -12,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
 
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 using TomasAI.IFM.Shared.JobScheduler;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -398,7 +400,7 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     }
 
     /// <summary>Maps persisted Reference columns in query ordinal order.</summary>
-    internal static ScheduledJobReadModel MapToScheduledJobJoined(NpgsqlDataReader reader)
+    internal static ScheduledJobReadModel MapToScheduledJobJoined(System.Data.Common.DbDataReader reader)
     {
         var row = new ScheduledJobReadModel(reader.GetInt32(0), reader.GetString(1), Enum.Parse<JobScheduleType>(reader.GetString(2)), reader.GetDateTime(3), reader.GetDouble(4), reader.GetString(5), reader.GetBoolean(6), reader.GetDateTime(7), reader.GetString(8), reader.GetDateTime(9), reader.GetString(10));
         if (!reader.IsDBNull(11))
@@ -512,7 +514,7 @@ public sealed class ReferenceDbContext(IDbConnectionSettings connectionSettings,
     /// <summary>Maps persisted Reference columns in query ordinal order.</summary>
     internal static (string Key, InstrumentDefinitionSelection Value) MapToInstrumentSelection(IObjectDataRecord row) => (row.GetString(0), MessagePackBinarySerializer.Shared.Deserialize<InstrumentDefinitionSelection>(row.GetBytes(1))!);
     /// <summary>Maps a lookup from its native PostgreSQL ordinal columns.</summary>
-    internal static LookupTypeReadModel MapToLookupReader(NpgsqlDataReader reader) => new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3), reader.GetDateTime(4), reader.GetString(5));
+    internal static LookupTypeReadModel MapToLookupReader(System.Data.Common.DbDataReader reader) => new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3), reader.GetDateTime(4), reader.GetString(5));
     /// <summary>Maps the published instrument snapshot metadata.</summary>
     internal static InstrumentDefinitionSnapshot MapToInstrumentDefinitionSnapshot(IObjectDataRecord row) =>
         new(row.GetGuid(0),row.GetDateTime(1),row.GetLong(2),JsonSerializer.Deserialize<string[]>(row.GetString(3))!);

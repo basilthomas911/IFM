@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
@@ -8,8 +8,8 @@ using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Host.Worker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 

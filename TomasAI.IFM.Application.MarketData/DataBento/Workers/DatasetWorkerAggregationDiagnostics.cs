@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Framework.MarketData.DataBento;

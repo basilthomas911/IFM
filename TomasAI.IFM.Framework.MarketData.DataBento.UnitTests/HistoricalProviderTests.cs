@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+﻿using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Framework.MarketData.DataBento.Historical;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 

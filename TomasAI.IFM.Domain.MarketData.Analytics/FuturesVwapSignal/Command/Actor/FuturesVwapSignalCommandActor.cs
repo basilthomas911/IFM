@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
+﻿using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

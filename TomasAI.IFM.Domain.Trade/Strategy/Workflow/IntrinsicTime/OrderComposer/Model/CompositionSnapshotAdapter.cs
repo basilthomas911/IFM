@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using AppPricing = TomasAI.IFM.Application.MarketData.Pricing;
 using DomainPricing = TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing;
 
@@ -12,31 +12,31 @@ public static class CompositionSnapshotAdapter
         return new(x.Price, x.Delta, x.ImpliedVolatility, From(x.IvUnderlying), From(x.IvOption), x.IvCalculatedAtUtc, x.CalculatedAtUtc, x.ValidUntilUtc, x.PolicyVersion, x.ContextDigest);
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote From(TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingQuote x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(x.ContractId, x.Bid, x.Ask, x.BidSize, x.AskSize, x.EventAtUtc, x.ReceivedAtUtc, x.Sequence, x.GenerationId);
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingCalendar From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingCalendar From(TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingCalendar x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(x.Version, x.TimeZoneId, x.CoverageFrom, x.CoverageUntil, x.ValueDateRollover, x.TradingDates);
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryRateConversionPolicy From(TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryRateConversionPolicy From(TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConversionPolicy x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(x.Source, x.SourceSeriesId, (TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryRateConvention)x.Convention, x.Version, x.EvidenceId);
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryContinuousRate From(TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryContinuousRate From(TomasAI.IFM.Shared.MarketData.Contracts.TreasuryContinuousRate x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new((TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryTenor)x.Tenor, x.RatePercent, x.AnnualContinuousRate, x.ValueDate, x.ObservedAtUtc, x.CurveDigest, From(x.Conversion), x.ModelingPolicy);
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingContext From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingContext From(TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingContext x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(From(x.Contract), From(x.Calendar), From(x.Rate), x.ValidUntilUtc, x.GenerationId, x.PricerVersion, x.MaximumQuoteAgeMilliseconds, x.MaximumQuoteSkewMilliseconds, x.PublicationPolicyVersion);
@@ -88,7 +88,7 @@ public static class CompositionSnapshotAdapter
         };
     }
 
-    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention From(TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention x)
+    public static TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention From(TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingConvention x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new()
@@ -131,31 +131,31 @@ public static class CompositionSnapshotAdapter
         return new(x.Price, x.Delta, x.ImpliedVolatility, To(x.IvUnderlying), To(x.IvOption), x.IvCalculatedAtUtc, x.CalculatedAtUtc, x.ValidUntilUtc, x.PolicyVersion, x.ContextDigest);
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingQuote To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingQuote To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingQuote x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(x.ContractId, x.Bid, x.Ask, x.BidSize, x.AskSize, x.EventAtUtc, x.ReceivedAtUtc, x.Sequence, x.GenerationId);
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingCalendar To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingCalendar x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingCalendar To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingCalendar x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(x.Version, x.TimeZoneId, x.CoverageFrom, x.CoverageUntil, x.ValueDateRollover, x.TradingDates);
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryRateConversionPolicy x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConversionPolicy To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryRateConversionPolicy x)
     {
         ArgumentNullException.ThrowIfNull(x);
-        return new(x.Source, x.SourceSeriesId, (TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConvention)x.Convention, x.Version, x.EvidenceId);
+        return new(x.Source, x.SourceSeriesId, (TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConvention)x.Convention, x.Version, x.EvidenceId);
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.TreasuryContinuousRate To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryContinuousRate x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.TreasuryContinuousRate To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.TreasuryContinuousRate x)
     {
         ArgumentNullException.ThrowIfNull(x);
-        return new((TomasAI.IFM.Framework.MarketData.Contracts.TreasuryTenor)x.Tenor, x.RatePercent, x.AnnualContinuousRate, x.ValueDate, x.ObservedAtUtc, x.CurveDigest, To(x.Conversion), x.ModelingPolicy);
+        return new((TomasAI.IFM.Shared.MarketData.Contracts.TreasuryTenor)x.Tenor, x.RatePercent, x.AnnualContinuousRate, x.ValueDate, x.ObservedAtUtc, x.CurveDigest, To(x.Conversion), x.ModelingPolicy);
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingContext To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingContext x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingContext To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingContext x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new(To(x.Contract), To(x.Calendar), To(x.Rate), x.ValidUntilUtc, x.GenerationId, x.PricerVersion, x.MaximumQuoteAgeMilliseconds, x.MaximumQuoteSkewMilliseconds, x.PublicationPolicyVersion);
@@ -207,7 +207,7 @@ public static class CompositionSnapshotAdapter
         };
     }
 
-    public static TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPricingConvention To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention x)
+    public static TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPricingConvention To(TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.OrderComposition.Pricing.OptionPricingConvention x)
     {
         ArgumentNullException.ThrowIfNull(x);
         return new()
@@ -222,11 +222,11 @@ public static class CompositionSnapshotAdapter
             Exchange = x.Exchange,
             Currency = x.Currency,
             UnderlyingContractId = x.UnderlyingContractId,
-            ExerciseStyle = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionExerciseStyle)x.ExerciseStyle,
-            SettlementStyle = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionSettlementStyle)x.SettlementStyle,
+            ExerciseStyle = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionExerciseStyle)x.ExerciseStyle,
+            SettlementStyle = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionSettlementStyle)x.SettlementStyle,
             ExpirationUtc = x.ExpirationUtc,
             LastTradingUtc = x.LastTradingUtc,
-            DayCount = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingDayCount)x.DayCount,
+            DayCount = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.PricingDayCount)x.DayCount,
             CalendarVersion = x.CalendarVersion,
             Multiplier = x.Multiplier,
             TickSize = x.TickSize,
@@ -236,11 +236,11 @@ public static class CompositionSnapshotAdapter
             EvidenceId = x.EvidenceId,
             EffectiveFromUtc = x.EffectiveFromUtc,
             EffectiveUntilUtc = x.EffectiveUntilUtc,
-            PremiumTickRule = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPremiumTickRule)x.PremiumTickRule,
-            PremiumStyle = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.OptionPremiumStyle)x.PremiumStyle,
-            UnderlyingKind = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingUnderlyingKind)x.UnderlyingKind,
+            PremiumTickRule = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPremiumTickRule)x.PremiumTickRule,
+            PremiumStyle = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.OptionPremiumStyle)x.PremiumStyle,
+            UnderlyingKind = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.PricingUnderlyingKind)x.UnderlyingKind,
             Strike = x.Strike,
-            Right = (TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingOptionRight)x.Right,
+            Right = (TomasAI.IFM.Shared.MarketData.Contracts.Pricing.PricingOptionRight)x.Right,
         };
     }
 }

@@ -8,6 +8,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSigna
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Application.Shared;
 using Xunit;
 
 namespace TomasAI.IFM.LivePipeline.IntegrationTests;
@@ -41,7 +44,8 @@ public sealed class SessionAnalyticsInitializationTests
         commands.StartFuturesMacdSignalAsync(Arg.Any<FuturesMacdSignalEntityId>()).Returns(call => {
             FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Attach(call.Arg<FuturesMacdSignalEntityId>()); return Accepted();
         });
-        var initializer = new ApiApplicationStartupActivities(null!, null!, null!, null!, commands,
+        var sessions = Substitute.For<IFuturesMarketSessionAuthority>();
+        var initializer = new ApiApplicationStartupActivities(sessions, null!, null!, null!, commands,
             null!, null!, market, null!, null!, cache, new(), new(), new() { ParticipantTimeout = TimeSpan.FromMilliseconds(30) },
             TimeProvider.System, NullLogger<ApiApplicationStartupActivities>.Instance);
         var first = new DateOnly(2026, 10, 19); var next = first.AddDays(1);
@@ -51,9 +55,15 @@ public sealed class SessionAnalyticsInitializationTests
             await initializer.InitializeAsync(first, default);
             await commands.Received(6).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == first));
             ready = false;
-            await Assert.ThrowsAsync<TimeoutException>(() => initializer.InitializeAsync(next, default));
+            // The provider/feed-start callback must complete even when no indicator has a value yet.
+            await initializer.InitializeAsync(next, default).WaitAsync(TimeSpan.FromSeconds(2));
+            sessions.Current.Returns(new MarketSessionReadModel { ActiveValueDate = next, OperationalValueDate = next });
+            var startup = new ApplicationStartupContext(next, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+            // Full operational startup still rejects cold indicators; it never declares trading ready.
+            await Assert.ThrowsAsync<TimeoutException>(() => initializer.StartRealtimeAnalyticsAsync(startup, default).AsTask());
             ready = true;
-            await initializer.InitializeAsync(next, default);
+            Assert.Equal(ApplicationStartupActivityOutcome.Started,
+                await initializer.StartRealtimeAnalyticsAsync(startup, default));
             await commands.Received(12).StartFuturesRsiSignalAsync(Arg.Is<FuturesRsiSignalEntityId>(id => id.ValueDate == next));
             await commands.Received(12).StartFuturesAdxSignalAsync(Arg.Is<FuturesAdxSignalEntityId>(id => id.ValueDate == next));
         }

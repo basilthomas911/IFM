@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Security.Cryptography;
 using NATS.Client.Core;
 using Quartz;
@@ -29,7 +30,7 @@ public sealed class ActorSchedulerHostService(SchedulerHostOptions options, Sche
         var mailbox = new ActorMailboxId(ActorType.Event, ScheduledTaskIdentities.RuntimeActor(options.Environment, options.HostId));
         await producer.StartAsync(mailbox, stoppingToken);
         await listener.StartAsync("scheduler-" + ScheduledTaskIdentities.Catalog(options.Environment, options.HostId).Format(),
-            new Dictionary<ActorMailboxId, List<string>> { [mailbox] = [ApplyScheduledTaskRuntimeEvent.Verb, ExecuteScheduledTaskRuntimeRunEvent.Verb] }, AdmitAsync);
+            new Dictionary<ActorMailboxId, List<string>> { [mailbox] = [ApplyScheduledTaskRuntimeEvent.Verb, ExecuteScheduledTaskRuntimeRunEvent.Verb] }, AdmitMessageAsync);
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -75,6 +76,11 @@ public sealed class ActorSchedulerHostService(SchedulerHostOptions options, Sche
     }
     /// <summary>Applies a committed control event only on its intended owning host.</summary>
     public async ValueTask AdmitAsync(string verb, NatsMsg<byte[]> message)
+    {
+        using var adapter = new TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message);
+        await AdmitMessageAsync(verb, adapter).ConfigureAwait(false);
+    }
+    async ValueTask AdmitMessageAsync(string verb, IActorMessage message)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_stopping);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));

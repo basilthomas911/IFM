@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 

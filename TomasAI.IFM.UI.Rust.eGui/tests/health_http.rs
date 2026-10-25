@@ -23,24 +23,18 @@ fn response(status: &str, body: &str) -> Vec<u8> {
 }
 
 #[tokio::test]
-async fn console_history_pages_validate_replay_watermarks_and_fail_without_advancing_on_bad_responses() {
-    use ifm_ui_egui::services::status_console_history::read_page;
+async fn console_setup_and_batch_ack_are_explicit_requests_and_report_failed_acknowledgements() {
+    use ifm_ui_egui::services::status_console_history::{connect,acknowledge,ConsoleDelivery};
     let client=HealthClient::new().unwrap();
-    let row=json!({"sequence":1,"id":"11111111-2222-3333-4444-555555555555","statusDate":"2000-01-03T12:00:00Z","message":"startup before UI"});
-    let body=json!({"nextSequence":1,"throughSequence":2,"hasMore":true,"messages":[row]}).to_string();
-    let(url,worker)=server(response("200 OK",&body),Duration::ZERO);
-    let page=read_page(&client,Some(&url),0,None,Duration::from_secs(2)).await.unwrap();worker.join().unwrap();
-    assert_eq!(page.next,1);assert_eq!(page.through,2);assert!(page.more);assert_eq!(page.messages[0].message,"startup before UI");
-    for body in [
-        json!({"nextSequence":1,"throughSequence":2,"hasMore":true,"messages":[]}),
-        json!({"nextSequence":1,"throughSequence":3,"hasMore":true,"messages":[]}),
-        json!({"nextSequence":2,"throughSequence":2,"hasMore":false,"messages":[]}),
-    ] {
-        let(url,worker)=server(response("200 OK",&body.to_string()),Duration::ZERO);
-        assert!(read_page(&client,Some(&url),1,Some(2),Duration::from_secs(2)).await.is_err());worker.join().unwrap();
-    }
+    let(url,worker)=server(response("200 OK","{}"),Duration::ZERO);
+    connect(&client,Some(&url),Duration::from_secs(2)).await.unwrap();worker.join().unwrap();
     let(url,worker)=server(response("503 Unavailable","{}"),Duration::ZERO);
-    assert!(read_page(&client,Some(&url),1,Some(2),Duration::from_secs(2)).await.err().unwrap().contains("503"));worker.join().unwrap();
+    assert!(acknowledge(&client,Some(&url),&["receipt".into()],Duration::from_secs(2)).await.err().unwrap().contains("503"));worker.join().unwrap();
+    let receipt=ConsoleDelivery::new(vec!["receipt".into()]);
+    assert!(tokio::time::timeout(Duration::from_millis(20),receipt.wait_displayed()).await.is_err());
+    receipt.mark_displayed();
+    tokio::time::timeout(Duration::from_millis(20),receipt.wait_displayed()).await.unwrap();
+    assert!(receipt.is_displayed());
 }
 
 #[tokio::test]

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -7,9 +8,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;

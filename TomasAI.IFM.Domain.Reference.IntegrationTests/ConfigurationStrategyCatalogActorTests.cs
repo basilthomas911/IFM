@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Reference.StrategyCatalog;
 using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies;
 using TomasAI.IFM.Domain.Reference.TradeStrategyFamilies.Command.Actor;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

@@ -7,7 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Extensions;
 /// <remarks>
 /// Storage queries use <see cref="IDbContextFactory.MarketDataDb"/>; provider contract and hot-price queries use
 /// the application market-data API; sequence identifiers
-/// are allocated through <see cref="ISequenceIdGenerator"/>. Every public method returns a typed service result
+/// are allocated through <see cref="ISequenceIdApi"/>. Every public method returns a typed service result
 /// with its query-specific error identifier. The implementation may be registered as a singleton.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S2325", Justification = "C# extension members use their declared receiver; static conversion would remove the established actor context extension contract.")]

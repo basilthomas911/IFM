@@ -9,7 +9,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
-using TomasAI.IFM.Framework.Messaging.Nats;
+
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.EventProjector;

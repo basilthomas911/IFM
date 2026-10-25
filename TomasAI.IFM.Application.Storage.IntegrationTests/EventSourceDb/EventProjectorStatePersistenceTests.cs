@@ -4,6 +4,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using Xunit;

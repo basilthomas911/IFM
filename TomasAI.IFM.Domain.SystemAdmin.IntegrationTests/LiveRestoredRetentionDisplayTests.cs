@@ -1,9 +1,11 @@
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Journal;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Processing;
 using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.Extensions.Logging.Abstractions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Translation;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;

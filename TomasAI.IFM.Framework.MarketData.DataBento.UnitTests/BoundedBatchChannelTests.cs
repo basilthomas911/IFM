@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 
 public sealed class BoundedBatchChannelTests

@@ -27,7 +27,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
         TestableFuturesBarDataQueryActor(IFuturesBarDataQueryContext context) : base(context) => Context = context;
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesBarDataQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesBarDataQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);

@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;

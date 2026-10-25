@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.EventSourcing.TradePlan;
+﻿using TomasAI.IFM.Application.EventSourcing.Projections.TradePlan;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;

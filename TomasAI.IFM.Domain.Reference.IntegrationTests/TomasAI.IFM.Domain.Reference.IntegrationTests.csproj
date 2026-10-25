@@ -39,10 +39,10 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Reference.Shared\TomasAI.IFM.Domain.Reference.Shared.csproj" />
-      <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Reference\TomasAI.IFM.Application.Contracts.Reference.csproj" />
+      <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
       <ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
   </ItemGroup>
 

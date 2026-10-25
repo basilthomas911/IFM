@@ -7,6 +7,7 @@ using TomasAI.IFM.Application.Storage.TradePlanDb;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.TradePlanDb;
@@ -135,7 +136,7 @@ public sealed class TradePlanDbContextConventionTests
         var storage = typeof(TradePlanDbContext).Assembly;
         var shared = typeof(StrategyTradePlanSnapshot).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.Trade.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.Trade", shared.GetName().Name);
         Assert.Equal(shared, typeof(ExitPositionWorkflowProjection).Assembly);
         Assert.NotEqual(storage, shared);
     }

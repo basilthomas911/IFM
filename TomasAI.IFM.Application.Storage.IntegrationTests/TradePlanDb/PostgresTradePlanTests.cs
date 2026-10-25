@@ -12,6 +12,7 @@ using TomasAI.IFM.Application.Storage.TradePlanDb;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;

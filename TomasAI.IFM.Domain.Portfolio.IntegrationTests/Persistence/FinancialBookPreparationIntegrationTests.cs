@@ -198,6 +198,6 @@ public sealed class FinancialBookPreparationIntegrationTests(PortfolioEventStore
         var sequence = Substitute.For<ISequenceIdGenerator>(); long next = Random.Shared.Next(100000, 900000000);
         sequence.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>()).Returns(_ => new ValueTask<long>(Interlocked.Increment(ref next)));
         var scope = new FinancialReadScope { PortfolioId = id, Access = new("test", ["PortfolioAdministrator"]) };
-        return (new(store, new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())), new(sequence), new(development)), scope, store);
+        return (new(store, new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())), new(new global::TomasAI.IFM.Application.Identity.SequenceIdApi(sequence)), new(development)), scope, store);
     }
 }

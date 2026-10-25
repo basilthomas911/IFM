@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;

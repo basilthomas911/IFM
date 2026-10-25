@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Resiliency;

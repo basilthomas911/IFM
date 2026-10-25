@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Architecture;
+﻿namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Architecture;
 
 public sealed class ApplicationLifecycleOwnershipTests
 {
@@ -67,7 +67,7 @@ public sealed class ApplicationLifecycleOwnershipTests
     {
         var actorStartup = File.ReadAllText(Path.Combine(
             root,
-            "TomasAI.IFM.Domain.Supervisor.Shared",
+            "TomasAI.IFM.Application.Contracts.Supervisor",
             "Service",
             "Lifecycle",
             "SupervisorManagedActorLifecycle.cs"));

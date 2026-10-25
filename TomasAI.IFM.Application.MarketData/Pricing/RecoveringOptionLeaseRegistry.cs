@@ -1,7 +1,7 @@
-using TomasAI.IFM.Shared.Diagnostics;
+﻿using TomasAI.IFM.Shared.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 

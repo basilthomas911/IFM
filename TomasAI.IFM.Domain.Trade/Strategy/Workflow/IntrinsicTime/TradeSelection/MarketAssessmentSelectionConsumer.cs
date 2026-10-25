@@ -14,7 +14,7 @@ public sealed class MarketAssessmentSelectionConsumer
     public static string MandateHash(FundMandateReadModel mandate)
     {
         ArgumentNullException.ThrowIfNull(mandate);
-        return Convert.ToHexString(SHA256.HashData(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.SerializeHistoricalContent(mandate.DefensiveCopy())));
+        return Convert.ToHexString(SHA256.HashData(TomasAI.IFM.Application.Serialization.MessagePackBinarySerializer.SerializeHistoricalContent(mandate.DefensiveCopy())));
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1822", Justification = "Keep the existing instance calculator contract used by dependency injection and its callers; calculation results do not depend on mutable service state.")]

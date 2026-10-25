@@ -14,6 +14,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TomasAI.IFM.Application.DatabaseBackup\TomasAI.IFM.Application.DatabaseBackup.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Shared.Contracts/TomasAI.IFM.Shared.Contracts.csproj" />
   </ItemGroup>
 </Project>

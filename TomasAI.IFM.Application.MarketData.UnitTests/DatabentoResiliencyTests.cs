@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using FluentAssertions;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -887,7 +888,7 @@ public sealed class DatabentoResiliencyTests
             ? Enum.GetValues<DatabentoContractRole>() : []
     };
 
-    static TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts.TickAggregationMetricsSnapshot Metrics(
+    static TomasAI.IFM.Shared.MarketData.Diagnostics.TickAggregationMetricsSnapshot Metrics(
         long started,
         long completed) => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
         {

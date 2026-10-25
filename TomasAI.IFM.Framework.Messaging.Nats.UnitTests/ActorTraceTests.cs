@@ -1,4 +1,4 @@
-using NSubstitute;
+﻿using NSubstitute;
 using System.Diagnostics;
 using FluentAssertions;
 using NATS.Client.Core;
@@ -16,8 +16,8 @@ public sealed class ActorTraceTests
         using var activity = new Activity("test").SetIdFormat(ActivityIdFormat.W3C).Start();
         activity.TraceStateString = "vendor=value";
         activity.AddBaggage("private", "not-exported");
-        var headers = ActorTrace.Headers()!;
-        var restored = ActorTrace.Extract(headers);
+        var headers = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Headers()!;
+        var restored = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(headers);
         restored.TraceId.Should().Be(activity.TraceId);
         restored.SpanId.Should().Be(activity.SpanId);
         restored.TraceState.Should().Be("vendor=value");
@@ -55,7 +55,7 @@ public sealed class ActorTraceTests
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design","CA1707",Justification="Keep descriptive xUnit test names consistent with the repository test convention.")]
     public void Invalid_transport_context_is_ignored(string value)
     {
-        ActorTrace.Extract(new NatsHeaders { ["traceparent"] = value }).Should().Be(default(ActivityContext));
-        ActorTrace.Extract(null).Should().Be(default(ActivityContext));
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(new NatsHeaders { ["traceparent"] = value }).Should().Be(default(ActivityContext));
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(null).Should().Be(default(ActivityContext));
     }
 }

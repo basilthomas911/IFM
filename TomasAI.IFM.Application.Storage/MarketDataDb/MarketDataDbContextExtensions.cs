@@ -47,6 +47,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 
 

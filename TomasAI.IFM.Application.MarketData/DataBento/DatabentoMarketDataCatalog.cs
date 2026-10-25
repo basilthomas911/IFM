@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Security.Cryptography;

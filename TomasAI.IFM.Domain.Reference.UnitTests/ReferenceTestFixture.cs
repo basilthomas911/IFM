@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -30,11 +30,11 @@ public class ReferenceTestFixture : IDisposable
     {
         // Ensure runtime serializers are configured for tests
         ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-        ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+        global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
     }
 
     public IDataSerializer DataSerializer => ActorExtensions.DataSerializer!;
-    public INatsSerializer<byte[]> MsgSerializer => ActorExtensions.MsgSerializer!;
+    public INatsSerializer<byte[]> MsgSerializer => global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer!;
 
 
     public TestableLookupTypeCommandActor CreateActor(

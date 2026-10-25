@@ -1,7 +1,7 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Threading.Channels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 

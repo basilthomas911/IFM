@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SystemAdminDb;
@@ -87,7 +88,7 @@ public sealed class SystemAdminDbContextConventionTests
         var storage = typeof(SystemAdminDbContext).Assembly;
         var shared = typeof(DatabaseBackupProjectionCheckpointReadModel).Assembly;
 
-        Assert.Equal("TomasAI.IFM.Domain.SystemAdmin.Shared", shared.GetName().Name);
+        Assert.Equal("TomasAI.IFM.Application.Contracts.SystemAdmin", shared.GetName().Name);
         Assert.Equal(shared, typeof(DatabaseBackupProjectionRebuildResult).Assembly);
         Assert.NotEqual(storage, shared);
         Assert.Null(storage.GetType("TomasAI.IFM.Application.Storage.DatabaseBackupProjectionCheckpoint"));

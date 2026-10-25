@@ -12,6 +12,7 @@ using TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;

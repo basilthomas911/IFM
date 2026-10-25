@@ -1,5 +1,5 @@
-using TomasAI.IFM.Api.DatabaseBackup.Host.Services;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using TomasAI.IFM.Api.DatabaseBackup.Host.Services;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
 

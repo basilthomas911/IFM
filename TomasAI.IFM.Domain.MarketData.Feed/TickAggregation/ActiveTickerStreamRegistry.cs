@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+﻿using System.Collections.Concurrent;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation;
 /// <summary>

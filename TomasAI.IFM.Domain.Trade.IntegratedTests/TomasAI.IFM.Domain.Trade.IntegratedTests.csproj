@@ -40,9 +40,9 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
   </ItemGroup>
 
@@ -57,5 +57,6 @@
  <Compile Include="../TomasAI.IFM.Domain.Trade.UnitTests/Strategy/Workflow/IntrinsicTime/RiskManager/RiskFixture.cs" Link="Fixtures/RiskFixture.cs" />
 </ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Storage" /></ItemGroup></Project>

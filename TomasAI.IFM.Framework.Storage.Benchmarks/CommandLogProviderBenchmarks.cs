@@ -6,6 +6,7 @@ using TomasAI.IFM.Framework.Storage.Benchmarks.CommandLog;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 

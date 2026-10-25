@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.SystemAdmin.Shared\TomasAI.IFM.Domain.SystemAdmin.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.SystemAdmin\TomasAI.IFM.Application.Contracts.SystemAdmin.csproj" />
   </ItemGroup>
 
 </Project>

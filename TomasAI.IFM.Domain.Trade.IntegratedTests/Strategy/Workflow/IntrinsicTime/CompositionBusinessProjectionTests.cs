@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.Identity;
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -19,9 +21,10 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Realtime;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
@@ -208,7 +211,7 @@ public sealed partial class CompositionBusinessProjectionTests
             Underlying = "ES-future",
             Instrument = new(1, (uint)i),
             RawSymbol = id + i,
-            Right = TomasAI.IFM.Framework.MarketData.DataBento.OptionRightSelection.Call,
+            Right = TomasAI.IFM.Shared.MarketData.Definitions.OptionRightSelection.Call,
             StrikePrice = 5000 + i,
             MaturityDate = new(2026, 10, 2)
         })).ToImmutableArray();
@@ -264,7 +267,7 @@ public sealed partial class CompositionBusinessProjectionTests
             var marketDataService = new MarketDataServiceDbContext(
                 f.settings,
                 factory,
-                Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdDbContext>(),
+                Substitute.For<TomasAI.IFM.Shared.Identity.ISequenceIdDbContext>(),
                 logger);
             f.Store = marketDataService;
             f.Plans = marketDataService;

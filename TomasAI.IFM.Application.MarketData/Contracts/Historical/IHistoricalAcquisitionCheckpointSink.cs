@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+﻿using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts.Historical;
 

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Newtonsoft.Json;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
 using TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events;
@@ -71,7 +71,7 @@ public sealed class PortfolioEventRoundTripVerificationTests
     static bool RoundTrip(object source)
     {
         var type = source.GetType();
-        var row = new EventStreamReadModel { EventTypeName = type.AssemblyQualifiedName!, EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize((TomasAI.IFM.Shared.EventSourcing.IEvent)source), EventVersion = 1, StreamVersion = 1 };
+        var row = new EventStreamReadModel { EventTypeName = type.AssemblyQualifiedName!, EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize((TomasAI.IFM.Shared.EventSourcing.IEvent)source), EventVersion = 1, StreamVersion = 1 };
         var restored = row.ToDomainEvent();
         TomasAI.IFM.Shared.EventModelActor.EventInitHelper.SetProperty((TomasAI.IFM.Shared.EventSourcing.IEvent)source, "EventId", 1L);
         Newtonsoft.Json.Linq.JToken.DeepEquals(Newtonsoft.Json.Linq.JToken.FromObject(restored),

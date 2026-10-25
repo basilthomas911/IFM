@@ -36,7 +36,7 @@ public static class RiskExplanationModel
             Quantities = quantities.ToImmutable(),
             Conditions = [..result.Reasons, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Candidate age: {latency.CandidateAgeMilliseconds:F1} ms"), latency.OldestQuoteAgeMilliseconds is { } quoteAge ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Oldest quote age: {quoteAge:F1} ms") : "Oldest quote age: unavailable", latency.AgeLimitEnforced ? "Latency policy: production age limit" : "Latency policy: observation only", $"Session: {market.SessionState}", $"Liquidity: {market.LiquidityCondition}", $"Stress: {market.StressState}", $"Event risk: {market.EventRiskState}", $"Volatility: {market.VolatilityBehavior}", ..market.InheritedRestrictions.Select(x => $"Assessment restriction: {x}"), ..regime.Restrictions.Select(x => $"Regime restriction: {x}")]
         };
-        RiskUnitModel.Require(TomasAI.IFM.Framework.Serialization.MessagePackBinarySerializer.MeasureContent(explanation) <= 524288, "RM.EXPLANATION.SIZE");
+        RiskUnitModel.Require(TomasAI.IFM.Application.Serialization.MessagePackBinarySerializer.MeasureContent(explanation) <= 524288, "RM.EXPLANATION.SIZE");
         return explanation with
         {
             ContentHash = explanation.Hash()

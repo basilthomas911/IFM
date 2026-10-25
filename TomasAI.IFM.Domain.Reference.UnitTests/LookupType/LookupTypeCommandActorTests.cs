@@ -48,7 +48,7 @@ public class LookupTypeCommandActorTests : IClassFixture<ReferenceTestFixture>
         }
 
         public ICommand InvokeParseMessage(ICommandActorContext<LookupTypeCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<LookupTypeCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

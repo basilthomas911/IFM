@@ -1,5 +1,5 @@
-using System.Collections.Frozen;
-using TomasAI.IFM.Shared.Domain;
+﻿using System.Collections.Frozen;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Validation;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.DownloadLog.Command.State;

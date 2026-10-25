@@ -28,7 +28,7 @@ public sealed class MarketOutlookSnapshotQueryActorTests(MarketDataAnalyticsTest
     {
         internal IQuery Parse(
             IQueryActorContext<MarketOutlookSnapshotQueryActor> context,
-            NatsMsg<byte[]> message) => ParseMessage(context, message);
+            NatsMsg<byte[]> message) => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         internal ValueTask Receive(
             IQueryActorContext<MarketOutlookSnapshotQueryActor> context,

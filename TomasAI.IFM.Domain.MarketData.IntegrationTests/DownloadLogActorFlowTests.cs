@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc.Testing;
+﻿using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.Hosting;
@@ -7,7 +7,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;

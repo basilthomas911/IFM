@@ -39,7 +39,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
         }
 
         public ICommand InvokeParseMessage(ICommandActorContext<FuturesMacdSignalCommandActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesMacdSignalCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);

@@ -10,6 +10,7 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;

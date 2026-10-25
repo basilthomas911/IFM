@@ -1,5 +1,5 @@
-using System.Runtime.CompilerServices;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+﻿using System.Runtime.CompilerServices;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;

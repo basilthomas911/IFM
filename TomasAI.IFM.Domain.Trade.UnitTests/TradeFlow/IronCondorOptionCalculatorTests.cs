@@ -1,12 +1,12 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.Trade.Futures.Option.Position.IronCondor.Plan.Model;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using TomasAI.IFM.Framework.OptionPricer.Pricing;
 

@@ -111,7 +111,7 @@ internal static class RiskQueryModel
         TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel order;
         try
         {
-            order = (await (s.Funds.LoadFundAsync(new PortfolioFundId(row.PortfolioId, row.FundId), t)).ConfigureAwait(false)).Composition(checked((int)row.OrderId)).Order;
+            order = await s.Funds.ReadOrderAsync(new PortfolioFundId(row.PortfolioId, row.FundId), checked((int)row.OrderId), t).ConfigureAwait(false);
         }
         catch (OperationCanceledException)when (t.IsCancellationRequested)
         {

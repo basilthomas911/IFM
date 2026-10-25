@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Query;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Serialization;
 using System.Collections.Frozen;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;

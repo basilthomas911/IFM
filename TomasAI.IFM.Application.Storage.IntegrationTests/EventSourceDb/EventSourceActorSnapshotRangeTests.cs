@@ -18,6 +18,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Commands;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -516,6 +517,41 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     : IClassFixture<EventSourceActorSnapshotRangeFixture>
 {
     [Theory]
+    [InlineData(EventLogWriteMode.Sequential, false)]
+    [InlineData(EventLogWriteMode.BinaryCopy, true)]
+    public async Task Frozen_write_identity_is_used_by_appenders_and_latest_snapshot_lookup(EventLogWriteMode mode, bool compressed)
+    {
+        const string legacy = "Original.Contracts.Observation, Removed.Original.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+        EventWriteIdentityRegistry.Default.RegisterLegacyIdentity(typeof(FrozenWriteEvent), "OriginalObservation", legacy);
+        await using var context = fixture.CreateActorEventDb(new() { WriteMode = mode, UseLz4Compression = compressed });
+        var value = new FrozenWriteEvent { Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), Value = 123.45m };
+        var stream = NewStream();
+        await context.SaveEventsAsync(stream, value.CommandId, new DomainEventCollection([value]), 0, CancellationToken.None);
+        var streamId = await context.GetEventStreamIdAsync(stream);
+        var rows = await context.GetEventsFromSnapshotAsync<FrozenWriteEvent>(streamId);
+        var row = rows.Should().ContainSingle().Subject;
+        row.EventTypeName.Should().Be(legacy);
+        var read = row.ToDomainEvent().Should().BeOfType<FrozenWriteEvent>().Subject;
+        read.Value.Should().Be(123.45m);
+        read.CommandId.Should().Be(value.CommandId);
+    }
+
+    public sealed record FrozenWriteEvent : IEvent
+    {
+        public ActorSubject Subject { get; init; }
+        public Guid Id { get; init; }
+        public long EventId { get; init; }
+        public Guid CommandId { get; init; }
+        public string AggregateId { get; init; } = "fixture";
+        public string EventSource { get; init; } = "compatibility";
+        public DateTime ReceivedOn { get; init; }
+        public string UserName => "fixture";
+        public string EventName => "FrozenWriteEvent";
+        public EventType EventType => EventType.DomainEvent;
+        public decimal Value { get; init; }
+    }
+
+    [Theory]
     [InlineData(EventLogWriteMode.Sequential, false, false)]
     [InlineData(EventLogWriteMode.Sequential, true, true)]
     [InlineData(EventLogWriteMode.BinaryCopy, false, true)]
@@ -805,7 +841,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
                 InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
             EntityId = entity
         };
-        var auditLogger = new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.ActorEventDb);
+        var auditLogger = new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(fixture.ActorEventDb);
 
         var legacyAudit = auditLogger.InsertCommandLogAsync(
             command,

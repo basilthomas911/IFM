@@ -1,4 +1,5 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Definitions;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;

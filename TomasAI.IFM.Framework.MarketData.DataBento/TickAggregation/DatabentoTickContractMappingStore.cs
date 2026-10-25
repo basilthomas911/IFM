@@ -1,6 +1,7 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;

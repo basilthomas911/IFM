@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.StrategyCatalog;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Storage;

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;

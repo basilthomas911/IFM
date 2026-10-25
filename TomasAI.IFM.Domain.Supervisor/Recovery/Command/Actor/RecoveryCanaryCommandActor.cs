@@ -1,9 +1,9 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Supervisor.Shared.Recovery;
 using TomasAI.IFM.Domain.Supervisor.Recovery.Command.Validation;
 using TomasAI.IFM.Domain.Supervisor.Recovery.Command.State;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -116,7 +116,7 @@ public sealed class RecoveryCanaryCommandActor(ICommandActorContext<RecoveryCana
         ICommandActorContext<RecoveryCanaryCommandActor> context, ActorThreadId threadId,
         ICommand command, Exception ex)
     {
-        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(logger, ex, "Supervisor recovery canary command", threadId);
+        global::TomasAI.IFM.Application.EventModelActor.ActorBoundaryFailureLog.Failed(logger, ex, "Supervisor recovery canary command", threadId);
         return ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceFailed<GuidResult>(command?.ErrorCode ?? RecoveryCanaryCommand.ErrorId,
                 "Supervisor recovery canary command failed."));

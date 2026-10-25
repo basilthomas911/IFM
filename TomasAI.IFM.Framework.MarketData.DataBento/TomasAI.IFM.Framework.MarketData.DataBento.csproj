@@ -31,7 +31,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DatabentoNativeImplementation)' == 'Cpp' and Exists('$(DatabentoNativeRoot)\out\$(DatabentoNativeBuildKind)\$(DatabentoNativeConfiguration)\databento_feed_native.dll')">
@@ -48,4 +47,4 @@
           CopyToPublishDirectory="Always" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Shared.Contracts/TomasAI.IFM.Shared.Contracts.csproj" /></ItemGroup></Project>

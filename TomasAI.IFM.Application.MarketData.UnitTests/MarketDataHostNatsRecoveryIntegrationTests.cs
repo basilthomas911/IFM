@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using FluentAssertions;
 using NSubstitute;
@@ -54,7 +54,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
         } while (true);
         var frame = Assert.Single(snapshot.OptionObservations!);
         var admissions = new DatasetWorkerAdmissionRegistry();
-        var publisher = Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>();
+        var publisher = Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>();
         var ingress = new DatasetPublicationIngress(admissions, publisher, Substitute.For<TomasAI.IFM.Application.MarketData.MarketOutlook.IMarketDataOperationsRecorder>());
         Assert.False(await ingress.AcceptAsync(frame));
         admissions.Admit(new(frame.Dataset, frame.ValueDate, frame.WorkerInstanceId, frame.GenerationId, frame.ManifestRevision));
@@ -701,7 +701,7 @@ public sealed class MarketDataHostNatsRecoveryIntegrationTests
             TradingDates = System.Collections.Immutable.ImmutableArray.CreateRange(Enumerable.Range(0, 91)
                 .Select(offset => coverageStart.AddDays(offset))
                 .Where(date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))) };
-        var days = TomasAI.IFM.Framework.MarketData.Pricing.OptionPricingQualification.CountTradingDays(calendar, contract, now);
+        var days = TomasAI.IFM.Shared.MarketData.Pricing.OptionPricingQualification.CountTradingDays(calendar, contract, now);
         var tenor = TomasAI.IFM.Framework.MarketData.ReferenceData.TreasuryRateConversion.SelectTenor(days)!.Value;
         var context = template with { Contract = contract, Calendar = calendar, GenerationId = process.GenerationId, ValidUntilUtc = now.AddHours(1),
             Rate = template.Rate with { Tenor = tenor, ObservedAtUtc = now.AddMinutes(-1), ValueDate = DateOnly.FromDateTime(now.UtcDateTime) } };

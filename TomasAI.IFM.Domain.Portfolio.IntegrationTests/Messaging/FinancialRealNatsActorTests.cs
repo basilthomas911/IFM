@@ -172,14 +172,14 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         {
             var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
             context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
-            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(hostStore.EventSourceDb));
+            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(hostStore.EventSourceDb));
             var supervisor = Substitute.For<IActorSupervisor>(); supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
             supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
             var sequences = Substitute.For<ISequenceIdGenerator>(); sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
                 .Returns(_ => ValueTask.FromResult(Random.Shared.NextInt64(100000, long.MaxValue)));
             var logger = new CaptureLogger<GeneralLedgerCommandActor>();
             var actor = new GeneralLedgerCommandActor(context, new(new GeneralLedgerStore(Transactions()), new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
-                new(sequences), Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(), logger), logger);
+                new(new global::TomasAI.IFM.Application.Identity.SequenceIdApi(sequences)), Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(), logger), logger);
             await actor.StartAsync(supervisor, deadline.Token); return actor;
         }
         var firstActor = await Instance(fixture); var secondActor = await Instance(new PortfolioEventStoreFixture());
@@ -207,7 +207,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
     public async Task Audited_but_uncommitted_command_resumes_and_replay_checks_receipt_even_when_notification_is_down()
     {
         var book = await CreateBook(); var request = Request(book, LedgerTransactionKind.DepositConfirmed, 100, 0);
-        (await new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb).TryReserveAsync(request)).Accepted.Should().BeTrue();
+        (await new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb).TryReserveAsync(request)).Accepted.Should().BeTrue();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await using var server = new NatsClient(Url); await server.ConnectAsync();
         await using var subscription = await server.Connection.SubscribeCoreAsync<byte[]>(request.Subject.ToString(), serializer: new NatsByteArrayMessageSerializer());
@@ -217,7 +217,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
         var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container);
-        container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
+        container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
         supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
@@ -227,7 +227,7 @@ public sealed class FinancialRealNatsActorTests(PortfolioEventStoreFixture fixtu
         projector.DomainEventsProjectionAsync(Arg.Any<DomainEventCollection>()).Returns(_ => throw new IOException("Injected post-commit publication outage"));
         var actorLogger = new CaptureLogger<GeneralLedgerCommandActor>();
         var actor = new GeneralLedgerCommandActor(context, new(new GeneralLedgerStore(Transactions()), new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
-            new(sequences), projector, actorLogger), actorLogger);
+            new(new global::TomasAI.IFM.Application.Identity.SequenceIdApi(sequences)), projector, actorLogger), actorLogger);
         await actor.StartAsync(supervisor, deadline.Token);
         try
         {

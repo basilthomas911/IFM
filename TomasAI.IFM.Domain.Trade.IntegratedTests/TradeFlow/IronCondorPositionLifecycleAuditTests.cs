@@ -18,6 +18,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Order.Execution;
 using TomasAI.IFM.Domain.Trade.Shared.Trade.Position;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Storage;
 using Xunit.Abstractions;

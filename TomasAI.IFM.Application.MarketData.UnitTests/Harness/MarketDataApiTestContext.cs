@@ -1,5 +1,5 @@
 ﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Application.MarketData.Databento;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests.Harness;

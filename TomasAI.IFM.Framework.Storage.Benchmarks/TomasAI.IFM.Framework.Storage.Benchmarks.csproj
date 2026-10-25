@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,5 +21,6 @@
     <Content Include="EventLogCorpus\v1\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
 </Project>

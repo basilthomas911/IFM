@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
@@ -48,7 +48,7 @@ public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
         public IFuturesContractQueryContext FuturesContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesContractQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesContractQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

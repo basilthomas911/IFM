@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using System.Text.Json;

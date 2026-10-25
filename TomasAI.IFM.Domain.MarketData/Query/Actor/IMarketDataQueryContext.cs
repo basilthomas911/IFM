@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 

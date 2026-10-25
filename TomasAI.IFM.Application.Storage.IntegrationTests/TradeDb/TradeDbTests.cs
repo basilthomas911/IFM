@@ -17,6 +17,7 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;

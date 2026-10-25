@@ -1,5 +1,5 @@
-//! Terminal feed failures reach the same copied Rust error dialog. NATS events
-//! remain responsive while a status query is pending; polling repairs missed events.
+//! Terminal feed failures reach the same Rust error dialog. Console rows use durable
+//! NATS push with render-triggered ACK batches; background feed/calendar queries never gate delivery.
 use crate::{
     backend::{codec, schema::Registry, transport::Backend},
     services::feed_control::FeedObservation,
@@ -163,18 +163,17 @@ pub async fn monitor_with_console_history(
     history_endpoint:Option<String>,
 ) -> Result<(), String> {
     let feed = backend.subscribe("Event", "MarketDataFeedEvent").await?;
-    let status = backend.subscribe("Notify", "StatusConsoleEvent").await?;
     let calendar_events = backend.subscribe("Event", "EconomicCalendarEvent").await?;
-    let mut subscription = futures_util::stream::select_all(vec![feed, status, calendar_events]);
+    let console = backend.subscribe_console().await?;
+    // The same push subscription delivers buffered and live messages without polling.
+    let mut subscription = futures_util::stream::select_all(vec![feed, calendar_events, console]);
     backend.flush().await?;
     let mut notifications = Notifications::default();
-    // Subscribe and flush before the first history read. HTTP polling also
-    // repairs reconnect gaps, independent of calendar and feed readiness.
     let history_client=crate::backend::health_http::HealthClient::new()?;
-    let mut history_cursor=0_u64;
-    let mut history_through=None;
-    let mut history_dirty=true;
-    let mut history_query=AbortOnDrop(None);
+    let mut connect_needed=true;
+    let mut connect_query=AbortOnDrop(None);
+    let mut acknowledgement_query=AbortOnDrop(None);
+    let mut acknowledgement_retry=false;
     let mut timer = tokio::time::interval(Duration::from_secs(10));
     timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut query = AbortOnDrop(None);
@@ -186,12 +185,11 @@ pub async fn monitor_with_console_history(
     let mut calendar_revision = 0_u64;
 
     loop {
-        if history_dirty && history_query.0.is_none() {
-            history_dirty=false;
-            let client=history_client.clone();let endpoint=history_endpoint.clone();
-            let cursor=history_cursor;let through=history_through;let timeout=backend.default_timeout();
-            history_query.0=Some(tokio::spawn(async move {
-                crate::services::status_console_history::read_page(&client,endpoint.as_deref(),cursor,through,timeout).await
+        if connect_needed && connect_query.0.is_none() {
+            connect_needed=false;
+            let client=history_client.clone();let endpoint=history_endpoint.clone();let timeout=backend.default_timeout();
+            connect_query.0=Some(tokio::spawn(async move {
+                crate::services::status_console_history::connect(&client,endpoint.as_deref(),timeout).await
             }));
         }
         if calendar_dirty && calendar_query.0.is_none() {
@@ -210,29 +208,61 @@ pub async fn monitor_with_console_history(
             }));
         }
         tokio::select! {
+            result=async{connect_query.0.as_mut().unwrap().await},if connect_query.0.is_some()=>{
+                connect_query.0=None;
+                if let Err(error)=result.map_err(|e|e.to_string()).and_then(|result|result) {
+                    notifications.error(format!("console-connect:{error}"),format!("Status console connection setup failed: {error}"));
+                    output.send(notifications.publication.clone()).await.map_err(|_|"UI closed")?;
+                }
+            }
+            _=async{notifications.publication.console_deliveries[0].wait_displayed().await},
+                if !notifications.publication.console_deliveries.is_empty() && acknowledgement_query.0.is_none()=>{
+                let batch:Vec<_>=notifications.publication.console_deliveries.iter().filter(|delivery|delivery.is_displayed()).take(100).cloned().collect();
+                let client=history_client.clone();let endpoint=history_endpoint.clone();let timeout=backend.default_timeout();let retry=acknowledgement_retry;
+                acknowledgement_retry=false;
+                acknowledgement_query.0=Some(tokio::spawn(async move {
+                    // Backoff is only for failed ACK requests, never for receiving/displaying console messages.
+                    if retry {tokio::time::sleep(Duration::from_secs(1)).await;}
+                    let receipts=batch.iter().flat_map(|delivery|delivery.receipts().iter().cloned()).collect::<Vec<_>>();
+                    let result=crate::services::status_console_history::acknowledge(&client,endpoint.as_deref(),&receipts,timeout).await;
+                    (batch,result)
+                }));
+            }
+            result=async{acknowledgement_query.0.as_mut().unwrap().await},if acknowledgement_query.0.is_some()=>{
+                acknowledgement_query.0=None;
+                match result {
+                    Ok((batch,Ok(())))=>{notifications.publication.console_deliveries.retain(|delivery|!batch.iter().any(|acknowledged|Arc::ptr_eq(delivery,acknowledged)));},
+                    result=>{
+                        acknowledgement_retry=true;
+                        let error=match result {Ok((_,Err(error)))=>error,Err(error)=>error.to_string(),_=>unreachable!()};
+                        notifications.error(format!("console-ack:{error}"),format!("Status console acknowledgement failed; batch will retry: {error}"));
+                        output.send(notifications.publication.clone()).await.map_err(|_|"UI closed")?;
+                    },
+                }
+            }
             _ = timer.tick() => {
-                history_dirty=true;
                 calendar_dirty=true;
                 if query.0.is_none() && feed_operation.0.is_none() {
                     let backend = backend.clone();
                     query.0 = Some(tokio::spawn(async move { FeedObservation::load(&backend).await }));
                 }
             }
-            result=async{history_query.0.as_mut().unwrap().await},if history_query.0.is_some()=>{
-                history_query.0=None;
-                match result.map_err(|e|e.to_string()).and_then(|result|result) {
-                    Ok(page)=>{
-                        for message in page.messages {notifications.console_message(&message.id,message.date,&message.message);}
-                        history_cursor=page.next;
-                        history_through=if page.more{Some(page.through)}else{None};
-                        history_dirty=page.more;
-                    },
-                    Err(error)=>{notifications.error(format!("console-history:{error}"),format!("Status console history unavailable; catch-up will retry: {error}"));},
-                }
-                output.send(notifications.publication.clone()).await.map_err(|_|"UI closed")?;
-            }
             event = subscription.next() => {
                 let Some(event) = event else { return Err("Feed notification subscription ended; authoritative refresh required".into()); };
+                // JetStream routes through the delivery subscription but preserves the original subject.
+                if event.subject.as_str() == "Console.StatusConsoleEvent.Logged" {
+                    let receipt=event.reply.as_ref().map(|reply|reply.to_string()).ok_or("Missing console delivery receipt")?;
+                    if !receipt.starts_with("$JS.ACK.IFM_STATUS_CONSOLE_QUEUE.console-ui.") {return Err("Invalid console push receipt".into());}
+                    notifications.status_event(&registry,&event.payload)?;
+                    // Redelivery replaces only the receipt for the same stream sequence. Old ACK completion
+                    // cannot clear a newer receipt or any messages received while that ACK was in flight.
+                    let sequence=receipt.split('.').nth(5).unwrap_or_default();
+                    notifications.publication.console_deliveries.retain(|delivery|delivery.receipts()[0].split('.').nth(5)!=Some(sequence));
+                    if notifications.publication.console_deliveries.len()==100 {notifications.publication.console_deliveries.remove(0);}
+                    notifications.publication.console_deliveries.push(Arc::new(crate::services::status_console_history::ConsoleDelivery::new(vec![receipt])));
+                    output.send(notifications.publication.clone()).await.map_err(|_|"UI closed")?;
+                    continue;
+                }
                 if event.subject.starts_with("Event.EconomicCalendarEvent.") {
                     let verb=event.subject.splitn(4,'.').nth(2).unwrap_or_default();
                     match verb {
@@ -309,8 +339,8 @@ pub async fn monitor_with_console_history(
                 if !state.connected { notifications.publication.feed_control.ready = false; notifications.publication.feed_control.can_toggle = false; }
                 if let Some(message) = state.last_warning { notifications.error(format!("transport:{}", state.warning_sequence),message); }
                 if state.connected {
-                    history_dirty=true;
-                    calendar_dirty=true;calendar_revision+=1;
+                    connect_needed=true;
+                        calendar_dirty=true;calendar_revision+=1;
                     if let Some(task)=calendar_query.0.take(){task.abort();}
                     if let Some(task) = query.0.take() { task.abort(); }
                     if feed_operation.0.is_none(){

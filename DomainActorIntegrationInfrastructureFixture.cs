@@ -15,6 +15,7 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;
 /// <summary>
@@ -103,6 +104,9 @@ public static class DomainActorIntegrationInfrastructureFixture
         }
         SetEnvironment("MarketDataRecovery__Stage3__Enabled", "false");
         SetEnvironment("IFM_TEST_NATS_URL", infrastructure.NatsUrl);
+        // The remote relay must use the same isolated broker as the actor transport.
+        SetEnvironment("MarketDataHost__NatsUrl", infrastructure.NatsUrl);
+        SetEnvironment("MarketDataHost__Scope", "qualification-" + infrastructure.RunId);
         SetEnvironment("IFM_CONFIGURED_TEST_NATS_URL", infrastructure.AuxiliaryNatsUrl);
         SetEnvironment("IFM_FINANCIAL_TEST_NATS_URL", infrastructure.NatsUrl);
         SetEnvironment("IFM_NATS_URL", infrastructure.NatsUrl);
@@ -293,6 +297,7 @@ public sealed class DomainActorIntegrationTestFrameworkExecutor : Xunit.Sdk.Xuni
         var requiresSharedInfrastructure = selectedCases.Any(testCase =>
             !testCase.Traits.TryGetValue("Infrastructure", out var values)
             || !values.Contains("SelfContained", StringComparer.Ordinal));
+        Exception? primaryFailure = null;
         try
         {
             if (requiresSharedInfrastructure)
@@ -305,10 +310,23 @@ public sealed class DomainActorIntegrationTestFrameworkExecutor : Xunit.Sdk.Xuni
                 executionOptions);
             runner.RunAsync().GetAwaiter().GetResult();
         }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+            DiagnosticMessageSink.OnMessage(new Xunit.Sdk.DiagnosticMessage("Integration initialization/execution failed: " + exception));
+            throw;
+        }
         finally
         {
-            if (requiresSharedInfrastructure)
-                DomainActorIntegrationInfrastructureFixture.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            {
+                if (requiresSharedInfrastructure)
+                    DomainActorIntegrationInfrastructureFixture.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch (Exception cleanupFailure) when (primaryFailure is not null)
+            {
+                DiagnosticMessageSink.OnMessage(new Xunit.Sdk.DiagnosticMessage("Secondary integration cleanup failure: " + cleanupFailure));
+            }
         }
     }
 }

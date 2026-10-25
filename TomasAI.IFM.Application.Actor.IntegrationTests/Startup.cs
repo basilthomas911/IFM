@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using TomasAI.IFM.Domain.Reference.Repository;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.OrderComposer.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Function.Actor;
@@ -59,13 +60,14 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Application.Shared;
@@ -77,10 +79,10 @@ using TomasAI.IFM.Domain.Supervisor.Shared.Service.Metrics;
 using TomasAI.IFM.Domain.Supervisor.Shared.ServiceApi;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventProducers;
+using TomasAI.IFM.Application.EventServices;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Model;
@@ -491,8 +493,8 @@ public static class Startup
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
             services.AddSingleton<ICommandAuditLogger>(provider =>
-                new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(provider.GetRequiredService<IEventSourceActorDbContext>(),
-                logger: provider.GetRequiredService<ILogger<TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator>>(),
+                new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(provider.GetRequiredService<IEventSourceActorDbContext>(),
+                logger: provider.GetRequiredService<ILogger<TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator>>(),
                 options: siContainer.GetInstance<TomasAI.IFM.Application.Storage.EventSourceDb.CommandAudit.CommandAuditPersistenceOptions>()));
             services.AddSingleton<TomasAI.IFM.Application.Storage.EventSourceDb.RiskHistoryJournal>();
             services.AddSingleton<TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime.RiskObservationRecoveryService>();

@@ -1,0 +1,13 @@
+{
+  "TomasAI.IFM.Domain.Application.Shared": "TomasAI.IFM.Application.Contracts.Application",
+  "TomasAI.IFM.Domain.BrokerAccount.Shared": "TomasAI.IFM.Application.Contracts.BrokerAccount",
+  "TomasAI.IFM.Domain.MarketData.Analytics.Shared": "TomasAI.IFM.Application.Contracts.MarketData.Analytics",
+  "TomasAI.IFM.Domain.MarketData.Feed.Shared": "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+  "TomasAI.IFM.Domain.MarketData.Shared": "TomasAI.IFM.Application.Contracts.MarketData",
+  "TomasAI.IFM.Domain.Portfolio.Shared": "TomasAI.IFM.Application.Contracts.Portfolio",
+  "TomasAI.IFM.Domain.Reference.Shared": "TomasAI.IFM.Application.Contracts.Reference",
+  "TomasAI.IFM.Domain.Strategy.Contracts.Shared": "TomasAI.IFM.Application.Contracts.Strategy",
+  "TomasAI.IFM.Domain.Supervisor.Shared": "TomasAI.IFM.Application.Contracts.Supervisor",
+  "TomasAI.IFM.Domain.SystemAdmin.Shared": "TomasAI.IFM.Application.Contracts.SystemAdmin",
+  "TomasAI.IFM.Domain.Trade.Shared": "TomasAI.IFM.Application.Contracts.Trade"
+}

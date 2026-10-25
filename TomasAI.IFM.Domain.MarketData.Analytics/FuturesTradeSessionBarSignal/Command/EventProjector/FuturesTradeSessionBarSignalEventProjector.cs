@@ -10,7 +10,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
-using TomasAI.IFM.Framework.Messaging.Nats;
+
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 

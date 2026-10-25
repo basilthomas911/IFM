@@ -34,7 +34,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         }
 
         public IEvent InvokeParseMessage(IEventActorContext<FuturesAdxSignalEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IEventActorContext<FuturesAdxSignalEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
@@ -720,7 +720,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Act
         Func<Task> act = async () => await actor.InvokeOnStartAsync(mockContext);
 
-        // Assert â€” OnStartup is empty for ADX, so it should complete without any side effects
+        // Assert — OnStartup is empty for ADX, so it should complete without any side effects
         await act.Should().NotThrowAsync();
     }
 
@@ -745,14 +745,14 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Fact]
     public async Task OnStartAsync_DoesNotAddEventRouter()
     {
-        // Arrange â€” ADX EventActor has empty OnStartup (no event routing)
+        // Arrange — ADX EventActor has empty OnStartup (no event routing)
         var actor = _fixture.CreateAdxEventActor();
         var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
 
         // Act
         await actor.InvokeOnStartAsync(mockContext);
 
-        // Assert â€” No AddEventRouter calls should be made
+        // Assert — No AddEventRouter calls should be made
         mockContext.DidNotReceive().AddEventRouter(Arg.Any<ActorTypeId>(), Arg.Any<ActorMailboxId>());
     }
 
@@ -763,7 +763,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Fact]
     public async Task OnStartAsync_WithNullContext_ShouldNotThrow()
     {
-        // Arrange â€” OnStartup is empty, so even null context should not throw
+        // Arrange — OnStartup is empty, so even null context should not throw
         var actor = _fixture.CreateAdxEventActor();
 
         // Act
@@ -787,7 +787,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         // Act
         Func<Task> act = async () => await actor.InvokeOnStopAsync(mockContext);
 
-        // Assert â€” OnShutdown is empty for ADX, so it should complete without any side effects
+        // Assert — OnShutdown is empty for ADX, so it should complete without any side effects
         await act.Should().NotThrowAsync();
     }
 
@@ -812,14 +812,14 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Fact]
     public async Task OnStopAsync_DoesNotRemoveEventRouter()
     {
-        // Arrange â€” ADX EventActor has empty OnShutdown (no event routing)
+        // Arrange — ADX EventActor has empty OnShutdown (no event routing)
         var actor = _fixture.CreateAdxEventActor();
         var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
 
         // Act
         await actor.InvokeOnStopAsync(mockContext);
 
-        // Assert â€” No RemoveEventRouter calls should be made
+        // Assert — No RemoveEventRouter calls should be made
         mockContext.DidNotReceive().RemoveEventRouter(Arg.Any<ActorTypeId>(), Arg.Any<ActorMailboxId>());
     }
 
@@ -834,7 +834,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         await actor.InvokeOnStartAsync(mockContext);
         await actor.InvokeOnStopAsync(mockContext);
 
-        // Assert â€” Both OnStartup and OnShutdown are empty for ADX, no router calls
+        // Assert — Both OnStartup and OnShutdown are empty for ADX, no router calls
         mockContext.DidNotReceive().AddEventRouter(Arg.Any<ActorTypeId>(), Arg.Any<ActorMailboxId>());
         mockContext.DidNotReceive().RemoveEventRouter(Arg.Any<ActorTypeId>(), Arg.Any<ActorMailboxId>());
     }
@@ -842,7 +842,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
     [Fact]
     public async Task OnStopAsync_WithNullContext_ShouldNotThrow()
     {
-        // Arrange â€” OnShutdown is empty, so even null context should not throw
+        // Arrange — OnShutdown is empty, so even null context should not throw
         var actor = _fixture.CreateAdxEventActor();
 
         // Act

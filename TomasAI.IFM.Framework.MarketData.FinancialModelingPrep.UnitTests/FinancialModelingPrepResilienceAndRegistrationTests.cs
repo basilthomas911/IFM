@@ -1,6 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using Microsoft.Extensions.DependencyInjection;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.UnitTests;
 

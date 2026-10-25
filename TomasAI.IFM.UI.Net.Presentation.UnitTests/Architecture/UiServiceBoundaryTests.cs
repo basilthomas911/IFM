@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using System.Xml.Linq;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Architecture;
@@ -8,11 +8,11 @@ public sealed class UiServiceBoundaryTests
 {
     static readonly string[] ModelsReferenceAllowList =
     [
-        "TomasAI.IFM.Domain.Portfolio.Shared",
-        "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
-        "TomasAI.IFM.Domain.MarketData.Shared",
-        "TomasAI.IFM.Domain.SystemAdmin.Shared",
-        "TomasAI.IFM.Domain.Trade.Shared"
+        "TomasAI.IFM.Application.Contracts.Portfolio",
+        "TomasAI.IFM.Application.Contracts.MarketData.Analytics",
+        "TomasAI.IFM.Application.Contracts.MarketData",
+        "TomasAI.IFM.Application.Contracts.SystemAdmin",
+        "TomasAI.IFM.Application.Contracts.Trade"
     ];
 
     static readonly string[] DocumentedBoundaryDtoFiles =

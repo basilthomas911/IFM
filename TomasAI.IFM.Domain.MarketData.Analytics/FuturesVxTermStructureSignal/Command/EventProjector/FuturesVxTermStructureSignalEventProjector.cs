@@ -9,7 +9,7 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
-using TomasAI.IFM.Framework.Messaging.Nats;
+
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 

@@ -16,7 +16,7 @@ using System.Threading;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
@@ -38,6 +38,7 @@ using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;
@@ -723,7 +724,7 @@ public sealed class PostgresEodObservationTests
             SystemKey = TradeStrategyFamilyReadModel.ComposeSystemKey(baseline.Family, baseline.Strategy),
             TradeStrategySymbolId = 101, Exchange = "CME", Description = request.Description
         };
-        var store = new TradeStrategyFamilyCatalogStore(factory, ids);
+        var store = new TradeStrategyFamilyCatalogStore(factory, new global::TomasAI.IFM.Application.Identity.SequenceIdApi(ids));
         var created = await store.CreateAsync(request, candidate, CancellationToken.None);
         var repeated = await store.CreateAsync(request, candidate, CancellationToken.None);
         Assert.Equal(created, repeated);

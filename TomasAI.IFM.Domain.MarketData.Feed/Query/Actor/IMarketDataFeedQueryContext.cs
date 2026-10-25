@@ -4,7 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
@@ -21,7 +21,7 @@ public interface IMarketDataFeedQueryContext : IQueryActorContext<MarketDataFeed
     /// <summary>Gets the application market-data API.</summary>
     ApplicationMarketDataApi MarketDataApi { get; }
     /// <summary>Gets the sequence-ID generator.</summary>
-    ISequenceIdGenerator SequenceIdGenerator { get; }
+    ISequenceIdApi SequenceIdGenerator { get; }
     IMarketDataServiceStore MarketDataServiceStore { get; }
     TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi MarketDataLifecycle { get; }
 }

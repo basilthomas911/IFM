@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
@@ -65,6 +65,14 @@ public sealed class NatsJetStreamEventListener(
     internal string StreamName { get; private set; } = string.Empty;
 
     /// <inheritdoc />
+    ValueTask IActorEventListener.StartAsync(string id, Dictionary<ActorMailboxId, List<string>> routes,
+        Func<string, IActorMessage, ValueTask> handler)
+        => StartAsync(id, routes, async (subject, message) =>
+        {
+            using var adapter = new NatsActorMessage(message);
+            await handler(subject, adapter).ConfigureAwait(false);
+        });
+
     public async ValueTask StartAsync(
         string eventListenerId,
         Dictionary<ActorMailboxId, List<string>> eventMap,
@@ -80,7 +88,7 @@ public sealed class NatsJetStreamEventListener(
             GetValidatedOptions();
 
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-            ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+            global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             _eventListenerId = eventListenerId;
             _eventHandler = eventHandler;
             Interlocked.Exchange(ref _messageCount, 0);

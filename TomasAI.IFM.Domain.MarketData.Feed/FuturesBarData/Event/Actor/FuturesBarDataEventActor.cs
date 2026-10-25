@@ -1,3 +1,4 @@
+
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event;

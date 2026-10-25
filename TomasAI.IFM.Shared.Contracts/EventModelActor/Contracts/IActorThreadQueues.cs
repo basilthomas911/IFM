@@ -1,0 +1,39 @@
+
+
+namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
+
+/// <summary>
+/// Represents a collection of actor thread queues.
+/// </summary>
+public interface IActorThreadQueues
+{
+    bool Write(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
+    ValueTask<bool> WriteAsync(IActorMessage message, CancellationToken cancellationToken = default);
+    ValueTask<bool> WriteAsync(IActorMessage message, ActorSubject subject, CancellationToken cancellationToken = default);
+    ActorAdmissionResult TryAdmit(
+        IActorMessage message,
+        ActorSubject subject,
+        CancellationToken cancellationToken = default);
+    ValueTask<ActorAdmissionResult> TryAdmitAsync(
+        IActorMessage message,
+        ActorSubject subject,
+        CancellationToken cancellationToken = default);
+    IActorThreadQueue GetThreadQueue(ActorThreadId threadId);
+    bool TryGetThreadQueue(ActorThreadId threadId, out IActorThreadQueue? queue);
+    void ReleaseThreadQueue(ActorThreadId threadId);
+    int Count { get; }
+    bool IsAccepting => true;
+    void PauseAdmission() { }
+    void PauseAdmission(ActorThreadId threadId) { }
+    void ResumeAdmission() { }
+    void ResumeAdmission(ActorThreadId threadId) { }
+    ValueTask<bool> WaitForIdleAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(true);
+    ValueTask<bool> WaitForIdleAsync(ActorThreadId threadId, TimeSpan timeout, CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(true);
+    bool IsAdmissionOpen(ActorThreadId threadId) => true;
+    /// <summary>Closes admission and exposes a failed lifecycle operation as quarantined.</summary>
+    void QuarantineAdmission(ActorThreadId threadId) => PauseAdmission(threadId);
+    bool Retire(ActorThreadId threadId) => false;
+    long GetGeneration(ActorThreadId threadId) => 0;
+}

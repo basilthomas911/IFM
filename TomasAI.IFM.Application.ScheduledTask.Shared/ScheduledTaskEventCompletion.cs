@@ -1,3 +1,4 @@
+using TomasAI.IFM.Framework.Messaging.Nats;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;

@@ -1,5 +1,5 @@
-using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+﻿using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 

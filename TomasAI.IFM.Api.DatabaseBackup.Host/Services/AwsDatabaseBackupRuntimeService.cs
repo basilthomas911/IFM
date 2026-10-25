@@ -1,6 +1,8 @@
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Journal;
+using TomasAI.IFM.Application.DatabaseBackup.Adapters.AwsCloud.Processing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal;

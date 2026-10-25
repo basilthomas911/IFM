@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Signing;

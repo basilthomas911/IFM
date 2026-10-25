@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TomasAI.IFM.Application.Api.Server.Core.Hosting;
@@ -16,6 +16,124 @@ namespace TomasAI.IFM.LivePipeline.IntegrationTests;
 
 public sealed class EventTypeCompatibilityAcceptanceTests
 {
+    [Theory]
+    [InlineData("framework-contracts.json", 98)]
+    [InlineData("wire-boundaries.json", 48)]
+    public void Frozen_provider_contracts_keep_their_payloads_after_layer_extraction(string fixtureFile, int expectedCount)
+    {
+        // A maintenance/worker process must not require the API composition root to read or write old names.
+        var reader = EventTypeRegistry.CreateCompatibilityRegistry();
+        var writer = new EventWriteIdentityRegistry(reader);
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "LayeringContractFixtures", fixtureFile)));
+        Assert.Equal(expectedCount, fixture.RootElement.GetArrayLength());
+        var pending = new Queue<System.Reflection.Assembly>(); pending.Enqueue(typeof(PersistedEventTypeAliases).Assembly);
+        var seen = new HashSet<string>(); var types = new Dictionary<string, Type>();
+        while (pending.TryDequeue(out var assembly))
+        {
+            if (!seen.Add(assembly.FullName!)) continue;
+            foreach (var reference in assembly.GetReferencedAssemblies().Where(a => a.Name!.StartsWith("TomasAI.IFM.", StringComparison.Ordinal))) pending.Enqueue(System.Reflection.Assembly.Load(reference));
+            foreach (var type in assembly.GetTypes()) types.TryAdd(type.FullName!, type);
+        }
+        foreach (var row in fixture.RootElement.EnumerateArray())
+        {
+            var oldName = row.GetProperty("fullName").GetString()!;
+            var currentName = oldName.Replace("TomasAI.IFM.Framework.MarketData.Contracts", "TomasAI.IFM.Shared.MarketData.Contracts", StringComparison.Ordinal)
+                .Replace("TomasAI.IFM.Framework.MarketData.Pricing", "TomasAI.IFM.Shared.MarketData.Pricing", StringComparison.Ordinal)
+                .Replace("TomasAI.IFM.Framework.OptionPricer.Pricing", "TomasAI.IFM.Shared.OptionPricing", StringComparison.Ordinal);
+            var type = types.TryGetValue(oldName, out var original) ? original : types[currentName];
+            var bytes = Convert.FromBase64String(row.GetProperty("payload").GetString()!);
+            Assert.Equal(row.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(bytes)));
+            var codec = new EventLogMessagePackCodec(row.GetProperty("compressed").GetBoolean(), reader);
+            if (row.GetProperty("isEvent").GetBoolean())
+            {
+                var identity = row.GetProperty("legacyIdentity").GetString()!;
+                var value = codec.Deserialize(identity, 42, bytes);
+                Assert.Equal(type, value.GetType());
+                Assert.Equal(identity, writer.GetIdentity(type).EventTypeName);
+                EventInitHelper.SetProperty(value, nameof(IEvent.EventId), 0L);
+                Assert.Equal(bytes, codec.Serialize(value));
+            }
+            else
+            {
+                var options = (MessagePack.MessagePackSerializerOptions)typeof(EventLogMessagePackCodec)
+                    .GetField("_writeOptions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(codec)!;
+                var value = MessagePack.MessagePackSerializer.Deserialize(type, bytes, options);
+                Assert.Equal(bytes, MessagePack.MessagePackSerializer.Serialize(type, value, options));
+            }
+        }
+    }
+
+    [Fact]
+    public void Production_catalog_preserves_every_inventoried_event_identity()
+    {
+        var reader = new EventTypeRegistry();
+        var writer = new EventWriteIdentityRegistry(reader);
+        var count = TomasAI.IFM.Application.EventSourcing.PersistedEventIdentityCatalog.RegisterProductionClosure(
+            typeof(PersistedEventTypeAliases).Assembly, writer);
+        Assert.Equal(733, count);
+        foreach (var type in new[] { typeof(IronCondorPositionChangedEvent), typeof(FuturesItiSignalGeneratedEvent), typeof(FundMandateCreatedEvent) })
+        {
+            var identity = writer.GetIdentity(type);
+            using var manifest = LoadManifest();
+            var legacy = manifest.RootElement.GetProperty("cases").EnumerateArray()
+                .Select(row => row.GetProperty("legacyIdentity").GetString()!)
+                .First(name => name.StartsWith(type.FullName + ",", StringComparison.Ordinal));
+            Assert.Equal(legacy, identity.EventTypeName);
+            Assert.Equal(type.Name, identity.EventName);
+            Assert.Equal(type, reader.ResolveRequired(identity.EventTypeName));
+        }
+    }
+
+    [Fact]
+    public void Every_frozen_contract_keeps_its_exact_write_identity_and_both_CLR_read_spellings()
+    {
+        using var baseline = typeof(EventWriteIdentityRegistry).Assembly.GetManifestResourceStream("PersistedEventWriteBaseline.json")!;
+        using var document = JsonDocument.Parse(baseline);
+        var reader = EventTypeRegistry.CreateCompatibilityRegistry();
+        var writer = new EventWriteIdentityRegistry(reader);
+        Assert.Equal(733, document.RootElement.GetArrayLength());
+        foreach (var row in document.RootElement.EnumerateArray())
+        {
+            var legacy = row.GetProperty("EventTypeName").GetString()!;
+            var type = reader.ResolveRequired(legacy);
+            var identity = writer.GetIdentity(type);
+            Assert.Equal(row.GetProperty("EventName").GetString(), identity.EventName);
+            Assert.Equal(legacy, identity.EventTypeName);
+            Assert.Equal(type, reader.ResolveRequired(type.AssemblyQualifiedName!));
+            Assert.Equal(type, reader.ResolveRequired($"{type.FullName}, {type.Assembly.GetName().Name}"));
+            Assert.Contains(legacy, reader.GetReadIdentities(type));
+        }
+    }
+
+    [Fact]
+    public void Relocated_contract_preserves_outbox_and_durable_queue_write_names_and_payloads()
+    {
+        const string legacy = "IdentityFixture.Original.Observation, IdentityFixture.Original, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+        var value = new IdentityFixture.Relocated.Observation { Value = 123.45m };
+        var effect = new EventProjectorEffectIdentity("relocated-contract", 42, EventProjectorEffectKind.CompletedPublication);
+        var before = EventProjectorOutboxSerializer.Serialize(value, effect);
+        EventWriteIdentityRegistry.Default.RegisterLegacyIdentity(value.GetType(), "Observation", legacy);
+        var after = EventProjectorOutboxSerializer.Serialize(value, effect);
+        Assert.NotEqual(before.EventTypeName, after.EventTypeName);
+        Assert.Equal(legacy, after.EventTypeName);
+        Assert.Equal(before.MessageId, after.MessageId);
+        Assert.Equal(before.EventPayload, after.EventPayload);
+        Assert.Equal(value, EventProjectorOutboxSerializer.Deserialize(after.EventTypeName, after.EventPayload));
+
+        var queue = typeof(TomasAI.IFM.Framework.Messaging.Nats.NatsJSDurableReplayQueue);
+        var serialize = queue.GetMethod("Serialize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .CreateDelegate<Func<IEvent, string, byte[]>>();
+        var deserialize = queue.GetMethod("Deserialize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .CreateDelegate<Func<byte[], IEvent>>();
+        var bytes = serialize(value, "relocated-contract");
+        var options = MessagePack.MessagePackSerializerOptions.Standard
+            .WithResolver(MessagePack.Resolvers.ContractlessStandardResolver.Instance)
+            .WithCompression(MessagePack.MessagePackCompression.Lz4BlockArray);
+        var envelope = MessagePack.MessagePackSerializer.Deserialize<Dictionary<string, object>>(bytes, options);
+        Assert.Equal(legacy, envelope["EventType"]);
+        Assert.Equal(value, deserialize(bytes));
+    }
+
     [Fact]
     public void Frozen_pre_change_payloads_replay_through_legacy_stable_and_moved_names_and_reencode_identically()
     {

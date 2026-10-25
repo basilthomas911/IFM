@@ -1,0 +1,214 @@
+[
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesEodDataId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdateSource"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketQuoteSnapshot"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketTradeSnapshot"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayObservation"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeAction"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeConditionFlags"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeSide"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteData"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegment"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegmentFormatter"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickTradeData"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickQuoteServiceEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickTradeServiceEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceBasis"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceObservation"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.QuoteEmissionReason"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataEntityId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionStatisticsSnapshot"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionVolumeQuality"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesContractId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractEntityId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionTickEntityId"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesTradingValueDate"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceCheckpoint"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceInvalidReason"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.OptionType"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.CmeEsOptionPremiumConvention"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesReferenceQualification"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceAssetType"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceDayCount"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceExerciseStyle"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceOptionRight"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumStyle"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumTickRule"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeStatus"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeType"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.ViewModels.LossProbabilityDataModel"
+  }
+]

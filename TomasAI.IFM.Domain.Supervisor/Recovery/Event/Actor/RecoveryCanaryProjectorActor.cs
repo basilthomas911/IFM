@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Supervisor.Shared.Recovery;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -53,7 +53,7 @@ public sealed class RecoveryCanaryProjectorActor(IEventActorContext<RecoveryCana
     protected override ValueTask OnExceptionAsync(IEventActorContext<RecoveryCanaryProjectorActor> context,
         ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor recovery canary projector", threadId);
+        global::TomasAI.IFM.Application.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor recovery canary projector", threadId);
         return ValueTask.CompletedTask;
     }
 

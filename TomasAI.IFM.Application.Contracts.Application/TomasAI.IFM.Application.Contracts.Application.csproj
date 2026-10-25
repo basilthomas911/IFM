@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- CLR namespaces stay stable; the compatibility catalogs preserve persisted assembly identities. -->
+    <RootNamespace>TomasAI.IFM.Domain.Application.Shared</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MessagePack" Version="3.1.9" />
+    <PackageReference Include="MessagePack.Annotations" Version="3.1.9" />
+  </ItemGroup>
+
+</Project>

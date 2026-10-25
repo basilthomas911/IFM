@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.Strategy.Contracts.Shared/TomasAI.IFM.Domain.Strategy.Contracts.Shared.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Contracts.Strategy/TomasAI.IFM.Application.Contracts.Strategy.csproj" /></ItemGroup>
 </Project>

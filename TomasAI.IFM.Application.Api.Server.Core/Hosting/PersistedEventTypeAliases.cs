@@ -10,8 +10,8 @@ public static class PersistedEventTypeAliases
 {
     public static void Register(EventTypeRegistry registry)
     {
-        registry.Register<IronCondorPositionChangedEvent>("trade.iron-condor.position-changed/v1");
-        registry.Register<FuturesItiSignalGeneratedEvent>("market-data.futures.iti-signal-generated/v1");
-        registry.Register<FundMandateCreatedEvent>("portfolio.fund-mandate-created/v1");
+        registry.Register<IronCondorPositionChangedEvent>("trade.iron-condor.position-changed/v1", EventWriteIdentityRegistry.Default.GetIdentity(typeof(IronCondorPositionChangedEvent)).EventTypeName);
+        registry.Register<FuturesItiSignalGeneratedEvent>("market-data.futures.iti-signal-generated/v1", EventWriteIdentityRegistry.Default.GetIdentity(typeof(FuturesItiSignalGeneratedEvent)).EventTypeName);
+        registry.Register<FundMandateCreatedEvent>("portfolio.fund-mandate-created/v1", EventWriteIdentityRegistry.Default.GetIdentity(typeof(FundMandateCreatedEvent)).EventTypeName);
     }
 }

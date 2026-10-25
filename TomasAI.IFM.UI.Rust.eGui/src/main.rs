@@ -812,6 +812,8 @@ impl eframe::App for App {
                 }
             });
         }
+        // The worker can now acknowledge this rendered batch. Never ACK while it is still queued to the GUI.
+        for delivery in &self.shell.sidebar_snapshot.console_deliveries { delivery.mark_displayed(); }
         if self.frame_times.len() < 10000 {
             self.frame_times
                 .push(frame_started.elapsed().as_secs_f64() * 1000.0);

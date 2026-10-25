@@ -1,7 +1,7 @@
-using System.Net;
+﻿using System.Net;
 using System.Xml;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using Xunit.Abstractions;
 

@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -142,7 +142,7 @@ public class NatsJetStreamActorConsumer(
         try
         {
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
-            ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
+            global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             _supervisor = IsArgumentNull.Set(supervisor);
             _actorType = actorType;
             if (_nc is not null)
@@ -617,7 +617,7 @@ public class NatsJetStreamActorConsumer(
                         continue;
                     }
 
-                    payload = new NatsSharedEventPayload(msg.Data, ActorTrace.Extract(msg.Headers));
+                    payload = new NatsSharedEventPayload(msg.Data, global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(msg.Headers));
                     ownerTransferred = true;
                     messagesRead++;
                     NatsMessagingMetrics.Received.Add(1);
@@ -824,7 +824,7 @@ public class NatsJetStreamActorConsumer(
                 finally { actorMessage?.Dispose(); }
                 if (!isRoutedMessage)
                 {
-                    await _supervisor.RouteEventToAsync(msg).ConfigureAwait(false);
+                    await RouteEventToMailboxesAsync(msg).ConfigureAwait(false);
                     await jsMsg!.AckAsync(cancellationToken: CancellationToken.None).ConfigureAwait(false);
                 }
             }
@@ -858,4 +858,17 @@ public class NatsJetStreamActorConsumer(
         }
     }
 
+    async ValueTask RouteEventToMailboxesAsync(NatsMsg<byte[]> message)
+    {
+        try
+        {
+            var source = message.Subject.ToSubject();
+            foreach (var mailbox in _supervisor.GetEventRoutes(source.ActorTypeId))
+                await RouteEventToAsync(new ActorSubject(mailbox.ActorType, mailbox.Name, source.Verb, source.EntityId), message).ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            _logger.LogErrorEvent(_serviceId, error, "Error routing event from '{Subject}' to registered mailboxes.", message.Subject);
+        }
+    }
 }

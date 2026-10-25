@@ -25,14 +25,14 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Api.Nats.Client\TomasAI.IFM.Application.Api.Nats.Client.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Framework.Messaging.Nats" /></ItemGroup></Project>

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

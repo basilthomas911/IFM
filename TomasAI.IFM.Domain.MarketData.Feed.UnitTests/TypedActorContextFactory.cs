@@ -135,7 +135,7 @@ internal static class TypedActorContextFactory
         context.Logger.Returns(logger);
         context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName));
         context.MarketDataApi.Returns(Substitute.For<TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi>());
-        context.SequenceIdGenerator.Returns(Substitute.For<TomasAI.IFM.Framework.SequenceId.ISequenceIdGenerator>());
+        context.SequenceIdGenerator.Returns(Substitute.For<TomasAI.IFM.Application.Identity.ISequenceIdApi>());
         return context;
     }
 

@@ -1,7 +1,8 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Buffers;
 using System.Collections.Immutable;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
@@ -41,7 +42,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
         DatabentoFeedOptions options, ITickAggregationService aggregation, IDatabentoLastPriceStore prices,
         TimeProvider? time = null, Action<string>? terminalFault = null, OptionPricingRefreshPolicy? refreshPolicy = null,
         IOptionTradeEvidenceWriter? tradeEvidence = null,
-        TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher? optionObservations = null)
+        TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher? optionObservations = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (generation == Guid.Empty) throw new ArgumentException("A dataset generation is required.",nameof(generation));
@@ -453,7 +454,7 @@ public sealed class WorkerOptionChainRuntime : IAsyncDisposable, ICompositionMar
     {
         public OptionChainSessionKey Key { get; } = key;
         public string Digest { get; set; } = digest;
-        public ImmutableArray<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics { get; init; }
+        public ImmutableArray<TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot> Statistics { get; init; }
         ImmutableArray<WorkerOptionDefinition> optionsValue = options;
         public string[] ContractIds { get; private set; } = options.Select(x => x.Pricing.Contract.ContractId).ToArray();
         public ImmutableArray<WorkerOptionDefinition> Options

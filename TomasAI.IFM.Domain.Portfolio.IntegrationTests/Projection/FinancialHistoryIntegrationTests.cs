@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 using TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using static TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence.GeneralLedgerPostingIntegrationTests;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Projection;

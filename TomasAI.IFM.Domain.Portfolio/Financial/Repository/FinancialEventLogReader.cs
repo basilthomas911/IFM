@@ -19,8 +19,9 @@ public sealed class FinancialEventLogReader(IPostgresEventTransaction transactio
     public Task<FinancialProjectionBaselineEvent?> ReadLatestBaselineAsync(long inclusiveCut,CancellationToken token=default)
         => transactions.ExecuteAsync(async(db,ct)=>
         {
+            var identity = EventWriteIdentityRegistry.Default.GetIdentity(typeof(FinancialProjectionBaselineEvent));
             var name=await (db.ScalarAsync("SELECT eventnameid FROM event_name_id WHERE eventname=$1 AND eventtypename=$2;",
-                [nameof(FinancialProjectionBaselineEvent),typeof(FinancialProjectionBaselineEvent).AssemblyQualifiedName!],ct)).ConfigureAwait(false);
+                [identity.EventName, identity.EventTypeName],ct)).ConfigureAwait(false);
             if(name==null) return null;
             var rows=await (db.QueryAsync("""
                 SELECT e.eventstreamid,n.eventname,n.eventtypename,e.eventversion,e.EventPayload,e.commandid,e.eventtimestamp::text,e.streamversion

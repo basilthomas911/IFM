@@ -1,5 +1,6 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Buffers;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using Xunit.Abstractions;
 

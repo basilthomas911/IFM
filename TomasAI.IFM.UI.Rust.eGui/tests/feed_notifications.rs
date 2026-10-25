@@ -18,6 +18,7 @@ fn console_replay_merges_live_overlap_without_losing_old_rows_or_deduplication()
     assert_eq!(notifications.publication.status_rows.len(),1501);
     assert_eq!(notifications.publication.status_rows.first().unwrap().message,"message 0");
     assert_eq!(notifications.publication.status_rows.last().unwrap().message,"live during replay");
+    assert_eq!(notifications.publication.latest_status(),Some("live during replay"));
     assert!(!notifications.console_message(&latest,at+chrono::Duration::seconds(1500),"live during replay"));
     assert!(!notifications.console_message(&uuid::Uuid::from_u128(1).to_string(),at,"message 0"));
     assert_eq!(notifications.publication.status_rows.len(),1501);

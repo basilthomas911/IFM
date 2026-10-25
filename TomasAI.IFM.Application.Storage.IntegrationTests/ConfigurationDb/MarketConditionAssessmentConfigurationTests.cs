@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Strategy.Contracts.Shared.Configuration;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Assessment;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Exceptions;
 using Xunit;
 using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;

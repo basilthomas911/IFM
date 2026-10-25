@@ -53,7 +53,7 @@ public class LookupTypeQueryActorTests : IClassFixture<ReferenceTestFixture>
         public ILookupTypeQueryContext LookupTypeContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext<LookupTypeQueryActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public async ValueTask InvokeReceiveAsync(IQueryActorContext<LookupTypeQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);

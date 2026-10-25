@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace TomasAI.IFM.Shared.Domain.BDDTests
+namespace TomasAI.IFM.Application.CommandPipeline.BDDTests
 {
     public class BDDTestAttribute : Attribute
     {

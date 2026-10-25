@@ -1,0 +1,786 @@
+[
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": true,
+    "payload": "kwHCmZQAp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJl2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWSp2ZpeHR1cmXOAAtKSQDZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NadmaXh0dXJlp2ZpeHR1cmXW/2rd70CZp2ZpeHR1cmXOAAtKSaI0MqI0MqI0MioqKgA=",
+    "sha256": "E87AE08B12C8F0C8A4A69308BE583ED0E4B13A58713E322D1095937EAFE604B0"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": true,
+    "payload": "kwHCktVizKfGAAAAWLyZlACnZml4dHVyZQgAM9kkMQEA9wItMjIyMi0zMzMzLTQ0NDQtNQEAFJI3AG/OAAtKSQA1ABMENAAECAB01v9q3e9AmQ8AAUsA0KI0MqI0MqI0MioqKgA=",
+    "sha256": "21F4E1882068A92A220F460595E6EE06E8A0AB8BCFA9DDF3CA5A9B2C49CA3F96"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesEodDataId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesEodDataId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "kqdmaXh0dXJlzgALSkk=",
+    "sha256": "6CE1189BBEF342B3E66D49471B79B076979158869589ED0B5A0B75EC51E045F1"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesEodDataId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesEodDataId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kqdmaXh0dXJlzgALSkk=",
+    "sha256": "6CE1189BBEF342B3E66D49471B79B076979158869589ED0B5A0B75EC51E045F1"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "l6dmaXh0dXJlKioAzgALSkmZojQyKqI0MioqKiqS1v9q3e9AAJLW/2rd70AAmqI0Mioqktb/at3vQACS1v9q3e9AAAAAANkkMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1Kg==",
+    "sha256": "5F9BDE86A6CC9C8BB789CFC3121C7D5B2C71A7286CAB9388A594F2313F8B8AF3"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRibcYAAABa8AeXp2ZpeHR1cmUqKgDOAAtKSZmiNDIqBAC0Kioqktb/at3vQAAIABGaGAAEDgAECABjAAAA2SQxAQDwDi0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUq",
+    "sha256": "CF65A85779726CAF4CB5891296B74F402B8A2B75A01EE60A8B68FEAEF7492B4C"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdateSource",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdateSource, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdateSource",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdateSource, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": true,
+    "payload": "kwHCnZQAp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJl2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWTp2ZpeHR1cmXOAAtKSQAA2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWnZml4dHVyZadmaXh0dXJl1v9q3e9AKpenZml4dHVyZSoqAM4AC0pJmaI0MiqiNDIqKioqktb/at3vQACS1v9q3e9AAJqiNDIqKpLW/2rd70AAktb/at3vQAAAAADZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NSoAntkkMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1KiqS1v9q3e9AAKI0MioqKqI0MsPD2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUqANwAEZQAp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJl2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWTp2ZpeHR1cmXOAAtKSQAq2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWnZml4dHVyZadmaXh0dXJl1v9q3e9AKpSnZml4dHVyZc4AC0pJKtb/at3vQACnZml4dHVyZc4AC0pJKiqaKioqKiqiNDIqKioqladmaXh0dXJlAdwAIadmaXh0dXJlzgALSkkqzwAAAGSVNOAAy0BFAAAAAAAAy0BFAAAAAAAAy0BFAAAAAAAAKirLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAAAqKs4AC0pJzgALSknD2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUqktb/at3vQACS1v9q3e9AAJLW/2rd70AAp2ZpeHR1cmWnZml4dHVyZcPDy0BFAAAAAAAAKpqnZml4dHVyZaI0MpLW/2rd70AAKstARQAAAAAAAKdmaXh0dXJlp2ZpeHR1cmWiNDKiNDKnZml4dHVyZSrW/2rd70A=",
+    "sha256": "E0CD2F000DF03D9D403EB5752E734B3A92E5A828BEE0D737BF6B70EFC5969F06"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": true,
+    "payload": "kwHCkscDYs0DTcYAAAElvJ2UAKdmaXh0dXJlCAAz2SQxAQD3Ai0yMjIyLTMzMzMtNDQ0NC01AQAUkzcAf84AC0pJAAA2ABMENQAECACE1v9q3e9AKpcQADEqKgBQAFCZojQyKgQAQioqKpIlABQACAARmhgABA4ABAgAHwCDABU/KgCerAATBmQAAXEAAI8AL8PDOwAUTwDcABFiATwfKnsAEwRKAQQIAAI9ASQqlBAAAV8BEioWAAUDAgIVADAqmioBAALuACQqlTIARAHcACEMAAIpANHPAAAAZJU04ADLQEUAAQAOCQAuKioUAA8SABohKiptAAEFAA93ARUEDQIMCAAEvwAECAAlw8OLACQqmhUANKI0MjgABrwABB0ABAgAZKI0MqI0Mg4AcCrW/2rd70A=",
+    "sha256": "CB78BBC5BA576784F48270E35EE7E72BB2C34729A5165012AEAF64CAF36C8527"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketQuoteSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketQuoteSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "maI0MiqiNDIqKioqktb/at3vQACS1v9q3e9AAA==",
+    "sha256": "2FF5353C884597720F62290B63D7FAEBEB99D97209E692909D2F165A58CF3DE4"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketQuoteSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketQuoteSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "maI0MiqiNDIqKioqktb/at3vQACS1v9q3e9AAA==",
+    "sha256": "2FF5353C884597720F62290B63D7FAEBEB99D97209E692909D2F165A58CF3DE4"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketTradeSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketTradeSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "mqI0Mioqktb/at3vQACS1v9q3e9AAAAAANkkMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1Kg==",
+    "sha256": "90DF3370899199C31B9816AC4E449703341C837B8D4EC31FE46CF2D93977F447"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketTradeSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketTradeSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRiQMYAAAA55JqiNDIqKpLW/2rd70AACABjAAAA2SQxAQDwDi0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUq",
+    "sha256": "0FBDEB4D336C5426F8BAB468D5189F92A9DCF3CEB06B5FD1746094722AFAA3B9"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": true,
+    "payload": "kwHCn5QAp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJl2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWTp2ZpeHR1cmXOAAtKSQAA2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWnZml4dHVyZadmaXh0dXJl1v9q3e9AKtkkMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1KsPD2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWRlqI0Mioqktb/at3vQAAAAA==",
+    "sha256": "F54DE3E0C79223234C7F7FFF3DCFBD718EF6D4A0B741B4C75D31E31D7439FD0B"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": true,
+    "payload": "kwHCktVizO7GAAAAY7yflACnZml4dHVyZQgAM9kkMQEA9wItMjIyMi0zMzMzLTQ0NDQtNQEAFJM3AH/OAAtKSQAANgATBDUABAgAf9b/at3vQCo9ABM/KsPDKQAT8AKRlqI0Mioqktb/at3vQAAAAA==",
+    "sha256": "6E0B308D04663536D8B05DE934644576837E27FEE0BFA19B2E3807B7E351BCEB"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayObservation",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayObservation, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "lqI0Mioqktb/at3vQAAAAA==",
+    "sha256": "12A6918507ECEE8A33C245BD5DCFC56FBA622732FA97CE5380A4F162AB6118EF"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayObservation",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayObservation, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "lqI0Mioqktb/at3vQAAAAA==",
+    "sha256": "12A6918507ECEE8A33C245BD5DCFC56FBA622732FA97CE5380A4F162AB6118EF"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeAction",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeAction, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeAction",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeAction, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeConditionFlags",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeConditionFlags, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeConditionFlags",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeConditionFlags, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeSide",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeSide, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeSide",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.NormalizedTradeSide, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.AssetTypeId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": true,
+    "payload": "kwHC3AASlACnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmXZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NZOnZml4dHVyZc4AC0pJAADZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NadmaXh0dXJlp2ZpeHR1cmXW/2rd70AqlKdmaXh0dXJlzgALSkkq1v9q3e9AAKdmaXh0dXJlzgALSkkqKgEqkZwqKioqKqI0MioqKqI0Mioq",
+    "sha256": "F74B677F46DEE9D77E6E77F5FC849C206BA27EF76DAE23913561D61518A7C5D7"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": true,
+    "payload": "kwHCktVizMnGAAAAbdzcABKUAKdmaXh0dXJlCAAz2SQxAQD3Ai0yMjIyLTMzMzMtNDQ0NC01AQAUkzcAf84AC0pJAAA2ABMENQAECACE1v9q3e9AKpQQAAFNABIqFgAFoQACFQBgKgEqkZwqAQCwojQyKioqojQyKio=",
+    "sha256": "6F6C5CC8F0E93BBC530BD32814C212741C9AB3117D8DD60E651563EC44579F71"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": true,
+    "payload": "kwHC3AARlACnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmXZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NZOnZml4dHVyZc4AC0pJAADZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NadmaXh0dXJlp2ZpeHR1cmXW/2rd70AqlKdmaXh0dXJlzgALSkkq1v9q3e9AAKdmaXh0dXJlzgALSkkqKpoqKioqKqI0MioqKiqVp2ZpeHR1cmUB3AAhp2ZpeHR1cmXOAAtKSSrPAAAAZJU04ADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAAAqKstARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAACoqzgALSknOAAtKScPZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NSqS1v9q3e9AAJLW/2rd70AAktb/at3vQACnZml4dHVyZadmaXh0dXJlw8PLQEUAAAAAAAAqmqdmaXh0dXJlojQyktb/at3vQAAqy0BFAAAAAAAAp2ZpeHR1cmWnZml4dHVyZaI0MqI0MqdmaXh0dXJlKtb/at3vQA==",
+    "sha256": "179791ABEE108C2F9A9FCE3CCAD0A41CB9CDD8A402789771F72A81DB878C5823"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": true,
+    "payload": "kwHCkscDYs0B7cYAAADT3NwAEZQAp2ZpeHR1cmUIADPZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBABSTNwB/zgALSkkAADYAEwQ1AAQIAITW/2rd70AqlBAAAU0AEioWAAWhAAIVADAqmioBADCiNDIHABSVMgBEAdwAIQwAAikA0c8AAABklTTgAMtARQABAA4JAC4qKhQADxIAGiEqKm0AAQUAH8P8ABMjKpLYAAwIAAS/AAQIACXDw4sAJCqaFQA0ojQyOAAGvAAEHQAECABkojQyojQyDgBwKtb/at3vQA==",
+    "sha256": "1161710FC65A366FA1802CDA0AC04A52C53C65EC980223503042D8868E0D8B5C"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteData",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteData, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "nCoqKioqojQyKioqojQyKio=",
+    "sha256": "CCC0D10050080BF8619A1EAD2B0D4D5869F8D032A107683871E0F6F269BD1D33"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteData",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteData, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "nCoqKioqojQyKioqojQyKio=",
+    "sha256": "CCC0D10050080BF8619A1EAD2B0D4D5869F8D032A107683871E0F6F269BD1D33"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegment",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegment, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "kZwqKioqKqI0MioqKqI0Mioq",
+    "sha256": "C066BE6A9A33BA69343C3E2ABFEEB1DF11D118507BE022C2C5894AF36DADAE98"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegment",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickQuoteDataSegment, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kZwqKioqKqI0MioqKqI0Mioq",
+    "sha256": "C066BE6A9A33BA69343C3E2ABFEEB1DF11D118507BE022C2C5894AF36DADAE98"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickTradeData",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickTradeData, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "mioqKioqojQyKioqKg==",
+    "sha256": "74FE1A054CAF74F74529B73F1D418E3DA2DF60D00A0B5A86A141C69DE4185A5D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickTradeData",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.FuturesTickTradeData, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "mioqKioqojQyKioqKg==",
+    "sha256": "74FE1A054CAF74F74529B73F1D418E3DA2DF60D00A0B5A86A141C69DE4185A5D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickQuoteServiceEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickQuoteServiceEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "iadFdmVudElk2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWqQ29udHJhY3RJZKdmaXh0dXJlqVZhbHVlRGF0Zc4AC0pJq0Fzc2V0VHlwZUlkAKdEYXRhc2V0p2ZpeHR1cmWuRGVmaW5pdGlvbkRhdGXOAAtKSatQdWJsaXNoZXJJZCqsSW5zdHJ1bWVudElkKqVRdW90ZZwqKioqKqI0MioqKqI0Mioq",
+    "sha256": "230355D453A28F5E967E93EF5C80E0940A072BA4854E0327259FDF5B89224D95"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickQuoteServiceEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickQuoteServiceEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizLTGAAAAncOJp0V2ZW50SWTZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBAPQoqkNvbnRyYWN0SWSnZml4dHVyZalWYWx1ZURhdGXOAAtKSatBc3NldFR5cGVJZACnRGF0YXNldCwAtq5EZWZpbml0aW9uMQDxBVB1Ymxpc2hlcklkKqxJbnN0cnVtkwCQKqVRdW90ZZwqAQCwojQyKioqojQyKio=",
+    "sha256": "27EF028DE942F6B51E97F559FD43C23038DAEA68F60BBE38EE4D0BD81A2A4CC5"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickTradeServiceEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickTradeServiceEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "iadFdmVudElk2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTWqQ29udHJhY3RJZKdmaXh0dXJlqVZhbHVlRGF0Zc4AC0pJq0Fzc2V0VHlwZUlkAKdEYXRhc2V0p2ZpeHR1cmWuRGVmaW5pdGlvbkRhdGXOAAtKSatQdWJsaXNoZXJJZCqsSW5zdHJ1bWVudElkKqVUcmFkZZoqKioqKqI0MioqKio=",
+    "sha256": "6E641151D1F98D2D264452938592108A4EE8BA8FC74A75861B2259626D7DDA9D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickTradeServiceEvent",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.LiveTickTradeServiceEvent, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizLDGAAAAm8OJp0V2ZW50SWTZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBAPQoqkNvbnRyYWN0SWSnZml4dHVyZalWYWx1ZURhdGXOAAtKSatBc3NldFR5cGVJZACnRGF0YXNldCwAtq5EZWZpbml0aW9uMQDxBVB1Ymxpc2hlcklkKqxJbnN0cnVtkwDwBSqlVHJhZGWaKioqKiqiNDIqKioq",
+    "sha256": "BC2B46917C3CE94335B44BFE676E855C4C5546D24E2278F1B07633BB4EE0F4DB"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceBasis",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceBasis, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AQ==",
+    "sha256": "4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceBasis",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceBasis, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AQ==",
+    "sha256": "4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceObservation",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceObservation, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "ladmaXh0dXJlAdwAIadmaXh0dXJlzgALSkkqzwAAAGSVNOAAy0BFAAAAAAAAy0BFAAAAAAAAy0BFAAAAAAAAKirLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAAAqKs4AC0pJzgALSknD2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUqktb/at3vQACS1v9q3e9AAJLW/2rd70AAp2ZpeHR1cmWnZml4dHVyZcPDy0BFAAAAAAAAKpqnZml4dHVyZaI0MpLW/2rd70AAKstARQAAAAAAAKdmaXh0dXJlp2ZpeHR1cmWiNDKiNDKnZml4dHVyZSrW/2rd70A=",
+    "sha256": "7C0CE47594EA8747DAA3F876719A15FB243DEB8A9B0E9C23875A53428C0E9B66"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceObservation",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.OptionMarketPriceObservation, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0BK8YAAACT1JWnZml4dHVyZQHcACEMAPEEzgALSkkqzwAAAGSVNOAAy0BFAAEADgkALioqFAAPEgAaISoqbQABBQBDw9kkMQEA9wItMjIyMi0zMzMzLTQ0NDQtNQEAnCqS1v9q3e9AAAgABL8ABAgAJcPDiwAkKpoVADSiNDI4AAa8AAQdAAQIAGSiNDKiNDIOAHAq1v9q3e9A",
+    "sha256": "9C6DB3AE5EDCD29017C663461DB38C949581E0DC551A47A1A3C1FCFDBAD4A2E6"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.QuoteEmissionReason",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.QuoteEmissionReason, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AQ==",
+    "sha256": "4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.QuoteEmissionReason",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.QuoteEmissionReason, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AQ==",
+    "sha256": "4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataEntityId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlzgALSkkA",
+    "sha256": "7A113A6922CD7BF6C2000F6674A9AFBA019F858B1A1B3B54BFFF3CD6C450C47F"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataEntityId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlzgALSkkA",
+    "sha256": "7A113A6922CD7BF6C2000F6674A9AFBA019F858B1A1B3B54BFFF3CD6C450C47F"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "lKdmaXh0dXJlzgALSkkq1v9q3e9A",
+    "sha256": "BB3AEEB2A4F42151D5DD2BAA99B44ABE782FE075D94B78944DBBB1F19DE6BF42"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.TickDataId, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "lKdmaXh0dXJlzgALSkkq1v9q3e9A",
+    "sha256": "BB3AEEB2A4F42151D5DD2BAA99B44ABE782FE075D94B78944DBBB1F19DE6BF42"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionStatisticsSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionStatisticsSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "madmaXh0dXJlzgALSkmiNDKiNDKiNDIqKioA",
+    "sha256": "F9C39BEB59A1192EAB415796CDA18772621C00DA1F3E505D660BBE5B9892CD61"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionStatisticsSnapshot",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionStatisticsSnapshot, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "madmaXh0dXJlzgALSkmiNDKiNDKiNDIqKioA",
+    "sha256": "F9C39BEB59A1192EAB415796CDA18772621C00DA1F3E505D660BBE5B9892CD61"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionVolumeQuality",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionVolumeQuality, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionVolumeQuality",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesSessionVolumeQuality, TomasAI.IFM.Domain.MarketData.Feed.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesContractId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesContractId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlp2ZpeHR1cmXOAAtKSQ==",
+    "sha256": "2CFFC736DB957AE429F1D1C9D4B223A77BD6F720F8C4076EC5F4FA2D8FA29F5A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesContractId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesContractId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlp2ZpeHR1cmXOAAtKSQ==",
+    "sha256": "2CFFC736DB957AE429F1D1C9D4B223A77BD6F720F8C4076EC5F4FA2D8FA29F5A"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractEntityId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "kqdmaXh0dXJlKg==",
+    "sha256": "2AC654CAB92F939F968DA28C26884B2B7FF755064DB239E71A7070617096A09C"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractEntityId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kqdmaXh0dXJlKg==",
+    "sha256": "2AC654CAB92F939F968DA28C26884B2B7FF755064DB239E71A7070617096A09C"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "gapDb250cmFjdElkr0VTMjAyNjEwMzBQNTAwMA==",
+    "sha256": "33E1C40B480B5E4567093B9FCDBA7DA5354E5AF3C11C879D27097123574D76F9"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionContractId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "gapDb250cmFjdElkr0VTMjAyNjEwMzBQNTAwMA==",
+    "sha256": "33E1C40B480B5E4567093B9FCDBA7DA5354E5AF3C11C879D27097123574D76F9"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionTickEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionTickEntityId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlzgALSknZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NQ==",
+    "sha256": "E1AE360B5A901250D08FD76CB1C1B62E8E7AA406BD33EF19F0ABC43AFB0E3717"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionTickEntityId",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesOptionTickEntityId, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "k6dmaXh0dXJlzgALSknZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NQ==",
+    "sha256": "E1AE360B5A901250D08FD76CB1C1B62E8E7AA406BD33EF19F0ABC43AFB0E3717"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceCheckpoint",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceCheckpoint, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "ntkkMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1KiqS1v9q3e9AAKI0MioqKqI0MsPD2SQxMTExMTExMS0yMjIyLTMzMzMtNDQ0NC01NTU1NTU1NTU1NTUqAA==",
+    "sha256": "C8CE784F77963B0E6BD37E4EECC1C32808796E04D0EC53FFE3629E315E678DE5"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceCheckpoint",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceCheckpoint, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktRiZMYAAAA8Q57ZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBAP8GKiqS1v9q3e9AAKI0MioqKqI0MsPDOwAQUDU1NSoA",
+    "sha256": "B42F8614A891A0F43F964DFD46B6A54816A0FBE31D46DFADA51379141DE5E59E"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceInvalidReason",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceInvalidReason, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceInvalidReason",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.FuturesVwapSignal.FuturesVwapSourceInvalidReason, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.OptionType",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.OptionType, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.OptionType",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.OptionType, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "3AAgp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZc4AC0pJw8MqAKdmaXh0dXJlKiqnZml4dHVyZZLW/2rd70AAp2ZpeHR1cmWnZml4dHVyZZLW/2rd70AAktb/at3vQACnZml4dHVyZQCiNDKiNDKiNDKnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWS1v9q3e9AAJLW/2rd70AA",
+    "sha256": "86BD7CC301F035333C5C769742D0CF5EBFEB81A0BB0C1077E708BCED69A1ED2D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizMDGAAAASb/cACCnZml4dHVyZQgAJZTOAAtKScPDKgBBACQqKgoAdZLW/2rd70AaAAwYAAwgAEIAojQyAwAEKgAMCAAEMgCAktb/at3vQAA=",
+    "sha256": "CB9229A1F7D3AC710E2F5E7D7FC187EF1625A37F4862F82E88BE7485D0790592"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "3AAtp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWnZml4dHVyZc4AC0pJy0BFAAAAAAAAp2ZpeHR1cmWiNDIqAKdmaXh0dXJlKiqnZml4dHVyZZLW/2rd70AAp2ZpeHR1cmWnZml4dHVyZZLW/2rd70AAktb/at3vQACnZml4dHVyZQCiNDKiNDKiNDKnZml4dHVyZadmaXh0dXJlp2ZpeHR1cmWS1v9q3e9AAJLW/2rd70AAp2ZpeHR1cmUAAAAAktb/at3vQACnZml4dHVyZQCnZml4dHVyZQAqKg==",
+    "sha256": "C543EB5C50B16098A1855CEC15F605D5CC38F5B6B40B1DC6041DE8EE33F107D6"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "ktVizPrGAAAAYr/cAC2nZml4dHVyZQgAJZHOAAtKSctARQABAARGAEWiNDIqDQAkKioKAHWS1v9q3e9AGgAMGAAMIABCAKI0MgMABCoADAgABDIABAgABCAAAI4ADRQAsKdmaXh0dXJlACoq",
+    "sha256": "6F1AFA41E7FCDAC15B9133EE1E487AB1A3C4BF6352FD326323A98E7EC6F4D5F8"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "3AAhp2ZpeHR1cmXOAAtKSSrPAAAAZJU04ADLQEUAAAAAAADLQEUAAAAAAADLQEUAAAAAAAAqKstARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAAMtARQAAAAAAACoqzgALSknOAAtKScPZJDExMTExMTExLTIyMjItMzMzMy00NDQ0LTU1NTU1NTU1NTU1NSqS1v9q3e9AAJLW/2rd70AAktb/at3vQACnZml4dHVyZadmaXh0dXJlw8PLQEUAAAAAAAAqmqdmaXh0dXJlojQyktb/at3vQAAqy0BFAAAAAAAAp2ZpeHR1cmWnZml4dHVyZaI0MqI0MqdmaXh0dXJl",
+    "sha256": "A5FF9B39EEE7B30080420B44A701C44499D3CED1DC83F9D280E5C84F4131A744"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionTickDataV2ReadModel, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "kscDYs0BGsYAAACM8Q/cACGnZml4dHVyZc4AC0pJKs8AAABklTTgAMtARQABAA4JAC4qKhQADxIAGiEqKm0AAQUAQ8PZJDEBAPcCLTIyMjItMzMzMy00NDQ0LTUBAJwqktb/at3vQAAIAAS/AAQIACXDw4sAJCqaFQA0ojQyOAAGvAAEHQAECADgojQyojQyp2ZpeHR1cmU=",
+    "sha256": "C7BBB726A0CE23B637BF9FDC41C7B84ACC0E0FF3B9C192B327763198DFA89F98"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "mqdmaXh0dXJlojQyktb/at3vQAAqy0BFAAAAAAAAp2ZpeHR1cmWnZml4dHVyZaI0MqI0MqdmaXh0dXJl",
+    "sha256": "E02E3BC7EBBB4AF98FD019260FF446D5F617EAC0183AD990ACBAC2EB2527CE08"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.OptionTickPricingInputs, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "mqdmaXh0dXJlojQyktb/at3vQAAqy0BFAAAAAAAAp2ZpeHR1cmWnZml4dHVyZaI0MqI0MqdmaXh0dXJl",
+    "sha256": "E02E3BC7EBBB4AF98FD019260FF446D5F617EAC0183AD990ACBAC2EB2527CE08"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceAssetType",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceAssetType, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceAssetType",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceAssetType, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceDayCount",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceDayCount, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceDayCount",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceDayCount, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceExerciseStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceExerciseStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceExerciseStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceExerciseStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceOptionRight",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceOptionRight, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceOptionRight",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceOptionRight, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumTickRule",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumTickRule, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumTickRule",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferencePremiumTickRule, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceReviewState, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle",
+    "legacyIdentity": "TomasAI.IFM.Domain.MarketData.Shared.ViewModels.ReferenceSettlementStyle, TomasAI.IFM.Domain.MarketData.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.TradeStatus",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.TradeStatus, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.TradeStatus",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.TradeStatus, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.TradeType",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.TradeType, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.TradeType",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.TradeType, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "AA==",
+    "sha256": "6E340B9CFFB37A989CA544E6BB780A2C78901D3FB33738768511A30617AFA01D"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.ViewModels.LossProbabilityDataModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.ViewModels.LossProbabilityDataModel, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": false,
+    "isEvent": false,
+    "payload": "g6VWYWx1ZctARQAAAAAAAKlUaHJlc2hvbGSiNDKuVGhyZXNob2xkQ291bnQq",
+    "sha256": "6D84BC38AEA1B6D8B1119B0E302EA757D76BC359005FA742168ADCF1DC705686"
+  },
+  {
+    "fullName": "TomasAI.IFM.Domain.Trade.Shared.ViewModels.LossProbabilityDataModel",
+    "legacyIdentity": "TomasAI.IFM.Domain.Trade.Shared.ViewModels.LossProbabilityDataModel, TomasAI.IFM.Domain.Trade.Shared, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+    "compressed": true,
+    "isEvent": false,
+    "payload": "g6VWYWx1ZctARQAAAAAAAKlUaHJlc2hvbGSiNDKuVGhyZXNob2xkQ291bnQq",
+    "sha256": "6D84BC38AEA1B6D8B1119B0E302EA757D76BC359005FA742168ADCF1DC705686"
+  }
+]

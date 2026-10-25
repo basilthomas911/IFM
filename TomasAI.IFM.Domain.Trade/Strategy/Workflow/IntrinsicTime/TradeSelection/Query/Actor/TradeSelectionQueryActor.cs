@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.TradeSelection.Query;
-using TomasAI.IFM.Framework.Serialization;
+using TomasAI.IFM.Application.Serialization;
 using System.Collections.Frozen;
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;

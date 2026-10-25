@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using Amazon;
 using Amazon.KeyManagementService;
@@ -7,7 +7,7 @@ using Amazon.Runtime.Credentials;
 using Amazon.S3;
 using Amazon.SecurityToken;
 using FluentAssertions;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.PostgreSql;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Publication;

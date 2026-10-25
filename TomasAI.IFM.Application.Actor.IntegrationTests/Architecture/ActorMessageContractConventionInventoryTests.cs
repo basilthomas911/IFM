@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Reflection;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -12,15 +12,15 @@ public sealed class ActorMessageContractConventionInventoryTests(ITestOutputHelp
 {
     static readonly string[] AssemblyNames =
     [
-        "TomasAI.IFM.Domain.Application.Shared",
-        "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
-        "TomasAI.IFM.Domain.MarketData.Feed.Shared",
-        "TomasAI.IFM.Domain.MarketData.Shared",
-        "TomasAI.IFM.Domain.Portfolio.Shared",
-        "TomasAI.IFM.Domain.Reference.Shared",
-        "TomasAI.IFM.Domain.Strategy.Contracts.Shared",
-        "TomasAI.IFM.Domain.SystemAdmin.Shared",
-        "TomasAI.IFM.Domain.Trade.Shared",
+        "TomasAI.IFM.Application.Contracts.Application",
+        "TomasAI.IFM.Application.Contracts.MarketData.Analytics",
+        "TomasAI.IFM.Application.Contracts.MarketData.Feed",
+        "TomasAI.IFM.Application.Contracts.MarketData",
+        "TomasAI.IFM.Application.Contracts.Portfolio",
+        "TomasAI.IFM.Application.Contracts.Reference",
+        "TomasAI.IFM.Application.Contracts.Strategy",
+        "TomasAI.IFM.Application.Contracts.SystemAdmin",
+        "TomasAI.IFM.Application.Contracts.Trade",
     ];
 
     static readonly string[] ActorAssemblyNames =

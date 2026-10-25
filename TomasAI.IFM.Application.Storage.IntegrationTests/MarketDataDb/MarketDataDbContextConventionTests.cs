@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.DownloadLog;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
@@ -228,7 +229,7 @@ public sealed class MarketDataDbContextConventionTests
         Assert.All(supportTypes, type =>
         {
             Assert.Same(typeof(MarketDataProjectionScopeGeneration).Assembly, type.Assembly);
-            Assert.Equal("TomasAI.IFM.Domain.MarketData.Shared", type.Namespace);
+            Assert.Equal("TomasAI.IFM.Application.Contracts.MarketData", type.Namespace);
         });
         Assert.Null(typeof(MarketDataDbContext).Assembly.GetType(
             "TomasAI.IFM.Application.Storage.MarketDataDb.MarketDataProjectionHash"));

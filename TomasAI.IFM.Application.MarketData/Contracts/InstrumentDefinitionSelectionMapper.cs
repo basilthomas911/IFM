@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Security.Cryptography;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;

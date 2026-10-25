@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
@@ -36,13 +36,13 @@ public sealed partial class MarketDataApiBackend(MarketDataHostConnection connec
                 result = await host.InjectDevelopmentFaultAsync((MarketDataDevelopmentFaultRequest)args[0]!, services.GetRequiredService<IHostEnvironment>(), token).ConfigureAwait(false); break;
             case nameof(WarmTreasuryPricingAsync):
                 result = await services.GetRequiredService<TreasuryPricingProvider>().GetAsync(DateTimeOffset.UtcNow, 0,
-                    services.GetRequiredService<TreasuryPublicationPolicy>(), services.GetRequiredService<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryRateConversionPolicy>(), token).ConfigureAwait(false); break;
+                    services.GetRequiredService<TreasuryPublicationPolicy>(), services.GetRequiredService<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryRateConversionPolicy>(), token).ConfigureAwait(false); break;
             case nameof(ReadTreasuryCurveAsync):
-                result = await services.GetRequiredService<TomasAI.IFM.Framework.MarketData.Contracts.ITreasuryCurve>().GetLatestAsync((DateOnly)args[0]!, token).ConfigureAwait(false); break;
+                result = await services.GetRequiredService<TomasAI.IFM.Shared.MarketData.Contracts.ITreasuryCurve>().GetLatestAsync((DateOnly)args[0]!, token).ConfigureAwait(false); break;
             case nameof(ReadTreasuryCurvesAsync):
-                result = (await services.GetRequiredService<TomasAI.IFM.Framework.MarketData.Contracts.ITreasuryCurve>().GetRangeAsync((DateOnly)args[0]!, (DateOnly)args[1]!, token).ConfigureAwait(false)).ToArray(); break;
+                result = (await services.GetRequiredService<TomasAI.IFM.Shared.MarketData.Contracts.ITreasuryCurve>().GetRangeAsync((DateOnly)args[0]!, (DateOnly)args[1]!, token).ConfigureAwait(false)).ToArray(); break;
             case nameof(ReadEconomicCalendarAsync):
-                result = (await services.GetRequiredService<TomasAI.IFM.Framework.MarketData.Contracts.IEconomicCalendar>().GetAsync((DateOnly)args[0]!, (DateOnly)args[1]!, ((string[]?)args[2])?.ToHashSet(StringComparer.OrdinalIgnoreCase), token).ConfigureAwait(false)).ToArray(); break;
+                result = (await services.GetRequiredService<TomasAI.IFM.Shared.MarketData.Contracts.IEconomicCalendar>().GetAsync((DateOnly)args[0]!, (DateOnly)args[1]!, ((string[]?)args[2])?.ToHashSet(StringComparer.OrdinalIgnoreCase), token).ConfigureAwait(false)).ToArray(); break;
             case nameof(RefreshInstrumentDefinitionsAsync):
                 result = await services.GetRequiredService<TradeStrategySymbols.InstrumentDefinitionRefresh>().RefreshAsync(token).ConfigureAwait(false); break;
             case nameof(RefreshOptionCalendarAsync):
@@ -62,15 +62,15 @@ public sealed partial class MarketDataApiBackend(MarketDataHostConnection connec
             case nameof(ReleaseCompositionAsync):
                 result = await services.GetRequiredService<ICompositionMarketDataApi>().ReleaseAsync((string)args[0]!, (WorkerOptionChainRelease)args[1]!, token).ConfigureAwait(false); break;
             case nameof(AcquireMonitoredOptionAsync):
-                services.GetRequiredService<QualifiedIndividualOptionFeeds>().ValidateOwner((TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!);
+                services.GetRequiredService<QualifiedIndividualOptionFeeds>().ValidateOwner((TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!);
                 await EnsureOptionsAsync((DateOnly)args[2]!, token).ConfigureAwait(false);
                 await services.GetRequiredService<QualifiedIndividualOptionFeeds>().AcquireAsync(
-                    (TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!,
+                    (TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!,
                     (FuturesOptionContractReadModel)args[1]!, (DateOnly)args[2]!).WaitAsync(token).ConfigureAwait(false);
                 result = true; break;
             case nameof(ReleaseMonitoredOptionAsync):
                 await services.GetRequiredService<QualifiedIndividualOptionFeeds>().ReleaseAsync(
-                    (TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!, (string)args[1]!).WaitAsync(token).ConfigureAwait(false);
+                    (TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner)args[0]!, (string)args[1]!).WaitAsync(token).ConfigureAwait(false);
                 result = true; break;
             case nameof(ReadFiveMinuteSeedBarsAsync):
                 result = await services.GetRequiredService<Seeding.FourHourDatabentoSeedReplay>().ReadAsync((string)args[0]!, token).ConfigureAwait(false); break;

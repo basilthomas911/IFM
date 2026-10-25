@@ -1,3 +1,5 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using FluentAssertions;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.MarketData.DataBento;

@@ -1,5 +1,5 @@
-using System.Collections.Immutable;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+﻿using System.Collections.Immutable;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 /// <summary>Asynchronous bounded daily refresh; no network operations occur in pricing/enrichment.</summary>

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
+﻿using TomasAI.IFM.Domain.Portfolio.Fund.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Fund.Command.Validation;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Shared.Events;
@@ -20,7 +20,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Validation;
 
 

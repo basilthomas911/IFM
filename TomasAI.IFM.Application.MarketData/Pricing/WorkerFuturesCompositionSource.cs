@@ -1,5 +1,5 @@
-using System.Collections.Immutable;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+﻿using System.Collections.Immutable;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;

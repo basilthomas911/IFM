@@ -1,6 +1,6 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Pricing;
 

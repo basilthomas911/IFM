@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 

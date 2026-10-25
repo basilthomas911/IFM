@@ -89,7 +89,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Proces
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.Reference;
@@ -110,7 +110,7 @@ using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Framework.Messaging.Nats;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
@@ -118,14 +118,15 @@ using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Azure;
 using TomasAI.IFM.Framework.Telemetry.Metrics;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventProducers;
+using TomasAI.IFM.Application.EventServices;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.Model;
@@ -224,7 +225,7 @@ public static partial class CoreServiceRegistration
         services.AddSingleton<TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve>(sp => new(
         sp.GetRequiredService<IHttpClientFactory>().CreateClient("USTreasury"), sp.GetRequiredService<TimeProvider>()));
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.Replace(services,
-        ServiceDescriptor.Singleton<TomasAI.IFM.Framework.MarketData.Contracts.ITreasuryCurve>(
+        ServiceDescriptor.Singleton<TomasAI.IFM.Shared.MarketData.Contracts.ITreasuryCurve>(
         sp => sp.GetRequiredService<TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve>()));
         services.AddSingleton(TomasAI.IFM.Framework.MarketData.ReferenceData.UsTreasuryCurve.ConversionPolicy);
         services.AddSingleton(TomasAI.IFM.Application.MarketData.Pricing.UsTreasuryPublicationCalendar.Default2026);

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

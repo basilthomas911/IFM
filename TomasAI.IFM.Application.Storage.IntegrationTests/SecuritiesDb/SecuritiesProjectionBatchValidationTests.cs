@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;

@@ -1,7 +1,7 @@
 
 using Newtonsoft.Json;
-using Npgsql;
-using NpgsqlTypes;
+
+
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
@@ -98,8 +98,7 @@ public sealed class LedgerFinancialProjection(IPostgresEventTransaction transact
     }
 
     /// <summary>Canonical UTC JSON prevents event-codec timestamp normalization from changing reconstructed payloads.</summary>
-    internal static NpgsqlParameter PayloadJson<T>(T value) => new()
-    { NpgsqlDbType = NpgsqlDbType.Jsonb, Value = JsonConvert.SerializeObject(value, new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc }) };
+    internal static System.Data.Common.DbParameter PayloadJson<T>(T value) => PostgresValues.Jsonb(JsonConvert.SerializeObject(value, new JsonSerializerSettings { DateTimeZoneHandling = DateTimeZoneHandling.Utc }));
 
     internal static async Task ApplyEffectsAsync(EnlistedEventTransaction db, int portfolioId, AcceptedLedgerPosting fact, CancellationToken ct)
     {

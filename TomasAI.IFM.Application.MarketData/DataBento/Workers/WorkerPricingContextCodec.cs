@@ -1,8 +1,8 @@
-using MessagePack;
+﻿using MessagePack;
 using MessagePack.Formatters;
 using MessagePack.Resolvers;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.Serialization;
 
 namespace TomasAI.IFM.Application.MarketData.Databento.Workers;

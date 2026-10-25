@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.EventSourcing.MarketData;
+﻿using TomasAI.IFM.Application.EventSourcing.Projections.MarketData;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.EventSourceDb;

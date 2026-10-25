@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,7 +12,9 @@
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Application.Shared\TomasAI.IFM.Domain.Application.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Application\TomasAI.IFM.Application.Contracts.Application.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.CommandPipeline\TomasAI.IFM.Application.CommandPipeline.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -107,7 +107,7 @@ public sealed class SupervisorEventActor(IEventActorContext<SupervisorEventActor
     protected override ValueTask OnExceptionAsync(IEventActorContext<SupervisorEventActor> context,
         ActorThreadId threadId, IEvent @event, Exception ex)
     {
-        global::TomasAI.IFM.Shared.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor event", threadId);
+        global::TomasAI.IFM.Application.EventModelActor.ActorBoundaryFailureLog.Failed(Typed(context).Logger, ex, "Supervisor event", threadId);
         return ValueTask.CompletedTask;
     }
 

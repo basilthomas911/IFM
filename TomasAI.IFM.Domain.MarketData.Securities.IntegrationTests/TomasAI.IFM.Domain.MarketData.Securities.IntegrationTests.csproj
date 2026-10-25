@@ -47,9 +47,9 @@
 		<ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Serialization\TomasAI.IFM.Framework.Serialization.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.Storage.Azure\TomasAI.IFM.Framework.Storage.Azure.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Shared.EventProducers\TomasAI.IFM.Shared.EventProducers.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.EventServices\TomasAI.IFM.Application.EventServices.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.IntegrationTesting\TomasAI.IFM.IntegrationTesting.csproj" />
 	</ItemGroup>
 
@@ -57,4 +57,4 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Storage" /></ItemGroup></Project>

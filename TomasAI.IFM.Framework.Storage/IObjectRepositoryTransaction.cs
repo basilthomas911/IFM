@@ -1,24 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Data.Common;
-using Microsoft.Data.SqlClient;
-
-namespace TomasAI.IFM.Framework.Storage
-{
-    public interface IObjectRepositoryTransaction
-    {
-        /// <summary>
-        /// commit database transaction
-        /// </summary>
-        void Commit();
-
-        /// <summary>
-        /// rollback database transaction
-        /// </summary>
-        void Rollback();
-    }
-
+using TomasAI.IFM.Shared.Storage;
+namespace TomasAI.IFM.Framework.Storage;
     public interface IObjectRepositoryTransaction<TRepo> : IObjectRepositoryTransaction where TRepo : IObjectRepository
     {
         /// <summary>
@@ -34,4 +15,3 @@ namespace TomasAI.IFM.Framework.Storage
         /// <returns></returns>
         object? CreateCommand();
     }
-}

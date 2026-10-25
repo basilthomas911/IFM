@@ -25,7 +25,7 @@ public sealed class PortfolioAllocationVerificationTests
         (await allocator.AllocateTradeIdAsync()).Should().Be(4001);
     }
 
-    sealed class NamedGenerator(IReadOnlyDictionary<SequenceName, long> ids) : ISequenceIdGenerator
+    sealed class NamedGenerator(IReadOnlyDictionary<SequenceName, long> ids) : global::TomasAI.IFM.Application.Identity.ISequenceIdApi
     {
         public ValueTask<long> GetSequenceIdAsync(SequenceName name, CancellationToken cancellationToken = default) => ValueTask.FromResult(ids[name]);
         public ValueTask<long> GetHighWatermarkAsync(SequenceName name, CancellationToken cancellationToken = default) => ValueTask.FromResult(ids[name]);

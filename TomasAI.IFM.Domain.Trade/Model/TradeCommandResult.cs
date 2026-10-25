@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Shared.Domain;
+﻿using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.CommandPipeline;
 
 namespace TomasAI.IFM.Domain.Trade.Model;
 

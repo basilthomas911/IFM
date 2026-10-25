@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +16,7 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 

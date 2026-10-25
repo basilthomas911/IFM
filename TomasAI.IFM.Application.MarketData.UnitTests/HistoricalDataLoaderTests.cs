@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+﻿using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -18,7 +18,7 @@ public sealed class HistoricalDataLoaderTests
         var request = new MarketDataHistoricalRequest
         {
             DataLoadAttemptId = Guid.NewGuid(),
-            Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Framework.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvOneMinute }],
+            Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Shared.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvOneMinute }],
             StartDate = new(2024, 1, 2),
             EndDate = new(2024, 12, 31),
             MaximumCostUsd = 1,
@@ -55,7 +55,7 @@ public sealed class HistoricalDataLoaderTests
         var request = new MarketDataHistoricalRequest
         {
             DataLoadAttemptId = Guid.NewGuid(),
-            Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Framework.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvDaily }],
+            Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Shared.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvDaily }],
             StartDate = new(2024, 1, 2),
             EndDate = new(2024, 12, 31),
             MaximumCostUsd = 1,

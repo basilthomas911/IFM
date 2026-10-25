@@ -1,6 +1,7 @@
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using System.Text.Json;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;

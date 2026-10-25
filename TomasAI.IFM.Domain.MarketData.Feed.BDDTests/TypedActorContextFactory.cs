@@ -14,7 +14,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -96,7 +96,7 @@ internal static class TypedActorContextFactory
     }
 
     internal static IMarketDataFeedQueryContext Query(
-        ApplicationMarketDataApi marketDataApi, ISequenceIdGenerator sequenceIdGenerator,
+        ApplicationMarketDataApi marketDataApi, ISequenceIdApi sequenceIdGenerator,
         IDbContextFactory dbFactory, ILogger<MarketDataFeedQueryActor> logger)
     {
         var context = Substitute.For<IMarketDataFeedQueryContext>();

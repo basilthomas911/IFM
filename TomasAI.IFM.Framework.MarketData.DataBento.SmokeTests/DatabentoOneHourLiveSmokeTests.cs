@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Diagnostics;
 using System.Text.Json;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;

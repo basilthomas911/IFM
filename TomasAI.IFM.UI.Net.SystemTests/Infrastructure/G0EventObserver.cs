@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;

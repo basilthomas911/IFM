@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 using TomasAI.IFM.Shared.Caching;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 

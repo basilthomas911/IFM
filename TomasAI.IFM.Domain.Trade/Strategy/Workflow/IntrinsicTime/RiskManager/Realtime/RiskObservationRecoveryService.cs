@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Common;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Application.Contracts.Portfolio;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RiskManager.Realtime;
 /// <summary>Projects delivered workflow events and exposes bounded recovery operations for explicit repair.</summary>
-public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, IDbContextFactory db, IPortfolioEventStore funds, IActorService actors, ILogger<RiskObservationRecoveryService> logger) : IWorkflowRiskProjection, IDisposable
+public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, IDbContextFactory db, IPortfolioFundOrderReader funds, IActorService actors, ILogger<RiskObservationRecoveryService> logger) : IWorkflowRiskProjection, IDisposable
 {
     int disposed;
     /// <summary>Releases the owned serialization gate after the host has stopped its workers; safe for DI aliases.</summary>
@@ -95,8 +95,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         if (snapshot.TerminalRisk is not { } evidence)
             return;
         var id = new PortfolioFundId(evidence.PortfolioId, evidence.FundId);
-        var aggregate = await (funds.LoadFundAsync(id, token)).ConfigureAwait(false);
-        var order = aggregate.Composition(evidence.OrderId).Order;
+        var order = await funds.ReadOrderAsync(id, evidence.OrderId, token).ConfigureAwait(false);
         if (order.TerminalRisk == evidence)
             return;
         if (order.RiskAuthorization is not null)
@@ -116,7 +115,7 @@ public sealed class RiskObservationRecoveryService(RiskHistoryJournal journal, I
         var result = await (actors.RequestAsync<SynchronizeFundRiskOutcomeCommand, PortfolioFundId>(command, token)).ConfigureAwait(false);
         if (!result.Success)
             throw new InvalidOperationException(result.ErrorMessage);
-        if ((await (funds.LoadFundAsync(id, token)).ConfigureAwait(false)).Composition(evidence.OrderId).Order.TerminalRisk != evidence)
+        if ((await funds.ReadOrderAsync(id, evidence.OrderId, token).ConfigureAwait(false)).TerminalRisk != evidence)
             throw new InvalidOperationException("Fund outcome acknowledgement is not yet authoritative.");
     }
 }

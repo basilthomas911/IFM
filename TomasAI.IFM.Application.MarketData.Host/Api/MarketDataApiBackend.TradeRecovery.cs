@@ -1,8 +1,8 @@
-using TomasAI.IFM.Application.MarketData.Recovery;
+﻿using TomasAI.IFM.Application.MarketData.Recovery;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Recovery;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Application.MarketData.Host;
 

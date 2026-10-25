@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Hosting;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using Microsoft.Extensions.Hosting;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using Microsoft.Extensions.Logging;
 

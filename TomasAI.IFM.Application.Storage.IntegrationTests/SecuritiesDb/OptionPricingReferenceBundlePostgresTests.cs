@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System;
 using System.IO;
 using System.Threading;
@@ -9,9 +10,10 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Securities.OptionPricing.Repository;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;

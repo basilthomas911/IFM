@@ -1,9 +1,9 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using FluentAssertions;
 using Npgsql;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;

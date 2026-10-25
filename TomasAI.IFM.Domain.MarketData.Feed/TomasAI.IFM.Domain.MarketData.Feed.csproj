@@ -13,14 +13,15 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed.Shared\TomasAI.IFM.Domain.MarketData.Feed.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Framework.OptionPricer\TomasAI.IFM.Framework.OptionPricer.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.CommandPipeline\TomasAI.IFM.Application.CommandPipeline.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Feed\TomasAI.IFM.Application.Contracts.MarketData.Feed.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
+
   </ItemGroup>
 
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Projections/TomasAI.IFM.Application.EventSourcing.Projections.csproj" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.OptionPricing/TomasAI.IFM.Application.OptionPricing.csproj" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Identity/TomasAI.IFM.Application.Identity.csproj" /></ItemGroup></Project>

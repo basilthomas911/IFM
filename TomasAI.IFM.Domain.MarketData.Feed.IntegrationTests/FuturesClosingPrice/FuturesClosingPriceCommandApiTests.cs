@@ -1,3 +1,4 @@
+﻿using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;

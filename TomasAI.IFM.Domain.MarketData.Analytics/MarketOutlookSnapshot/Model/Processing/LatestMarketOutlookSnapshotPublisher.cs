@@ -30,10 +30,12 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
     readonly SemaphoreSlim flushGate = new(1, 1);
     IActorProducer? producer;
     long sequence;
+    int disposed;
 
     /// <summary>Releases the flush gate after the host has awaited StopAsync and its final bounded flush.</summary>
     public override void Dispose()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         base.Dispose();
         flushGate.Dispose();
     }
@@ -113,6 +115,8 @@ public sealed class LatestMarketOutlookSnapshotPublisher(
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        // Failed host startup can dispose services before a later rollback StopAsync.
+        if (Volatile.Read(ref disposed) != 0) return;
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
         using var finalFlush = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         finalFlush.CancelAfter(TimeSpan.FromSeconds(5));

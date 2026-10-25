@@ -23,7 +23,7 @@
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Services\TomasAI.IFM.UI.Net.Services.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Shared.Contracts\TomasAI.IFM.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,4 +31,5 @@
   </ItemGroup>
 
 <ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup><ItemGroup><ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
 </Project>

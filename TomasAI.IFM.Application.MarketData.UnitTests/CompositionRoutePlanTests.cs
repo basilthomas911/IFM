@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+using TomasAI.IFM.Shared.MarketData.Definitions;
+using System.Text.Json;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;

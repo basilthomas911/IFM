@@ -1,10 +1,10 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 namespace TomasAI.IFM.Application.MarketData.OperationsHealth;
 /// <summary>Projects remote worker observations into the existing operations screen without owning recovery.</summary>
 public sealed class MarketDataBackendHealthObserver(IMarketDataApi api, MarketDataOperationsHealthService health,

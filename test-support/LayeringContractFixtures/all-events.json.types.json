@@ -1,0 +1,2934 @@
+[
+  {
+    "owner": "TomasAI.IFM.Application.Actor",
+    "type": "TomasAI.IFM.Application.Actor.Client.TestEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationShutdownCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationShutdownEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationShutdownFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationStartupCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationStartupDegradedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationStartupEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Application.Shared",
+    "type": "TomasAI.IFM.Domain.Application.Shared.Events.ApplicationStartupFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.BrokerAccount.Shared",
+    "type": "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.BrokerAccount.Shared",
+    "type": "TomasAI.IFM.Domain.BrokerAccount.Contracts.BrokerAccountSnapshotObservedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor.FuturesTradeSessionBarSignalBarrierRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxDailySignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxDailySignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxDailySignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalSampledRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAdxSignalStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrDailySignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrDailySignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrDailySignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalSampledRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesAtrSignalStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesBbSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesBbSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesBbSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesEmaSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesEmaSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesEmaSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeClearedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeClearedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeClearedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeSetCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeSetEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalHoldTradeSetFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesItiSignalUpdatedNotifyEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdDailySignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdDailySignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdDailySignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalSampledRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesMacdSignalStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiDailySignalsGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalSampledRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStoppedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalStoppedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalsGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalsGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesRsiSignalsGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTdiSignalGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTdiSignalGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTdiSignalGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalLLMGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalLLMGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalLLMGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalLLMStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalLLMStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalMDIWatermarkClearedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalMetricsLLMGeneratedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalMetricsLLMGeneratedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalMetricsLLMGeneratedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesTradeSignalUpdatedNotifyEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVwapSignalUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVxTermStructureSignalUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVxTermStructureSignalUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.FuturesVxTermStructureSignalUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.MarketOutlookComponentChangedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.MarketOutlookEodUpdatedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events.MarketOutlookSnapshotInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarClosedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarPublishedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarPublishedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarPublishedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader.FuturesAnalyticsHistoricalDataLoaderCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader.FuturesAnalyticsHistoricalDataLoaderFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader.FuturesAnalyticsHistoricalDataLoaderRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedResetApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedResetCompleteApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedResetFailApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedResetStreamingApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStartedApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStartedCompleteApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStartedFailApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStoppedApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStoppedCompleteApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.Api.MarketDataFeedStoppedFailApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.DailyAnalyticsInitializationStatusEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataDeletedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStoppedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesBarDataStreamingStoppedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesClosingPriceInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesClosingPriceInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesClosingPriceInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodDataUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodDataUpdatedNotifyEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesEodSessionStatisticsUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickBidAskEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStoppedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataStreamingStoppedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickDataUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickPriceDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickPriceDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesOptionTickPriceDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesSessionStatisticsUpdatedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickBidAskEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataInsertFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStoppedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.FuturesTickDataStreamingStoppedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.InsertFuturesEodDataFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.InsertFuturesOptionTickDataFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataDatasetRecoveryFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedResetCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedResetEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedResetFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedResetStreamingEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStoppedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.MarketDataFeedStoppedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.OptionMarketDataFeedFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StartFuturesOptionTickDataStreamingFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.StreamingRequestIdDeletedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedHaltedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedHaltedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedHaltedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOffCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOffEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOffFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOnCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOnEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedTurnedOnFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.TradeLiveFeedsRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.VixFuturesEodDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.VixFuturesEodDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.Events.VixFuturesEodDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesTradeReplayBatchRealtimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickQuoteDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Feed.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events.FuturesTickTradeDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadLogInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadLogInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.DownloadLog.MarketDataDownloadLogInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarsImportedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarsImportedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.EconomicCalendarsImportedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesContractRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractsAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractsAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.FuturesOptionContractsAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRateRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.MarketData.Shared",
+    "type": "TomasAI.IFM.Domain.MarketData.Shared.Events.YieldCurveRatesImportedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio",
+    "type": "TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioFundSnapshotCaptured"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio",
+    "type": "TomasAI.IFM.Domain.Portfolio.Persistence.PortfolioSnapshotCaptured"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.DraftPortfolioDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.FundAddedToPortfolioEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.FundAllocationDelegatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.FundRiskEnvelopeDelegatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioFinancialPolicyAssignedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioOperatingStateChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioRetiredEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Events.PortfolioVersionAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.AccountingExportSnapshotEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.BrokerAccountingIntentCapturedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityConsumptionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityConsumptionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityLifecycleCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityLifecycleFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityReservationCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.CapacityReservationFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.EmulatorOrderSubmittedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialAuthoritySnapshotEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.FinancialProjectionBaselineEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerConfigurationCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerPostingBatchCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerPostingBatchFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerPostingCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Financial.LedgerPostingFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.DraftPortfolioFinancialPolicyDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.PortfolioFinancialPolicyActivatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.PortfolioFinancialPolicyCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.PortfolioFinancialPolicyRetiredEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.FinancialPolicy.Events.PortfolioFinancialPolicyVersionAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundCompositionReservedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundCompositionStateChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundMandateCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundMandateVersionAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundManualOrderChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundManualOrderDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundOperatingStateChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.Fund.Events.FundTradeTemplateAssignedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioCloseOrderCompositionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioCloseOrderCompositionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioOrderCompositionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Portfolio.Shared",
+    "type": "TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioOrderCompositionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference",
+    "type": "TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events.RegimeDiscoveryParameterSetCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference",
+    "type": "TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events.RegimeDiscoveryParameterSetPublishedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference",
+    "type": "TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Events.RegimeDiscoveryParameterSetRetiredEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.LookupTypeRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.ScheduledJobAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.ScheduledJobChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.ScheduledJobRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.Events.StrikePriceVolatilityRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ConfigurationProjectionBaselineEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterAssignmentChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterDraftSavedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterSetRenamedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterStartupChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionPublishedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Reference.Shared",
+    "type": "TomasAI.IFM.Domain.Reference.Shared.ParameterSets.ParameterVersionRetiredEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.AcknowledgeIncidentSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.AcknowledgeIncidentSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.DrainSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.DrainSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.PauseSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.PauseSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.QuarantineSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.QuarantineSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RecycleSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RecycleSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RestartSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RestartSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.ResumeSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.ResumeSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RetireSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.RetireSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.StopSupervisorActorCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.StopSupervisorActorFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Operations.Events.SupervisorActorOperationRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Recovery.RecoveryCanaryAcceptedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Supervisor.Shared",
+    "type": "TomasAI.IFM.Domain.Supervisor.Shared.Recovery.RecoveryCanaryRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseArtifactReplicaRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupAuthorizedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupBoundaryRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupExecutionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupLegalHoldPlacedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupLegalHoldReleasedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupPolicyEnforcedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupPolicyRevisedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupServiceCapabilityRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupServiceReconciledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupSetCheckpointRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseBackupSetCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseCutoverAuthorizedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseCutoverExecutionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseCutoverRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationAdmissionRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationCancelledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationErrorRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationProgressRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseOperationVerificationRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRecoveryStatisticsRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreAuthorizedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreDrillAuthorizedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreDrillExecutionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreDrillRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreExecutionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreReadyForCutoverRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRestoreValidationRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRetentionAuthorizedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRetentionExecutionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRetentionRequestedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain.DatabaseRetentionResultRecordedDomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseBackupCancellationRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseBackupExecutionRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseBackupPolicyActivatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseBackupReconciliationRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseBackupVerificationRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseCutoverExecutionRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseRestoreCancellationRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseRestoreDrillRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseRestoreExecutionRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseRetentionEvaluationRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution.DatabaseRetentionExecutionRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Projection.DatabaseBackupProjectionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Projection.DatabaseBackupProjectionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupArtifactReplicaUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupBoundaryEstablishedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupPolicyAppliedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupPolicyRejectedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceAcceptedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceCancelledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceCapabilityChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceErrorEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceProgressEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceReconciliationEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceRejectedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupServiceStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseBackupVerificationCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRecoveryRunStatisticsCapturedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreDrillCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreReadyForCutoverEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceAcceptedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceCancelledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceErrorEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceProgressEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceRejectedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreServiceStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRestoreValidationCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionExecutionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service.DatabaseRetentionPlanCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ApplyScheduledTaskRuntimeEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskCreatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskDisabledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskEnabledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskHostCapabilityRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskInstallationFailureRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskInstallationRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskProjectRegisteredEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRemovedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmissionRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunAdmittedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunReleasedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunRequestedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStageRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskRunUncertainRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.Domain.ScheduledTaskScheduleChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ExecuteScheduledTaskRuntimeRunEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskCreatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskCreatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskDisabledCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskDisabledFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskEnabledCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskEnabledFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskHostCapabilityRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationFailureRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationFailureRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskInstallationRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskProjectRegisteredFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRemovedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRemovedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmissionRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmittedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunAdmittedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunCompletedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunFailedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunReleasedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunRequestedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStageRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskRunUncertainRecordedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.SystemAdmin.Shared",
+    "type": "TomasAI.IFM.Domain.SystemAdmin.Shared.ScheduledTask.Events.ScheduledTaskScheduleChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TradeStrategyStartedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TradeStrategyStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TradeStrategyStartedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TradeStrategyStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TrailingStopLimitRaisedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TrailingStopLimitRaisedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.AlgoTrader.Events.TrailingStopLimitRaisedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDailyProfitTargetUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDailyProfitTargetUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDailyProfitTargetUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDeletedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeDeletedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeEndOfDayProcessedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeEndOfDayProcessedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeEndOfDayProcessedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeLegDataChangedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeLegDataChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeLegDataChangedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeLegDataUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeOrderPlacedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeOrderPlacedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeOrderPlacedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionClosedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionClosedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionClosedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionOpenedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionOpenedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradePositionOpenedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSnapshotCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSnapshotEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSnapshotFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataDeletedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataDeletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataDeletedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadBarDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDataInsertedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDataInsertedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDataInsertedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDistributionStatisticsChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDistributionStatisticsUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDistributionStatisticsUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeSpreadDistributionStatisticsUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeTickPriceDataUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToCloseCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToCloseEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToCloseFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToOpenCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToOpenEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.OptionTradeToOpenFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradeOrderAddedToFundEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClearedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClearedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClearedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClosePositionCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClosePositionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementClosePositionFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementOpenPositionCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementOpenPositionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementOpenPositionFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementRangeboundCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementRangeboundEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementRangeboundFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementSetCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementSetEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementSetFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementWaitCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementWaitEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlacementWaitFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanActionUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanActionUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanActionUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitClearedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitClearedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitClearedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitReachedUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitReachedUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitReachedUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitWarningUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitWarningUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanForwardLossLimitWarningUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePlanUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionAddedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionClosedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionClosedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionClosedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHedgedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHedgedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHedgedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHeldOverCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHeldOverEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionHeldOverFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionOpenedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionOpenedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionOpenedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionStatusUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionStatusUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionStatusUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Events.TradePositionUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.FuturesTradeChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.OptionTradeChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondor.ForwardPrice.IronCondorForwardPriceCalculatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInitializedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorMonitoringInputsChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.IronCondorPositionChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Option.Position.VerticalSpreadPositionChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Futures.Position.FuturesPositionChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Order.Broker.BrokerOrderObservationReceivedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Order.TradeOrderChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.IntrinsicTimeStrategyWorkflowCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.IntrinsicTimeStrategyWorkflowContinuedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.IntrinsicTimeStrategyWorkflowStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.IntrinsicTimeStrategyWorkflowStoppedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.IntrinsicTimeStrategyWorkflowUpdatedNotifyEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowMarketConditionContinuationEvaluatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowMarketConditionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowMarketConditionResultRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowMarketConditionTimedOutEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowOrderCompositionContinuationEvaluatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowOrderCompositionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowOrderCompositionResultRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowOrderCompositionTimedOutEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRegimeDiscoveryContinuationEvaluatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRegimeDiscoveryFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRegimeDiscoveryResultRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRegimeDiscoveryTimedOutEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementContinuationEvaluatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementResultRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowRiskManagementTimedOutEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartAcceptedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowStartRejectedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowTradeSelectionContinuationEvaluatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowTradeSelectionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowTradeSelectionResultRecordedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.StrategyWorkflowTradeSelectionTimedOutEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.WorkflowStrategyStateUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionAssessmentFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionPipelineCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.MarketConditionPipelineFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionFunctionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionPipelineCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionPipelineFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.OrderCompositionPipelineProcessingEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RegimeDiscoveryPipelineCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RegimeDiscoveryPipelineFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RiskManagementFunctionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RiskManagementFunctionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RiskManagementPipelineCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RiskManagementPipelineFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.RiskManagementPipelineProcessingEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionFunctionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionFunctionFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionPipelineCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionPipelineFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events.TradeSelectionPipelineProcessingEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.OpenPositionRoutesChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.FuturesTradePlanUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.IronCondorTradePlanUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Plan.VerticalSpreadTradePlanUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.StrategyPositionClosedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.StrategyPositionCorrectedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.StrategyPositionOpenedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitOrderCompositionCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitPositionWorkflowFailedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitPositionWorkflowStartedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.ExitWorkflowProjectionBaselineEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Position.Workflow.PositionExitRiskCompletedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.Trade.Realtime.TradeRealtimeSnapshotChangedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.LongIronCondorAlgorithmExecutedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.LongIronCondorAlgorithmExecutedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.LongIronCondorAlgorithmExecutedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.ShortIronCondorAlgorithmExecutedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.ShortIronCondorAlgorithmExecutedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Events.ShortIronCondorAlgorithmExecutedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.BrokerOrderCancelledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.BrokerOrderClosedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.BrokerOrderFilledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.BrokerOrderOpenedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.BrokerOrderUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.CancelOrderExecutedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.CancelOrderExecutedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.CancelOrderExecutedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderCancelledCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderCancelledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderCancelledFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderClosedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderClosedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderClosedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderFilledCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderFilledEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderFilledFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderOpenedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderOpenedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderOpenedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderPlacedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderPlacedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderPlacedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.TradeOrderUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.UpdateOrderExecutedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.UpdateOrderExecutedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradeOrder.Events.UpdateOrderExecutedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradePlan.Events.IronCondorTradePlanUpdatedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradePlan.Events.IronCondorTradePlanUpdatedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Domain.Trade.Shared",
+    "type": "TomasAI.IFM.Domain.Trade.Shared.TradePlan.Events.IronCondorTradePlanUpdatedFailEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Events.CommandValidationExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Events.QueryExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventModelActor.Events.StorageExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.CommandExceptionEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.CompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.DomainEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ErrorEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceApiEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.ServiceEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.EventSourcing.UnknownEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.StatusConsole.Events.StatusConsoleLoggedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.Telemetry.Events.LogEventsAddedCompleteEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.Telemetry.Events.LogEventsAddedEvent"
+  },
+  {
+    "owner": "TomasAI.IFM.Shared",
+    "type": "TomasAI.IFM.Shared.Telemetry.Events.LogEventsAddedFailEvent"
+  }
+]

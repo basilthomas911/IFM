@@ -1,5 +1,5 @@
-using System.Globalization;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+﻿using System.Globalization;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 

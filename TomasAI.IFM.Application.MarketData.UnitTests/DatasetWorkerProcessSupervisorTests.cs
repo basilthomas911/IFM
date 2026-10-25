@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
@@ -287,7 +287,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
                     StartSequence = 1
                 }
             }, TimeProvider.System,
-            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
+            Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
 
         await runtime.StartAsync(new DateOnly(2026, 9, 4), CancellationToken.None);
         var before = await runtime.GetWatchdogSnapshotAsync(TimeSpan.FromSeconds(1), CancellationToken.None);
@@ -314,7 +314,7 @@ public sealed class DatasetWorkerProcessSupervisorTests
         await using var workers = new DatasetWorkerProcessRecoveryService(Options(), new DatasetWorkerAdmissionRegistry());
         var runtime = new SupervisedDatabentoLifecycleRuntime(Substitute.For<IDatabentoContractAuthority>(),
             Substitute.For<IDatabentoContractRegistrationRegistry>(), workers, new() { DotNetHostPath = DotNetHost(), WorkerAssemblyPath = OriginalWorkerAssembly() }, TimeProvider.System,
-            Substitute.For<TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
+            Substitute.For<TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation.ITickAggregationEventPublisher>(), cleanup);
         var stop = () => runtime.StopAsync(CancellationToken.None);
         await stop.Should().ThrowAsync<AggregateException>().WithMessage("*cleanup*");
         await cleanup.Received(1).CloseSessionAsync(Arg.Any<CancellationToken>());

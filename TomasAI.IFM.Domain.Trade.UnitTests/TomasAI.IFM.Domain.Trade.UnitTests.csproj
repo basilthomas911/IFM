@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -25,9 +25,9 @@
     <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio\TomasAI.IFM.Domain.Portfolio.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Trade\TomasAI.IFM.Domain.Trade.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData.Analytics\TomasAI.IFM.Application.Contracts.MarketData.Analytics.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.MarketData\TomasAI.IFM.Application.Contracts.MarketData.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,4 +37,6 @@
 <ItemGroup><Compile Include="..\test-support\MarketAssessmentTestScenario.cs" Link="Support\MarketAssessmentTestScenario.cs" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Strategy/TomasAI.IFM.Application.Strategy.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="../test-support/IronCondorForwardPriceTestScenario.cs" Link="Support/IronCondorForwardPriceTestScenario.cs" /></ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

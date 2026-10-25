@@ -7,6 +7,7 @@ using Npgsql;
 using NpgsqlTypes;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.FrameworkStorage.Postgres;

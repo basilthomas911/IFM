@@ -16,6 +16,7 @@ using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.IntegrationTesting;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;

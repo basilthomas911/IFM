@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Newtonsoft.Json;
 using NSubstitute;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;
@@ -80,7 +80,7 @@ public sealed class DatabaseBackupActorStateTests
         var assembly = typeof(DatabaseBackupCommandRoute).Assembly;
         var commandTypes = assembly.GetTypes().Where(type => !type.IsAbstract
             && (typeof(IDatabaseBackupCommand).IsAssignableFrom(type) || typeof(DatabaseBackupInternalCommand).IsAssignableFrom(type))).ToHashSet();
-        var serviceEventTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(DatabaseBackupServiceEventContract).IsAssignableFrom(type)).ToHashSet();
+        var serviceEventTypes = typeof(DatabaseBackupServiceEventContract).Assembly.GetTypes().Where(type => !type.IsAbstract && typeof(DatabaseBackupServiceEventContract).IsAssignableFrom(type)).ToHashSet();
         var queryTypes = assembly.GetTypes().Where(type => !type.IsAbstract && typeof(IDatabaseBackupQuery).IsAssignableFrom(type)).ToHashSet();
 
         DatabaseBackupCommandActor.SupportedCommandTypes.Should().BeEquivalentTo(commandTypes);
@@ -237,7 +237,7 @@ public sealed class DatabaseBackupActorStateTests
         {
             EventVersion = index + 1,
             EventTypeName = domainEvent.GetType().AssemblyQualifiedName!,
-            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(domainEvent)
+            EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(domainEvent)
         }).ToArray();
         var reloaded = new DatabaseBackupCommandState();
         reloaded.ReplayEvents(persisted);

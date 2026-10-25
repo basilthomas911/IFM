@@ -1,9 +1,10 @@
-using TomasAI.IFM.Domain.EventSourcing.TradePlan;
+using TomasAI.IFM.Application.EventSourcing.Projections.TradePlan;
 using System.Linq;
 using Npgsql;
 using TomasAI.IFM.Application.Storage.EventSourceDb.Schema;
 using TomasAI.IFM.Application.Storage.TradePlanDb.Schema;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using TomasAI.IFM.Framework.Storage.Postgres;
 using TomasAI.IFM.Shared.Storage;
 using System;

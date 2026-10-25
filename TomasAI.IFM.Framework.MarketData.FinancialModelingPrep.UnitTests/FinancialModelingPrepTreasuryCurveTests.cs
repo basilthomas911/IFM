@@ -1,5 +1,5 @@
-using System.Net;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+﻿using System.Net;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 
 namespace TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.UnitTests;
 

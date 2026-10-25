@@ -1,15 +1,17 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;

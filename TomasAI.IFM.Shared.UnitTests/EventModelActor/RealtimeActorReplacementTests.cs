@@ -13,6 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.ResetTests;
 
 public sealed class RealtimeActorReplacementTests
 {
+    static RealtimeActorReplacementTests() => RealtimeActorResetPolicy.Register(typeof(TestActor));
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

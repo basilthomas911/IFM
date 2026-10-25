@@ -29,5 +29,6 @@
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../TomasAI.IFM.UI.Net.ViewModels/TomasAI.IFM.UI.Net.ViewModels.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Domain.EventSourcing/TomasAI.IFM.Domain.EventSourcing.csproj" /></ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing.Persistence/TomasAI.IFM.Application.EventSourcing.Persistence.csproj" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.Storage" /></ItemGroup></Project>

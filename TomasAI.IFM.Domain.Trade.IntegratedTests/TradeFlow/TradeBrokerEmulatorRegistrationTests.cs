@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Hosting;
@@ -76,7 +76,7 @@ public sealed class TradeBrokerEmulatorRegistrationTests
         var reader = registrations.Single(registration => registration.ServiceType ==
             typeof(TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore));
         var repository = registrations.Single(registration => registration.ServiceType ==
-            typeof(TomasAI.IFM.Framework.Storage.IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>));
+            typeof(TomasAI.IFM.Shared.Storage.IObjectRepository<TomasAI.IFM.Domain.BrokerAccount.Query.Model.BrokerAccountReadStore>));
         repository.Registration.Should().BeSameAs(reader.Registration);
         repository.Lifestyle.Should().Be(Lifestyle.Singleton);
     }
@@ -145,7 +145,7 @@ public sealed partial class TradeBrokerEmulatorHostTests(TomasAI.IFM.Integration
                 [new(TomasAI.IFM.Shared.EventModelActor.ActorType.Event, "OrderExecutionEvent")] = ["OrderExecutionChanged"]
             }, (_, message) =>
             {
-                var value = TomasAI.IFM.Shared.EventModelActor.ActorExtensions.AsEvent<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent>(message)!;
+                var value = message.AsEvent<TomasAI.IFM.Domain.Trade.Shared.Order.Execution.OrderExecutionChangedEvent>()!;
                 if (value.OrderExecutionDefinition.TradeOrderId == order.Id)
                 {
                     receivedExecutionEvents.Enqueue(value);

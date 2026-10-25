@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -186,7 +186,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
             EventVersion = snapshot.EventId,
             StreamVersion = streamVersion,
             EventTypeName = typeof(WorkflowStrategyStateUpdatedEvent).AssemblyQualifiedName!,
-            EventData = TomasAI.IFM.Shared.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(snapshot)
+            EventData = TomasAI.IFM.Application.EventSourcing.EventLogMessagePackCodec.Shared.Serialize(snapshot)
         };
 
     sealed record RepositoryFixture(

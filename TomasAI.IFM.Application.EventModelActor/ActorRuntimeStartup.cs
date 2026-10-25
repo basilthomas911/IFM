@@ -1,0 +1,198 @@
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Shared.EventModelActor;
+
+namespace TomasAI.IFM.Application.EventModelActor;
+
+/// <summary>
+/// Registers and starts the actor runtime as one rollback-safe host operation.
+/// </summary>
+public static class ActorRuntimeStartup
+{
+    const string ServiceId = nameof(ActorRuntimeStartup);
+
+    /// <summary>
+    /// Registers actors, producers, and consumers, then starts the runtime.
+    /// Any exception or cancellation shuts down everything registered or started by the attempt.
+    /// </summary>
+    public static async ValueTask StartAsync(
+        IActorSupervisor supervisor,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+        => await StartAsync(
+            supervisor,
+            logger,
+            new ActorRuntimeStartupOptions(),
+            cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Registers and starts the runtime with bounded actor initialization concurrency.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    public static async ValueTask StartAsync(
+        IActorSupervisor supervisor,
+        ILogger logger,
+        ActorRuntimeStartupOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(supervisor);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+        var startedTimestamp = Stopwatch.GetTimestamp();
+
+        try
+        {
+            supervisor.SetReadiness(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            var registry = supervisor.Container.Resolve<IActorRegistry>();
+            var factory = supervisor.Container.Resolve<IActorFactory>();
+            var actorTypes = registry.ActorTypes;
+            var actors = new IActor[actorTypes.Length];
+
+            for (var index = 0; index < actorTypes.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var actor = factory.GetActor(actorTypes[index]);
+                actors[index] = actor;
+                supervisor.AddActor(actor);
+
+                var producer = supervisor.Container.Resolve<IActorProducer>();
+                if (producer is not null)
+                    supervisor.AddProducer(actor.Id, producer);
+
+                if (actor.Id.ActorType.GetDeliveryType() == ActorDeliveryType.NatsJetStream)
+                {
+                    var jetStreamProducer = supervisor.Container.Resolve<IJSActorProducer>();
+                    if (jetStreamProducer is not null)
+                        supervisor.AddJSProducer(actor.Id, jetStreamProducer);
+                }
+            }
+
+            var registeredActorTypes = actors
+                .Select(static actor => actor.Id.ActorType)
+                .Distinct()
+                .ToArray();
+            if (registeredActorTypes.Contains(ActorType.Notify))
+            {
+                throw new InvalidOperationException(
+                    "Notify subjects are reserved for UI, console, and external NATS event listeners; "
+                    + "they cannot be registered as backend actors.");
+            }
+
+            foreach (var actorType in registeredActorTypes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                switch (actorType.GetDeliveryType())
+                {
+                    case ActorDeliveryType.NatsCore:
+                        {
+                            var consumer = supervisor.Container.Resolve<IActorConsumer>();
+                            if (consumer is not null)
+                                supervisor.AddConsumer(actorType, consumer);
+                            break;
+                        }
+                    case ActorDeliveryType.NatsJetStream:
+                        {
+                            var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
+                            if (consumer is not null)
+                                supervisor.AddConsumer(actorType, consumer);
+                            break;
+                        }
+                    default:
+                        throw new InvalidOperationException(
+                            $"Actor type '{actorType}' does not have a supported backend delivery type.");
+                }
+            }
+
+            var startupWork = actors
+                .Select(static (actor, index) => (Actor: actor, Number: index + 1))
+                .ToArray();
+            await Parallel.ForEachAsync(
+                startupWork,
+                new ParallelOptions
+                {
+                    CancellationToken = cancellationToken,
+                    MaxDegreeOfParallelism = Math.Min(
+                        options.MaximumConcurrency,
+                        Math.Max(1, actors.Length))
+                },
+                async (work, token) =>
+                    await StartActorAsync(work.Actor, work.Number, actors.Length, token)
+                        .ConfigureAwait(false)).ConfigureAwait(false);
+
+            // External Core and JetStream intake stays closed until every actor-owned dependency,
+            // projector, and recovery operation has completed its startup contract.
+            await supervisor.StartConsumersAsync(cancellationToken).ConfigureAwait(false);
+            supervisor.SetReadiness(true);
+
+            logger.LogInformationEvent(
+                ServiceId,
+                "Event model actor supervisor started with {ActorCount} actors.",
+                actors.Length);
+            ActorLifecycleMetrics.StartupCompleted.Add(1);
+
+            async ValueTask StartActorAsync(
+                IActor actor,
+                int actorNumber,
+                int actorCount,
+                CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                var actorType = actor.GetType().Name;
+                var actorStarted = Stopwatch.GetTimestamp();
+                logger.LogInformationEvent(
+                    ServiceId,
+                    "Starting {ActorType} actor ({ActorNumber}/{ActorCount}).",
+                    actorType,
+                    actorNumber,
+                    actorCount);
+                try
+                {
+                    await supervisor.StartAsync(actor.Id, token).ConfigureAwait(false);
+                    logger.LogInformationEvent(
+                        ServiceId,
+                        "Started {ActorType} actor ({ActorNumber}/{ActorCount}) in {ElapsedMilliseconds:F1} ms.",
+                        actorType,
+                        actorNumber,
+                        actorCount,
+                        Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
+                }
+                catch (Exception exception)
+                {
+                    SharedActorDiagnosticLog.Write45(logger, exception, actorType, actorNumber, actorCount, Stopwatch.GetElapsedTime(actorStarted).TotalMilliseconds);
+                    throw;
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            supervisor.SetReadiness(false);
+            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested)
+                ActorLifecycleMetrics.RecordStartupCancellation();
+            else
+                ActorLifecycleMetrics.StartupFailures.Add(1);
+
+            SharedActorDiagnosticLog.Write46(logger, exception);
+            try
+            {
+                await supervisor.ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception rollbackException)
+            {
+                ActorLifecycleMetrics.RecordCleanupFailure("startup_rollback");
+                SharedActorDiagnosticLog.Write44(logger, rollbackException);
+                throw;
+            }
+            throw;
+        }
+        finally
+        {
+            ActorLifecycleMetrics.StartupDuration.Record(
+                Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
+        }
+    }
+}

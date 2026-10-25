@@ -165,6 +165,10 @@ impl Backend {
             .await
             .map_err(|e| e.to_string())
     }
+    /// Bind the exact durable push delivery subject so JetStream sees active UI interest.
+    pub async fn subscribe_console(&self) -> Result<async_nats::Subscriber, String> {
+        self.client.subscribe("ConsoleDelivery.SingleUI.messages").await.map_err(|error|error.to_string())
+    }
     pub async fn flush(&self) -> Result<(), String> {
         self.flush_until(tokio::time::Instant::now() + self.timeout)
             .await

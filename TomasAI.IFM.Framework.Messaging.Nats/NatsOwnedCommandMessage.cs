@@ -1,4 +1,4 @@
-using NATS.Client.Core;
+﻿using NATS.Client.Core;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -25,7 +25,7 @@ public sealed class NatsOwnedCommandMessage : IActorMessage
         _replyTo = sourceMessage.ReplyTo;
         _owner = sourceMessage.Data;
         Subject = subject;
-        TraceContext = ActorTrace.Extract(sourceMessage.Headers);
+        TraceContext = global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(sourceMessage.Headers);
         NatsMessagingMetrics.AcquirePayloadLease(_owner.Memory.Length);
     }
 

@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Diagnostics;
 using System.Diagnostics;
 using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Databento;

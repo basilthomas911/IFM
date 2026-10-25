@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Signing;

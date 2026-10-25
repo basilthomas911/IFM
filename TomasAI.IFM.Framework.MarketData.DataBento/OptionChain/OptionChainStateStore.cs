@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
+﻿using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 
@@ -79,7 +79,7 @@ public sealed class OptionChainStateStore : IOptionChainStateStore
         }
     }
 
-    internal void Seed(OptionChainSessionKey key, IReadOnlyList<TomasAI.IFM.Framework.MarketData.Contracts.OptionChainStatisticsSnapshot> saved,
+    internal void Seed(OptionChainSessionKey key, IReadOnlyList<TomasAI.IFM.Shared.MarketData.Contracts.OptionChainStatisticsSnapshot> saved,
         DateOnly valueDate)
     {
         lock (_sync)

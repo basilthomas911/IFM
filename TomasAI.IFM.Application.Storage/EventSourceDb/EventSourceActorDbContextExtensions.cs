@@ -499,17 +499,18 @@ internal static class EventSourceActorDbContextExtensions
         /// <param name="cancellationToken">The token used to cancel the operation.</param>
         internal async Task<int> GetEventNameIdFromTypeAsync(Type eventType, CancellationToken cancellationToken)
         {
-            var eventTypeFullName = eventType.AssemblyQualifiedName;
+            var identity = EventWriteIdentityRegistry.Default.GetIdentity(eventType);
+            var eventTypeFullName = identity.EventTypeName;
             if (!context._eventNameIdCache.TryGetValue(eventTypeFullName, out EventNameIdReadModel eventNameIdModel))
             {
-                eventNameIdModel = await context.GetEventNameIdFromDbAsync(eventType.Name, eventTypeFullName, cancellationToken)
+                eventNameIdModel = await context.GetEventNameIdFromDbAsync(identity.EventName, eventTypeFullName, cancellationToken)
             .ConfigureAwait(false);
                 if (eventNameIdModel.IsValid)
                 {
                     context._eventNameIdCache.TryAdd(eventTypeFullName, eventNameIdModel);
                     return eventNameIdModel.EventNameId;
                 }
-                var newEventNameIdModel = await InsertEventNameIdAsync(eventType.Name, eventTypeFullName)
+                var newEventNameIdModel = await InsertEventNameIdAsync(identity.EventName, eventTypeFullName)
             .ConfigureAwait(false);
                 context._eventNameIdCache.TryAdd(eventTypeFullName, newEventNameIdModel);
                 return newEventNameIdModel.EventNameId;

@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+using TomasAI.IFM.Shared.MarketData.Definitions;
+using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Framework.MarketData.DataBento;

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage;
 /// <summary>Combines the SystemAdmin repository with its read and write capabilities.</summary>

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ScheduledTaskDb;
 /// <summary>Typed scheduled-task repository capabilities.</summary>

@@ -32,4 +32,4 @@
           DestinationFolder="$(OutDir)runtimes\win-x64\native" />
   </Target>
 
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

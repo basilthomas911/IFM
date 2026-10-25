@@ -1,12 +1,12 @@
-using System.Collections.Immutable;
-using TomasAI.IFM.Framework.MarketData.Contracts;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+﻿using System.Collections.Immutable;
+using TomasAI.IFM.Shared.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.OptionChainCache;
 using Cache = TomasAI.IFM.Application.MarketData.OptionChainCache.OptionChainCache;
 
@@ -44,9 +44,9 @@ public class StrategyOptionChainCacheBenchmarks
             EffectiveFromUtc = at.AddDays(-1), EffectiveUntilUtc = at.AddDays(40)
         };
         var calendar = new OptionPricingCalendar("fixture-calendar/v1", "America/New_York", new(2026, 1, 1), new(2026, 12, 31), new(18, 0), []);
-        var curve = new TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot(new(2026, 9, 8),
-            [new(TomasAI.IFM.Framework.MarketData.Contracts.TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
-        var rate = TreasuryRateConversion.Convert(curve, TomasAI.IFM.Framework.MarketData.Contracts.TreasuryTenor.OneMonth,
+        var curve = new TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot(new(2026, 9, 8),
+            [new(TomasAI.IFM.Shared.MarketData.Contracts.TreasuryTenor.OneMonth, 5m)], at, "FinancialModelingPrep");
+        var rate = TreasuryRateConversion.Convert(curve, TomasAI.IFM.Shared.MarketData.Contracts.TreasuryTenor.OneMonth,
             new("FinancialModelingPrep", "benchmark", TreasuryRateConvention.UsTreasuryCmtNominalSemiannual, "fixture/v1", "fixture")).Value!;
         for (var i = 0; i < Contracts; i++)
         {

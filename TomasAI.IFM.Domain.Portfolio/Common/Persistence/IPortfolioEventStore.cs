@@ -12,8 +12,10 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Persistence;
 
-public interface IPortfolioEventStore
+public interface IPortfolioEventStore : TomasAI.IFM.Application.Contracts.Portfolio.IPortfolioFundOrderReader
 {
+    async Task<TomasAI.IFM.Domain.Portfolio.Shared.ViewModels.FundOrderProjectionReadModel> TomasAI.IFM.Application.Contracts.Portfolio.IPortfolioFundOrderReader.ReadOrderAsync(PortfolioFundId fund, int orderId, CancellationToken cancellationToken)
+        => (await LoadFundAsync(fund, cancellationToken).ConfigureAwait(false)).Composition(orderId).Order;
     /// <summary>Atomically commits an accepted policy activation and its Portfolio assignment.</summary>
     Task AppendPolicyAndPortfolioAsync(PortfolioFinancialPolicyId policyId,IPortfolioFinancialPolicyDomainEvent policyEvent,
         PortfolioId portfolioId,IPortfolioDomainEvent portfolioEvent,CancellationToken cancellationToken = default)

@@ -1,0 +1,132 @@
+using System.Collections.Concurrent;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Shared.EventModelActor;
+
+namespace TomasAI.IFM.Application.EventModelActor;
+
+/// <summary>
+/// Provides a context for querying an actor, including access to its mailbox identifier, container, and event-sending
+/// capabilities.
+/// </summary>
+/// <remarks>This class is used to interact with an actor managed by a supervisor. It provides access to the
+/// actor's mailbox identifier, the container instance managed by the supervisor, and methods to send events to the
+/// actor.</remarks>
+/// <param name="supervisor"></param>
+/// <param name="actorId"></param>
+public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actorId)
+: IQueryActorContext
+{
+    readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
+    readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
+    readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo>
+        _messageInfo = [];
+
+    public int PendingMessageCount => _messageInfo.Count;
+
+    /// <summary>
+    /// Gets the mailbox identifier for the actor associated with this context.
+    /// </summary>
+    public ActorMailboxId ActorId
+        => _actorId;
+
+    /// <summary>
+    /// Gets the container instance managed by the supervisor.
+    /// </summary>
+    public IContainerInstance Container
+        => _supervisor.Container;
+
+    public ISupervisorRuntimeContext SupervisorRuntime => _supervisor.RuntimeContext;
+
+    /// <summary>
+    /// Sends the specified event to the actor using the configured producer.
+    /// </summary>
+    /// <param name="@event">The event to send to the actor.</param>
+    /// <returns>A <see cref="ValueTask"/> that completes when the send operation has been initiated.</returns>
+    public async ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            await _eventPublisher.SendAsync<TEvent, TEntityId>(@event).ConfigureAwait(false);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.PublicationStage, ActorType.Query);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.PublicationStage, ActorType.Query);
+        }
+    }
+
+    /// <summary>
+    /// Sets the message information associated with the specified verb for the given actor thread.
+    /// </summary>
+    /// <param name="threadId">The identifier of the actor thread for which to set the message information.</param>
+    /// <param name="verb">The verb representing the message type to associate with the specified information. Cannot be null.</param>
+    /// <param name="info">The message information to associate with the specified verb and actor thread. Cannot be null.</param>
+    /// <returns>true if the message information was set successfully; otherwise, false.</returns>
+    public bool SetMessageInfo(ActorThreadId threadId, string verb, ActorMessageInfo info)
+    {
+        _messageInfo[(threadId, verb)] = info;
+        return true;
+    }
+
+    /// <summary>
+    /// Retrieves information about a message associated with the specified actor thread and verb, if available.
+    /// </summary>
+    /// <param name="threadId">The identifier of the actor thread for which to retrieve message information.</param>
+    /// <param name="verb">The verb representing the type of message to look up. Cannot be null.</param>
+    /// <returns>An <see cref="ActorMessageInfo"/> instance containing information about the message if found; otherwise, <see
+    /// langword="null"/>.</returns>
+    public ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb)
+        => _messageInfo.TryGetValue((threadId, verb), out var info)
+            ? info
+            : null;
+
+    public ActorMessageInfo? TakeMessageInfo(ActorThreadId threadId, string verb)
+        => _messageInfo.TryRemove((threadId, verb), out var info)
+            ? info
+            : null;
+
+    public bool RemoveMessageInfo(ActorThreadId threadId, string verb)
+        => _messageInfo.TryRemove((threadId, verb), out _);
+
+
+    /// <summary>
+    /// Sends an asynchronous reply to the specified actor thread with the provided result.
+    /// </summary>
+    /// <typeparam name="TResult">The type of the result value to be sent in the reply.</typeparam>
+    /// <param name="threadId">The identifier of the actor thread to which the reply is sent.</param>
+    /// <param name="verb">The verb representing the type of message being replied to.</param>
+    /// <param name="replyResult">The result to be sent in the reply, encapsulated in a <see cref="ServiceResult{TResult}"/> object.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
+    public async ValueTask ReplyAsync<TResult>(ActorThreadId threadId, string verb, ServiceResult<TResult> replyResult)
+    {
+        var started = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            var msgInfo = TakeMessageInfo(threadId, verb)
+                ?? throw new InvalidOperationException(
+                    $"Query reply context not found for thread {threadId} and verb {verb}.");
+            var message = msgInfo.Message;
+            await message.ReplyAsync(replyResult).ConfigureAwait(false);
+        }
+        catch
+        {
+            ActorRuntimeMetrics.RecordStageFailure(ActorRuntimeMetrics.ReplyStage, ActorType.Query);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(started, ActorRuntimeMetrics.ReplyStage, ActorType.Query);
+        }
+    }
+}

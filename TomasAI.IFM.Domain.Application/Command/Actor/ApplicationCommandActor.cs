@@ -1,11 +1,11 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Command;
 using TomasAI.IFM.Domain.Application.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

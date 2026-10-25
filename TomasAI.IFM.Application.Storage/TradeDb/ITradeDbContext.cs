@@ -1,4 +1,5 @@
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 /// <summary>The generic Trade repository with read and write capabilities.</summary>

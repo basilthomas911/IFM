@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Pricing;
 namespace TomasAI.IFM.Application.MarketData.Remote;
@@ -11,14 +11,14 @@ public partial class MarketDataApiClient
     public Task<Pricing.TreasuryPricingResult> WarmTreasuryPricingAsync(CancellationToken cancellationToken = default)
         => CallAsync<Pricing.TreasuryPricingResult>(nameof(WarmTreasuryPricingAsync), [typeof(CancellationToken)], [null], cancellationToken);
 
-    public Task<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot?> ReadTreasuryCurveAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)
-        => CallAsync<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot?>(nameof(ReadTreasuryCurveAsync), [typeof(DateOnly), typeof(CancellationToken)], [asOfDate, null], cancellationToken);
+    public Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot?> ReadTreasuryCurveAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)
+        => CallAsync<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot?>(nameof(ReadTreasuryCurveAsync), [typeof(DateOnly), typeof(CancellationToken)], [asOfDate, null], cancellationToken);
 
-    public Task<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot[]> ReadTreasuryCurvesAsync(DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)
-        => CallAsync<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot[]>(nameof(ReadTreasuryCurvesAsync), [typeof(DateOnly), typeof(DateOnly), typeof(CancellationToken)], [fromInclusive, toInclusive, null], cancellationToken);
+    public Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot[]> ReadTreasuryCurvesAsync(DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)
+        => CallAsync<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot[]>(nameof(ReadTreasuryCurvesAsync), [typeof(DateOnly), typeof(DateOnly), typeof(CancellationToken)], [fromInclusive, toInclusive, null], cancellationToken);
 
-    public Task<TomasAI.IFM.Framework.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(DateOnly fromInclusive, DateOnly toInclusive, string[]? countryCodes, CancellationToken cancellationToken = default)
-        => CallAsync<TomasAI.IFM.Framework.MarketData.Contracts.EconomicCalendarEntry[]>(nameof(ReadEconomicCalendarAsync), [typeof(DateOnly), typeof(DateOnly), typeof(string[]), typeof(CancellationToken)], [fromInclusive, toInclusive, countryCodes, null], cancellationToken);
+    public Task<TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(DateOnly fromInclusive, DateOnly toInclusive, string[]? countryCodes, CancellationToken cancellationToken = default)
+        => CallAsync<TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]>(nameof(ReadEconomicCalendarAsync), [typeof(DateOnly), typeof(DateOnly), typeof(string[]), typeof(CancellationToken)], [fromInclusive, toInclusive, countryCodes, null], cancellationToken);
 
     public Task<TomasAI.IFM.Application.MarketData.Contracts.InstrumentDefinitionSnapshot> RefreshInstrumentDefinitionsAsync(CancellationToken cancellationToken = default)
         => CallAsync<TomasAI.IFM.Application.MarketData.Contracts.InstrumentDefinitionSnapshot>(nameof(RefreshInstrumentDefinitionsAsync), [typeof(CancellationToken)], [null], cancellationToken);
@@ -36,12 +36,12 @@ public partial class MarketDataApiClient
         => CallAsync<Subscriptions.DurableRealization?>(nameof(ReconcileCommittedSubscriptionsAsync), [typeof(CancellationToken)], [null], cancellationToken);
     public Task<WorkerOptionChainResult> ReleaseCompositionAsync(string dataset, WorkerOptionChainRelease request, CancellationToken cancellationToken = default)
         => CallAsync<WorkerOptionChainResult>(nameof(ReleaseCompositionAsync), [typeof(string), typeof(WorkerOptionChainRelease), typeof(CancellationToken)], [dataset, request, null], cancellationToken);
-    public Task<bool> AcquireMonitoredOptionAsync(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner owner,
+    public Task<bool> AcquireMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner,
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel contract, DateOnly valueDate, CancellationToken cancellationToken = default)
-        => CallAsync<bool>(nameof(AcquireMonitoredOptionAsync), [typeof(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner), typeof(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel), typeof(DateOnly), typeof(CancellationToken)], [owner, contract, valueDate, null], cancellationToken);
-    public Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner owner,
+        => CallAsync<bool>(nameof(AcquireMonitoredOptionAsync), [typeof(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner), typeof(TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel), typeof(DateOnly), typeof(CancellationToken)], [owner, contract, valueDate, null], cancellationToken);
+    public Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner,
         string contractId, CancellationToken cancellationToken = default)
-        => CallAsync<bool>(nameof(ReleaseMonitoredOptionAsync), [typeof(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner), typeof(string), typeof(CancellationToken)], [owner, contractId, null], cancellationToken);
+        => CallAsync<bool>(nameof(ReleaseMonitoredOptionAsync), [typeof(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner), typeof(string), typeof(CancellationToken)], [owner, contractId, null], cancellationToken);
     public Task<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]> ReadFiveMinuteSeedBarsAsync(string contractId, CancellationToken cancellationToken = default)
         => CallAsync<TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal.FuturesTradeSessionBarReadModel[]>(nameof(ReadFiveMinuteSeedBarsAsync), [typeof(string), typeof(CancellationToken)], [contractId, null], cancellationToken);
     public Task<MarketDataReadSnapshot> GetBackendReadSnapshotAsync(CancellationToken cancellationToken = default)

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -7,7 +7,7 @@ using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.MarketData.OperationsHealth;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 

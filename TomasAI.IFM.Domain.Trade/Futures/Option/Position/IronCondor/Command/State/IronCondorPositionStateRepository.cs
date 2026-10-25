@@ -1,5 +1,5 @@
-using TomasAI.IFM.Shared.Diagnostics;
-using TomasAI.IFM.Domain.EventSourcing.Repository;
+﻿using TomasAI.IFM.Shared.Diagnostics;
+using TomasAI.IFM.Application.EventSourcing.Repository;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;

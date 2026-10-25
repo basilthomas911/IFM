@@ -1,9 +1,9 @@
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 
 namespace TomasAI.IFM.Domain.Portfolio.GeneralLedger.Model;
 
 /// <summary>Allocates outside the financial transaction. Gaps are valid and no identity is reused after failure.</summary>
-public sealed class FinancialIdentityAllocator(ISequenceIdGenerator sequences)
+public sealed class FinancialIdentityAllocator(ISequenceIdApi sequences)
 {
     public async ValueTask<int> BookAsync(CancellationToken token = default) => checked((int)await (Next(SequenceName.PortfolioLedger_BookId, token)).ConfigureAwait(false));
     public async ValueTask<int> AccountAsync(CancellationToken token = default) => checked((int)await (Next(SequenceName.PortfolioLedger_AccountId, token)).ConfigureAwait(false));

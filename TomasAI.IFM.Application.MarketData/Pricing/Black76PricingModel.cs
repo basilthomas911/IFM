@@ -1,6 +1,6 @@
-using MessagePack;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+﻿using MessagePack;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 using TomasAI.IFM.Framework.MarketData.ReferenceData;
 using Unified = TomasAI.IFM.Framework.OptionPricer.Pricing;
 
@@ -87,15 +87,15 @@ public static partial class Black76PricingModel
     /// <param name="forward">The observed underlying futures midpoint.</param><param name="strike">The exact option strike.</param>
     /// <param name="isCall">True for calls, false for puts.</param><param name="time">The qualified expiry year fraction.</param>
     /// <param name="rate">The captured annual continuous rate.</param><returns>The calculator's unscaled per-option request.</returns>
-    public static Unified.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
+    public static global::TomasAI.IFM.Shared.OptionPricing.OptionPricingRequest CreateRequest(OptionPricingConvention contract, double forward,
         decimal strike, bool isCall, double time, double rate) 
     {
         ArgumentNullException.ThrowIfNull(contract);
-        return new(Unified.UnderlyingKind.Futures,
-            contract.ExerciseStyle == OptionExerciseStyle.American ? Unified.ExerciseKind.American : Unified.ExerciseKind.European,
+        return new(global::TomasAI.IFM.Shared.OptionPricing.UnderlyingKind.Futures,
+            contract.ExerciseStyle == OptionExerciseStyle.American ? global::TomasAI.IFM.Shared.OptionPricing.ExerciseKind.American : global::TomasAI.IFM.Shared.OptionPricing.ExerciseKind.European,
             contract.SchemaVersion < 3 || contract.PremiumStyle == OptionPremiumStyle.PaidUpfront
-                ? Unified.PremiumKind.PaidUpfront : Unified.PremiumKind.FuturesStyle,
-            isCall ? Unified.OptionSide.Call : Unified.OptionSide.Put, forward, (double)strike, time, rate);
+                ? global::TomasAI.IFM.Shared.OptionPricing.PremiumKind.PaidUpfront : global::TomasAI.IFM.Shared.OptionPricing.PremiumKind.FuturesStyle,
+            isCall ? global::TomasAI.IFM.Shared.OptionPricing.OptionSide.Call : global::TomasAI.IFM.Shared.OptionPricing.OptionSide.Put, forward, (double)strike, time, rate);
     }
 
     /// <summary>Validates immutable reference inputs before worker feed allocation and on each pricing pass.</summary>
@@ -116,7 +116,7 @@ public static partial class Black76PricingModel
             || context.ValidUntilUtc <= at || context.Rate.ObservedAtUtc.Offset != TimeSpan.Zero || context.Rate.ObservedAtUtc > at
             || context.Rate.ValueDate > DateOnly.FromDateTime(at.UtcDateTime)) return Fail("TreasuryStale", "ReferenceValidity");
         if (!double.IsFinite(context.Rate.AnnualContinuousRate)
-            || context.Rate.Conversion.Convention != Framework.MarketData.Contracts.TreasuryRateConvention.UsTreasuryCmtNominalSemiannual
+            || context.Rate.Conversion.Convention != Shared.MarketData.Contracts.TreasuryRateConvention.UsTreasuryCmtNominalSemiannual
             || !string.Equals(context.Rate.ModelingPolicy,"FlatSelectedCmtProxy/v1",StringComparison.Ordinal)
             || string.IsNullOrWhiteSpace(context.Rate.Conversion.EvidenceId)
             || context.Rate.CurveDigest is not { Length: 64 }

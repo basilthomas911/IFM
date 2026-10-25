@@ -1,3 +1,4 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using Microsoft.Extensions.Configuration;
 using System.Globalization;
 using System.Text.Json;
@@ -68,7 +69,7 @@ for(int i=0;i<definitions.Count;i++){
  await using var command=new Npgsql.NpgsqlCommand("SELECT definition_json FROM reference.instrument_definition WHERE snapshot_id=$1 AND dataset=$2 AND bucket=$3 AND record_index=$4",rawConnection);
  command.Parameters.AddWithValue(snapshot);command.Parameters.AddWithValue(old.Dataset);command.Parameters.AddWithValue(int.Parse(pointer[3],CultureInfo.InvariantCulture));command.Parameters.AddWithValue(long.Parse(pointer[4],CultureInfo.InvariantCulture));
  var json=await command.ExecuteScalarAsync() as string??throw new InvalidDataException("Exact provider record is missing");
- var exact=TomasAI.IFM.Framework.MarketData.DataBento.ExactInstrumentDefinition.Parse(old.Dataset,json);
+ var exact=TomasAI.IFM.Shared.MarketData.Definitions.ExactInstrumentDefinition.Parse(old.Dataset,json);
  var mapped=TomasAI.IFM.Application.MarketData.Contracts.InstrumentDefinitionSelectionMapper.Map(snapshot,long.Parse(pointer[4],CultureInfo.InvariantCulture),exact);
  if(mapped.DefinitionDigest!=old.DefinitionDigest||mapped.InstrumentId!=old.InstrumentId)throw new InvalidDataException("Provider facts do not match the selection digest");
  definitions[i]=old with{Multiplier=mapped.Multiplier};

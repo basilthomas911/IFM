@@ -1,14 +1,15 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Databento.Resiliency;
-using TomasAI.IFM.Framework.MarketData.Contracts;
+using TomasAI.IFM.Shared.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Application.MarketData.Databento.Workers;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;

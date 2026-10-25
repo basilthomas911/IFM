@@ -1,10 +1,10 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Scylla;

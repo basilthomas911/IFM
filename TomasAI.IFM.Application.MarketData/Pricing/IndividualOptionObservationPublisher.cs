@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
+using TomasAI.IFM.Shared.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.OptionChain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -70,10 +70,10 @@ public sealed class IndividualOptionObservationPublisher(
                 PricingInputs = new()
                 {
                     Currency = contract.Currency, Multiplier = contract.Multiplier, ExpirationUtc = contract.ExpirationUtc,
-                    DaysPerYear = contract.DayCount == TomasAI.IFM.Framework.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365,
+                    DaysPerYear = contract.DayCount == TomasAI.IFM.Shared.MarketData.Contracts.Pricing.PricingDayCount.Actual360 ? 360 : 365,
                     AnnualContinuousRate = request.Rate, Exercise = request.Exercise.ToString(), Premium = request.Premium.ToString(),
-                    BidTickIncrement = TomasAI.IFM.Framework.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.BidPrice.Value, combinationLeg: true),
-                    AskTickIncrement = TomasAI.IFM.Framework.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.AskPrice.Value, combinationLeg: true),
+                    BidTickIncrement = TomasAI.IFM.Shared.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.BidPrice.Value, combinationLeg: true),
+                    AskTickIncrement = TomasAI.IFM.Shared.MarketData.Pricing.OptionPremiumTicks.GetIncrement(contract, tick.AskPrice.Value, combinationLeg: true),
                     ModelVersion = input.Context.PricerVersion
                 } };
         return publisher.PublishAsync(new FuturesTickTradeDataChangedEvent

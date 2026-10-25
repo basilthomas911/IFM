@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
+using TomasAI.IFM.Shared.EventSourcing;
 
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.PortfolioDb;
@@ -22,7 +23,10 @@ public sealed class PortfolioFinancialSchema(IPostgresEventTransaction transacti
             typeof(CapacityReservationCompletedEvent),typeof(CapacityConsumptionCompletedEvent),typeof(CapacityLifecycleCompletedEvent),typeof(LedgerConfigurationCompletedEvent),typeof(EmulatorOrderSubmittedEvent),
             typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioOrderCompositionCompletedEvent),
             typeof(TomasAI.IFM.Domain.Portfolio.Shared.OrderComposition.PortfolioCloseOrderCompositionCompletedEvent) })
-            await db.ScalarAsync(EventSourceDbSql.InsertEventNameId, [type.Name, type.AssemblyQualifiedName!], token).ConfigureAwait(false);
+        {
+            var identity = EventWriteIdentityRegistry.Default.GetIdentity(type);
+            await db.ScalarAsync(EventSourceDbSql.InsertEventNameId, [identity.EventName, identity.EventTypeName], token).ConfigureAwait(false);
+        }
         return true;
     }, cancellationToken);
 

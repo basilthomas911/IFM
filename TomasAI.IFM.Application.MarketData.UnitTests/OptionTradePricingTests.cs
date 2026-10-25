@@ -1,6 +1,6 @@
-using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+﻿using TomasAI.IFM.Application.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.LastPrice;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 
 namespace TomasAI.IFM.Application.MarketData.UnitTests;

@@ -16,4 +16,4 @@
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId.Postgres\TomasAI.IFM.Framework.SequenceId.Postgres.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Caching.Redis\TomasAI.IFM.Framework.Caching.Redis.csproj" />
   </ItemGroup>
-</Project>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><Using Include="TomasAI.IFM.Shared.OptionPricing" /></ItemGroup></Project>

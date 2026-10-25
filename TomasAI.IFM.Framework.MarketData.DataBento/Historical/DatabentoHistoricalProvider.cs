@@ -1,10 +1,10 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
-using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
+using TomasAI.IFM.Shared.MarketData.Contracts.Historical;
 using TomasAI.IFM.Framework.MarketData.DataBento.Interop;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.Historical;

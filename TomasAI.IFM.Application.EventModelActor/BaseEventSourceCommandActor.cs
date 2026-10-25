@@ -1,0 +1,636 @@
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Exceptions;
+using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Validation;
+
+using TomasAI.IFM.Shared.EventModelActor;
+
+namespace TomasAI.IFM.Application.EventModelActor;
+
+/// <summary>
+/// Provides a base implementation for an actor that processes commands and manages its lifecycle, state, and messaging.
+/// </summary>
+/// <remarks>This abstract class serves as a foundation for implementing command-based actors in an actor system.
+/// It provides lifecycle management, message handling, and state management capabilities. Derived classes must
+/// implement specific behavior for message processing and state handling by overriding the appropriate protected
+/// methods.</remarks>
+/// <typeparam name="TActor">The type of the actor that this command actor represents.</typeparam>
+/// <param name="actorContext">The closed-generic command context owned by the actor for its entire lifetime.</param>
+/// <param name="logger">The logger used to record operational and diagnostic information.</param>
+public abstract class BaseEventSourceCommandActor<TActor>(
+    ICommandActorContext<TActor> actorContext,
+    ILogger logger)
+    : ICommandActor<TActor> where TActor : IActor
+{
+    readonly ICommandActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
+    readonly ILogger _logger = IsArgumentNull.Set(logger);
+    string _serviceId = string.Empty;
+
+    ICommandAuditLogger? _commandAuditLogger;
+    IActorProducer? _startedProducer;
+    int _lifecycle;
+
+    // IActor properties
+    public ActorMailboxId Id => _actorId;
+    /// <summary>
+    /// Gets the closed-generic command context retained for the lifetime of this actor.
+    /// </summary>
+    protected ICommandActorContext<TActor> Context => _context;
+    protected ILogger Logger => _logger;
+
+    public IActorMailbox Mailbox { get; private set; }
+    public bool IsRunning
+    {
+        get => Volatile.Read(ref _lifecycle) == 2;
+        protected set => Volatile.Write(ref _lifecycle, value ? 2 : 0);
+    }
+    public bool IsParent { get; protected set; }
+
+    /// <summary>
+    /// Asynchronously starts the actor and its associated components, including the mailbox, producer, and consumer.
+    /// </summary>
+    /// <remarks>This method initializes the actor's mailbox, starts the producer and consumer processes, and
+    /// sets up the actor's command context. If the actor is already running, the method exits without performing any
+    /// actions.</remarks>
+    /// <param name="supervisor">The <see cref="IActorSupervisor"/> responsible for managing the actor's lifecycle and providing necessary
+    /// resources.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the mailbox is not set before starting the actor.</exception>
+    public async ValueTask StartAsync(IActorSupervisor supervisor)
+        => await StartAsync(supervisor, CancellationToken.None).ConfigureAwait(false);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    public async ValueTask StartAsync(IActorSupervisor supervisor, CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(supervisor);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.CompareExchange(ref _lifecycle, 1, 0) != 0)
+            return;
+        IActorProducer? producer = null;
+        try
+        {
+            Mailbox = supervisor.CreateMailbox(_actorId);
+            producer = supervisor.GetProducer(_actorId);
+            await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+            _startedProducer = producer;
+            _serviceId = typeof(TActor).Name;
+            _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
+            _commandAuditLogger = _context.Container.Resolve<ICommandAuditLogger>()
+                ?? throw new InvalidOperationException(
+                    $"{nameof(ICommandAuditLogger)} must be registered before command actors start.");
+            cancellationToken.ThrowIfCancellationRequested();
+            await OnStartup(_context, cancellationToken).ConfigureAwait(false);
+            Volatile.Write(ref _lifecycle, 2);
+        }
+        catch (Exception startupFailure)
+        {
+            var primaryFailureId = startupFailure is OperationCanceledException && cancellationToken.IsCancellationRequested
+                ? Guid.Empty
+                : _context.SupervisorRuntime?.RecordFailure(
+                    Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                    ActorFailureStage.Startup, startupFailure) ?? Guid.Empty;
+            SupervisorRuntimeContext.MarkRecorded(startupFailure, primaryFailureId);
+            if (producer is not null)
+            {
+                try { await producer.StopAsync().ConfigureAwait(false); }
+                catch (Exception cleanupException)
+                {
+                    _context.SupervisorRuntime?.RecordFailure(
+                        Id, new(Id.ActorType, Id.Name, "lifecycle"), "Start",
+                        ActorFailureStage.Cleanup, cleanupException,
+                        primaryFailureId == Guid.Empty ? null : primaryFailureId,
+                        ActorMessageOutcomeType.HandledFailure);
+                    SharedActorDiagnosticLog.Write49(_logger, cleanupException, _actorId);
+                }
+            }
+            Volatile.Write(ref _lifecycle, 0);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Stops the actor and releases associated resources asynchronously.
+    /// </summary>
+    /// <remarks>This method ensures that the actor is properly shut down by invoking the shutdown logic and
+    /// stopping any associated consumer or producer components, if they are present. If the actor is not running, the
+    /// method returns immediately without performing any operations. The running flag is cleared before asynchronous
+    /// cleanup begins so concurrent or re-entrant stop requests are idempotent.</remarks>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous stop operation.</returns>
+    public async ValueTask StopAsync()
+        => await StopAsync(CancellationToken.None).ConfigureAwait(false);
+
+    public async ValueTask StopAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Interlocked.CompareExchange(ref _lifecycle, 3, 2) != 2)
+            return;
+        try
+        {
+            await ActorLifecycleGuard.StopAsync(
+                _context.SupervisorRuntime,
+                _actorId,
+                async () =>
+                {
+                    if (_startedProducer is not null)
+                        await _startedProducer.StopAsync().ConfigureAwait(false);
+                    _logger.LogInformationEvent(_serviceId, "Stopped {MailboxId} producer.", _actorId);
+                },
+                () => OnShutdown(_context!),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _startedProducer = null;
+            Volatile.Write(ref _lifecycle, 0);
+        }
+    }
+
+    /// <summary>
+    /// Handles an incoming message for the actor, performing validation, state management, and message processing.
+    /// </summary>
+    /// <remarks>This method validates the message to ensure it is intended for the current actor, processes
+    /// the message, and manages the actor's state by loading, updating, and saving it. If an exception occurs during
+    /// processing, it is handled by invoking the exception handler.</remarks>
+    /// <param name="message">The message to be processed, containing the subject and entity information.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the message is not intended for the current actor or if the thread ID is invalid.</exception>
+    public virtual ValueTask HandleMessageAsync(IActorMessage message)
+        
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return HandleMessageAsync(message, message.Subject.ThreadId, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Handles an incoming message using a pre-resolved thread identifier, avoiding redundant subject parsing.
+    /// </summary>
+    /// <param name="message">The message to be processed.</param>
+    /// <param name="threadId">The pre-resolved thread identifier from the caller.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    public virtual async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId)
+        => await HandleMessageAsync(message, threadId, CancellationToken.None).ConfigureAwait(false);
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "MA0051", Justification = "Keep the ordered actor lifecycle state machine in one method so cancellation, commit, acknowledgement and cleanup ordering can be audited together.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S1121", Justification = "This standalone C# conditional property assignment preserves the null-state behavior and does not embed an assignment in another expression.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "S907", Justification = "This jump shares the one terminal reply/cleanup path after an already-completed command without reexecuting or persisting it.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA2016", Justification = "Legacy hooks are called only when cancellation cannot occur; failed-startup cleanup deliberately uses unconditional stop.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "This actor/channel boundary isolates arbitrary handler failures, records the failed outcome, and keeps processing other messages.")]
+    public virtual async ValueTask HandleMessageAsync(
+        IActorMessage message,
+        ActorThreadId threadId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        var operationStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        ICommand command = default!;
+        int errorCode = 9998;
+        ServiceResult<GuidResult> result;
+        var activeStage = ActorRuntimeMetrics.ParsingStage;
+        Guid? primaryFailureId = null;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                command = ParseMessage(_context!, message);
+            }
+            finally
+            {
+                // A materialized command no longer needs the serialized pooled payload.
+                message.ReleasePayload();
+            }
+
+            /// get any existing error code from the message info...
+            errorCode = command.ErrorCode;
+
+            // CommandId is the audit reservation key. Reject an invalid envelope before
+            // the audit boundary; derived validation maps retain the same visible rule
+            // so their complete command contract remains explicit and directly testable.
+            if (command.CommandId == Guid.Empty)
+            {
+                result = new ServiceFailed<GuidResult>(
+                    errorCode,
+                    $"{command.CommandName}.CommandId is empty");
+            }
+            else
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                activeStage = ActorRuntimeMetrics.DeduplicationStage;
+                var stageStarted = ActorRuntimeMetrics.StartStage();
+                bool accepted;
+                try
+                {
+                    if (AuditIsCommittedWithState(command))
+                    {
+                        accepted = true;
+                    }
+                    else
+                    {
+                        var reservation = await _commandAuditLogger!
+                            .TryReserveAsync(command, cancellationToken)
+                            .ConfigureAwait(false);
+                        accepted = reservation.Accepted;
+                    }
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
+
+                // Opt-in immutable aggregates can verify duplicate payloads against committed
+                // state and resume a reservation whose first execution never committed.
+                if (!accepted && command is not ICommandRetryIdentity && !await ShouldProcessDuplicateAsync(_context!, command, cancellationToken).ConfigureAwait(false))
+                {
+                    ActorRuntimeMetrics.DuplicateCommands.Add(1);
+                    result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+                }
+                else
+                {
+                    var validationErrors = GetCommandValidationErrors(command);
+                    if (validationErrors is { Count: > 0 })
+                    {
+                        result = new ServiceFailed<GuidResult>(
+                            command.ErrorCode,
+                            string.Join(Environment.NewLine,
+                                validationErrors.Select(error => error.ErrorMessage)));
+                    }
+                    else
+                    {
+                        /// check if the message is a command and validate it...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ValidationStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            if (cancellationToken.CanBeCanceled)
+                                await OnValidateAsync(_context!, threadId, command, cancellationToken).ConfigureAwait(false);
+                            else
+                                await OnValidateAsync(_context!, threadId, command).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+
+                        /// load the current state, process the message, and save the updated state...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ReplayStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        IActorState state;
+                        try
+                        {
+                            state = cancellationToken.CanBeCanceled
+                                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken).ConfigureAwait(false)
+                                : await OnLoadStateAsync(_context!, threadId, command).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+                        state?.Id = threadId;
+
+                        /// process the message...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ExecutionStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            result = cancellationToken.CanBeCanceled
+                                ? await ReceiveAsync(_context!, state!, command, cancellationToken).ConfigureAwait(false)
+                                : await ReceiveAsync(_context!, state!, command).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+
+                        /// save the updated state...
+                        activeStage = ActorRuntimeMetrics.PersistenceStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            if (cancellationToken.CanBeCanceled)
+                                await OnSaveStateAsync(_context!, threadId, state!, command, cancellationToken).ConfigureAwait(false);
+                            else
+                                await OnSaveStateAsync(_context!, threadId, state!, command).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            if (command is not null && IsCommittedDuplicateException(command, ex))
+            {
+                ActorRuntimeMetrics.DuplicateCommands.Add(1);
+                result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+                goto Reply;
+            }
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
+            primaryFailureId = ActorOperationalMetrics.RecordHandledFailure(
+                Mailbox, _context.SupervisorRuntime, threadId, message.Subject.Verb,
+                ActorOperationalMetrics.MapStage(activeStage), ex);
+            try
+            {
+                result = await OnExceptionAsync(_context!, threadId, command, ex).ConfigureAwait(false);
+            }
+            catch (Exception exceptionHandlerFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.ExceptionHandling,
+                    exceptionHandlerFailure, primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                SharedActorDiagnosticLog.Write48(_logger, exceptionHandlerFailure, Id, threadId, activeStage, ex.GetType().FullName, ex.Message);
+                result = new ServiceFailed<GuidResult>(
+                    errorCode,
+                    $"{Id.Name} command failed during {activeStage}: {ex.Message}");
+            }
+        }
+        finally
+        {
+            try
+            {
+                await OnCommandFinishedAsync(_context!, command).ConfigureAwait(false);
+            }
+            catch (Exception cleanupFailure)
+            {
+                _context.SupervisorRuntime?.RecordFailure(
+                    Id, threadId, message.Subject.Verb, ActorFailureStage.Cleanup, cleanupFailure,
+                    primaryFailureId == Guid.Empty ? null : primaryFailureId);
+                SharedActorDiagnosticLog.Write47(_logger, cleanupFailure, Id, threadId);
+            }
+        }
+
+    Reply:
+        if (!result.Success)
+            TomasAI.IFM.Shared.Telemetry.StructuredOperationLogging.CommandRejected(_logger,
+                Id.Name, nameof(HandleMessageAsync), command?.CommandId ?? Guid.Empty,
+                command?.CommandName ?? "Unparsed", message.Subject, result.ErrorCode,
+                result.ErrorMessage, activeStage,
+                System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds);
+        else if (System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds >= 250)
+            TomasAI.IFM.Shared.Telemetry.StructuredOperationLogging.CommandResult(_logger,
+                Id.Name, nameof(HandleMessageAsync), command.CommandId, command.CommandName,
+                message.Subject, "Succeeded", result.ErrorCode, activeStage,
+                System.Diagnostics.Stopwatch.GetElapsedTime(operationStarted).TotalMilliseconds);
+        /// reply with the result...
+        activeStage = ActorRuntimeMetrics.ReplyStage;
+        var replyStarted = ActorRuntimeMetrics.StartStage();
+        try
+        {
+            await message.ReplyAsync(result).ConfigureAwait(false);
+        }
+        catch (Exception replyFailure)
+        {
+            ActorRuntimeMetrics.RecordStageFailure(activeStage, ActorType.Command);
+            var replyFailureId = _context.SupervisorRuntime?.RecordFailure(
+                Id, threadId, message.Subject.Verb, ActorFailureStage.Reply, replyFailure,
+                primaryFailureId == Guid.Empty ? null : primaryFailureId);
+            if (replyFailureId.HasValue)
+                SupervisorRuntimeContext.MarkRecorded(replyFailure, replyFailureId.Value);
+            throw;
+        }
+        finally
+        {
+            ActorRuntimeMetrics.RecordStage(replyStarted, activeStage, ActorType.Command);
+        }
+    }
+
+    // Explicit interface implementations forwarding to protected hooks.
+    ValueTask ICommandActor<TActor>.OnStartup(ICommandActorContext<TActor> context) => OnStartup(context);
+    ValueTask ICommandActor<TActor>.OnShutdown(ICommandActorContext<TActor> context) => OnShutdown(context);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.ReceiveAsync(ICommandActorContext<TActor> context, IActorState state, ICommand command) => ReceiveAsync(context, state, command);
+    ValueTask ICommandActor<TActor>.OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command);
+    ValueTask<IActorState> ICommandActor<TActor>.OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(context, threadId, command);
+    ValueTask ICommandActor<TActor>.OnSaveStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(context, threadId, state, command);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.OnExceptionAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
+
+    ValueTask ICommandActor.OnStartup(ICommandActorContext context) => OnStartup(RequireTypedContext(context));
+    ValueTask ICommandActor.OnShutdown(ICommandActorContext context) => OnShutdown(RequireTypedContext(context));
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command) => ReceiveAsync(RequireTypedContext(context), state, command);
+    ValueTask ICommandActor.OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnValidateAsync(RequireTypedContext(context), threadId, command);
+    ValueTask<IActorState> ICommandActor.OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(RequireTypedContext(context), threadId, command);
+    ValueTask ICommandActor.OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(RequireTypedContext(context), threadId, state, command);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(RequireTypedContext(context), threadId, command, ex);
+
+    static ICommandActorContext<TActor> RequireTypedContext(ICommandActorContext context)
+        => context as ICommandActorContext<TActor>
+            ?? throw new ArgumentException(
+                $"The context must implement {typeof(ICommandActorContext<TActor>).Name}.",
+                nameof(context));
+
+    // Protected hooks for derived classes
+    protected abstract ICommand ParseMessage(ICommandActorContext<TActor> context, IActorMessage message);
+
+    /// <summary>
+    /// Returns routine ingress validation errors without using exceptions as control flow.
+    /// A null result retains the legacy throwing validation hook for actors not yet migrated.
+    /// </summary>
+    protected virtual IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) => null;
+
+    /// <summary>Defaults to audit suppression. An immutable aggregate may verify persisted
+    /// content and resume only when the reserved command has no committed outcome.</summary>
+    protected virtual ValueTask<bool> ShouldProcessDuplicateAsync(
+        ICommandActorContext<TActor> context, ICommand command, CancellationToken cancellationToken)
+        => ValueTask.FromResult(false);
+
+    /// <summary>Opt-in hook for stores that reserve the command audit in the same transaction as its events.</summary>
+    protected virtual bool AuditIsCommittedWithState(ICommand command) => false;
+
+    /// <summary>Recognizes an identical durable reservation discovered by atomic command/event persistence.</summary>
+    protected virtual bool IsCommittedDuplicateException(ICommand command, Exception exception) => false;
+
+    /// <summary>
+    /// Resolves a command parser from an actor-owned verb map and materializes the command.
+    /// </summary>
+    protected ICommand ParseMappedCommand(
+        ICommandActorContext<TActor> context,
+        IActorMessage message,
+        IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> parseMap)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(parseMap);
+
+        var subject = message.Subject;
+        if (subject.ActorType != ActorType.Command
+            || !string.Equals(subject.Name, Id.Name, StringComparison.Ordinal)
+            || !parseMap.TryGetValue(subject.Verb, out var parser))
+            throw new InvalidOperationException(
+                $"Unable to resolve {Id.Name} command from message: {subject}");
+
+        return parser(message)
+            ?? throw new InvalidOperationException(
+                $"Parser for {Id.Name}.{subject.Verb} returned no command.");
+    }
+
+    /// <summary>
+    /// Resolves a command receive handler by the command's exact concrete CLR type.
+    /// </summary>
+    protected THandler ResolveMappedCommandHandler<THandler>(
+        ICommand command,
+        IReadOnlyDictionary<Type, THandler> receiveMap)
+        where THandler : Delegate
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(receiveMap);
+
+        if (!receiveMap.TryGetValue(command.GetType(), out var handler))
+            throw new InvalidOperationException(
+                $"Unable to resolve {Id.Name} command from message: {command.Subject}");
+
+        return handler;
+    }
+
+    /// <summary>
+    /// Resolves exact-type command validation, aggregates every deterministic ingress error,
+    /// and throws one <see cref="CommandValidationException"/> when validation fails.
+    /// </summary>
+    protected void ValidateMappedCommand(
+        ICommand command,
+        IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> validationMap)
+        => MappedCommandValidation.Validate(Id.Name, command, validationMap);
+
+    /// <summary>Releases per-command resources on success, failure or cancellation. Existing actors require no action.</summary>
+    protected virtual ValueTask OnCommandFinishedAsync(ICommandActorContext<TActor> context, ICommand? command)
+        => ValueTask.CompletedTask;
+
+    protected virtual ValueTask OnStartup(ICommandActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(
+        ICommandActorContext<TActor> context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnStartup(context);
+    }
+    protected virtual ValueTask OnShutdown(ICommandActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TActor> context, IActorState state, ICommand command);
+    protected virtual ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+        ICommandActorContext<TActor> context,
+        IActorState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ReceiveAsync(context, state, command);
+    }
+    protected virtual ValueTask OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(
+        ICommandActorContext<TActor> context,
+        ActorThreadId threadId,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnValidateAsync(context, threadId, command);
+    }
+    protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command)
+    {
+        return ValueTask.FromResult<IActorState>(default!);
+    }
+
+    protected virtual ValueTask<IActorState> OnLoadStateAsync(
+        ICommandActorContext<TActor> context,
+        ActorThreadId threadId,
+        ICommand command,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return OnLoadStateAsync(context, threadId, command);
+    }
+
+    protected virtual ValueTask OnSaveStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, IActorState state, ICommand command)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    protected virtual ValueTask OnSaveStateAsync(
+        ICommandActorContext<TActor> context,
+        ActorThreadId threadId,
+        IActorState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+        => OnSaveStateAsync(context, threadId, state, command);
+
+    protected abstract ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex);
+
+    /// <summary>
+    /// Creates a failed command event instance populated with error details and context information from the specified
+    /// command and exception.
+    /// </summary>
+    /// <remarks>If <paramref name="command"/> is null, only the error details from <paramref name="ex"/> are
+    /// included in the event. Otherwise, the event is populated with additional command context such as entity ID,
+    /// command ID, and serialized command data. The returned event is created using the default constructor of
+    /// <typeparamref name="TFailedEvent"/>.</remarks>
+    /// <typeparam name="TFailedEvent">The type of error event to create. Must implement <see cref="IErrorEvent{TEntityId}"/> and have a parameterless
+    /// constructor.</typeparam>
+    /// <typeparam name="TEntityId">The type of the entity identifier associated with the command. Must implement <see cref="IActorEntityId"/>.</typeparam>
+    /// <param name="command">The command that failed. Provides context for the error event. Can be null if command context is unavailable.</param>
+    /// <param name="actor">The name or identifier of the actor responsible for the command.</param>
+    /// <param name="verb">The action verb describing the command operation (for example, "Create", "Update").</param>
+    /// <param name="ex">The exception that caused the command to fail. The exception's message and details are included in the error
+    /// event.</param>
+    /// <returns>An instance of <typeparamref name="TFailedEvent"/> containing error information and relevant command context.</returns>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031", Justification = "The failure-reporting boundary must handle unexpected serialization/publication exceptions while preserving the original failure.")]
+    protected TFailedEvent GetCommandFailedEvent<TFailedEvent, TEntityId>(ICommand<TEntityId> command, string actor, string verb, Exception ex)
+        where TEntityId : IActorEntityId
+        where TFailedEvent : IErrorEvent<TEntityId>, new()
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(ex);
+        string aggregateId = string.Empty;
+        try { aggregateId = command.StreamId; } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+        string commandData = string.Empty;
+        try { commandData = JsonConvert.SerializeObject(command, Formatting.Indented); } catch { /* Optional failure metadata/notification must not mask the original error. */  }
+
+        var e = new TFailedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, actor, verb, command.EntityId.Format()),
+            EntityId = command.EntityId,
+            CommandId = command.CommandId,
+            CommandName = command.GetType().Name,
+            ErrorType = ErrorType.Command,
+            ErrorMessage = ex.Message,
+            ErrorCode = command.ErrorCode,
+            ErrorData = $"{ex}",
+            AggregateId = aggregateId,
+            CommandData = commandData
+        };
+        return e;
+    }
+
+    /// <summary>
+    /// Creates a failed command result containing details about the specified exception.
+    /// </summary>
+    /// <remarks>The returned result includes a new command identifier and default entity identifier. Use this
+    /// method to standardize error reporting for failed commands.</remarks>
+    /// <param name="ex">The exception that caused the command to fail. The exception's message is included in the error details.</param>
+    /// <param name="cmd">Optional command that failed. If provided, its CommandId and ErrorCode will be included in the result.</param>
+    /// <returns>A <see cref="ServiceFailed{GuidResult}"/> instance representing the failed command, including error information
+    /// derived from the provided exception.</returns>
+    protected ServiceFailed<GuidResult> CommandFailed(Exception ex, ICommand? cmd = default!)
+        
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return new(new Events.CommandExceptionEvent
+        {
+            CommandId = cmd is null ? Guid.NewGuid() : cmd.CommandId,
+            EntityId = ActorEntityId.Default,
+            ErrorMessage = ex.Message,
+            ErrorType = ErrorType.Command,
+            ErrorCode = cmd?.ErrorCode ?? 0
+        });
+    }
+}

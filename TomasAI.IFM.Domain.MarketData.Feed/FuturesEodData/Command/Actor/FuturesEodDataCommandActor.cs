@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -6,7 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Validation;
-using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Application.CommandPipeline;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;

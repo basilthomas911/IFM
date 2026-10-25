@@ -24,6 +24,9 @@ pub struct FeedControl {
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SidebarPublication {
+    /// Worker-owned delivery receipt. The GUI marks it only after accepting this publication for rendering.
+    #[serde(skip)]
+    pub console_deliveries: Vec<std::sync::Arc<crate::services::status_console_history::ConsoleDelivery>>,
     /// API AsOfUtc converted to the display zone, for calendar decoration only.
     /// Missing data never falls back to the workstation's date.
     pub api_today: String,
@@ -95,7 +98,8 @@ pub struct SidebarView {
 impl SidebarPublication {
     /// Borrow the latest published status message, or None when status history is empty.
     pub fn latest_status(&self) -> Option<&str> {
-        self.status_rows.first().map(|row| row.message.as_str())
+        // Console replay and live events are merged in oldest-to-newest order.
+        self.status_rows.last().map(|row| row.message.as_str())
     }
 }
 impl SidebarView {
@@ -320,7 +324,8 @@ impl SidebarView {
         let selected_index = snapshot
             .status_rows
             .iter()
-            .position(|row| row.id == self.selected_status_id);
+            .position(|row| row.id == self.selected_status_id)
+            .map(|index| snapshot.status_rows.len() - 1 - index);
         let navigation = if ui.memory(|m| m.has_focus(focus_id)) {
             navigate(
                 ui,
@@ -332,7 +337,7 @@ impl SidebarView {
             None
         };
         if let Some(index) = navigation {
-            self.selected_status_id = snapshot.status_rows[index].id.clone();
+            self.selected_status_id = snapshot.status_rows[snapshot.status_rows.len() - 1 - index].id.clone();
         }
         crate::control_parity::grid_viewport(ui, status_border, |ui| {
             let body_height = (ui.available_height()
@@ -348,6 +353,8 @@ impl SidebarView {
                     let list_ctx = ui.ctx().clone();
                     let mut table = egui_extras::TableBuilder::new(ui)
                         .id_salt("status-console-list")
+                        // Newest rows are at the top. Default top anchoring follows arrivals
+                        // without forcing a reader who scrolled into history back to live.
                         .resizable(true)
                         .min_scrolled_height(body_height)
                         .max_scroll_height(body_height)
@@ -386,7 +393,8 @@ impl SidebarView {
                         .bordered_body(24.0, |body| {
                             body.rows(18.0, snapshot.status_rows.len(), |mut row| {
                                 self.drawn_status_rows += 1;
-                                let item = &snapshot.status_rows[row.index()];
+                                // Retain chronological storage for replay merging; reverse only the display.
+                                let item = &snapshot.status_rows[snapshot.status_rows.len() - 1 - row.index()];
                                 row.set_selected(item.id == self.selected_status_id);
                                 let mut clicked = false;
                                 row.col(|ui| {

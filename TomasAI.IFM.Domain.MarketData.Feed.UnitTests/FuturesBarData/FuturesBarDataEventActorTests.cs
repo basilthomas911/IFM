@@ -35,7 +35,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             : this(TypedActorContextFactory.Event(supervisor, futuresBarTimer, marketDataApi, statusConsoleWriter, logger)) { }
         TestableFuturesBarDataEventActor(IFuturesBarDataEventContext context) : base(context) => Context = context;
         public IEvent InvokeParseMessage(IEventActorContext<FuturesBarDataEventActor> context, NatsMsg<byte[]> message)
-            => ParseMessage(context, message);
+            => ParseMessage(context, new global::TomasAI.IFM.Framework.Messaging.NatsJetStream.NatsActorMessage(message));
 
         public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesBarDataEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Cassandra;
 using Npgsql;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
 namespace TomasAI.IFM.Framework.Storage.UnitTests;

@@ -6,6 +6,7 @@ using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 

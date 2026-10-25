@@ -1,13 +1,13 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 
 namespace TomasAI.IFM.Domain.Portfolio.Identity;
 
 /// <summary>Allocates operator-facing business identities from their PostgreSQL-backed named sequences.</summary>
-public sealed class PortfolioBusinessIdAllocator(ISequenceIdGenerator sequenceIdGenerator)
+public sealed class PortfolioBusinessIdAllocator(ISequenceIdApi sequenceIdGenerator)
     : IPortfolioBusinessIdAllocator
 {
-    readonly ISequenceIdGenerator _sequenceIdGenerator =
+    readonly ISequenceIdApi _sequenceIdGenerator =
         sequenceIdGenerator ?? throw new ArgumentNullException(nameof(sequenceIdGenerator));
 
     public async ValueTask<PortfolioId> AllocatePortfolioIdAsync(CancellationToken cancellationToken = default) =>

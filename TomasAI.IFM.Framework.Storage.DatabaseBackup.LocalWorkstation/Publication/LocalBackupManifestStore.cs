@@ -1,7 +1,7 @@
-using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+﻿using TomasAI.IFM.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
-using TomasAI.IFM.Application.DatabaseBackup.Policies;
+using TomasAI.IFM.Shared.DatabaseBackup.Policies;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Publication;
 

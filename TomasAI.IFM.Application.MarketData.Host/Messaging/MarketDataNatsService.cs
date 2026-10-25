@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using TomasAI.IFM.Shared.Diagnostics;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
@@ -30,7 +30,7 @@ public sealed class MarketDataNatsService(MarketDataWorkerHost host, MarketDataH
                 try
                 {
                     var request = message.Data ?? throw new InvalidDataException("Missing market-data request.");
-                    using var remote = TraceSource.StartActivity("marketdata.host.receive", ActivityKind.Server, ActorTrace.Extract(message.Headers));
+                    using var remote = TraceSource.StartActivity("marketdata.host.receive", ActivityKind.Server, global::TomasAI.IFM.Framework.Messaging.Nats.NatsActorTrace.Extract(message.Headers));
                     remote?.SetTag("rpc.method", request.Path);
                     remote?.SetTag("rpc.operation_id", request.OperationId);
                     using var requestTrace = request.Path.Contains("Option", StringComparison.Ordinal) || request.Path.Contains("TradeFeedRecovery", StringComparison.Ordinal)

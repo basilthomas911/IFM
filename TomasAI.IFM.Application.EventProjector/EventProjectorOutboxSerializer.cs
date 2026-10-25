@@ -24,8 +24,7 @@ static class EventProjectorOutboxSerializer
         var eventType = domainEvent.GetType();
         return new EventProjectorOutboxMessage(
             identity,
-            eventType.AssemblyQualifiedName
-                ?? throw new InvalidOperationException($"Unable to resolve the event type name for '{eventType.FullName}'."),
+            EventWriteIdentityRegistry.Default.GetIdentity(eventType).EventTypeName,
             MessagePackSerializer.Serialize(eventType, domainEvent, Options));
     }
 

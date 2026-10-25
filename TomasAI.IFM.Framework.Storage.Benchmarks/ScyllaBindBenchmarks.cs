@@ -1,6 +1,7 @@
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Framework.Storage.Benchmarks;
 

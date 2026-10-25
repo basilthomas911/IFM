@@ -81,12 +81,19 @@ pub(crate) fn run(
         let mut operations = tokio::task::JoinSet::new();
         let monitor_results=results.clone();
         operations.spawn(async move{while monitor_updates.changed().await.is_ok(){let publication=monitor_updates.borrow_and_update().clone();if monitor_results.send(Update::TradeMonitor(publication)).await.is_err(){break;}}});
-        let mut sidebar_updates = None;
+        let mut sidebar_updates:Option<tokio::sync::mpsc::Receiver<ifm_ui_egui::sidebar::SidebarPublication>> = None;
         let mut sidebar_actions:Option<tokio::sync::mpsc::Sender<u32>>=None;
         let mut strategy_actions:Option<tokio::sync::mpsc::Sender<u32>>=None;
         let mut tick = tokio::time::interval(Duration::from_millis(20));
         'running: loop {
-            tick.tick().await;
+            // Console arrivals wake dispatch immediately; the tick remains for unrelated UI work.
+            tokio::select! {
+                _=tick.tick()=>{},
+                publication=async{sidebar_updates.as_mut().unwrap().recv().await},if sidebar_updates.is_some()=>{
+                    if let Some(publication)=publication { pending.push(Update::Sidebar(publication)); }
+                    else { sidebar_updates=None; }
+                }
+            }
             if stopping.load(std::sync::atomic::Ordering::Acquire) { break; }
             if startup.as_ref().is_some_and(|task| task.is_finished()) {
                 if let Some(task) = startup.take() {

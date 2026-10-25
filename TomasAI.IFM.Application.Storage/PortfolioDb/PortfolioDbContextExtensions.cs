@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Financial;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.PortfolioDb;
 

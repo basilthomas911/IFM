@@ -6,13 +6,13 @@ using TomasAI.IFM.Application.Storage;
 using System.Text.Json;
 
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.SequenceId;
+using TomasAI.IFM.Application.Identity;
 
 
 namespace TomasAI.IFM.Domain.Reference.Repository;
 
 /// <summary>Small reference catalog: one CAS document atomically owns natural keys and operation receipts.</summary>
-public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISequenceIdGenerator ids) : ITradeStrategyFamilyCatalogStore
+public sealed class TradeStrategyFamilyCatalogStore(IDbContextFactory db, ISequenceIdApi ids) : ITradeStrategyFamilyCatalogStore
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034", Justification = "Nested SQL contract groups intentionally mirror storage domains and are already referenced by their public qualified names.")]
     public sealed record Entry(Guid OperationId, CreateTradeStrategyFamilyRequest? Request, TradeStrategyFamilyReadModel Definition,

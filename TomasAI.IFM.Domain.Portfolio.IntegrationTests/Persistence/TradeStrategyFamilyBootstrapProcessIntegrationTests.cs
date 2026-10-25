@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Persistence;
 

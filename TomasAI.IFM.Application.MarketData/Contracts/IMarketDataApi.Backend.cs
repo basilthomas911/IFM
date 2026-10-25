@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Pricing;
 namespace TomasAI.IFM.Application.MarketData.Contracts;
@@ -17,16 +17,16 @@ public partial interface IMarketDataApi
         => Task.FromException<Pricing.TreasuryPricingResult>(new NotSupportedException("Backend reference operation is not configured."));
 
     [MarketDataHostOperation]
-    Task<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot?> ReadTreasuryCurveAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)
-        => Task.FromException<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot?>(new NotSupportedException("Backend reference operation is not configured."));
+    Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot?> ReadTreasuryCurveAsync(DateOnly asOfDate, CancellationToken cancellationToken = default)
+        => Task.FromException<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot?>(new NotSupportedException("Backend reference operation is not configured."));
 
     [MarketDataHostOperation]
-    Task<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot[]> ReadTreasuryCurvesAsync(DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)
-        => Task.FromException<TomasAI.IFM.Framework.MarketData.Contracts.TreasuryCurveSnapshot[]>(new NotSupportedException("Backend reference operation is not configured."));
+    Task<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot[]> ReadTreasuryCurvesAsync(DateOnly fromInclusive, DateOnly toInclusive, CancellationToken cancellationToken = default)
+        => Task.FromException<TomasAI.IFM.Shared.MarketData.Contracts.TreasuryCurveSnapshot[]>(new NotSupportedException("Backend reference operation is not configured."));
 
     [MarketDataHostOperation]
-    Task<TomasAI.IFM.Framework.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(DateOnly fromInclusive, DateOnly toInclusive, string[]? countryCodes, CancellationToken cancellationToken = default)
-        => Task.FromException<TomasAI.IFM.Framework.MarketData.Contracts.EconomicCalendarEntry[]>(new NotSupportedException("Backend reference operation is not configured."));
+    Task<TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]> ReadEconomicCalendarAsync(DateOnly fromInclusive, DateOnly toInclusive, string[]? countryCodes, CancellationToken cancellationToken = default)
+        => Task.FromException<TomasAI.IFM.Shared.MarketData.Contracts.EconomicCalendarEntry[]>(new NotSupportedException("Backend reference operation is not configured."));
 
     [MarketDataHostOperation]
     Task<InstrumentDefinitionSnapshot> RefreshInstrumentDefinitionsAsync(CancellationToken cancellationToken = default)
@@ -50,11 +50,11 @@ public partial interface IMarketDataApi
     Task<WorkerOptionChainResult> ReleaseCompositionAsync(string dataset, WorkerOptionChainRelease request, CancellationToken cancellationToken = default)
         => Task.FromException<WorkerOptionChainResult>(new NotSupportedException("Backend composition release is not configured."));
     [MarketDataHostOperation]
-    Task<bool> AcquireMonitoredOptionAsync(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner owner,
+    Task<bool> AcquireMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner,
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel contract, DateOnly valueDate, CancellationToken cancellationToken = default)
         => Task.FromException<bool>(new NotSupportedException("Backend monitoring is not configured."));
     [MarketDataHostOperation]
-    Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner owner,
+    Task<bool> ReleaseMonitoredOptionAsync(TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner owner,
         string contractId, CancellationToken cancellationToken = default)
         => Task.FromException<bool>(new NotSupportedException("Backend monitoring is not configured."));
     [MarketDataHostOperation]

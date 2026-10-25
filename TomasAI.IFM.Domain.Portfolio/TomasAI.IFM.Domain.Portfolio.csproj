@@ -5,12 +5,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Portfolio.Shared\TomasAI.IFM.Domain.Portfolio.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Domain.Trade.Shared\TomasAI.IFM.Domain.Trade.Shared.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Portfolio\TomasAI.IFM.Application.Contracts.Portfolio.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Contracts.Trade\TomasAI.IFM.Application.Contracts.Trade.csproj" />
+    <ProjectReference Include="../TomasAI.IFM.Application.Identity/TomasAI.IFM.Application.Identity.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.Shared.Domain\TomasAI.IFM.Shared.Domain.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.CommandPipeline\TomasAI.IFM.Application.CommandPipeline.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Portfolio.IntegrationTests" />
@@ -19,4 +19,6 @@
     <InternalsVisibleTo Include="TomasAI.IFM.Application.Storage.Benchmarks" />
     <InternalsVisibleTo Include="TomasAI.IFM.Application.Api.Server.Core" />
   </ItemGroup>
-</Project>
+  <ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventModelActor/TomasAI.IFM.Application.EventModelActor.csproj" /><Using Include="TomasAI.IFM.Application.EventModelActor" /></ItemGroup>
+<ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.EventSourcing/TomasAI.IFM.Application.EventSourcing.csproj" /><Using Include="TomasAI.IFM.Application.EventSourcing" /></ItemGroup>
+<ItemGroup><Using Include="TomasAI.IFM.Shared.Identity" /></ItemGroup><ItemGroup><ProjectReference Include="../TomasAI.IFM.Application.Serialization/TomasAI.IFM.Application.Serialization.csproj" /></ItemGroup></Project>

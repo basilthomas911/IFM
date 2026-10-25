@@ -1,10 +1,10 @@
-
+﻿
 using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Framework.MarketData.Pricing;
+using TomasAI.IFM.Shared.MarketData.Pricing;
 
 namespace TomasAI.IFM.Application.MarketData.Host.OptionChains;
 

@@ -2,6 +2,7 @@ using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Pricing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.OptionVolatility;
 using TomasAI.IFM.Framework.Storage;
+using TomasAI.IFM.Shared.Storage;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 

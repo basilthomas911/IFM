@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 
@@ -85,7 +85,7 @@ internal sealed class ScyllaManagerProcessRunner(ScyllaBackupOptions options) : 
         }
         var output = await outputTask.ConfigureAwait(false);
         var error = await errorTask.ConfigureAwait(false);
-        TomasAI.IFM.Application.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Operation} stdout:\n{(output.Length > MaximumCapturedCharacters ? output[..MaximumCapturedCharacters] + "\n[diagnostic preview truncated; full manifest retained for parsing]" : output)}\nstderr:\n{error}\nExitCode={process.ExitCode}");
+        TomasAI.IFM.Shared.DatabaseBackup.Contracts.DatabaseRecoveryOutputScope.Append($"{invocation.Operation} stdout:\n{(output.Length > MaximumCapturedCharacters ? output[..MaximumCapturedCharacters] + "\n[diagnostic preview truncated; full manifest retained for parsing]" : output)}\nstderr:\n{error}\nExitCode={process.ExitCode}");
         if (process.ExitCode != 0)
             throw new ScyllaManagerOperationException(invocation.Operation, process.ExitCode);
         return new ScyllaManagerProcessResult(output, error, Stopwatch.GetElapsedTime(started));

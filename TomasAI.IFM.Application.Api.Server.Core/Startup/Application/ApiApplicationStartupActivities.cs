@@ -269,10 +269,12 @@ public sealed class ApiApplicationStartupActivities(
             return ApplicationStartupActivityOutcome.ScheduledStopped;
 
         await InitializeAsync(context.ValueDate, cancellationToken).ConfigureAwait(false);
+        await WaitForInitializedIndicatorsAsync(RequiredEsContract(context.ValueDate).ContractId,
+            context.ValueDate, cancellationToken).ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
     }
 
-    /// <summary>Initializes each trading date once and confirms projected indicator values before feed-start completion.</summary>
+    /// <summary>Attaches and seeds each trading date once. Feed startup must not wait for observations that the feed itself supplies.</summary>
     public async Task InitializeAsync(DateOnly valueDate, CancellationToken cancellationToken)
     {
         await sessionAnalyticsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -287,9 +289,8 @@ public sealed class ApiApplicationStartupActivities(
                 await CaptureCurrentContractsAsync(valueDate, deadline.Token).ConfigureAwait(false);
             await InitializeSessionIndicatorsAsync(valueDate, deadline.Token).ConfigureAwait(false);
             var contractId = RequiredEsContract(valueDate).ContractId;
-            await WaitForInitializedIndicatorsAsync(contractId, valueDate, deadline.Token).ConfigureAwait(false);
             initializedAnalyticsDate = valueDate;
-            logger.LogInformation("Session indicators initialized; MethodName={MethodName} ValueDate={ValueDate} ContractId={ContractId} Indicators={Indicators}",
+            logger.LogInformation("Session indicator processors attached and seed submitted; operational readiness is checked separately. MethodName={MethodName} ValueDate={ValueDate} ContractId={ContractId} Indicators={Indicators}",
                 nameof(InitializeAsync), valueDate, contractId, "ADX,ATR,MACD,RSI,TDI");
         }
         finally { sessionAnalyticsGate.Release(); }
@@ -316,7 +317,7 @@ public sealed class ApiApplicationStartupActivities(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception,                    "{Component}.{Method} "+"Four-hour Databento Live seed failed for {ContractId}; indicators will use retained or live observations.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                    es.ContractId);
+                logger.LogWarning(exception,                    "{Component}.{Method} "+"Four-hour Databento Historical/Live seed acquisition failed for {ContractId}; indicators will use retained or live observations. Ingestion startup does not wait for indicator readiness.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                    es.ContractId);
             }
         }
         await Task.WhenAll(activations.SelectMany(activation => new[]
@@ -354,7 +355,7 @@ public sealed class ApiApplicationStartupActivities(
                 .ConfigureAwait(false);
         else
             logger.LogInformation(
-                "{Component}.{Method} "+"Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento replay bars for {ContractId}.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                liveSeedBars.Length,es.ContractId);
+                "{Component}.{Method} "+"Submitted five-minute RSI and TDI window plus ADX, ATR, and MACD initialization from {BarCount} Databento Historical/Live bars for {ContractId}.",nameof(ApiApplicationStartupActivities),nameof(StartRealtimeAnalyticsAsync),                liveSeedBars.Length,es.ContractId);
     }
 
     async Task<ServiceResult<Guid>> StartSeededFiveMinuteAdxAsync(

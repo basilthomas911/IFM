@@ -1,7 +1,8 @@
+using TomasAI.IFM.Shared.MarketData.Definitions;
 using NSubstitute;
 using System.Collections.Immutable;
 using TomasAI.IFM.Application.MarketData.Pricing;
-using TomasAI.IFM.Framework.MarketData.Contracts.Pricing;
+using TomasAI.IFM.Shared.MarketData.Contracts.Pricing;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using static TomasAI.IFM.Application.MarketData.UnitTests.OrderCompositionPricingPrerequisiteTests;
 
@@ -151,7 +152,7 @@ public sealed class OrderCompositionDiscoveryTests
         var request = Request(contract);
         admissions.Admit(new("GLBX.MDP3", request.ValueDate, Guid.NewGuid(), Generation, 1));
         await using var recovery = new RecoveringOptionLeaseRegistry(discovery, admissions);
-        var owner = new TomasAI.IFM.Framework.MarketData.Contracts.Ticker.TickerStreamOwner("OptionActor", "trade", contract.ContractId);
+        var owner = new TomasAI.IFM.Shared.MarketData.Contracts.Ticker.TickerStreamOwner("OptionActor", "trade", contract.ContractId);
         await recovery.AcquireAsync(owner, contract.ContractId, request);
         var replacement = Guid.NewGuid();
         admissions.Admit(new("GLBX.MDP3", request.ValueDate, Guid.NewGuid(), replacement, 1));

@@ -35,13 +35,13 @@ internal static class FinancialProcessHost
             var fixture = new PortfolioEventStoreFixture(false);
             var context = Substitute.For<ICommandActorContext<GeneralLedgerCommandActor>>();
             context.ActorId.Returns(new ActorMailboxId(ActorType.Command, GeneralLedgerCommandActor.ActorName));
-            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Domain.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
+            var container = Substitute.For<IContainerInstance>(); context.Container.Returns(container); container.Resolve<ICommandAuditLogger>().Returns(new TomasAI.IFM.Application.EventSourcing.Command.CommandAuditCoordinator(fixture.EventSourceDb));
             var supervisor = Substitute.For<IActorSupervisor>(); supervisor.CreateMailbox(context.ActorId).Returns(Substitute.For<IActorMailbox>());
             supervisor.GetProducer(context.ActorId).Returns(Substitute.For<IActorProducer>());
             var sequences = Substitute.For<ISequenceIdGenerator>(); sequences.GetSequenceIdAsync(Arg.Any<SequenceName>(), Arg.Any<CancellationToken>())
                 .Returns(_ => ValueTask.FromResult(Random.Shared.NextInt64(100000, long.MaxValue)));
             ledger = new GeneralLedgerCommandActor(context, new(new GeneralLedgerStore(Transactions()), new PortfolioDbReadTestContext(new PortfolioFinancialStore(Transactions())),
-                new(sequences), Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(), NullLogger<GeneralLedgerCommandActor>.Instance), NullLogger<GeneralLedgerCommandActor>.Instance);
+                new(new global::TomasAI.IFM.Application.Identity.SequenceIdApi(sequences)), Substitute.For<IEventProjector<GeneralLedgerCommandActor>>(), NullLogger<GeneralLedgerCommandActor>.Instance), NullLogger<GeneralLedgerCommandActor>.Instance);
             await ledger.StartAsync(supervisor, deadline.Token);
         }
         await connection.Connection.PingAsync(deadline.Token);
